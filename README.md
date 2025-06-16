@@ -3,8 +3,6 @@
 **Nocter** is a simple and lightweight **object-oriented interpreted language**.
 It features a JavaScript-inspired syntax that is flexible, approachable, and easy to learn.
 
----
-
 ## Features
 
 ### Familiar and Intuitive Syntax
@@ -31,8 +29,6 @@ Nocter includes a number of original, practical features to enhance expressivene
 - Local import and class definitions, usable outside the global scope
 - Clear and concise try expressions for error handling
 
----
-
 ## Build & Run
 
 In the project root, build the interpreter with:
@@ -46,8 +42,6 @@ To run a script:
 ```sh
 nocter example.nct
 ```
-
----
 
 ## Roadmap
 
