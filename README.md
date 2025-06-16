@@ -1,24 +1,18 @@
-# Nocter
+<p align="center">
+  <img src="https://rvo.jp/nocter/icon.svg" alt="Nocter Logo" width="120" height="120">
+</p>
 
-**Nocter** is a simple and lightweight **object-oriented interpreted language**.
-It features a JavaScript-inspired syntax that is flexible, approachable, and easy to learn.
+<h1 align="center">Nocter</h1>
+
+<p align="center"><strong>Nocter</strong> is a simple and lightweight <strong>object-oriented interpreted language</strong> with JavaScript-inspired syntax and modern error handling.</p>
 
 ## Features
 
-### Familiar and Intuitive Syntax
-
-Strongly influenced by JavaScript, Nocter offers a flexible and expressive syntax that feels natural to developers familiar with modern scripting languages.
-
-### Safer by Design
-
-- Accessing undefined variables or missing properties results in a clear error rather than a silent undefined.
-- Out-of-bounds array access and null dereferencing also produce errors, helping catch bugs early.
-
-### Minimal and Sensible Type Coercion
-
-While Nocter enforces strict type checking by default, it allows limited type coercion where it makes sense:
-
-- The + operator, for example, supports both numeric addition and string concatenation without explicit casting—only where ambiguity is unlikely.
+| Feature                           | Description |
+|-----------------------------------|-------------|
+| **Familiar, JavaScript-like Syntax** | Intuitive and expressive—ideal for developers familiar with modern scripting languages. |
+| **Safe by Design**                 | Accessing undefined variables or properties produces clear runtime errors. Out-of-bounds array or string access is also treated as an error. |
+| **Minimal and Sensible Type Coercion** | While Nocter enforces strict type checking by default, it allows limited type coercion where it makes sense. The `+` operator, for example, supports both numeric addition and string concatenation without explicit casting. |
 
 ### Flexible and Expressive Language Constructs
 
