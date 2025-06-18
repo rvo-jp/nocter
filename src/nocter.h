@@ -51,6 +51,7 @@ typedef struct ast ast;
 typedef struct idast idast;
 typedef value *(native_fn)(value *, value *);
 typedef struct dbexpr dbexpr;
+typedef struct trexpr trexpr;
 
 typedef union chp {
     void *ptr;
@@ -60,6 +61,7 @@ typedef union chp {
     func *funcp;
     native_fn *native;
     dbexpr *dbp;
+    trexpr *trp;
 } chp;
 
 typedef struct ast {
@@ -76,6 +78,12 @@ typedef struct dbexpr {
     ast rexpr;
 } dbexpr;
 
+typedef struct trexpr {
+    ast cexpr;
+    ast lexpr;
+    ast rexpr;
+} trexpr;
+
 typedef struct idast {
     union {
         size_t len;
@@ -83,6 +91,16 @@ typedef struct idast {
     };
     ast expr;
 } idast;
+
+typedef struct fnarg {
+    union {
+        size_t len;
+        char *id;
+    };
+    ast *typed;
+    ast *assigned;
+    bool is_spread;
+} fnarg;
 
 typedef struct func {
     ast *arg;

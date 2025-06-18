@@ -837,6 +837,7 @@ value *expr_assign(chp ch, value *tmp, value *this) {
 static string INT_NAME = (string){.ptr = "an integer", .len = 10};
 static string FLOAT_NAME = (string){.ptr = "a float", .len = 7};
 static string STRING_NAME = (string){.ptr = "a string", .len = 8};
+static string BOOL_NAME = (string){.ptr = "a boolean", .len = 9};
 static string ARRAY_NAME = (string){.ptr = "an array", .len = 8};
 static string FUNCTION_NAME = (string){.ptr = "a function", .len = 10};
 static string CUSTOM_NAME = (string){.ptr = "a custom object", .len = 15};
@@ -985,7 +986,7 @@ value *expr_spread(chp ch, value *tmp, value *this) {
     }
 
     char msg[NOCTER_LINE_MAX], *p = msg;
-    memcpy(p, "Cannot spread '", 15), p += 15;
+    memcpy(p, "cannot spread '", 15), p += 15;
     p += ast_to_charp(*ch.astp, p);
     memcpy(p, "' in expression; not an array or string", 39), p += 39;
     *p = 0;
@@ -1057,4 +1058,29 @@ statement stat_return(chp ch, value *tmp, value *this) {
     };
 }
 
+statement stat_if(chp ch, value *tmp, value *this) {
+    value *ptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, tmp, this);
 
+    if (ptr->type == &BOOL_OBJ) {
+        if (ptr->bit) {
+            statement res = ch.dbp->rexpr.stat_cmd(ch.dbp->rexpr.chld, tmp, this);
+            if (res.type == RETURN || res.type == BREAK) return res;
+        }
+        return (statement){ .type = VOID };
+    }
+
+    if (ptr->type == &ERROR_OBJ) return (statement){
+        .type = RETURN,
+        .valp = ptr
+    };
+
+    char msg[NOCTER_LINE_MAX], *p = msg;
+    memcpy(p, "expected boolean condition in 'if', but got ", 44), p += 44;
+    string name = get_name(ptr->type);
+    memcpy(p, name.ptr, name.len), p += name.len;
+    *p = 0;
+    return (statement){
+        .type = RETURN,
+        .valp = new_error(msg, p - msg, tmp)
+    };
+}

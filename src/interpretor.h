@@ -61,5 +61,7 @@ statement stat_block(chp ch, value *tmp, value *this);
 statement stat_let(chp ch, value *tmp, value *this); 
 // return expr;
 statement stat_return(chp ch, value *tmp, value *this);
+// if expr state
+statement stat_if(chp ch, value *tmp, value *this);
 
 #endif

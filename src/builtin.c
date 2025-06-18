@@ -87,6 +87,17 @@ void builtin(statlist *stat) {
         { .id = "length", .val = newfunc((ast[]){LEN(0)}, NATIVE(string_length)) }
     }, 1);
 
+    add_stat(stat, LET("File", VALUE(((value){
+        .type = &OBJECT_OBJ,
+        .objp = &FILE_OBJ
+    }))));
+    FILE_OBJ = newobj((variable[]){
+        { .id = "open", .val = newfunc((ast[]){LEN(2), ID("path"), ID("mode")}, NATIVE(file_open)) },
+        { .id = "close", .val = newfunc((ast[]){LEN(0)}, NATIVE(file_close)) },
+        { .id = "read", .val = newfunc((ast[]){LEN(0)}, NATIVE(file_read)) },
+        { .id = "write", .val = newfunc((ast[]){LEN(1), ID("text")}, NATIVE(file_write)) }
+    }, 4);
+
     add_stat(stat, LET("IO", VALUE(((value){
         .type = &OBJECT_OBJ,
         .objp = objdup(newobj((variable[]){
@@ -106,22 +117,6 @@ bool register_lib(char *id, statlist *stat, implist *imp) {
                     { .id = "now", .val = newfunc((ast[]){ LEN(0) }, NATIVE(time_now)) },
                     { .id = "sleep", .val = newfunc((ast[]){ LEN(1), ID("ms") }, NATIVE(time_sleep)) }
                 }, 2))
-            }))));
-        }
-        return true;
-    }
-
-    if (id[0] == 'f' && id[1] == 'i' && id[2] == 'l' && id[3] == 'e' && id[4] == '.' && id[5] == 'n' && id[6] == 'c' && id[7] == 't' && id[8] == 0) {
-        if (add_imp(id, imp)) {
-            FILE_OBJ = newobj((variable[]){
-                { .id = "open", .val = newfunc((ast[]){LEN(2), ID("path"), ID("mode")}, NATIVE(file_open)) },
-                { .id = "close", .val = newfunc((ast[]){LEN(0)}, NATIVE(file_close)) },
-                { .id = "read", .val = newfunc((ast[]){LEN(0)}, NATIVE(file_read)) },
-                { .id = "write", .val = newfunc((ast[]){LEN(1), ID("text")}, NATIVE(file_write)) }
-            }, 4);
-            add_stat(stat, LET("File", VALUE(((value){
-                .type = &OBJECT_OBJ,
-                .objp = &FILE_OBJ
             }))));
         }
         return true;

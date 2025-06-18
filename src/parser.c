@@ -172,7 +172,6 @@ static char *identifier(script *code) {
     while (IS_ID(*code->p) || IS_INT(*code->p));
     *p ++ = '\0';
     trim(code);
-    
 
     return allocpy(id, sizeof(char) * (p - id));
 }
@@ -210,8 +209,7 @@ static void bracketsend(script *code, char end) {
 static ast *block(script *code, bool ret, bool loop, implist *imp);
 
 
-// 関数
-// (が来たら)まで先取りして->か=>がないか探す
+// fn
 static void skip(script *code) {
     code->p ++;
     while (*code->p && *code->p != ')') {
@@ -283,6 +281,7 @@ static ast parse_func(script *code) {
     };
 }
 
+// a(1, 2, 3)  [1, 2, 3]
 static ast *parse_args(script *code, char end, char *errmsg) {
     script start = *code;
     code->p ++, trim(code);
@@ -786,7 +785,7 @@ bool add_imp(char *fullpath, implist *imp) {
     return true;
 }
 
-static void parse_stat(script *code, bool ret, bool loop, bool single, statlist *stat, implist *imp);
+static void parse_stat(script *code, bool ret, bool loop, statlist *stat, implist *imp);
 
 static void parse_file(char *fullpath, bool ret, bool loop, statlist *stat, implist *imp) {
     if (add_imp(fullpath, imp)) {
@@ -808,23 +807,85 @@ static void parse_file(char *fullpath, bool ret, bool loop, statlist *stat, impl
         fclose(fp);
 
         trim(&code);
-        while (*code.p != 0) parse_stat(&code, ret, loop, 0, stat, imp);
+        while (*code.p != 0) parse_stat(&code, ret, loop, stat, imp);
         
         free(code.hd);
     }
 }
 
-// let a;
-static void parse_stat(script *code, bool ret, bool loop, bool single, statlist *stat, implist *imp) {
+// {}  if a b;  else a;  return;
+static ast parse_single_stat(script *code, bool ret, bool loop, implist *imp) {
     if (*code->p == '{') {
         code->p ++, trim(code);
-        add_stat(stat, (ast){
+        return (ast){
             .stat_cmd = stat_block,
             .chld.astp = block(code, ret, loop, imp)
-        });
+        };
     }
-    else if (IS_LET(code->p)) {
-        if (single) syntax_err("'let' must be inside a block", code, code->p + 2);
+
+    if (IS_RETURN(code->p)) {
+        if (!ret) syntax_err("'return' is only allowed in an evaluated block", code, code->p + 5);
+        code->p += 6, trim(code);
+
+        ast res = (ast){
+            .stat_cmd = stat_return,
+            .chld.astp = astdup((*code->p == ';' || IS_ANY_STAT(code->p) || IS_ANY_PREP(code->p)) ? (ast){
+                .expr_cmd = expr_val,
+                .chld.valp = &VOID_VALUE
+            } : parse_comma(code))
+        };
+        linebreak(code);
+        return res;
+    }
+
+    if (IS_IF(code->p)) {
+        code->p += 2, trim(code);
+        ast cond = parse_comma(code);
+        ast expr = parse_single_stat(code, ret, loop, imp);
+        
+        if (IS_ELSE(code->p)) {
+            code->p += 4, trim(code);
+            return (ast){
+                .stat_cmd = stat_expr,
+                .chld.dbp = trexprdup((trexpr){
+                    .cexpr = cond,
+                    .lexpr = expr,
+                    .rexpr = parse_single_stat(code, ret, loop, imp)
+                })
+            };
+        }
+        else return (ast){
+            .stat_cmd = stat_if,
+            .chld.dbp = dbexprdup((dbexpr){
+                .lexpr = cond,
+                .rexpr = expr
+            })
+        };
+    }
+
+    if (IS_ELSE(code->p)) {
+        syntax_err("'else' without a matching 'if'", code, code->p + 3);
+    }
+
+    if (IS_LET(code->p)) {
+        syntax_err("'let' must be inside a block", code, code->p + 2);
+    }
+
+    if (IS_IMPORT(code->p)) {
+        syntax_err("'import' must be inside a block", code, code->p + 5);
+    }
+
+    ast res = parse_comma(code);
+    linebreak(code);
+    return (ast){
+        .stat_cmd = stat_expr,
+        .chld.astp = astdup(res)
+    };
+}
+
+// let a;  import a.nct;  +other
+static void parse_stat(script *code, bool ret, bool loop, statlist *stat, implist *imp) {
+    if (IS_LET(code->p)) {
         code->p += 3, trim(code);
 
         for (;;) {
@@ -839,34 +900,10 @@ static void parse_stat(script *code, bool ret, bool loop, bool single, statlist 
             else break;
         }
         linebreak(code);
+        return;
     }
-    else if (IS_RETURN(code->p)) {
-        if (!ret) syntax_err("'return' is only allowed in an evaluated block", code, code->p + 5);
-        code->p += 6, trim(code);
 
-        add_stat(stat, (ast){
-            .stat_cmd = stat_return,
-            .chld.astp = astdup((*code->p == ';' || IS_ANY_STAT(code->p) || IS_ANY_PREP(code->p)) ? (ast){
-                .expr_cmd = expr_val,
-                .chld.valp = &VOID_VALUE
-            } : parse_comma(code))
-        });
-        linebreak(code);
-    }
-    // else if (IS_IF(code->p)) {
-    //     code->p += 2, trim(code);
-    // //     ast mem[5], *p = mem;
-    // //     *p ++ = parse_comma(c);
-    // //     parse_stat(&p, c, ret, loop);
-    // //     if (IS_ELSE(*c)) {
-    // //         (*c) += 4, trim(c);
-    // //         parse_stat(&p, c, ret, loop);
-    // //     }
-    // //     *p ++ = (ast){END};
-    // //     *(*li) ++ = (ast){IF, allocpy(mem, sizeof(ast) * (p - mem))};
-    // }
-    else if (IS_IMPORT(code->p)) {
-        if (single) syntax_err("'import' must be inside a block", code, code->p + 5);
+    if (IS_IMPORT(code->p)) {
         if (imp == NULL) syntax_err("'import' is only allowed in a statement block", code, code->p + 5);
         code->p += 6, trim(code);
         script start = *code;
@@ -898,17 +935,10 @@ static void parse_stat(script *code, bool ret, bool loop, bool single, statlist 
 
         trim(code);
         linebreak(code);
+        return;
     }
-    else if (IS_ELSE(code->p)) {
-        syntax_err("'else' without a matching 'if'", code, code->p + 3);
-    }
-    else {
-        add_stat(stat, (ast){
-            .stat_cmd = stat_expr,
-            .chld.astp = astdup(parse_comma(code))
-        });
-        linebreak(code);
-    }
+
+    add_stat(stat, parse_single_stat(code, ret, loop, imp));
 }
 
 // {}
@@ -923,7 +953,7 @@ static ast *block(script *code, bool ret, bool loop, implist *imp) {
 
     while (*code->p != '}') {
         if (*code->p == '\0') syntax_err("Unexpected end of input; missing '}'?", code, code->p);
-        parse_stat(code, ret, loop, 0, &stat, imp);
+        parse_stat(code, ret, loop, &stat, imp);
     }
     code->p ++, trim(code);
 

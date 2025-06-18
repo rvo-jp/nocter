@@ -55,6 +55,12 @@ static inline dbexpr *dbexprdup(const dbexpr db) {
     return mem;
 }
 
+static inline trexpr *trexprdup(const trexpr tr) {
+    trexpr *mem = alloc(sizeof(trexpr));
+    *mem = tr;
+    return mem;
+}
+
 static inline value *valuedup(const value val) {
     value *mem = alloc(sizeof(value));
     *mem = val;

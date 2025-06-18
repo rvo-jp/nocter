@@ -18,7 +18,7 @@ size_t VAR_SIZE;
 static void nocter() {
     ast *p = parse(*ARGS);
     if (CHECK) {
-        puts("check: No syntax errors detected");
+        puts("check: no syntax errors detected");
         return;
     }
 
