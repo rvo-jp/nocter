@@ -1058,22 +1058,11 @@ statement stat_return(chp ch, value *tmp, value *this) {
     };
 }
 
-statement stat_if(chp ch, value *tmp, value *this) {
-    value *ptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, tmp, this);
-
-    if (ptr->type == &BOOL_OBJ) {
-        if (ptr->bit) {
-            statement res = ch.dbp->rexpr.stat_cmd(ch.dbp->rexpr.chld, tmp, this);
-            if (res.type == RETURN || res.type == BREAK) return res;
-        }
-        return (statement){ .type = VOID };
-    }
-
+static inline statement err_if(value *ptr, value *tmp) {
     if (ptr->type == &ERROR_OBJ) return (statement){
         .type = RETURN,
         .valp = ptr
     };
-
     char msg[NOCTER_LINE_MAX], *p = msg;
     memcpy(p, "expected boolean condition in 'if', but got ", 44), p += 44;
     string name = get_name(ptr->type);
@@ -1083,4 +1072,26 @@ statement stat_if(chp ch, value *tmp, value *this) {
         .type = RETURN,
         .valp = new_error(msg, p - msg, tmp)
     };
+}
+
+statement stat_if(chp ch, value *tmp, value *this) {
+    value *ptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, tmp, this);
+
+    if (ptr->type == &BOOL_OBJ) {
+        return ptr->bit ? ch.dbp->rexpr.stat_cmd(ch.dbp->rexpr.chld, tmp, this)
+        : (statement){ .type = VOID };
+    }
+
+    return err_if(ptr, tmp);
+}
+
+statement stat_if_else(chp ch, value *tmp, value *this) {
+    value *ptr = ch.trp->cexpr.expr_cmd(ch.trp->cexpr.chld, tmp, this);
+
+    if (ptr->type == &BOOL_OBJ) {
+        return ptr->bit ? ch.trp->lexpr.stat_cmd(ch.trp->lexpr.chld, tmp, this)
+        : ch.trp->rexpr.stat_cmd(ch.trp->rexpr.chld, tmp, this);
+    }
+    
+    return err_if(ptr, tmp);
 }
