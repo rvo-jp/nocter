@@ -1058,13 +1058,14 @@ statement stat_return(chp ch, value *tmp, value *this) {
     };
 }
 
-static inline statement err_if(value *ptr, value *tmp) {
+static inline statement err_if(value *ptr, value *tmp, bool iw) {
     if (ptr->type == &ERROR_OBJ) return (statement){
         .type = RETURN,
         .valp = ptr
     };
     char msg[NOCTER_LINE_MAX], *p = msg;
-    memcpy(p, "expected boolean condition in 'if', but got ", 44), p += 44;
+    if (iw) memcpy(p, "expected boolean condition in 'if', but got ", 44), p += 44;
+    else memcpy(p, "expected boolean condition in 'while', but got ", 47), p += 47;
     string name = get_name(ptr->type);
     free_val(ptr);
     memcpy(p, name.ptr, name.len), p += name.len;
@@ -1078,23 +1079,17 @@ static inline statement err_if(value *ptr, value *tmp) {
 statement stat_if(chp ch, value *tmp, value *this) {
     value *ptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, tmp, this);
 
-    if (ptr->type == &BOOL_OBJ) {
-        return ptr->bit ? ch.dbp->rexpr.stat_cmd(ch.dbp->rexpr.chld, tmp, this)
-        : (statement){ .type = VOID };
-    }
-
-    return err_if(ptr, tmp);
+    if (ptr->type != &BOOL_OBJ) return err_if(ptr, tmp, true);
+    return ptr->bit ? ch.dbp->rexpr.stat_cmd(ch.dbp->rexpr.chld, tmp, this)
+    : (statement){ .type = VOID };
 }
 
 statement stat_if_else(chp ch, value *tmp, value *this) {
     value *ptr = ch.trp->cexpr.expr_cmd(ch.trp->cexpr.chld, tmp, this);
 
-    if (ptr->type == &BOOL_OBJ) {
-        return ptr->bit ? ch.trp->lexpr.stat_cmd(ch.trp->lexpr.chld, tmp, this)
-        : ch.trp->rexpr.stat_cmd(ch.trp->rexpr.chld, tmp, this);
-    }
-    
-    return err_if(ptr, tmp);
+    if (ptr->type != &BOOL_OBJ) return err_if(ptr, tmp, true);
+    return ptr->bit ? ch.trp->lexpr.stat_cmd(ch.trp->lexpr.chld, tmp, this)
+    : ch.trp->rexpr.stat_cmd(ch.trp->rexpr.chld, tmp, this);
 }
 
 statement stat_while(chp ch, value *tmp, value *this) {
@@ -1102,13 +1097,13 @@ statement stat_while(chp ch, value *tmp, value *this) {
 
     while (1) {
         ptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, tmp, this);
-        if (ptr->type == &BOOL_OBJ) {
-            if (ptr->bit) {
-                statement res = ch.dbp->rexpr.stat_cmd(ch.dbp->rexpr.chld, tmp, this);
-                if (res.type == RETURN || res.type == BREAK) return res;
-            }
-            else return (statement){ .type = VOID };
+        if (ptr->type != &BOOL_OBJ) return err_if(ptr, tmp, false);
+        if (ptr->bit) {
+            statement res = ch.dbp->rexpr.stat_cmd(ch.dbp->rexpr.chld, tmp, this);
+            if (res.type == RETURN || res.type == BREAK) return res;
         }
-        else return err_if(ptr, tmp);
+        else break;
     }
+
+    return (statement){ .type = VOID };
 }

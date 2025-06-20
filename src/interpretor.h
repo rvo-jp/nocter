@@ -65,5 +65,7 @@ statement stat_return(chp ch, value *tmp, value *this);
 statement stat_if(chp ch, value *tmp, value *this);
 // if expr state else state
 statement stat_if_else(chp ch, value *tmp, value *this);
+// while expr state
+statement stat_while(chp ch, value *tmp, value *this);
 
 #endif
