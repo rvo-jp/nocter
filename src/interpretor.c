@@ -1066,6 +1066,7 @@ static inline statement err_if(value *ptr, value *tmp) {
     char msg[NOCTER_LINE_MAX], *p = msg;
     memcpy(p, "expected boolean condition in 'if', but got ", 44), p += 44;
     string name = get_name(ptr->type);
+    free_val(ptr);
     memcpy(p, name.ptr, name.len), p += name.len;
     *p = 0;
     return (statement){
@@ -1094,4 +1095,20 @@ statement stat_if_else(chp ch, value *tmp, value *this) {
     }
     
     return err_if(ptr, tmp);
+}
+
+statement stat_while(chp ch, value *tmp, value *this) {
+    value *ptr;
+
+    while (1) {
+        ptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, tmp, this);
+        if (ptr->type == &BOOL_OBJ) {
+            if (ptr->bit) {
+                statement res = ch.dbp->rexpr.stat_cmd(ch.dbp->rexpr.chld, tmp, this);
+                if (res.type == RETURN || res.type == BREAK) return res;
+            }
+            else return (statement){ .type = VOID };
+        }
+        else return err_if(ptr, tmp);
+    }
 }
