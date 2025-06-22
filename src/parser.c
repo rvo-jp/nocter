@@ -677,6 +677,16 @@ static ast parse_1(script *code) {
                 })
             };
         }
+        if (*code->p == '-') {
+            code->p ++, trim(code);
+            res = (ast){
+                .expr_cmd = expr_subtract,
+                .chld.dbp = dbexprdup((dbexpr){
+                    .lexpr = res,
+                    .rexpr = parse_assign(code)
+                })
+            };
+        }
         else break;
     }
 
@@ -859,6 +869,17 @@ static ast parse_single_stat(script *code, bool ret, bool loop, implist *imp) {
             .chld.dbp = dbexprdup((dbexpr){
                 .lexpr = cond,
                 .rexpr = expr
+            })
+        };
+    }
+
+    if (IS_WHILE(code->p)) {
+        code->p += 5, trim(code);
+        return (ast){
+            .stat_cmd = stat_while,
+            .chld.dbp = dbexprdup((dbexpr){
+                .lexpr = parse_comma(code),
+                .rexpr = parse_single_stat(code, ret, loop, imp)
             })
         };
     }

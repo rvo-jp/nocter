@@ -39,6 +39,8 @@ value *expr_access_ptr(chp ch, value *tmp, value *this);
 
 // expr + expr
 value *expr_add(chp ch, value *tmp, value *this);
+// expr - expr
+value *expr_subtract(chp ch, value *tmp, value *this);
 
 
 // ... expr

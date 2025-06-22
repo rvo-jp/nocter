@@ -833,29 +833,50 @@ value *expr_assign(chp ch, value *tmp, value *this) {
 /**
  * tmp operate
  */
+static string VOID_NAME = (string){.ptr = "void", .len = 4};
+static string NULL_NAME = (string){.ptr = "null", .len = 4};
+static string INT_NAME = (string){.ptr = "integer", .len = 9};
+static string FLOAT_NAME = (string){.ptr = "float", .len = 5};
+static string STRING_NAME = (string){.ptr = "string", .len = 6};
+static string BOOL_NAME = (string){.ptr = "boolean", .len = 7};
+static string ARRAY_NAME = (string){.ptr = "array", .len = 5};
+static string FUNCTION_NAME = (string){.ptr = "function", .len = 8};
+static string CUSTOM_NAME = (string){.ptr = "user-defined", .len = 12};
+static string OBJECT_NAME = (string){.ptr = "object", .len = 6};
 
-static string INT_NAME = (string){.ptr = "an integer", .len = 10};
-static string FLOAT_NAME = (string){.ptr = "a float", .len = 7};
-static string STRING_NAME = (string){.ptr = "a string", .len = 8};
-static string BOOL_NAME = (string){.ptr = "a boolean", .len = 9};
-static string ARRAY_NAME = (string){.ptr = "an array", .len = 8};
-static string FUNCTION_NAME = (string){.ptr = "a function", .len = 10};
-static string CUSTOM_NAME = (string){.ptr = "a custom object", .len = 15};
-static string OBJECT_NAME = (string){.ptr = "an object", .len = 9};
+static string cnv_type(value *ptr) {
+    if (ptr->type == &INT_OBJ) return INT_NAME;
+    if (ptr->type == &FLOAT_OBJ) return FLOAT_NAME;
+    if (ptr->type == &STRING_OBJ) {
+        free_string(ptr->strp);
+        return STRING_NAME;
+    }
+    if (ptr->type == &ARRAY_OBJ) {
+        free_array(ptr->arrp);
+        return ARRAY_NAME;
+    }
+    if (ptr->type == &FUNC_OBJ) {
+        free_array(ptr->funcp);
+        return FUNCTION_NAME;
+    }
+    if (ptr->type == &OBJECT_OBJ) {
+        free_obj(ptr->objp);
+        return OBJECT_NAME;
+    }
 
-static string get_name(object *type) {
-    if (type == &INT_OBJ) return INT_NAME;
-    if (type == &FLOAT_OBJ) return FLOAT_NAME;
-    if (type == &STRING_OBJ) return STRING_NAME;
-    if (type == &ARRAY_OBJ) return ARRAY_NAME;
-    if (type == &FUNC_OBJ) return FUNCTION_NAME;
-    if (type == &OBJECT_OBJ) return OBJECT_NAME;
+
     return CUSTOM_NAME;
 }
 
-static string ADD_CMD = (string){.ptr = "add", .len = 3};
 
-static value *err_operate(string cmd, string l, string r, value *tmp) {
+
+
+
+static string ADD_CMD = (string){.ptr = "add", .len = 3};
+static string SUB_CMD = (string){.ptr = "subtract", .len = 8};
+
+static value *err_operate(string cmd, string l, string r, dbexpr *dbp, value *tmp) {
+    // cannot add integer and user-defined in `num + player`
     char msg[NOCTER_LINE_MAX], *p = msg;
     memcpy(p, "cannot ", 7), p += 7;
     memcpy(p, cmd.ptr, cmd.len), p += cmd.len;
@@ -863,20 +884,13 @@ static value *err_operate(string cmd, string l, string r, value *tmp) {
     memcpy(p, l.ptr, l.len), p += l.len;
     memcpy(p, " and ", 5), p += 5;
     memcpy(p, r.ptr, r.len), p += r.len;
+    memcpy(p, " in `", 5), p += 5;
+    p += ast_to_charp(dbp->lexpr, p);
+    memcpy(p, " + ", 5), p += 5;
+    p += ast_to_charp(dbp->rexpr, p);
+    *p ++ = '`';
     *p = 0;
     return new_error(msg, p - msg, tmp);
-}
-
-static inline value *add_int(long i1, long i2, value *tmp) {
-    tmp->type = &INT_OBJ;
-    tmp->bit = i1 + i2;
-    return tmp;
-}
-
-static inline value *add_float(double f1, double f2, value *tmp) {
-    tmp->type = &FLOAT_OBJ;
-    tmp->db = f1 + f2;
-    return tmp;
 }
 
 static inline void add_string(string str1, string str2, value *tmp) {
@@ -899,8 +913,14 @@ value *expr_add(chp ch, value *tmp, value *this) {
         long i = lptr->bit;
         value *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, tmp, this);
         
-        if (rptr->type == &INT_OBJ) return add_int(i, rptr->bit, tmp);
-        if (rptr->type == &FLOAT_OBJ) return add_float((double)i, rptr->db, tmp);
+        if (rptr->type == &INT_OBJ) {
+            *tmp = (value){ .type = &INT_OBJ, .bit = i + rptr->bit};
+            return tmp;
+        }
+        if (rptr->type == &FLOAT_OBJ) {
+            *tmp = (value){ .type = &FLOAT_OBJ, .db = (double)i + rptr->db};
+            return tmp;
+        }
         if (rptr->type == &STRING_OBJ) {
             char buf[32];
             size_t len = long_to_charp(i, buf);
@@ -911,20 +931,24 @@ value *expr_add(chp ch, value *tmp, value *this) {
         }
         if (rptr->type == &ERROR_OBJ) return rptr;
 
-        string name = get_name(rptr->type);
-        free_val(rptr);
-        return err_operate(ADD_CMD, INT_NAME, name, tmp);
+        return err_operate(ADD_CMD, INT_NAME, cnv_type(rptr), ch.dbp, tmp);
     }
 
     if (lptr->type == &FLOAT_OBJ) {
-        double d = lptr->db;
+        double f = lptr->db;
         value *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, tmp, this);
 
-        if (rptr->type == &INT_OBJ) return add_float(d, (double)rptr->bit, tmp);
-        if (rptr->type == &FLOAT_OBJ) return add_float(d, rptr->db, tmp);
+        if (rptr->type == &INT_OBJ) {
+            *tmp = (value){ .type = &FLOAT_NAME, .db = f + (double)rptr->bit};
+            return tmp;
+        }
+        if (rptr->type == &FLOAT_OBJ) {
+            *tmp = (value){ .type = &FLOAT_OBJ, .db = f + rptr->db};
+            return tmp;
+        }
         if (rptr->type == &STRING_OBJ) {
             char buf[32];
-            size_t len = double_to_charp(d, buf);
+            size_t len = double_to_charp(f, buf);
             buf[len] = '\0';
             add_string((string){ .ptr = buf, .len = len }, *rptr->strp, tmp);
             free_string(rptr->strp);
@@ -932,9 +956,7 @@ value *expr_add(chp ch, value *tmp, value *this) {
         }
         if (rptr->type == &ERROR_OBJ) return rptr;
 
-        string name = get_name(rptr->type);
-        free_val(rptr);
-        return err_operate(ADD_CMD, INT_NAME, name, tmp);
+        return err_operate(ADD_CMD, FLOAT_NAME, cnv_type(rptr), ch.dbp, tmp);
     }
 
     if (lptr->type == &STRING_OBJ) {
@@ -944,6 +966,7 @@ value *expr_add(chp ch, value *tmp, value *this) {
         char buf[NOCTER_BUFF];
         add_string(*strp, conv_str(buf, *rptr), tmp);
         free_string(strp);
+        free_val(rptr);
         return tmp;
     }
 
@@ -960,13 +983,50 @@ value *expr_add(chp ch, value *tmp, value *this) {
         return tmp;
     }
 
-    string namel = get_name(lval.type);
-    string namer = get_name(rptr->type);
-    free_val(&lval);
-    free_val(rptr);
-    return err_operate(ADD_CMD, namel, namer, tmp);
+    return err_operate(ADD_CMD, cnv_type(&lval), cnv_type(rptr), ch.dbp, tmp);
 }
 
+value *expr_subtract(chp ch, value *tmp, value *this) {
+    value *lptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, tmp, this);
+
+    if (lptr->type == &INT_OBJ) {
+        long i = lptr->bit;
+        value *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, tmp, this);
+        
+        if (rptr->type == &INT_OBJ) {
+            *tmp = (value){ .type = &INT_OBJ, .bit = i - rptr->bit};
+            return tmp;
+        }
+        if (rptr->type == &FLOAT_OBJ) {
+            *tmp = (value){ .type = &FLOAT_OBJ, .db = (double)i - rptr->db};
+            return tmp;
+        }
+        if (rptr->type == &ERROR_OBJ) return rptr;
+
+        return err_operate(SUB_CMD, INT_NAME, cnv_type(rptr), ch.dbp, tmp);
+    }
+
+    if (lptr->type == &FLOAT_OBJ) {
+        double f = lptr->bit;
+        value *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, tmp, this);
+
+        if (rptr->type == &INT_OBJ) {
+            *tmp = (value){ .type = &FLOAT_NAME, .db = f - (double)rptr->bit};
+            return tmp;
+        }
+        if (rptr->type == &FLOAT_OBJ) {
+            *tmp = (value){ .type = &FLOAT_OBJ, .db = f - rptr->db};
+            return tmp;
+        }
+        if (rptr->type == &ERROR_OBJ) return rptr;
+
+        return err_operate(SUB_CMD, FLOAT_NAME, cnv_type(rptr), ch.dbp, tmp);
+    }
+
+    if (lptr->type == &ERROR_OBJ) return lptr;
+
+    return err_operate(SUB_CMD, cnv_type(lptr), cnv_type(ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, tmp, this)), ch.dbp, tmp);
+}
 
 
 
@@ -980,15 +1040,17 @@ value *expr_spread(chp ch, value *tmp, value *this) {
         if (ptr == tmp) refree_array(arr, tmp, &res);
         return res;
     }
+    if (ptr->type == &ERROR_OBJ) return ptr;
 
-    if (ptr->type == &ERROR_OBJ) {
-        return ptr;
-    }
+    // cannot spread integer; expected array or string in `...arr`
 
     char msg[NOCTER_LINE_MAX], *p = msg;
-    memcpy(p, "cannot spread '", 15), p += 15;
+    memcpy(p, "cannot spread ", 14), p += 14;
+    string type = cnv_type(ptr);
+    memcpy(p, type.ptr, type.len), p += type.len;
+    memcpy(p, "; expected array or string in `...", 34), p += 34;
     p += ast_to_charp(*ch.astp, p);
-    memcpy(p, "' in expression; not an array or string", 39), p += 39;
+    *p ++ = '`';
     *p = 0;
     return new_error(msg, p - msg, tmp);
 }
@@ -1058,17 +1120,23 @@ statement stat_return(chp ch, value *tmp, value *this) {
     };
 }
 
-static inline statement err_if(value *ptr, value *tmp, bool iw) {
+static statement err_if_while(value *ptr, value *tmp, ast code, string wi) {
     if (ptr->type == &ERROR_OBJ) return (statement){
         .type = RETURN,
         .valp = ptr
     };
+
+    // cannot use integer as condition in `if i`
+
     char msg[NOCTER_LINE_MAX], *p = msg;
-    if (iw) memcpy(p, "expected boolean condition in 'if', but got ", 44), p += 44;
-    else memcpy(p, "expected boolean condition in 'while', but got ", 47), p += 47;
-    string name = get_name(ptr->type);
-    free_val(ptr);
-    memcpy(p, name.ptr, name.len), p += name.len;
+    memcpy(p, "cannot use ", 11), p += 11;
+    string type = cnv_type(ptr);
+    memcpy(p, type.ptr, type.len), p += type.len;
+    memcpy(p, " as condition in `", 18), p += 18;
+    memcpy(p, wi.ptr, wi.len), p += wi.len;
+    *p ++ = ' ';
+    p += ast_to_charp(code, p);
+    *p ++ = '`';
     *p = 0;
     return (statement){
         .type = RETURN,
@@ -1076,10 +1144,13 @@ static inline statement err_if(value *ptr, value *tmp, bool iw) {
     };
 }
 
+string CMD_IF = (string){.ptr = "if", .len = 2};
+string CMD_WHILE = (string){.ptr = "while", .len = 5};
+
 statement stat_if(chp ch, value *tmp, value *this) {
     value *ptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, tmp, this);
 
-    if (ptr->type != &BOOL_OBJ) return err_if(ptr, tmp, true);
+    if (ptr->type != &BOOL_OBJ) return err_if_while(ptr, tmp, ch.dbp->lexpr, CMD_IF);
     return ptr->bit ? ch.dbp->rexpr.stat_cmd(ch.dbp->rexpr.chld, tmp, this)
     : (statement){ .type = VOID };
 }
@@ -1087,7 +1158,7 @@ statement stat_if(chp ch, value *tmp, value *this) {
 statement stat_if_else(chp ch, value *tmp, value *this) {
     value *ptr = ch.trp->cexpr.expr_cmd(ch.trp->cexpr.chld, tmp, this);
 
-    if (ptr->type != &BOOL_OBJ) return err_if(ptr, tmp, true);
+    if (ptr->type != &BOOL_OBJ) return err_if_while(ptr, tmp, ch.trp->cexpr, CMD_IF);
     return ptr->bit ? ch.trp->lexpr.stat_cmd(ch.trp->lexpr.chld, tmp, this)
     : ch.trp->rexpr.stat_cmd(ch.trp->rexpr.chld, tmp, this);
 }
@@ -1097,7 +1168,7 @@ statement stat_while(chp ch, value *tmp, value *this) {
 
     while (1) {
         ptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, tmp, this);
-        if (ptr->type != &BOOL_OBJ) return err_if(ptr, tmp, false);
+        if (ptr->type != &BOOL_OBJ) return err_if_while(ptr, tmp, ch.dbp->lexpr, CMD_WHILE);
         if (ptr->bit) {
             statement res = ch.dbp->rexpr.stat_cmd(ch.dbp->rexpr.chld, tmp, this);
             if (res.type == RETURN || res.type == BREAK) return res;
