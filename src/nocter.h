@@ -117,7 +117,9 @@ typedef struct field {
 typedef struct object {
     field fld;
     size_t refcount;
-    value init;
+    // value init;
+    func *init;
+    string *kind;
 } object;
 
 typedef struct string {

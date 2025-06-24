@@ -7,13 +7,6 @@
 #include "nocter/string.h"
 #include "interpretor.h"
 
-/**
- * 予定:
- * エラー修正系を優先・機能追加は後回し
- * 
- * - 識別子を--string型--(新たにid型)に すぐ
- * - Error型の整備 すぐ　try catch is
- */
 
 static void free_val(value *valp);
 static void refree_val(value *valp, value *tmp, value **save);
@@ -256,7 +249,8 @@ value *expr_obj(chp ch, value *tmp, value *this) {
     obj.refcount = 1;
     obj.fld.h = alloc(sizeof(variable) * len);
     obj.fld.p = obj.fld.h - 1;
-    obj.init = NULL_VALUE;
+    obj.init = NULL;
+    obj.kind = &CUSTOM_KIND_NAME;
 
     while (len) {
         len --, ch.idastp ++;
@@ -272,8 +266,11 @@ value *expr_obj(chp ch, value *tmp, value *this) {
         value val = ptr == tmp ? *tmp : dup_val(*ptr);
 
         if (id[0] == 'i' && id[1] == 'n' && id[2] == 'i' && id[3] == 't' && id[4] == 0) {
-            free_val(&obj.init);
-            obj.init = val;
+            if (val.type != &FUNC_OBJ) {
+                // error: property 'init' expected function, but got <kind> in `.init = 0`
+            }
+            free_func(obj.init);
+            obj.init = val.funcp;
             continue;
         }
 
@@ -465,37 +462,37 @@ value *expr_call(chp ch, value *tmp, value *this) {
 
     if (ptr->type == &OBJECT_OBJ) {
         object *objp = ptr->objp;
-        if (objp->init.type == &FUNC_OBJ) {
-            func *fnp = objp->init.funcp;
+        func *fnp = objp->init;
 
-            size_t varlen = VAR_P - VAR_H;
-            value *lptr = call_param(ch.funcp, fnp->arg, tmp, this);
-            if (lptr->type == &ERROR_OBJ) {
-                VAR_P = VAR_H + varlen;
-                return lptr;
-            }
-
-            field *fldp = alloc(sizeof(field));
-            fldp->h = alloc(0);
-            fldp->p = fldp->h - 1;
-
-            value this = {
-                .type = objp,
-                .fldp = fldp
-            };
-            value *res = fnp->expr.expr_cmd(fnp->expr.chld, tmp, &this);
-            free_gc(varlen);
-            if (res == tmp) free_val(tmp);
-
-            *tmp = this;
-            return tmp;
+        if (objp->init == NULL) {
+            char msg[NOCTER_LINE_MAX], *p = msg;
+            memcpy(p, "cannot instantiate '", 20), p += 20;
+            p += ast_to_charp(ch.funcp->expr, p);
+            memcpy(p, "'; no property 'init'", 21), p += 21;
+            return new_error(msg, p - msg, tmp);
         }
 
-        char msg[NOCTER_LINE_MAX], *p = msg;
-        memcpy(p, "cannot instantiate '", 20), p += 20;
-        p += ast_to_charp(ch.funcp->expr, p);
-        memcpy(p, "'; property 'init' is not a function", 36), p += 36;
-        return new_error(msg, p - msg, tmp);;
+        size_t varlen = VAR_P - VAR_H;
+        value *lptr = call_param(ch.funcp, fnp->arg, tmp, this);
+        if (lptr->type == &ERROR_OBJ) {
+            VAR_P = VAR_H + varlen;
+            return lptr;
+        }
+
+        field *fldp = alloc(sizeof(field));
+        fldp->h = alloc(0);
+        fldp->p = fldp->h - 1;
+
+        value this = {
+            .type = objp,
+            .fldp = fldp
+        };
+        value *res = fnp->expr.expr_cmd(fnp->expr.chld, tmp, &this);
+        free_gc(varlen);
+        if (res == tmp) free_val(tmp);
+
+        *tmp = this;
+        return tmp;
     }
 
     if (ptr->type == &ERROR_OBJ) return ptr;
@@ -833,62 +830,19 @@ value *expr_assign(chp ch, value *tmp, value *this) {
 /**
  * tmp operate
  */
-static string VOID_NAME = (string){.ptr = "void", .len = 4};
-static string NULL_NAME = (string){.ptr = "null", .len = 4};
-static string INT_NAME = (string){.ptr = "integer", .len = 9};
-static string FLOAT_NAME = (string){.ptr = "float", .len = 5};
-static string STRING_NAME = (string){.ptr = "string", .len = 6};
-static string BOOL_NAME = (string){.ptr = "boolean", .len = 7};
-static string ARRAY_NAME = (string){.ptr = "array", .len = 5};
-static string FUNCTION_NAME = (string){.ptr = "function", .len = 8};
-static string CUSTOM_NAME = (string){.ptr = "user-defined", .len = 12};
-static string OBJECT_NAME = (string){.ptr = "object", .len = 6};
-
-static string cnv_type(value *ptr) {
-    if (ptr->type == &INT_OBJ) return INT_NAME;
-    if (ptr->type == &FLOAT_OBJ) return FLOAT_NAME;
-    if (ptr->type == &STRING_OBJ) {
-        free_string(ptr->strp);
-        return STRING_NAME;
-    }
-    if (ptr->type == &ARRAY_OBJ) {
-        free_array(ptr->arrp);
-        return ARRAY_NAME;
-    }
-    if (ptr->type == &FUNC_OBJ) {
-        free_array(ptr->funcp);
-        return FUNCTION_NAME;
-    }
-    if (ptr->type == &OBJECT_OBJ) {
-        free_obj(ptr->objp);
-        return OBJECT_NAME;
-    }
-
-
-    return CUSTOM_NAME;
-}
-
-
-
-
 
 static string ADD_CMD = (string){.ptr = "add", .len = 3};
 static string SUB_CMD = (string){.ptr = "subtract", .len = 8};
 
-static value *err_operate(string cmd, string l, string r, dbexpr *dbp, value *tmp) {
-    // cannot add integer and user-defined in `num + player`
+static value *err_operate(string cmd, string *l, string *r, value *tmp) {
+    // cannot add value of type integer and array
     char msg[NOCTER_LINE_MAX], *p = msg;
     memcpy(p, "cannot ", 7), p += 7;
     memcpy(p, cmd.ptr, cmd.len), p += cmd.len;
-    *p ++ = ' ';
-    memcpy(p, l.ptr, l.len), p += l.len;
+    memcpy(p, " value of type ", 15), p += 15;
+    memcpy(p, l->ptr, l->len), p += l->len;
     memcpy(p, " and ", 5), p += 5;
-    memcpy(p, r.ptr, r.len), p += r.len;
-    memcpy(p, " in `", 5), p += 5;
-    p += ast_to_charp(dbp->lexpr, p);
-    memcpy(p, " + ", 5), p += 5;
-    p += ast_to_charp(dbp->rexpr, p);
-    *p ++ = '`';
+    memcpy(p, r->ptr, r->len), p += r->len;
     *p = 0;
     return new_error(msg, p - msg, tmp);
 }
@@ -931,7 +885,8 @@ value *expr_add(chp ch, value *tmp, value *this) {
         }
         if (rptr->type == &ERROR_OBJ) return rptr;
 
-        return err_operate(ADD_CMD, INT_NAME, cnv_type(rptr), ch.dbp, tmp);
+        free_val(rptr);
+        return err_operate(ADD_CMD, &INT_KIND_NAME, rptr->type->kind, tmp);
     }
 
     if (lptr->type == &FLOAT_OBJ) {
@@ -939,7 +894,7 @@ value *expr_add(chp ch, value *tmp, value *this) {
         value *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, tmp, this);
 
         if (rptr->type == &INT_OBJ) {
-            *tmp = (value){ .type = &FLOAT_NAME, .db = f + (double)rptr->bit};
+            *tmp = (value){ .type = &FLOAT_OBJ, .db = f + (double)rptr->bit};
             return tmp;
         }
         if (rptr->type == &FLOAT_OBJ) {
@@ -956,7 +911,8 @@ value *expr_add(chp ch, value *tmp, value *this) {
         }
         if (rptr->type == &ERROR_OBJ) return rptr;
 
-        return err_operate(ADD_CMD, FLOAT_NAME, cnv_type(rptr), ch.dbp, tmp);
+        free_val(rptr);
+        return err_operate(ADD_CMD, &FLOAT_KIND_NAME, rptr->type->kind, tmp);
     }
 
     if (lptr->type == &STRING_OBJ) {
@@ -982,8 +938,11 @@ value *expr_add(chp ch, value *tmp, value *this) {
         free_string(strp);
         return tmp;
     }
+    if (rptr->type == &ERROR_OBJ) return rptr;
 
-    return err_operate(ADD_CMD, cnv_type(&lval), cnv_type(rptr), ch.dbp, tmp);
+    free_val(&lval);
+    free_val(rptr);
+    return err_operate(ADD_CMD, lval.type->kind, rptr->type->kind, tmp);
 }
 
 value *expr_subtract(chp ch, value *tmp, value *this) {
@@ -1003,7 +962,8 @@ value *expr_subtract(chp ch, value *tmp, value *this) {
         }
         if (rptr->type == &ERROR_OBJ) return rptr;
 
-        return err_operate(SUB_CMD, INT_NAME, cnv_type(rptr), ch.dbp, tmp);
+        free_val(rptr);
+        return err_operate(SUB_CMD, &INT_KIND_NAME, rptr->type->kind, tmp);
     }
 
     if (lptr->type == &FLOAT_OBJ) {
@@ -1011,7 +971,7 @@ value *expr_subtract(chp ch, value *tmp, value *this) {
         value *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, tmp, this);
 
         if (rptr->type == &INT_OBJ) {
-            *tmp = (value){ .type = &FLOAT_NAME, .db = f - (double)rptr->bit};
+            *tmp = (value){ .type = &FLOAT_KIND_NAME, .db = f - (double)rptr->bit};
             return tmp;
         }
         if (rptr->type == &FLOAT_OBJ) {
@@ -1020,12 +980,19 @@ value *expr_subtract(chp ch, value *tmp, value *this) {
         }
         if (rptr->type == &ERROR_OBJ) return rptr;
 
-        return err_operate(SUB_CMD, FLOAT_NAME, cnv_type(rptr), ch.dbp, tmp);
+        free_val(rptr);
+        return err_operate(SUB_CMD, &FLOAT_KIND_NAME, rptr->type->kind, tmp);
     }
 
     if (lptr->type == &ERROR_OBJ) return lptr;
 
-    return err_operate(SUB_CMD, cnv_type(lptr), cnv_type(ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, tmp, this)), ch.dbp, tmp);
+    value lval = *lptr;
+    value *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, tmp, this);
+    if (rptr->type == &ERROR_OBJ) return rptr;
+
+    free_val(&lval);
+    free_val(rptr);
+    return err_operate(SUB_CMD, lval.type->kind, rptr->type->kind, tmp);
 }
 
 
@@ -1042,15 +1009,13 @@ value *expr_spread(chp ch, value *tmp, value *this) {
     }
     if (ptr->type == &ERROR_OBJ) return ptr;
 
-    // cannot spread integer; expected array or string in `...arr`
+    // cannot spread value of type integer; expected array or string
 
     char msg[NOCTER_LINE_MAX], *p = msg;
-    memcpy(p, "cannot spread ", 14), p += 14;
-    string type = cnv_type(ptr);
-    memcpy(p, type.ptr, type.len), p += type.len;
-    memcpy(p, "; expected array or string in `...", 34), p += 34;
-    p += ast_to_charp(*ch.astp, p);
-    *p ++ = '`';
+    memcpy(p, "cannot spread value of type ", 28), p += 28;
+    string *type = ptr->type->kind;
+    memcpy(p, type->ptr, type->len), p += type->len;
+    memcpy(p, "; expected array or string", 26), p += 26;
     *p = 0;
     return new_error(msg, p - msg, tmp);
 }
@@ -1126,17 +1091,14 @@ static statement err_if_while(value *ptr, value *tmp, ast code, string wi) {
         .valp = ptr
     };
 
-    // cannot use integer as condition in `if i`
+    // 'if' condition must be boolean, got integer
 
     char msg[NOCTER_LINE_MAX], *p = msg;
-    memcpy(p, "cannot use ", 11), p += 11;
-    string type = cnv_type(ptr);
-    memcpy(p, type.ptr, type.len), p += type.len;
-    memcpy(p, " as condition in `", 18), p += 18;
+    *p ++ = '\'';
     memcpy(p, wi.ptr, wi.len), p += wi.len;
-    *p ++ = ' ';
-    p += ast_to_charp(code, p);
-    *p ++ = '`';
+    memcpy(p, "' condition must be boolean, got ", 33), p += 33;
+    string *type = ptr->type->kind;
+    memcpy(p, type->ptr, type->len), p += type->len;
     *p = 0;
     return (statement){
         .type = RETURN,

@@ -49,12 +49,24 @@ value FALSE_VALUE = {
     .bit = 0
 };
 
-static inline object newobj(variable *objs, size_t len) {
+string VOID_KIND_NAME = (string){.ptr = "void", .len = 4};
+string NULL_KIND_NAME = (string){.ptr = "null", .len = 4};
+string INT_KIND_NAME = (string){.ptr = "integer", .len = 9};
+string FLOAT_KIND_NAME = (string){.ptr = "float", .len = 5};
+string STRING_KIND_NAME = (string){.ptr = "string", .len = 6};
+string BOOL_KIND_NAME = (string){.ptr = "boolean", .len = 7};
+string ARRAY_KIND_NAME = (string){.ptr = "array", .len = 5};
+string FUNCTION_KIND_NAME = (string){.ptr = "function", .len = 8};
+string CUSTOM_KIND_NAME = (string){.ptr = "user-defined", .len = 12};
+string OBJECT_KIND_NAME = (string){.ptr = "object", .len = 6};
+
+static inline object newobj(variable *objs, size_t len, string *kind) {
     object obj;
     obj.fld.h = allocpy(objs, sizeof(variable) * len);
     obj.fld.p = obj.fld.h + len - 1;
     obj.refcount = 1;
-    obj.init = NULL_VALUE;
+    obj.init = NULL;
+    obj.kind = kind;
     return obj;
 }
 
@@ -77,7 +89,7 @@ void builtin(statlist *stat) {
         .objp = &INT_OBJ
     }))));
     INT_OBJ = newobj((variable[]){
-    }, 0);
+    }, 0, &INT_KIND_NAME);
 
     add_stat(stat, LET("String", VALUE(((value){
         .type = &OBJECT_OBJ,
@@ -85,7 +97,7 @@ void builtin(statlist *stat) {
     }))));
     STRING_OBJ = newobj((variable[]){
         { .id = "length", .val = newfunc((ast[]){LEN(0)}, NATIVE(string_length)) }
-    }, 1);
+    }, 1, &STRING_KIND_NAME);
 
     add_stat(stat, LET("File", VALUE(((value){
         .type = &OBJECT_OBJ,
@@ -96,13 +108,13 @@ void builtin(statlist *stat) {
         { .id = "close", .val = newfunc((ast[]){LEN(0)}, NATIVE(file_close)) },
         { .id = "read", .val = newfunc((ast[]){LEN(0)}, NATIVE(file_read)) },
         { .id = "write", .val = newfunc((ast[]){LEN(1), ID("text")}, NATIVE(file_write)) }
-    }, 4);
+    }, 4, &CUSTOM_KIND_NAME);
 
     add_stat(stat, LET("IO", VALUE(((value){
         .type = &OBJECT_OBJ,
         .objp = objdup(newobj((variable[]){
             { .id = "print", .val = newfunc((ast[]){LEN(1), ID("any")}, NATIVE(io_print)) }
-        }, 1))
+        }, 1, &CUSTOM_KIND_NAME))
     }))));
 }
 
@@ -116,7 +128,7 @@ bool register_lib(char *id, statlist *stat, implist *imp) {
                 .objp = objdup(newobj((variable[]){
                     { .id = "now", .val = newfunc((ast[]){ LEN(0) }, NATIVE(time_now)) },
                     { .id = "sleep", .val = newfunc((ast[]){ LEN(1), ID("ms") }, NATIVE(time_sleep)) }
-                }, 2))
+                }, 2, &CUSTOM_KIND_NAME))
             }))));
         }
         return true;

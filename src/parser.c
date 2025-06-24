@@ -149,7 +149,7 @@ static void trim(script *code) {
             script start = *code;
             code->p += 2;
             while (code->p[0] != '*' || code->p[1] != '/') {
-                if (*code->p == 0) syntax_err("Unterminated comment block", &start, code->p);
+                if (*code->p == 0) syntax_err("unterminated comment block", &start, code->p);
                 else code->p ++;
             }
             code->p += 2;
@@ -166,7 +166,7 @@ static char *identifier(script *code) {
     script start = *code;
     char id[64], *p = id;
     do {
-        if (p - id == 63) syntax_err("\e[1;31merror:\e[0;1m Identifier too long", &start, code->p);
+        if (p - id == 63) syntax_err("identifier too long", &start, code->p);
         *p ++ = *code->p ++;
     }
     while (IS_ID(*code->p) || IS_INT(*code->p));
@@ -200,7 +200,7 @@ static void bracketsend(script *code, char end) {
             else break;
         }
         code->p ++;
-        char msg[] = "Expected ',' or ' ' after expression";
+        char msg[] = "expected ',' or ' ' after expression";
         msg[17] = end;
         syntax_err(msg, code, code->p);
     }
@@ -253,7 +253,7 @@ static ast parse_func(script *code) {
     if (*code->p == ')') code->p ++, trim(code);
     else {
         for (;;) {
-            if (p - mem == NOCTER_BUFF) syntax_err("Too many parameters", &start, code->p);
+            if (p - mem == NOCTER_BUFF) syntax_err("too many parameters", &start, code->p);
 
             script start2 = *code;
             ast arg = parse_spread(code);
@@ -491,7 +491,7 @@ static ast parse_val(script *code) {
             if (is_func(*code, '-')) return parse_func(code);
             else {
                 code->p ++, trim(code);
-                if (*code->p == ')') syntax_err("Expected expression before ')'", code, code->p);
+                if (*code->p == ')') syntax_err("expected expression before ')'", code, code->p);
                 ast res = (ast){
                     .expr_cmd = expr_group,
                     .chld.astp = astdup(parse_comma(code))
@@ -509,7 +509,7 @@ static ast parse_val(script *code) {
                 idast mem[NOCTER_BUFF], *lp = mem, *p = mem + 1;
 
                 for (;;) {
-                    if (p - mem == NOCTER_BUFF) syntax_err("Too many fields in object literal", &start, code->p);
+                    if (p - mem == NOCTER_BUFF) syntax_err("too many fields in object literal", &start, code->p);
 
                     if (code->p[0] == '.' && code->p[1] == '.' && code->p[2] == '.') {
                         code->p += 3, trim(code);
@@ -528,7 +528,7 @@ static ast parse_val(script *code) {
 
                     if (*code->p == ',') {
                         code->p ++, trim(code);
-                        if (*code->p != '.') syntax_err("Expected '.field = value' in object literal", code, code->p);
+                        if (*code->p != '.') syntax_err("expected '.field = value' in object literal", code, code->p);
                     }
                     else break;
                 }
@@ -550,20 +550,20 @@ static ast parse_val(script *code) {
         case '[': {
             return (ast){
                 .expr_cmd = expr_arr,
-                .chld.astp = parse_args(code, ']', "Too many elements in array literal")
+                .chld.astp = parse_args(code, ']', "too many elements in array literal")
             };
         }
 
         case ')': case '}': case ']': {
-            char msg[] = "Unmatched ' '";
+            char msg[] = "unmatched ' '";
             msg[11] = *code->p;
             syntax_err(msg, code, code->p);
         }
         case '\0': {
-            syntax_err("Unexpected termination of the expression", code, code->p);
+            syntax_err("unexpected termination of the expression", code, code->p);
         }
         default: {
-            syntax_err("Unexpected token", code, code->p);
+            syntax_err("unexpected token", code, code->p);
             exit(1);
         }
     }
@@ -599,7 +599,7 @@ static ast parse_access(script *code) {
                 res = (ast){
                     .expr_cmd = expr_call,
                     .chld.funcp = funcdup((func){
-                        .arg = parse_args(code, ')', "Too many arguments"),
+                        .arg = parse_args(code, ')', "too many arguments"),
                         .expr = res,
                         .this = NULL
                     })
@@ -622,7 +622,7 @@ static ast parse_access(script *code) {
         }
         else if (*code->p == '[') {
             code->p ++, trim(code);
-            if (*code->p == ']') syntax_err("Expected expression before ']'", code, code->p);
+            if (*code->p == ']') syntax_err("expected expression before ']'", code, code->p);
             res = (ast){
                 .expr_cmd = expr_access,
                 .chld.dbp = dbexprdup((dbexpr){
@@ -722,7 +722,7 @@ static ast parse_comma(script *code) {
 
         *p ++ = tmp;
         do {
-            if (p - mem == NOCTER_BUFF) syntax_err("Too many expressions in comma sequence", &start, code->p);
+            if (p - mem == NOCTER_BUFF) syntax_err("too many expressions in comma sequence", &start, code->p);
             code->p ++, trim(code);
             *p ++ = parse_expr(code);
         }
@@ -754,7 +754,7 @@ static void linebreak(script *code) {
             }
             else break;
         }
-        if (*cp.p != '\n') cp.p ++, syntax_err("Expected a line break or ';'", &cp, cp.p);
+        if (*cp.p != '\n') cp.p ++, syntax_err("expected a line break or ';'", &cp, cp.p);
     }
 }
 
@@ -802,7 +802,7 @@ static void parse_file(char *fullpath, bool ret, bool loop, statlist *stat, impl
 
         FILE *fp = fopen(fullpath, "r");
         if (fp == NULL) {
-            printf("\e[1;31merror:\e[0;1m Cannot open file '%s'\n", fullpath);
+            printf("\e[1;31merror:\e[0;1m cannot open file '%s'\n", fullpath);
             exit(1);
         }
 
@@ -879,7 +879,7 @@ static ast parse_single_stat(script *code, bool ret, bool loop, implist *imp) {
             .stat_cmd = stat_while,
             .chld.dbp = dbexprdup((dbexpr){
                 .lexpr = parse_comma(code),
-                .rexpr = parse_single_stat(code, ret, loop, imp)
+                .rexpr = parse_single_stat(code, ret, true, imp)
             })
         };
     }
@@ -941,7 +941,7 @@ static void parse_stat(script *code, bool ret, bool loop, statlist *stat, implis
         }
         char *fhd = p;
         while (*code->p != '\n' && *code->p != ';' && *code->p != 0) {
-            if (p - path == NOCTER_PATH_MAX - 1) syntax_err("Path too long", &start, code->p);
+            if (p - path == NOCTER_PATH_MAX - 1) syntax_err("path too long", &start, code->p);
             *p ++ = *code->p ++;
         }
         *p = 0;
@@ -949,7 +949,7 @@ static void parse_stat(script *code, bool ret, bool loop, statlist *stat, implis
         char fullpath[NOCTER_PATH_MAX];
         if (get_fullpath(path, fullpath) == NULL) {
             if (!register_lib(fhd, stat, imp)) {
-                syntax_err("No such file or directory", &start, code->p - 1);
+                syntax_err("no such file or directory", &start, code->p - 1);
             }
         }
         else parse_file(fullpath, ret, loop, stat, imp);
@@ -973,7 +973,7 @@ static ast *block(script *code, bool ret, bool loop, implist *imp) {
     stat.p = stat.head = alloc(stat.size * sizeof(ast));
 
     while (*code->p != '}') {
-        if (*code->p == '\0') syntax_err("Unexpected end of input; missing '}'?", code, code->p);
+        if (*code->p == '\0') syntax_err("unexpected end of input; missing '}'?", code, code->p);
         parse_stat(code, ret, loop, &stat, imp);
     }
     code->p ++, trim(code);

@@ -21,6 +21,17 @@ extern value NULL_VALUE;
 extern value TRUE_VALUE;
 extern value FALSE_VALUE;
 
+extern string VOID_KIND_NAME;
+extern string NULL_KIND_NAME;
+extern string INT_KIND_NAME;
+extern string FLOAT_KIND_NAME;
+extern string STRING_KIND_NAME;
+extern string BOOL_KIND_NAME;
+extern string ARRAY_KIND_NAME;
+extern string FUNCTION_KIND_NAME;
+extern string CUSTOM_KIND_NAME;
+extern string OBJECT_KIND_NAME;
+
 
 
 void builtin(statlist *stat);

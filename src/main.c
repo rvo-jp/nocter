@@ -94,7 +94,7 @@ int main(int argc, char **argv) {
             else if (OPT_CHECK(*argv)) CHECK = 1;
             else if (OPT_VERBOSE(*argv)) VERBOSE = 1;
             else {
-                printf("\e[1;31merror:\e[0;1m Unknown option '%s'\e[0m\n", *argv);
+                printf("\e[1;31merror:\e[0;1m unknown option '%s'\e[0m\n", *argv);
                 return 1;
             }
         }
@@ -107,6 +107,6 @@ int main(int argc, char **argv) {
         }
     }
 
-    puts("\e[1;31merror:\e[0;1m No script file specified\e[0m");
+    puts("\e[1;31merror:\e[0;1m no script file specified\e[0m");
     return 1;
 }
