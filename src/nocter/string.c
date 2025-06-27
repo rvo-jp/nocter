@@ -2,6 +2,7 @@
 #include "../utils/alloc.h"
 #include "../builtin.h"
 #include "../interpretor.h"
+#include "error.h"
 #include "fpconv/fpconv.h"
 
 bool string_equal(const string *a, const string *b) {
@@ -116,9 +117,15 @@ string conv_str(char *buff, value val) {
 
 // String.length(): Int
 value *string_length(value *tmp, value *this) {
+    if (this == NULL) return err_this(tmp);
+    if (this->type != &STRING_OBJ) return err_this(tmp);
+
     *tmp = (value){
         .type = &INT_OBJ,
-        .bit = (this->type == &STRING_OBJ) ? this->strp->len : 0
+        .bit = this->strp->len
     };
     return tmp;
 }
+
+// String.replace(old: String, new: String): String
+

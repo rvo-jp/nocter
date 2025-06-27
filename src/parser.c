@@ -638,6 +638,10 @@ static ast parse_access(script *code) {
     return res;
 }
 
+// !x  ~x  -x  +x  --x  ++x  typeof x
+static ast parse_prefix(script *code) {
+
+}
 
 // x = y  x += y
 static ast parse_assign(script *code) {
