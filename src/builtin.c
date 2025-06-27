@@ -27,6 +27,7 @@ object FLOAT_OBJ;
 object FUNC_OBJ;
 object ARRAY_OBJ;
 object ERROR_OBJ;
+object ERROR;
 object FILE_OBJ;
 
 value VOID_VALUE = {

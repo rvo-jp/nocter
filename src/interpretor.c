@@ -581,19 +581,6 @@ static value *err_not_def(char *id, value *tmp) {
     return new_error(msg, p - msg, tmp);
 }
 
-static value *err_this(value *tmp) {
-    static string _ERROR_STR_TIND_ = {
-        .ptr = "'this' is not defined",
-        .len = 21
-    };
-    static value _ERROR_TIND_ = {
-        .type = &ERROR_OBJ,
-        .strp = &_ERROR_STR_TIND_
-    };
-    *tmp = _ERROR_TIND_;
-    return tmp;
-}
-
 static value *dot_access(ast expr, char *id, value *tmp, value *this) {
     value *ptr = expr.expr_cmd(expr.chld, tmp, this);
     if (ptr->type == &ERROR_OBJ) return ptr;
@@ -679,6 +666,19 @@ static value *dot_access_ptr(ast expr, char *id, value *tmp, value *this) {
     fldp->p = fldp->h + len;
     fldp->p->id = cmp_id;
     return &fldp->p->val;
+}
+
+static value *err_this(value *tmp) {
+    static string _ERROR_STR_TIND_ = {
+        .ptr = "'this' is not defined",
+        .len = 21
+    };
+    static value _ERROR_TIND_ = {
+        .type = &ERROR_OBJ,
+        .strp = &_ERROR_STR_TIND_
+    };
+    *tmp = _ERROR_TIND_;
+    return tmp;
 }
 
 value *expr_dot(chp ch, value *tmp, value *this) {
@@ -971,7 +971,7 @@ value *expr_subtract(chp ch, value *tmp, value *this) {
         value *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, tmp, this);
 
         if (rptr->type == &INT_OBJ) {
-            *tmp = (value){ .type = &FLOAT_KIND_NAME, .db = f - (double)rptr->bit};
+            *tmp = (value){ .type = &FLOAT_OBJ, .db = f - (double)rptr->bit};
             return tmp;
         }
         if (rptr->type == &FLOAT_OBJ) {

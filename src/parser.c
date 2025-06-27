@@ -861,7 +861,7 @@ static ast parse_single_stat(script *code, bool ret, bool loop, implist *imp) {
             code->p += 4, trim(code);
             return (ast){
                 .stat_cmd = stat_if_else,
-                .chld.dbp = trexprdup((trexpr){
+                .chld.trp = trexprdup((trexpr){
                     .cexpr = cond,
                     .lexpr = expr,
                     .rexpr = parse_single_stat(code, ret, loop, imp)
