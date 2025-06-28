@@ -411,6 +411,20 @@ static value *err_unexpected_arg(size_t arglen, value *tmp) {
     return new_error(msg, p - msg, tmp);
 }
 
+static value *err_expected_type(char *id, string *type1, string *type2, value *tmp) {
+    // error: expected value of type boolean for parameter 'abc', but got integer
+    char msg[NOCTER_LINE_MAX], *p = msg;
+    memcpy(p, "expected value of type ", 23), p += 23;
+    memcpy(p, type1->ptr, type1->len), p += type1->len;
+    memcpy(p, " for parameter '", 16), p += 16;
+    size_t len = strlen(id);
+    memcpy(p, id, len), p += len;
+    memcpy(p, "', but got ", 11), p += 11;
+    memcpy(p, type2->ptr, type2->len), p += type2->len;
+    *p = 0;
+    return new_error(msg, p - msg, tmp);
+}
+
 static inline value *call_param(ast *args, func *fnp, value *tmp, value *this) {
     value arguments[NOCTER_BUFF], *p = arguments, *arg = p;
     size_t arglen = 0;
@@ -461,13 +475,15 @@ static inline value *call_param(ast *args, func *fnp, value *tmp, value *this) {
 
     size_t varlen = VAR_P - VAR_H;
     param *prm = fnp->prm;
-    size_t prmlen = fnp->prmlen;
 
-    while (prmlen) {
+    for (size_t prmlen = fnp->prmlen; prmlen; prmlen --) {
+        value val;
+
         if (prm->is_spread) {
             puts("@");
             exit(1);
         }
+        
         if (arglen == 0) {
             if (prm->assigned == NULL) {
                 free_gc(varlen);
@@ -479,19 +495,24 @@ static inline value *call_param(ast *args, func *fnp, value *tmp, value *this) {
                 free_gc(varlen);
                 return ptr;
             }
-            let(prm->id, (ptr == tmp) ? *tmp : dup_val(*ptr));
-            prm ++, prmlen --;
-            continue;
+            val = (ptr == tmp) ? *tmp : dup_val(*ptr);
+        }
+        else {
+            val = *arg;
+            arg ++, arglen --;
         }
 
-        // if (prm->typed != NULL) {
-        //     ((value *)prm->typed)->type == &OBJECT_OBJ;
+        if (prm->type != NULL) {
+            if (prm->type->type == &OBJECT_OBJ) {
+                if (val.type != prm->type->objp) {
+                    free_gc(varlen);
+                    return err_expected_type(prm->id, prm->type->objp->kind, val.type->kind, tmp);
+                }
+            }
+        }
 
-        // }
-
-        let(prm->id, *arg);
-        prm ++, prmlen --;
-        arg ++, arglen --;
+        let(prm->id, val);
+        prm ++;
     }
 
     if (arglen) {
