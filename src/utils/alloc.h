@@ -73,6 +73,12 @@ static inline func *funcdup(const func fn) {
     return mem;
 }
 
+static inline callexpr *calldup(const callexpr fn) {
+    callexpr *mem = alloc(sizeof(callexpr));
+    *mem = fn;
+    return mem;
+}
+
 static inline array *arrdup(const array fn) {
     array *mem = alloc(sizeof(array));
     *mem = fn;

@@ -52,6 +52,7 @@ typedef struct idast idast;
 typedef value *(native_fn)(value *, value *);
 typedef struct dbexpr dbexpr;
 typedef struct trexpr trexpr;
+typedef struct callexpr callexpr;
 
 typedef union chp {
     void *ptr;
@@ -62,6 +63,7 @@ typedef union chp {
     native_fn *native;
     dbexpr *dbp;
     trexpr *trp;
+    callexpr *callp;
 } chp;
 
 typedef struct ast {
@@ -84,6 +86,11 @@ typedef struct trexpr {
     ast rexpr;
 } trexpr;
 
+typedef struct callexpr {
+    ast expr;
+    ast *args;
+} callexpr;
+
 typedef struct idast {
     union {
         size_t len;
@@ -92,18 +99,16 @@ typedef struct idast {
     ast expr;
 } idast;
 
-typedef struct fnarg {
-    union {
-        size_t len;
-        char *id;
-    };
+typedef struct param {
+    char *id;
     ast *typed;
     ast *assigned;
     bool is_spread;
-} fnarg;
+} param;
 
 typedef struct func {
-    ast *arg;
+    param *prm;
+    size_t prmlen;
     ast expr;
     bool is_allocated;
     value *this;

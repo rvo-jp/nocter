@@ -303,6 +303,16 @@ value *expr_group(chp ch, value *tmp, value *this) {
     return ch.astp->expr_cmd(ch.astp->chld, tmp, this);
 }
 
+static value *err_spread(string *type, value *tmp) {
+    // cannot spread value of type integer; expected array or string
+
+    char msg[NOCTER_LINE_MAX], *p = msg;
+    memcpy(p, "cannot spread value of type ", 28), p += 28;
+    memcpy(p, type->ptr, type->len), p += type->len;
+    memcpy(p, "; expected array or string", 26), p += 26;
+    *p = 0;
+    return new_error(msg, p - msg, tmp);
+}
 
 static inline value *make_array(ast *arg, array *arrp, value *tmp, value *this) {
 
@@ -347,12 +357,7 @@ static inline value *make_array(ast *arg, array *arrp, value *tmp, value *this) 
             }
             if (ptr->type == &ERROR_OBJ) return ptr;
 
-            char msg[NOCTER_LINE_MAX], *p = msg;
-            memcpy(p, "Cannot spread '", 15), p += 15;
-            p += ast_to_charp(*arg, p);
-            memcpy(p, "'; not an array or string", 25), p += 25;
-            *p = 0;
-            return new_error(msg, p - msg, tmp);
+            return err_spread(ptr->type->kind, tmp);
         }
 
         ptr = arg->expr_cmd(arg->chld, tmp, this);
@@ -369,62 +374,6 @@ static inline value *make_array(ast *arg, array *arrp, value *tmp, value *this) 
     return tmp;
 }
 
-static inline void free_refarray(array *arrp) {
-    value *p = arrp->list;
-    while (arrp->len --) free_val(p ++);
-    free(arrp->list);
-}
-
-static inline value *call_param(func *argp, ast *prm, value *tmp, value *this) {
-    array arr;
-    value *ptr = make_array(argp->arg, &arr, tmp, this);
-    if (ptr->type == &ERROR_OBJ) return ptr;
-
-    value *arg = arr.list;
-    size_t arglen = arr.len;
-    size_t prmlen = prm->len;
-
-    while (prmlen) {
-        prm ++, prmlen --;
-
-        if (prm->expr_cmd == expr_ident) {
-            if (arglen == 0) {
-                free_refarray(&arr);
-                char msg[NOCTER_LINE_MAX], *p = msg;
-                memcpy(p, "Cannot call '", 13), p += 13;
-                p += ast_to_charp(argp->expr, p);
-                memcpy(p, "'; missing argument for parameter '", 35), p += 35;
-                memcpy(p, prm->chld.ptr, strlen(prm->chld.ptr)), p += strlen(prm->chld.ptr);
-                *p ++ = '\'';
-                *p = 0;
-                return new_error(msg, p - msg, tmp);
-            }
-            let(prm->chld.ptr, *arg);
-            arg ++, arglen --;
-        }
-        if (prm->expr_cmd == expr_spread) {}
-        if (prm->expr_cmd == expr_assign) {
-
-        }
-    }
-
-    if (arglen) {
-        free_refarray(&arr);
-        char msg[NOCTER_LINE_MAX], *p = msg;
-        memcpy(p, "Cannot call '", 13), p += 13;
-        p += ast_to_charp(argp->expr, p);
-        memcpy(p, "'; ", 3), p += 3;
-        p += long_to_charp(arglen, p);
-        memcpy(p, " unexpected argument", 20), p += 20;
-        if (arglen > 1) *p ++ = 's';
-        *p = 0;
-        return new_error(msg, p - msg, tmp);
-    }
-
-    free(arr.list);
-    return &NULL_VALUE;
-}
-
 value *expr_arr(chp ch, value *tmp, value *this) {
     if (VERBOSE) printf("\e[90mverbose: Making a new array...\e[0m\n");
 
@@ -438,25 +387,136 @@ value *expr_arr(chp ch, value *tmp, value *this) {
     return ptr;
 }
 
+
+static value *err_too_many_arg(value *tmp) {
+    return new_error("too many arguments (maximum is 256)", 35, tmp);
+}
+
+static value *err_missing_arg(param *prm, value *tmp) {
+    char msg[NOCTER_LINE_MAX], *p = msg;
+    memcpy(p, "missing argument for parameter '", 32), p += 32;
+    size_t idlen = strlen(prm->id);
+    memcpy(p, prm->id, idlen), p += idlen;
+    *p ++ = '\'';
+    *p = 0;
+    return new_error(msg, p - msg, tmp);
+}
+
+static value *err_unexpected_arg(size_t arglen, value *tmp) {
+    char msg[NOCTER_LINE_MAX], *p = msg;
+    p += long_to_charp(arglen, p);
+    memcpy(p, " unexpected argument", 20), p += 20;
+    if (arglen > 1) *p ++ = 's';
+    *p = 0;
+    return new_error(msg, p - msg, tmp);
+}
+
+static inline value *call_param(ast *args, func *fnp, value *tmp, value *this) {
+    value arguments[NOCTER_BUFF], *p = arguments, *arg = p;
+    size_t arglen = 0;
+
+    for (size_t len = args->len; len; len --) {
+        args ++;
+
+        if (args->expr_cmd == expr_spread) {
+            value *ptr = args->chld.astp->expr_cmd(args->chld.astp->chld, tmp, this);
+            
+            if (ptr->type == &ARRAY_OBJ) {
+                array *arrp = ptr->arrp;
+                arglen += arrp->len;
+                if (arglen > NOCTER_BUFF) {
+                    while (arglen --) p --, free_val(p);
+                    return err_too_many_arg(tmp);
+                }
+
+                if (ptr == tmp) {
+                    arrp->refcount --;
+                    if (arrp->refcount == 0) {
+                        memcpy(p, arrp->list, sizeof(value) * arrp->len);
+                        p += arrp->len;
+                        free(arrp->list);
+                        free(arrp);
+                        continue;
+                    }
+                }
+
+                value *lp = arrp->list;
+                for (size_t i = arrp->len; i; i --) *p ++ = dup_val(*lp ++);
+                continue;
+            }
+
+            while (arglen --) p --, free_val(p);
+            if (ptr->type == &ERROR_OBJ) return ptr;
+            return err_spread(ptr->type->kind, tmp);
+        }
+
+        value *ptr = args->expr_cmd(args->chld, tmp, this);
+        if (ptr->type == &ERROR_OBJ) {
+            while (arglen --) p --, free_val(p);
+            return ptr;
+        }
+        *p ++ = (ptr == tmp) ? *tmp : dup_val(*ptr);
+        arglen ++;
+    }
+
+    size_t varlen = VAR_P - VAR_H;
+    param *prm = fnp->prm;
+    size_t prmlen = fnp->prmlen;
+
+    while (prmlen) {
+        if (prm->is_spread) {
+            puts("@");
+            exit(1);
+        }
+        if (arglen == 0) {
+            if (prm->assigned == NULL) {
+                free_gc(varlen);
+                return err_missing_arg(prm, tmp);
+            }
+
+            value *ptr = prm->assigned->expr_cmd(prm->assigned->chld, tmp, this);
+            if (ptr->type == &ERROR_OBJ) {
+                free_gc(varlen);
+                return ptr;
+            }
+            let(prm->id, (ptr == tmp) ? *tmp : dup_val(*ptr));
+            prm ++, prmlen --;
+            continue;
+        }
+
+        // if (prm->typed != NULL) {
+        //     ((value *)prm->typed)->type == &OBJECT_OBJ;
+
+        // }
+
+        let(prm->id, *arg);
+        prm ++, prmlen --;
+        arg ++, arglen --;
+    }
+
+    if (arglen) {
+        size_t l = arglen;
+        while (arglen --) p --, free_val(p);
+        free_gc(varlen);
+        return err_unexpected_arg(l, tmp);
+    }
+
+    value *res = fnp->expr.expr_cmd(fnp->expr.chld, tmp, fnp->this);
+    if (res == tmp) free_gc(varlen);
+    else refree_gc(varlen, tmp, &res);
+
+    return res;
+}
+
 value *expr_call(chp ch, value *tmp, value *this) {
     if (VERBOSE) puts("\e[90mverbose: Called\e[0m");
-    value *ptr = ch.funcp->expr.expr_cmd(ch.funcp->expr.chld, tmp, this);
+    value *ptr = ch.callp->expr.expr_cmd(ch.callp->expr.chld, tmp, this);
 
     if (ptr->type == &FUNC_OBJ) {
         func *fnp = ptr->funcp;
 
-        size_t varlen = VAR_P - VAR_H;
-        value *lptr = call_param(ch.funcp, fnp->arg, tmp, this);
-        if (lptr->type == &ERROR_OBJ) {
-            VAR_P = VAR_H + varlen;
-            return lptr;
-        }
-
-        value *res = fnp->expr.expr_cmd(fnp->expr.chld, tmp, fnp->this);
+        value *res = call_param(ch.callp->args, fnp, tmp, this);
         if (ptr == tmp) refree_func(fnp, tmp, &res);
-        if (res == tmp) free_gc(varlen);
-        else refree_gc(varlen, tmp, &res);
-
         return res;
     }
 
@@ -467,31 +527,25 @@ value *expr_call(chp ch, value *tmp, value *this) {
         if (objp->init == NULL) {
             char msg[NOCTER_LINE_MAX], *p = msg;
             memcpy(p, "cannot instantiate '", 20), p += 20;
-            p += ast_to_charp(ch.funcp->expr, p);
+            p += ast_to_charp(ch.callp->expr, p);
             memcpy(p, "'; no property 'init'", 21), p += 21;
             return new_error(msg, p - msg, tmp);
-        }
-
-        size_t varlen = VAR_P - VAR_H;
-        value *lptr = call_param(ch.funcp, fnp->arg, tmp, this);
-        if (lptr->type == &ERROR_OBJ) {
-            VAR_P = VAR_H + varlen;
-            return lptr;
         }
 
         field *fldp = alloc(sizeof(field));
         fldp->h = alloc(0);
         fldp->p = fldp->h - 1;
 
-        value this = {
+        value thisv = {
             .type = objp,
             .fldp = fldp
         };
-        value *res = fnp->expr.expr_cmd(fnp->expr.chld, tmp, &this);
-        free_gc(varlen);
-        if (res == tmp) free_val(tmp);
+        fnp->this = &thisv;
 
-        *tmp = this;
+        call_param(ch.callp->args, fnp, tmp, this);
+        fnp->this = NULL;
+        
+        *tmp = thisv;
         return tmp;
     }
 
@@ -1009,15 +1063,7 @@ value *expr_spread(chp ch, value *tmp, value *this) {
     }
     if (ptr->type == &ERROR_OBJ) return ptr;
 
-    // cannot spread value of type integer; expected array or string
-
-    char msg[NOCTER_LINE_MAX], *p = msg;
-    memcpy(p, "cannot spread value of type ", 28), p += 28;
-    string *type = ptr->type->kind;
-    memcpy(p, type->ptr, type->len), p += type->len;
-    memcpy(p, "; expected array or string", 26), p += 26;
-    *p = 0;
-    return new_error(msg, p - msg, tmp);
+    return err_spread(ptr->type->kind, tmp);
 }
 
 // err

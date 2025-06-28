@@ -14,8 +14,6 @@
 #include "nocter/file.h"
 
 #define LET(ID, AST) ((ast){ .stat_cmd = stat_let, .chld.idastp = idastdup((idast){ .id = ID, .expr = AST }) })
-#define LEN(n) ((ast){ .len = n })
-#define ID(ID) ((ast){ .expr_cmd = expr_ident, .chld.ptr = ID })
 #define NATIVE(FN) ((ast){ .expr_cmd = expr_native, .chld.native = FN })
 #define VALUE(VAL) ((ast){ .expr_cmd = expr_val, .chld.valp = valuedup(VAL) })
 
@@ -34,21 +32,21 @@ value VOID_VALUE = {
     .type = NULL,
     .bit = -1
 };
-
 value NULL_VALUE = {
     .type = NULL,
     .bit = 0
 };
-
 value TRUE_VALUE = {
     .type = &BOOL_OBJ,
     .bit = 1
 };
-
 value FALSE_VALUE = {
     .type = &BOOL_OBJ,
     .bit = 0
 };
+
+ast INT_AST;
+ast STRING_AST;
 
 string VOID_KIND_NAME = (string){.ptr = "void", .len = 4};
 string NULL_KIND_NAME = (string){.ptr = "null", .len = 4};
@@ -71,11 +69,12 @@ static inline object newobj(variable *objs, size_t len, string *kind) {
     return obj;
 }
 
-static inline value newfunc(ast *arg, ast expr) {
+static inline value newfunc(param *prm, size_t prmlen, ast expr) {
     return (value){
         .type = &FUNC_OBJ,
         .funcp = funcdup((func){
-            .arg = allocpy(arg, sizeof(ast) * (arg[0].len + 1)),
+            .prm = allocpy(prm, sizeof(param) * prmlen),
+            .prmlen = prmlen,
             .expr = expr,
             .this = NULL
         })
@@ -85,19 +84,15 @@ static inline value newfunc(ast *arg, ast expr) {
 // register
 void builtin(statlist *stat) {
 
-    add_stat(stat, LET("Int", VALUE(((value){
-        .type = &OBJECT_OBJ,
-        .objp = &INT_OBJ
-    }))));
+    INT_AST = VALUE(((value){.type = &OBJECT_OBJ, .objp = &INT_OBJ}));
+    add_stat(stat, LET("Int", INT_AST));
     INT_OBJ = newobj((variable[]){
     }, 0, &INT_KIND_NAME);
 
-    add_stat(stat, LET("String", VALUE(((value){
-        .type = &OBJECT_OBJ,
-        .objp = &STRING_OBJ
-    }))));
+    STRING_AST = VALUE(((value){.type = &OBJECT_OBJ, .objp = &STRING_OBJ}));
+    add_stat(stat, LET("String", STRING_AST));
     STRING_OBJ = newobj((variable[]){
-        { .id = "length", .val = newfunc((ast[]){LEN(0)}, NATIVE(string_length)) }
+        { .id = "length", .val = newfunc((param[]){}, 0, NATIVE(string_length)) }
     }, 1, &STRING_KIND_NAME);
 
     add_stat(stat, LET("File", VALUE(((value){
@@ -105,16 +100,16 @@ void builtin(statlist *stat) {
         .objp = &FILE_OBJ
     }))));
     FILE_OBJ = newobj((variable[]){
-        { .id = "open", .val = newfunc((ast[]){LEN(2), ID("path"), ID("mode")}, NATIVE(file_open)) },
-        { .id = "close", .val = newfunc((ast[]){LEN(0)}, NATIVE(file_close)) },
-        { .id = "read", .val = newfunc((ast[]){LEN(0)}, NATIVE(file_read)) },
-        { .id = "write", .val = newfunc((ast[]){LEN(1), ID("text")}, NATIVE(file_write)) }
+        { .id = "open", .val = newfunc((param[]){{.id = "path", .typed = &STRING_AST}, {.id = "mode", .typed = &STRING_AST}}, 2, NATIVE(file_open)) },
+        { .id = "close", .val = newfunc((param[]){}, 0, NATIVE(file_close)) },
+        { .id = "read", .val = newfunc((param[]){}, 0, NATIVE(file_read)) },
+        { .id = "write", .val = newfunc((param[]){{.id = "text"}}, 1, NATIVE(file_write)) }
     }, 4, &CUSTOM_KIND_NAME);
 
     add_stat(stat, LET("IO", VALUE(((value){
         .type = &OBJECT_OBJ,
         .objp = objdup(newobj((variable[]){
-            { .id = "print", .val = newfunc((ast[]){LEN(1), ID("any")}, NATIVE(io_print)) }
+            { .id = "print", .val = newfunc((param[]){{.id = "any", .typed = &STRING_AST, .assigned = NULL, .is_spread = false}}, 1, NATIVE(io_print)) }
         }, 1, &CUSTOM_KIND_NAME))
     }))));
 }
@@ -127,8 +122,8 @@ bool register_lib(char *id, statlist *stat, implist *imp) {
             add_stat(stat, LET("Time", VALUE(((value){
                 .type = &OBJECT_OBJ,
                 .objp = objdup(newobj((variable[]){
-                    { .id = "now", .val = newfunc((ast[]){ LEN(0) }, NATIVE(time_now)) },
-                    { .id = "sleep", .val = newfunc((ast[]){ LEN(1), ID("ms") }, NATIVE(time_sleep)) }
+                    { .id = "now", .val = newfunc((param[]){}, 0, NATIVE(time_now)) },
+                    { .id = "sleep", .val = newfunc((param[]){{.id = "ms"}}, 1, NATIVE(time_sleep)) }
                 }, 2, &CUSTOM_KIND_NAME))
             }))));
         }

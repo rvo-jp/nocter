@@ -23,12 +23,11 @@ typedef struct script {
 // #define ISNT_ID(c)      (c < '0' || (c > '9' && c < 'A') || )
 #define ISNT_ID(ch)     !(IS_ID(ch) || IS_INT(ch))
 
-#define IS_NATIVE(s)    ((s)[0] == 'n' && (s)[1] == 'a' && (s)[2] == 't' && (s)[3] == 'i' && (s)[4] == 'v' && (s)[5] == 'e' && ISNT_ID((s)[6]))
+#define IS_THIS(s)      ((s)[0] == 't' && (s)[1] == 'h' && (s)[2] == 'i' && (s)[3] == 's' && ISNT_ID((s)[4]))
 #define IS_TRUE(s)      ((s)[0] == 't' && (s)[1] == 'r' && (s)[2] == 'u' && (s)[3] == 'e' && ISNT_ID((s)[4]))
 #define IS_FALSE(s)     ((s)[0] == 'f' && (s)[1] == 'a' && (s)[2] == 'l' && (s)[3] == 's' && (s)[4] == 'e' && ISNT_ID((s)[5]))
 #define IS_VOID(s)      ((s)[0] == 'v' && (s)[1] == 'o' && (s)[2] == 'i' && (s)[3] == 'd' && ISNT_ID((s)[4]))
 #define IS_NULL(s)      ((s)[0] == 'n' && (s)[1] == 'u' && (s)[2] == 'l' && (s)[3] == 'l' && ISNT_ID((s)[4]))
-#define IS_THIS(s)      ((s)[0] == 't' && (s)[1] == 'h' && (s)[2] == 'i' && (s)[3] == 's' && ISNT_ID((s)[4]))
 #define IS_NAN(s)       ((s)[0] == 'n' && (s)[1] == 'a' && (s)[2] == 'n' && ISNT_ID((s)[3]))
 #define IS_INF(s)       ((s)[0] == 'i' && (s)[1] == 'n' && (s)[2] == 'f' && ISNT_ID((s)[3]))
 
@@ -44,13 +43,10 @@ typedef struct script {
 #define IS_RETURN(s)    ((s)[0] == 'r' && (s)[1] == 'e' && (s)[2] == 't' && (s)[3] == 'u' && (s)[4] == 'r' && (s)[5] == 'n' && ISNT_ID((s)[6]))
 #define IS_BREAK(s)     ((s)[0] == 'b' && (s)[1] == 'r' && (s)[2] == 'e' && (s)[3] == 'a' && (s)[4] == 'k' && ISNT_ID((s)[5]))
 #define IS_CONTINUE(s)  ((s)[0] == 'c' && (s)[1] == 'o' && (s)[2] == 'n' && (s)[3] == 't' && (s)[4] == 'i' && (s)[5] == 'n' && (s)[6] == 'u' && (s)[7] == 'e' && ISNT_ID((s)[8]))
-
 #define IS_IMPORT(s)    ((s)[0] == 'i' && (s)[1] == 'm' && (s)[2] == 'p' && (s)[3] == 'o' && (s)[4] == 'r' && (s)[5] == 't' && ISNT_ID((s)[6]))
-#define IS_MACRO(s)     ((s)[0] == 'm' && (s)[1] == 'a' && (s)[2] == 'c' && (s)[3] == 'r' && (s)[4] == 'o' && ISNT_ID((s)[5]))
 
-#define IS_ANY_KEYS(s)  (IS_NATIVE(s) || IS_TRUE(s) || IS_FALSE(s) || IS_VOID(s) || IS_NULL(s))
-#define IS_ANY_STAT(s)  (IS_LET(s) || IS_IF(s) || IS_ELSE(s) || IS_WHILE(s) || IS_DO(s) || IS_FOR(s) || IS_SWITCH(s) || IS_CASE(s) || IS_DEFAULT(s) || IS_RETURN(s) || IS_BREAK(s) || IS_CONTINUE(s)) 
-#define IS_ANY_PREP(s)  (IS_IMPORT(s) || IS_MACRO(s))
+#define IS_ANY_KEYS(s)  (IS_THIS(s) || IS_TRUE(s) || IS_FALSE(s) || IS_VOID(s) || IS_NULL(s))
+#define IS_ANY_STAT(s)  (IS_IMPORT(s) || IS_LET(s) || IS_IF(s) || IS_ELSE(s) || IS_WHILE(s) || IS_DO(s) || IS_FOR(s) || IS_SWITCH(s) || IS_CASE(s) || IS_DEFAULT(s) || IS_RETURN(s) || IS_BREAK(s) || IS_CONTINUE(s))
 
 
 static ast parse_expr(script *code);
@@ -249,23 +245,44 @@ static ast parse_func(script *code) {
     script start = *code;
     code->p ++, trim(code);
 
-    ast mem[NOCTER_BUFF], *lp = mem, *p = mem + 1;
+    param mem[NOCTER_BUFF], *p = mem;
+    size_t prmlen = 0;
+
     if (*code->p == ')') code->p ++, trim(code);
     else {
         for (;;) {
-            if (p - mem == NOCTER_BUFF) syntax_err("too many parameters", &start, code->p);
+            if (prmlen == NOCTER_BUFF) syntax_err("too many parameters", &start, code->p);
 
-            script start2 = *code;
-            ast arg = parse_spread(code);
-            if (arg.expr_cmd != expr_ident && (arg.expr_cmd != expr_spread || arg.chld.astp->expr_cmd != expr_ident)) syntax_err("invalid parameter", &start2, code->p);
+            param prm;
 
-            *p ++ = arg;
+            prm.is_spread = (code->p[0] == '.' && code->p[1] == '.' && code->p[2] == '.');
+            if (prm.is_spread) code->p += 3, trim(code);
+
+            if (!IS_ID(*code->p)) syntax_err("expected identifier", code, code->p);
+            if (IS_ANY_KEYS(code->p) || IS_ANY_STAT(code->p)) syntax_err("unexpected use of keyword", code, code->p);
+
+            prm.id = identifier(code);
+
+            if (code->p[0] == ':') {
+                code->p ++, trim(code);
+                prm.typed = astdup(parse_expr(code));
+            }
+            else prm.assigned = NULL;
+
+            if (code->p[0] == '=') {
+                code->p ++, trim(code);
+                prm.assigned = astdup(parse_expr(code));
+            }
+            else prm.assigned = NULL;
+
+            *p ++ = prm;
+            prmlen ++;
+
             if (*code->p == ',') code->p ++, trim(code);
             else break;
         }
         bracketsend(code, ')');
     }
-    lp->len = p - mem - 1;
 
     code->p += 2, trim(code);
     return (ast){
@@ -273,7 +290,8 @@ static ast parse_func(script *code) {
         .chld.valp = valuedup((value){
             .type = &FUNC_OBJ,
             .funcp = funcdup((func){
-                .arg = allocpy(mem, sizeof(ast) * (p - mem)),
+                .prm = allocpy(mem, sizeof(param) * prmlen),
+                .prmlen = prmlen,
                 .expr = parse_expr(code),
                 .this = NULL
             })
@@ -598,10 +616,9 @@ static ast parse_access(script *code) {
             else {
                 res = (ast){
                     .expr_cmd = expr_call,
-                    .chld.funcp = funcdup((func){
-                        .arg = parse_args(code, ')', "too many arguments"),
-                        .expr = res,
-                        .this = NULL
+                    .chld.callp = calldup((callexpr){
+                        .args = parse_args(code, ')', "too many arguments"),
+                        .expr = res
                     })
                 };
             }
@@ -639,9 +656,9 @@ static ast parse_access(script *code) {
 }
 
 // !x  ~x  -x  +x  --x  ++x  typeof x
-static ast parse_prefix(script *code) {
+// static ast parse_prefix(script *code) {
 
-}
+// }
 
 // x = y  x += y
 static ast parse_assign(script *code) {
@@ -843,7 +860,7 @@ static ast parse_single_stat(script *code, bool ret, bool loop, implist *imp) {
 
         ast res = (ast){
             .stat_cmd = stat_return,
-            .chld.astp = astdup((*code->p == ';' || IS_ANY_STAT(code->p) || IS_ANY_PREP(code->p)) ? (ast){
+            .chld.astp = astdup((*code->p == ';' || IS_ANY_STAT(code->p)) ? (ast){
                 .expr_cmd = expr_val,
                 .chld.valp = &VOID_VALUE
             } : parse_comma(code))
