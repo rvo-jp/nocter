@@ -44,14 +44,6 @@ value FALSE_VALUE = {
     .type = &BOOL_OBJ,
     .bit = 0
 };
-value INT_VALUE = {
-    .type = &OBJECT_OBJ,
-    .objp = &INT_OBJ
-};
-value STRING_VALUE = {
-    .type = &OBJECT_OBJ,
-    .objp = &STRING_OBJ
-};
 
 string VOID_KIND_NAME = (string){.ptr = "void", .len = 4};
 string NULL_KIND_NAME = (string){.ptr = "null", .len = 4};
@@ -86,14 +78,19 @@ static inline value newfunc(param *prm, size_t prmlen, ast expr) {
     };
 }
 
+ast INT_AST;
+ast STRING_AST;
+
 // register
 void builtin(statlist *stat) {
 
-    add_stat(stat, LET("Int", VALUE(INT_VALUE)));
+    INT_AST = VALUE(((value){ .type = &OBJECT_OBJ, .objp = &INT_OBJ }));
+    add_stat(stat, LET("Int", INT_AST));
     INT_OBJ = newobj((variable[]){
     }, 0, &INT_KIND_NAME);
 
-    add_stat(stat, LET("String", VALUE(STRING_VALUE)));
+    STRING_AST =VALUE(((value){ .type = &OBJECT_OBJ, .objp = &STRING_OBJ }));
+    add_stat(stat, LET("String", STRING_AST));
     STRING_OBJ = newobj((variable[]){
         { .id = "length", .val = newfunc((param[]){}, 0, NATIVE(string_length)) }
     }, 1, &STRING_KIND_NAME);
@@ -104,13 +101,13 @@ void builtin(statlist *stat) {
     }))));
     FILE_OBJ = newobj((variable[]){
         { .id = "open", .val = newfunc((param[]){
-            {.id = "path", .type = &STRING_VALUE, .assigned = NULL, .is_spread = false},
-            {.id = "mode", .type = &STRING_VALUE, .assigned = NULL, .is_spread = false}
+            {.id = "path", .type = &STRING_AST, .assigned = NULL, .is_spread = false},
+            {.id = "mode", .type = &STRING_AST, .assigned = NULL, .is_spread = false}
         }, 2, NATIVE(file_open)) },
         { .id = "close", .val = newfunc((param[]){}, 0, NATIVE(file_close)) },
         { .id = "read", .val = newfunc((param[]){}, 0, NATIVE(file_read)) },
         { .id = "write", .val = newfunc((param[]){
-            {.id = "text", .type = &STRING_VALUE, .assigned = NULL, .is_spread = false}
+            {.id = "text", .type = &STRING_AST, .assigned = NULL, .is_spread = false}
         }, 1, NATIVE(file_write)) }
     }, 4, &CUSTOM_KIND_NAME);
 
@@ -119,8 +116,11 @@ void builtin(statlist *stat) {
         .objp = objdup(newobj((variable[]){
             { .id = "print", .val = newfunc((param[]){
                 {.id = "any", .type = NULL, .assigned = NULL, .is_spread = false}
-            }, 1, NATIVE(io_print)) }
-        }, 1, &CUSTOM_KIND_NAME))
+            }, 1, NATIVE(io_print)) },
+            { .id = "puts", .val = newfunc((param[]){
+                {.id = "msg", .type = &STRING_AST, .assigned = NULL, .is_spread = false}
+            }, 1, NATIVE(io_puts)) }
+        }, 2, &CUSTOM_KIND_NAME))
     }))));
 }
 
@@ -134,7 +134,7 @@ bool register_lib(char *id, statlist *stat, implist *imp) {
                 .objp = objdup(newobj((variable[]){
                     { .id = "now", .val = newfunc((param[]){}, 0, NATIVE(time_now)) },
                     { .id = "sleep", .val = newfunc((param[]){
-                        {.id = "ms", .type = &INT_VALUE, .assigned = NULL, .is_spread = false}
+                        {.id = "ms", .type = &INT_AST, .assigned = NULL, .is_spread = false}
                     }, 1, NATIVE(time_sleep)) }
                 }, 2, &CUSTOM_KIND_NAME))
             }))));

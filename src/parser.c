@@ -265,9 +265,9 @@ static ast parse_func(script *code) {
 
             if (code->p[0] == ':') {
                 code->p ++, trim(code);
-                prm.expr_type = astdup(parse_expr(code));
+                prm.type = astdup(parse_expr(code));
             }
-            else prm.expr_type = NULL;
+            else prm.type = NULL;
 
             if (code->p[0] == '=') {
                 code->p ++, trim(code);

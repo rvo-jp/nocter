@@ -503,10 +503,12 @@ static inline value *call_param(ast *args, func *fnp, value *tmp, value *this) {
         }
 
         if (prm->type != NULL) {
-            if (prm->type->type == &OBJECT_OBJ) {
-                if (val.type != prm->type->objp) {
+            ast *typed = prm->type;
+            if (typed->expr_cmd == expr_val) {
+                value *valp = typed->chld.valp;
+                if (val.type != valp->objp) {
                     free_gc(varlen);
-                    return err_expected_type(prm->id, prm->type->objp->kind, val.type->kind, tmp);
+                    return err_expected_type(prm->id, valp->objp->kind, val.type->kind, tmp);
                 }
             }
         }

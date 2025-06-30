@@ -42,6 +42,8 @@ typedef struct statement {
 typedef struct variable {
     char *id;
     value val;
+    // ast *type;
+    // bool is_const;
 } variable;
 
 typedef struct ast ast;
@@ -98,10 +100,7 @@ typedef struct idast {
 
 typedef struct param {
     char *id;
-    union {
-        ast *expr_type;
-        value *type;
-    };
+    ast *type;
     ast *assigned;
     bool is_spread;
     // bool is_const;
