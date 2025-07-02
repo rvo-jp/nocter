@@ -2,7 +2,6 @@
 #include "../utils/alloc.h"
 #include "../builtin.h"
 #include "../interpretor.h"
-#include "error.h"
 #include "fpconv/fpconv.h"
 
 bool string_equal(const string *a, const string *b) {
