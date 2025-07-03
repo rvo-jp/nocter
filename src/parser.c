@@ -348,7 +348,7 @@ static idast parse_dec(script *code) {
 }
 
 // 1 "abc" true ()
-static ast parse_val(script *code) {
+static ast parse_0(script *code) {
 
     if (IS_ID(*code->p)) {
         if (IS_ANY_STAT(code->p)) syntax_err("unexpected statement", code, code->p);
@@ -587,7 +587,6 @@ static ast parse_val(script *code) {
     }
 }
 
-
 static void modifiable(ast *res, script *start, script *code, int len) {
     if (res->expr_cmd == expr_ident) res->expr_cmd = expr_ident_ptr;
     else if (res->expr_cmd == expr_this) res->expr_cmd = expr_this_ptr;
@@ -599,8 +598,8 @@ static void modifiable(ast *res, script *start, script *code, int len) {
 }
 
 // x()  x[]  x.y
-static ast parse_access(script *code) {
-    ast res = parse_val(code);
+static ast parse_1(script *code) {
+    ast res = parse_0(code);
 
     for (;;) {
         if (*code->p == '(') {
@@ -655,15 +654,10 @@ static ast parse_access(script *code) {
     return res;
 }
 
-// !x  ~x  -x  +x  --x  ++x  typeof x
-// static ast parse_prefix(script *code) {
-
-// }
-
 // x = y  x += y
-static ast parse_assign(script *code) {
+static ast parse_2(script *code) {
     script start = *code;
-    ast res = parse_access(code);
+    ast res = parse_1(code);
 
     for (;;) {
         if (*code->p == '=') {
@@ -683,9 +677,30 @@ static ast parse_assign(script *code) {
     return res;
 }
 
+// !x  ~x  -x  +x  --x  ++x  typeof x
+static ast parse_3(script *code) {
+    ast res = parse_2(code);
+
+    return res;
+}
+
+// x ** y
+static ast parse_4(script *code) {
+    ast res = parse_3(code);
+
+    return res;
+}
+
+// x * y  x / y  x % y
+static ast parse_5(script *code) {
+    ast res = parse_4(code);
+
+    return res;
+}
+
 // x + y  x - y
-static ast parse_1(script *code) {
-    ast res = parse_assign(code);
+static ast parse_6(script *code) {
+    ast res = parse_5(code);
 
     for (;;) {
         if (*code->p == '+') {
@@ -694,7 +709,7 @@ static ast parse_1(script *code) {
                 .expr_cmd = expr_add,
                 .chld.dbp = dbexprdup((dbexpr){
                     .lexpr = res,
-                    .rexpr = parse_assign(code)
+                    .rexpr = parse_5(code)
                 })
             };
         }
@@ -704,7 +719,7 @@ static ast parse_1(script *code) {
                 .expr_cmd = expr_subtract,
                 .chld.dbp = dbexprdup((dbexpr){
                     .lexpr = res,
-                    .rexpr = parse_assign(code)
+                    .rexpr = parse_5(code)
                 })
             };
         }
@@ -714,10 +729,32 @@ static ast parse_1(script *code) {
     return res;
 }
 
+// x << y  x >> y
+static ast parse_7(script *code) {
+    ast res = parse_6(code);
+
+    return res;
+}
+
+// x < y  x > y  x <= y  x >= y  x in y
+static ast parse_8(script *code) {
+    ast res = parse_7(code);
+
+    return res;
+}
+
+// x == y  x != y
+static ast parse_9(script *code) {
+    ast res = parse_8(code);
+
+    return res;
+}
+
+
 
 // a ? b : c
 static ast parse_expr(script *code) {
-    ast res = parse_1(code);
+    ast res = parse_9(code);
     return res;
 }
 
