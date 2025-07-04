@@ -888,17 +888,21 @@ value *expr_ident_ptr(chp ch, value *tmp, value *this) {
  */
 
 value *expr_assign(chp ch, value *tmp, value *this) {
-    value *ptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, tmp, this);
-    if (ptr->type == &ERROR_OBJ) return ptr;
-    value rval = (ptr == tmp) ? *tmp : dup_val(*ptr);
+    value rtmp, *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, &rtmp, this);
+    if (rptr->type == &ERROR_OBJ) {
+        if (rptr != &rtmp) return rptr;
+        *tmp = rtmp;
+        return tmp;
+    }
+    if (rptr != &rtmp) rtmp = dup_val(*rptr);
 
-    ptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, tmp, this);
+    value *ptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, tmp, this);
     if (ptr->type == &ERROR_OBJ) {
-        free_val(&rval);
+        free_val(&rtmp);
         return ptr;
     }
 
-    *ptr = rval;
+    *ptr = rtmp;
     return ptr;
 }
 
