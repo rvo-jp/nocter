@@ -41,7 +41,8 @@ value *expr_access_ptr(chp ch, value *tmp, value *this);
 value *expr_add(chp ch, value *tmp, value *this);
 // expr - expr
 value *expr_subtract(chp ch, value *tmp, value *this);
-
+// expr == expr
+value *expr_equal(chp ch, value *tmp, value *this);
 
 // ... expr
 value *expr_spread(chp ch, value *tmp, value *this);

@@ -5,6 +5,7 @@
 #include "fpconv/fpconv.h"
 
 bool string_equal(const string *a, const string *b) {
+    if (a == b) return true;
     if (a->len != b->len) return false;
     return memcmp(a->ptr, b->ptr, a->len) == 0;
 }

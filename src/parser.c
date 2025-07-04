@@ -603,26 +603,23 @@ static ast parse_1(script *code) {
 
     for (;;) {
         if (*code->p == '(') {
-            if (is_func(*code, '=')) {
-                res = (ast){
-                    .expr_cmd = expr_assign,
-                    .chld.dbp = dbexprdup((dbexpr){
-                        .lexpr = res,
-                        .rexpr = parse_func(code)
-                    })
-                };
-            }
-            else {
-                res = (ast){
-                    .expr_cmd = expr_call,
-                    .chld.callp = calldup((callexpr){
-                        .args = parse_args(code, ')', "too many arguments"),
-                        .expr = res
-                    })
-                };
-            }
+            if (is_func(*code, '=')) res = (ast){
+                .expr_cmd = expr_assign,
+                .chld.dbp = dbexprdup((dbexpr){
+                    .lexpr = res,
+                    .rexpr = parse_func(code)
+                })
+            };
+            else res = (ast){
+                .expr_cmd = expr_call,
+                .chld.callp = calldup((callexpr){
+                    .args = parse_args(code, ')', "too many arguments"),
+                    .expr = res
+                })
+            };
+            continue;
         }
-        else if (*code->p == '.') {
+        if (*code->p == '.') {
             code->p ++, trim(code);
 
             if (!(IS_ID(*code->p) || (code->p[0] == '#' && IS_ID(code->p[1])))) syntax_err("Expected identifier", code, code->p);
@@ -635,8 +632,9 @@ static ast parse_1(script *code) {
                     .expr = res
                 })
             };
+            continue;
         }
-        else if (*code->p == '[') {
+        if (*code->p == '[') {
             code->p ++, trim(code);
             if (*code->p == ']') syntax_err("expected expression before ']'", code, code->p);
             res = (ast){
@@ -647,11 +645,10 @@ static ast parse_1(script *code) {
                 })
             };
             bracketsend(code, ']');
+            continue;
         }
-        else break;
+        return res;
     }
-
-    return res;
 }
 
 // x = y  x += y
@@ -712,6 +709,7 @@ static ast parse_6(script *code) {
                     .rexpr = parse_5(code)
                 })
             };
+            continue;
         }
         if (*code->p == '-') {
             code->p ++, trim(code);
@@ -722,11 +720,10 @@ static ast parse_6(script *code) {
                     .rexpr = parse_5(code)
                 })
             };
+            continue;
         }
-        else break;
+        return res;
     }
-
-    return res;
 }
 
 // x << y  x >> y
@@ -747,7 +744,31 @@ static ast parse_8(script *code) {
 static ast parse_9(script *code) {
     ast res = parse_8(code);
 
-    return res;
+    for (;;) {
+        if (code->p[0] == '=' && code->p[1] == '=') {
+            code->p += 2, trim(code);
+            res = (ast){
+                .expr_cmd = expr_equal,
+                .chld.dbp = dbexprdup((dbexpr){
+                    .lexpr = res,
+                    .rexpr = parse_8(code)
+                })
+            };
+            continue;
+        }
+        if (code->p[0] == '!' && code->p[1] == '=') {
+            code->p += 2, trim(code);
+            res = (ast){
+                .expr_cmd = expr_equal,
+                .chld.dbp = dbexprdup((dbexpr){
+                    .lexpr = res,
+                    .rexpr = parse_8(code)
+                })
+            };
+            continue;
+        }
+        return res;
+    }
 }
 
 

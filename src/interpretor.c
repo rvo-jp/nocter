@@ -556,7 +556,7 @@ value *expr_call(chp ch, value *tmp, value *this) {
         }
 
         field *fldp = alloc(sizeof(field));
-        fldp->h = alloc(0);
+        fldp->h = NULL; //alloc(0);
         fldp->p = fldp->h - 1;
 
         value thisv = {
@@ -1072,6 +1072,36 @@ value *expr_subtract(chp ch, value *tmp, value *this) {
     return err_operate(SUB_CMD, lval.type->kind, rptr->type->kind, tmp);
 }
 
+static bool val_equal(value *l, value *r) {
+    if (l == r) return true;
+    if (l->type != r->type) return false;
+    if (l->type == &INT_OBJ) return l->bit == r->bit;
+    if (l->type == &FLOAT_OBJ) return l->db == r->db;
+    if (l->type == &BOOL_OBJ) return l->bit == r->bit;
+    if (l->type == &STRING_OBJ) return string_equal(l->strp, r->strp);
+    return false;
+}
+
+value *expr_equal(chp ch, value *tmp, value *this) {
+    value ltmp, *lptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, &ltmp, this);
+    if (lptr->type == &ERROR_OBJ) {
+        if (lptr != &ltmp) return lptr;
+        *tmp = ltmp;
+        return tmp;
+    }
+
+    value rtmp, *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, &rtmp, this);
+    if (rptr->type == &ERROR_OBJ) {
+        if (rptr != &rtmp) return rptr;
+        *tmp = rtmp;
+        return tmp;
+    }
+
+    value *res = val_equal(lptr, rptr) ? &TRUE_VALUE : &FALSE_VALUE;
+    if (lptr != &ltmp) free_val(lptr);
+    if (rptr != &rtmp) free_val(rptr);
+    return res;
+}
 
 
 // err
