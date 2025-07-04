@@ -894,15 +894,14 @@ value *expr_assign(chp ch, value *tmp, value *this) {
         *tmp = rtmp;
         return tmp;
     }
-    if (rptr != &rtmp) rtmp = dup_val(*rptr);
 
     value *ptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, tmp, this);
     if (ptr->type == &ERROR_OBJ) {
-        free_val(&rtmp);
+        if (rptr == &rtmp) free_val(&rtmp);
         return ptr;
     }
 
-    *ptr = rtmp;
+    *ptr = (rptr == &rtmp) ? rtmp : dup_val(*rptr);
     return ptr;
 }
 
