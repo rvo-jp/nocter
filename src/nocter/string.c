@@ -46,8 +46,8 @@ size_t long_to_charp(long i, char *buf) {
         '9', '0', '9', '1', '9', '2', '9', '3', '9', '4', '9', '5', '9', '6', '9', '7', '9', '8', '9', '9'
     };
 
-    bool negative = i >> 63;
-    uint64_t u = (i ^ negative) - negative;
+    bool neg = i < 0;
+    uint64_t u = neg? -i : i;
 
     char s[32], *last = s + 32, *p = last;
 
@@ -66,7 +66,7 @@ size_t long_to_charp(long i, char *buf) {
         *-- p = '0' + (char)u;
     }
 
-    if (negative) *-- p = '-';
+    if (neg) *-- p = '-';
 
     size_t len = last - p;
     memcpy(buf, p, len);
