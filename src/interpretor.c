@@ -512,7 +512,6 @@ static inline value *call_param(ast *args, func *fnp, value *tmp, value *this) {
                 }
             }
             else if (typed->expr_cmd == expr_ident) {
-                puts("@");
             }
         }
 
@@ -1071,53 +1070,74 @@ value *expr_add(chp ch, value *tmp, value *this) {
 }
 
 value *expr_subtract(chp ch, value *tmp, value *this) {
-    value *lptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, tmp, this);
+    value ltmp, *lptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, &ltmp, this);
 
     if (lptr->type == &INT_OBJ) {
-        long i = lptr->bit;
-        value *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, tmp, this);
+        value rtmp, *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, &rtmp, this);
         
         if (rptr->type == &INT_OBJ) {
-            *tmp = (value){ .type = &INT_OBJ, .bit = i - rptr->bit};
-            return tmp;
+            *tmp = (value){
+                .type = &INT_OBJ,
+                .bit = lptr->bit - rptr->bit
+            };
         }
-        if (rptr->type == &FLOAT_OBJ) {
-            *tmp = (value){ .type = &FLOAT_OBJ, .db = (double)i - rptr->db};
-            return tmp;
+        else if (rptr->type == &FLOAT_OBJ) {
+            *tmp = (value){
+                .type = &FLOAT_OBJ,
+                .db = (double)lptr->bit - rptr->db
+            };
         }
-        if (rptr->type == &ERROR_OBJ) return rptr;
-
-        free_val(rptr);
-        return err_operate(SUB_CMD, &INT_KIND_NAME, rptr->type->kind, tmp);
+        else if (rptr->type == &ERROR_OBJ) {
+            if (rptr == &rtmp) *tmp = rtmp;
+            else return rptr;
+        }
+        else {
+            err_operate(SUB_CMD, &INT_KIND_NAME, rptr->type->kind, tmp);
+            if (rptr == &rtmp) free_val(rptr);
+        }
     }
-
-    if (lptr->type == &FLOAT_OBJ) {
-        double f = lptr->bit;
-        value *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, tmp, this);
+    else if (lptr->type == &FLOAT_OBJ) {
+        value rtmp, *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, &rtmp, this);
 
         if (rptr->type == &INT_OBJ) {
-            *tmp = (value){ .type = &FLOAT_OBJ, .db = f - (double)rptr->bit};
-            return tmp;
+            *tmp = (value){
+                .type = &FLOAT_OBJ,
+                .db = lptr->db - (double)rptr->bit
+            };
         }
-        if (rptr->type == &FLOAT_OBJ) {
-            *tmp = (value){ .type = &FLOAT_OBJ, .db = f - rptr->db};
-            return tmp;
+        else if (rptr->type == &FLOAT_OBJ) {
+            *tmp = (value){
+                .type = &FLOAT_OBJ,
+                .db = lptr->db - rptr->db
+            };
         }
-        if (rptr->type == &ERROR_OBJ) return rptr;
-
-        free_val(rptr);
-        return err_operate(SUB_CMD, &FLOAT_KIND_NAME, rptr->type->kind, tmp);
+        else if (rptr->type == &ERROR_OBJ) {
+            if (rptr == &rtmp) *tmp = rtmp;
+            else return rptr;
+        }
+        else {
+            err_operate(SUB_CMD, &FLOAT_KIND_NAME, rptr->type->kind, tmp);
+            if (rptr == &rtmp) free_val(rptr);
+        }
+    }
+    else if (lptr->type == &ERROR_OBJ) {
+        if (lptr != &ltmp) return lptr;
+        *tmp = ltmp;
+    }
+    else {
+        value rtmp, *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, &rtmp, this);
+        if (rptr->type == &ERROR_OBJ) {
+            if (rptr != &rtmp) return rptr;
+            *tmp = rtmp;
+        }
+        else {
+            err_operate(SUB_CMD, lptr->type->kind, rptr->type->kind, tmp);
+            if (lptr == &ltmp) free_val(lptr);
+            if (rptr == &rtmp) free_val(rptr);
+        }
     }
 
-    if (lptr->type == &ERROR_OBJ) return lptr;
-
-    value lval = *lptr;
-    value *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, tmp, this);
-    if (rptr->type == &ERROR_OBJ) return rptr;
-
-    free_val(&lval);
-    free_val(rptr);
-    return err_operate(SUB_CMD, lval.type->kind, rptr->type->kind, tmp);
+    return tmp;
 }
 
 static bool val_equal(value *l, value *r) {
