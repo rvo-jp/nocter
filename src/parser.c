@@ -676,9 +676,15 @@ static ast parse_2(script *code) {
 
 // !x  ~x  -x  +x  --x  ++x  typeof x
 static ast parse_3(script *code) {
-    ast res = parse_2(code);
+    if (*code->p == '!') {
+        code->p ++, trim(code);
+        return (ast){
+            .expr_cmd = expr_not,
+            .chld.astp = astdup(parse_3(code))
+        };
+    }
 
-    return res;
+    return parse_2(code);
 }
 
 // x ** y

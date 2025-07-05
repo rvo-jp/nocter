@@ -906,6 +906,27 @@ value *expr_assign(chp ch, value *tmp, value *this) {
 }
 
 
+/**
+ * prefix operate
+ */
+
+value *expr_not(chp ch, value *tmp, value *this) {
+    value *ptr = ch.astp->expr_cmd(ch.astp->chld, tmp, this);
+
+    if (ptr->type == &BOOL_OBJ) {
+        return ptr->bit ? &FALSE_VALUE : &TRUE_VALUE;
+    }
+
+    if (ptr->type == &ERROR_OBJ) return ptr;
+
+    // expected boolean for '!', but got integer
+    char msg[NOCTER_LINE_MAX], *p = msg;
+    memcpy(p, "expected boolean for '!', but got ", 34), p += 34;
+    string *type = ptr->type->kind;
+    memcpy(p, type->ptr, type->len), p += type->len;
+    *p = 0;
+    return new_error(msg, p - msg, tmp);
+}
 
 /**
  * tmp operate
@@ -1193,12 +1214,12 @@ static statement err_if_while(value *ptr, value *tmp, ast code, string wi) {
         .valp = ptr
     };
 
-    // 'if' condition must be boolean, got integer
+    // 'if' condition must be boolean, but got integer
 
     char msg[NOCTER_LINE_MAX], *p = msg;
     *p ++ = '\'';
     memcpy(p, wi.ptr, wi.len), p += wi.len;
-    memcpy(p, "' condition must be boolean, got ", 33), p += 33;
+    memcpy(p, "' condition must be boolean, but got ", 37), p += 37;
     string *type = ptr->type->kind;
     memcpy(p, type->ptr, type->len), p += type->len;
     *p = 0;

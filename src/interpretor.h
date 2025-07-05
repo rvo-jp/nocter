@@ -36,7 +36,8 @@ value *expr_dot_ptr(chp ch, value *tmp, value *this);
 value *expr_access(chp ch, value *tmp, value *this);
 value *expr_access_ptr(chp ch, value *tmp, value *this);
 
-
+// !expr
+value *expr_not(chp ch, value *tmp, value *this);
 // expr + expr
 value *expr_add(chp ch, value *tmp, value *this);
 // expr - expr
