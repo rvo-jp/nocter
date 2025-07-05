@@ -511,6 +511,9 @@ static inline value *call_param(ast *args, func *fnp, value *tmp, value *this) {
                     return err_expected_type(prm->id, valp->objp->kind, val.type->kind, tmp);
                 }
             }
+            else if (typed->expr_cmd == expr_ident) {
+                puts("@");
+            }
         }
 
         let(prm->id, val);
@@ -956,94 +959,115 @@ static inline void add_string(string str1, string str2, value *tmp) {
     memcpy(str.ptr, str1.ptr, str1.len);
     memcpy(str.ptr + str1.len, str2.ptr, str2.len + 1);
 
-    tmp->type = &STRING_OBJ;
-    tmp->strp = alloc(sizeof(string));
-    *tmp->strp = str;
+    *tmp = (value){
+        .type = &STRING_OBJ,
+        .strp = stringdup(str)
+    };
 }
 
 value *expr_add(chp ch, value *tmp, value *this) {
-    value *lptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, tmp, this);
+    value ltmp, *lptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, &ltmp, this);
     
     if (lptr->type == &INT_OBJ) {
-        long i = lptr->bit;
-        value *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, tmp, this);
+        value rtmp, *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, &rtmp, this);
         
         if (rptr->type == &INT_OBJ) {
-            *tmp = (value){ .type = &INT_OBJ, .bit = i + rptr->bit};
-            return tmp;
+            *tmp = (value){
+                .type = &INT_OBJ,
+                .bit = lptr->bit + rptr->bit
+            };
         }
-        if (rptr->type == &FLOAT_OBJ) {
-            *tmp = (value){ .type = &FLOAT_OBJ, .db = (double)i + rptr->db};
-            return tmp;
+        else if (rptr->type == &FLOAT_OBJ) {
+            *tmp = (value){
+                .type = &FLOAT_OBJ,
+                .db = (double)lptr->bit + rptr->db
+            };
         }
-        if (rptr->type == &STRING_OBJ) {
+        else if (rptr->type == &STRING_OBJ) {
             char buf[32];
-            size_t len = long_to_charp(i, buf);
+            size_t len = long_to_charp(lptr->bit, buf);
             buf[len] = '\0';
             add_string((string){ .ptr = buf, .len = len }, *rptr->strp, tmp);
-            free_string(rptr->strp);
-            return tmp;
+            if (rptr == &rtmp) free_string(rtmp.strp);
         }
-        if (rptr->type == &ERROR_OBJ) return rptr;
-
-        free_val(rptr);
-        return err_operate(ADD_CMD, &INT_KIND_NAME, rptr->type->kind, tmp);
+        else if (rptr->type == &ERROR_OBJ) {
+            if (rptr == &rtmp) *tmp = rtmp;
+            else return rptr;
+        }
+        else {
+            err_operate(ADD_CMD, &INT_KIND_NAME, rptr->type->kind, tmp);
+            if (rptr == &rtmp) free_val(rptr);
+        }
     }
-
-    if (lptr->type == &FLOAT_OBJ) {
-        double f = lptr->db;
-        value *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, tmp, this);
+    else if (lptr->type == &FLOAT_OBJ) {
+        value rtmp, *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, &rtmp, this);
 
         if (rptr->type == &INT_OBJ) {
-            *tmp = (value){ .type = &FLOAT_OBJ, .db = f + (double)rptr->bit};
-            return tmp;
+            *tmp = (value){
+                .type = &FLOAT_OBJ,
+                .db = lptr->db + (double)rptr->bit
+            };
         }
-        if (rptr->type == &FLOAT_OBJ) {
-            *tmp = (value){ .type = &FLOAT_OBJ, .db = f + rptr->db};
-            return tmp;
+        else if (rptr->type == &FLOAT_OBJ) {
+            *tmp = (value){
+                .type = &FLOAT_OBJ,
+                .db = lptr->db + rptr->db
+            };
         }
-        if (rptr->type == &STRING_OBJ) {
+        else if (rptr->type == &STRING_OBJ) {
             char buf[32];
-            size_t len = double_to_charp(f, buf);
+            size_t len = double_to_charp(lptr->db, buf);
             buf[len] = '\0';
             add_string((string){ .ptr = buf, .len = len }, *rptr->strp, tmp);
-            free_string(rptr->strp);
-            return tmp;
+            if (rptr == &rtmp) free_string(rtmp.strp);
         }
-        if (rptr->type == &ERROR_OBJ) return rptr;
+        else if (rptr->type == &ERROR_OBJ) {
+            if (rptr != &rtmp) return rptr;
+            *tmp = rtmp;
+        }
+        else {
+            err_operate(ADD_CMD, &FLOAT_KIND_NAME, rptr->type->kind, tmp);
+            if (rptr == &rtmp) free_val(rptr);
+        }
+    }
+    else if (lptr->type == &STRING_OBJ) {
+        value rtmp, *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, &rtmp, this);
 
-        free_val(rptr);
-        return err_operate(ADD_CMD, &FLOAT_KIND_NAME, rptr->type->kind, tmp);
+        if (rptr->type == &ERROR_OBJ) {
+            if (rptr != &rtmp) return rptr;
+            *tmp = rtmp;
+        }
+        else {
+            char buf[NOCTER_BUFF];
+            add_string(*lptr->strp, conv_str(buf, *rptr), tmp);
+            if (lptr == &ltmp) free_string(ltmp.strp);
+            if (rptr == &rtmp) free_val(rptr);
+        }
+    }
+    else if (lptr->type == &ERROR_OBJ) {
+        if (lptr != &ltmp) return lptr;
+        *tmp = ltmp;
+    }
+    else {
+        value rtmp, *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, &rtmp, this);
+        if (rptr->type == &STRING_OBJ) {
+            char buf[NOCTER_BUFF];
+            add_string(conv_str(buf, *lptr), *rptr->strp, tmp);
+            if (lptr == &ltmp) free_val(lptr);
+            if (rptr == &rtmp) free_string(rtmp.strp);
+        }
+        else if (rptr->type == &ERROR_OBJ) {
+            if (rptr != &rtmp) return rptr;
+            *tmp = rtmp;
+        }
+        else {
+            err_operate(ADD_CMD, lptr->type->kind, rptr->type->kind, tmp);
+            if (lptr == &ltmp) free_val(lptr);
+            if (rptr == &rtmp) free_val(rptr);
+        }
     }
 
-    if (lptr->type == &STRING_OBJ) {
-        string *strp = lptr->strp;
-        value *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, tmp, this);
-        if (rptr->type == &ERROR_OBJ) return rptr;
-        char buf[NOCTER_BUFF];
-        add_string(*strp, conv_str(buf, *rptr), tmp);
-        free_string(strp);
-        free_val(rptr);
-        return tmp;
-    }
-
-    if (lptr->type == &ERROR_OBJ) return lptr;
-
-    value lval = *lptr;
-    value *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, tmp, this);
-    if (rptr->type == &STRING_OBJ) {
-        string *strp = rptr->strp;
-        char buf[NOCTER_BUFF];
-        add_string(conv_str(buf, lval), *strp, tmp);
-        free_val(&lval);
-        free_string(strp);
-        return tmp;
-    }
-    if (rptr->type == &ERROR_OBJ) return rptr;
-
-    free_val(&lval);
-    free_val(rptr);
-    return err_operate(ADD_CMD, lval.type->kind, rptr->type->kind, tmp);
+    return tmp;
 }
 
 value *expr_subtract(chp ch, value *tmp, value *this) {
