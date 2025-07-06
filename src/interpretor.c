@@ -1171,6 +1171,27 @@ value *expr_equal(chp ch, value *tmp, value *this) {
     return res;
 }
 
+value *expr_inequal(chp ch, value *tmp, value *this) {
+    value ltmp, *lptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, &ltmp, this);
+    if (lptr->type == &ERROR_OBJ) {
+        if (lptr != &ltmp) return lptr;
+        *tmp = ltmp;
+        return tmp;
+    }
+
+    value rtmp, *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, &rtmp, this);
+    if (rptr->type == &ERROR_OBJ) {
+        if (rptr != &rtmp) return rptr;
+        *tmp = rtmp;
+        return tmp;
+    }
+
+    value *res = val_equal(lptr, rptr) ? &FALSE_VALUE : &TRUE_VALUE;
+    if (lptr != &ltmp) free_val(lptr);
+    if (rptr != &rtmp) free_val(rptr);
+    return res;
+}
+
 
 // err
 value *expr_spread(chp ch, value *tmp, value *this) {

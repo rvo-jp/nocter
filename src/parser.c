@@ -765,7 +765,7 @@ static ast parse_9(script *code) {
         if (code->p[0] == '!' && code->p[1] == '=') {
             code->p += 2, trim(code);
             res = (ast){
-                .expr_cmd = expr_equal,
+                .expr_cmd = expr_inequal,
                 .chld.dbp = dbexprdup((dbexpr){
                     .lexpr = res,
                     .rexpr = parse_8(code)
