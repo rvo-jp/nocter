@@ -105,14 +105,14 @@ string conv_str(char *buff, value val) {
     }
 
     if (val.type == &ARRAY_OBJ) {
-        puts("@ error: conv_str"), exit(1);
+        puts("@ error: conv_str: array"), exit(1);
     }
     
     if (val.type == &FUNC_OBJ) {
-        puts("@ error: conv_str"), exit(1);
+        puts("@ error: conv_str: function"), exit(1);
     }
     
-    puts("@ error: conv_str"), exit(1);
+    puts("@ error: conv_str: other"), exit(1);
 }
 
 // String.length(): Int

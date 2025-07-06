@@ -426,7 +426,7 @@ static value *err_expected_type(char *id, string *type1, string *type2, value *t
 }
 
 static inline value *call_param(ast *args, func *fnp, value *tmp, value *this) {
-    value arguments[NOCTER_BUFF], *p = arguments, *arg = p;
+    value arguments[NOCTER_BUFF], *p = arguments;
     size_t arglen = 0;
 
     for (size_t len = args->len; len; len --) {
@@ -475,16 +475,22 @@ static inline value *call_param(ast *args, func *fnp, value *tmp, value *this) {
 
     size_t varlen = VAR_P - VAR_H;
     param *prm = fnp->prm;
+    value *arg = arguments;
 
     for (size_t prmlen = fnp->prmlen; prmlen; prmlen --) {
         value val;
 
         if (prm->is_spread) {
-            puts("@");
-            exit(1);
+            val.type = &ARRAY_OBJ;
+            val.arrp = arrdup((array){
+                .refcount = 1,
+                .list = allocpy(arg, sizeof(value) * arglen),
+                .len = arglen
+            });
+            arg += arglen;
+            arglen = 0;
         }
-        
-        if (arglen == 0) {
+        else if (arglen == 0) {
             if (prm->assigned == NULL) {
                 free_gc(varlen);
                 return err_missing_arg(prm, tmp);
@@ -520,10 +526,10 @@ static inline value *call_param(ast *args, func *fnp, value *tmp, value *this) {
     }
 
     if (arglen) {
-        size_t l = arglen;
+        err_unexpected_arg(arglen, tmp);
         while (arglen --) p --, free_val(p);
         free_gc(varlen);
-        return err_unexpected_arg(l, tmp);
+        return tmp;
     }
 
     value *res = fnp->expr.expr_cmd(fnp->expr.chld, tmp, fnp->this);

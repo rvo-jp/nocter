@@ -80,20 +80,27 @@ static inline value newfunc(param *prm, size_t prmlen, ast expr) {
 
 ast INT_AST;
 ast STRING_AST;
+ast ARRAY_AST;
 
 // register
 void builtin(statlist *stat) {
 
     INT_AST = VALUE(((value){ .type = &OBJECT_OBJ, .objp = &INT_OBJ }));
+    STRING_AST = VALUE(((value){ .type = &OBJECT_OBJ, .objp = &STRING_OBJ }));
+    ARRAY_AST = VALUE(((value){ .type = &OBJECT_OBJ, .objp = &ARRAY_OBJ }));
+
     add_stat(stat, LET("Int", INT_AST));
     INT_OBJ = newobj((variable[]){
     }, 0, &INT_KIND_NAME);
 
-    STRING_AST =VALUE(((value){ .type = &OBJECT_OBJ, .objp = &STRING_OBJ }));
     add_stat(stat, LET("String", STRING_AST));
     STRING_OBJ = newobj((variable[]){
         { .id = "length", .val = newfunc((param[]){}, 0, NATIVE(string_length)) }
     }, 1, &STRING_KIND_NAME);
+
+    add_stat(stat, LET("Array", ARRAY_AST));
+    ARRAY_OBJ = newobj((variable[]){
+    }, 0, &ARRAY_KIND_NAME);
 
     add_stat(stat, LET("File", VALUE(((value){
         .type = &OBJECT_OBJ,
@@ -115,7 +122,7 @@ void builtin(statlist *stat) {
         .type = &OBJECT_OBJ,
         .objp = objdup(newobj((variable[]){
             { .id = "print", .val = newfunc((param[]){
-                {.id = "any", .type = NULL, .assigned = NULL, .is_spread = false}
+                {.id = "args", .type = &ARRAY_AST, .assigned = NULL, .is_spread = true}
             }, 1, NATIVE(io_print)) },
             { .id = "puts", .val = newfunc((param[]){
                 {.id = "msg", .type = &STRING_AST, .assigned = NULL, .is_spread = false}
