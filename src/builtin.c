@@ -95,8 +95,12 @@ void builtin(statlist *stat) {
 
     add_stat(stat, LET("String", STRING_AST));
     STRING_OBJ = newobj((variable[]){
-        { .id = "length", .val = newfunc((param[]){}, 0, NATIVE(string_length)) }
-    }, 1, &STRING_KIND_NAME);
+        { .id = "length", .val = newfunc((param[]){}, 0, NATIVE(string_length)) },
+        { .id = "replaceAll", .val = newfunc((param[]){
+            {.id = "old", .type = &STRING_AST, .assigned = NULL, .is_spread = false},
+            {.id = "new", .type = &STRING_AST, .assigned = NULL, .is_spread = false}
+        }, 2, NATIVE(string_replace_all)) }
+    }, 2, &STRING_KIND_NAME);
 
     add_stat(stat, LET("Array", ARRAY_AST));
     ARRAY_OBJ = newobj((variable[]){

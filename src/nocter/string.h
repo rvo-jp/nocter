@@ -13,5 +13,7 @@ string conv_str(char *buff, value val);
 
 // String.length(): Int
 value *string_length(value *tmp, value *this);
+// String.replaceAll(old: String, new: String): String
+value *string_replace_all(value *tmp, value *this);
 
 #endif

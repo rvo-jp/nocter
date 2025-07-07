@@ -26,7 +26,5 @@ value *io_print(value *tmp, value *this) {
 value *io_puts(value *tmp, value *this) {
     string str = *VAR_P[0].val.strp;
     fwrite(str.ptr, 1, str.len, stdout);
-    fputc('\n', stdout);
-
     return &VOID_VALUE;
 }

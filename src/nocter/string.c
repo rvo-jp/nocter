@@ -124,5 +124,48 @@ value *string_length(value *tmp, value *this) {
     return tmp;
 }
 
-// String.replace(old: String, new: String): String
+// String.replaceAll(old: String, new: String): String
+value *string_replace_all(value *tmp, value *this) {
+    string src = *this->strp;
+    string old = *VAR_P[-1].val.strp;
+    string new = *VAR_P[-0].val.strp;
+
+    if (old.len == 0 || src.len < old.len) return this;
+
+    size_t count = 0;
+    for (char *p = src.ptr, *limit = src.ptr + src.len - old.len; p <= limit;) {
+        if (memcmp(p, old.ptr, old.len) == 0) {
+            count ++;
+            p += old.len;
+        }
+        else p ++;
+    }
+    
+    if (count == 0) return this;
+
+    string res;
+    res.len = src.len + count * (new.len - old.len);
+    res.ptr = alloc(res.len + 1);
+    res.ptr[res.len] = '\0';
+
+    char *p = src.ptr, *buf = res.ptr;
+    while (count) {
+        if (memcmp(p, old.ptr, old.len) == 0) {
+            memcpy(buf, new.ptr, new.len);
+            p += old.len;
+            buf += new.len;
+            count --;
+        }
+        else *buf ++ = *p ++;
+    }
+    for (char *limit = src.ptr + src.len; p < limit;) *buf ++ = *p ++;
+    *buf = '\0';
+
+    *tmp = (value){
+        .type = &STRING_OBJ,
+        .strp = stringdup(res)
+    };
+    return tmp;
+}
+
 
