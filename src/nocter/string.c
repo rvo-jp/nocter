@@ -115,6 +115,26 @@ string conv_str(char *buff, value val) {
     puts("@ error: conv_str: other"), exit(1);
 }
 
+// String.init(any): String
+value *string_init(value *tmp, value *this) {
+    value *val = &VAR_P[0].val;
+    if (val->type == &STRING_OBJ) return val;
+    if (val->type == &INT_OBJ) {
+        char buf[32];
+        size_t len = long_to_charp(val->bit, buf);
+        buf[len] = '\0';
+
+        *tmp = (value){
+            .type = &STRING_OBJ,
+            .strp = stringdup((string){
+                .ptr = buf,
+                .len = len
+            })
+        };
+        return tmp;
+    }
+}
+
 // String.length(): Int
 value *string_length(value *tmp, value *this) {
     *tmp = (value){
@@ -128,7 +148,7 @@ value *string_length(value *tmp, value *this) {
 value *string_replace_all(value *tmp, value *this) {
     string src = *this->strp;
     string old = *VAR_P[-1].val.strp;
-    string new = *VAR_P[-0].val.strp;
+    string new = *VAR_P[0].val.strp;
 
     if (old.len == 0 || src.len < old.len) return this;
 
