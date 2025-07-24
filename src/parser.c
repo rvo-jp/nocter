@@ -698,6 +698,43 @@ static ast parse_4(script *code) {
 static ast parse_5(script *code) {
     ast res = parse_4(code);
 
+    for (;;) {
+        if (*code->p == '*') {
+            code->p ++, trim(code);
+            res = (ast){
+                .expr_cmd = expr_add,
+                .chld.dbp = dbexprdup((dbexpr){
+                    .lexpr = res,
+                    .rexpr = parse_4(code)
+                })
+            };
+            continue;
+        }
+        if (*code->p == '/') {
+            code->p ++, trim(code);
+            res = (ast){
+                .expr_cmd = expr_add,
+                .chld.dbp = dbexprdup((dbexpr){
+                    .lexpr = res,
+                    .rexpr = parse_4(code)
+                })
+            };
+            continue;
+        }
+        if (*code->p == '%') {
+            code->p ++, trim(code);
+            res = (ast){
+                .expr_cmd = expr_add,
+                .chld.dbp = dbexprdup((dbexpr){
+                    .lexpr = res,
+                    .rexpr = parse_4(code)
+                })
+            };
+            continue;
+        }
+        return res;
+    }
+
     return res;
 }
 
