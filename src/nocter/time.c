@@ -2,23 +2,15 @@
 #include "../utils/alloc.h"
 #include "../utils/conv.h"
 #include "../builtin.h"
-#include <time.h>
-
-#if defined(_WIN32) || defined(_WIN64)
-    #include <windows.h>
-#else
-    #include <sys/time.h>
-    #include <unistd.h>
-#endif
 
 // Get current time in milliseconds
 long get_current_time_ms() {
-#if defined(_WIN32) || defined(_WIN64)
+#ifdef _WIN32
     FILETIME ft;
     GetSystemTimeAsFileTime(&ft);
     ULARGE_INTEGER li = { .LowPart = ft.dwLowDateTime, .HighPart = ft.dwHighDateTime };
     // Windows FILETIME is 100-ns intervals since 1601-01-01
-    return (long)((li.QuadPart / 10000ULL) - 11644473600000ULL);
+    return (long)((li.QuadPart - 11644473600000ULL) / 10000);
 #else
     struct timeval tv;
     gettimeofday(&tv, NULL);
@@ -41,8 +33,8 @@ value *time_sleep(value *tmp, value *this) {
     long ms = VAR_P[0].val.bit;
     if (ms < 0) ms = 0;
 
-#if defined(_WIN32) || defined(_WIN64)
-    Sleep((DWORD)ms);
+#ifdef _WIN32
+    Sleep(ms);
 #else
     struct timespec ts;
     ts.tv_sec = ms / 1000;

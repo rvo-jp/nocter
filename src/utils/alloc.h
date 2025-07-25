@@ -2,9 +2,6 @@
 #define UTILS_ALLOC_H
 
 #include "../nocter.h"
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 
 static inline void *alloc(size_t size) {
     void *mem = malloc(size);

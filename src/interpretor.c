@@ -1,6 +1,4 @@
 #include "nocter.h"
-#include <stdio.h>
-#include <math.h>
 #include "builtin.h"
 #include "utils/alloc.h"
 #include "utils/conv.h"
@@ -187,11 +185,11 @@ static void let(char *id, value val) {
     size_t varlen = VAR_P - VAR_H;
     if (varlen == VAR_SIZE - 1) {
         VAR_SIZE *= 2;
-        if (VERBOSE) printf("\e[90mverbose: Expanded variable storage memory to %ld * sizeof(variable)\e[0m\n", VAR_SIZE);
+        // if (VERBOSE) printf("\e[90mverbose: Expanded variable storage memory to %ld * sizeof(variable)\e[0m\n", VAR_SIZE);
         VAR_H = allocs(VAR_H, VAR_SIZE * sizeof(variable));
         VAR_P = VAR_H + varlen;
     }
-    if (VERBOSE) printf("\e[90mverbose: Adding a new variable '%s'...\e[0m\n", id);
+    // if (VERBOSE) printf("\e[90mverbose: Adding a new variable '%s'...\e[0m\n", id);
     *++ VAR_P = (variable){
         .id = id,
         .val = val
@@ -1243,7 +1241,7 @@ statement stat_expr(chp ch, value *tmp, value *this) {
         };
     }
     if (ptr == tmp) free_val(tmp);
-    return (statement){ .type = VOID };
+    return (statement){ .type = STAT_VOID };
 }
 
 statement stat_block(chp ch, value *tmp, value *this) {
@@ -1259,7 +1257,7 @@ statement stat_block(chp ch, value *tmp, value *this) {
     }
 
     free_gc(varlen);
-    return (statement){ .type = VOID };
+    return (statement){ .type = STAT_VOID };
 }
 
 statement stat_let(chp ch, value *tmp, value *this) {
@@ -1269,7 +1267,7 @@ statement stat_let(chp ch, value *tmp, value *this) {
         .valp = ptr
     };
     let(ch.idastp->id, ptr == tmp ? *tmp : dup_val(*ptr));
-    return (statement){ .type = VOID };
+    return (statement){ .type = STAT_VOID };
 }
 
 statement stat_return(chp ch, value *tmp, value *this) {
@@ -1308,7 +1306,7 @@ statement stat_if(chp ch, value *tmp, value *this) {
 
     if (ptr->type != &BOOL_OBJ) return err_if_while(ptr, tmp, ch.dbp->lexpr, CMD_IF);
     return ptr->bit ? ch.dbp->rexpr.stat_cmd(ch.dbp->rexpr.chld, tmp, this)
-    : (statement){ .type = VOID };
+    : (statement){ .type = STAT_VOID };
 }
 
 statement stat_if_else(chp ch, value *tmp, value *this) {
@@ -1332,5 +1330,5 @@ statement stat_while(chp ch, value *tmp, value *this) {
         else break;
     }
 
-    return (statement){ .type = VOID };
+    return (statement){ .type = STAT_VOID };
 }

@@ -1,7 +1,4 @@
 #include "nocter.h"
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include "builtin.h"
 #include "interpretor.h"
 #include "utils/alloc.h"
@@ -25,7 +22,7 @@ object FLOAT_OBJ;
 object FUNC_OBJ;
 object ARRAY_OBJ;
 object ERROR_OBJ;
-object ERROR;
+object ERROR_THROW;
 object FILE_OBJ;
 
 value VOID_VALUE = {

@@ -1,6 +1,4 @@
 #include "nocter.h"
-#include <math.h>
-
 #include "builtin.h"
 #include "utils/conv.h"
 #include "interpretor.h"
@@ -10,6 +8,9 @@
 #include "nocter/string.h"
 
 #include "parser.h"
+
+
+
 
 typedef struct script {
     char *p;
@@ -1112,7 +1113,7 @@ static ast *block(script *code, bool ret, bool loop, implist *imp) {
 
 
 ast *parse(char *file) {
-    long start;
+    long start = 0;
     if (VERBOSE) {
         start = get_current_time_ms();
         puts("\e[90mverbose: Starting parsing phase...\e[0m");

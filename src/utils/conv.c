@@ -1,6 +1,3 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include "../nocter.h"
 #include "../interpretor.h"
 #include "../builtin.h"

@@ -1,5 +1,4 @@
 #include "../nocter.h"
-#include <stdio.h>
 #include "../utils/conv.h"
 #include "../builtin.h"
 #include "string.h"

@@ -2,9 +2,21 @@
 #define NOCTER_H
 
 #include <stdlib.h>
+#include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
+#include <math.h>
+#include <time.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <direct.h>
+#define getcwd _getcwd
+#else
+#include <sys/time.h>
+#include <unistd.h>
+#endif
 
 #define NOCTER_BUFF 256
 #define NOCTER_LINE_MAX 128
@@ -31,7 +43,7 @@ typedef struct value {
     };
 } value;
 
-#define VOID 0
+#define STAT_VOID 0
 #define RETURN 1
 #define BREAK 2
 typedef struct statement {

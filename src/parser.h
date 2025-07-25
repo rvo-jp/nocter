@@ -2,7 +2,6 @@
 #define PARSER_H
 
 #include "nocter.h"
-#include <stdlib.h>
 
 typedef struct implist {
     string *p;

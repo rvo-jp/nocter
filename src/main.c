@@ -1,6 +1,4 @@
 #include "nocter.h"
-#include <stdio.h>
-#include <stdlib.h>
 #include "parser.h"
 #include "builtin.h"
 #include "utils/alloc.h"
@@ -26,7 +24,7 @@ static void nocter() {
     VAR_H = alloc(sizeof(variable) * VAR_SIZE);
     VAR_P = VAR_H - 1;
     
-    long start;
+    long start = 0;
     if (VERBOSE) {
         start = get_current_time_ms();
         puts("\e[90mverbose: Starting execution of the program...\e[0m");
