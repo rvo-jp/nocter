@@ -4,7 +4,9 @@
 <p align="center">
   <img src="https://img.shields.io/badge/platform-darwin--arm64-success?style=flat-square">
   <img src="https://img.shields.io/badge/platform-linux--x86__64-lightgrey?style=flat-square">
+  <img src="https://img.shields.io/badge/platform-windows--x86__64-success?style=flat-square">
 </p>
+
 
 <p align="center"><strong>Nocter</strong> is a simple and lightweight <strong>object-oriented interpreted language</strong> with JavaScript-inspired syntax and modern error handling.</p>
 
