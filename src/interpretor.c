@@ -940,6 +940,7 @@ value *expr_not(chp ch, value *tmp, value *this) {
 
 static string ADD_CMD = (string){.ptr = "add", .len = 3};
 static string SUB_CMD = (string){.ptr = "subtract", .len = 8};
+static string MUL_CMD = (string){.ptr = "multiply", .len = 8};
 
 static value *err_operate(string cmd, string *l, string *r, value *tmp) {
     // cannot add value of type integer and array
@@ -1143,6 +1144,80 @@ value *expr_subtract(chp ch, value *tmp, value *this) {
 
     return tmp;
 }
+
+value *expr_multiply(chp ch, value *tmp, value *this) {
+    value ltmp, *lptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, &ltmp, this);
+
+    if (lptr->type == &INT_OBJ) {
+        value rtmp, *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, &rtmp, this);
+        
+        if (rptr->type == &INT_OBJ) {
+            *tmp = (value){
+                .type = &INT_OBJ,
+                .bit = lptr->bit * rptr->bit
+            };
+        }
+        else if (rptr->type == &FLOAT_OBJ) {
+            *tmp = (value){
+                .type = &FLOAT_OBJ,
+                .db = (double)lptr->bit * rptr->db
+            };
+        }
+        else if (rptr->type == &ERROR_OBJ) {
+            if (rptr == &rtmp) *tmp = rtmp;
+            else return rptr;
+        }
+        else {
+            err_operate(MUL_CMD, &INT_KIND_NAME, rptr->type->kind, tmp);
+            if (rptr == &rtmp) free_val(rptr);
+        }
+    }
+    else if (lptr->type == &FLOAT_OBJ) {
+        value rtmp, *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, &rtmp, this);
+
+        if (rptr->type == &INT_OBJ) {
+            *tmp = (value){
+                .type = &FLOAT_OBJ,
+                .db = lptr->db * (double)rptr->bit
+            };
+        }
+        else if (rptr->type == &FLOAT_OBJ) {
+            *tmp = (value){
+                .type = &FLOAT_OBJ,
+                .db = lptr->db * rptr->db
+            };
+        }
+        else if (rptr->type == &ERROR_OBJ) {
+            if (rptr == &rtmp) *tmp = rtmp;
+            else return rptr;
+        }
+        else {
+            err_operate(MUL_CMD, &FLOAT_KIND_NAME, rptr->type->kind, tmp);
+            if (rptr == &rtmp) free_val(rptr);
+        }
+    }
+    else if (lptr->type == &ERROR_OBJ) {
+        if (lptr != &ltmp) return lptr;
+        *tmp = ltmp;
+    }
+    else {
+        value rtmp, *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, &rtmp, this);
+        if (rptr->type == &ERROR_OBJ) {
+            if (rptr != &rtmp) return rptr;
+            *tmp = rtmp;
+        }
+        else {
+            err_operate(MUL_CMD, lptr->type->kind, rptr->type->kind, tmp);
+            if (lptr == &ltmp) free_val(lptr);
+            if (rptr == &rtmp) free_val(rptr);
+        }
+    }
+
+    return tmp;
+}
+
+
+
 
 static bool val_equal(value *l, value *r) {
     if (l == r) return true;

@@ -42,6 +42,8 @@ value *expr_not(chp ch, value *tmp, value *this);
 value *expr_add(chp ch, value *tmp, value *this);
 // expr - expr
 value *expr_subtract(chp ch, value *tmp, value *this);
+// expr * expr
+value *expr_multiply(chp ch, value *tmp, value *this);
 // expr == expr
 value *expr_equal(chp ch, value *tmp, value *this);
 // expr != expr
