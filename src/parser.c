@@ -714,7 +714,7 @@ static ast parse_5(script *code) {
         if (*code->p == '/') {
             code->p ++, trim(code);
             res = (ast){
-                .expr_cmd = expr_add,
+                .expr_cmd = expr_divide,
                 .chld.dbp = dbexprdup((dbexpr){
                     .lexpr = res,
                     .rexpr = parse_4(code)

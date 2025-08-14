@@ -29,7 +29,7 @@ size_t ast_to_charp(ast expr, char *buf) {
     // else if (expr.expr_cmd == expr_val) {
     //     c = conv_str(c, *(vl *)expr.dat);
     // }
-    else printf("@ debug: ast_to_charp %lld\n", (uintptr_t)expr.expr_cmd), exit(1);
+    else printf("@ debug: ast_to_charp %lu\n", (uintptr_t)expr.expr_cmd), exit(1);
 }
 
 size_t long_to_charp(long i, char *buf) {
