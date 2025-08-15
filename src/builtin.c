@@ -44,7 +44,7 @@ value FALSE_VALUE = {
 
 string VOID_KIND_NAME = (string){.ptr = "void", .len = 4};
 string NULL_KIND_NAME = (string){.ptr = "null", .len = 4};
-string INT_KIND_NAME = (string){.ptr = "integer", .len = 9};
+string INT_KIND_NAME = (string){.ptr = "integer", .len = 7};
 string FLOAT_KIND_NAME = (string){.ptr = "float", .len = 5};
 string STRING_KIND_NAME = (string){.ptr = "string", .len = 6};
 string BOOL_KIND_NAME = (string){.ptr = "boolean", .len = 7};

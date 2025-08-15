@@ -949,7 +949,7 @@ static value *err_operate(string cmd, string *l, string *r, value *tmp) {
     char msg[NOCTER_LINE_MAX], *p = msg;
     memcpy(p, "cannot ", 7), p += 7;
     memcpy(p, cmd.ptr, cmd.len), p += cmd.len;
-    memcpy(p, " value of type ", 15), p += 15;
+    memcpy(p, " values of type ", 16), p += 16;
     memcpy(p, l->ptr, l->len), p += l->len;
     memcpy(p, " and ", 5), p += 5;
     memcpy(p, r->ptr, r->len), p += r->len;
