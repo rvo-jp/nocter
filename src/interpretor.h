@@ -48,6 +48,9 @@ value *expr_multiply(chp ch, value *tmp, value *this);
 value *expr_divide(chp ch, value *tmp, value *this);
 // expr % expr
 value *expr_modulo(chp ch, value *tmp, value *this);
+// expr ** expr
+value *expr_power(chp ch, value *tmp, value *this);
+
 
 // expr == expr
 value *expr_equal(chp ch, value *tmp, value *this);

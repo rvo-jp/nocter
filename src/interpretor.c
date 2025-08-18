@@ -1375,9 +1375,9 @@ value *expr_power(chp ch, value *tmp, value *this) {
                 };
             }
             else { // integer exponentiation (fast pow)
-                long long b = lptr->bit;
-                long long e = rptr->bit;
-                long long result = 1;
+                long b = lptr->bit;
+                long e = rptr->bit;
+                long result = 1;
 
                 while (e > 0) {
                     if (e & 1) result *= b;
