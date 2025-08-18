@@ -943,6 +943,7 @@ static string SUB_CMD = (string){.ptr = "subtract", .len = 8};
 static string MUL_CMD = (string){.ptr = "multiply", .len = 8};
 static string DIV_CMD = (string){.ptr = "divide", .len = 6};
 static string MOD_CMD = (string){.ptr = "modulo", .len = 6};
+static string POW_CMD = (string){.ptr = "power", .len = 5};
 
 static value *err_operate(string cmd, string *l, string *r, value *tmp) {
     // cannot add value of type integer and array
@@ -1359,6 +1360,97 @@ value *expr_modulo(chp ch, value *tmp, value *this) {
 
     return tmp;
 }
+
+value *expr_power(chp ch, value *tmp, value *this) {
+    value ltmp, *lptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, &ltmp, this);
+
+    if (lptr->type == &INT_OBJ) {
+        value rtmp, *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, &rtmp, this);
+        
+        if (rptr->type == &INT_OBJ) {
+            if (rptr->bit < 0) { // negative exponent => float
+                *tmp = (value){
+                    .type = &FLOAT_OBJ,
+                    .db = pow((double)lptr->bit, (double)rptr->bit)
+                };
+            }
+            else { // integer exponentiation (fast pow)
+                long long b = lptr->bit;
+                long long e = rptr->bit;
+                long long result = 1;
+
+                while (e > 0) {
+                    if (e & 1) result *= b;
+                    b *= b;
+                    e >>= 1;
+                }
+                *tmp = (value){
+                    .type = &INT_OBJ,
+                    .bit = result
+                };
+            }
+        }
+        else if (rptr->type == &FLOAT_OBJ) {
+            *tmp = (value){
+                .type = &FLOAT_OBJ,
+                .db = pow((double)lptr->bit, rptr->db)
+            };
+        }
+        else if (rptr->type == &ERROR_OBJ) {
+            if (rptr == &rtmp) *tmp = rtmp;
+            else return rptr;
+        }
+        else {
+            err_operate(POW_CMD, &INT_KIND_NAME, rptr->type->kind, tmp);
+            if (rptr == &rtmp) free_val(rptr);
+        }
+    }
+    else if (lptr->type == &FLOAT_OBJ) {
+        value rtmp, *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, &rtmp, this);
+
+        if (rptr->type == &INT_OBJ) {
+            *tmp = (value){
+                .type = &FLOAT_OBJ,
+                .db = pow(lptr->db, (double)rptr->bit)
+            };
+        }
+        else if (rptr->type == &FLOAT_OBJ) {
+            *tmp = (value){
+                .type = &FLOAT_OBJ,
+                .db = pow(lptr->db, rptr->db)
+            };
+        }
+        else if (rptr->type == &ERROR_OBJ) {
+            if (rptr == &rtmp) *tmp = rtmp;
+            else return rptr;
+        }
+        else {
+            err_operate(POW_CMD, &FLOAT_KIND_NAME, rptr->type->kind, tmp);
+            if (rptr == &rtmp) free_val(rptr);
+        }
+    }
+    else if (lptr->type == &ERROR_OBJ) {
+        if (lptr != &ltmp) return lptr;
+        *tmp = ltmp;
+    }
+    else {
+        value rtmp, *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, &rtmp, this);
+        if (rptr->type == &ERROR_OBJ) {
+            if (rptr != &rtmp) return rptr;
+            *tmp = rtmp;
+        }
+        else {
+            err_operate(POW_CMD, lptr->type->kind, rptr->type->kind, tmp);
+            if (lptr == &ltmp) free_val(lptr);
+            if (rptr == &rtmp) free_val(rptr);
+        }
+    }
+
+    return tmp;
+}
+
+
+
 
 static bool val_equal(value *l, value *r) {
     if (l == r) return true;
