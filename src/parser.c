@@ -691,7 +691,16 @@ static ast parse_3(script *code) {
 // x ** y
 static ast parse_4(script *code) {
     ast res = parse_3(code);
-
+    if (code->p[0] == '*' && code->p[1] == '*') {
+        code->p ++, trim(code);
+        res = (ast){
+            .expr_cmd = expr_power,
+            .chld.dbp = dbexprdup((dbexpr){
+                .lexpr = res,
+                .rexpr = parse_4(code)
+            })
+        };
+    }
     return res;
 }
 
