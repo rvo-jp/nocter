@@ -51,11 +51,15 @@ value *expr_modulo(chp ch, value *tmp, value *this);
 // expr ** expr
 value *expr_power(chp ch, value *tmp, value *this);
 
-
 // expr == expr
 value *expr_equal(chp ch, value *tmp, value *this);
 // expr != expr
 value *expr_inequal(chp ch, value *tmp, value *this);
+
+// expr && expr
+value *expr_and(chp ch, value *tmp, value *this);
+// expr || expr
+value *expr_or(chp ch, value *tmp, value *this);
 
 // ... expr
 value *expr_spread(chp ch, value *tmp, value *this);

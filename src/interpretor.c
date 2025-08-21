@@ -921,6 +921,7 @@ static string DIV_CMD = (string){.ptr = "/", .len = 1};
 static string MOD_CMD = (string){.ptr = "%", .len = 1};
 static string POW_CMD = (string){.ptr = "**", .len = 2};
 static string AND_CMD = (string){.ptr = "&&", .len = 2};
+static string OR_CMD = (string){.ptr = "||", .len = 2};
 
 static value *err_operate(string cmd, string *l, string *r, value *tmp) {
     // cannot apply operator '||' to values of type 'integer' and 'array'
@@ -1545,6 +1546,45 @@ value *expr_and(chp ch, value *tmp, value *this) {
         }
         else {
             err_operate(AND_CMD, lptr->type->kind, rptr->type->kind, tmp);
+            if (lptr == &ltmp) free_val(lptr);
+            if (rptr == &rtmp) free_val(rptr);
+        }
+    }
+
+    return tmp;
+}
+
+// ||
+value *expr_or(chp ch, value *tmp, value *this) {
+    value ltmp, *lptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, &ltmp, this);
+
+    if (lptr->type == &BOOL_OBJ) {
+        value rtmp, *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, &rtmp, this);
+
+        if (rptr->type == &BOOL_OBJ) {
+            return lptr->bit || rptr->bit ? &TRUE_VALUE : &FALSE_VALUE;
+        }
+        else if (rptr->type == &ERROR_OBJ) {
+            if (rptr == &rtmp) *tmp = rtmp;
+            else return rptr;
+        }
+        else {
+            err_operate(OR_CMD, &INT_KIND_NAME, rptr->type->kind, tmp);
+            if (rptr == &rtmp) free_val(rptr);
+        }
+    }
+    else if (lptr->type == &ERROR_OBJ) {
+        if (lptr != &ltmp) return lptr;
+        *tmp = ltmp;
+    }
+    else {
+        value rtmp, *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, &rtmp, this);
+        if (rptr->type == &ERROR_OBJ) {
+            if (rptr != &rtmp) return rptr;
+            *tmp = rtmp;
+        }
+        else {
+            err_operate(OR_CMD, lptr->type->kind, rptr->type->kind, tmp);
             if (lptr == &ltmp) free_val(lptr);
             if (rptr == &rtmp) free_val(rptr);
         }

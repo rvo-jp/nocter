@@ -824,11 +824,42 @@ static ast parse_9(script *code) {
     }
 }
 
+// x && y  x || y
+static ast parse_10(script *code) {
+    ast res = parse_9(code);
+
+    for (;;) {
+        if (code->p[0] == '&' && code->p[1] == '&') {
+            code->p += 2, trim(code);
+            res = (ast){
+                .expr_cmd = expr_and,
+                .chld.dbp = dbexprdup((dbexpr){
+                    .lexpr = res,
+                    .rexpr = parse_9(code)
+                })
+            };
+            continue;
+        }
+        if (code->p[0] == '|' && code->p[1] == '|') {
+            code->p += 2, trim(code);
+            res = (ast){
+                .expr_cmd = expr_or,
+                .chld.dbp = dbexprdup((dbexpr){
+                    .lexpr = res,
+                    .rexpr = parse_9(code)
+                })
+            };
+            continue;
+        }
+        return res;
+    }
+}
+
 
 
 // a ? b : c
 static ast parse_expr(script *code) {
-    ast res = parse_9(code);
+    ast res = parse_10(code);
     return res;
 }
 
