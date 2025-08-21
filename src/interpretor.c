@@ -912,52 +912,60 @@ value *expr_assign(chp ch, value *tmp, value *this) {
 }
 
 
-/**
- * prefix operate
- */
-
-value *expr_not(chp ch, value *tmp, value *this) {
-    value *ptr = ch.astp->expr_cmd(ch.astp->chld, tmp, this);
-
-    if (ptr->type == &BOOL_OBJ) {
-        return ptr->bit ? &FALSE_VALUE : &TRUE_VALUE;
-    }
-
-    if (ptr->type == &ERROR_OBJ) return ptr;
-
-    // expected boolean for '!', but got integer
-    char msg[NOCTER_LINE_MAX], *p = msg;
-    memcpy(p, "expected boolean for '!', but got ", 34), p += 34;
-    string *type = ptr->type->kind;
-    memcpy(p, type->ptr, type->len), p += type->len;
-    *p = 0;
-    return new_error(msg, p - msg, tmp);
-}
-
-/**
- * tmp operate
- */
-
-static string ADD_CMD = (string){.ptr = "add", .len = 3};
-static string SUB_CMD = (string){.ptr = "subtract", .len = 8};
-static string MUL_CMD = (string){.ptr = "multiply", .len = 8};
-static string DIV_CMD = (string){.ptr = "divide", .len = 6};
-static string MOD_CMD = (string){.ptr = "modulo", .len = 6};
-static string POW_CMD = (string){.ptr = "power", .len = 5};
+// operators
+static string NOT_CMD = (string){.ptr = "!", .len = 1};
+static string ADD_CMD = (string){.ptr = "+", .len = 1};
+static string SUB_CMD = (string){.ptr = "-", .len = 1};
+static string MUL_CMD = (string){.ptr = "*", .len = 1};
+static string DIV_CMD = (string){.ptr = "/", .len = 1};
+static string MOD_CMD = (string){.ptr = "%", .len = 1};
+static string POW_CMD = (string){.ptr = "**", .len = 2};
+static string AND_CMD = (string){.ptr = "&&", .len = 2};
 
 static value *err_operate(string cmd, string *l, string *r, value *tmp) {
-    // cannot add value of type integer and array
+    // cannot apply operator '||' to values of type 'integer' and 'array'
     char msg[NOCTER_LINE_MAX], *p = msg;
-    memcpy(p, "cannot ", 7), p += 7;
+    memcpy(p, "cannot apply operator '", 23), p += 23;
     memcpy(p, cmd.ptr, cmd.len), p += cmd.len;
-    memcpy(p, " values of type ", 16), p += 16;
+    memcpy(p, "' to values of type '", 21), p += 21;
     memcpy(p, l->ptr, l->len), p += l->len;
-    memcpy(p, " and ", 5), p += 5;
+    memcpy(p, "' and '", 7), p += 7;
     memcpy(p, r->ptr, r->len), p += r->len;
+    *p ++ = '\'';
     *p = 0;
     return new_error(msg, p - msg, tmp);
 }
 
+static value *err_prefix_operate(string cmd, string *o, value *tmp) {
+    // cannot apply operator '!' to value of type 'integer'
+    char msg[NOCTER_LINE_MAX], *p = msg;
+    memcpy(p, "cannot apply operator '", 23), p += 23;
+    memcpy(p, cmd.ptr, cmd.len), p += cmd.len;
+    memcpy(p, "' to values of type '", 21), p += 21;
+    memcpy(p, o->ptr, o->len), p += o->len;
+    *p ++ = '\'';
+    *p = 0;
+    return new_error(msg, p - msg, tmp);
+}
+
+// !
+value *expr_not(chp ch, value *tmp, value *this) {
+    value otmp, *ptr = ch.astp->expr_cmd(ch.astp->chld, &otmp, this);
+
+    if (ptr->type == &BOOL_OBJ) return ptr->bit ? &FALSE_VALUE : &TRUE_VALUE;
+    else if (ptr->type == &ERROR_OBJ) {
+        if (ptr != &otmp) return ptr;
+        *tmp = otmp;
+    }
+    else {
+        err_prefix_operate(NOT_CMD, ptr->type->kind, tmp);
+        if (ptr == &otmp) free_val(ptr);
+    }
+
+    return tmp;
+}
+
+// +
 static inline void add_string(string str1, string str2, value *tmp) {
     string str;
     str.len = str1.len + str2.len;
@@ -971,7 +979,6 @@ static inline void add_string(string str1, string str2, value *tmp) {
         .strp = stringdup(str)
     };
 }
-
 value *expr_add(chp ch, value *tmp, value *this) {
     value ltmp, *lptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, &ltmp, this);
     
@@ -1077,6 +1084,7 @@ value *expr_add(chp ch, value *tmp, value *this) {
     return tmp;
 }
 
+// -
 value *expr_subtract(chp ch, value *tmp, value *this) {
     value ltmp, *lptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, &ltmp, this);
 
@@ -1148,6 +1156,7 @@ value *expr_subtract(chp ch, value *tmp, value *this) {
     return tmp;
 }
 
+// *
 value *expr_multiply(chp ch, value *tmp, value *this) {
     value ltmp, *lptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, &ltmp, this);
 
@@ -1219,6 +1228,7 @@ value *expr_multiply(chp ch, value *tmp, value *this) {
     return tmp;
 }
 
+// /
 value *expr_divide(chp ch, value *tmp, value *this) {
     value ltmp, *lptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, &ltmp, this);
 
@@ -1290,6 +1300,7 @@ value *expr_divide(chp ch, value *tmp, value *this) {
     return tmp;
 }
 
+// %
 value *expr_modulo(chp ch, value *tmp, value *this) {
     value ltmp, *lptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, &ltmp, this);
 
@@ -1361,6 +1372,7 @@ value *expr_modulo(chp ch, value *tmp, value *this) {
     return tmp;
 }
 
+// **
 value *expr_power(chp ch, value *tmp, value *this) {
     value ltmp, *lptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, &ltmp, this);
 
@@ -1450,8 +1462,7 @@ value *expr_power(chp ch, value *tmp, value *this) {
 }
 
 
-
-
+// == !=
 static bool val_equal(value *l, value *r) {
     if (l == r) return true;
     if (l->type != r->type) return false;
@@ -1461,7 +1472,6 @@ static bool val_equal(value *l, value *r) {
     if (l->type == &STRING_OBJ) return string_equal(l->strp, r->strp);
     return false;
 }
-
 value *expr_equal(chp ch, value *tmp, value *this) {
     value ltmp, *lptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, &ltmp, this);
     if (lptr->type == &ERROR_OBJ) {
@@ -1482,7 +1492,6 @@ value *expr_equal(chp ch, value *tmp, value *this) {
     if (rptr != &rtmp) free_val(rptr);
     return res;
 }
-
 value *expr_inequal(chp ch, value *tmp, value *this) {
     value ltmp, *lptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, &ltmp, this);
     if (lptr->type == &ERROR_OBJ) {
@@ -1502,6 +1511,46 @@ value *expr_inequal(chp ch, value *tmp, value *this) {
     if (lptr != &ltmp) free_val(lptr);
     if (rptr != &rtmp) free_val(rptr);
     return res;
+}
+
+
+// &&
+value *expr_and(chp ch, value *tmp, value *this) {
+    value ltmp, *lptr = ch.dbp->lexpr.expr_cmd(ch.dbp->lexpr.chld, &ltmp, this);
+
+    if (lptr->type == &BOOL_OBJ) {
+        value rtmp, *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, &rtmp, this);
+
+        if (rptr->type == &BOOL_OBJ) {
+            return lptr->bit && rptr->bit ? &TRUE_VALUE : &FALSE_VALUE;
+        }
+        else if (rptr->type == &ERROR_OBJ) {
+            if (rptr == &rtmp) *tmp = rtmp;
+            else return rptr;
+        }
+        else {
+            err_operate(AND_CMD, &INT_KIND_NAME, rptr->type->kind, tmp);
+            if (rptr == &rtmp) free_val(rptr);
+        }
+    }
+    else if (lptr->type == &ERROR_OBJ) {
+        if (lptr != &ltmp) return lptr;
+        *tmp = ltmp;
+    }
+    else {
+        value rtmp, *rptr = ch.dbp->rexpr.expr_cmd(ch.dbp->rexpr.chld, &rtmp, this);
+        if (rptr->type == &ERROR_OBJ) {
+            if (rptr != &rtmp) return rptr;
+            *tmp = rtmp;
+        }
+        else {
+            err_operate(AND_CMD, lptr->type->kind, rptr->type->kind, tmp);
+            if (lptr == &ltmp) free_val(lptr);
+            if (rptr == &rtmp) free_val(rptr);
+        }
+    }
+
+    return tmp;
 }
 
 
