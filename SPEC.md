@@ -167,7 +167,7 @@ impl File {
         ...
     }
 
-    func raw_fd(file: &Self): i32 {
+    method (file: &Self).raw_fd(): i32 {
         return file.fd
     }
 }
@@ -184,8 +184,8 @@ Rules:
 - `import` can import only public names from another module.
 - Struct fields are private by default.
 - Public struct fields must be marked with `pub`.
-- Functions inside `impl` blocks are private by default.
-- Public associated functions must be marked with `pub`.
+- Functions and methods inside `impl` blocks are private by default.
+- Public associated functions and methods must be marked with `pub`.
 - `impl` blocks themselves are not marked `pub`.
 - Enum variants follow the visibility of their enum in the initial design.
 - Trait items follow the visibility of their trait in the initial design.
@@ -288,11 +288,69 @@ Rules:
 - `&+T` is a readwrite borrow type.
 - `&value` creates a readonly borrow.
 - `&+value` creates a readwrite borrow.
+- `&+value` may be created only from a writable place, such as a `var` binding, a writable field, a writable index, or an existing `&+T` reborrow.
 - Readonly borrows may coexist with other readonly borrows.
-- A readwrite borrow is exclusive.
-- A readwrite borrow may be created only from a mutable binding or another readwrite borrow.
+- A readwrite borrow is exclusive and cannot coexist with other readonly or readwrite borrows of the same value.
+- A value cannot be moved while it is borrowed.
+- A value cannot be explicitly dropped while it is borrowed.
+- A borrow cannot outlive the value it refers to.
+- A borrow of a stack value cannot escape the stack value's scope.
+- A borrow of region-allocated memory cannot escape that region.
+- Ordinary function calls require explicit borrow syntax at the call site.
+- Method receivers may create the required borrow automatically.
+- Lifetime annotations are not part of the initial design.
 - `&+` is a single lexical token.
 - Unary `+x` is not part of the language. This avoids ambiguity with `&+x`.
+
+Examples:
+
+```nct
+var file = try File.open(path)
+
+let a = &file
+let b = &file       // OK: multiple readonly borrows
+let c = &+file      // error: a and b are used below
+
+inspect(a)
+inspect(b)
+```
+
+```nct
+var file = try File.open(path)
+
+let w = &+file
+drop file           // error: w is used below
+
+write_more(w)
+```
+
+Ordinary function calls are explicit:
+
+```nct
+func inspect(file: &File): void {
+    ...
+}
+
+inspect(&file)
+```
+
+Method receiver borrows are automatic:
+
+```nct
+impl File {
+    pub method (file: &+Self).write(text: StringView): void!IOError {
+        ...
+    }
+}
+
+try file.write("hello")
+```
+
+The method call above creates a temporary readwrite borrow of `file` for the call. This does not enable UFCS-style calls:
+
+```nct
+File.write(&+file, "hello") // error
+```
 
 ## Values and Types
 
@@ -631,58 +689,194 @@ Example:
 let label = count == 0 ? "empty" : "ready"
 ```
 
+## Statements and Expressions
+
+Adopted: the initial language is statement-centered.
+
+`if`, `match`, and block bodies do not produce values in the initial design. Functions return values with explicit `return`. Fallible functions fail with explicit `fail`. Optional functions return absence with explicit `return none`.
+
+```nct
+func max(a: Int, b: Int): Int {
+    if a > b {
+        return a
+    }
+
+    return b
+}
+```
+
+Rules:
+
+- `if condition { ... }` is a statement.
+- `if condition { ... } else { ... }` is a statement.
+- `if expr is Pattern { ... }` is a statement.
+- `match expr { ... }` is a statement.
+- Blocks `{ ... }` do not return trailing expression values.
+- `return value` is required to return a value from a function.
+- `fail error` is required to return a failure from a fallible function.
+- `return none` is required to return absence from an optional function.
+- Expression-valued `if`, `match`, and block forms are deferred.
+
+Invalid in the initial design:
+
+```nct
+let value = if condition {
+    a
+} else {
+    b
+}
+
+return match result {
+    is ok(value) { value }
+    is fail(error) { 0 }
+}
+```
+
+Use the ternary conditional operator for simple value selection.
+
+```nct
+let value = condition ? a : b
+```
+
+Statement separation:
+
+- Semicolons are not part of the initial grammar.
+- One statement per line is the normal style.
+- A newline separates statements where the grammar can end a statement.
+- A closing brace `}` ends the current block or arm.
+- Multi-line expressions are allowed only where the expression syntax clearly continues, such as inside calls, literals, or parenthesized expressions.
+
+## Loops
+
+Adopted: the initial loop forms are `while`, `loop`, `break`, and `continue`.
+
+```nct
+var i: usize = 0
+
+while i < bytes.len() {
+    let byte = bytes[i]
+
+    if byte == 0 {
+        break
+    }
+
+    i += 1
+}
+```
+
+```nct
+loop {
+    poll_once()
+
+    if should_stop() {
+        break
+    }
+}
+```
+
+Rules:
+
+- `while condition { ... }` requires `condition` to have type `bool`.
+- `loop { ... }` is an infinite loop unless exited by `break`, `return`, `fail`, or another terminating control flow.
+- `break` exits the innermost loop.
+- `continue` skips to the next iteration of the innermost loop.
+- `break value` is not part of the initial design.
+- Loops are statements and do not produce values.
+- Exiting a loop runs the normal scope-end `drop` behavior for values whose scopes end.
+- `break` and `continue` run the same cleanup for scopes they leave.
+
+Deferred:
+
+- `for item in expr { ... }`
+- user-defined iteration protocols
+- mutable element iteration over `WriteView<T>`
+- iteration syntax that depends on ordinary names such as `iter` or `next`
+
+`for` remains reserved for a future iteration construct, but it is not part of the initial executable grammar.
+
 ## Impl Blocks
 
-Adopted: `impl` associates functions with a type. It is not a class declaration and does not introduce inheritance.
+Adopted: `impl` associates functions and methods with a type. It is not a class declaration and does not introduce inheritance.
+
+`func` inside an `impl` defines an associated function. It has no receiver and is called through the type.
 
 ```nct
 impl WordStats {
-    func empty(): WordStats {
+    pub func empty(): WordStats {
         return WordStats{
             bytes: 0,
             lines: 0,
             words: 0,
         }
     }
+}
+```
 
-    func add_word(stats: &+Self): void {
+```nct
+let stats = WordStats.empty()
+```
+
+`method` inside an `impl` defines a receiver method. The receiver is explicit and appears before the method name.
+
+```nct
+impl WordStats {
+    pub method (stats: &+Self).add_byte(byte: u8): void {
+        stats.bytes += 1
+    }
+
+    pub method (stats: &+Self).add_word(): void {
         stats.words += 1
     }
 }
 ```
 
+```nct
+stats.add_word()
+```
+
 `Self` is a contextual type name inside an `impl` block. In `impl WordStats`, `Self` means `WordStats`.
 
-Nocter does not reserve `self` or `this`. The first parameter name is chosen by the author. `self` may be used as an ordinary parameter name, but it has no special meaning.
+Nocter does not reserve `self` or `this`. The receiver name is chosen by the author. `self` may be used as an ordinary receiver name, but it has no special meaning.
 
-Method-call syntax may be supported as sugar:
-
-```nct
-stats.add_word()
-```
-
-This is equivalent to calling the associated function with `stats` as the first argument. Method-call syntax does not make the receiver name magical.
-
-Initial method-call desugaring:
+Initial receiver forms:
 
 ```nct
-stats.add_word()
+method (value: &Self).name(...): Return
+method (value: &+Self).name(...): Return
+method (value: Self).name(...): Return
 ```
 
-is equivalent to:
+Meaning:
+
+- `&Self` is a readonly receiver.
+- `&+Self` is a readwrite receiver.
+- `Self` is a consuming receiver. It requires copy or explicit move according to the normal ownership rules.
+- Calling a `&Self` method borrows the receiver readonly.
+- Calling a `&+Self` method borrows the receiver readwrite and requires a writable receiver place.
+- Calling a `Self` method consumes or copies the receiver according to the receiver type.
+
+Call rules:
+
+- `Type.function(args)` calls an associated `func`.
+- `value.method(args)` calls a `method`.
+- `Type.method(&value, args)` and `Type.method(&+value, args)` are invalid in the initial design.
+- `value.function(args)` is invalid when `function` is only an associated `func`.
+- `func` and `method` share the same member namespace for a type. Defining both with the same name for the same type is an error in the initial design.
+- If method lookup finds multiple valid candidates, the call is ambiguous and is a compile error.
+- The initial design has no qualified method-call escape hatch for ambiguity resolution.
 
 ```nct
-WordStats.add_word(&+stats)
+try file.write("hello")          // OK: method call
+try File.write(&+file, "hello")  // error: methods are not UFCS functions
 ```
-
-when the associated function expects a readwrite borrow. If the function expects a readonly borrow, the call is desugared with `&stats`.
 
 Initial implementation order:
 
 1. `impl Type { ... }`
 2. `Self` inside `impl`
 3. associated function calls such as `Type.function(...)`
-4. method-call syntax such as `value.function(...)`
+4. method declarations
+5. method calls such as `value.method(...)`
 
 ## Drop
 
@@ -731,7 +925,7 @@ Adopted: traits describe required behavior without class inheritance.
 
 ```nct
 trait Writer {
-    func write(out: &+Self, text: StringView): void!IOError
+    method (out: &+Self).write(text: StringView): void!IOError
 }
 ```
 
@@ -741,7 +935,7 @@ Trait implementation uses `impl Trait for Type`.
 
 ```nct
 impl Writer for File {
-    func write(file: &+Self, text: StringView): void!IOError {
+    method (file: &+Self).write(text: StringView): void!IOError {
         ...
     }
 }
@@ -757,12 +951,67 @@ func print_line<W: Writer>(writer: &+W, text: StringView): void!IOError {
 }
 ```
 
+## Generics
+
+Adopted: generic type parameters use angle brackets.
+
+```nct
+struct Buffer<T> {
+    ...
+}
+
+func first<T>(items: View<T>): T? {
+    ...
+}
+```
+
+Trait bounds are written inline with `:`.
+
+```nct
+func print<T: Format>(value: T): void
+```
+
+Multiple bounds use `+`.
+
+```nct
+func hash_key<K: Hash + Equal>(key: &K): u64
+```
+
+Generic implementation uses monomorphization. Each concrete instantiation is compiled as concrete code.
+
+```nct
+Buffer<Int>
+Buffer<String>
+```
+
+This keeps generic dispatch static, avoids runtime type metadata for basic generics, and fits the no-runtime direction.
+
+Initial generic scope:
+
+- type parameters on structs
+- type parameters on functions
+- type parameters on impl blocks where needed
+- inline trait bounds in the form `T: Trait`
+- multiple bounds in the form `T: A + B`
+- compile-time monomorphization
+
+Deferred generic features:
+
+- full `where` clauses
+- higher-kinded types
+- generic associated types
+- const generics beyond the minimum needed for fixed-size arrays
+- dynamic dispatch through `dyn Trait`
+
+## Trait Scope
+
 Initial trait scope:
 
 - trait declarations
 - `impl Trait for Type`
 - generic bounds in the form `T: Trait`
-- method-call syntax through trait bounds
+- method declarations in traits
+- method calls through trait bounds
 - ambiguity is a compile error
 
 Deferred trait features:
@@ -877,16 +1126,42 @@ func make_text(): String {
 
 ## Arrays and Views
 
-Adopted: Nocter uses `View<T>` and `WriteView<T>` for non-owning views over contiguous elements.
+Adopted: fixed-size arrays use `Array<T, N>`.
 
 ```nct
-View<T>
-WriteView<T>
+let header: Array<u8, 4> = [0x7F, 0x45, 0x4C, 0x46]
+let numbers = [1, 2, 3] // Array<Int, 3>
 ```
 
-`View<T>` is a readonly view. It allows reading contiguous `T` elements but does not own them.
+Array literals use `[a, b, c]`.
 
-`WriteView<T>` is a readwrite view. It allows reading and writing contiguous `T` elements but does not own them.
+Rules:
+
+- If there is an expected `Array<T, N>` type, the literal is checked against that element type and length.
+- Without an expected type, the compiler infers the element type from the elements.
+- Integer-only array literals use `Int` unless context provides another integer type.
+- The inferred length is part of the array type.
+
+Owned growable memory is represented by standard-library types such as `Buffer<T>`. `Buffer<T>` is not a compiler builtin.
+
+```nct
+var bytes = try Buffer<u8>.with_capacity(allocator, 4096)
+try bytes.push(10)
+
+let read: View<u8> = bytes.view()
+let write: WriteView<u8> = bytes.write_view()
+```
+
+Nocter uses `View<T>` and `WriteView<T>` for non-owning views over contiguous elements.
+
+```nct
+View<T>       // readonly contiguous view
+WriteView<T> // readwrite contiguous view
+```
+
+`View<T>` allows reading contiguous `T` elements but does not own them.
+
+`WriteView<T>` allows reading and writing contiguous `T` elements but does not own them.
 
 The names are chosen to align with `StringView`.
 
@@ -907,16 +1182,22 @@ Important distinction:
 
 These are not the same thing.
 
-Owned growable memory should be represented by standard-library types such as `Buffer<T>`. A `Buffer<T>` can produce `View<T>` or `WriteView<T>` when borrowed with the required access.
+Indexing uses bounds checks.
 
 ```nct
-var buffer = Buffer<u8>.alloc(1024)
-
-let view = buffer.view()
-let writable = buffer.write_view()
+let first = read[0]      // traps if out of bounds
+let maybe = read.get(0)  // u8?
 ```
 
-Fixed-size arrays are still open design. The current direction is to prefer a readable generic spelling such as `Array<T, N>` over a special bracket syntax unless implementation pressure suggests otherwise.
+`x[i]` traps on out-of-bounds access. `x.get(i)` returns `T?` and is used when absence should be handled as a value.
+
+Length is exposed through normal methods, not special fields.
+
+```nct
+let count = read.len()
+```
+
+The compiler may need built-in knowledge for fixed-size array layout and array literal typing. `Buffer<T>`, `View<T>`, `WriteView<T>`, `get`, and `len` should remain standard-library surface where possible.
 
 ## Strings
 
@@ -962,11 +1243,11 @@ Adopted standard library surface:
 ```nct
 impl String {
     pub func copy(allocator: &+Allocator, text: StringView): String!AllocError
-    pub func view(text: &Self): StringView
+    pub method (text: &Self).view(): StringView
 }
 
 impl StringView {
-    pub func bytes(text: Self): View<u8>
+    pub method (text: Self).bytes(): View<u8>
 }
 ```
 
@@ -1022,6 +1303,7 @@ struct
 enum
 trait
 impl
+method
 let
 var
 return
@@ -1029,6 +1311,9 @@ if
 else
 for
 while
+loop
+break
+continue
 match
 is
 try
@@ -1051,8 +1336,9 @@ The following areas remain intentionally open:
 
 - exact grammar for generics
 - exact generic parameter grammar beyond simple `T: Trait`
-- detailed method-resolution and ambiguity rules
+- full trait method-resolution order and ambiguity diagnostics
+- `for` syntax and iteration protocol
 - package layout and multi-file module resolution
-- exact ownership and borrow-checking rules
+- detailed lifetime inference and borrow-checker diagnostics beyond the adopted core rules
 - whether attributes are needed later
 - whether `asm` can ever be used outside the standard library

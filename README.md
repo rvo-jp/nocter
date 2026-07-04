@@ -23,13 +23,23 @@ Nocter は、人間が読みやすい静的型付け高級言語を設計し、A
 このリポジトリでは、コンパイラの実装と利用者へ配布する完成品を分けます。
 
 ```text
+README.md
+    ユーザー向けの全容
+
+SPEC.md
+    ユーザー向けの言語仕様書
+
 src/
     コンパイラ本体の実装
+    README.md
+        コンパイラ開発者向けの実装設計書
 
 .nocter/
     nocter
     std/
 ```
+
+`README.md` は Nocter の目的、対象環境、配布形態、設計思想を説明する入口です。`SPEC.md` は Nocter を書く人向けの言語仕様書です。`src/README.md` はコンパイラ開発者向けの内部設計書であり、ユーザー向け文書には実装内部の詳細を入れすぎない方針とします。
 
 `src/` は開発用のソースツリーです。`.nocter/` は利用者に配布する完成品の配置先であり、コンパイラ本体と標準ライブラリを含みます。
 
@@ -96,26 +106,32 @@ struct File {
     fd: i32
 }
 
-func write(file: &+File, data: string): void!Error {
+func write(file: &+File, data: StringView): void!Error {
     ...
 }
 ```
 
-メソッド構文は、class 継承ではなく、型に関数を関連付ける構文として扱います。
+`impl` 内の `func` は型に関連付く associated function です。`impl` 内の `method` は receiver を持つメソッドです。`self` / `this` は使わず、receiver 名と borrow 種別を明示します。
 
 ```nct
 impl File {
-    func write(file: &+Self, data: string): void!Error {
+    pub func open(path: StringView): File!Error {
+        ...
+    }
+
+    pub method (file: &+Self).write(data: StringView): void!Error {
         ...
     }
 }
 ```
 
+`func` は `File.open(path)` のように型から呼びます。`method` は `file.write(data)` のように値から呼びます。`File.write(&+file, data)` のような UFCS 呼び出しは初期仕様では採用しません。
+
 抽象化が必要な場合は、継承階層ではなく `trait` を使います。
 
 ```nct
 trait Writer {
-    func write(writer: &+Self, data: string): void!Error
+    method (writer: &+Self).write(data: StringView): void!Error
 }
 ```
 
@@ -312,11 +328,24 @@ Nocter のメモリ管理方針は、GC なし、所有権あり、静的検査�
 - 型はデフォルトで move-only とし、`copy struct` だけ暗黙コピーを許可する
 - 非copy値の代入・引数渡し・return には `move` を明示する
 - readonly borrow は `&T` として表現する
-- readwrite borrow は `&+T` として表現し、同時に複数の readwrite borrow を許さない
+- readwrite borrow は `&+T` として表現し、同時に他の readonly / readwrite borrow と共存できない
 - `&+` は単一トークンとして扱い、単項 `+x` は採用しない
 - スコープ終了時に破棄処理を挿入する
 - 破棄処理は `impl` 内の専用 `drop` 構文で定義する
 - use-after-free、double-free、dangling pointer を型チェック段階で防ぐ
+
+借用の基本規則:
+
+- `&value` は readonly borrow を作る
+- `&+value` は readwrite borrow を作る
+- `&+value` は `var` 束縛や書き込み可能な場所からだけ作れる
+- 複数の readonly borrow は同時に存在できる
+- readonly borrow が生きている間、同じ値への readwrite borrow は作れない
+- readwrite borrow が生きている間、同じ値への他の readonly / readwrite borrow は作れない
+- 借用中の値は `move` できない
+- 借用中の値は `drop` できない
+- 借用は参照先より長生きできない
+- 初期仕様では lifetime 注釈を採用しない
 
 例:
 
@@ -328,7 +357,7 @@ func allocate_buffer(): void {
 }
 ```
 
-`buffer` は所有権を持つ値です。スコープを抜けると破棄されます。所有型を別の変数へ渡す場合は、将来的に `move` のような明示構文を導入します。
+`buffer` は所有権を持つ値です。スコープを抜けると破棄されます。所有型を別の変数へ渡す場合は、`move` を明示します。
 
 ```nct
 let a = Buffer.alloc(1024)
@@ -336,6 +365,28 @@ let b = move a
 ```
 
 `move` 後の `a` は使用できません。これにより二重解放を防ぎます。
+
+通常の関数に borrow を渡す場合は、呼び出し側で `&` / `&+` を明示します。
+
+```nct
+func inspect(file: &File): void {
+    ...
+}
+
+inspect(&file)
+```
+
+`method` receiver だけは自動 borrow します。
+
+```nct
+impl File {
+    pub method (file: &+Self).write(text: StringView): void!IOError {
+        ...
+    }
+}
+
+try file.write("hello")
+```
 
 コピー可能な値型は `copy struct` で宣言します。`copy struct` は全フィールドがcopy可能である必要があり、`drop` を定義できません。
 
@@ -404,12 +455,56 @@ func open(path: StringView): File!IOError {
 ```nct
 func checksum(bytes: View<u8>): u32
 func read_into(file: &+File, output: WriteView<u8>): usize!IOError
-func bytes(text: StringView): View<u8>
+
+impl StringView {
+    pub method (text: Self).bytes(): View<u8>
+}
 ```
 
 `View<u8>` は任意のバイト列を表し、UTF-8 であるとは限りません。`StringView` からは `View<u8>` を得られますが、`View<u8>` から `StringView` を作る場合は UTF-8 検証を必要とします。
 
 `"abc"` を `&String` として渡す暗黙変換は採用しません。`&String` は実在する所有 `String` への borrow であり、文字列リテラルは `StringView` として扱います。
+
+## 配列とコレクション
+
+固定長配列は `Array<T, N>` と書きます。
+
+```nct
+let header: Array<u8, 4> = [0x7F, 0x45, 0x4C, 0x46]
+let numbers = [1, 2, 3] // Array<Int, 3>
+```
+
+配列リテラルは `[a, b, c]` です。文脈型があればその要素型と長さに従い、文脈がなければ要素から型を推論します。整数リテラルだけで構成される場合は `Int` を使います。
+
+所有する可変長バッファは標準ライブラリの `Buffer<T>` で表します。`Buffer<T>` は言語組み込みではなく、標準ライブラリ型です。
+
+```nct
+var bytes = try Buffer<u8>.with_capacity(allocator, 4096)
+try bytes.push(10)
+
+let read: View<u8> = bytes.view()
+let write: WriteView<u8> = bytes.write_view()
+```
+
+非所有 view は `View<T>` / `WriteView<T>` を使います。
+
+```nct
+View<T>       // readonly contiguous view
+WriteView<T> // readwrite contiguous view
+```
+
+index 演算子 `x[i]` は境界チェックを行います。範囲外の場合は trap します。範囲外を値として扱いたい場合は `get(i)` を使います。
+
+```nct
+let first = read[0]      // 範囲外なら trap
+let maybe = read.get(0)  // u8?
+```
+
+長さは特別なフィールドではなく、通常メソッド `len()` として扱います。
+
+```nct
+let count = read.len()
+```
 
 ## 型システム
 
@@ -487,6 +582,64 @@ bool 条件の値選択には三項条件演算子 `a ? b : c` を使えます�
 let label = count == 0 ? "empty" : "ready"
 ```
 
+初期仕様では statement 中心にします。`if`、`match`、block `{ ... }` は値を返しません。関数の成功終了は `return`、fallible の失敗は `fail`、optional の absent は `return none` で明示します。
+
+```nct
+func max(a: Int, b: Int): Int {
+    if a > b {
+        return a
+    }
+
+    return b
+}
+```
+
+値として条件分岐したい場合は三項条件演算子を使います。
+
+```nct
+let value = use_left ? left : right
+```
+
+文末セミコロンは初期仕様では採用しません。1 行 1 文を基本にし、改行または `}` で文を区切ります。
+
+ループはまず `while`、`loop`、`break`、`continue` を採用します。`while` の条件は `bool` です。`loop` は無限ループです。`break value` のようにループから値を返す構文は初期仕様では採用しません。
+
+```nct
+var i: usize = 0
+
+while i < bytes.len() {
+    let byte = bytes[i]
+
+    if byte == 0 {
+        break
+    }
+
+    i += 1
+}
+```
+
+`for item in expr` は初期仕様では採用しません。`iter` や `next` などの普通の名前をコンパイラが特別扱いしない反復プロトコルを設計してから導入します。
+
+ジェネリクスは `<T>` を使います。制約は `T: Trait`、複数制約は `T: A + B` と書きます。
+
+```nct
+struct Buffer<T> {
+    ...
+}
+
+func first<T>(items: View<T>): T? {
+    ...
+}
+
+func write_line<W: Writer>(writer: &+W, text: StringView): void!IOError {
+    try writer.write(text)
+    try writer.write("\n")
+    return
+}
+```
+
+ジェネリクスはコンパイル時に具体化します。`Buffer<Int>` と `Buffer<String>` はそれぞれ具体型として扱い、実行時の型情報や共通ランタイムに依存しません。初期仕様では `dyn Trait` のような動的 trait object は採用しません。
+
 単一の pattern だけを見たい場合は `if expr is Pattern` を使います。
 
 ```nct
@@ -514,14 +667,16 @@ if open(path) is ok(file) {
 11. `print`
 12. `import`
 13. `struct`
-14. 所有型のコピー禁止
-15. `move`
-16. `drop`
-17. `&T`
-18. `&+T`
-19. allocator
-20. region / arena
-21. 標準ライブラリ拡充
+14. `if` / `match`
+15. `while` / `loop` / `break` / `continue`
+16. 所有型のコピー禁止
+17. `move`
+18. `drop`
+19. `&T`
+20. `&+T`
+21. allocator
+22. region / arena
+23. 標準ライブラリ拡充
 
 この順序は固定ではありません。ただし、`clang` や `ld` に一時的に逃がして Hello World を早く出すことより、最終設計と矛盾しない経路で進めることを優先します。
 
