@@ -1,0 +1,149 @@
+# Targets and Distribution
+
+This file is part of the Nocter language specification.
+The specification entry point is [../SPEC.md](../SPEC.md).
+
+## Target Model
+
+Adopted: Nocter has one initial target, but the compiler architecture should keep target-specific behavior isolated.
+
+Initial target:
+
+```text
+arm64-macos
+```
+
+Initial target properties:
+
+- CPU architecture: ARM64
+- OS: macOS
+- executable format: Mach-O
+- pointer width: 64-bit
+- `usize`: `u64` range
+- `isize`: `i64` range
+
+Rules:
+
+- The initial compiler implementation targets only `arm64-macos`.
+- The initial implementation does not support cross compilation beyond `arm64-macos`, but the compiler still models host and target separately.
+- The default active target is the host target.
+- The language grammar, type system, ownership model, borrow rules, regions, and high-level standard-library APIs should not depend on macOS-specific names.
+- Target-specific logic belongs in target backends, primitive lowering, executable writers, and OS-specific standard-library modules.
+- The compiler must not depend on external assemblers, linkers, C toolchains, or external runtimes for any target.
+- Future targets should be added by introducing new target backends and target-specific standard-library primitive boundaries.
+- Future targets must not require ordinary user code to mention CPU instructions, object formats, or OS syscall details.
+- Future cross compilation is selected by an explicit target option such as `--target x64-linux`.
+- A recognized target name is not the same as an implemented target. A target becomes implemented only when its backend, executable writer, primitive set, and target standard-library overlay exist.
+
+Current target-specific standard-library boundary:
+
+```text
+.nocter-arm64-macos/targets/arm64-macos/std/os/macos.nct
+```
+
+Future target-specific boundaries may use parallel target overlays such as:
+
+```text
+.nocter-arm64-macos/targets/x64-linux/std/os/linux.nct
+.nocter-arm64-macos/targets/arm64-linux/std/os/linux.nct
+.nocter-arm64-macos/targets/x64-windows/std/os/windows.nct
+.nocter-arm64-macos/targets/arm64-windows/std/os/windows.nct
+```
+
+These future files are not part of the initial implementation goal.
+
+Recognized targets:
+
+```text
+arm64-macos    implemented first
+x64-linux      reserved, not implemented
+arm64-linux    reserved, not implemented
+x64-windows    reserved, not implemented
+arm64-windows  reserved, not implemented
+```
+
+If a reserved target is requested before implementation, the compiler must report a clear error:
+
+```text
+error: target x64-linux is recognized but not implemented
+```
+
+## Distribution Layout
+
+Adopted: the distributed toolchain is a host-specific `.nocter-<host>/` directory.
+
+The initial host package is:
+
+```text
+~/.nocter-arm64-macos/
+    nocter
+    std/
+        io.nct
+        mem.nct
+        os.nct
+        ptr.nct
+        string.nct
+    targets/
+        arm64-macos/
+            std/
+                process.nct
+                os/
+                    macos.nct
+        x64-linux/
+            std/
+        arm64-linux/
+            std/
+        x64-windows/
+            std/
+        arm64-windows/
+            std/
+```
+
+The `host` part names the environment that runs the `nocter` compiler binary. The first host is `arm64-macos`. Future host packages may include names such as `.nocter-x64-linux/` or `.nocter-arm64-linux/`.
+
+The host package contains common standard-library source files and one or more target overlays under `targets/<target>/`.
+
+Because cross compilation beyond `arm64-macos` is not part of the initial implementation, the default active target is the host target. For example, `.nocter-arm64-macos/` contains the compiler that runs on ARM64 macOS, and `targets/arm64-macos/` contains the standard-library primitive boundary for the `arm64-macos` target.
+
+Future cross compilation adds target overlays and compiler backends to the existing host package:
+
+```text
+~/.nocter-arm64-macos/
+    nocter
+    std/
+    targets/
+        arm64-macos/
+            std/
+        x64-linux/
+            std/
+        arm64-linux/
+            std/
+        x64-windows/
+            std/
+        arm64-windows/
+            std/
+```
+
+Initial command-line direction:
+
+```sh
+nocter build app.nct
+nocter build app.nct --target arm64-macos
+nocter build app.nct --target x64-linux
+```
+
+If `--target` is omitted, the compiler uses the host target. The initial implementation can emit only `arm64-macos`. Reserved targets may be recognized by name, but they must produce a not-implemented diagnostic until their backend, executable writer, primitive set, and target standard-library overlay are implemented.
+
+Users install Nocter by placing the host package directory at `~/.nocter-arm64-macos` or another location, then adding that directory to `PATH`.
+
+Example shell setup:
+
+```sh
+export PATH="$HOME/.nocter-arm64-macos:$PATH"
+```
+
+`NOCTER_HOME` may point to the active host package if the user does not want to rely on the location of the `nocter` executable.
+
+The repository uses `.nocter-arm64-macos/` as the current development output directory for the distributable compiler and standard library. This directory is a generated host package and is not committed to git.
+
+A user may create a stable symlink such as `~/.nocter -> ~/.nocter-arm64-macos`, but the package itself remains host-specific.

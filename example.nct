@@ -1,0 +1,178 @@
+// Nocter syntax sketch.
+//
+// This file is not a minimal program. It is a design sample that shows the
+// language direction: static typing, value-centered data, path-derived modules,
+// fallible types, ownership, borrowing, regions, and a small standard-library surface.
+
+import std.io.{File, stderr, stdout}
+import std.mem as mem
+import std.mem.Allocator
+import std.process.{args, exit}
+import std.string.{String, StringView}
+
+pub copy struct WordStats {
+    pub bytes: u64
+    pub lines: u64
+    pub words: u64
+}
+
+impl WordStats {
+    pub func empty(): WordStats {
+        return WordStats{
+            bytes: 0,
+            lines: 0,
+            words: 0,
+        }
+    }
+
+    pub method (stats: &+Self).add_byte(byte: u8): void {
+        stats.bytes += 1
+
+        if byte == b'\n' {
+            stats.lines += 1
+        }
+    }
+
+    pub method (stats: &+Self).add_word(): void {
+        stats.words += 1
+    }
+}
+
+enum ScanState {
+    outside_word
+    inside_word
+}
+
+pub enum AppError {
+    missing_path
+    too_many_args
+    open_failed(path: StringView)
+    read_failed(path: StringView)
+    write_failed
+}
+
+pub trait Writer {
+    method (writer: &+Self).write(text: StringView): void!AppError
+    method (writer: &+Self).write_u64(value: u64): void!AppError
+}
+
+pub func scan_words(text: StringView): WordStats {
+    var stats = WordStats.empty()
+    var state = ScanState.outside_word
+    let bytes = text.bytes()
+
+    for i in 0..<bytes.len() {
+        let byte = bytes[i]
+        stats.add_byte(byte)
+
+        if byte.is_ascii_space() {
+            state = ScanState.outside_word
+        } else if state == ScanState.outside_word {
+            stats.add_word()
+            state = ScanState.inside_word
+        }
+    }
+
+    return stats
+}
+
+func print_stats<W: Writer>(
+    out: &+W,
+    path: StringView,
+    stats: WordStats,
+): void!AppError {
+    try out.write(path)
+    try out.write(": ")
+    try out.write_u64(stats.lines)
+    try out.write(" lines, ")
+    try out.write_u64(stats.words)
+    try out.write(" words, ")
+    try out.write_u64(stats.bytes)
+    try out.write(" bytes\n")
+
+    return
+}
+
+func read_all(
+    allocator: &+Allocator,
+    path: StringView,
+): String!AppError {
+    var file = try File.open(path) catch error {
+        fail AppError.open_failed(path)
+    }
+
+    // String owns its allocation. It is dropped automatically when ownership
+    // does not move to the caller.
+    let text = try file.read_to_string(allocator) catch error {
+        fail AppError.read_failed(path)
+    }
+
+    return move text
+}
+
+func run(allocator: &+Allocator): void!AppError {
+    let argv = args()
+
+    if argv.len() < 2 {
+        fail AppError.missing_path
+    }
+
+    if argv.len() > 2 {
+        fail AppError.too_many_args
+    }
+
+    let path = argv[1]
+
+    // A region is useful for temporary allocations whose lifetime is bounded
+    // by this block. References into scratch cannot escape the region.
+    region scratch using allocator {
+        let text = try read_all(scratch.allocator(), path.view())
+        let stats = scan_words(text.view())
+
+        var out = stdout()
+        try print_stats(&+out, path.view(), stats)
+    }
+
+    return
+}
+
+func report_error(error: AppError): void {
+    var err = stderr()
+
+    match error {
+        is AppError.missing_path {
+            err.write("usage: word_count <path>\n").ignore()
+        }
+        is AppError.too_many_args {
+            err.write("error: expected exactly one path\n").ignore()
+        }
+        is AppError.open_failed(path) {
+            err.write("error: cannot open ").ignore()
+            err.write(path).ignore()
+            err.write("\n").ignore()
+        }
+        is AppError.read_failed(path) {
+            err.write("error: cannot read ").ignore()
+            err.write(path).ignore()
+            err.write("\n").ignore()
+        }
+        is AppError.write_failed {
+            err.write("error: cannot write output\n").ignore()
+        }
+    }
+}
+
+func fatal(error: AppError): never {
+    report_error(error)
+    exit(1)
+}
+
+program(): i32 {
+    var allocator = mem.page_allocator()
+
+    try run(&+allocator) catch error {
+        fatal(error)
+    }
+
+    return 0
+}
