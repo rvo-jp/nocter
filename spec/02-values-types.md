@@ -22,9 +22,9 @@ Local bindings must be initialized.
 
 ```nct
 let path = "input.txt"
-var count: Int = 0
+var count: i32 = 0
 
-let missing: Int // error
+let missing: i32 // error
 var later: File  // error
 ```
 
@@ -92,44 +92,120 @@ bool
 i8 i16 i32 i64
 u8 u16 u32 u64
 usize isize
-Int
 void
 never
 ```
 
-Initial built-in type constructors:
+Initial built-in type syntax:
 
 ```text
 *T
+&T
+&+T
 T?
 T!E
-Array<T, N>
+[T; N]
 ```
 
-`Int` is adopted as the default general-purpose integer type.
+Initial built-in literal values:
+
+```text
+true
+false
+none
+```
+
+`true` and `false` have type `bool`. `none` is a contextual optional absence literal and requires an expected `T?` type.
+
+Names such as `String`, `StringView`, `View`, `WriteView`, `Allocator`, `File`, `IOError`, `OSError`, `print`, and `exit` are not compiler built-ins.
+
+`Int` is not a compiler built-in name.
+
+The standard library prelude may define and export `Int` as a normal type alias:
 
 ```nct
-type Int = i32
+pub type Int = i32
 ```
 
-`Int` is an alias of `i32`, not a distinct type. Fixed-width integer types such as `i32` and `u64` remain available for ABI, binary format, pointer arithmetic, and low-level standard-library code.
+Using `Int` requires `use std/prelude` or an explicit import from `std/prelude`. The compiler must not treat the identifier `Int` specially.
+
+```nct
+use std/prelude
+```
+
+No implicit prelude is part of this rule. `use std/prelude` is file-local and explicit.
+
+When imported, `Int` is an alias of `i32`, not a distinct type. Fixed-width integer types such as `i32` and `u64` remain available for ABI, binary format, pointer arithmetic, and low-level standard-library code.
+
+### Type Aliases
+
+Adopted: `type` declares a pure type alias. A type alias introduces another name for the exact same type. It does not create a distinct nominal type.
+
+```nct
+pub type Int = i32
+pub type Bytes = View<u8>
+pub type Map<K, V> = HashMap<K, V>
+```
+
+Rules:
+
+- Type aliases are top-level declarations.
+- Type aliases are private by default.
+- `pub type` makes the alias importable and re-exportable.
+- Generic type aliases are allowed.
+- A type alias has no separate identity from its target type.
+- A type alias does not change ownership, copyability, drop behavior, layout, or ABI.
+- Implementations cannot target a type alias.
+- A type alias cannot be used to create a type-safe wrapper around an existing type.
+- No dedicated `newtype` syntax is part of v0.
+- Use a `struct` when a distinct type is required.
+
+Examples:
+
+```nct
+let x: Int = 10
+let y: i32 = x  // OK: Int is i32
+```
+
+```nct
+type UserId = u64
+type OrderId = u64
+
+let user: UserId = 10
+let order: OrderId = user  // OK: both aliases are u64
+```
+
+```nct
+pub copy struct UserId {
+    pub value: u64
+}
+```
+
+```nct
+impl Int {
+    ...
+}
+// error: impl target must be a nominal type, not a type alias
+```
+
+### Integer Literals
 
 Integer literal rules:
 
 - Integer literals start as untyped integer literals.
 - If an integer literal has an expected integer type, it takes that type when the value fits.
-- If no context fixes the type, the literal becomes `Int`.
+- If no context fixes the type, the literal becomes `i32`.
 - Assigning an out-of-range literal is a type error.
 - Non-literal integer values are not implicitly converted between integer types.
 
 Examples:
 
 ```nct
-let a = 10        // Int
+let a = 10        // i32
 let b: u64 = 10   // u64
 let c: u8 = 300   // error: literal out of range
 
-let x: Int = 10
+let x: i32 = 10
 let y: u64 = x    // error: no implicit integer conversion
 ```
 
@@ -163,8 +239,8 @@ let d = (a as u64) + b // OK
 let x: u32 = 10
 let y: u64 = x as u64 // OK: lossless widening
 
-let signed: Int = 10
-let unsigned = signed as u64 // error: not lossless for all Int values
+let signed: i32 = 10
+let unsigned = signed as u64 // error: not lossless for all i32 values
 
 let big: u64 = 300
 let small = big as u8       // error: narrowing
@@ -269,23 +345,63 @@ if count > 0 && state == ScanState.inside_word {
 }
 ```
 
+## Structs and Value Construction
+
+Adopted: struct values are constructed with explicit named-field struct literals.
+
 ```nct
-struct WordStats {
-    bytes: u64
-    lines: u64
-    words: u64
+pub struct User {
+    pub id: u64
+    name: String
 }
 ```
 
-Constructors are ordinary expressions, not magic initializer names.
-
 ```nct
-let stats = WordStats{
-    bytes: 0,
-    lines: 0,
-    words: 0,
+let user = User{
+    id: 1,
+    name: try String.copy(allocator, "alice"),
 }
 ```
+
+Rules:
+
+- Struct literal syntax is `Type{ field: value, ... }`.
+- The type in a struct literal must name a struct type. For generic structs, the type may include type arguments.
+- Every field must be initialized exactly once.
+- Field order in the literal is free.
+- Unknown fields are compile errors.
+- Duplicate fields are compile errors.
+- Field initializer expressions are evaluated left to right in the order written in the literal.
+- Field initializer expressions follow normal ownership, move, copy, borrow, and `try` rules.
+- Private fields may be initialized only inside the module that defines the struct.
+- Public fields may be initialized from other modules.
+- There is no constructor overloading in v0.
+- Field default values are not part of v0.
+- Struct update syntax is not part of v0.
+- Positional structs and tuple structs are not part of v0.
+- Dedicated constructor syntax is not part of v0.
+- Names such as `new`, `init`, and `create` are ordinary associated function names. The compiler does not special-case them.
+
+When initialization logic or validation is needed, use an ordinary associated function.
+
+```nct
+impl User {
+    pub func create(id: u64, name: String): User {
+        return User{
+            id: id,
+            name: move name,
+        }
+    }
+}
+```
+
+Outside the defining module, a struct with private fields can be created only through public APIs exposed by that module.
+
+```nct
+let user = User.create(1, try String.copy(allocator, "alice"))
+```
+
+## Enums and Variant Construction
 
 Adopted: enums represent finite variants and may carry data.
 
@@ -300,9 +416,23 @@ Rules:
 
 - Enum variant names use snake_case.
 - Variants may carry zero or more payload values.
+- Payloadless variants are constructed as `EnumName.variant_name`.
+- Payload variants are constructed as `EnumName.variant_name(args...)`.
+- Variant construction requires the payload arity and types to match the variant declaration.
+- Variant payload arguments are evaluated left to right.
 - Variant constructors are qualified with the enum name, such as `AppError.open_failed(path)`.
+- Unqualified variant constructors are not part of v0.
+- Variant constructors are not ordinary functions and are not magic identifier names; they are generated by the enum declaration.
+- Enum variants and associated functions share the type member namespace in v0. Defining an associated function with the same member name as a variant is a compile error.
 - If an enum is public, its variants are public in the initial design.
 - Per-variant visibility is not part of the initial design.
+
+Examples:
+
+```nct
+let state = ScanState.inside_word
+let error = AppError.open_failed(path)
+```
 
 Adopted: `match` is the initial control flow form for enum pattern matching.
 

@@ -4,11 +4,13 @@
 // language direction: static typing, value-centered data, path-derived modules,
 // fallible types, ownership, borrowing, regions, and a small standard-library surface.
 
-import std.io.{File, stderr, stdout}
-import std.mem as mem
-import std.mem.Allocator
-import std.process.{args, exit}
-import std.string.{String, StringView}
+use std/prelude
+
+from std/io import File, stderr, stdout
+from std/mem import Allocator
+from std/process import args, exit
+
+import std/mem as mem
 
 pub copy struct WordStats {
     pub bytes: u64

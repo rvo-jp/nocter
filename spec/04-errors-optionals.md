@@ -165,7 +165,7 @@ Adopted: optional local branching uses `if let` and `if var`.
 
 ```nct
 if let home = env("HOME") {
-    use(home)
+    consume(home)
 } else {
     use_default_home()
 }
@@ -174,7 +174,7 @@ if let home = env("HOME") {
 ```nct
 if var text = maybe_text {
     text.push("!")
-    use(move text)
+    consume(move text)
 }
 ```
 

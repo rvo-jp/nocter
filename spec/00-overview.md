@@ -12,7 +12,8 @@ The specification entry point is [../SPEC.md](../SPEC.md).
 - Initial cross compilation: disabled, but host and target are modeled separately
 - Runtime GC: none
 - Entry syntax: `program`
-- Host toolchain directory: `~/.nocter-arm64-macos` for the initial host package
+- User Nocter home: `~/.nocter/`
+- Initial archive payload: `.nocter-arm64-macos/`
 - Compiler command: `nocter`
 
 ## Core Principles

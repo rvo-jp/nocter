@@ -43,12 +43,12 @@ region scratch using allocator {
 
 ## Allocators
 
-Adopted: allocator APIs live in the standard library module `std.mem`.
+Adopted: allocator APIs live in the standard library module path `std/mem`.
 
 The initial file for this module is:
 
 ```text
-.nocter-arm64-macos/std/mem.nct
+~/.nocter/std/mem.nct
 ```
 
 `Allocator`, `AllocError`, `Layout`, and `RawBuffer` are ordinary standard-library names. The compiler must not special-case those identifiers.
@@ -105,8 +105,9 @@ Rules:
 Example:
 
 ```nct
-import std.mem as mem
-import std.mem.{Allocator, AllocError, RawBuffer}
+from std/mem import Allocator, AllocError, RawBuffer
+
+import std/mem as mem
 
 func make_bytes(allocator: &+Allocator, size: usize): RawBuffer!AllocError {
     let buffer = try mem.alloc(allocator, size, 16)
@@ -136,7 +137,7 @@ region scratch using allocator {
     let tokens = try lex(scratch.allocator(), source.view())
     let ast = try parse(scratch.allocator(), tokens.view())
 
-    use(ast)
+    consume(ast)
 }
 ```
 

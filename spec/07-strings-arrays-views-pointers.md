@@ -48,9 +48,9 @@ pointer.store(value)
 
 These operations may be reconsidered only after an `unsafe` or trusted-standard-library design exists.
 
-### `std.ptr`
+### `std/ptr`
 
-Pointer and address conversion APIs live in `std.ptr`.
+Pointer and address conversion APIs live in `std/ptr`.
 
 Initial public APIs:
 
@@ -71,7 +71,7 @@ pub primitive from_addr<T>(address: usize): *T
 Rules:
 
 - `addr` converts a raw pointer to a `usize` address.
-- Pointer-to-integer conversion uses `std.ptr.addr`, not `as usize`.
+- Pointer-to-integer conversion uses `std/ptr`'s `addr`, not `as usize`.
 - `from_ref` creates a raw pointer from a readonly borrow.
 - `from_ref_mut` creates a raw pointer from a readwrite borrow.
 - `from_addr` creates a raw pointer from a `usize` address.
@@ -82,7 +82,7 @@ Rules:
 Example:
 
 ```nct
-import std.ptr
+import std/ptr as ptr
 
 func address_of(value: &u8): usize {
     let pointer = ptr.from_ref(value)
@@ -116,8 +116,8 @@ impl StringView {
 Syscall-oriented example:
 
 ```nct
-import std.ptr
-import std.os.macos as os
+import std/ptr as ptr
+import std/os/macos as os
 
 let bytes = text.bytes()
 let result = os.syscall3(
@@ -130,35 +130,35 @@ let result = os.syscall3(
 
 ### Pointer Intrinsics
 
-The `std.ptr` functions above are target-independent core primitive declarations. They are separate from the active target's OS primitive set such as `std.os.macos.syscall0`.
+The `std/ptr` functions above are target-independent core primitive declarations. They are separate from the active target's OS primitive set such as `std/os/macos`'s `syscall0`.
 
 The compiler validates them by module path, name, and exact signature:
 
 ```text
-std.ptr.addr
-std.ptr.from_ref
-std.ptr.from_ref_mut
-std.ptr.from_addr
+std/ptr.addr
+std/ptr.from_ref
+std/ptr.from_ref_mut
+std/ptr.from_addr
 ```
 
 These core pointer primitives exist because address conversion and borrow-to-pointer conversion cannot be implemented in ordinary Nocter code. They do not make `print`, `exit`, allocation, strings, buffers, or file APIs compiler primitives.
 
 ## Arrays and Views
 
-Adopted: fixed-size arrays use `Array<T, N>`.
+Adopted: fixed-size arrays use `[T; N]`.
 
 ```nct
-let header: Array<u8, 4> = [0x7F, 0x45, 0x4C, 0x46]
-let numbers = [1, 2, 3] // Array<Int, 3>
+let header: [u8; 4] = [0x7F, 0x45, 0x4C, 0x46]
+let numbers = [1, 2, 3] // [i32; 3]
 ```
 
 Array literals use `[a, b, c]`.
 
 Rules:
 
-- If there is an expected `Array<T, N>` type, the literal is checked against that element type and length.
+- If there is an expected `[T; N]` type, the literal is checked against that element type and length.
 - Without an expected type, the compiler infers the element type from the elements.
-- Integer-only array literals use `Int` unless context provides another integer type.
+- Integer-only array literals use `i32` unless context provides another integer type.
 - The inferred length is part of the array type.
 
 Owned growable memory is represented by standard-library types such as `Buffer<T>`. `Buffer<T>` is not a compiler builtin.
@@ -172,6 +172,8 @@ let write: WriteView<u8> = bytes.write_view()
 ```
 
 Nocter uses `View<T>` and `WriteView<T>` for non-owning views over contiguous elements.
+
+Their canonical standard-library module path is `std/view`.
 
 ```nct
 View<T>       // readonly contiguous view
@@ -231,11 +233,13 @@ The compiler may need built-in knowledge for fixed-size array layout and array l
 
 ## Strings
 
-String literals have type `StringView`.
+String literals have the canonical standard-library type `std/string.StringView`.
 
 ```nct
-let name = "Nocter" // StringView
+let name = "Nocter" // std/string.StringView
 ```
+
+Source code can write the unqualified name `StringView` only when that name has been introduced by `use std/prelude` or explicitly imported from `std/string`.
 
 The compiler places string literal bytes into the Mach-O image. A string literal is not an owned `String`, and the compiler must not allocate a heap object for it.
 
@@ -307,7 +311,7 @@ Rules:
 - Plain single-quoted literals such as `'a'` are not part of the initial design.
 - The `char` type remains deferred.
 - Single quote syntax is reserved for a future `Char` or Unicode scalar design.
-- String literals use `"..."` and have type `StringView`.
+- String literals use `"..."` and have canonical type `std/string.StringView`.
 - String literals are UTF-8.
 - String literal length APIs report byte length unless a future Unicode API explicitly says otherwise.
 - Escapes are interpreted by the compiler before placing literal bytes into the Mach-O image.

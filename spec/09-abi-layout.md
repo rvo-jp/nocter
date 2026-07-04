@@ -26,6 +26,7 @@ Rules:
 - OS syscall ABI details stay inside target-specific primitive lowering.
 - C ABI compatibility is not promised.
 - ABI definitions are target-specific; future targets define their own Nocter ABI variant.
+- Type aliases do not affect ABI. ABI classification always uses the alias target type.
 
 ### Registers
 

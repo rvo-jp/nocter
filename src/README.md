@@ -18,16 +18,19 @@ It must not depend on:
 - Xcode Command Line Tools
 - external runtime libraries
 
-The distributable product is:
+The distributable archive payload for the initial host is:
 
 ```text
 .nocter-arm64-macos/
     nocter
     std/
+        prelude.nct
         io.nct
         mem.nct
         os.nct
         ptr.nct
+        string.nct
+        view.nct
     targets/
         arm64-macos/
             std/
@@ -44,7 +47,7 @@ The distributable product is:
             std/
 ```
 
-`src/` contains the implementation used to build the `nocter` compiler. `.nocter-arm64-macos/` contains the current development host package for the user-facing compiler binary and standard library. It is generated output and is not committed to git.
+Users normally install that payload as `~/.nocter/`. `src/` contains the implementation used to build the `nocter` compiler. `.nocter-arm64-macos/` contains the current development host package for the user-facing compiler binary and standard library. It is generated output and is not committed to git.
 
 ## Compiler Responsibilities
 
@@ -104,31 +107,31 @@ Responsibilities:
 - `driver/`: command-line flow, source loading, import root discovery, target registry lookup, active target selection, active target overlay lookup, and common Nocter home `std` lookup.
 - `diagnostics/`: structured errors with source spans.
 
-The first standard-library source files are `.nocter-arm64-macos/std/mem.nct`, `.nocter-arm64-macos/std/ptr.nct`, `.nocter-arm64-macos/std/os.nct`, `.nocter-arm64-macos/std/io.nct`, `.nocter-arm64-macos/targets/arm64-macos/std/process.nct`, and `.nocter-arm64-macos/targets/arm64-macos/std/os/macos.nct`. They define the initial memory API, core pointer primitive boundary, common OS error model, user-facing I/O errors, macOS process API implementation, and macOS primitive boundary. Future target support should add target overlays without changing ordinary user-facing APIs.
+The first standard-library source files are `.nocter-arm64-macos/std/prelude.nct`, `.nocter-arm64-macos/std/string.nct`, `.nocter-arm64-macos/std/view.nct`, `.nocter-arm64-macos/std/mem.nct`, `.nocter-arm64-macos/std/ptr.nct`, `.nocter-arm64-macos/std/os.nct`, `.nocter-arm64-macos/std/io.nct`, `.nocter-arm64-macos/targets/arm64-macos/std/process.nct`, and `.nocter-arm64-macos/targets/arm64-macos/std/os/macos.nct`. They define the explicit prelude, string and view types, initial memory API, core pointer primitive boundary, common OS error model, user-facing I/O errors, macOS process API implementation, and macOS primitive boundary. Future target support should add target overlays without changing ordinary user-facing APIs.
 
 The target-independent core pointer primitive set is:
 
 ```text
-std.ptr.addr
-std.ptr.from_ref
-std.ptr.from_ref_mut
-std.ptr.from_addr
+std/ptr.addr
+std/ptr.from_ref
+std/ptr.from_ref_mut
+std/ptr.from_addr
 ```
 
-`std.ptr.from_addr` is restricted to modules inside the active Nocter home. Project modules must receive a diagnostic if they call it.
+`std/ptr.from_addr` is restricted to modules inside the active Nocter home. Project modules must receive a diagnostic if they call it.
 
 The initial `arm64-macos` primitive set is deliberately small:
 
 ```text
-std.os.macos.syscall0
-std.os.macos.syscall1
-std.os.macos.syscall2
-std.os.macos.syscall3
-std.os.macos.syscall4
-std.os.macos.syscall5
-std.os.macos.syscall6
-std.os.macos.trap
-std.os.macos.unreachable
+std/os/macos.syscall0
+std/os/macos.syscall1
+std/os/macos.syscall2
+std/os/macos.syscall3
+std/os/macos.syscall4
+std/os/macos.syscall5
+std/os/macos.syscall6
+std/os/macos.trap
+std/os/macos.unreachable
 ```
 
 The compiler should validate primitives by module path, name, and exact signature. `print`, `exit`, file APIs, allocator APIs, `String`, and `Buffer` are standard-library APIs, not compiler primitives.
@@ -136,10 +139,10 @@ The compiler should validate primitives by module path, name, and exact signatur
 OS error flow belongs in the standard library:
 
 ```text
-std.os.macos.SyscallResult
-std.os.macos.Errno
-std.os.OSError
-std.io.IOError
+std/os/macos.SyscallResult
+std/os/macos.Errno
+std/os.OSError
+std/io.IOError
 ```
 
 The compiler should not special-case any of those names.
@@ -158,11 +161,11 @@ These directories are placeholders. The driver must not treat them as implemente
 Standard-library resolution should search the active target overlay before the common standard library:
 
 ```text
-.nocter-arm64-macos/targets/<active-target>/std/
-.nocter-arm64-macos/std/
+<NOCTER_HOME>/targets/<active-target>/std/
+<NOCTER_HOME>/std/
 ```
 
-Both roots map to the `std.*` module namespace.
+Both roots map to the `std/...` import path namespace.
 
 ## Implementation Order
 
@@ -190,17 +193,20 @@ The implementation should keep the self-contained goal intact from the beginning
 20. ownership, move, borrow, and drop checks
 21. drop glue generation using Nocter ABI v0
 22. region scopes and escape diagnostics
-23. initial `.nocter-arm64-macos/std/mem.nct`
-24. initial `.nocter-arm64-macos/std/ptr.nct`
-25. initial `.nocter-arm64-macos/std/os.nct`
-26. initial `.nocter-arm64-macos/std/io.nct`
-27. initial `.nocter-arm64-macos/targets/arm64-macos/std/process.nct`
-28. initial `.nocter-arm64-macos/targets/arm64-macos/std/os/macos.nct`
-29. core pointer primitive validation and lowering for `std.ptr`
-30. closed target primitive set validation for `std.os.macos.syscall0..6`, `trap`, and `unreachable`
-31. primitive lowering for the active target
-32. imports from the active target overlay and common Nocter home `std`
-33. standard-library growth
+23. initial `.nocter-arm64-macos/std/prelude.nct`
+24. initial `.nocter-arm64-macos/std/string.nct`
+25. initial `.nocter-arm64-macos/std/view.nct`
+26. initial `.nocter-arm64-macos/std/mem.nct`
+27. initial `.nocter-arm64-macos/std/ptr.nct`
+28. initial `.nocter-arm64-macos/std/os.nct`
+29. initial `.nocter-arm64-macos/std/io.nct`
+30. initial `.nocter-arm64-macos/targets/arm64-macos/std/process.nct`
+31. initial `.nocter-arm64-macos/targets/arm64-macos/std/os/macos.nct`
+32. core pointer primitive validation and lowering for `std/ptr`
+33. closed target primitive set validation for `std/os/macos.syscall0..6`, `trap`, and `unreachable`
+34. primitive lowering for the active target
+35. imports from the active target overlay and common Nocter home `std`
+36. standard-library growth
 
 ## Design Constraints
 

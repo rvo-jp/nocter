@@ -38,16 +38,16 @@ Rules:
 Current target-specific standard-library boundary:
 
 ```text
-.nocter-arm64-macos/targets/arm64-macos/std/os/macos.nct
+~/.nocter/targets/arm64-macos/std/os/macos.nct
 ```
 
 Future target-specific boundaries may use parallel target overlays such as:
 
 ```text
-.nocter-arm64-macos/targets/x64-linux/std/os/linux.nct
-.nocter-arm64-macos/targets/arm64-linux/std/os/linux.nct
-.nocter-arm64-macos/targets/x64-windows/std/os/windows.nct
-.nocter-arm64-macos/targets/arm64-windows/std/os/windows.nct
+~/.nocter/targets/x64-linux/std/os/linux.nct
+~/.nocter/targets/arm64-linux/std/os/linux.nct
+~/.nocter/targets/x64-windows/std/os/windows.nct
+~/.nocter/targets/arm64-windows/std/os/windows.nct
 ```
 
 These future files are not part of the initial implementation goal.
@@ -70,19 +70,34 @@ error: target x64-linux is recognized but not implemented
 
 ## Distribution Layout
 
-Adopted: the distributed toolchain is a host-specific `.nocter-<host>/` directory.
+Adopted: the downloadable archive is host-specific, but the normal user installation directory is host-independent.
 
-The initial host package is:
+The initial archive name and payload are:
 
 ```text
-~/.nocter-arm64-macos/
+nocter-<version>-arm64-macos.tar.gz
+
+.nocter-arm64-macos/
     nocter
     std/
+    targets/
+```
+
+Users install the payload by moving or renaming it to `~/.nocter/`.
+
+The installed layout is:
+
+```text
+~/.nocter/
+    nocter
+    std/
+        prelude.nct
         io.nct
         mem.nct
         os.nct
         ptr.nct
         string.nct
+        view.nct
     targets/
         arm64-macos/
             std/
@@ -99,16 +114,16 @@ The initial host package is:
             std/
 ```
 
-The `host` part names the environment that runs the `nocter` compiler binary. The first host is `arm64-macos`. Future host packages may include names such as `.nocter-x64-linux/` or `.nocter-arm64-linux/`.
+The `host` part in the archive and payload name identifies the environment that runs the `nocter` compiler binary. The first host is `arm64-macos`. Future downloaded payloads may include names such as `.nocter-x64-linux/` or `.nocter-arm64-linux/`, but the recommended installed directory remains `~/.nocter/`.
 
-The host package contains common standard-library source files and one or more target overlays under `targets/<target>/`.
+The installed Nocter home contains common standard-library source files and one or more target overlays under `targets/<target>/`.
 
-Because cross compilation beyond `arm64-macos` is not part of the initial implementation, the default active target is the host target. For example, `.nocter-arm64-macos/` contains the compiler that runs on ARM64 macOS, and `targets/arm64-macos/` contains the standard-library primitive boundary for the `arm64-macos` target.
+Because cross compilation beyond `arm64-macos` is not part of the initial implementation, the default active target is the host target. For example, the `arm64-macos` archive contains the compiler that runs on ARM64 macOS, and `targets/arm64-macos/` contains the standard-library primitive boundary for the `arm64-macos` target.
 
-Future cross compilation adds target overlays and compiler backends to the existing host package:
+Future cross compilation adds target overlays and compiler backends to the installed Nocter home:
 
 ```text
-~/.nocter-arm64-macos/
+~/.nocter/
     nocter
     std/
     targets/
@@ -134,16 +149,14 @@ nocter build app.nct --target x64-linux
 
 If `--target` is omitted, the compiler uses the host target. The initial implementation can emit only `arm64-macos`. Reserved targets may be recognized by name, but they must produce a not-implemented diagnostic until their backend, executable writer, primitive set, and target standard-library overlay are implemented.
 
-Users install Nocter by placing the host package directory at `~/.nocter-arm64-macos` or another location, then adding that directory to `PATH`.
+Users install Nocter by placing the extracted payload at `~/.nocter` or another location, then adding that directory to `PATH`.
 
 Example shell setup:
 
 ```sh
-export PATH="$HOME/.nocter-arm64-macos:$PATH"
+export PATH="$HOME/.nocter:$PATH"
 ```
 
-`NOCTER_HOME` may point to the active host package if the user does not want to rely on the location of the `nocter` executable.
+`NOCTER_HOME` may point to the active Nocter home if the user does not want to rely on the location of the `nocter` executable.
 
 The repository uses `.nocter-arm64-macos/` as the current development output directory for the distributable compiler and standard library. This directory is a generated host package and is not committed to git.
-
-A user may create a stable symlink such as `~/.nocter -> ~/.nocter-arm64-macos`, but the package itself remains host-specific.

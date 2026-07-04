@@ -10,17 +10,17 @@ Adopted: Nocter uses a layered OS error model. Target-specific raw errors are co
 Layering:
 
 ```text
-std.os.macos        target overlay: syscall, SyscallResult, Errno, errno mapping
-std.os              common std: Platform, OSErrorKind, OSError
-std.io              user-facing I/O errors and APIs
-std.process         user-facing process APIs
+std/os/macos        target overlay: syscall, SyscallResult, Errno, errno mapping
+std/os              common std: Platform, OSErrorKind, OSError
+std/io              user-facing I/O errors and APIs
+std/process         user-facing process APIs
 ```
 
 The compiler must not special-case names such as `OSError`, `IOError`, `Errno`, `File`, or `exit`. These are ordinary standard-library names.
 
 ### Target Raw Errors
 
-`std.os.macos` owns the raw macOS syscall result and errno wrapper.
+`std/os/macos` owns the raw macOS syscall result and errno wrapper.
 
 ```nct
 pub copy struct SyscallResult {
@@ -48,7 +48,7 @@ Rules:
 Common standard library module:
 
 ```text
-std.os
+std/os
 ```
 
 Initial public surface:
@@ -88,7 +88,7 @@ Rules:
 - On macOS and Linux, `code` is an errno value.
 - On Windows, `code` will be a Windows raw error code chosen by the Windows target design.
 - `OSError.kind` is the portable classification used by higher-level standard-library modules.
-- Common `std.os` does not define `Errno`.
+- Common `std/os` does not define `Errno`.
 
 Target overlays convert raw target errors into `OSError`.
 
@@ -98,7 +98,7 @@ SyscallResult -> Errno -> OSError
 
 ### I/O Errors
 
-User-facing I/O APIs return `std.io.IOError`, not `SyscallResult` or `Errno`.
+User-facing I/O APIs return `std/io`'s `IOError`, not `SyscallResult` or `Errno`.
 
 Initial public surface:
 
@@ -127,16 +127,16 @@ func write(file: &+File, text: StringView): void!IOError
 Conversion flow:
 
 ```text
-std.os.macos.syscall3
+std/os/macos.syscall3
     -> SyscallResult
     -> Errno
-    -> std.os.OSError
-    -> std.io.IOError
+    -> std/os.OSError
+    -> std/io.IOError
 ```
 
 ### Process Exit
 
-`std.process.exit` is a normal standard-library API.
+`std/process`'s `exit` is a normal standard-library API.
 
 ```nct
 pub func exit(code: i32): never
@@ -148,11 +148,11 @@ Rules:
 - `exit` does not return an error.
 - The target implementation uses the active target's syscall or process termination boundary.
 - If the platform exit operation unexpectedly returns, the implementation calls `trap()`.
-- The module name is `std.process`, but the physical implementation may live in the active target overlay when the implementation depends on process ABI.
+- The module path is `std/process`, but the physical implementation may live in the active target overlay when the implementation depends on process ABI.
 
 ### Not Adopted
 
-`std.posix` is not part of the initial design. macOS and Linux can share POSIX-like ideas, but Windows does not fit that layer cleanly. Shared concepts should use stable module names such as `std.os`, `std.io`, and `std.process`. Their physical implementation may live in common `std/` or in the active target overlay depending on whether the implementation is target-independent.
+`std/posix` is not part of the initial design. macOS and Linux can share POSIX-like ideas, but Windows does not fit that layer cleanly. Shared concepts should use stable module paths such as `std/os`, `std/io`, and `std/process`. Their physical implementation may live in common `std/` or in the active target overlay depending on whether the implementation is target-independent.
 
 ## Standard Library and Low-Level Code
 
@@ -161,7 +161,7 @@ The compiler must not special-case names such as `print`, `exit`, or `File`.
 Standard library functions provide these features.
 
 ```nct
-import std.io.stdout
+from std/io import stdout
 
 program(): i32 {
     var out = stdout()
@@ -212,8 +212,8 @@ pub primitive name(params): ReturnType
 Initial primitive files:
 
 ```text
-.nocter-arm64-macos/std/ptr.nct
-.nocter-arm64-macos/targets/arm64-macos/std/os/macos.nct
+~/.nocter/std/ptr.nct
+~/.nocter/targets/arm64-macos/std/os/macos.nct
 ```
 
 `std/ptr.nct` contains target-independent core pointer primitive declarations. These are required for raw pointer address conversion and borrow-to-pointer conversion.
@@ -255,7 +255,7 @@ pub primitive unreachable(): never
 The compiler recognizes these declarations only at their target-overlay module path:
 
 ```text
-std.os.macos
+std/os/macos
 ```
 
 An ordinary function named `syscall3` elsewhere is not primitive.
@@ -267,10 +267,13 @@ An ordinary function named `syscall3` elsewhere is not primitive.
 Initial reserved keywords:
 
 ```text
+from
 import
+use
 program
 func
 pub
+type
 copy
 struct
 enum

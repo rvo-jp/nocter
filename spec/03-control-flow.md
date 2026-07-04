@@ -15,6 +15,8 @@ func scan_words(text: StringView): WordStats {
 
 Names do not define special behavior. A function named `main`, `init`, `drop`, or `new` is ordinary unless the language later defines a syntactic rule around a trait or declaration.
 
+Parameters are written as `name: Type`. `var name: Type` parameters are not part of v0. Parameter binding and ownership rules are specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#function-parameters).
+
 Return checking:
 
 - A `void` function may use bare `return` or reach the end of the function body.
@@ -22,6 +24,94 @@ Return checking:
 - A fallible function `T!E` must return a success value, `fail` with an error, or terminate with `never` on every reachable path.
 - An optional function `T?` must return a present value, `return none`, or terminate with `never` on every reachable path.
 - `program(): void` and `program(): i32` follow the same return checking rules as functions with those return types.
+
+Return value ownership, move, borrow, and view rules are specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#return-values).
+
+## Function Calls and Arguments
+
+Adopted: v0 uses positional arguments only.
+
+```nct
+func copy(allocator: &+Allocator, source: StringView): String!AllocError {
+    ...
+}
+
+let text = try String.copy(&+allocator, "hello")
+```
+
+Rules:
+
+- Function, associated function, method, and primitive calls use positional arguments.
+- Argument expressions are matched to parameters by position.
+- Argument count must match parameter count exactly.
+- Each argument must type-check against the corresponding parameter type under the normal contextual typing, ownership, move, copy, and borrow rules.
+- Function call arguments are evaluated left to right in the order written.
+- Method receiver expressions are evaluated before method arguments.
+- Method arguments are then evaluated left to right in the order written.
+- Parameter names are not part of call syntax.
+- Named arguments are not part of v0.
+- Default parameters are not part of v0.
+- Variadic functions are not part of v0.
+- Function, associated function, and method overload by type, arity, or return type is not part of v0.
+- A duplicate callable name in the same namespace is a compile error.
+- A trailing comma is allowed in multi-line parameter lists and multi-line argument lists.
+- A trailing comma is not allowed in single-line parameter lists or single-line argument lists in v0.
+
+Examples:
+
+```nct
+pub func copy(
+    allocator: &+Allocator,
+    source: StringView,
+): String!AllocError {
+    ...
+}
+```
+
+```nct
+let text = try String.copy(
+    &+allocator,
+    "hello",
+)
+```
+
+Invalid in v0:
+
+```nct
+String.copy(allocator: &+allocator, source: "hello") // named arguments
+
+func open(path: StringView = "input.txt"): File!IOError {
+    ...
+}
+
+func print_all(parts: StringView...): void {
+    ...
+}
+
+func open(path: StringView): File!IOError {
+    ...
+}
+
+func open(path: StringView, mode: OpenMode): File!IOError {
+    ...
+}
+```
+
+Use a configuration struct when an API has many boolean or optional choices.
+
+```nct
+pub struct OpenOptions {
+    pub read: bool
+    pub write: bool
+    pub create: bool
+}
+
+let file = try File.open_with(path, OpenOptions{
+    read: true,
+    write: false,
+    create: false,
+})
+```
 
 ## Conditional Operator
 
@@ -53,7 +143,7 @@ Adopted: the initial language is statement-centered.
 `if`, `match`, and block bodies do not produce values in the initial design. Functions return values with explicit `return`. Fallible functions fail with explicit `fail`. Optional functions return absence with explicit `return none`.
 
 ```nct
-func max(a: Int, b: Int): Int {
+func max(a: i32, b: i32): i32 {
     if a > b {
         return a
     }
@@ -224,7 +314,7 @@ Use range `for` with indexing:
 ```nct
 for i in 0..<bytes.len() {
     let byte = bytes[i]
-    use(byte)
+    consume(byte)
 }
 ```
 
@@ -235,7 +325,7 @@ var iter = bytes.iter()
 
 loop {
     if let byte = iter.next() {
-        use(byte)
+        consume(byte)
     } else {
         break
     }
@@ -261,8 +351,10 @@ These names are examples of standard-library APIs. The compiler does not special
 Example:
 
 ```nct
+import std/process as process
+
 func panic(message: StringView): never {
-    std.process.abort(message)
+    process.abort(message)
 }
 
 func require_path(path: StringView?): StringView {

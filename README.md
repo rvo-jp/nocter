@@ -8,10 +8,10 @@ Nocter は、人間が読みやすい静的型付け高級言語を設計し、�
 
 文法と意味論の詳細は [SPEC.md](SPEC.md) を入口として、[`spec/`](spec/) 配下に章別で記録します。仕様上の採用事項は README の概要より SPEC を優先します。
 
-最重要方針は、外部ツールやランタイムへの依存をなくすことです。最終的には、ホスト環境ごとの `.nocter-<host>/` ディレクトリだけを配布すれば利用できる状態を目指します。ユーザーはこのディレクトリを `~/.nocter-arm64-macos` などに配置し、PATH に通します。
+最重要方針は、外部ツールやランタイムへの依存をなくすことです。最終的には、ホスト環境ごとの `.nocter-<host>/` ディレクトリをアーカイブとして配布し、ユーザーは展開したディレクトリを `~/.nocter/` に配置すれば利用できる状態を目指します。
 
 ```text
-~/.nocter-arm64-macos/
+~/.nocter/
     nocter
     std/
     targets/
@@ -55,10 +55,13 @@ src/
 .nocter-arm64-macos/
     nocter
     std/
+        prelude.nct
         io.nct
         mem.nct
         os.nct
         ptr.nct
+        string.nct
+        view.nct
     targets/
         arm64-macos/
             std/
@@ -79,13 +82,13 @@ src/
 
 `src/` は開発用のソースツリーです。`.nocter-arm64-macos/` は現在の開発環境向けの完成品配置先であり、コンパイラ本体と標準ライブラリを含みます。このディレクトリは生成物・配布物なので git 管理しません。
 
-ユーザーは配布された `.nocter-arm64-macos/` を `~/.nocter-arm64-macos` などへ配置し、次のように PATH を通します。
+ユーザーは配布された `.nocter-arm64-macos/` を展開し、`~/.nocter/` にリネームまたは移動して、次のように PATH を通します。
 
 ```sh
-export PATH="$HOME/.nocter-arm64-macos:$PATH"
+export PATH="$HOME/.nocter:$PATH"
 ```
 
-標準ライブラリは `NOCTER_HOME` が指定されていればそこから探し、指定がなければ実行中の `nocter` コマンドが置かれたディレクトリから探します。`std.*` の解決では、active target overlay の `targets/<target>/std/` を先に探し、見つからなければ共通 `std/` を探します。
+標準ライブラリは `NOCTER_HOME` が指定されていればそこから探し、指定がなければ実行中の `nocter` コマンドが置かれたディレクトリから探します。`std/...` の解決では、active target overlay の `targets/<target>/std/` を先に探し、見つからなければ共通 `std/` を探します。
 
 ## 対象環境
 
@@ -101,12 +104,12 @@ export PATH="$HOME/.nocter-arm64-macos:$PATH"
 
 初期ターゲット名は `arm64-macos` とします。将来 target の外枠として、`x64-linux`、`arm64-linux`、`x64-windows`、`arm64-windows` を予約します。これらは認識する target 名として扱いますが、backend、実行ファイル writer、primitive set、target std overlay が揃うまでは実装済み target とは見なしません。
 
-初期段階では実際のクロスコンパイルは無効にし、`arm64-macos` を既定 target とします。ただし、コンパイラ内部では host と target を分けます。`.nocter-arm64-macos/` は ARM64 macOS 上で動く `nocter` を含む host package であり、その中の `targets/arm64-macos/` が ARM64 macOS 向けの target overlay です。
+初期段階では実際のクロスコンパイルは無効にし、`arm64-macos` を既定 target とします。ただし、コンパイラ内部では host と target を分けます。配布アーカイブ内の `.nocter-arm64-macos/` は ARM64 macOS 上で動く `nocter` を含む host package であり、ユーザー環境では通常 `~/.nocter/` として配置されます。その中の `targets/arm64-macos/` が ARM64 macOS 向けの target overlay です。
 
-将来のクロスコンパイルでは、同じ host package の中に出力先 target を追加します。
+将来のクロスコンパイルでは、同じ Nocter home の中に出力先 target を追加します。
 
 ```text
-.nocter-arm64-macos/
+~/.nocter/
     nocter
     std/
     targets/
@@ -140,24 +143,35 @@ error: target x64-linux is recognized but not implemented
 
 ### パス由来モジュール
 
-Nocter には `module` 宣言を置きません。モジュール名は import root からの相対ファイルパスで決まります。
+Nocter には `module` 宣言を置きません。1つの `.nct` ファイルが1つの module になり、module identity は canonical file path から決まります。
 
 ```text
-examples/word_count.nct                                  => examples.word_count
-.nocter-arm64-macos/std/io.nct                           => std.io
-.nocter-arm64-macos/targets/arm64-macos/std/os/macos.nct => std.os.macos
+examples/word_count.nct                                  => examples/word_count
+~/.nocter/std/io.nct                                     => std/io
+~/.nocter/targets/arm64-macos/std/os/macos.nct           => std/os/macos
 ```
 
 ファイルパスを唯一の情報源にすることで、ファイル位置とモジュール宣言の不一致を防ぎます。
 
-`import` は明示的な名前指定を基本にします。ワイルドカード import と相対 import は初期仕様では採用しません。
+import は明示的な名前指定を基本にします。`./` または `../` で始まる path は現在ファイルから見た `.nct` を探し、それ以外の path は active Nocter home、通常は `~/.nocter/` 内から探します。
 
 ```nct
-import std.mem.Allocator
-import std.io.{File, stdout, stderr}
-import std.io as io
-import std.io.File as StdFile
+use std/prelude
+
+from std/mem import Allocator
+from std/io import File, stdout, stderr
+from std/io import File as StdFile
+from ./config import AppConfig
+pub from std/string import String, StringView
+
+import std/io as io
 ```
+
+`pub from` は、import した公開名を現在 module の公開 API として再公開します。prelude や façade module で使います。
+
+ワイルドカード import、bare import、namespace alias re-export、absolute path、import path 内の `.nct` 拡張子は初期仕様では採用しません。
+
+`use std/prelude` は明示 prelude です。書いたファイルにだけ効き、import された別ファイルへは伝播しません。暗黙 prelude と project-wide prelude 設定は初期仕様では採用しません。
 
 モジュール内の定義はデフォルトで private です。他モジュールから import できる API には `pub` を付けます。`struct` のフィールドと `impl` 内の関数もデフォルト private です。
 
@@ -187,6 +201,35 @@ func write(file: &+File, data: StringView): void!Error {
 }
 ```
 
+struct の値は `Type{ field: value, ... }` で作ります。`init`、`new`、constructor 専用構文は作りません。
+
+```nct
+pub struct User {
+    pub id: u64
+    name: String
+}
+
+let user = User{
+    id: 1,
+    name: try String.copy(allocator, "alice"),
+}
+```
+
+struct literal は全 field を1回ずつ初期化します。field の順序は自由ですが、未知 field、重複 field、未初期化 field はコンパイルエラーです。private field は同じ module 内でしか初期化できません。初期化ロジックや検証が必要な場合は、通常の associated function を使います。
+
+```nct
+impl User {
+    pub func create(id: u64, name: String): User {
+        return User{
+            id: id,
+            name: move name,
+        }
+    }
+}
+```
+
+field default value、struct update syntax、positional struct、tuple struct、constructor overloading は v0 では採用しません。
+
 `impl` 内の `func` は型に関連付く associated function です。`impl` 内の `method` は receiver を持つメソッドです。`self` / `this` は使わず、receiver 名と borrow 種別を明示します。
 
 ```nct
@@ -203,6 +246,69 @@ impl File {
 
 `func` は `File.open(path)` のように型から呼びます。`method` は `file.write(data)` のように値から呼びます。`File.write(&+file, data)` のような UFCS 呼び出しは初期仕様では採用しません。
 
+関数、associated function、method、primitive の呼び出しは v0 では位置引数のみです。引数は書いた順に parameter へ対応し、個数は完全一致します。各引数は通常の文脈型付け、所有権、move、copy、borrow 規則で parameter 型に適合する必要があります。
+
+```nct
+func copy(allocator: &+Allocator, source: StringView): String!AllocError {
+    ...
+}
+
+let text = try String.copy(&+allocator, "hello")
+```
+
+parameter は関数本体内では immutable binding として扱います。`var` parameter は v0 では採用しません。owned parameter は関数本体が所有し、move-only parameter は `move name` で別の所有先へ移せます。移されなかった owned parameter は関数 scope 終了時に破棄されます。
+
+```nct
+func rename(user: &+User, name: String): void {
+    user.name = move name
+}
+
+func normalize(value: i32): i32 {
+    var current = value
+
+    if current < 0 {
+        current = -current
+    }
+
+    return current
+}
+```
+
+`&T` parameter は readonly borrow、`&+T` parameter は readwrite borrow です。`&+T` parameter の binding 自体は再代入できませんが、参照先は変更できます。
+
+```nct
+func increment(value: &+Counter): void {
+    value.count += 1
+}
+```
+
+名前付き引数、default parameter、variadic function、function / method overload は v0 では採用しません。引数の多い API は設定用 `struct` を渡します。
+
+```nct
+pub struct OpenOptions {
+    pub read: bool
+    pub write: bool
+    pub create: bool
+}
+
+let file = try File.open_with(path, OpenOptions{
+    read: true,
+    write: false,
+    create: false,
+})
+```
+
+複数行の parameter list と argument list では trailing comma を許可します。単一行 list の trailing comma は v0 では許可しません。
+
+```nct
+pub func copy(
+    allocator: &+Allocator,
+    source: StringView,
+): String!AllocError {
+    ...
+}
+```
+
 抽象化が必要な場合は、継承階層ではなく `trait` を使います。
 
 ```nct
@@ -212,6 +318,13 @@ trait Writer {
 ```
 
 `enum` は有限個の variant を持つ型です。variant の分岐には `match` を使い、各 arm は `is Pattern { ... }` で書きます。`else` がない enum match は網羅性を要求します。
+
+payload を持たない variant は `Enum.variant`、payload を持つ variant は `Enum.variant(args...)` で作ります。variant constructor は enum 宣言から生まれる構文上の値生成手段であり、通常の関数名や特別な識別子ではありません。unqualified variant constructor は v0 では採用しません。
+
+```nct
+let state = ScanState.inside_word
+let error = AppError.open_failed(path)
+```
 
 ```nct
 match error {
@@ -231,7 +344,7 @@ match error {
 ユーザーが書くコードは高級言語であり、ARM64 命令や Mach-O の詳細を意識しない形にします。
 
 ```nct
-import std.io.print
+from std/io import print
 
 program(): i32 {
     print("Hello")
@@ -276,7 +389,7 @@ pub primitive unreachable(): never
 
 `primitive` は高級言語とコンパイラ内蔵の低レベル実装を接続するための境界です。初期仕様では Nocter home の共通 `std/` と active target overlay の `std/` 内だけで宣言できます。一般ユーザーコードは `primitive` を宣言できません。
 
-初期 `arm64-macos` target primitive set v0 は、`syscall0` から `syscall6`、`trap`、`unreachable` だけです。別枠として、target 非依存の `std.ptr` core pointer primitive を持ちます。`print`、`exit`、file 操作、allocator、`String`、`Buffer` は primitive にしません。これらは標準ライブラリの通常 API として実装します。
+初期 `arm64-macos` target primitive set v0 は、`syscall0` から `syscall6`、`trap`、`unreachable` だけです。別枠として、target 非依存の `std/ptr` core pointer primitive を持ちます。`print`、`exit`、file 操作、allocator、`String`、`Buffer` は primitive にしません。これらは標準ライブラリの通常 API として実装します。
 
 任意 `asm` ではなく型付き `primitive` に絞る理由は次の通りです。
 
@@ -332,7 +445,7 @@ Nocter の独自性を置く領域:
 
 - `.nct` から ARM64 機械語と Mach-O 実行ファイルを直接生成するコンパイル経路
 - `clang`、`as`、`ld`、Xcode Command Line Tools に依存しない完全自己完結性
-- `.nocter-<host>/` に `nocter` コマンドと標準ライブラリをまとめる配布モデル
+- host-specific archive に `nocter` コマンドと標準ライブラリをまとめ、標準配置先を `~/.nocter/` に統一する配布モデル
 - 標準ライブラリだけが低レベルへ降りる、型付き `primitive` 境界の設計
 - GC なしで、所有権、借用、region、明示 allocator によってメモリ安全性を目指す設計
 - Apple Silicon macOS / Mach-O に対象を絞り、汎用性より完成度を優先する実装
@@ -379,14 +492,14 @@ C 連携が必要になった場合は、将来 `extern "c"` のような別 ABI
 
 ## 標準ライブラリ
 
-標準ライブラリは、配布物では `.nocter-<host>/std/` と `.nocter-<host>/targets/<target>/std/` に配置します。現在の開発環境では `.nocter-arm64-macos/std/` と `.nocter-arm64-macos/targets/arm64-macos/std/` を使います。
+標準ライブラリは、ユーザー環境では `~/.nocter/std/` と `~/.nocter/targets/<target>/std/` に配置します。配布アーカイブの payload は `.nocter-<host>/` ですが、ユーザーは通常それを `~/.nocter/` にリネームして使います。現在の開発環境では `.nocter-arm64-macos/std/` と `.nocter-arm64-macos/targets/arm64-macos/std/` を使います。
 
-共通 `std/` は target 非依存の API を置く場所です。`targets/<target>/std/` は syscall、process ABI、trap、低レベル allocator 境界など、target に依存する標準ライブラリ実装を置く場所です。どちらの物理配置から読まれても、ユーザーが import するモジュール名は `std.*` のままです。
+共通 `std/` は target 非依存の API を置く場所です。`targets/<target>/std/` は syscall、process ABI、trap、低レベル allocator 境界など、target に依存する標準ライブラリ実装を置く場所です。どちらの物理配置から読まれても、ユーザーが import する path は `std/...` のままです。
 
 構成例:
 
 ```text
-.nocter-arm64-macos/
+~/.nocter/
     nocter
     std/
         prelude.nct
@@ -395,6 +508,7 @@ C 連携が必要になった場合は、将来 `extern "c"` のような別 ABI
         os.nct
         ptr.nct
         string.nct
+        view.nct
     targets/
         arm64-macos/
             std/
@@ -414,7 +528,7 @@ C 連携が必要になった場合は、将来 `extern "c"` のような別 ABI
 利用者は必要な機能を import して使います。
 
 ```nct
-import std.io.print
+from std/io import print
 ```
 
 標準ライブラリは原則として Nocter で記述します。初期 `arm64-macos` では、OS syscall、trap、unreachable のように Nocter だけでは表現できない箇所だけ `primitive` 宣言によってコンパイラ内蔵の低レベル実装へ接続します。allocator は primitive ではなく、標準ライブラリの通常 API として扱います。
@@ -426,43 +540,43 @@ OS error は target 固有の raw error を common std の公開 error へ変換
 採用する層構造:
 
 ```text
-std.os.macos
+std/os/macos
     SyscallResult
     Errno
     syscall number
     macOS errno mapping
 
-std.os
+std/os
     Platform
     OSErrorKind
     OSError
 
-std.io / std.process
+std/io / std/process
     IOError
     File
     print
     exit
 ```
 
-`SyscallResult` と `Errno` は target overlay の低レベル型です。通常のユーザー向け API はこれらを返さず、`std.os.OSError` や `std.io.IOError` へ変換します。
+`SyscallResult` と `Errno` は target overlay の低レベル型です。通常のユーザー向け API はこれらを返さず、`std/os` の `OSError` や `std/io` の `IOError` へ変換します。
 
 ```text
-std.os.macos.syscall3
+std/os/macos.syscall3
     -> SyscallResult
     -> Errno
-    -> std.os.OSError
-    -> std.io.IOError
+    -> std/os.OSError
+    -> std/io.IOError
 ```
 
-common `std.os` には `Errno` という名前を置きません。Windows は errno ではないため、公開 API は `OSError` に統一します。`OSError.code` は macOS / Linux では errno、Windows では将来 Win32 error code など target が定める raw code になります。
+common `std/os` には `Errno` という名前を置きません。Windows は errno ではないため、公開 API は `OSError` に統一します。`OSError.code` は macOS / Linux では errno、Windows では将来 Win32 error code など target が定める raw code になります。
 
-`std.process.exit(code): never` は標準ライブラリ API です。compiler primitive ではありません。target overlay の syscall を使って実装し、万一 OS の exit 操作から戻った場合は `trap()` します。
+`std/process` の `exit(code): never` は標準ライブラリ API です。compiler primitive ではありません。target overlay の syscall を使って実装し、万一 OS の exit 操作から戻った場合は `trap()` します。
 
-`std.process` はユーザー向け module 名ですが、`exit` は process ABI に依存するため、初期実装では target overlay 側に物理配置します。利用者は配置を意識せず `import std.process.exit` で使います。
+`std/process` はユーザー向け module path ですが、`exit` は process ABI に依存するため、初期実装では target overlay 側に物理配置します。利用者は配置を意識せず `from std/process import exit` で使います。
 
 ## ランタイム
 
-現時点では、独立したランタイムライブラリを持たない方針です。標準ライブラリの `primitive` 宣言が初期ターゲット `arm64-macos` と最小限の橋渡しを行います。将来は `.nocter-<host>/targets/<target>/std/` に target ごとの OS 境界の primitive 実装を追加します。
+現時点では、独立したランタイムライブラリを持たない方針です。標準ライブラリの `primitive` 宣言が初期ターゲット `arm64-macos` と最小限の橋渡しを行います。将来は `~/.nocter/targets/<target>/std/` に target ごとの OS 境界の primitive 実装を追加します。
 
 GC は採用しません。Nocter は実行時ガベージコレクタにメモリ管理を任せる言語ではなく、コンパイル時に所有権、参照の寿命、破棄責任を検査する言語を目指します。
 
@@ -498,6 +612,11 @@ Nocter のメモリ管理方針は、GC なし、所有権あり、静的検査�
 - 所有権を持つ値だけがメモリを解放できる
 - 型はデフォルトで move-only とし、`copy struct` だけ暗黙コピーを許可する
 - 非copy値の代入・引数渡し・return には `move` を明示する
+- parameter は immutable binding とし、`var` parameter は採用しない
+- owned parameter は関数本体が所有し、未 move の owned parameter は関数 scope 終了時に破棄する
+- 既存の move-only binding を返す場合は `return move value` と書く
+- struct literal、enum variant、関数呼び出し結果などの新規生成値は `return expr` で返せる
+- borrow / view を返す場合は、参照元が返却後も生きていることをコンパイラが検査する
 - readonly borrow は `&T` として表現する
 - readwrite borrow は `&+T` として表現し、同時に他の readonly / readwrite borrow と共存できない
 - `&+` は単一トークンとして扱い、単項 `+x` は採用しない
@@ -544,6 +663,7 @@ Nocter のメモリ管理方針は、GC なし、所有権あり、静的検査�
 - scope 終了時は local 変数を宣言の逆順で `drop` する
 - `try` / `return` / `fail` / `break` / `continue` で途中離脱する場合も、離脱で抜ける scope の `drop` を実行する
 - 一時値から作った borrow や view を文の外へ逃がせない
+- local owned value、temporary owned value、owned parameter から作った borrow / view は返せない
 - 初期仕様では一時値の lifetime extension を採用しない
 
 例:
@@ -617,12 +737,41 @@ var text = try String.copy(allocator, "abc")
 let view = text.view()
 ```
 
+戻り値でも同じ所有権規則を使います。copy 型は `return value` で返せます。既存の move-only binding を返す場合は `return move value` が必要です。
+
+```nct
+func take_user(user: User): User {
+    return move user
+}
+
+func make_user(name: String): User {
+    return User{
+        name: move name,
+    }
+}
+```
+
+`return move user` 後、その binding は無効です。`return` で関数を抜ける時、返却値以外の live local owned value は逆順に `drop` されます。
+
+borrow / view を返す場合は、参照元が返却後も生きている必要があります。v0 では source-level lifetime 注釈を持たず、コンパイラが provenance を追跡できる範囲に制限します。
+
+```nct
+func greeting(): StringView {
+    return "hello" // OK: static storage
+}
+
+func bad(allocator: &+Allocator): StringView!AllocError {
+    var text = try String.copy(allocator, "hello")
+    return text.view() // error: local owned value is dropped at return
+}
+```
+
 コピー可能な値型は `copy struct` で宣言します。`copy struct` は全フィールドがcopy可能である必要があり、`drop` を定義できません。
 
 ```nct
 copy struct Point {
-    pub x: Int
-    pub y: Int
+    pub x: i32
+    pub y: i32
 }
 
 let p1 = Point{x: 1, y: 2}
@@ -632,9 +781,11 @@ let p2 = p1
 所有値の破棄はスコープ終了時に自動で行います。`drop` は trait ではなく、`impl` 内に置ける専用構文です。`drop` は戻り値型を書かず、`pub` も付けません。明示的に早く破棄したい場合は `drop value` 文を使います。
 
 ```nct
+import std/os as os
+
 impl File {
     drop(file: &+Self) {
-        std.os.close(file.fd).ignore()
+        os.close(file.fd).ignore()
     }
 }
 
@@ -657,13 +808,14 @@ region scratch using allocator {
 
 `region` を抜けると、まず block 内の所有値を通常通り逆順に `drop` し、その後で region allocator が残りの region 確保をまとめて解放します。`return`、`fail`、`break`、`continue` で region block を抜ける場合も同じ cleanup を行います。`never` 呼び出しは stack unwinding ではないため、呼び出し元 region の cleanup を暗黙には保証しません。
 
-コンパイラは、region 内で確保した所有値、region 由来の borrow、`StringView` / `View<T>` などの view が region の外へ漏れないことを検査します。copy 値でも、region 由来の参照や backing storage を含む場合は外へ持ち出せません。純粋な `Int` や統計値のように region へ依存しない copy 値だけを外へ持ち出せます。
+コンパイラは、region 内で確保した所有値、region 由来の borrow、`StringView` / `View<T>` などの view が region の外へ漏れないことを検査します。copy 値でも、region 由来の参照や backing storage を含む場合は外へ持ち出せません。純粋な `i32` や統計値のように region へ依存しない copy 値だけを外へ持ち出せます。
 
-`Allocator`、`AllocError`、`Layout`、`RawBuffer` は `std.mem` の普通の公開 API として定義します。コンパイラは `Allocator` という名前を特別扱いしません。特別なのは `region ... using ...` 構文と、region 由来 allocator の provenance tracking だけです。
+`Allocator`、`AllocError`、`Layout`、`RawBuffer` は `std/mem` の普通の公開 API として定義します。コンパイラは `Allocator` という名前を特別扱いしません。特別なのは `region ... using ...` 構文と、region 由来 allocator の provenance tracking だけです。
 
 ```nct
-import std.mem as mem
-import std.mem.{Allocator, AllocError, Layout, RawBuffer}
+from std/mem import Allocator, AllocError, Layout, RawBuffer
+
+import std/mem as mem
 
 var allocator = mem.page_allocator()
 let buffer = try mem.alloc(&+allocator, 4096, 16)
@@ -685,7 +837,7 @@ Nocter は raw pointer 型 `*T` を持ちます。`*T` は所有権でも borrow
 - `*T` は read / write 権限を表さない
 - 初期仕様では一般ユーザーコードに raw pointer dereference を提供しない
 
-pointer と address の変換は `std.ptr` に置きます。
+pointer と address の変換は `std/ptr` に置きます。
 
 ```nct
 pub primitive addr<T>(pointer: *T): usize
@@ -695,11 +847,11 @@ pub primitive from_ref_mut<T>(value: &+T): *T
 
 `usize` から pointer を作る `from_addr<T>(address: usize): *T` は、初期仕様では共通 `std/` と active target overlay の内部だけで使える制限 API です。一般ユーザーコードからは呼べません。
 
-`View<T>`、`WriteView<T>`、`StringView` は `ptr()` と `len()` を持ちます。syscall に buffer を渡す場合は、`ptr()` で raw pointer を取り、`std.ptr.addr(...)` で `usize` へ変換します。
+`View<T>`、`WriteView<T>`、`StringView` は `ptr()` と `len()` を持ちます。syscall に buffer を渡す場合は、`ptr()` で raw pointer を取り、`std/ptr` の `addr(...)` で `usize` へ変換します。
 
 ```nct
-import std.ptr
-import std.os.macos as os
+import std/ptr as ptr
+import std/os/macos as os
 
 let bytes = text.bytes()
 let result = os.syscall3(
@@ -710,17 +862,17 @@ let result = os.syscall3(
 )
 ```
 
-`std.ptr` の関数は target 非依存の core pointer primitive です。OS 境界の `std.os.macos.syscall0..6` とは別扱いです。これは raw pointer 型そのものに必要な最小操作であり、`print`、`exit`、file 操作、allocator、`String`、`Buffer` を compiler primitive にするものではありません。
+`std/ptr` の関数は target 非依存の core pointer primitive です。OS 境界の `std/os/macos` の `syscall0..6` とは別扱いです。これは raw pointer 型そのものに必要な最小操作であり、`print`、`exit`、file 操作、allocator、`String`、`Buffer` を compiler primitive にするものではありません。
 
 ## 文字列
 
-文字列リテラルの型は `StringView` とします。
+文字列リテラルの型は canonical standard-library type の `std/string.StringView` とします。
 
 ```nct
-let name = "Nocter" // StringView
+let name = "Nocter" // std/string.StringView
 ```
 
-`StringView` は、UTF-8 として妥当な文字列を指す非所有 view です。実体は Mach-O 内の静的データ、または別の所有オブジェクトが持つバッファです。`StringView` 自身は所有権を持たず、drop も発生しません。
+ソースコードで `StringView` という非修飾名を書くには、`use std/prelude` または `from std/string import StringView` のように明示します。`StringView` は、UTF-8 として妥当な文字列を指す非所有 view です。実体は Mach-O 内の静的データ、または別の所有オブジェクトが持つバッファです。`StringView` 自身は所有権を持たず、drop も発生しません。
 
 `String` は所有する文字列型です。標準ライブラリ側では `Buffer<u8>` などを使って実装し、スコープ終了時に内部バッファを破棄します。`String` は move-only とし、暗黙 copy は行いません。
 
@@ -763,18 +915,18 @@ let newline: u8 = b'\n'
 let raw: u8 = b'\xFF'
 ```
 
-文字列リテラルと byte literal では、`\n`、`\r`、`\t`、`\0`、`\\`、`\"`、`\'`、`\xNN` を使えます。文字列リテラルは UTF-8 の `StringView` です。byte literal は escape 解決後にちょうど 1 byte でなければなりません。
+文字列リテラルと byte literal では、`\n`、`\r`、`\t`、`\0`、`\\`、`\"`、`\'`、`\xNN` を使えます。文字列リテラルは UTF-8 の `std/string.StringView` です。byte literal は escape 解決後にちょうど 1 byte でなければなりません。
 
 ## 配列とコレクション
 
-固定長配列は `Array<T, N>` と書きます。
+固定長配列は `[T; N]` と書きます。
 
 ```nct
-let header: Array<u8, 4> = [0x7F, 0x45, 0x4C, 0x46]
-let numbers = [1, 2, 3] // Array<Int, 3>
+let header: [u8; 4] = [0x7F, 0x45, 0x4C, 0x46]
+let numbers = [1, 2, 3] // [i32; 3]
 ```
 
-配列リテラルは `[a, b, c]` です。文脈型があればその要素型と長さに従い、文脈がなければ要素から型を推論します。整数リテラルだけで構成される場合は `Int` を使います。
+配列リテラルは `[a, b, c]` です。文脈型があればその要素型と長さに従い、文脈がなければ要素から型を推論します。整数リテラルだけで構成される場合は `i32` を使います。
 
 所有する可変長バッファは標準ライブラリの `Buffer<T>` で表します。`Buffer<T>` は言語組み込みではなく、標準ライブラリ型です。
 
@@ -786,7 +938,7 @@ let read: View<u8> = bytes.view()
 let write: WriteView<u8> = bytes.write_view()
 ```
 
-非所有 view は `View<T>` / `WriteView<T>` を使います。
+非所有 view は `View<T>` / `WriteView<T>` を使います。canonical module path は `std/view` です。
 
 ```nct
 View<T>       // readonly contiguous view
@@ -813,7 +965,7 @@ var iter = read.iter()
 
 loop {
     if let byte = iter.next() {
-        use(byte)
+        consume(byte)
     } else {
         break
     }
@@ -824,11 +976,71 @@ loop {
 
 Nocter は静的型付け言語として設計します。
 
-普段使いの整数型として `Int` を採用します。`Int` は `i32` の alias です。整数リテラルは文脈型があればその整数型になり、文脈がなければ `Int` になります。
+compiler built-in は、構文と最小 primitive 型に限定します。
+
+```text
+bool
+i8 i16 i32 i64
+u8 u16 u32 u64
+usize isize
+void
+never
+
+*T
+&T
+&+T
+T?
+T!E
+[T; N]
+```
+
+`String`、`StringView`、`View<T>`、`WriteView<T>`、`Allocator`、`File`、`IOError`、`print`、`exit` は compiler built-in ではありません。
+
+整数リテラルは文脈型があればその整数型になり、文脈がなければ `i32` になります。
 
 ```nct
-let count = 10      // Int
+let count = 10      // i32
 let size: u64 = 10  // u64
+```
+
+`Int` は compiler built-in ではありません。使う場合は `std/prelude` が提供する通常の alias として、`use std/prelude` で明示的に取り込みます。暗黙 prelude はこの規則には含めません。
+
+```nct
+use std/prelude
+
+let count: Int = 10 // Int is an alias of i32
+```
+
+型 alias は `type` で宣言します。alias は完全に同じ型の別名であり、新しい別型を作りません。
+
+```nct
+pub type Int = i32
+pub type Bytes = View<u8>
+pub type Map<K, V> = HashMap<K, V>
+```
+
+`type` は top-level 宣言です。通常の定義と同じく private が既定で、公開する場合は `pub type` と書きます。generic alias は許可します。
+
+```nct
+let x: Int = 10
+let y: i32 = x // OK: Int は i32
+```
+
+alias は ABI、layout、所有権、copy/drop 判定を変えません。alias に対する `impl` は禁止します。
+
+```nct
+impl Int {
+    ...
+}
+// error: alias には impl できない
+```
+
+型安全な別型が必要な場合は alias ではなく `struct` を使います。v0 では専用の `newtype` 構文は採用しません。
+
+```nct
+pub copy struct UserId {
+    pub value: u64
+}
 ```
 
 固定幅整数型として `i8`、`i16`、`i32`、`i64`、`u8`、`u16`、`u32`、`u64` を持ちます。非リテラルの整数値同士は暗黙変換しません。
@@ -849,7 +1061,7 @@ let d = (a as u64) + b // OK
 let x: u32 = 10
 let y: u64 = x as u64  // OK
 
-let signed: Int = 10
+let signed: i32 = 10
 let unsigned = signed as u64 // error
 
 let big: u64 = 300
@@ -953,7 +1165,7 @@ let port = env_int("PORT") ?? config.default_port ?? 8080
 
 ```nct
 if let home = env("HOME") {
-    use(home)
+    consume(home)
 } else {
     use_default_home()
 }
@@ -962,7 +1174,7 @@ if let home = env("HOME") {
 ```nct
 if var text = maybe_text {
     text.push("!")
-    use(move text)
+    consume(move text)
 }
 ```
 
@@ -977,7 +1189,7 @@ let label = count == 0 ? "empty" : "ready"
 初期仕様では statement 中心にします。`if`、`match`、block `{ ... }` は値を返しません。関数の成功終了は `return`、fallible の失敗は `fail`、optional の absent は `return none` で明示します。
 
 ```nct
-func max(a: Int, b: Int): Int {
+func max(a: i32, b: i32): i32 {
     if a > b {
         return a
     }
@@ -1015,7 +1227,7 @@ while i < bytes.len() {
 ```nct
 for i in 0..<bytes.len() {
     let byte = bytes[i]
-    use(byte)
+    consume(byte)
 }
 ```
 
@@ -1024,8 +1236,10 @@ for i in 0..<bytes.len() {
 通常復帰しない処理は `never` で表します。`never` は値を持つ型ではなく、呼び出し元へ戻らない制御フローを表す型です。`panic`、`abort`、`exit`、停止しないイベントループ、到達不能分岐の明示に使います。`panic`、`abort`、`exit` は標準ライブラリ API の候補名であり、コンパイラが特別扱いする名前ではありません。
 
 ```nct
+import std/process as process
+
 func panic(message: StringView): never {
-    std.process.abort(message)
+    process.abort(message)
 }
 
 func require_path(path: StringView?): StringView {
@@ -1057,7 +1271,7 @@ func write_line<W: Writer>(writer: &+W, text: StringView): void!IOError {
 }
 ```
 
-ジェネリクスはコンパイル時に具体化します。`Buffer<Int>` と `Buffer<String>` はそれぞれ具体型として扱い、実行時の型情報や共通ランタイムに依存しません。初期仕様では `dyn Trait` のような動的 trait object は採用しません。
+ジェネリクスはコンパイル時に具体化します。`Buffer<i32>` と `Buffer<String>` はそれぞれ具体型として扱い、実行時の型情報や共通ランタイムに依存しません。初期仕様では `dyn Trait` のような動的 trait object は採用しません。
 
 単一の enum pattern だけを見たい場合は `if expr is Pattern` を使います。
 

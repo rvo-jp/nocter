@@ -47,6 +47,17 @@ stats.add_word()
 
 Nocter does not reserve `self` or `this`. The receiver name is chosen by the author. `self` may be used as an ordinary receiver name, but it has no special meaning.
 
+The target of an `impl` block must be a nominal type declaration, such as a `struct` or `enum`. An `impl` block cannot target a type alias because aliases do not create distinct types.
+
+```nct
+type Int = i32
+
+impl Int {
+    ...
+}
+// error: Int is a type alias, not a nominal type
+```
+
 Initial receiver forms:
 
 ```nct
@@ -68,9 +79,11 @@ Call rules:
 
 - `Type.function(args)` calls an associated `func`.
 - `value.method(args)` calls a `method`.
+- Associated function and method arguments follow the positional argument rules in [Control Flow](03-control-flow.md#function-calls-and-arguments).
 - `Type.method(&value, args)` and `Type.method(&+value, args)` are invalid in the initial design.
 - `value.function(args)` is invalid when `function` is only an associated `func`.
 - `func` and `method` share the same member namespace for a type. Defining both with the same name for the same type is an error in the initial design.
+- Enum variants also occupy the type member namespace. An associated `func` or `method` cannot reuse an enum variant member name in v0.
 - If method lookup finds multiple valid candidates, the call is ambiguous and is a compile error.
 - The initial design has no qualified method-call escape hatch for ambiguity resolution.
 
@@ -148,7 +161,7 @@ func hash_key<K: Hash + Equal>(key: &K): u64
 Generic implementation uses monomorphization. Each concrete instantiation is compiled as concrete code.
 
 ```nct
-Buffer<Int>
+Buffer<i32>
 Buffer<String>
 ```
 
