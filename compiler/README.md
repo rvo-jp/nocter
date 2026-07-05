@@ -317,7 +317,10 @@ Current semantic coverage:
 - relative imports starting with `./` or `../` are loaded recursively and lexed/parsed before root semantic checks run
 - `from ./path import name` resolves imported top-level `func` declarations and uses their signatures for direct call checking
 - missing imported function names from relative imports are diagnosed
-- non-relative imports such as `std/io` are still recorded in the root AST but are not loaded from Nocter home yet
+- non-relative imports are loaded recursively from the active Nocter home when needed
+- `std/...` import paths search `targets/<active-target>/std/` before common `std/`
+- `from std/path import name` resolves imported top-level `func` declarations and uses their signatures for direct call checking
+- `use std/prelude` loads the imported file in v0, but does not introduce prelude names yet
 - same-file top-level `func` declarations are collected into a resolver-owned symbol table
 - duplicate visible names among same-file functions, explicit imported names, parameters, locals, and catch bindings are diagnosed
 - direct calls to same-file functions are resolved and checked for argument count
@@ -336,7 +339,7 @@ Current semantic coverage:
 - bare `return` is valid only for `void` success returns
 - non-`void` functions and `program(): i32` must not fall through without an explicit return
 
-The current `check` implementation does not load non-relative imports from Nocter home, resolve imported types or non-function declarations in other files, validate method or associated function calls, perform full block control-flow analysis beyond last-statement `return`, check ownership, select a target, or lower code. Unknown expression types are not diagnosed until import resolution and full type checking exist.
+The current `check` implementation does not introduce prelude names, resolve imported types or non-function declarations in other files, validate method or associated function calls, perform full block control-flow analysis beyond last-statement `return`, check ownership, select a target beyond the default active target, or lower code. Unknown expression types are not diagnosed until import resolution and full type checking exist.
 
 `nocter check app.nct --format json` runs:
 
@@ -345,8 +348,8 @@ SourceMap::load_file
     -> lexer
     -> parser
     -> typed AST
-    -> recursive relative import loading and parsing
-    -> same-file and relative imported function resolver
+    -> recursive relative and non-relative import loading and parsing
+    -> same-file, relative imported, and Nocter-home imported function resolver
     -> entry validation
     -> call validation for known same-file functions
     -> basic return checking

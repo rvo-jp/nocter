@@ -4,8 +4,8 @@ use crate::ast::AstEnvelope;
 use crate::diagnostics::{Diagnostic, DiagnosticsEnvelope};
 use crate::lexer::{TokensEnvelope, lex};
 use crate::parser::parse;
-use crate::resolve::resolve_compile_unit;
-use crate::source::SourceMap;
+use crate::resolve::{ImportSourceMap, resolve_compile_unit};
+use crate::source::{SourceId, SourceMap};
 use crate::typecheck::check;
 use manifest::Manifest;
 use std::collections::{HashSet, VecDeque};
@@ -385,30 +385,57 @@ fn run_check_json(file: &Path) -> ExitCode {
 }
 
 fn run_frontend_check(sources: &mut SourceMap, source: crate::source::SourceId) -> Vec<Diagnostic> {
-    let unit = match load_compile_unit(sources, source) {
+    run_frontend_check_with_options(sources, source, &FrontendOptions::default())
+}
+
+fn run_frontend_check_with_options(
+    sources: &mut SourceMap,
+    source: SourceId,
+    options: &FrontendOptions,
+) -> Vec<Diagnostic> {
+    let unit = match load_compile_unit(sources, source, options) {
         Ok(unit) => unit,
         Err(diagnostics) => return diagnostics,
     };
 
-    let resolved = resolve_compile_unit(sources, &unit.root_ast, &unit.files);
+    let resolved = resolve_compile_unit(sources, &unit.root_ast, &unit.files, &unit.import_sources);
     let mut diagnostics = resolved.diagnostics.clone();
     diagnostics.extend(check(sources, &unit.root_ast, &resolved));
     diagnostics
 }
 
 #[derive(Debug, Clone)]
+struct FrontendOptions {
+    nocter_home: Option<PathBuf>,
+    target: String,
+}
+
+impl Default for FrontendOptions {
+    fn default() -> Self {
+        Self {
+            nocter_home: None,
+            target: DEFAULT_TARGET.to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 struct CompileUnit {
     root_ast: crate::ast::AstFile,
     files: Vec<crate::ast::AstFile>,
+    import_sources: ImportSourceMap,
 }
 
 fn load_compile_unit(
     sources: &mut SourceMap,
-    root: crate::source::SourceId,
+    root: SourceId,
+    options: &FrontendOptions,
 ) -> Result<CompileUnit, Vec<Diagnostic>> {
     let mut queue = VecDeque::from([root]);
     let mut queued_sources = HashSet::from([root]);
-    let mut loaded_paths = HashSet::new();
+    let mut loaded_sources_by_path = std::collections::HashMap::new();
+    let mut import_sources = ImportSourceMap::new();
+    let mut resolved_nocter_home = None;
     let mut diagnostics = Vec::new();
     let mut root_ast = None;
     let mut files = Vec::new();
@@ -418,7 +445,7 @@ fn load_compile_unit(
         .and_then(|file| file.absolute_path())
         .cloned()
     {
-        loaded_paths.insert(path);
+        loaded_sources_by_path.insert(path, root);
     }
 
     while let Some(source) = queue.pop_front() {
@@ -435,44 +462,41 @@ fn load_compile_unit(
         }
         files.push(ast.clone());
 
-        for path in relative_import_paths(&ast) {
-            let Some(resolved_path) = resolve_relative_import_path(sources, source, path) else {
-                diagnostics.push(relative_import_without_file_path_diagnostic(
-                    sources, path.span,
-                ));
-                continue;
-            };
-
-            let canonical = match resolved_path.canonicalize() {
+        for path in import_paths(&ast) {
+            let canonical = match resolve_import_path(
+                sources,
+                source,
+                path,
+                options,
+                &mut resolved_nocter_home,
+            ) {
                 Ok(path) => path,
-                Err(error) => {
-                    diagnostics.push(import_load_diagnostic(
-                        sources,
-                        path.span,
-                        &path.value,
-                        &resolved_path,
-                        error,
-                    ));
+                Err(diagnostic) => {
+                    diagnostics.push(diagnostic);
                     continue;
                 }
             };
 
-            if !loaded_paths.insert(canonical.clone()) {
-                continue;
-            }
-
-            let imported = match sources.load_file(&canonical) {
-                Ok(source) => source,
-                Err(error) => {
-                    diagnostics.push(import_source_diagnostic(
-                        sources,
-                        path.span,
-                        &path.value,
-                        error,
-                    ));
-                    continue;
-                }
+            let imported = match loaded_sources_by_path.get(&canonical).copied() {
+                Some(source) => source,
+                None => match sources.load_file(&canonical) {
+                    Ok(source) => {
+                        loaded_sources_by_path.insert(canonical, source);
+                        source
+                    }
+                    Err(error) => {
+                        diagnostics.push(import_source_diagnostic(
+                            sources,
+                            path.span,
+                            &path.value,
+                            error,
+                        ));
+                        continue;
+                    }
+                },
             };
+
+            import_sources.insert(path.span, imported);
 
             if queued_sources.insert(imported) {
                 queue.push_back(imported);
@@ -491,7 +515,11 @@ fn load_compile_unit(
         )]);
     };
 
-    Ok(CompileUnit { root_ast, files })
+    Ok(CompileUnit {
+        root_ast,
+        files,
+        import_sources,
+    })
 }
 
 fn parse_source_for_check(
@@ -518,16 +546,12 @@ fn parse_source_for_check(
     Ok(ast)
 }
 
-fn relative_import_paths(ast: &crate::ast::AstFile) -> Vec<&crate::ast::ModulePath> {
+fn import_paths(ast: &crate::ast::AstFile) -> Vec<&crate::ast::ModulePath> {
     ast.items
         .iter()
         .filter_map(|item| match item {
-            crate::ast::Item::Use(item) if is_relative_module_path(&item.path.value) => {
-                Some(&item.path)
-            }
-            crate::ast::Item::FromImport(item) if is_relative_module_path(&item.path.value) => {
-                Some(&item.path)
-            }
+            crate::ast::Item::Use(item) => Some(&item.path),
+            crate::ast::Item::FromImport(item) => Some(&item.path),
             _ => None,
         })
         .collect()
@@ -537,15 +561,93 @@ fn is_relative_module_path(path: &str) -> bool {
     path.starts_with("./") || path.starts_with("../")
 }
 
+fn resolve_import_path(
+    sources: &SourceMap,
+    source: SourceId,
+    path: &crate::ast::ModulePath,
+    options: &FrontendOptions,
+    resolved_nocter_home: &mut Option<Result<PathBuf, String>>,
+) -> Result<PathBuf, Diagnostic> {
+    if is_relative_module_path(&path.value) {
+        let Some(resolved_path) = resolve_relative_import_path(sources, source, path) else {
+            return Err(relative_import_without_file_path_diagnostic(
+                sources, path.span,
+            ));
+        };
+
+        return resolved_path.canonicalize().map_err(|error| {
+            import_load_diagnostic(
+                sources,
+                path.span,
+                &path.value,
+                &[resolved_path],
+                error,
+                ImportPathKind::Relative,
+            )
+        });
+    }
+
+    let home = active_nocter_home(options, resolved_nocter_home).map_err(|message| {
+        nocter_home_import_diagnostic(sources, path.span, &path.value, message)
+    })?;
+    let candidates = non_relative_import_candidates(&home, &options.target, &path.value);
+
+    for candidate in &candidates {
+        if let Ok(canonical) = candidate.canonicalize() {
+            return Ok(canonical);
+        }
+    }
+
+    Err(import_load_diagnostic(
+        sources,
+        path.span,
+        &path.value,
+        &candidates,
+        "file was not found in any import root",
+        ImportPathKind::NonRelative,
+    ))
+}
+
 fn resolve_relative_import_path(
     sources: &SourceMap,
-    source: crate::source::SourceId,
+    source: SourceId,
     path: &crate::ast::ModulePath,
 ) -> Option<PathBuf> {
     let source_file = sources.get(source)?;
     let source_path = source_file.absolute_path()?;
     let source_dir = source_path.parent()?;
     Some(source_dir.join(format!("{}.nct", path.value)))
+}
+
+fn active_nocter_home(
+    options: &FrontendOptions,
+    resolved_nocter_home: &mut Option<Result<PathBuf, String>>,
+) -> Result<PathBuf, String> {
+    if let Some(home) = &options.nocter_home {
+        return Ok(home.clone());
+    }
+
+    if let Some(cached) = resolved_nocter_home {
+        return cached.clone();
+    }
+
+    let resolved = resolve_nocter_home();
+    *resolved_nocter_home = Some(resolved.clone());
+    resolved
+}
+
+fn non_relative_import_candidates(home: &Path, target: &str, import_path: &str) -> Vec<PathBuf> {
+    if let Some(std_path) = import_path.strip_prefix("std/") {
+        return vec![
+            home.join("targets")
+                .join(target)
+                .join("std")
+                .join(format!("{std_path}.nct")),
+            home.join("std").join(format!("{std_path}.nct")),
+        ];
+    }
+
+    vec![home.join(format!("{import_path}.nct"))]
 }
 
 fn relative_import_without_file_path_diagnostic(
@@ -566,18 +668,54 @@ fn import_load_diagnostic(
     sources: &SourceMap,
     span: crate::source::ByteSpan,
     import_path: &str,
-    resolved_path: &Path,
+    candidates: &[PathBuf],
+    error: impl std::fmt::Display,
+    kind: ImportPathKind,
+) -> Diagnostic {
+    let searched = candidates
+        .iter()
+        .map(|path| format!("`{}`", path.display()))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let mut diagnostic = Diagnostic::error(
+        "E0410",
+        format!("failed to resolve import `{import_path}`; searched {searched}: {error}"),
+    );
+    diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+    diagnostic.help = Some(match kind {
+        ImportPathKind::Relative => {
+            "relative imports are resolved from the importing file directory and automatically add `.nct`"
+                .to_string()
+        }
+        ImportPathKind::NonRelative => {
+            "non-relative imports are resolved inside the active Nocter home; `std/...` searches the active target overlay before common `std/`"
+                .to_string()
+        }
+    });
+    diagnostic
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ImportPathKind {
+    Relative,
+    NonRelative,
+}
+
+fn nocter_home_import_diagnostic(
+    sources: &SourceMap,
+    span: crate::source::ByteSpan,
+    import_path: &str,
     error: impl std::fmt::Display,
 ) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(
         "E0410",
-        format!(
-            "failed to resolve import `{import_path}` at `{}`: {error}",
-            resolved_path.display()
-        ),
+        format!("failed to resolve Nocter home while loading import `{import_path}`: {error}"),
     );
     diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
-    diagnostic.help = Some("relative imports are resolved from the importing file directory and automatically add `.nct`".to_string());
+    diagnostic.help = Some(
+        "set `NOCTER_HOME` to the active Nocter home, or run the `nocter` binary from inside its installed `.nocter/` directory"
+            .to_string(),
+    );
     diagnostic
 }
 
@@ -924,6 +1062,28 @@ mod tests {
         root
     }
 
+    fn make_nocter_home(root: &Path) -> PathBuf {
+        let home = root.join(".nocter");
+        fs::create_dir_all(home.join("std")).unwrap();
+        fs::create_dir_all(home.join("targets/arm64-darwin/std")).unwrap();
+        home
+    }
+
+    fn check_with_nocter_home(
+        sources: &mut SourceMap,
+        source: SourceId,
+        home: &Path,
+    ) -> Vec<Diagnostic> {
+        run_frontend_check_with_options(
+            sources,
+            source,
+            &FrontendOptions {
+                nocter_home: Some(home.to_path_buf()),
+                target: DEFAULT_TARGET.to_string(),
+            },
+        )
+    }
+
     #[test]
     fn parses_bare_source_as_run() {
         let command = parse_command(&[OsString::from("app.nct")]).unwrap();
@@ -1213,6 +1373,158 @@ program(): i32 {
 
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0].code, "E0410");
+    }
+
+    #[test]
+    fn check_loads_non_relative_std_imports_from_nocter_home() {
+        let root = make_temp_project("std-import");
+        let home = make_nocter_home(&root);
+        fs::write(
+            root.join("app.nct"),
+            r#"from std/io import answer
+
+program(): i32 {
+    return answer()
+}
+"#,
+        )
+        .unwrap();
+        fs::write(
+            home.join("std/io.nct"),
+            r#"func answer(): i32 {
+    return 1
+}
+"#,
+        )
+        .unwrap();
+
+        let mut sources = SourceMap::new();
+        let source = sources.load_file(root.join("app.nct")).unwrap();
+        let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+        fs::remove_dir_all(&root).unwrap();
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn check_uses_non_relative_imported_function_return_type() {
+        let root = make_temp_project("std-import-return-type");
+        let home = make_nocter_home(&root);
+        fs::write(
+            root.join("app.nct"),
+            r#"from std/io import title
+
+program(): i32 {
+    return title()
+}
+"#,
+        )
+        .unwrap();
+        fs::write(
+            home.join("std/io.nct"),
+            r#"func title(): StringView {
+    return "Nocter"
+}
+"#,
+        )
+        .unwrap();
+
+        let mut sources = SourceMap::new();
+        let source = sources.load_file(root.join("app.nct")).unwrap();
+        let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+        fs::remove_dir_all(&root).unwrap();
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "E0312");
+        assert!(diagnostics[0].message.contains("StringView"));
+    }
+
+    #[test]
+    fn check_prefers_target_overlay_for_std_imports() {
+        let root = make_temp_project("std-import-overlay");
+        let home = make_nocter_home(&root);
+        fs::write(
+            root.join("app.nct"),
+            r#"from std/io import answer
+
+program(): i32 {
+    return answer()
+}
+"#,
+        )
+        .unwrap();
+        fs::write(
+            home.join("std/io.nct"),
+            r#"func answer(): StringView {
+    return "common"
+}
+"#,
+        )
+        .unwrap();
+        fs::write(
+            home.join("targets/arm64-darwin/std/io.nct"),
+            r#"func answer(): i32 {
+    return 1
+}
+"#,
+        )
+        .unwrap();
+
+        let mut sources = SourceMap::new();
+        let source = sources.load_file(root.join("app.nct")).unwrap();
+        let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+        fs::remove_dir_all(&root).unwrap();
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn check_reports_missing_non_relative_imports() {
+        let root = make_temp_project("missing-std-import");
+        let home = make_nocter_home(&root);
+        fs::write(
+            root.join("app.nct"),
+            r#"from std/missing import answer
+
+program(): i32 {
+    return 0
+}
+"#,
+        )
+        .unwrap();
+
+        let mut sources = SourceMap::new();
+        let source = sources.load_file(root.join("app.nct")).unwrap();
+        let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+        fs::remove_dir_all(&root).unwrap();
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "E0410");
+    }
+
+    #[test]
+    fn check_loads_non_relative_use_imports() {
+        let root = make_temp_project("std-use");
+        let home = make_nocter_home(&root);
+        fs::write(
+            root.join("app.nct"),
+            r#"use std/prelude
+
+program(): i32 {
+    return 0
+}
+"#,
+        )
+        .unwrap();
+        fs::write(home.join("std/prelude.nct"), "module prelude\n").unwrap();
+
+        let mut sources = SourceMap::new();
+        let source = sources.load_file(root.join("app.nct")).unwrap();
+        let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+        fs::remove_dir_all(&root).unwrap();
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "E0200");
     }
 
     #[test]

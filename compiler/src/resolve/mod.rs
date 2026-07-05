@@ -7,7 +7,6 @@ use crate::ast::{
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use std::collections::HashMap;
-use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SymbolId(u32);
@@ -141,19 +140,28 @@ pub struct ImportedSymbol {
     pub path: String,
 }
 
+pub type ImportSourceMap = HashMap<ByteSpan, SourceId>;
+
 pub fn resolve(sources: &SourceMap, ast: &AstFile) -> ResolveOutput {
-    resolve_compile_unit(sources, ast, std::slice::from_ref(ast))
+    resolve_compile_unit(
+        sources,
+        ast,
+        std::slice::from_ref(ast),
+        &ImportSourceMap::new(),
+    )
 }
 
 pub fn resolve_compile_unit(
     sources: &SourceMap,
     root: &AstFile,
     files: &[AstFile],
+    import_sources: &ImportSourceMap,
 ) -> ResolveOutput {
     let module_index = ModuleIndex::new(sources, files);
     let mut resolver = Resolver {
         sources,
         module_index,
+        import_sources,
         output: ResolveOutput::new(),
     };
 
@@ -165,6 +173,7 @@ pub fn resolve_compile_unit(
 struct Resolver<'a> {
     sources: &'a SourceMap,
     module_index: ModuleIndex<'a>,
+    import_sources: &'a ImportSourceMap,
     output: ResolveOutput,
 }
 
@@ -180,8 +189,13 @@ impl Resolver<'_> {
     }
 
     fn collect_imported_symbols(&mut self, item: &FromImportItem) {
+        if let Some(imported_ast) = self.module_index.import_ast(item, self.import_sources) {
+            self.collect_loaded_imported_symbols(item, imported_ast);
+            return;
+        }
+
         if is_relative_module_path(&item.path.value) {
-            self.collect_relative_imported_symbols(item);
+            self.report_unloaded_imported_symbols(item);
             return;
         }
 
@@ -197,18 +211,7 @@ impl Resolver<'_> {
         }
     }
 
-    fn collect_relative_imported_symbols(&mut self, item: &FromImportItem) {
-        let Some(imported_ast) = self.module_index.relative_import_ast(self.sources, item) else {
-            for name in &item.names {
-                self.output.diagnostics.push(unloaded_import_diagnostic(
-                    self.sources,
-                    &item.path.value,
-                    name.span,
-                ));
-            }
-            return;
-        };
-
+    fn collect_loaded_imported_symbols(&mut self, item: &FromImportItem, imported_ast: &AstFile) {
         for name in &item.names {
             match find_function(imported_ast, &name.name) {
                 Some(function) => self.define_symbol(
@@ -226,6 +229,16 @@ impl Resolver<'_> {
                     ));
                 }
             }
+        }
+    }
+
+    fn report_unloaded_imported_symbols(&mut self, item: &FromImportItem) {
+        for name in &item.names {
+            self.output.diagnostics.push(unloaded_import_diagnostic(
+                self.sources,
+                &item.path.value,
+                name.span,
+            ));
         }
     }
 
@@ -409,38 +422,29 @@ impl Resolver<'_> {
 }
 
 struct ModuleIndex<'a> {
-    by_absolute_path: HashMap<PathBuf, &'a AstFile>,
+    by_source: HashMap<SourceId, &'a AstFile>,
 }
 
 impl<'a> ModuleIndex<'a> {
-    fn new(sources: &SourceMap, files: &'a [AstFile]) -> Self {
-        let mut by_absolute_path = HashMap::new();
+    fn new(_sources: &SourceMap, files: &'a [AstFile]) -> Self {
+        let mut by_source = HashMap::new();
 
         for ast in files {
-            if let Some(path) = source_absolute_path(sources, ast.span.source) {
-                by_absolute_path.insert(path, ast);
-            }
+            by_source.insert(ast.span.source, ast);
         }
 
-        Self { by_absolute_path }
+        Self { by_source }
     }
 
-    fn relative_import_ast(
+    fn import_ast(
         &self,
-        sources: &SourceMap,
         item: &FromImportItem,
+        import_sources: &ImportSourceMap,
     ) -> Option<&'a AstFile> {
-        let source_file = sources.get(item.path.span.source)?;
-        let source_path = source_file.absolute_path()?;
-        let source_dir = source_path.parent()?;
-        let import_path = source_dir.join(format!("{}.nct", item.path.value));
-        let canonical = import_path.canonicalize().ok()?;
-        self.by_absolute_path.get(&canonical).copied()
+        import_sources
+            .get(&item.path.span)
+            .and_then(|source| self.by_source.get(source).copied())
     }
-}
-
-fn source_absolute_path(sources: &SourceMap, source: SourceId) -> Option<PathBuf> {
-    sources.get(source)?.absolute_path().cloned()
 }
 
 fn is_relative_module_path(path: &str) -> bool {
