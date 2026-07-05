@@ -1,6 +1,6 @@
 # Nocter Compiler Development Notes
 
-This document is for developers working on the Nocter compiler implementation. User-facing project information belongs in the repository root `README.md`. The language specification belongs in `SPEC.md`.
+This document is for developers working on the Nocter compiler implementation. User-facing project information belongs in the repository root `README.md`. The language specification belongs in the repository root `SPEC.md`.
 
 ## Goal
 
@@ -50,7 +50,7 @@ The distributable archive root for the initial host is:
             std/
 ```
 
-Users normally install that archive root as `~/.nocter/`. `src/` contains the implementation used to build the `nocter` compiler. `.nocter/` contains the current development host package for the user-facing compiler binary and standard library. It is generated output and is not committed to git.
+Users normally install that archive root as `~/.nocter/`. `compiler/src/` contains the implementation used to build the `nocter` compiler. `.nocter/` contains the current development host package for the user-facing compiler binary and standard library. It is generated output and is not committed to git.
 
 The Nocter home root must contain `VERSION` and `MANIFEST.json`. `VERSION` is the single-line release version. `MANIFEST.json` records the manifest schema, release, host, default target, implemented targets, compiler path, standard-library path, and archive name. Manifest v1 does not include checksum metadata.
 
@@ -64,7 +64,7 @@ The Rust implementation is a bootstrap implementation, not a change to Nocter's 
 
 ## Developer Rust Environment
 
-Rust is required only for developers who build or test the Nocter compiler from `src/`. It is not required for Nocter users who install a released `.nocter/` archive.
+Rust is required only for developers who build or test the Nocter compiler from `compiler/`. It is not required for Nocter users who install a released `.nocter/` archive.
 
 Recommended setup:
 
@@ -74,12 +74,13 @@ rustup toolchain install stable
 rustup default stable
 rustc --version
 cargo --version
+cd compiler
 cargo test
 ```
 
-Nightly Rust is not part of the initial plan. If the compiler starts to depend on a specific minimum Rust version, record that version explicitly and add a `rust-toolchain.toml` deliberately. Until then, the project should build on current stable Rust.
+Nightly Rust is not part of the initial plan. `compiler/rust-toolchain.toml` pins the compiler implementation to the stable toolchain and installs `rustfmt` and `clippy` for local quality checks.
 
-If Rust is not installed, language design, specification editing, and `.nct` standard-library design can continue. Rust compilation, `cargo test`, `Cargo.lock` generation, and `.nocter/nocter` binary generation require Rust and Cargo.
+If Rust is not installed, language design, specification editing, and `.nct` standard-library design can continue. Rust compilation, `cargo test`, `compiler/Cargo.lock` generation, and `.nocter/nocter` binary generation require Rust and Cargo.
 
 Crate policy:
 
@@ -91,14 +92,14 @@ Crate policy:
 
 Initial Cargo shape:
 
-- `Cargo.toml` lives at the repository root.
+- `Cargo.toml` lives at `compiler/Cargo.toml`.
 - The package name is `nocter`.
 - The Rust edition is `2024`.
 - The initial implementation is a single crate, not a workspace.
 - `src/main.rs` stays thin and only calls into `src/lib.rs`.
 - `src/lib.rs` owns the compiler core modules.
 - Initial external dependencies are limited to `serde` and `serde_json` for `MANIFEST.json` parsing and future diagnostics JSON.
-- `Cargo.lock` should be committed after the first successful Cargo run, but it is still a development artifact and is not part of the user-facing `.nocter/` archive.
+- `compiler/Cargo.lock` should be committed, but it is still a development artifact and is not part of the user-facing `.nocter/` archive.
 
 Long-term direction: self-hosting. The Rust compiler is the implementation used to reach a correct Nocter compiler and standard library. Once Nocter is mature enough, a Nocter-written compiler can become the primary implementation.
 
@@ -126,9 +127,11 @@ External assemblers and linkers are not part of the design.
 The exact implementation layout can evolve, but the first structure should keep each compiler phase separate.
 
 ```text
+README.md
 Cargo.toml
+Cargo.lock
+rust-toolchain.toml
 src/
-    README.md
     main.rs
     lib.rs
     lexer/

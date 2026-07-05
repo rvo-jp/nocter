@@ -1,3 +1,4 @@
 .nocter/
 .nocter-*/
 /target/
+/compiler/target/

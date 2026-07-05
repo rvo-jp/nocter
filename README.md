@@ -42,10 +42,6 @@ README.md
 AI.md
     AI が Nocter を読み書きするための短縮ガイド
 
-Cargo.toml
-    Rust 製コンパイラ実装の crate manifest
-    開発時のみ使用し、利用者向け配布物には含めない
-
 SPEC.md
     ユーザー向けの言語仕様書の入口
 
@@ -72,10 +68,18 @@ spec/
         valid/
         invalid/
 
-src/
-    コンパイラ本体の実装
+compiler/
     README.md
         コンパイラ開発者向けの実装設計書
+    Cargo.toml
+        Rust 製コンパイラ実装の crate manifest
+        開発時のみ使用し、利用者向け配布物には含めない
+    Cargo.lock
+        Rust 製コンパイラ実装の lockfile
+    rust-toolchain.toml
+        コンパイラ開発用 Rust toolchain 設定
+    src/
+        コンパイラ本体の実装
 
 tools/
     vscode-nocter/
@@ -112,9 +116,9 @@ tools/
             std/
 ```
 
-`README.md` は Nocter の目的、対象環境、配布形態、設計思想を説明する入口です。`SPEC.md` は Nocter を書く人向けの言語仕様書の目次であり、詳細な仕様は `spec/` に章別で置きます。`src/README.md` はコンパイラ開発者向けの内部設計書であり、ユーザー向け文書には実装内部の詳細を入れすぎない方針とします。
+`README.md` は Nocter の目的、対象環境、配布形態、設計思想を説明する入口です。`SPEC.md` は Nocter を書く人向けの言語仕様書の目次であり、詳細な仕様は `spec/` に章別で置きます。`compiler/README.md` はコンパイラ開発者向けの内部設計書であり、ユーザー向け文書には実装内部の詳細を入れすぎない方針とします。
 
-`src/` は開発用のソースツリーです。`.nocter/` は現在の開発環境向けの完成品配置先であり、コンパイラ本体と標準ライブラリを含みます。このディレクトリは生成物・配布物なので git 管理しません。
+`compiler/` は Rust 製 bootstrap compiler の開発用ソースツリーです。`.nocter/` は現在の開発環境向けの完成品配置先であり、コンパイラ本体と標準ライブラリを含みます。このディレクトリは生成物・配布物なので git 管理しません。
 
 ユーザーは `nocter-v<version>-arm64-darwin.tar.gz` を展開し、生成された `.nocter/` をホームディレクトリなどに配置して、次のように PATH を通します。
 
