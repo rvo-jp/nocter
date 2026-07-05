@@ -8,7 +8,7 @@ use crate::resolve::resolve;
 use crate::source::SourceMap;
 use crate::typecheck::check;
 use manifest::Manifest;
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 use std::env;
 use std::ffi::OsString;
 use std::fs;
@@ -343,7 +343,7 @@ fn run_check_json(file: &Path) -> ExitCode {
             let root_absolute_path = source_file
                 .absolute_path()
                 .map(|path| path.to_string_lossy().into_owned());
-            let diagnostics = run_frontend_check(&sources, source);
+            let diagnostics = run_frontend_check(&mut sources, source);
             let status = if diagnostics.is_empty() {
                 ExitCode::SUCCESS
             } else {
@@ -384,28 +384,216 @@ fn run_check_json(file: &Path) -> ExitCode {
     }
 }
 
-fn run_frontend_check(sources: &SourceMap, source: crate::source::SourceId) -> Vec<Diagnostic> {
+fn run_frontend_check(sources: &mut SourceMap, source: crate::source::SourceId) -> Vec<Diagnostic> {
+    let unit = match load_compile_unit(sources, source) {
+        Ok(unit) => unit,
+        Err(diagnostics) => return diagnostics,
+    };
+
+    let resolved = resolve(sources, &unit.root_ast);
+    let mut diagnostics = resolved.diagnostics.clone();
+    diagnostics.extend(check(sources, &unit.root_ast, &resolved));
+    diagnostics
+}
+
+#[derive(Debug, Clone)]
+struct CompileUnit {
+    root_ast: crate::ast::AstFile,
+}
+
+fn load_compile_unit(
+    sources: &mut SourceMap,
+    root: crate::source::SourceId,
+) -> Result<CompileUnit, Vec<Diagnostic>> {
+    let mut queue = VecDeque::from([root]);
+    let mut queued_sources = HashSet::from([root]);
+    let mut loaded_paths = HashSet::new();
+    let mut diagnostics = Vec::new();
+    let mut root_ast = None;
+
+    if let Some(path) = sources
+        .get(root)
+        .and_then(|file| file.absolute_path())
+        .cloned()
+    {
+        loaded_paths.insert(path);
+    }
+
+    while let Some(source) = queue.pop_front() {
+        let ast = match parse_source_for_check(sources, source) {
+            Ok(ast) => ast,
+            Err(source_diagnostics) => {
+                diagnostics.extend(source_diagnostics);
+                continue;
+            }
+        };
+
+        if source == root {
+            root_ast = Some(ast.clone());
+        }
+
+        for path in relative_import_paths(&ast) {
+            let Some(resolved_path) = resolve_relative_import_path(sources, source, path) else {
+                diagnostics.push(relative_import_without_file_path_diagnostic(
+                    sources, path.span,
+                ));
+                continue;
+            };
+
+            let canonical = match resolved_path.canonicalize() {
+                Ok(path) => path,
+                Err(error) => {
+                    diagnostics.push(import_load_diagnostic(
+                        sources,
+                        path.span,
+                        &path.value,
+                        &resolved_path,
+                        error,
+                    ));
+                    continue;
+                }
+            };
+
+            if !loaded_paths.insert(canonical.clone()) {
+                continue;
+            }
+
+            let imported = match sources.load_file(&canonical) {
+                Ok(source) => source,
+                Err(error) => {
+                    diagnostics.push(import_source_diagnostic(
+                        sources,
+                        path.span,
+                        &path.value,
+                        error,
+                    ));
+                    continue;
+                }
+            };
+
+            if queued_sources.insert(imported) {
+                queue.push_back(imported);
+            }
+        }
+    }
+
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+
+    let Some(root_ast) = root_ast else {
+        return Err(vec![Diagnostic::error(
+            "E0200",
+            "root source did not produce an AST and did not report a diagnostic",
+        )]);
+    };
+
+    Ok(CompileUnit { root_ast })
+}
+
+fn parse_source_for_check(
+    sources: &SourceMap,
+    source: crate::source::SourceId,
+) -> Result<crate::ast::AstFile, Vec<Diagnostic>> {
     let lexed = lex(sources, source);
     if !lexed.diagnostics.is_empty() {
-        return lexed.diagnostics;
+        return Err(lexed.diagnostics);
     }
 
     let parsed = parse(sources, source, &lexed.tokens);
     if !parsed.diagnostics.is_empty() {
-        return parsed.diagnostics;
+        return Err(parsed.diagnostics);
     }
 
     let Some(ast) = parsed.ast else {
-        return vec![Diagnostic::error(
+        return Err(vec![Diagnostic::error(
             "E0200",
             "parser did not produce an AST and did not report a diagnostic",
-        )];
+        )]);
     };
 
-    let resolved = resolve(sources, &ast);
-    let mut diagnostics = resolved.diagnostics.clone();
-    diagnostics.extend(check(sources, &ast, &resolved));
-    diagnostics
+    Ok(ast)
+}
+
+fn relative_import_paths(ast: &crate::ast::AstFile) -> Vec<&crate::ast::ModulePath> {
+    ast.items
+        .iter()
+        .filter_map(|item| match item {
+            crate::ast::Item::Use(item) if is_relative_module_path(&item.path.value) => {
+                Some(&item.path)
+            }
+            crate::ast::Item::FromImport(item) if is_relative_module_path(&item.path.value) => {
+                Some(&item.path)
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn is_relative_module_path(path: &str) -> bool {
+    path.starts_with("./") || path.starts_with("../")
+}
+
+fn resolve_relative_import_path(
+    sources: &SourceMap,
+    source: crate::source::SourceId,
+    path: &crate::ast::ModulePath,
+) -> Option<PathBuf> {
+    let source_file = sources.get(source)?;
+    let source_path = source_file.absolute_path()?;
+    let source_dir = source_path.parent()?;
+    Some(source_dir.join(format!("{}.nct", path.value)))
+}
+
+fn relative_import_without_file_path_diagnostic(
+    sources: &SourceMap,
+    span: crate::source::ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0410",
+        "relative import cannot be resolved because the importing source has no file path",
+    );
+    diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+    diagnostic.help =
+        Some("load the root source from a file before resolving relative imports".to_string());
+    diagnostic
+}
+
+fn import_load_diagnostic(
+    sources: &SourceMap,
+    span: crate::source::ByteSpan,
+    import_path: &str,
+    resolved_path: &Path,
+    error: impl std::fmt::Display,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0410",
+        format!(
+            "failed to resolve import `{import_path}` at `{}`: {error}",
+            resolved_path.display()
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+    diagnostic.help = Some("relative imports are resolved from the importing file directory and automatically add `.nct`".to_string());
+    diagnostic
+}
+
+fn import_source_diagnostic(
+    sources: &SourceMap,
+    span: crate::source::ByteSpan,
+    import_path: &str,
+    source_error: Diagnostic,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0410",
+        format!(
+            "failed to load import `{import_path}`: {}",
+            source_error.message
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+    diagnostic.help = source_error.help;
+    diagnostic
 }
 
 fn canonical_absolute_string(path: &Path) -> Option<String> {
@@ -719,6 +907,20 @@ fn print_usage() {
 mod tests {
     use super::*;
 
+    fn make_temp_project(name: &str) -> PathBuf {
+        let unique = format!(
+            "nocter-{name}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+        let root = env::temp_dir().join(unique);
+        fs::create_dir_all(&root).unwrap();
+        root
+    }
+
     #[test]
     fn parses_bare_source_as_run() {
         let command = parse_command(&[OsString::from("app.nct")]).unwrap();
@@ -797,18 +999,11 @@ mod tests {
 
     #[test]
     fn validates_nocter_home_shape() {
-        let unique = format!(
-            "nocter-test-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        );
-        let root = env::temp_dir().join(unique);
-        std::fs::create_dir_all(root.join("std")).unwrap();
-        std::fs::create_dir_all(root.join("targets/arm64-darwin/std")).unwrap();
-        std::fs::write(root.join("VERSION"), "0.1.0\n").unwrap();
-        std::fs::write(
+        let root = make_temp_project("home-shape");
+        fs::create_dir_all(root.join("std")).unwrap();
+        fs::create_dir_all(root.join("targets/arm64-darwin/std")).unwrap();
+        fs::write(root.join("VERSION"), "0.1.0\n").unwrap();
+        fs::write(
             root.join("MANIFEST.json"),
             r#"{
   "schema": "nocter.manifest",
@@ -841,9 +1036,86 @@ mod tests {
         .unwrap();
 
         let errors = validate_nocter_home(&root);
-        std::fs::remove_dir_all(&root).unwrap();
+        fs::remove_dir_all(&root).unwrap();
 
         assert!(errors.is_empty(), "{errors:?}");
+    }
+
+    #[test]
+    fn check_loads_relative_imports() {
+        let root = make_temp_project("relative-import");
+        fs::write(
+            root.join("app.nct"),
+            r#"from ./config import answer
+
+program(): i32 {
+    return 0
+}
+"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("config.nct"),
+            r#"func answer(): i32 {
+    return 1
+}
+"#,
+        )
+        .unwrap();
+
+        let mut sources = SourceMap::new();
+        let source = sources.load_file(root.join("app.nct")).unwrap();
+        let diagnostics = run_frontend_check(&mut sources, source);
+        fs::remove_dir_all(&root).unwrap();
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn check_reports_relative_import_parse_errors() {
+        let root = make_temp_project("relative-import-parse-error");
+        fs::write(
+            root.join("app.nct"),
+            r#"from ./config import answer
+
+program(): i32 {
+    return 0
+}
+"#,
+        )
+        .unwrap();
+        fs::write(root.join("config.nct"), "module config\n").unwrap();
+
+        let mut sources = SourceMap::new();
+        let source = sources.load_file(root.join("app.nct")).unwrap();
+        let diagnostics = run_frontend_check(&mut sources, source);
+        fs::remove_dir_all(&root).unwrap();
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "E0200");
+    }
+
+    #[test]
+    fn check_reports_missing_relative_imports() {
+        let root = make_temp_project("missing-relative-import");
+        fs::write(
+            root.join("app.nct"),
+            r#"from ./missing import Missing
+
+program(): i32 {
+    return 0
+}
+"#,
+        )
+        .unwrap();
+
+        let mut sources = SourceMap::new();
+        let source = sources.load_file(root.join("app.nct")).unwrap();
+        let diagnostics = run_frontend_check(&mut sources, source);
+        fs::remove_dir_all(&root).unwrap();
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "E0410");
     }
 
     #[test]

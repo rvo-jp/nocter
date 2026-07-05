@@ -313,6 +313,8 @@ Current semantic coverage:
 - `func main` without `program` receives a dedicated diagnostic because `main` is an ordinary function name
 - executable root has no duplicate `program` entries
 - `program` return type is exactly `i32` or `void`
+- relative imports starting with `./` or `../` are loaded recursively and lexed/parsed before root semantic checks run
+- non-relative imports such as `std/io` are still recorded in the root AST but are not loaded from Nocter home yet
 - same-file top-level `func` declarations are collected into a resolver-owned symbol table
 - duplicate visible names among same-file functions, explicit imported names, parameters, locals, and catch bindings are diagnosed
 - direct calls to same-file functions are resolved and checked for argument count
@@ -327,7 +329,7 @@ Current semantic coverage:
 - bare `return` is valid only for `void` success returns
 - non-`void` functions and `program(): i32` must not fall through without an explicit return
 
-The current `check` implementation does not load imported files, infer local binding types beyond literal expressions and known same-file calls, validate method or associated function calls, check ownership, select a target, or lower code. Unknown expression types are not diagnosed until import resolution and full type checking exist.
+The current `check` implementation does not load non-relative imports from Nocter home, resolve imported names to declarations in other files, infer local binding types beyond literal expressions and known same-file calls, validate method or associated function calls, check ownership, select a target, or lower code. Unknown expression types are not diagnosed until import resolution and full type checking exist.
 
 `nocter check app.nct --format json` runs:
 
@@ -336,6 +338,7 @@ SourceMap::load_file
     -> lexer
     -> parser
     -> typed AST
+    -> recursive relative import loading and parsing
     -> same-file resolver
     -> entry validation
     -> call validation for known same-file functions

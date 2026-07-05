@@ -526,10 +526,34 @@ impl Parser<'_> {
     }
 
     fn parse_module_path(&mut self) -> ParseResult<ModulePath> {
+        let mut value = String::new();
+        let mut segments = Vec::new();
+        let mut start = self.current().span.start;
+
+        while self.at_punctuation(".") {
+            let dot = self.bump();
+            start = dot.span.start;
+
+            if self.match_punctuation("/").is_some() {
+                value.push_str("./");
+                segments.push(".".to_string());
+                break;
+            }
+
+            if self.match_punctuation(".").is_some() {
+                self.expect_punctuation("/", "`/`")?;
+                value.push_str("../");
+                segments.push("..".to_string());
+                continue;
+            }
+
+            self.error_current("expected `/` or `.` in relative module path");
+            return Err(());
+        }
+
         let first = self.expect_identifier("expected module path segment")?;
-        let start = first.span.start;
         let mut end = first.span.end;
-        let mut segments = vec![first.value];
+        segments.push(first.value);
 
         while self.match_punctuation("/").is_some() {
             let segment = self.expect_identifier("expected module path segment after `/`")?;
@@ -537,9 +561,16 @@ impl Parser<'_> {
             segments.push(segment.value);
         }
 
+        let path_segments = segments
+            .iter()
+            .filter(|segment| segment.as_str() != "." && segment.as_str() != "..")
+            .cloned()
+            .collect::<Vec<_>>();
+        value.push_str(&path_segments.join("/"));
+
         Ok(ModulePath {
             span: self.span(start, end),
-            value: segments.join("/"),
+            value,
             segments,
         })
     }
@@ -757,6 +788,31 @@ program(): i32 {
             panic!("expected binding statement");
         };
         assert!(matches!(binding.initializer, Expr::OptionalDefault(_)));
+    }
+
+    #[test]
+    fn parses_relative_import_paths() {
+        let output = parse_text(
+            r#"from ./config import Config
+from ../shared/path import Path
+
+program(): i32 {
+    return 0
+}
+"#,
+        );
+
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        let ast = output.ast.unwrap();
+        let Item::FromImport(config) = &ast.items[0] else {
+            panic!("expected first item to be a relative import");
+        };
+        let Item::FromImport(path) = &ast.items[1] else {
+            panic!("expected second item to be a relative import");
+        };
+
+        assert_eq!(config.path.value, "./config");
+        assert_eq!(path.path.value, "../shared/path");
     }
 
     #[test]
