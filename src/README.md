@@ -303,14 +303,21 @@ Current semantic coverage:
 - `func main` without `program` receives a dedicated diagnostic because `main` is an ordinary function name
 - executable root has no duplicate `program` entries
 - `program` return type is exactly `i32` or `void`
+- same-file top-level `func` declarations are collected into a resolver-owned symbol table
+- duplicate visible names among same-file functions, explicit imported names, parameters, locals, and catch bindings are diagnosed
+- direct calls to same-file functions are resolved and checked for argument count
+- direct calls to same-file functions check argument types when both expected and actual types are known
 - primitive return type checking for `i32`, `void`, `never`, `StringView`, `T?`, and the success side of `T ! E`
 - integer literals have type `i32` in v0 checking
 - string literals have type `StringView` in v0 checking
+- same-file function call expressions use the callee return type
+- `try` and `try ... catch` expressions unwrap the success side of known `T ! E` expressions
+- `try` without `catch` is diagnosed when used in a non-fallible current callable or with a mismatched known error type
 - `return` expression type must match the declared success return type when both sides are known
 - bare `return` is valid only for `void` success returns
 - non-`void` functions and `program(): i32` must not fall through without an explicit return
 
-The current `check` implementation does not resolve imports, infer local binding types beyond literal expressions, validate function calls, check ownership, select a target, or lower code. Unknown expression types are not diagnosed until name resolution and full type checking exist.
+The current `check` implementation does not load imported files, infer local binding types beyond literal expressions and known same-file calls, validate method or associated function calls, check ownership, select a target, or lower code. Unknown expression types are not diagnosed until import resolution and full type checking exist.
 
 `nocter check app.nct --format json` runs:
 
@@ -319,7 +326,9 @@ SourceMap::load_file
     -> lexer
     -> parser
     -> typed AST
+    -> same-file resolver
     -> entry validation
+    -> call validation for known same-file functions
     -> basic return checking
     -> DiagnosticsEnvelope
     -> JSON stdout

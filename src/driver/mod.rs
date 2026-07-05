@@ -4,6 +4,7 @@ use crate::ast::AstEnvelope;
 use crate::diagnostics::{Diagnostic, DiagnosticsEnvelope};
 use crate::lexer::{TokensEnvelope, lex};
 use crate::parser::parse;
+use crate::resolve::resolve;
 use crate::source::SourceMap;
 use crate::typecheck::check;
 use manifest::Manifest;
@@ -401,7 +402,10 @@ fn run_frontend_check(sources: &SourceMap, source: crate::source::SourceId) -> V
         )];
     };
 
-    check(sources, &ast)
+    let resolved = resolve(sources, &ast);
+    let mut diagnostics = resolved.diagnostics.clone();
+    diagnostics.extend(check(sources, &ast, &resolved));
+    diagnostics
 }
 
 fn canonical_absolute_string(path: &Path) -> Option<String> {
