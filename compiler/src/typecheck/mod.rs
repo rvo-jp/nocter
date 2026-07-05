@@ -137,6 +137,9 @@ fn check_statement_returns(
                 resolved,
                 diagnostics,
             );
+            if let Some(else_block) = &statement.else_block {
+                check_block_returns(sources, else_block, context, resolved, diagnostics);
+            }
         }
         Stmt::Try(statement) => {
             check_try_propagation(
@@ -366,6 +369,9 @@ fn check_statement_calls(
         }
         Stmt::Binding(statement) => {
             check_expression_calls(sources, &statement.initializer, resolved, diagnostics);
+            if let Some(else_block) = &statement.else_block {
+                check_block_calls(sources, else_block, resolved, diagnostics);
+            }
         }
         Stmt::Try(statement) => {
             check_expression_calls(sources, &statement.expression, resolved, diagnostics);

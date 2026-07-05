@@ -109,6 +109,10 @@ Examples:
 ```nct
 let count: u64 = 0
 
+let home = maybe_home else {
+    return none
+}
+
 func read_all(
     allocator: &+Allocator,
     path: StringView,

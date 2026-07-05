@@ -274,9 +274,11 @@ Required v0 diagnostic families:
 - Mixed optional/fallible type syntax requiring parentheses, such as `T ! E?`.
 - Optional propagation syntax such as postfix `?` used in v0.
 - Optional `if let` / `if var` / `while let` / `while var` used on a non-optional expression.
+- Optional `let ... else` / `var ... else` used on a non-optional expression.
+- Optional `let ... else` / `var ... else` whose `else` block can fall through.
 - Borrowed optional projection used in `while let` or `while var`.
 - Readwrite borrowed optional projection from a non-writable place.
-- Mismatched borrowed optional projection form, such as `if var name = &place` or `if let name = &+place`.
+- Mismatched borrowed optional projection form, such as `if var name = &place`, `if let name = &+place`, `var name = &place else { ... }`, or `let name = &+place else { ... }`.
 - `program` missing, duplicated, or defined outside the root file.
 - `program` with an invalid return type.
 - `program` with parameters, such as `program(args: ...)`, used in v0.

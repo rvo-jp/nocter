@@ -1590,7 +1590,49 @@ if let home = try process.env("HOME") {
 }
 ```
 
-v0 では optional propagation syntax を採用しません。postfix `expr?` はなく、`try` も `T?` には使いません。absence を現在の optional 関数から返す場合は `return none`、present / absent で分岐する場合は `if let` / `if var`、default value を選ぶ場合は `??` を使います。
+v0 では optional propagation syntax を採用しません。postfix `expr?` はなく、`try` も `T?` には使いません。absence を現在の optional 関数から返す場合は `return none`、present / absent で分岐する場合は `if let` / `if var`、値がなければ現在の制御フローを抜ける場合は `let ... else` / `var ... else`、default value を選ぶ場合は `??` を使います。
+
+optional を値として使う前に、値がない場合だけ早期離脱したいときは `let ... else` を使います。
+
+```nct
+let home = lookup("HOME") else {
+    return none
+}
+
+use(home)
+```
+
+```nct
+let config = find_config(path) else {
+    fail AppError.missing_config(path)
+}
+
+load(config)
+```
+
+`let name = expr else { ... }` は `expr: T?` が present の場合に `name: T` を束縛し、その後の文へ進みます。`none` の場合は `else` block を実行します。`else` block は `return`、`return none`、`fail`、`break`、`continue`、`never` を返す関数呼び出し、停止しない `loop` などで現在の制御フローを必ず離脱し、通常の末尾到達はできません。つまり `else` block は `never` 型です。
+
+`var name = expr else { ... }` も使えます。present の値を mutable binding として取り出します。`let ... else` / `var ... else` は declaration statement であり、式ではありません。`else` block で代替値を返す用途には使いません。absence を値で補う場合は `??` を使います。
+
+borrowed optional projection も使えます。
+
+```nct
+let name = &maybe_name else {
+    return none
+}
+
+inspect(name)
+```
+
+```nct
+var name = &+maybe_name else {
+    return none
+}
+
+name.push("!")
+```
+
+`let name = &place else { ... }` は `place: T?` から `name: &T` を作り、optional 自体は move / copy しません。`var name = &+place else { ... }` は writable な `place: T?` から `name: &+T` を作ります。`let name = &+place else { ... }` と `var name = &place else { ... }` は v0 では採用しません。projection borrow が生きている間、source optional は move、代入、再初期化、明示 `drop` できません。
 
 optional value には default operator `??` を使えます。右結合で、必要な場合だけ右辺を評価します。
 

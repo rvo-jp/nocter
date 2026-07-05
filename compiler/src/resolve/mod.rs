@@ -300,6 +300,10 @@ impl Resolver<'_> {
             }
             Stmt::Binding(statement) => {
                 self.resolve_expression(&statement.initializer, scope);
+                if let Some(else_block) = &statement.else_block {
+                    let mut else_scope = scope.clone();
+                    self.resolve_block(else_block, &mut else_scope);
+                }
                 self.define_local_name(statement.name.clone(), statement.name_span, scope);
             }
             Stmt::Try(statement) => self.resolve_expression(&statement.expression, scope),

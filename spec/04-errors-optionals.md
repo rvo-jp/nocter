@@ -269,8 +269,97 @@ Rules:
 - Postfix optional propagation such as `optional_value?` is not part of v0.
 - An optional function must use `return none` to return absence.
 - Present / absent branching uses `if let`, `if var`, `while let`, and `while var`.
+- Early-exit extraction uses `let ... else` and `var ... else`.
 - Defaulting uses `??`.
 - `??` does not propagate absence out of the current function; it selects a fallback value or fallback optional expression.
+
+### Optional Let Else Declarations
+
+Adopted: optional early-exit extraction uses `let ... else` and `var ... else`.
+
+```nct
+let home = lookup("HOME") else {
+    return none
+}
+
+use(home)
+```
+
+```nct
+let config = find_config(path) else {
+    fail AppError.missing_config(path)
+}
+
+load(config)
+```
+
+Rules:
+
+- `let name = expr else { ... }` applies when `expr` has type `T?`.
+- `var name = expr else { ... }` applies when `expr` has type `T?`.
+- If `expr` is present, the contained `T` value is bound to `name` and execution continues after the declaration.
+- If `expr` is `none`, the `else` block runs.
+- The `else` block must have type `never`.
+- The `else` block must leave the current control path with `return`, `return none`, `fail`, `break`, `continue`, a call returning `never`, a non-breaking infinite `loop`, or an equivalent terminating construct.
+- The `else` block must not fall through.
+- The binding exists after the declaration and is not available inside the `else` block.
+- `let ... else` and `var ... else` are declaration statements, not expressions.
+- `let ... else` and `var ... else` do not use `some` / `none` patterns.
+- `else` cannot provide a fallback value. Use `??` when absence should select a default value.
+- Evaluating `expr` follows normal ownership rules. If `expr` moves a move-only optional binding, that source binding becomes uninitialized on the continuing present path.
+- For move-only `T`, `let ... else` / `var ... else` consumes the optional value and moves the contained value into the binding.
+- For copy `T`, the contained value may be copied according to normal copy rules.
+
+Borrowed optional projections are allowed in optional let-else declarations:
+
+```nct
+let name = &maybe_name else {
+    return none
+}
+
+inspect(name) // name: &String
+```
+
+```nct
+var name = &+maybe_name else {
+    return none
+}
+
+name.push("!") // name: &+String
+```
+
+Rules:
+
+- `let name = &place else { ... }` applies when `place` has type `T?`.
+- The continuing binding has type `&T`.
+- The optional value is not moved or copied.
+- If `place` is `none`, no contained borrow is created and the `else` block runs.
+- `var name = &+place else { ... }` applies when `place` has type `T?` and `place` is writable.
+- The continuing binding has type `&+T`.
+- The readwrite projection follows the normal exclusivity rules of `&+T`.
+- `let name = &+place else { ... }` is not part of v0. Use `var name = &+place else { ... }` for a readwrite projection, or `let name = &place else { ... }` for a readonly projection.
+- `var name = &place else { ... }` is not part of v0 because a readonly projection cannot create a mutable binding.
+- While the projected borrow is live, the source optional place cannot be moved, assigned, reinitialized, or explicitly dropped.
+- The projected borrow carries the provenance of the source optional place.
+- Returning or storing the projected borrow is allowed only when the normal borrow-like provenance and lifetime rules allow it.
+
+`let ... else` is for early exit. When both present and absent cases should continue locally, use `if let` or `if var` instead.
+
+```nct
+if let home = lookup("HOME") {
+    use(home)
+} else {
+    use_default_home()
+}
+```
+
+When absence should become a value, use `??` instead.
+
+```nct
+let home = lookup("HOME") ?? "/tmp"
+```
+
+### Optional Local Branching
 
 Adopted: optional local branching uses `if let` and `if var`.
 

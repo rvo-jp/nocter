@@ -331,7 +331,14 @@ impl Parser<'_> {
 
         self.expect_punctuation("=", "`=`")?;
         let initializer = self.parse_expression()?;
-        let end = initializer.span().end;
+        let else_block = if self.match_keyword(Keyword::Else).is_some() {
+            Some(self.parse_block()?)
+        } else {
+            None
+        };
+        let end = else_block
+            .as_ref()
+            .map_or(initializer.span().end, |block| block.span.end);
 
         Ok(Stmt::Binding(BindingStmt {
             span: self.span(start.span.start, end),
@@ -340,6 +347,7 @@ impl Parser<'_> {
             name_span: name.span,
             ty,
             initializer,
+            else_block,
         }))
     }
 
@@ -788,6 +796,59 @@ program(): i32 {
             panic!("expected binding statement");
         };
         assert!(matches!(binding.initializer, Expr::OptionalDefault(_)));
+    }
+
+    #[test]
+    fn parses_optional_let_else_binding() {
+        let output = parse_text(
+            r#"program(): i32 {
+    let home = lookup("HOME") else {
+        return 1
+    }
+
+    return 0
+}
+"#,
+        );
+
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        let ast = output.ast.unwrap();
+        let Item::Program(program) = &ast.items[0] else {
+            panic!("expected program item");
+        };
+        let Stmt::Binding(binding) = &program.body.statements[0] else {
+            panic!("expected binding statement");
+        };
+
+        assert_eq!(binding.kind, BindingKind::Let);
+        assert!(binding.else_block.is_some());
+        assert!(matches!(binding.initializer, Expr::Call(_)));
+    }
+
+    #[test]
+    fn parses_optional_var_else_binding() {
+        let output = parse_text(
+            r#"program(): i32 {
+    var text = maybe_text else {
+        return 1
+    }
+
+    return 0
+}
+"#,
+        );
+
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        let ast = output.ast.unwrap();
+        let Item::Program(program) = &ast.items[0] else {
+            panic!("expected program item");
+        };
+        let Stmt::Binding(binding) = &program.body.statements[0] else {
+            panic!("expected binding statement");
+        };
+
+        assert_eq!(binding.kind, BindingKind::Var);
+        assert!(binding.else_block.is_some());
     }
 
     #[test]

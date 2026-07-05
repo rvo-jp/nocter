@@ -159,6 +159,8 @@ Rules:
 - `if condition { ... } else { ... }` is a statement.
 - `if let name = optional_expr { ... }` is a statement.
 - `if var name = optional_expr { ... }` is a statement.
+- `let name = optional_expr else { ... }` is a declaration statement.
+- `var name = optional_expr else { ... }` is a declaration statement.
 - `if enum_expr is Pattern { ... }` is a statement.
 - `match enum_expr { ... }` is a statement.
 - `for name in start..<end { ... }` is a statement.
@@ -166,6 +168,7 @@ Rules:
 - `return value` is required to return a value from a function.
 - `fail error` is required to return a failure from a fallible function.
 - `return none` is required to return absence from an optional function, or success absence from a fallible optional function.
+- Optional `let ... else` and `var ... else` declarations must use an `else` block that terminates the current control path.
 - Expression-valued `if`, `match`, and block forms are deferred.
 
 Invalid in the initial design:

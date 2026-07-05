@@ -170,6 +170,7 @@ pub struct BindingStmt {
     pub name_span: ByteSpan,
     pub ty: Option<TypeExpr>,
     pub initializer: Expr,
+    pub else_block: Option<Block>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -405,8 +406,12 @@ impl TypeExpr {
 
 impl Block {
     fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
+        self.to_json_with_kind(sources, "block")
+    }
+
+    fn to_json_with_kind(&self, sources: &SourceMap, kind: &str) -> JsonAstNode {
         JsonAstNode::new(
-            "block",
+            kind,
             json_span(sources, self.span),
             self.statements
                 .iter()
@@ -444,6 +449,9 @@ impl Stmt {
                     children.push(ty.to_json(sources));
                 }
                 children.push(statement.initializer.to_json(sources));
+                if let Some(else_block) = &statement.else_block {
+                    children.push(else_block.to_json_with_kind(sources, "else_block"));
+                }
                 JsonAstNode::with_value(
                     match statement.kind {
                         BindingKind::Let => "let_statement",

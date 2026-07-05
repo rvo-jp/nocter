@@ -280,6 +280,7 @@ Initial grammar coverage:
 - blocks
 - `return`
 - `let` and `var` bindings with initializers
+- `let name = optional else { ... }` and `var name = optional else { ... }`
 - `try expr`
 - `try expr catch name { ... }`
 - call expressions
