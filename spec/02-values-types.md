@@ -63,7 +63,7 @@ Rules:
 - `let` bindings are not writable places.
 - Fields reached through `&T` are not writable places.
 - Index assignment into `WriteView<T>`, arrays, or collections is deferred.
-- Assignment to a borrowed value, or to a place whose parent is borrowed, is an error.
+- Assignment to a place that conflicts with an active borrow is an error. The field-sensitive conflict rules are specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#field-sensitive-borrows).
 - Field assignment overwrites the field. It is not a partial move.
 - For assignment, the right-hand side is evaluated first.
 - If right-hand-side evaluation succeeds, the old value in the target place is dropped and the new value is stored.
@@ -275,7 +275,10 @@ Initial built-in type syntax:
 T?
 T!E
 [T; N]
+(T)
 ```
+
+Parentheses in type syntax group a type without creating a new type. For example, `(&T)?` means an optional readonly borrow, while `&(T?)` means a readonly borrow of an optional value.
 
 Initial built-in literal values:
 
@@ -287,7 +290,7 @@ none
 
 `true` and `false` have type `bool`. `none` is a contextual optional absence literal and requires an expected `T?` type.
 
-Names such as `String`, `StringView`, `View`, `WriteView`, `Allocator`, `File`, `IOError`, `OSError`, `print`, `exit`, and `abort` are not compiler built-ins.
+Names such as `String`, `StringView`, `View`, `WriteView`, `ViewIter`, `Allocator`, `File`, `IOError`, `OSError`, `print`, `exit`, and `abort` are not compiler built-ins.
 
 `Int` is not a compiler built-in name.
 
@@ -322,6 +325,7 @@ Rules:
 - Type aliases are top-level declarations.
 - Type aliases are private by default.
 - `pub type` makes the alias importable and re-exportable.
+- `pub(nocter) type` makes the alias importable only inside the active Nocter home.
 - Generic type aliases are allowed.
 - A type alias has no separate identity from its target type.
 - A type alias does not change ownership, copyability, drop behavior, layout, or ABI.
@@ -362,11 +366,13 @@ impl Int {
 
 Integer literal rules:
 
+- Accepted integer literal syntax is defined in [Lexical Grammar](13-lexical-grammar.md#integer-literals).
 - Integer literals start as untyped integer literals.
 - If an integer literal has an expected integer type, it takes that type when the value fits.
 - If no context fixes the type, the literal becomes `i32`.
 - Assigning an out-of-range literal is a type error.
 - Non-literal integer values are not implicitly converted between integer types.
+- Float literals are not part of v0.
 
 Examples:
 
@@ -374,6 +380,8 @@ Examples:
 let a = 10        // i32
 let b: u64 = 10   // u64
 let c: u8 = 300   // error: literal out of range
+let d = 0xFF_FF   // i32
+let e: u8 = 0b1010
 
 let x: i32 = 10
 let y: u64 = x    // error: no implicit integer conversion

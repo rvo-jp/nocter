@@ -143,9 +143,21 @@ Initial command-line direction:
 
 ```sh
 nocter build app.nct
+nocter build app.nct -o app
+nocter run app.nct
+nocter app.nct
+nocter check app.nct
+nocter check app.nct --format json
+nocter lsp
 nocter build app.nct --target arm64-macos
 nocter build app.nct --target x64-linux
 ```
+
+The command-line contract is specified in [Command Line Interface](15-command-line-interface.md).
+
+`build`, `run`, and `check` each take one root `.nct` file. The compiler follows imports from that root file to form the compile unit; it does not read a package manifest in v0.
+
+`-o path` sets the executable output path. If `-o` is omitted, the initial driver may derive an output path from the root file stem.
 
 If `--target` is omitted, the compiler uses the host target. The initial implementation can emit only `arm64-macos`. Reserved targets may be recognized by name, but they must produce a not-implemented diagnostic until their backend, executable writer, primitive set, and target standard-library overlay are implemented.
 

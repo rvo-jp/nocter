@@ -1,0 +1,216 @@
+# Lexical Grammar
+
+This file is part of the Nocter language specification.
+The specification entry point is [../SPEC.md](../SPEC.md).
+
+## Source Text
+
+Adopted: Nocter v0 source files are UTF-8 text files with explicit, simple lexical rules.
+
+Rules:
+
+- `.nct` files are decoded as UTF-8 before lexing.
+- Invalid UTF-8 is a source diagnostic.
+- LF and CRLF line endings are accepted.
+- CRLF is normalized to LF before lexing.
+- A raw carriage return byte that is not part of CRLF is invalid; use the `\r` escape in literals when a carriage-return byte is intended.
+- Source locations in diagnostics are reported after line-ending normalization.
+
+## Whitespace and Comments
+
+Whitespace separates tokens. It has no meaning beyond token separation and statement separation.
+
+Rules:
+
+- Space, horizontal tab, and newline are whitespace.
+- Indentation has no syntactic meaning.
+- `//` starts a line comment and runs until the next line ending or end of file.
+- `/*` starts a block comment and runs until the next `*/`.
+- Block comments do not nest in v0.
+- Unterminated block comments are lexical errors.
+- Comments are not recognized inside string literals or byte literals.
+- Newlines inside block comments still count as line breaks for diagnostics and statement separation.
+
+Examples:
+
+```nct
+let a = 1 // line comment
+
+/*
+    block comment
+*/
+let b = 2
+```
+
+## Identifiers
+
+Adopted: identifiers are ASCII-only in v0.
+
+Identifier grammar:
+
+```text
+identifier = [A-Za-z_][A-Za-z0-9_]*
+```
+
+Rules:
+
+- Unicode letters are not accepted in identifiers in v0.
+- Reserved keywords are not identifiers.
+- `nocter` is not a reserved keyword except as the contextual visibility scope in `pub(nocter)`.
+- A single `_` is reserved for a future discard or wildcard design and is not a valid binding, declaration, field, variant, type parameter, or import alias name in v0.
+- Identifiers beginning with `_` are otherwise valid.
+
+Module file and directory names use snake_case identifiers:
+
+```text
+file_name
+std/io
+os/macos
+```
+
+Rules:
+
+- Module path segments must use lowercase ASCII letters, digits, and underscores.
+- A module path segment must not start with a digit.
+- A module path segment must not be a reserved keyword.
+- A module path segment must not be `_`.
+
+## Statement Separation
+
+Nocter does not use semicolons in v0.
+
+Rules:
+
+- A newline separates statements where the grammar can end a statement.
+- A closing brace `}` ends the current block or arm.
+- A semicolon is invalid in source code.
+- Multi-line expressions are valid only when the expression syntax clearly continues, such as inside calls, literals, indexes, parenthesized expressions, or before an operator that requires a right operand.
+- Whitespace other than newline is only a token separator.
+
+## Tokenization
+
+The lexer uses longest-match tokenization for multi-character tokens.
+
+Examples of single lexical tokens:
+
+```text
+&+
+??
+..<
+==
+!=
+<=
+>=
+&&
+||
+<<
+>>
++=
+-=
+*=
+/=
+%=
+```
+
+Rules:
+
+- `&+` is one token. It is used for readwrite borrow syntax.
+- `??` is one token. It is used for optional default expressions.
+- `..<` is one token. It is used only in the initial `for name in start..<end` range syntax.
+- `@` is reserved for possible future attribute-like syntax and is invalid in v0 outside string literals, byte literals, and comments.
+- Unary `+expr` is not part of the language even though `+` is a valid additive operator token.
+
+## Integer Literals
+
+Adopted: integer literals support decimal, hexadecimal, binary, and `_` digit separators.
+
+Forms:
+
+```text
+10
+1_000
+0xFF
+0xFF_FF
+0b1010
+0b1010_0101
+```
+
+Rules:
+
+- Decimal integer literals use digits `0` through `9`.
+- Hexadecimal integer literals use the lowercase prefix `0x`.
+- Hexadecimal digits may be `0` through `9`, `a` through `f`, or `A` through `F`.
+- Binary integer literals use the lowercase prefix `0b`.
+- Binary digits may be `0` or `1`.
+- `_` may appear only between two valid digits of the literal's base.
+- `_` must not appear at the start or end of a literal.
+- `_` must not appear immediately after `0x` or `0b`.
+- Adjacent `_` separators are invalid.
+- Integer literals have no type suffix in v0.
+- Negative numbers are parsed as unary `-` applied to an integer literal, not as a negative literal token.
+- Float literals are not part of v0. Syntax such as `1.0`, `.5`, and `1e3` is invalid.
+
+The type rules for integer literals are specified in [Values and Types](02-values-types.md#integer-literals).
+
+## String and Byte Literals
+
+String literals use double quotes:
+
+```nct
+let name = "Nocter"
+```
+
+Byte literals use `b'...'`:
+
+```nct
+let newline: u8 = b'\n'
+let marker: u8 = b'\xFF'
+```
+
+Rules:
+
+- A string literal starts with `"` and ends at the next unescaped `"`.
+- A byte literal starts with `b'` and ends at the next unescaped `'`.
+- No whitespace is allowed between `b` and `'` in a byte literal.
+- Plain single-quoted literals such as `'a'` are invalid in v0.
+- Raw newlines are invalid inside string literals and byte literals.
+- Multi-line string literals are not part of v0.
+- Raw string literals are not part of v0.
+- Unicode escape syntax is not part of v0.
+- Escapes are interpreted by the compiler before literal bytes are placed into the output executable.
+- A string literal must decode to valid UTF-8 after escapes are processed.
+- A byte literal must decode to exactly one byte.
+
+Initial escapes:
+
+```text
+\n      newline, byte 0x0A
+\r      carriage return, byte 0x0D
+\t      horizontal tab, byte 0x09
+\0      NUL, byte 0x00
+\\      backslash
+\"      double quote
+\'      single quote
+\xNN    byte with two hexadecimal digits
+```
+
+In a byte literal, `\xNN` may produce any byte from `0x00` through `0xFF`.
+
+In a string literal, `\xNN` inserts that byte into the literal byte sequence. The final string literal must still be valid UTF-8.
+
+The type and storage rules for string and byte literals are specified in [Strings, Arrays, Views, and Pointers](07-strings-arrays-views-pointers.md#string-and-byte-literals).
+
+## Not Adopted in v0
+
+The following lexical features are intentionally not part of v0:
+
+- Unicode identifiers
+- nested block comments
+- semicolon statement terminators
+- float literals
+- integer type suffixes
+- plain character literals
+- multi-line string literals
+- raw string literals
+- Unicode escape syntax
+- attribute syntax

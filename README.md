@@ -46,11 +46,22 @@ spec/
     09-abi-layout.md
     10-targets-distribution.md
     11-stdlib-primitives-os.md
+    12-diagnostics.md
+    13-lexical-grammar.md
+    14-tooling-editor-integration.md
+    15-command-line-interface.md
 
 src/
     コンパイラ本体の実装
     README.md
         コンパイラ開発者向けの実装設計書
+
+tools/
+    vscode-nocter/
+        VS Code 拡張機能
+        TextMate grammar
+        language configuration
+        future LSP client
 
 .nocter-arm64-macos/
     nocter
@@ -129,9 +140,19 @@ export PATH="$HOME/.nocter:$PATH"
 
 ```sh
 nocter build app.nct
+nocter build app.nct -o app
+nocter run app.nct
+nocter app.nct
+nocter check app.nct
+nocter check app.nct --format json
+nocter lsp
 nocter build app.nct --target arm64-macos
 nocter build app.nct --target x64-linux
 ```
+
+`build` は1つの root `.nct` file を受け取り、`-o path` で出力 executable path を指定します。`run` は一時 Mach-O executable を生成して実行し、終了後に削除します。`nocter app.nct` は quick trial 用の短縮形で、明示形は `nocter run app.nct` です。
+
+RAM-only 実行や JIT 実行は v0 では採用しません。`run` も `build` と同じ parser、type checker、ownership checker、ARM64 code generator、Mach-O writer を通ります。違いは、成果物を project に残すか、一時 executable として実行後に削除するかだけです。
 
 `--target` を省略した場合は、host と同じ target を使います。初期実装で実際に出力できる target は `arm64-macos` のみです。予約済み target を指定した場合は、target 名を認識した上で未実装エラーにします。
 
@@ -169,13 +190,58 @@ pub from std/string import String, StringView
 import std/io as io
 ```
 
-`pub from` は、import した公開名を現在 module の公開 API として再公開します。prelude や façade module で使います。
+`pub from` は、import した公開名を現在 module の公開 API として再公開します。prelude や façade module で使います。`pub(nocter)` の名前は通常公開 API として `pub from` できません。
 
 ワイルドカード import、bare import、namespace alias re-export、absolute path、import path 内の `.nct` 拡張子は初期仕様では採用しません。
 
 `use std/prelude` は明示 prelude です。書いたファイルにだけ効き、import された別ファイルへは伝播しません。暗黙 prelude と project-wide prelude 設定は初期仕様では採用しません。
 
-モジュール内の定義はデフォルトで private です。他モジュールから import できる API には `pub` を付けます。`struct` のフィールドと `impl` 内の関数もデフォルト private です。
+v0 では package manifest と project root discovery を採用しません。compiler に渡した `.nct` が root file です。`program` は root file にだけ書けます。compiler は root file から import graph を辿り、到達した `.nct` ファイル全体を1つの compile unit として name resolution、type checking、ownership checking、code generation します。separate compilation、incremental build、package registry、lockfile、workspace は v0 では扱いません。
+
+```text
+project/
+    app.nct
+    src/
+        config.nct
+        parser.nct
+```
+
+```sh
+nocter build app.nct -o app
+```
+
+```nct
+// app.nct
+use std/prelude
+
+from std/io import print
+from ./src/config import Config
+
+program(): i32 {
+    let config = Config.default()
+    print(config.name)
+    return 0
+}
+```
+
+```nct
+// src/config.nct
+use std/prelude
+
+pub struct Config {
+    pub name: StringView
+}
+
+impl Config {
+    pub func default(): Config {
+        return Config{
+            name: "Nocter",
+        }
+    }
+}
+```
+
+モジュール内の定義はデフォルトで private です。他モジュールから import できる API には `pub` を付けます。Nocter 配布物内部だけに公開する API には `pub(nocter)` を付けます。`struct` のフィールドと `impl` 内の関数もデフォルト private です。
 
 ```nct
 pub struct File {
@@ -188,6 +254,26 @@ impl File {
     }
 }
 ```
+
+```nct
+pub(nocter) primitive from_addr<T>(address: usize): *T
+```
+
+`pub(nocter)` は active Nocter home 内、つまり共通 `std/` と `targets/<target>/std/` の module だけで書けます。公開先も active Nocter home 内だけです。user project からは import できません。`nocter` は `pub(nocter)` の中だけで意味を持つ contextual な scope 名で、通常の予約語ではありません。
+
+v0 では attribute 構文を採用しません。`@inline`、`@repr(...)`、`@target(...)`、`@test`、`@deprecated` のような構文はありません。layout は Nocter ABI v0、target 分岐は `~/.nocter/targets/<target>/std/` の overlay、低レベル境界は active Nocter home 内の typed `primitive`、visibility は `pub` / `pub(nocter)` で表します。`@` は将来の attribute-like syntax 用に予約しますが、v0 の source では string literal、byte literal、comment の外に書けません。
+
+### ソース形式と字句規則
+
+`.nct` source file は UTF-8 とします。改行は LF と CRLF を受け付け、compiler 内部では LF に正規化します。識別子は ASCII の `[A-Za-z_][A-Za-z0-9_]*` に限定し、予約語と単独の `_` は通常名として使えません。module の file / directory name は snake_case identifier にします。
+
+comment は `// line comment` と `/* block comment */` を採用します。block comment の入れ子は v0 では採用しません。
+
+文末セミコロンは採用しません。文は改行または `}` で区切ります。空白は token の区切りにだけ使い、indent に構文上の意味はありません。
+
+整数リテラルは decimal、hex `0xFF`、binary `0b1010` を採用し、桁区切り `_` を `1_000` や `0xFF_FF` のように数字の間で使えます。float literal は v0 では採用しません。
+
+文字列リテラルは `"..."`、byte literal は `b'...'` です。裸の `'...'` は v0 では採用せず、将来の `Char` 設計用に空けます。escape は `\n`、`\r`、`\t`、`\0`、`\\`、`\"`、`\'`、`\xNN` を初期仕様とします。
 
 ### 静的型付け・値中心・モジュール指向
 
@@ -247,6 +333,8 @@ impl File {
 ```
 
 `func` は `File.open(path)` のように型から呼びます。`method` は `file.write(data)` のように値から呼びます。`File.write(&+file, data)` のような UFCS 呼び出しは初期仕様では採用しません。
+
+method lookup は v0 では小さく保ちます。receiver が concrete nominal type の場合は、その型の inherent method だけを探します。trait method は concrete value の extension method としては扱いません。receiver が generic type parameter の場合だけ、明示された `T: Trait` bound の method を呼び出せます。inherent method を優先し、候補が複数になる場合は compile error です。曖昧性を解消するための `Trait.method(value, args)` や `<Type as Trait>` 形式は v0 では採用しません。
 
 関数、associated function、method、primitive の呼び出しは v0 では位置引数のみです。引数は書いた順に parameter へ対応し、個数は完全一致します。各引数は通常の文脈型付け、所有権、move、copy、borrow 規則で parameter 型に適合する必要があります。
 
@@ -319,6 +407,8 @@ trait Writer {
 }
 ```
 
+`impl Trait for Type` は、trait を定義した module または実装対象の nominal type を定義した module でだけ書けます。外部 trait を外部 type へ実装することはできません。同じ trait と type の組み合わせに対する実装は、読み込まれた program 全体で1つだけです。
+
 `enum` は有限個の variant を持つ型です。variant の分岐には `match` を使い、各 arm は `is Pattern { ... }` で書きます。`else` がない enum match は網羅性を要求します。
 
 payload を持たない variant は `Enum.variant`、payload を持つ variant は `Enum.variant(args...)` で作ります。variant constructor は enum 宣言から生まれる構文上の値生成手段であり、通常の関数名や特別な識別子ではありません。unqualified variant constructor は v0 では採用しません。
@@ -373,29 +463,31 @@ func print(msg: string): void {
 標準ライブラリだけは、OS / CPU の低レベル機能へ降りるための型付き `primitive` 宣言を持ちます。任意の ARM64 アセンブリを文字列として書く `asm` は初期仕様では採用しません。
 
 ```nct
-pub copy struct SyscallResult {
+pub(nocter) copy struct SyscallResult {
     pub value: usize
     pub errno: i32
 }
 
-pub primitive syscall3(
+pub(nocter) primitive syscall3(
     number: usize,
     a0: usize,
     a1: usize,
     a2: usize,
 ): SyscallResult
 
-pub primitive trap(): never
-pub primitive unreachable(): never
+pub(nocter) primitive trap(): never
+pub(nocter) primitive unreachable(): never
 ```
 
 `trap()` は target が定める illegal instruction、breakpoint、または同等の復帰不能停止へ下げます。`unreachable()` は到達不能の明示で、到達した場合は trap します。どちらも `never` を返し、stack unwinding は行いません。
 
-`primitive` は高級言語とコンパイラ内蔵の低レベル実装を接続するための境界です。初期仕様では Nocter home の共通 `std/` と active target overlay の `std/` 内だけで宣言できます。一般ユーザーコードは `primitive` を宣言できず、直接呼び出すこともできません。
+`primitive` は高級言語とコンパイラ内蔵の低レベル実装を接続するための境界です。初期仕様では Nocter home の共通 `std/` と active target overlay の `std/` 内だけで宣言できます。一般ユーザーコードは `primitive` を宣言できません。一般ユーザーコードから呼べる primitive は、標準ライブラリが明示的に `pub` で公開した小さな API だけです。target syscall primitive のような低レベル境界は `pub(nocter)` にします。
 
 v0 では `unsafe` keyword、`unsafe` block、`unsafe func` を採用しません。一般ユーザーコードは常に safe Nocter code です。低レベル実装の trusted boundary は active Nocter home 内、つまり共通 `std/` と `targets/<target>/std/` に限定します。trusted module も通常の型チェック、所有権、borrow、drop 検査を受けます。
 
 初期 `arm64-macos` target primitive set v0 は、`syscall0` から `syscall6`、`trap`、`unreachable` だけです。別枠として、target 非依存の `std/ptr` core pointer primitive を持ちます。`print`、`exit`、`abort`、file 操作、allocator、`String`、`Buffer` は primitive にしません。これらは標準ライブラリの通常 API として実装します。
+
+将来の `open_file_raw`、`write_fd_raw`、`mmap_raw` のような typed wrapper も compiler primitive ではなく、target overlay または common std の通常 API として定義します。compiler は OS API 名を特別扱いせず、既存 primitive の module path、名前、正確な signature を検証します。標準ライブラリ機能を増やす通常手段は Nocter code と target overlay であり、compiler primitive の追加ではありません。user project module は v0 でも長期方針でも primitive declaration boundary の外側に置きます。
 
 任意 `asm` ではなく型付き `primitive` に絞る理由は次の通りです。
 
@@ -651,6 +743,13 @@ Nocter のメモリ管理方針は、GC なし、所有権あり、静的検査�
 - 借用中の値は `drop` できない
 - 借用は参照先より長生きできない
 - 初期仕様では lifetime 注釈を採用しない
+- borrow は作成位置から、その borrow-like value の最後の source-level 使用位置まで有効です
+- borrow binding の lexical scope が続いていても、その後に使われないなら borrow はそこで終了できます
+- method receiver borrow は通常 call の間だけ有効ですが、receiver 由来の borrow-like value を返す場合は、その戻り値の最後の使用位置まで有効です
+- `StringView`、`View<T>`、`WriteView<T>`、`ViewIter<T>`、borrow-like value を含む aggregate も同じ live range / provenance check を受けます
+- direct named field については限定的な field-sensitive borrow を行います
+- whole value の borrow は全 field と競合しますが、互いに disjoint な named field 同士は同時に扱えます
+- array index、collection index、`View<T>` element、pointer dereference、method call result、enum payload は v0 では field-sensitive に扱いません
 
 初期化と代入の基本規則:
 
@@ -663,7 +762,7 @@ Nocter のメモリ管理方針は、GC なし、所有権あり、静的検査�
 - v0 の writable place は `var` binding、writable place から到達できる field、`&+T` borrow から到達できる field
 - 再代入では、右辺の評価に成功してから古い値を `drop` し、新しい値を格納する
 - 右辺の `try` が失敗した場合、古い値は置き換えられず、通常の `try` 伝播と scope-end `drop` に従う
-- 借用中の値には再代入できない
+- active borrow と競合する場所には再代入できない
 - 非copy値を既存の値から代入する場合は `move` が必要
 - copy 型は通常の代入で copy する
 - field assignment は partial move ではなく overwrite として扱う
@@ -819,7 +918,7 @@ var user = move old_user
 user.name = move new_name
 ```
 
-`let` binding、`&T` 経由の field、borrow 中の値、その親が borrow 中の field には代入できません。assignment は値を返さないため、`a = b = c` のような chained assignment は v0 では採用しません。
+`let` binding、`&T` 経由の field、active borrow と競合する場所には代入できません。direct named field では disjoint field を区別しますが、whole value の borrow や同じ field の borrow とは競合します。assignment は値を返さないため、`a = b = c` のような chained assignment は v0 では採用しません。
 
 非copy値を別の変数から移す場合は `move` を使います。
 
@@ -962,9 +1061,10 @@ pointer と address の変換は `std/ptr` に置きます。
 pub primitive addr<T>(pointer: *T): usize
 pub primitive from_ref<T>(value: &T): *T
 pub primitive from_ref_mut<T>(value: &+T): *T
+pub(nocter) primitive from_addr<T>(address: usize): *T
 ```
 
-`usize` から pointer を作る `from_addr<T>(address: usize): *T` は、初期仕様では共通 `std/` と active target overlay の trusted module だけが使える制限 API です。一般ユーザーコードからは呼べません。
+`usize` から pointer を作る `from_addr<T>(address: usize): *T` は `pub(nocter)` です。初期仕様では共通 `std/` と active target overlay の trusted module だけが使える制限 API で、一般ユーザーコードからは呼べません。
 
 `View<T>`、`WriteView<T>`、`StringView` は `ptr()` と `len()` を持ちます。標準ライブラリ内の trusted module が syscall に buffer を渡す場合は、`ptr()` で raw pointer を取り、`std/ptr` の `addr(...)` で `usize` へ変換します。一般ユーザーコードは syscall primitive を直接呼べません。
 
@@ -1066,7 +1166,7 @@ View<T>       // readonly contiguous view
 WriteView<T> // readwrite contiguous view
 ```
 
-borrow と view は、コンパイラ内部の hidden provenance を持ちます。provenance は実行時値ではなく、ABI や `ptr + len` layout に影響しません。
+borrow と view は、コンパイラ内部の hidden provenance を持ちます。provenance は実行時値ではなく、ABI や `ptr + len` layout に影響しません。`&T`、`&+T`、`StringView`、`View<T>`、`WriteView<T>`、`ViewIter<T>`、これらを含む aggregate が borrow-like value です。
 
 v0 の provenance source kind:
 
@@ -1111,19 +1211,17 @@ let maybe = read.get(0)  // u8?
 let count = read.len()
 ```
 
-collection 用の操作は標準ライブラリの通常メソッドとして用意します。`len()`、`get()`、`ptr()`、`view()`、`write_view()` は collection / view の基本 API です。将来的に `iter()` / `next()` を用意する場合も、それらは普通のメソッドであり、`for` 構文が名前で特別扱いすることはありません。
+collection 用の操作は標準ライブラリの通常メソッドとして用意します。`len()`、`get()`、`ptr()`、`view()`、`write_view()` は collection / view の基本 API です。v0 の collection iteration は `View<T>` から `ViewIter<T>` を作る readonly borrow iteration です。`iter()`、`next()`、`ViewIter<T>` は普通の標準ライブラリ API であり、`for` 構文が名前で特別扱いすることはありません。
 
 ```nct
 var iter = read.iter()
 
-loop {
-    if let byte = iter.next() {
-        consume(byte)
-    } else {
-        break
-    }
+while let byte = iter.next() {
+    consume(byte)
 }
 ```
+
+`ViewIter<T>.next()` は `(&T)?` を返します。これは optional readonly borrow であり、optional value への borrow ではありません。`WriteView<T>` の mutable element iteration と、collection から要素を move する owned iteration は v0 では採用しません。
 
 ## 型システム
 
@@ -1145,11 +1243,14 @@ never
 T?
 T!E
 [T; N]
+(T)
 ```
 
-`String`、`StringView`、`View<T>`、`WriteView<T>`、`Allocator`、`File`、`IOError`、`print`、`exit`、`abort` は compiler built-in ではありません。
+型構文の括弧はグルーピングだけを行います。例えば `(&T)?` は optional readonly borrow、`&(T?)` は optional value への readonly borrow です。
 
-整数リテラルは文脈型があればその整数型になり、文脈がなければ `i32` になります。
+`String`、`StringView`、`View<T>`、`WriteView<T>`、`ViewIter<T>`、`Allocator`、`File`、`IOError`、`print`、`exit`、`abort` は compiler built-in ではありません。
+
+整数リテラルは decimal、hex `0x...`、binary `0b...` を持ち、桁区切り `_` を使えます。文脈型があればその整数型になり、文脈がなければ `i32` になります。float literal は v0 では採用しません。
 
 ```nct
 let count = 10      // i32
@@ -1172,7 +1273,7 @@ pub type Bytes = View<u8>
 pub type Map<K, V> = HashMap<K, V>
 ```
 
-`type` は top-level 宣言です。通常の定義と同じく private が既定で、公開する場合は `pub type` と書きます。generic alias は許可します。
+`type` は top-level 宣言です。通常の定義と同じく private が既定で、公開する場合は `pub type`、Nocter 配布物内部だけに公開する場合は `pub(nocter) type` と書きます。generic alias は許可します。
 
 ```nct
 let x: Int = 10
@@ -1318,13 +1419,15 @@ func require_home(): StringView? {
 }
 ```
 
+v0 では optional propagation syntax を採用しません。postfix `expr?` はなく、`try` も `T?` には使いません。absence を現在の optional 関数から返す場合は `return none`、present / absent で分岐する場合は `if let` / `if var`、default value を選ぶ場合は `??` を使います。
+
 optional value には default operator `??` を使えます。右結合で、必要な場合だけ右辺を評価します。
 
 ```nct
 let port = env_int("PORT") ?? config.default_port ?? 8080
 ```
 
-`T?` も `match` では分解しません。local に present / absent を分岐したい場合は `if let` / `if var` を使います。
+`T?` も `match` では分解しません。local に present / absent を分岐したい場合は `if let` / `if var` を使います。optional を繰り返し取り出す場合は `while let` / `while var` を使います。
 
 ```nct
 if let home = env("HOME") {
@@ -1341,7 +1444,37 @@ if var text = maybe_text {
 }
 ```
 
+```nct
+var iter = bytes.iter()
+
+while let byte = iter.next() {
+    consume(byte)
+}
+```
+
 `if let` は optional が present の場合に中身を immutable binding として束縛し、`if var` は mutable binding として束縛します。`none` の場合は `else` body を実行します。`else` は省略できます。`else if let` / `else if var` も使えます。`if var` は元の optional へ値を書き戻す構文ではありません。
+
+`if let value = maybe` / `if var value = maybe` は optional value を通常の所有権規則で評価します。move-only optional binding を直接使う場合、元の binding は消費されます。optional を消費せず中身だけ借用したい場合は borrowed optional projection を使います。
+
+```nct
+var maybe_name = get_name()
+
+if let name = &maybe_name {
+    inspect(name) // name: &String
+}
+```
+
+```nct
+var maybe_name = get_name()
+
+if var name = &+maybe_name {
+    name.push("!") // name: &+String
+}
+```
+
+`if let name = &place` は `place: T?` から `name: &T` を作ります。`if var name = &+place` は writable な `place: T?` から `name: &+T` を作ります。どちらも optional 自体を move / copy しません。projection borrow は then body の中だけ有効で、その間 source optional は move、代入、再初期化、明示 `drop` できません。
+
+`while let name = &place` と `while var name = &+place` は v0 では採用しません。borrowed projection は optional を進めたり消費したりしないためです。`ViewIter<T>.next(): (&T)?` のように optional borrow value を返す式は通常の optional として扱えるので、`while let item = iter.next()` は使えます。
 
 bool 条件の値選択には三項条件演算子 `a ? b : c` を使えます。optional default とは別の演算子です。
 
@@ -1394,7 +1527,19 @@ for i in 0..<bytes.len() {
 }
 ```
 
-`start..<end` は `start` 以上 `end` 未満を表します。`start` と `end` は loop 開始前に 1 回だけ評価します。step は常に `+1`、loop 変数は immutable binding です。`for item in collection` は初期仕様では採用しません。collection の走査は `for i in 0..<items.len()` と index、または標準ライブラリの通常メソッド `iter()` / `next()` を明示的に使います。
+`start..<end` は `start` 以上 `end` 未満を表します。`start` と `end` は loop 開始前に 1 回だけ評価します。step は常に `+1`、loop 変数は immutable binding です。
+
+`while let name = expr` と `while var name = expr` は `T?` 専用の optional loop です。`expr` が present の間だけ body を実行し、`none` になったら loop を終了します。`while let name = &place` / `while var name = &+place` の borrowed optional projection は v0 では採用しません。
+
+```nct
+var iter = bytes.iter()
+
+while let byte = iter.next() {
+    consume(byte)
+}
+```
+
+`for item in collection` は初期仕様では採用しません。collection の走査は `for i in 0..<items.len()` と index、または標準ライブラリの通常メソッド `iter()` / `next()` を明示的に使います。
 
 通常復帰しない処理は `never` で表します。`never` は値を持つ型ではなく、呼び出し元へ戻らない制御フローを表す型です。`trap()`、`std/process.abort()`、`std/process.exit(code)`、停止しないイベントループ、到達不能分岐の明示に使います。
 
@@ -1418,7 +1563,7 @@ func require_path(path: StringView?): StringView {
 
 `never` を返す関数を呼んだ後の同一 block 内の文は到達不能です。Nocter は初期仕様で到達不能コードをコンパイルエラーにします。`never` は値を生成しないため、三項条件演算子や `try ... catch` の分岐で必要な型に収まりますが、変数に格納する値としては存在しません。`void` 以外の関数はすべての到達可能経路で値を返すか、`fail` / `return none` / `never` などで経路を終端する必要があります。`never` 呼び出しは例外や stack unwinding ではないため、statement-end temporary drop や caller scope の `drop` 実行を暗黙に保証しません。
 
-ジェネリクスは `<T>` を使います。制約は `T: Trait`、複数制約は `T: A + B` と書きます。
+ジェネリクスは `<T>` を使います。制約は v0 では `T: Trait` だけです。複数制約 `T: A + B`、`where` clause、default type parameter は採用しません。
 
 ```nct
 struct Buffer<T> {
@@ -1454,6 +1599,54 @@ if error is AppError.open_failed(path) {
 
 型推論などの機能は今後検討しますが、初期段階では明示的で単純な型システムを優先します。所有権、借用、破棄規則を型チェックに統合する場合も、実装可能な小さい規則から段階的に導入します。
 
+## 診断方針
+
+Nocter compiler は、型、所有権、borrow、初期化状態、visibility、import、fallible value、primitive 境界のエラーで、原因、対象、修正方向を説明します。
+
+基本形:
+
+```text
+error[E0001]: cannot move `file` while it is borrowed
+  --> app.nct:12:18
+   |
+12 |     close(move file)
+   |                ^^^^ move occurs here
+   |
+note: readonly borrow created here
+  --> app.nct:10:16
+   |
+10 |     inspect(&file)
+   |              ^^^^
+help: end the borrow before moving `file`
+```
+
+v0 では、source-level compiler error に `E0000` 形式の error code を付け、primary span を1つ持たせます。関連する原因箇所がある場合は related span と `note` を出し、修正方向が明確な場合は `help` を出します。parser は最初の構文エラーで止まってよく、型チェック以降は複数の独立エラーを出せますが、cascade error は抑制します。
+
+`pub(nocter)` 違反、borrow 違反、move 後の使用、明示 `drop` 後の使用、maybe initialized binding の使用、fallible error type mismatch、`catch` の fallthrough、`program` の欠落や重複などは専用診断にします。診断文は compiler 内部都合ではなく、Nocter の source-level 概念で説明します。
+
+## エディタ連携
+
+VS Code 拡張機能は初期段階では TextMate grammar による構文ハイライト、comment toggle、bracket matching、auto closing などの薄い表示層として扱います。言語仕様の正は `spec/13-lexical-grammar.md` と各仕様章に置き、拡張機能側で独自の名前解決、型推論、borrow check、import 解決を実装しません。
+
+配置方針:
+
+```text
+tools/
+    vscode-nocter/
+        package.json
+        language-configuration.json
+        syntaxes/
+            nocter.tmLanguage.json
+        snippets/
+            nocter.code-snippets
+        src/
+            extension.ts
+```
+
+中期的には `nocter check app.nct --format json` のような machine-readable diagnostics を compiler が出し、VS Code Problems へ表示できるようにします。JSON stdout は `schema: "nocter.diagnostics"`、`version: 1`、`ok`、`command`、`target`、`root`、`root_absolute_path`、`diagnostics` を持つ単一 object です。各 span は人間向けの `file` と、editor / LSP 用の canonical absolute path である `absolute_path` を持ちます。長期的には `nocter lsp` を提供し、VS Code 拡張機能は LSP client になります。
+
+compiler 内部の source span は UTF-8 byte offset を正とし、CLI 用 JSON では byte offset と UTF-8 byte column を併記します。これは LSP position ではありません。LSP server は client が要求する position encoding に合わせて変換します。VS Code 拡張機能は Nocter の意味解析を再実装せず、`nocter check` または `nocter lsp` の結果を表示します。
+
 ## 実装ロードマップ
 
 現時点の実装順序案です。
@@ -1461,26 +1654,30 @@ if error is AppError.open_failed(path) {
 1. Lexer
 2. Parser
 3. AST
-4. 型チェック
-5. ARM64 命令エンコーダ
-6. Mach-O 生成
-7. `program` のみ実行可能にする
-8. 文字列リテラル配置
-9. `exit`
-10. `primitive`
-11. `print`
-12. `import`
-13. `struct`
-14. `if` / `match`
-15. `while` / `loop` / range `for` / `break` / `continue`
-16. 所有型のコピー禁止
-17. `move`
-18. `drop`
-19. `&T`
-20. `&+T`
-21. allocator
-22. region
-23. 標準ライブラリ拡充
+4. source span と診断基盤
+5. 型チェック
+6. ARM64 命令エンコーダ
+7. Mach-O 生成
+8. `program` のみ実行可能にする
+9. 文字列リテラル配置
+10. `exit`
+11. `primitive`
+12. `print`
+13. `import`
+14. `struct`
+15. `if` / `match`
+16. `while` / `loop` / range `for` / `break` / `continue`
+17. 所有型のコピー禁止
+18. `move`
+19. `drop`
+20. `&T`
+21. `&+T`
+22. allocator
+23. region
+24. 標準ライブラリ拡充
+25. `nocter run app.nct`
+26. `nocter check --format json`
+27. `nocter lsp`
 
 この順序は固定ではありません。ただし、`clang` や `ld` に一時的に逃がして Hello World を早く出すことより、最終設計と矛盾しない経路で進めることを優先します。
 

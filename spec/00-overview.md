@@ -20,7 +20,7 @@ The specification entry point is [../SPEC.md](../SPEC.md).
 
 Nocter is a statically typed, value-centered, module-oriented, low-dependency systems language.
 
-The language avoids giving special meaning to ordinary identifier names. Names such as `self`, `this`, `init`, and `main` are not magic. Special behavior must be represented by syntax, types, attributes, or explicit declarations.
+The language avoids giving special meaning to ordinary identifier names. Names such as `self`, `this`, `init`, and `main` are not magic. Special behavior must be represented by syntax, types, or explicit declarations.
 
 Nocter prioritizes:
 
@@ -86,3 +86,28 @@ Rationale:
 - avoids requiring a general attribute system before the language needs one
 - makes executable source files visually clear
 - keeps the entry point explicit without adding project configuration
+
+## Attributes
+
+Adopted: v0 has no attribute syntax.
+
+Nocter does not use attributes for entry points, layout control, target selection, optimization hints, testing, deprecation, primitive declarations, or trusted-code boundaries in v0.
+
+Not adopted in v0:
+
+```nct
+@inline
+@repr(...)
+@target(...)
+@test
+@deprecated
+```
+
+Rules:
+
+- The `@` character is reserved for possible future attribute-like syntax and is invalid in v0 source outside string literals, byte literals, and comments.
+- Layout is governed by Nocter ABI v0, not by a `repr` attribute.
+- Target-specific code is selected by target overlays under `~/.nocter/targets/<target>/std/`, not by per-item target attributes.
+- Low-level compiler boundaries are expressed by typed `primitive` declarations inside the active Nocter home, not by attributes.
+- Visibility is expressed by `pub` and `pub(nocter)`, not by attributes.
+- Test, inline, deprecation, documentation, export-name, and link-name attributes are not part of v0.

@@ -64,10 +64,10 @@ pub primitive from_ref_mut<T>(value: &+T): *T
 Restricted API:
 
 ```nct
-pub primitive from_addr<T>(address: usize): *T
+pub(nocter) primitive from_addr<T>(address: usize): *T
 ```
 
-`from_addr` is restricted to trusted modules inside the active Nocter home: the common `std/` and the active target overlay `std/`. User project modules must not call it. The declaration is public only so distributed standard-library modules can import it across module boundaries; the compiler enforces the caller restriction.
+`from_addr` is `pub(nocter)`, so it is visible only to trusted modules inside the active Nocter home: the common `std/` and the active target overlay `std/`. User project modules must not call it.
 
 Rules:
 
@@ -217,6 +217,7 @@ Borrow-like values:
 - `StringView`
 - `View<T>`
 - `WriteView<T>`
+- `ViewIter<T>`
 - aggregates containing any borrow-like value
 
 Provenance is compile-time information. It is not stored in the runtime value, does not affect ABI, and does not change the `ptr + len` layout of views.
@@ -300,9 +301,51 @@ Initial collection method direction:
 - `ptr(): *T` for contiguous views
 - `view(): View<T>` for owning collections that can expose readonly contiguous storage
 - `write_view(): WriteView<T>` for owning collections that can expose readwrite contiguous storage
-- `iter()` and `next()` may exist as ordinary standard-library APIs later, but `for` does not call them implicitly
+- readonly borrow iteration through ordinary `iter()` and `next()` methods
 
-The compiler may need built-in knowledge for fixed-size array layout and array literal typing. `Buffer<T>`, `View<T>`, `WriteView<T>`, `get`, `len`, `ptr`, `view`, `write_view`, and any future `iter` / `next` APIs should remain standard-library surface where possible.
+The compiler may need built-in knowledge for fixed-size array layout and array literal typing. `Buffer<T>`, `View<T>`, `WriteView<T>`, `ViewIter<T>`, `get`, `len`, `ptr`, `view`, `write_view`, `iter`, and `next` should remain standard-library surface where possible.
+
+### Iteration
+
+Adopted: v0 collection iteration is explicit readonly borrow iteration through standard-library iterator types.
+
+The compiler does not lower `for item in collection` into calls to `iter` or `next`. The names `iter`, `next`, `ViewIter`, and `into_iter` are not special to the compiler.
+
+Initial `std/view` iterator surface:
+
+```nct
+pub struct ViewIter<T> {
+    ...
+}
+
+impl View<T> {
+    pub method (view: &Self).iter(): ViewIter<T>
+}
+
+impl ViewIter<T> {
+    pub method (iter: &+Self).next(): (&T)?
+}
+```
+
+`View<T>.iter()` returns an iterator over readonly borrows into the viewed storage. `ViewIter<T>.next()` advances the iterator and returns an optional readonly borrow. The result type is written as `(&T)?` to mean "optional borrow"; it is not a borrow of an optional value.
+
+```nct
+var iter = bytes.iter()
+
+while let byte = iter.next() {
+    consume(byte)
+}
+```
+
+Rules:
+
+- `ViewIter<T>` is a standard-library type in `std/view`, not a compiler built-in.
+- `ViewIter<T>` carries the same hidden provenance as the source `View<T>`.
+- The `&T` returned from `next()` carries the same provenance and readonly permission as the source `View<T>`.
+- The iterator must be stored in a `var` binding to call `next()` repeatedly because `next()` requires a `&+Self` receiver.
+- `WriteView<T>` mutable element iteration is not part of v0.
+- Owned iteration that moves elements out of a collection, such as `into_iter()`, is not part of v0.
+- Range `for` remains the only `for` syntax in v0.
 
 ## Strings
 
@@ -381,6 +424,7 @@ Rules:
 - `b'...'` is a byte literal.
 - A byte literal has type `u8`.
 - A byte literal must decode to exactly one byte.
+- Byte literal lexical syntax is specified in [Lexical Grammar](13-lexical-grammar.md#string-and-byte-literals).
 - Plain single-quoted literals such as `'a'` are not part of the initial design.
 - The `char` type remains deferred.
 - Single quote syntax is reserved for a future `Char` or Unicode scalar design.

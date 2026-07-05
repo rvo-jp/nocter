@@ -95,6 +95,70 @@ try (try File.open(path)).write("hello")
 
 The temporary receiver is dropped according to the statement-end temporary rules in [Control Flow](03-control-flow.md#evaluation-order-and-temporaries).
 
+## Borrow Checker v0
+
+Adopted: v0 uses source-level non-lexical borrow ranges.
+
+A borrow is active from the expression that creates it through the last source-level use of the borrow-like value derived from it. The borrow may end before the lexical scope of the borrow binding ends if the binding is not used again.
+
+```nct
+let read = &file
+inspect(read)
+
+let write = &+file // OK: read is not used after inspect(read)
+```
+
+```nct
+let read = &file
+let write = &+file // error: read is used below
+
+inspect(read)
+```
+
+Rules:
+
+- Source-level lifetime annotations are not part of v0.
+- The compiler determines borrow live ranges from actual source uses, not only from lexical scopes.
+- A use includes passing the borrow-like value to a call, method call, field access, index access, return, assignment, initialization, storing it inside an aggregate, or deriving another borrow-like value from it.
+- Scope end of a plain borrow-like value does not by itself extend the borrow, because borrow-like values are non-owning and do not run `drop`.
+- A readonly borrow may overlap with other readonly borrows of the same place.
+- A readwrite borrow must not overlap with any other readonly or readwrite borrow of the same place.
+- `move name`, `drop name`, whole-place assignment, field assignment, and reinitialization are invalid when they conflict with an active borrow.
+- A borrow cannot outlive the storage it refers to.
+- A borrow cannot outlive a region from which its storage was allocated.
+- A borrow or borrow-like value derived from a temporary owned value cannot escape the statement that owns the temporary.
+- Method receiver borrows last only for the call unless the method returns a borrow-like value derived from the receiver.
+- If a method returns a borrow-like value derived from the receiver, the receiver borrow remains active for the returned value's live range.
+- Borrowed optional projections create a borrow only inside the then body, as specified in [Errors and Optionals](04-errors-optionals.md#borrowed-optional-projections).
+- `StringView`, `View<T>`, `WriteView<T>`, `ViewIter<T>`, and aggregates containing borrow-like values participate in the same live-range and provenance checks.
+- Borrow-like return values are governed by [Borrow-like Return Values](#borrow-like-return-values).
+
+### Field-Sensitive Borrows
+
+Adopted: v0 tracks disjoint named struct fields for simple places.
+
+Field-sensitive tracking applies only to direct named field paths whose base is a local binding, parameter binding, or borrow binding that the compiler can resolve statically.
+
+```nct
+var user = User{
+    name: try String.copy(allocator, "alice"),
+    count: 0,
+}
+
+let name = &user.name
+user.count += 1 // OK: count is disjoint from name
+inspect(name)
+```
+
+Rules:
+
+- A borrow of a whole value conflicts with borrows and mutations of any field of that value.
+- A borrow of one named field does not conflict with mutation or borrowing of a disjoint named field.
+- Moving, dropping, reinitializing, or assigning the whole parent value conflicts with any active field borrow.
+- Assigning a field conflicts with active borrows of that same field and active borrows of the whole parent value.
+- Field-sensitive tracking does not apply to array indexes, collection indexes, `View<T>` elements, pointer dereferences, method-call results, enum payloads, or computed projections in v0.
+- If the compiler cannot prove two places are disjoint, it treats them as conflicting.
+
 ## Function Parameters
 
 Adopted: parameters are immutable bindings inside the function body.
@@ -430,6 +494,7 @@ Borrow-like return values include:
 - `StringView`
 - `View<T>`
 - `WriteView<T>`
+- `ViewIter<T>`
 - structs, enums, optionals, fallible values, and arrays containing borrow-like values
 
 The detailed provenance source kinds are specified in [Strings, Arrays, Views, and Pointers](07-strings-arrays-views-pointers.md#borrow-like-provenance).

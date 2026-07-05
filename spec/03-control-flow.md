@@ -195,6 +195,7 @@ Statement separation:
 - A newline separates statements where the grammar can end a statement.
 - A closing brace `}` ends the current block or arm.
 - Multi-line expressions are allowed only where the expression syntax clearly continues, such as inside calls, literals, or parenthesized expressions.
+- The lexical source text and comment rules are specified in [Lexical Grammar](13-lexical-grammar.md).
 
 ## Evaluation Order and Temporaries
 
@@ -291,9 +292,30 @@ loop {
 }
 ```
 
+Optional loop conditions may bind a present optional value:
+
+```nct
+var iter = bytes.iter()
+
+while let byte = iter.next() {
+    consume(byte)
+}
+```
+
 Rules:
 
 - `while condition { ... }` requires `condition` to have type `bool`.
+- `while let name = expr { ... }` applies only when `expr` has type `T?`.
+- `while var name = expr { ... }` applies only when `expr` has type `T?`.
+- If `expr` is present, the contained `T` value is bound to `name` and the loop body runs.
+- If `expr` is `none`, the loop exits normally.
+- `while let` creates an immutable binding scoped to the loop body.
+- `while var` creates a mutable binding scoped to the loop body.
+- `while let` and `while var` do not use `some` / `none` patterns.
+- For move-only `T`, each successful iteration consumes the optional value and moves the contained value into the binding.
+- For copy `T`, the contained value may be copied according to normal copy rules.
+- Borrowed optional projections such as `while let name = &place` and `while var name = &+place` are not part of v0.
+- Optional borrow values such as `(&T)?` are allowed. For example, `while let item = iter.next()` is valid when `next()` returns `(&T)?`.
 - `loop { ... }` is an infinite loop unless exited by `break`, `return`, `fail`, or another terminating control flow.
 - `for name in start..<end { ... }` loops over a half-open integer range.
 - `in` is a reserved keyword used by the `for` header.
@@ -314,12 +336,11 @@ Rules:
 Deferred:
 
 - `for item in expr { ... }`
-- user-defined iteration protocols
 - mutable element iteration over `WriteView<T>`
-- iteration syntax that depends on ordinary names such as `iter` or `next`
+- compiler-lowered iteration syntax that treats ordinary names such as `iter` or `next` specially
 - reverse iteration and custom step syntax
 
-Collection iteration is not part of the initial `for` syntax. The compiler must not lower `for item in items` into calls to methods named `iter` or `next`.
+Collection iteration is not part of the initial `for` syntax. The compiler must not lower `for item in items` into calls to methods named `iter` or `next`. Collection iteration is expressed through ordinary standard-library iterator types and optional loop conditions.
 
 Use range `for` with indexing:
 
@@ -330,17 +351,13 @@ for i in 0..<bytes.len() {
 }
 ```
 
-Or use explicit ordinary methods when a standard-library iterator type exists:
+Or use explicit ordinary methods:
 
 ```nct
 var iter = bytes.iter()
 
-loop {
-    if let byte = iter.next() {
-        consume(byte)
-    } else {
-        break
-    }
+while let byte = iter.next() {
+    consume(byte)
 }
 ```
 

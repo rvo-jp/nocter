@@ -23,12 +23,12 @@ The compiler must not special-case names such as `OSError`, `IOError`, `Errno`, 
 `std/os/macos` owns the raw macOS syscall result and errno wrapper.
 
 ```nct
-pub copy struct SyscallResult {
+pub(nocter) copy struct SyscallResult {
     pub value: usize
     pub errno: i32
 }
 
-pub copy struct Errno {
+pub(nocter) copy struct Errno {
     pub code: i32
 }
 ```
@@ -179,20 +179,20 @@ program(): i32 {
 The standard library may use typed `primitive` declarations to connect Nocter code to compiler-provided low-level implementations. Arbitrary inline ARM64 `asm` is not part of the initial language.
 
 ```nct
-pub copy struct SyscallResult {
+pub(nocter) copy struct SyscallResult {
     pub value: usize
     pub errno: i32
 }
 
-pub primitive syscall3(
+pub(nocter) primitive syscall3(
     number: usize,
     a0: usize,
     a1: usize,
     a2: usize,
 ): SyscallResult
 
-pub primitive trap(): never
-pub primitive unreachable(): never
+pub(nocter) primitive trap(): never
+pub(nocter) primitive unreachable(): never
 ```
 
 `trap()` terminates the current process or thread with a target-defined illegal-instruction, breakpoint, or equivalent non-recoverable stop. It has type `never`, does not return an error, and does not unwind.
@@ -204,15 +204,15 @@ Initial policy:
 - `primitive` declarations are allowed only inside the active Nocter home common `std/` directory or the active target overlay `std/` directory in the initial design.
 - A primitive declaration has no function body.
 - A primitive declaration uses normal Nocter parameter and return types.
-- Primitive calls are allowed only from trusted modules inside the active Nocter home.
-- Primitive calls follow the Nocter ABI after the caller has passed the trusted-boundary restriction.
+- Primitive calls follow normal visibility rules. A `pub` primitive may be called by any module that can import it. A `pub(nocter)` primitive may be called only inside the active Nocter home.
+- Primitive calls follow the Nocter ABI after visibility and trusted-boundary restrictions pass.
 - The compiler validates each primitive declaration against the target-independent core primitive set or the closed primitive set for the active target.
 - The compiler validates primitives by module path, name, and exact signature.
 - An ordinary `func` with the same name as a primitive has no primitive behavior.
 - Standard-library wrappers should expose user-facing APIs such as `exit`, `write`, `alloc`, and `free`.
 - `print`, `exit`, `abort`, file operations, allocators, `String`, and `Buffer` are not primitives in v0.
-- General user code cannot declare primitives in the initial design.
-- General user code cannot call primitives directly in the initial design.
+- General user code cannot declare primitives in v0. The long-term default direction is that user project modules do not declare primitives.
+- General user code can call only the small public primitive APIs intentionally exposed by the standard library, such as safe raw-pointer address conversion. Target syscall primitives are `pub(nocter)`.
 - Arbitrary inline `asm` is not part of the initial language.
 
 ### Trusted Boundary
@@ -232,10 +232,10 @@ Rules:
 - `unsafe` is not a reserved keyword in v0.
 - `trusted` is not a reserved keyword in v0.
 - Modules inside the active Nocter home may contain primitive declarations when those declarations match the closed primitive set.
-- Modules inside the active Nocter home may call primitive declarations.
+- Modules inside the active Nocter home may call `pub(nocter)` primitive declarations.
 - Modules inside the active Nocter home may call restricted low-level APIs such as `std/ptr.from_addr`.
 - User project modules must not declare primitives.
-- User project modules must not call primitive declarations directly.
+- User project modules must not call `pub(nocter)` primitive declarations.
 - User project modules must not call restricted low-level APIs such as `std/ptr.from_addr`.
 - Trusted modules still go through normal parsing, type checking, ownership checking, borrowing rules, and drop checking.
 - Trusted modules should expose ordinary safe APIs to user code, using types such as `File`, `String`, `Buffer<T>`, `OSError`, `IOError`, `Allocator`, `View<T>`, and `WriteView<T>`.
@@ -245,6 +245,7 @@ Initial primitive declaration syntax:
 
 ```text
 pub primitive name(params): ReturnType
+pub(nocter) primitive name(params): ReturnType
 ```
 
 Initial primitive files:
@@ -264,28 +265,28 @@ Initial core pointer primitive set:
 pub primitive addr<T>(pointer: *T): usize
 pub primitive from_ref<T>(value: &T): *T
 pub primitive from_ref_mut<T>(value: &+T): *T
-pub primitive from_addr<T>(address: usize): *T
+pub(nocter) primitive from_addr<T>(address: usize): *T
 ```
 
-`from_addr` is restricted to trusted modules inside the active Nocter home. User project modules must not call it.
+`from_addr` is `pub(nocter)` and therefore restricted to trusted modules inside the active Nocter home. User project modules must not call it.
 
 Initial `arm64-macos` target primitive set v0:
 
 ```nct
-pub copy struct SyscallResult {
+pub(nocter) copy struct SyscallResult {
     pub value: usize
     pub errno: i32
 }
 
-pub primitive syscall0(number: usize): SyscallResult
-pub primitive syscall1(number: usize, a0: usize): SyscallResult
-pub primitive syscall2(number: usize, a0: usize, a1: usize): SyscallResult
-pub primitive syscall3(number: usize, a0: usize, a1: usize, a2: usize): SyscallResult
-pub primitive syscall4(number: usize, a0: usize, a1: usize, a2: usize, a3: usize): SyscallResult
-pub primitive syscall5(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize): SyscallResult
-pub primitive syscall6(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize): SyscallResult
-pub primitive trap(): never
-pub primitive unreachable(): never
+pub(nocter) primitive syscall0(number: usize): SyscallResult
+pub(nocter) primitive syscall1(number: usize, a0: usize): SyscallResult
+pub(nocter) primitive syscall2(number: usize, a0: usize, a1: usize): SyscallResult
+pub(nocter) primitive syscall3(number: usize, a0: usize, a1: usize, a2: usize): SyscallResult
+pub(nocter) primitive syscall4(number: usize, a0: usize, a1: usize, a2: usize, a3: usize): SyscallResult
+pub(nocter) primitive syscall5(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize): SyscallResult
+pub(nocter) primitive syscall6(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize): SyscallResult
+pub(nocter) primitive trap(): never
+pub(nocter) primitive unreachable(): never
 ```
 
 `SyscallResult.errno == 0` means success. `SyscallResult.errno != 0` means the syscall failed with an OS error value. The meaning of `value` is syscall-specific.
@@ -298,7 +299,38 @@ std/os/macos
 
 An ordinary function named `syscall3` elsewhere is not primitive.
 
-`syscall0` through `syscall6` are a bootstrap boundary for the initial macOS standard library. Longer term, target overlays may replace direct syscall exposure with narrower typed wrappers, but those wrappers should remain standard-library APIs unless a concrete compiler primitive is necessary.
+`syscall0` through `syscall6` are a bootstrap boundary for the initial macOS standard library. Longer term, target overlays may replace direct syscall exposure with narrower typed wrappers. Those wrappers are standard-library APIs, not compiler primitives.
+
+### Typed Primitive Wrappers
+
+Adopted: typed wrappers over low-level target operations are standard-library APIs, not compiler primitives.
+
+The closed compiler primitive set stays small. For the initial `arm64-macos` target, the OS primitive boundary is `syscall0` through `syscall6`, `trap`, and `unreachable`; separately, `std/ptr` owns the target-independent core pointer primitive set.
+
+Target overlays may define narrower typed wrappers around those primitives:
+
+```nct
+pub(nocter) func write_fd(fd: FileDescriptor, bytes: View<u8>): void!OSError {
+    ...
+}
+```
+
+User-facing modules then expose safe ordinary APIs:
+
+```nct
+pub method (file: &+File).write(bytes: View<u8>): void!IOError {
+    ...
+}
+```
+
+Rules:
+
+- Adding a file API, process API, allocator API, string API, buffer API, or OS wrapper must not require adding a compiler primitive.
+- Target-specific syscall numbers, raw OS handles, errno-like values, and calling conventions belong in the target overlay, not in the compiler's general language semantics.
+- The compiler validates the existing primitive declarations by module path, name, and exact signature.
+- An ordinary wrapper name such as `open_file_raw`, `write_fd_raw`, `mmap_raw`, or `exit_process` has no compiler-defined behavior.
+- A future compiler primitive may be added only by an explicit language and backend design update, not as the normal way to grow the standard library.
+- User project modules remain outside the primitive declaration boundary. If Nocter later adds an explicit trusted or unsafe extension, it should not make arbitrary user-defined primitive declarations the default extension mechanism.
 
 ## Reserved Keywords
 
@@ -347,18 +379,10 @@ never
 
 `program` is reserved because it is a top-level entry construct, not a normal identifier.
 
+`nocter` is not a reserved keyword. It is recognized only as the contextual visibility scope in `pub(nocter)`.
+
+`@` is reserved for possible future attribute-like syntax, but attributes are not part of v0. A source-level `@` outside string literals, byte literals, or comments is invalid in v0.
+
 ## Open Design Questions
 
-The following areas remain intentionally open:
-
-- exact grammar for generics
-- exact generic parameter grammar beyond simple `T: Trait`
-- full trait method-resolution order and ambiguity diagnostics
-- collection iteration syntax and protocol
-- optional propagation syntax, if any
-- borrowed optional projections for `if let`
-- package layout and multi-file module resolution
-- detailed lifetime inference and borrow-checker diagnostics beyond the adopted core rules
-- whether attributes are needed later
-- future typed primitive wrappers beyond the initial `arm64-macos` syscall bootstrap set
-- whether user-defined primitive declarations can ever exist outside the active Nocter home common `std/` or active target overlay `std/`
+No open design questions are currently listed in this chapter.

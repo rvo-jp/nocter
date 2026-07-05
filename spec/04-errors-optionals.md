@@ -179,11 +179,36 @@ Rules:
 - `return value` in a `T?` function returns the present value.
 - `return none` in a `T?` function returns absence.
 - `try` does not apply to `T?`.
-- Optional propagation is not part of the initial design.
 - `match` does not apply to `T?` in the initial design.
 - `if expr is Pattern` does not apply to `T?` in the initial design.
 - `some(value)` is not part of the initial language.
 - `some` is not a reserved keyword.
+
+### Optional Propagation
+
+Adopted: optional propagation syntax is not part of v0.
+
+Nocter does not provide a postfix `expr?` operator or a `try`-like construct for optional values in v0. Returning absence remains explicit.
+
+```nct
+func require_home(): StringView? {
+    if let home = env("HOME") {
+        return home
+    }
+
+    return none
+}
+```
+
+Rules:
+
+- `try` remains exclusive to fallible `T!E` values.
+- `try optional_value` is invalid.
+- Postfix optional propagation such as `optional_value?` is not part of v0.
+- An optional function must use `return none` to return absence.
+- Present / absent branching uses `if let`, `if var`, `while let`, and `while var`.
+- Defaulting uses `??`.
+- `??` does not propagate absence out of the current function; it selects a fallback value or fallback optional expression.
 
 Adopted: optional local branching uses `if let` and `if var`.
 
@@ -204,8 +229,8 @@ if var text = maybe_text {
 
 Rules:
 
-- `if let name = expr { ... }` applies only when `expr` has type `T?`.
-- `if var name = expr { ... }` applies only when `expr` has type `T?`.
+- `if let name = expr { ... }` applies when `expr` has type `T?`.
+- `if var name = expr { ... }` applies when `expr` has type `T?`.
 - If `expr` is present, the contained `T` value is bound to `name` and the then body runs.
 - `if let` creates an immutable binding.
 - `if var` creates a mutable binding.
@@ -219,9 +244,74 @@ Rules:
 - `if let` and `if var` are statements and do not produce values.
 - `if let` and `if var` do not use `some` / `none` patterns.
 - `if var` does not write changes back into the original optional.
+- Evaluating `expr` follows normal ownership rules. If `expr` moves a move-only optional binding, that source binding becomes uninitialized on all continuing paths.
 - For move-only `T`, `if let` / `if var` consumes the optional value and moves the contained value into the binding.
 - For copy `T`, the contained value may be copied according to normal copy rules.
-- Borrowing behavior for `if let` / `if var` on borrowed optionals is deferred until borrowed optional projections are specified.
+
+### Borrowed Optional Projections
+
+Adopted: `if let` and `if var` can inspect an optional place by borrow without consuming the optional.
+
+```nct
+var maybe_name = get_name()
+
+if let name = &maybe_name {
+    inspect(name) // name: &String
+}
+```
+
+```nct
+var maybe_name = get_name()
+
+if var name = &+maybe_name {
+    name.push("!") // name: &+String
+}
+```
+
+Rules:
+
+- `if let name = &place { ... }` applies when `place` has type `T?`.
+- The then-body binding has type `&T`.
+- The optional value is not moved or copied.
+- If `place` is `none`, no contained borrow is created and the else body runs if present.
+- `if var name = &+place { ... }` applies when `place` has type `T?` and `place` is writable.
+- The then-body binding has type `&+T`.
+- The readwrite projection follows the normal exclusivity rules of `&+T`.
+- `if let name = &+place` is not part of v0. Use `if var name = &+place` for a readwrite projection, or `if let name = &place` for a readonly projection.
+- `if var name = &place` is not part of v0 because a readonly projection cannot create a mutable binding.
+- The projected borrow exists only inside the then body.
+- The binding is not available in `else` or later `else if` branches.
+- While the projected borrow is live, the source optional place cannot be moved, assigned, reinitialized, or explicitly dropped.
+- The projected borrow carries the provenance of the source optional place.
+- Returning or storing the projected borrow is allowed only when the normal borrow-like provenance and lifetime rules allow it.
+- `else if let name = &place { ... }` and `else if var name = &+place { ... }` are allowed by the same rules.
+
+Borrowed optional projections are different from ordinary optional borrow values. If `expr` has type `(&T)?`, then `if let name = expr` is the ordinary optional rule and binds `name: &T`.
+
+Adopted: optional loops use `while let` and `while var`.
+
+```nct
+var iter = bytes.iter()
+
+while let byte = iter.next() {
+    consume(byte)
+}
+```
+
+Rules:
+
+- `while let name = expr { ... }` applies only when `expr` has type `T?`.
+- `while var name = expr { ... }` applies only when `expr` has type `T?`.
+- If `expr` is present, the contained `T` value is bound to `name` and the loop body runs.
+- If `expr` is `none`, the loop exits normally.
+- The binding exists only inside the loop body.
+- `while let` creates an immutable binding.
+- `while var` creates a mutable binding.
+- `while let` and `while var` do not use `some` / `none` patterns.
+- For move-only `T`, each successful iteration consumes the optional value and moves the contained value into the binding.
+- For copy `T`, the contained value may be copied according to normal copy rules.
+- Borrowed optional projections such as `while let name = &place` and `while var name = &+place` are not part of v0 because the projection does not advance or consume the optional.
+- Optional borrow values such as `(&T)?` are allowed. For example, `while let item = iter.next()` is valid when `next()` returns `(&T)?`.
 
 Adopted: optional values support the optional default operator.
 

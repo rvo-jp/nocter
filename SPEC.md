@@ -20,6 +20,10 @@ Its compiler is intended to produce native executables directly, without requiri
 - [ABI and Layout](spec/09-abi-layout.md)
 - [Targets and Distribution](spec/10-targets-distribution.md)
 - [Standard Library, Primitives, and OS](spec/11-stdlib-primitives-os.md)
+- [Diagnostics](spec/12-diagnostics.md)
+- [Lexical Grammar](spec/13-lexical-grammar.md)
+- [Tooling and Editor Integration](spec/14-tooling-editor-integration.md)
+- [Command Line Interface](spec/15-command-line-interface.md)
 
 ## Editing Policy
 

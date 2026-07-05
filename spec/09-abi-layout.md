@@ -219,13 +219,13 @@ Rules:
 `primitive` declarations use Nocter ABI at the Nocter call boundary.
 
 ```nct
-pub primitive syscall3(...): SyscallResult
-pub primitive trap(): never
+pub(nocter) primitive syscall3(...): SyscallResult
+pub(nocter) primitive trap(): never
 ```
 
 Rules:
 
-- After trusted-boundary restrictions have allowed the call, the source-level call to a primitive is type checked like a normal function call.
+- After visibility and trusted-boundary restrictions have allowed the call, the source-level call to a primitive is type checked like a normal function call.
 - The primitive's parameters and return type are lowered using Nocter ABI.
 - The backend then lowers the primitive body to target-specific machine code or target-specific calling sequences.
 - A primitive may internally use OS syscall conventions, but those conventions are not exposed as the source-level ABI.

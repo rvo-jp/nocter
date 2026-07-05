@@ -113,6 +113,7 @@ Rules:
 
 - `pub from` is allowed only at top level.
 - `pub from` can re-export only public names from the source module.
+- `pub(nocter)` names are not public names for `pub from`.
 - Each item in a `pub from` list may independently use `as Alias`.
 - Re-exported names participate in the same name collision checks as other imports and top-level declarations.
 - `pub from path import *` is invalid.
@@ -158,11 +159,75 @@ pub from std/view import View, WriteView
 
 The prelude should remain small. Names such as `File`, `IOError`, `print`, `args`, `exit`, and `abort` should be imported explicitly from their domain modules.
 
+## Package Layout
+
+Adopted: v0 has no package manifest and no project-root discovery.
+
+The source file passed to `build`, `run`, or `check` is the root file for that command.
+
+```text
+project/
+    app.nct
+    src/
+        config.nct
+        parser.nct
+```
+
+```sh
+nocter build app.nct -o app
+nocter run app.nct
+nocter check app.nct
+```
+
+Rules:
+
+- A package manifest such as `nocter.toml` is not part of v0.
+- The compiler does not search upward for a project root.
+- The compiler does not infer a package name from a directory name.
+- The root file is the `.nct` file named on the command line.
+- Project-local imports must be explicit relative imports starting with `./` or `../`.
+- Relative imports are resolved from the directory containing the importing file, not from the root file directory.
+- Non-relative imports are resolved inside the active Nocter home as specified in [Import Path Resolution](#import-path-resolution).
+- Package registries, dependency version solving, lockfiles, workspaces, and package-level configuration are not part of v0.
+
+Example:
+
+```nct
+// app.nct
+use std/prelude
+
+from std/io import print
+from ./src/config import Config
+
+program(): i32 {
+    let config = Config.default()
+    print(config.name)
+    return 0
+}
+```
+
+```nct
+// src/config.nct
+use std/prelude
+
+pub struct Config {
+    pub name: StringView
+}
+
+impl Config {
+    pub func default(): Config {
+        return Config{
+            name: "Nocter",
+        }
+    }
+}
+```
+
 ## Compile Unit
 
-`nocter build app.nct` treats `app.nct` as the root file.
+`nocter build app.nct`, `nocter run app.nct`, and `nocter check app.nct` treat `app.nct` as the root file. The CLI contract is specified in [Command Line Interface](15-command-line-interface.md).
 
-The compile unit is the root file plus every `.nct` file reached by following imports recursively.
+The compile unit is the root file plus every `.nct` file reached by following `from`, `pub from`, `import`, and `use std/prelude` declarations recursively.
 
 Rules:
 
@@ -171,8 +236,61 @@ Rules:
 - A root executable must contain exactly one `program` construct.
 - `program` is allowed only in the root file.
 - Imported files must not define `program`.
-- The same canonical file path is loaded at most once.
+- The same canonical file path is loaded at most once, even if reached through different relative paths.
 - Import cycles are errors in the initial design.
+- The whole compile unit is name-resolved, type-checked, ownership-checked, and lowered as one program.
+- Separate compilation, incremental compilation, cached module artifacts, and link-time composition of multiple Nocter compile units are not part of v0.
+
+## Source File Identity
+
+Adopted: compiler-internal source file identity is the canonical absolute path.
+
+Rules:
+
+- Every loaded source file has a canonical absolute path.
+- Canonicalization resolves `.` and `..` path components.
+- Canonicalization resolves symlinks when the host filesystem can report the real path.
+- The import graph uses canonical absolute paths for duplicate detection.
+- The same canonical absolute path is one source file, even if reached through multiple relative import paths.
+- A symlink path and its real path refer to the same source file when canonicalization resolves them to the same path.
+- Import cycles are detected using canonical absolute paths.
+- Filesystem errors during canonicalization are reported as command-line, filesystem, or import diagnostics depending on which path triggered the failure.
+- The language does not expose canonical file paths to Nocter source code.
+
+Diagnostic display path rules:
+
+- Diagnostics keep both a display path and a canonical absolute path.
+- The display path is intended for humans.
+- The canonical absolute path is intended for editor integrations, LSP document mapping, and compiler de-duplication.
+- If a file is under the command working directory, the display path is relative to that working directory.
+- If a file is under the common Nocter home `std/`, the display path starts with `std/`.
+- If a file is under the active target overlay, the display path starts with `targets/<target>/std/`.
+- Otherwise, the display path is the canonical absolute path.
+- Display paths use `/` as the separator in diagnostics, even on future non-macOS hosts.
+
+Examples:
+
+```text
+cwd:          /Users/me/project
+source file:  /Users/me/project/src/parser.nct
+display:      src/parser.nct
+absolute:     /Users/me/project/src/parser.nct
+```
+
+```text
+Nocter home:  /Users/me/.nocter
+source file:  /Users/me/.nocter/std/io.nct
+display:      std/io.nct
+absolute:     /Users/me/.nocter/std/io.nct
+```
+
+```text
+Nocter home:  /Users/me/.nocter
+target:       arm64-macos
+source file:  /Users/me/.nocter/targets/arm64-macos/std/os/macos.nct
+display:      targets/arm64-macos/std/os/macos.nct
+absolute:     /Users/me/.nocter/targets/arm64-macos/std/os/macos.nct
+```
 
 ## Import Path Resolution
 
@@ -259,7 +377,7 @@ Initial rules:
 
 ## Visibility
 
-Adopted: definitions are private by default. Public API is marked with `pub`.
+Adopted: definitions are private by default. Public API is marked with `pub`. Nocter-distribution-internal API is marked with `pub(nocter)`.
 
 ```nct
 pub struct File {
@@ -281,22 +399,39 @@ pub func stdout(): File {
 }
 ```
 
+```nct
+pub(nocter) primitive from_addr<T>(address: usize): *T
+```
+
 Rules:
 
 - Top-level definitions are private to their module by default.
 - `pub` on a top-level definition makes it importable from other modules.
-- Type aliases are top-level definitions. `type Name = Target` is private by default, and `pub type Name = Target` makes the alias importable and re-exportable.
-- `import` and `pub from` can import only public names from another module.
+- `pub(nocter)` on a top-level definition makes it importable only from modules inside the active Nocter home.
+- The active Nocter home includes the common `std/` and active target overlay `targets/<target>/std/`.
+- `pub(nocter)` is intended for distributed standard-library internals such as restricted pointer APIs and target primitive boundaries.
+- `pub(nocter)` may be written only in modules inside the active Nocter home.
+- `pub(nocter)` is not user-project package visibility.
+- `nocter` is contextual inside the `pub(nocter)` modifier. It is not a globally reserved keyword.
+- Type aliases are top-level definitions. `type Name = Target` is private by default, `pub type Name = Target` makes the alias importable and re-exportable, and `pub(nocter) type Name = Target` makes the alias importable only inside the active Nocter home.
+- `import` can import `pub` names from any module.
+- `import` can import `pub(nocter)` names only when the importing module is inside the active Nocter home.
+- User project modules cannot import `pub(nocter)` names.
+- `pub from` can re-export only `pub` names from the source module as part of the current module's public API.
+- `pub from` cannot re-export `pub(nocter)` names as public API.
 - `pub from` re-exports the imported name as part of the current module's public API.
 - Struct fields are private by default.
 - Public struct fields must be marked with `pub`.
+- `pub(nocter)` struct fields are visible only to modules inside the active Nocter home.
 - Functions and methods inside `impl` blocks are private by default.
 - Public associated functions and methods must be marked with `pub`.
+- Nocter-distribution-internal associated functions and methods may be marked with `pub(nocter)`.
 - `impl` blocks themselves are not marked `pub`.
 - Enum variants follow the visibility of their enum in the initial design.
 - Trait items follow the visibility of their trait in the initial design.
 - There is no `private` keyword in the initial design.
 - There is no standalone `export` declaration in the initial design.
+- `pub(package)`, `pub(crate)`, `pub(std)`, `pub(home)`, and `pub(trusted)` are not part of v0.
 
 Example:
 
@@ -318,7 +453,7 @@ Initial rules:
 
 - One `.nct` file defines one module.
 - The `.nct` extension is removed.
-- File and directory names used for modules must be snake_case identifiers.
+- File and directory names used for modules must be snake_case identifiers as defined by [Lexical Grammar](13-lexical-grammar.md#identifiers).
 - `module` is not a keyword.
 - Initial design does not support `mod.nct` directory modules.
 - Standard library modules live under `std`.

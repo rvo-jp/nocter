@@ -89,23 +89,29 @@ src/
         primitive/
     driver/
     diagnostics/
+    lsp/
 ```
 
 Responsibilities:
 
-- `lexer/`: tokenization for `.nct` source files.
+- `lexer/`: UTF-8 source decoding, CRLF-to-LF normalization, comments, ASCII identifiers, integer/string/byte literals, tokenization for `.nct` source files, and v0 diagnostics for reserved-but-invalid punctuation such as `@`.
 - `parser/`: syntax parsing and parser diagnostics.
 - `ast/`: source-level syntax tree definitions.
-- `resolve/`: imports, path-derived modules, visibility, and name lookup.
-- `typecheck/`: type rules, generics, traits, fallible types, optional types, `never` reachability, ownership checks, region escape checks.
+- `resolve/`: imports, canonical absolute source-file identity, path-derived modules, visibility, and name lookup.
+- `typecheck/`: type rules, generics, traits, fallible types, optional types, `never` reachability, ownership checks, non-lexical borrow live ranges, field-sensitive borrow checks, provenance checks, and region escape checks.
 - `ir/`: optional lower-level compiler representation if direct AST lowering becomes too tangled.
 - `abi/`: Nocter ABI v0 classification, data layout, aggregate layout, call lowering rules, return lowering rules, and drop glue rules.
 - `target/`: target-specific lowering and output.
 - `target/arm64/`: ARM64 instruction selection and binary instruction encoding.
 - `target/macho/`: Mach-O headers, segments, sections, symbols, relocations if needed, and executable layout.
 - `target/primitive/`: lowering and validation for target-independent core primitives and the closed primitive set of the active target.
-- `driver/`: command-line flow, source loading, import root discovery, target registry lookup, active target selection, active target overlay lookup, and common Nocter home `std` lookup.
-- `diagnostics/`: structured errors with source spans.
+- `driver/`: command-line flow for `build`, `run`, `check`, and future `lsp`, root `.nct` file loading, recursive import graph loading, canonical-path module de-duplication, target registry lookup, active target selection, active target overlay lookup, common Nocter home `std` lookup, temporary executable handling for `run`, and stdout/stderr discipline.
+- `diagnostics/`: structured errors with source spans, display paths, canonical absolute paths, human rendering, and the `nocter.diagnostics` JSON envelope for `--format json`.
+- `lsp/`: future language-server entry point that reuses the compiler front end, resolver, type checker, ownership checker, and diagnostics instead of reimplementing language semantics for editors.
+
+The v0 driver should not implement package manifests, project-root discovery, package registries, workspaces, separate compilation, or incremental module artifacts. `nocter build app.nct`, `nocter run app.nct`, and `nocter check app.nct` each receive one root file and operate on the whole reachable compile unit.
+
+Editor tooling should treat the compiler as the source of semantic truth. A VS Code TextMate grammar may provide syntax highlighting, but import resolution, type checking, borrow checking, and diagnostics belong in `nocter check --format json` first and later in `nocter lsp`.
 
 The first standard-library source files are `.nocter-arm64-macos/std/prelude.nct`, `.nocter-arm64-macos/std/string.nct`, `.nocter-arm64-macos/std/view.nct`, `.nocter-arm64-macos/std/mem.nct`, `.nocter-arm64-macos/std/ptr.nct`, `.nocter-arm64-macos/std/os.nct`, `.nocter-arm64-macos/std/io.nct`, `.nocter-arm64-macos/targets/arm64-macos/std/process.nct`, and `.nocter-arm64-macos/targets/arm64-macos/std/os/macos.nct`. They define the explicit prelude, string and view types, initial memory API, core pointer primitive boundary, common OS error model, user-facing I/O errors, macOS process API implementation, and macOS primitive boundary. Future target support should add target overlays without changing ordinary user-facing APIs.
 
@@ -135,6 +141,8 @@ std/os/macos.unreachable
 ```
 
 The compiler should validate primitives by module path, name, and exact signature. `print`, `exit`, file APIs, allocator APIs, `String`, and `Buffer` are standard-library APIs, not compiler primitives.
+
+Future typed wrappers such as raw file, process, allocation, or memory-map helpers should be ordinary Nocter APIs in common `std/` or the active target overlay. The normal implementation path is to grow the standard library on top of the closed primitive set, not to add compiler primitives for each OS operation. User project modules remain outside the primitive declaration boundary.
 
 OS error flow belongs in the standard library:
 
@@ -207,6 +215,9 @@ The implementation should keep the self-contained goal intact from the beginning
 34. primitive lowering for the active target
 35. imports from the active target overlay and common Nocter home `std`
 36. standard-library growth
+37. `nocter run app.nct` using a temporary Mach-O executable and the same code path as `build`
+38. `nocter check --format json` using compiler-owned diagnostics
+39. `nocter lsp` reusing the compiler front end and semantic checks
 
 ## Design Constraints
 

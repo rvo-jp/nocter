@@ -94,6 +94,34 @@ try file.write("hello")          // OK: method call
 try File.write(&+file, "hello")  // error: methods are not UFCS functions
 ```
 
+## Method Lookup
+
+Adopted: method lookup is deliberately small and deterministic in v0.
+
+For `value.method(args)`, the compiler first determines the static type of `value`.
+
+If the receiver has a concrete nominal type, the compiler looks only for inherent methods declared in `impl Type` blocks for that nominal type. Trait methods are not extension methods on concrete values in v0. If a concrete type should support `file.write(...)`, define an inherent `method` on `File`.
+
+If the receiver is a generic type parameter, the compiler looks at the receiver type parameter's explicit trait bound. A method declared by that bound may be called through the generic value.
+
+```nct
+func write_line<W: Writer>(writer: &+W, text: StringView): void!IOError {
+    try writer.write(text)
+    try writer.write("\n")
+    return
+}
+```
+
+Lookup order:
+
+1. inherent method on a concrete nominal receiver type
+2. trait-bound method on a generic type parameter receiver
+3. no candidate, producing a compile error
+
+In v0, the compiler does not search all visible trait implementations to resolve `value.method(args)`. This avoids trait-import-dependent behavior and keeps method calls readable from the receiver type and the generic bounds in the current declaration.
+
+Ambiguity is a compile error. The initial language has no syntax such as `Trait.method(value, args)` or `<Type as Trait>.method(value, args)` to force one candidate.
+
 Initial implementation order:
 
 1. `impl Type { ... }`
@@ -124,6 +152,10 @@ impl Writer for File {
 }
 ```
 
+The `impl Trait for Type` block may contain only the members required by the trait. Extra associated functions or methods belong in an inherent `impl Type` block.
+
+Each required trait method must be implemented exactly once, and its signature must match the trait declaration after substituting `Self` with the implementing type.
+
 Generic functions may use trait bounds.
 
 ```nct
@@ -131,6 +163,43 @@ func print_line<W: Writer>(writer: &+W, text: StringView): void!IOError {
     try writer.write(text)
     try writer.write("\n")
     return
+}
+```
+
+### Trait Implementation Coherence
+
+Adopted: a trait implementation is allowed only where either the trait or the implementing nominal type is defined.
+
+Rules:
+
+- A module may implement a trait for a type if that module defines the trait.
+- A module may implement a trait for a type if that module defines the implementing nominal type.
+- A module may not implement an external trait for an external type.
+- A type alias does not count as defining a new nominal type.
+- Implementing a trait for a borrow, pointer, fixed-size array, function type, or other non-nominal type is not part of v0.
+- There must be at most one implementation for the same resolved trait and implementing nominal type in the whole loaded program.
+- Blanket implementations such as `impl<T: Writer> Debug for T` are not part of v0.
+
+```nct
+// Each block below is a separate module situation, not a set of simultaneous declarations.
+
+// In the module that defines File: OK.
+impl Writer for File {
+    method (file: &+Self).write(text: StringView): void!IOError {
+        ...
+    }
+}
+
+// In the module that defines Writer: OK, even if File is external.
+impl Writer for File {
+    method (file: &+Self).write(text: StringView): void!IOError {
+        ...
+    }
+}
+
+// In a third module that defines neither Writer nor File: error.
+impl Writer for File {
+    ...
 }
 ```
 
@@ -154,11 +223,16 @@ Trait bounds are written inline with `:`.
 func print<T: Format>(value: T): void
 ```
 
-Multiple bounds use `+`.
+Multiple bounds such as `T: Hash + Equal` are not part of v0.
 
-```nct
-func hash_key<K: Hash + Equal>(key: &K): u64
+Generic parameter grammar in v0:
+
+```text
+GenericParameters = "<" GenericParameter ("," GenericParameter)* ">"
+GenericParameter  = Name (":" TraitName)?
 ```
+
+`TraitName` is a resolved trait name imported into the current file. `where` clauses, default type parameters, negative bounds, and bound expressions are not part of v0.
 
 Generic implementation uses monomorphization. Each concrete instantiation is compiled as concrete code.
 
@@ -175,11 +249,11 @@ Initial generic scope:
 - type parameters on functions
 - type parameters on impl blocks where needed
 - inline trait bounds in the form `T: Trait`
-- multiple bounds in the form `T: A + B`
 - compile-time monomorphization
 
 Deferred generic features:
 
+- multiple bounds such as `T: A + B`
 - full `where` clauses
 - higher-kinded types
 - generic associated types
