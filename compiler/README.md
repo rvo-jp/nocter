@@ -74,13 +74,20 @@ rustup toolchain install stable
 rustup default stable
 rustc --version
 cargo --version
-cd compiler
-cargo test
+./compiler/scripts/verify.sh
 ```
 
 Nightly Rust is not part of the initial plan. `compiler/rust-toolchain.toml` pins the compiler implementation to the stable toolchain and installs `rustfmt` and `clippy` for local quality checks.
 
 If Rust is not installed, language design, specification editing, and `.nct` standard-library design can continue. Rust compilation, `cargo test`, `compiler/Cargo.lock` generation, and `.nocter/nocter` binary generation require Rust and Cargo.
+
+Standard verification from the repository root:
+
+```sh
+./compiler/scripts/verify.sh
+```
+
+The script runs `cargo check`, `cargo test`, `cargo fmt --check`, and `cargo clippy --all-targets -- -D warnings` inside `compiler/`.
 
 Crate policy:
 
