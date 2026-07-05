@@ -323,16 +323,20 @@ Current semantic coverage:
 - direct calls to same-file functions are resolved and checked for argument count
 - direct calls to same-file functions check argument types when both expected and actual types are known
 - primitive return type checking for `i32`, `void`, `never`, `StringView`, `T?`, and the success side of `T ! E`
+- local binding types are tracked inside a callable when they come from literals, annotations, parameters, known direct calls, `try`, `try ... catch`, `??`, or optional `let ... else`
 - integer literals have type `i32` in v0 checking
 - string literals have type `StringView` in v0 checking
 - same-file function call expressions use the callee return type
 - `try` and `try ... catch` expressions unwrap the success side of known `T ! E` expressions
+- `let ... else` and `var ... else` require a known `T?` initializer when the initializer type is known
+- `let ... else` and `var ... else` expose the contained `T` type on the continuing path
+- `let ... else` and `var ... else` require an `else` block that terminates; parser/check v0 currently recognizes `return` as the terminating form
 - `try` without `catch` is diagnosed when used in a non-fallible current callable or with a mismatched known error type
 - `return` expression type must match the declared success return type when both sides are known
 - bare `return` is valid only for `void` success returns
 - non-`void` functions and `program(): i32` must not fall through without an explicit return
 
-The current `check` implementation does not load non-relative imports from Nocter home, resolve imported types or non-function declarations in other files, infer local binding types beyond literal expressions and known function calls, validate method or associated function calls, check ownership, select a target, or lower code. Unknown expression types are not diagnosed until import resolution and full type checking exist.
+The current `check` implementation does not load non-relative imports from Nocter home, resolve imported types or non-function declarations in other files, validate method or associated function calls, perform full block control-flow analysis beyond last-statement `return`, check ownership, select a target, or lower code. Unknown expression types are not diagnosed until import resolution and full type checking exist.
 
 `nocter check app.nct --format json` runs:
 

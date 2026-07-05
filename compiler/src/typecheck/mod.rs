@@ -1,11 +1,13 @@
 //! Type checking, ownership, borrowing, move, and drop checks.
 
 use crate::ast::{
-    AstFile, Block, CallExpr, Expr, FunctionDecl, Item, ProgramDecl, ReturnStmt, Stmt, TypeExpr,
+    AstFile, BindingKind, BindingStmt, Block, CallExpr, Expr, FunctionDecl, Item, Parameter,
+    ProgramDecl, ReturnStmt, Stmt, TypeExpr,
 };
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
 use crate::resolve::{FunctionSignature, ParameterSignature, ResolveOutput};
 use crate::source::{ByteSpan, SourceMap};
+use std::collections::HashMap;
 
 pub fn check(sources: &SourceMap, ast: &AstFile, resolved: &ResolveOutput) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
@@ -78,7 +80,15 @@ fn check_return_types(
                     type_expr_to_type(&program.return_type),
                     program.return_type.span(),
                 );
-                check_block_returns(sources, &program.body, &context, resolved, diagnostics);
+                let mut environment = TypeEnvironment::default();
+                check_block_returns(
+                    sources,
+                    &program.body,
+                    &context,
+                    resolved,
+                    diagnostics,
+                    &mut environment,
+                );
             }
             Item::Function(function) => {
                 let context = ReturnContext::new(
@@ -86,7 +96,15 @@ fn check_return_types(
                     type_expr_to_type(&function.return_type),
                     function.return_type.span(),
                 );
-                check_block_returns(sources, &function.body, &context, resolved, diagnostics);
+                let mut environment = environment_for_parameters(&function.parameters.parameters);
+                check_block_returns(
+                    sources,
+                    &function.body,
+                    &context,
+                    resolved,
+                    diagnostics,
+                    &mut environment,
+                );
             }
             _ => {}
         }
@@ -99,13 +117,32 @@ fn check_block_returns(
     context: &ReturnContext,
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
+    environment: &mut TypeEnvironment,
 ) {
-    for statement in &block.statements {
-        check_statement_returns(sources, statement, context, resolved, diagnostics);
-    }
+    check_block_return_statements(sources, block, context, resolved, diagnostics, environment);
 
     if context.requires_explicit_return() && !block_guarantees_return(block) {
         diagnostics.push(missing_return_diagnostic(sources, block.span, context));
+    }
+}
+
+fn check_block_return_statements(
+    sources: &SourceMap,
+    block: &Block,
+    context: &ReturnContext,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+    environment: &mut TypeEnvironment,
+) {
+    for statement in &block.statements {
+        check_statement_returns(
+            sources,
+            statement,
+            context,
+            resolved,
+            diagnostics,
+            environment,
+        );
     }
 }
 
@@ -115,6 +152,7 @@ fn check_statement_returns(
     context: &ReturnContext,
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
+    environment: &mut TypeEnvironment,
 ) {
     match statement {
         Stmt::Return(statement) => {
@@ -125,9 +163,17 @@ fn check_statement_returns(
                     context,
                     resolved,
                     diagnostics,
+                    environment,
                 );
             }
-            check_return_statement(sources, statement, context, resolved, diagnostics);
+            check_return_statement(
+                sources,
+                statement,
+                context,
+                resolved,
+                diagnostics,
+                environment,
+            );
         }
         Stmt::Binding(statement) => {
             check_expression_for_nested_returns(
@@ -136,10 +182,28 @@ fn check_statement_returns(
                 context,
                 resolved,
                 diagnostics,
+                environment,
             );
+            let initializer_type = expression_type(&statement.initializer, resolved, environment);
             if let Some(else_block) = &statement.else_block {
-                check_block_returns(sources, else_block, context, resolved, diagnostics);
+                check_optional_let_else_statement(
+                    sources,
+                    statement,
+                    &initializer_type,
+                    diagnostics,
+                );
+                let mut else_environment = environment.clone();
+                check_block_return_statements(
+                    sources,
+                    else_block,
+                    context,
+                    resolved,
+                    diagnostics,
+                    &mut else_environment,
+                );
             }
+            let binding_type = continuing_binding_type(statement, initializer_type);
+            environment.define(statement.name.clone(), binding_type);
         }
         Stmt::Try(statement) => {
             check_try_propagation(
@@ -149,6 +213,7 @@ fn check_statement_returns(
                 context,
                 resolved,
                 diagnostics,
+                environment,
             );
             check_expression_for_nested_returns(
                 sources,
@@ -156,6 +221,7 @@ fn check_statement_returns(
                 context,
                 resolved,
                 diagnostics,
+                environment,
             );
         }
         Stmt::TryCatch(statement) => {
@@ -164,6 +230,7 @@ fn check_statement_returns(
                 statement.span,
                 &statement.expression,
                 resolved,
+                environment,
                 diagnostics,
             );
             check_expression_for_nested_returns(
@@ -172,10 +239,22 @@ fn check_statement_returns(
                 context,
                 resolved,
                 diagnostics,
+                environment,
             );
-            for catch_statement in &statement.catch_block.statements {
-                check_statement_returns(sources, catch_statement, context, resolved, diagnostics);
-            }
+            let mut catch_environment = environment_for_catch(
+                statement.error_name.clone(),
+                &statement.expression,
+                resolved,
+                environment,
+            );
+            check_block_return_statements(
+                sources,
+                &statement.catch_block,
+                context,
+                resolved,
+                diagnostics,
+                &mut catch_environment,
+            );
         }
         Stmt::Expression(statement) => {
             check_expression_for_nested_returns(
@@ -184,6 +263,7 @@ fn check_statement_returns(
                 context,
                 resolved,
                 diagnostics,
+                environment,
             );
         }
     }
@@ -195,6 +275,7 @@ fn check_expression_for_nested_returns(
     context: &ReturnContext,
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
+    environment: &mut TypeEnvironment,
 ) {
     match expression {
         Expr::Try(expression) => {
@@ -205,6 +286,7 @@ fn check_expression_for_nested_returns(
                 context,
                 resolved,
                 diagnostics,
+                environment,
             );
             check_expression_for_nested_returns(
                 sources,
@@ -212,6 +294,7 @@ fn check_expression_for_nested_returns(
                 context,
                 resolved,
                 diagnostics,
+                environment,
             );
         }
         Expr::TryCatch(expression) => {
@@ -220,6 +303,7 @@ fn check_expression_for_nested_returns(
                 expression.span,
                 &expression.expression,
                 resolved,
+                environment,
                 diagnostics,
             );
             check_expression_for_nested_returns(
@@ -228,10 +312,22 @@ fn check_expression_for_nested_returns(
                 context,
                 resolved,
                 diagnostics,
+                environment,
             );
-            for statement in &expression.catch_block.statements {
-                check_statement_returns(sources, statement, context, resolved, diagnostics);
-            }
+            let mut catch_environment = environment_for_catch(
+                expression.error_name.clone(),
+                &expression.expression,
+                resolved,
+                environment,
+            );
+            check_block_return_statements(
+                sources,
+                &expression.catch_block,
+                context,
+                resolved,
+                diagnostics,
+                &mut catch_environment,
+            );
         }
         Expr::Call(expression) => {
             check_expression_for_nested_returns(
@@ -240,6 +336,7 @@ fn check_expression_for_nested_returns(
                 context,
                 resolved,
                 diagnostics,
+                environment,
             );
             for argument in &expression.arguments {
                 check_expression_for_nested_returns(
@@ -248,6 +345,7 @@ fn check_expression_for_nested_returns(
                     context,
                     resolved,
                     diagnostics,
+                    environment,
                 );
             }
         }
@@ -258,6 +356,7 @@ fn check_expression_for_nested_returns(
                 context,
                 resolved,
                 diagnostics,
+                environment,
             );
         }
         Expr::Group(expression) => {
@@ -267,6 +366,7 @@ fn check_expression_for_nested_returns(
                 context,
                 resolved,
                 diagnostics,
+                environment,
             );
         }
         Expr::OptionalDefault(expression) => {
@@ -276,6 +376,7 @@ fn check_expression_for_nested_returns(
                 context,
                 resolved,
                 diagnostics,
+                environment,
             );
             check_expression_for_nested_returns(
                 sources,
@@ -283,6 +384,7 @@ fn check_expression_for_nested_returns(
                 context,
                 resolved,
                 diagnostics,
+                environment,
             );
         }
         Expr::Identifier(_)
@@ -298,6 +400,7 @@ fn check_return_statement(
     context: &ReturnContext,
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
+    environment: &TypeEnvironment,
 ) {
     let expected = context.success_type();
 
@@ -311,7 +414,7 @@ fn check_return_statement(
             ));
         }
         (Some(expression), expected) => {
-            let actual = expression_type(expression, resolved);
+            let actual = expression_type(expression, resolved, environment);
             if actual.is_unknown() || expected.is_unknown_or_unresolved() {
                 return;
             }
@@ -334,10 +437,24 @@ fn check_call_expressions(
     for item in &ast.items {
         match item {
             Item::Program(program) => {
-                check_block_calls(sources, &program.body, resolved, diagnostics);
+                let mut environment = TypeEnvironment::default();
+                check_block_calls(
+                    sources,
+                    &program.body,
+                    resolved,
+                    diagnostics,
+                    &mut environment,
+                );
             }
             Item::Function(function) => {
-                check_block_calls(sources, &function.body, resolved, diagnostics);
+                let mut environment = environment_for_parameters(&function.parameters.parameters);
+                check_block_calls(
+                    sources,
+                    &function.body,
+                    resolved,
+                    diagnostics,
+                    &mut environment,
+                );
             }
             Item::Use(_) | Item::FromImport(_) => {}
         }
@@ -349,9 +466,10 @@ fn check_block_calls(
     block: &Block,
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
+    environment: &mut TypeEnvironment,
 ) {
     for statement in &block.statements {
-        check_statement_calls(sources, statement, resolved, diagnostics);
+        check_statement_calls(sources, statement, resolved, diagnostics, environment);
     }
 }
 
@@ -360,28 +478,75 @@ fn check_statement_calls(
     statement: &Stmt,
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
+    environment: &mut TypeEnvironment,
 ) {
     match statement {
         Stmt::Return(statement) => {
             if let Some(expression) = &statement.expression {
-                check_expression_calls(sources, expression, resolved, diagnostics);
+                check_expression_calls(sources, expression, resolved, diagnostics, environment);
             }
         }
         Stmt::Binding(statement) => {
-            check_expression_calls(sources, &statement.initializer, resolved, diagnostics);
+            check_expression_calls(
+                sources,
+                &statement.initializer,
+                resolved,
+                diagnostics,
+                environment,
+            );
+            let initializer_type = expression_type(&statement.initializer, resolved, environment);
             if let Some(else_block) = &statement.else_block {
-                check_block_calls(sources, else_block, resolved, diagnostics);
+                let mut else_environment = environment.clone();
+                check_block_calls(
+                    sources,
+                    else_block,
+                    resolved,
+                    diagnostics,
+                    &mut else_environment,
+                );
             }
+            let binding_type = continuing_binding_type(statement, initializer_type);
+            environment.define(statement.name.clone(), binding_type);
         }
         Stmt::Try(statement) => {
-            check_expression_calls(sources, &statement.expression, resolved, diagnostics);
+            check_expression_calls(
+                sources,
+                &statement.expression,
+                resolved,
+                diagnostics,
+                environment,
+            );
         }
         Stmt::TryCatch(statement) => {
-            check_expression_calls(sources, &statement.expression, resolved, diagnostics);
-            check_block_calls(sources, &statement.catch_block, resolved, diagnostics);
+            check_expression_calls(
+                sources,
+                &statement.expression,
+                resolved,
+                diagnostics,
+                environment,
+            );
+            let mut catch_environment = environment_for_catch(
+                statement.error_name.clone(),
+                &statement.expression,
+                resolved,
+                environment,
+            );
+            check_block_calls(
+                sources,
+                &statement.catch_block,
+                resolved,
+                diagnostics,
+                &mut catch_environment,
+            );
         }
         Stmt::Expression(statement) => {
-            check_expression_calls(sources, &statement.expression, resolved, diagnostics);
+            check_expression_calls(
+                sources,
+                &statement.expression,
+                resolved,
+                diagnostics,
+                environment,
+            );
         }
     }
 }
@@ -391,34 +556,96 @@ fn check_expression_calls(
     expression: &Expr,
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
+    environment: &mut TypeEnvironment,
 ) {
     match expression {
         Expr::Try(expression) => {
-            check_expression_calls(sources, &expression.expression, resolved, diagnostics);
+            check_expression_calls(
+                sources,
+                &expression.expression,
+                resolved,
+                diagnostics,
+                environment,
+            );
         }
         Expr::TryCatch(expression) => {
-            check_expression_calls(sources, &expression.expression, resolved, diagnostics);
-            check_block_calls(sources, &expression.catch_block, resolved, diagnostics);
+            check_expression_calls(
+                sources,
+                &expression.expression,
+                resolved,
+                diagnostics,
+                environment,
+            );
+            let mut catch_environment = environment_for_catch(
+                expression.error_name.clone(),
+                &expression.expression,
+                resolved,
+                environment,
+            );
+            check_block_calls(
+                sources,
+                &expression.catch_block,
+                resolved,
+                diagnostics,
+                &mut catch_environment,
+            );
         }
         Expr::Call(expression) => {
-            check_expression_calls(sources, &expression.callee, resolved, diagnostics);
+            check_expression_calls(
+                sources,
+                &expression.callee,
+                resolved,
+                diagnostics,
+                environment,
+            );
             for argument in &expression.arguments {
-                check_expression_calls(sources, argument, resolved, diagnostics);
+                check_expression_calls(sources, argument, resolved, diagnostics, environment);
             }
 
             if let Some(signature) = resolved.function_signature_for_call(expression) {
-                check_known_function_call(sources, expression, signature, resolved, diagnostics);
+                check_known_function_call(
+                    sources,
+                    expression,
+                    signature,
+                    resolved,
+                    diagnostics,
+                    environment,
+                );
             }
         }
         Expr::Member(expression) => {
-            check_expression_calls(sources, &expression.object, resolved, diagnostics);
+            check_expression_calls(
+                sources,
+                &expression.object,
+                resolved,
+                diagnostics,
+                environment,
+            );
         }
         Expr::Group(expression) => {
-            check_expression_calls(sources, &expression.expression, resolved, diagnostics);
+            check_expression_calls(
+                sources,
+                &expression.expression,
+                resolved,
+                diagnostics,
+                environment,
+            );
         }
         Expr::OptionalDefault(expression) => {
-            check_expression_calls(sources, &expression.value, resolved, diagnostics);
-            check_expression_calls(sources, &expression.default, resolved, diagnostics);
+            check_expression_calls(
+                sources,
+                &expression.value,
+                resolved,
+                diagnostics,
+                environment,
+            );
+            check_expression_calls(
+                sources,
+                &expression.default,
+                resolved,
+                diagnostics,
+                environment,
+            );
         }
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
@@ -433,6 +660,7 @@ fn check_known_function_call(
     signature: &FunctionSignature,
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
+    environment: &TypeEnvironment,
 ) {
     if call.arguments.len() != signature.parameters.len() {
         diagnostics.push(argument_count_mismatch_diagnostic(
@@ -452,7 +680,7 @@ fn check_known_function_call(
         .enumerate()
     {
         let expected = type_expr_to_type(&parameter.ty);
-        let actual = expression_type(argument, resolved);
+        let actual = expression_type(argument, resolved, environment);
         if actual.is_unknown() || expected.is_unknown_or_unresolved() {
             continue;
         }
@@ -476,6 +704,86 @@ fn statement_guarantees_return(statement: &Stmt) -> bool {
     matches!(statement, Stmt::Return(_))
 }
 
+fn environment_for_parameters(parameters: &[Parameter]) -> TypeEnvironment {
+    let mut environment = TypeEnvironment::default();
+    for parameter in parameters {
+        environment.define(parameter.name.clone(), type_expr_to_type(&parameter.ty));
+    }
+    environment
+}
+
+fn environment_for_catch(
+    error_name: String,
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> TypeEnvironment {
+    let mut catch_environment = environment.clone();
+    let error_type = match expression_type(expression, resolved, environment) {
+        Type::Fallible { error, .. } => *error,
+        _ => Type::Unknown,
+    };
+    catch_environment.define(error_name, error_type);
+    catch_environment
+}
+
+fn check_optional_let_else_statement(
+    sources: &SourceMap,
+    statement: &BindingStmt,
+    initializer_type: &Type,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !initializer_type.is_unknown() && !matches!(initializer_type, Type::Optional(_)) {
+        diagnostics.push(optional_let_else_non_optional_diagnostic(
+            sources,
+            statement,
+            initializer_type,
+        ));
+    }
+
+    if let Some(else_block) = &statement.else_block
+        && !block_guarantees_return(else_block)
+    {
+        diagnostics.push(optional_let_else_fallthrough_diagnostic(
+            sources, statement, else_block,
+        ));
+    }
+}
+
+fn continuing_binding_type(statement: &BindingStmt, initializer_type: Type) -> Type {
+    let inferred = if statement.else_block.is_some() {
+        match initializer_type {
+            Type::Optional(inner) => *inner,
+            Type::Unknown => Type::Unknown,
+            _ => Type::Unknown,
+        }
+    } else {
+        initializer_type
+    };
+
+    if inferred.is_unknown() {
+        statement
+            .ty
+            .as_ref()
+            .map(type_expr_to_type)
+            .unwrap_or(Type::Unknown)
+    } else {
+        inferred
+    }
+}
+
+fn optional_default_type(value_type: Type, default_type: Type) -> Type {
+    let Type::Optional(inner) = value_type else {
+        return default_type;
+    };
+
+    if default_type.is_unknown() || is_assignable(&inner, &default_type) {
+        *inner
+    } else {
+        default_type
+    }
+}
+
 fn type_expr_to_type(ty: &TypeExpr) -> Type {
     match ty {
         TypeExpr::Reference(reference) => match reference.name.as_str() {
@@ -493,24 +801,36 @@ fn type_expr_to_type(ty: &TypeExpr) -> Type {
     }
 }
 
-fn expression_type(expression: &Expr, resolved: &ResolveOutput) -> Type {
+fn expression_type(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Type {
     match expression {
         Expr::IntegerLiteral(_) => Type::I32,
         Expr::StringLiteral(_) => Type::StringView,
         Expr::NoneLiteral(_) => Type::None,
         Expr::Try(expression) => {
-            expression_type(&expression.expression, resolved).into_success_type()
+            expression_type(&expression.expression, resolved, environment).into_success_type()
         }
         Expr::TryCatch(expression) => {
-            expression_type(&expression.expression, resolved).into_success_type()
+            expression_type(&expression.expression, resolved, environment).into_success_type()
         }
         Expr::Call(expression) => resolved
             .function_signature_for_call(expression)
             .map(|signature| type_expr_to_type(&signature.return_type))
             .unwrap_or(Type::Unknown),
-        Expr::Group(expression) => expression_type(&expression.expression, resolved),
-        Expr::OptionalDefault(expression) => expression_type(&expression.default, resolved),
-        Expr::Identifier(_) | Expr::Member(_) => Type::Unknown,
+        Expr::Group(expression) => expression_type(&expression.expression, resolved, environment),
+        Expr::OptionalDefault(expression) => {
+            let value_type = expression_type(&expression.value, resolved, environment);
+            let default_type = expression_type(&expression.default, resolved, environment);
+            optional_default_type(value_type, default_type)
+        }
+        Expr::Identifier(expression) => environment
+            .get(&expression.name)
+            .cloned()
+            .unwrap_or(Type::Unknown),
+        Expr::Member(_) => Type::Unknown,
     }
 }
 
@@ -521,8 +841,9 @@ fn check_try_propagation(
     context: &ReturnContext,
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
+    environment: &TypeEnvironment,
 ) {
-    let attempted = expression_type(expression, resolved);
+    let attempted = expression_type(expression, resolved, environment);
     let Type::Fallible {
         error: attempted_error,
         ..
@@ -566,9 +887,10 @@ fn check_try_catch_operand(
     try_span: ByteSpan,
     expression: &Expr,
     resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let attempted = expression_type(expression, resolved);
+    let attempted = expression_type(expression, resolved, environment);
     if attempted.is_unknown() || matches!(attempted, Type::Fallible { .. }) {
         return;
     }
@@ -643,6 +965,21 @@ impl Type {
             Type::Fallible { success, .. } => *success,
             _ => self,
         }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+struct TypeEnvironment {
+    bindings: HashMap<String, Type>,
+}
+
+impl TypeEnvironment {
+    fn define(&mut self, name: String, ty: Type) {
+        self.bindings.insert(name, ty);
+    }
+
+    fn get(&self, name: &str) -> Option<&Type> {
+        self.bindings.get(name)
     }
 }
 
@@ -951,6 +1288,54 @@ fn try_error_type_mismatch_diagnostic(
     diagnostic
 }
 
+fn optional_let_else_non_optional_diagnostic(
+    sources: &SourceMap,
+    statement: &BindingStmt,
+    actual: &Type,
+) -> Diagnostic {
+    let keyword = binding_keyword(statement.kind);
+    let mut diagnostic = Diagnostic::error(
+        "E0340",
+        format!(
+            "`{keyword} ... else` requires an optional initializer, but the initializer has type `{}`",
+            actual.display()
+        ),
+    );
+    diagnostic.primary_span = sources
+        .span_to_json(statement.initializer.span())
+        .ok()
+        .map(Box::new);
+    diagnostic.help = Some(format!(
+        "remove `else`, or use an initializer whose type is `T?` for `{keyword} ... else`"
+    ));
+    diagnostic
+}
+
+fn optional_let_else_fallthrough_diagnostic(
+    sources: &SourceMap,
+    statement: &BindingStmt,
+    else_block: &Block,
+) -> Diagnostic {
+    let keyword = binding_keyword(statement.kind);
+    let mut diagnostic = Diagnostic::error(
+        "E0341",
+        format!("`{keyword} ... else` requires an `else` block that cannot fall through"),
+    );
+    diagnostic.primary_span = sources.span_to_json(else_block.span).ok().map(Box::new);
+    diagnostic.help = Some(
+        "end the `else` block with `return` in parser/check v0; later phases will add `fail`, `break`, `continue`, and `never` support"
+            .to_string(),
+    );
+    diagnostic
+}
+
+fn binding_keyword(kind: BindingKind) -> &'static str {
+    match kind {
+        BindingKind::Let => "let",
+        BindingKind::Var => "var",
+    }
+}
+
 fn add_declared_return_note(
     sources: &SourceMap,
     diagnostic: &mut Diagnostic,
@@ -1139,6 +1524,90 @@ func lookup(): i32? {
         );
 
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn accepts_optional_let_else_extraction() {
+        let diagnostics = check_text(
+            r#"program(): i32 {
+    let value = maybe_answer() else {
+        return 1
+    }
+
+    return value
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+"#,
+        );
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn diagnoses_optional_let_else_non_optional_initializer() {
+        let diagnostics = check_text(
+            r#"program(): i32 {
+    let value = 1 else {
+        return 1
+    }
+
+    return value
+}
+"#,
+        );
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "E0340");
+    }
+
+    #[test]
+    fn diagnoses_optional_let_else_fallthrough() {
+        let diagnostics = check_text(
+            r#"program(): i32 {
+    let value = maybe_answer() else {
+        log_missing()
+    }
+
+    return value
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+
+func log_missing(): void {
+    return
+}
+"#,
+        );
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "E0341");
+    }
+
+    #[test]
+    fn uses_optional_let_else_unwrapped_return_type() {
+        let diagnostics = check_text(
+            r#"program(): i32 {
+    let value = maybe_title() else {
+        return 1
+    }
+
+    return value
+}
+
+func maybe_title(): StringView? {
+    return "hello"
+}
+"#,
+        );
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "E0312");
+        assert!(diagnostics[0].message.contains("StringView"));
     }
 
     #[test]
