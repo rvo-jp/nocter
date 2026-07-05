@@ -195,6 +195,11 @@ The JSON diagnostic envelope is specified in [Diagnostics](12-diagnostics.md#mac
 
 The root path and source span path rules are specified in [Modules and Imports](01-modules-imports.md#source-file-identity).
 
+Initial implementation note:
+
+- The first `check --format json` implementation may stop after source loading, lexing, parsing, typed AST construction, and `program` entry validation.
+- Later implementations should extend the same command with import resolution, name resolution, type checking, ownership checking, target selection, and target validation.
+
 ## Format
 
 `fmt` formats a source file using the official Nocter source style.
@@ -339,6 +344,7 @@ AST JSON rules:
 - `absolute_path` is the canonical absolute path when known, or `null`.
 - `ast` is an object when parsing succeeds and `null` when parsing fails before a useful tree exists.
 - AST node objects include `kind` and should include `span` when practical.
+- AST node objects may include `value` for compact leaf information such as identifiers, literals, import paths, and type names.
 - AST node spans use the public JSON span shape from [Diagnostics](12-diagnostics.md#source-and-span-model).
 - `diagnostics` uses the diagnostic object shape from [Diagnostics](12-diagnostics.md#machine-readable-json-diagnostics).
 - AST JSON is allowed to change while the AST is internal and unstable; AI tools should treat it as a tooling aid, not a source compatibility promise.

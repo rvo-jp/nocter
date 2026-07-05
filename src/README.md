@@ -249,6 +249,77 @@ SourceMap::load_file
 
 When source loading fails, the command still writes a `nocter.tokens` JSON envelope with an empty `tokens` array and one diagnostic.
 
+## Parser V0 Boundary
+
+The v0 parser receives the lexer token stream and builds the initial typed AST used by later compiler phases. `nocter ast app.nct --format json` converts that typed AST into tooling JSON at the CLI boundary.
+
+Output:
+
+- `Option<AstFile>`
+- `Vec<Diagnostic>`
+- `AstFile::to_json` conversion for `nocter ast app.nct --format json`
+
+Initial grammar coverage:
+
+- `use std/prelude`
+- `from std/io import print`
+- `program(): i32 { ... }`
+- `func name(...): Type { ... }`
+- parameter lists
+- `T?` and `T ! E` type syntax
+- blocks
+- `return`
+- `let` and `var` bindings with initializers
+- `try expr`
+- `try expr catch name { ... }`
+- call expressions
+- member expressions
+- grouped expressions
+- `??` optional-default expressions
+- identifier, integer, string, and `none` expressions
+
+Parser v0 deliberately does not resolve imports, validate the `program` signature, type-check expressions, check ownership, or follow imported files. It may stop after the first syntax error. When lexing fails, `nocter ast` returns a `nocter.ast` envelope with `ast: null` and the lexer diagnostics.
+
+The internal typed AST is the compiler data model. `JsonAstNode` is only a CLI/tooling representation and must not become the semantic-analysis input.
+
+`nocter ast app.nct --format json` runs:
+
+```text
+SourceMap::load_file
+    -> lexer
+    -> parser
+    -> typed AST
+    -> AstEnvelope
+    -> JSON stdout
+```
+
+## Check V0 Boundary
+
+`nocter check app.nct --format json` uses the same source loading, lexer, parser, and typed AST as `build` and `run`, then runs the first semantic validation pass.
+
+Current semantic coverage:
+
+- executable root has a `program` entry
+- `func main` without `program` receives a dedicated diagnostic because `main` is an ordinary function name
+- executable root has no duplicate `program` entries
+- `program` return type is exactly `i32` or `void`
+
+The current `check` implementation does not resolve imports, type-check expressions, validate function calls, check ownership, select a target, or lower code. Those phases must be added behind the same diagnostics pipeline.
+
+`nocter check app.nct --format json` runs:
+
+```text
+SourceMap::load_file
+    -> lexer
+    -> parser
+    -> typed AST
+    -> entry validation
+    -> DiagnosticsEnvelope
+    -> JSON stdout
+```
+
+If source loading, lexing, or parsing fails, `check` returns a `nocter.diagnostics` envelope with those diagnostics and does not run entry validation.
+
 The first standard-library source files are `.nocter/std/prelude.nct`, `.nocter/std/string.nct`, `.nocter/std/view.nct`, `.nocter/std/mem.nct`, `.nocter/std/ptr.nct`, `.nocter/std/os.nct`, `.nocter/std/io.nct`, `.nocter/targets/arm64-darwin/std/process.nct`, and `.nocter/targets/arm64-darwin/std/os/macos.nct`. They define the explicit prelude, string and view types, initial memory API, core pointer primitive boundary, common OS error model, user-facing I/O errors, `File`, `stdout`, `stderr`, `print`, byte read/write, text write, macOS process API implementation, and macOS primitive boundary. Future target support should add target overlays without changing ordinary user-facing APIs.
 
 The target-independent core pointer primitive set is:
