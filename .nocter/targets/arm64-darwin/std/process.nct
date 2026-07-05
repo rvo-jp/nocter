@@ -1,0 +1,12 @@
+// macOS implementation of the user-facing std.process API.
+//
+// exit is a user-facing standard-library API, not a compiler primitive. The
+// target-specific implementation will call the active target overlay and trap
+// if the platform exit operation unexpectedly returns.
+
+import std.os.macos as macos
+
+pub func exit(code: i32): never {
+    // TODO: call macOS SYS_exit after syscall number constants are specified.
+    macos.trap()
+}

@@ -1,0 +1,26 @@
+{
+  "schema": "nocter.manifest",
+  "schema_version": 1,
+  "release": "0.1.0",
+  "host": "arm64-darwin",
+  "default_target": "arm64-darwin",
+  "compiler": {
+    "path": "nocter"
+  },
+  "std": {
+    "path": "std"
+  },
+  "implemented_targets": [
+    {
+      "name": "arm64-darwin",
+      "std_path": "targets/arm64-darwin/std",
+      "backend": "arm64",
+      "executable": "macho",
+      "os": "darwin"
+    }
+  ],
+  "archive": {
+    "name": "nocter-v0.1.0-arm64-darwin.tar.gz",
+    "root": ".nocter"
+  }
+}

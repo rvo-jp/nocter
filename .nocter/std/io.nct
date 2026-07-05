@@ -1,0 +1,54 @@
+// Common user-facing I/O error model.
+//
+// std.io exposes domain errors. It should not expose target-specific syscall
+// results or errno wrappers as normal user-facing API.
+
+import std.os.{OSError, OSErrorKind}
+
+pub enum IOError {
+    interrupted(error: OSError)
+    would_block(error: OSError)
+    not_found(error: OSError)
+    permission_denied(error: OSError)
+    already_exists(error: OSError)
+    invalid_input(error: OSError)
+    broken_pipe(error: OSError)
+    timed_out(error: OSError)
+    unsupported(error: OSError)
+    unexpected_os_error(error: OSError)
+}
+
+pub func from_os_error(error: OSError): IOError {
+    match error.kind {
+        is OSErrorKind.interrupted {
+            return IOError.interrupted(error)
+        }
+        is OSErrorKind.would_block {
+            return IOError.would_block(error)
+        }
+        is OSErrorKind.not_found {
+            return IOError.not_found(error)
+        }
+        is OSErrorKind.permission_denied {
+            return IOError.permission_denied(error)
+        }
+        is OSErrorKind.already_exists {
+            return IOError.already_exists(error)
+        }
+        is OSErrorKind.invalid_input {
+            return IOError.invalid_input(error)
+        }
+        is OSErrorKind.broken_pipe {
+            return IOError.broken_pipe(error)
+        }
+        is OSErrorKind.timed_out {
+            return IOError.timed_out(error)
+        }
+        is OSErrorKind.unsupported {
+            return IOError.unsupported(error)
+        }
+        is OSErrorKind.unknown {
+            return IOError.unexpected_os_error(error)
+        }
+    }
+}

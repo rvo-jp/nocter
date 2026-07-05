@@ -1,0 +1,17 @@
+// Nocter raw pointer and address conversion API.
+//
+// Raw pointers are address-carrying values. They do not own memory, do not
+// extend lifetimes, and do not grant dereference permission. These declarations
+// are target-independent core primitives, separate from OS target primitives
+// such as std.os.macos.syscall0.
+
+pub primitive addr<T>(pointer: *T): usize
+
+pub primitive from_ref<T>(value: &T): *T
+
+pub primitive from_ref_mut<T>(value: &+T): *T
+
+// Restricted API: callable only from modules inside the active Nocter home
+// common std/ or active target overlay std/. User project modules must not call
+// this function.
+pub primitive from_addr<T>(address: usize): *T

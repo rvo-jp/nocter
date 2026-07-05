@@ -1,0 +1,30 @@
+// Common OS error model.
+//
+// Target overlays convert their raw platform error values into OSError. User
+// facing modules should expose domain errors such as std.io.IOError instead of
+// raw syscall results or platform errno values.
+
+pub enum Platform {
+    macos
+    linux
+    windows
+}
+
+pub enum OSErrorKind {
+    interrupted
+    would_block
+    not_found
+    permission_denied
+    already_exists
+    invalid_input
+    broken_pipe
+    timed_out
+    unsupported
+    unknown
+}
+
+pub copy struct OSError {
+    pub platform: Platform
+    pub code: i32
+    pub kind: OSErrorKind
+}

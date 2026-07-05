@@ -1,0 +1,116 @@
+// macOS-specific primitive boundary for Nocter's initial arm64-macos target.
+//
+// This file lives in the active target overlay:
+// .nocter-arm64-macos/targets/arm64-macos/std/os/macos.nct
+//
+// These declarations are the narrow low-level bridge used by the standard
+// library. They are not ordinary function bodies and they are not inline
+// assembly. The compiler lowers them directly for the active target backend.
+
+import std.os.{OSError, OSErrorKind, Platform}
+
+pub copy struct SyscallResult {
+    pub value: usize
+    pub errno: i32
+}
+
+pub copy struct Errno {
+    pub code: i32
+}
+
+pub func errno(code: i32): Errno {
+    return Errno{code: code}
+}
+
+pub func error_from_errno(error: Errno): OSError {
+    return OSError{
+        platform: Platform.macos,
+        code: error.code,
+        kind: kind_from_errno(error),
+    }
+}
+
+pub func kind_from_errno(error: Errno): OSErrorKind {
+    if error.code == 4 {
+        return OSErrorKind.interrupted
+    }
+    if error.code == 35 {
+        return OSErrorKind.would_block
+    }
+    if error.code == 2 {
+        return OSErrorKind.not_found
+    }
+    if error.code == 13 {
+        return OSErrorKind.permission_denied
+    }
+    if error.code == 17 {
+        return OSErrorKind.already_exists
+    }
+    if error.code == 22 {
+        return OSErrorKind.invalid_input
+    }
+    if error.code == 32 {
+        return OSErrorKind.broken_pipe
+    }
+    if error.code == 60 {
+        return OSErrorKind.timed_out
+    }
+    if error.code == 45 {
+        return OSErrorKind.unsupported
+    }
+    return OSErrorKind.unknown
+}
+
+// macOS syscall number constants belong in this module. The exact constant
+// list is filled in as each wrapper is implemented.
+
+pub primitive syscall0(number: usize): SyscallResult
+
+pub primitive syscall1(
+    number: usize,
+    a0: usize,
+): SyscallResult
+
+pub primitive syscall2(
+    number: usize,
+    a0: usize,
+    a1: usize,
+): SyscallResult
+
+pub primitive syscall3(
+    number: usize,
+    a0: usize,
+    a1: usize,
+    a2: usize,
+): SyscallResult
+
+pub primitive syscall4(
+    number: usize,
+    a0: usize,
+    a1: usize,
+    a2: usize,
+    a3: usize,
+): SyscallResult
+
+pub primitive syscall5(
+    number: usize,
+    a0: usize,
+    a1: usize,
+    a2: usize,
+    a3: usize,
+    a4: usize,
+): SyscallResult
+
+pub primitive syscall6(
+    number: usize,
+    a0: usize,
+    a1: usize,
+    a2: usize,
+    a3: usize,
+    a4: usize,
+    a5: usize,
+): SyscallResult
+
+pub primitive trap(): never
+
+pub primitive unreachable(): never
