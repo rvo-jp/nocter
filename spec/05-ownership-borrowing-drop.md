@@ -23,7 +23,7 @@ Rules:
 - `&+T` is a readwrite borrow type.
 - `&value` creates a readonly borrow.
 - `&+value` creates a readwrite borrow.
-- `&+value` may be created only from a writable place, such as a `var` binding, a writable field, a writable index, or an existing `&+T` reborrow.
+- `&+value` may be created only from a writable place, such as a `var` binding, a writable field, or an existing `&+T` reborrow.
 - Readonly borrows may coexist with other readonly borrows.
 - A readwrite borrow is exclusive and cannot coexist with other readonly or readwrite borrows of the same value.
 - A value cannot be moved while it is borrowed.
@@ -86,6 +86,14 @@ The method call above creates a temporary readwrite borrow of `file` for the cal
 ```nct
 File.write(&+file, "hello") // error
 ```
+
+A newly created owned temporary may be used as a readwrite receiver for one method call:
+
+```nct
+try (try File.open(path)).write("hello")
+```
+
+The temporary receiver is dropped according to the statement-end temporary rules in [Control Flow](03-control-flow.md#evaluation-order-and-temporaries).
 
 ## Function Parameters
 
@@ -171,7 +179,7 @@ impl File {
 }
 ```
 
-`drop` is not a normal function name. It is a special member allowed only inside an `impl` block.
+`drop` is not a normal function name. It is a reserved keyword with two syntactic roles: a destructor member inside an `impl` block, and an explicit `drop name` statement.
 
 Rules:
 
@@ -184,10 +192,17 @@ Rules:
 - `drop` cannot be called as a normal associated function or method.
 - `file.drop()` is invalid.
 - `File.drop(&+file)` is invalid.
+- `drop` cannot use `fail` to report cleanup failure.
+- If an operation inside `drop` can fail, the `drop` body must ignore that failure, record it in already-owned state before destruction, or terminate with `trap` / `abort`.
+- Terminating with `trap` or `abort` from inside `drop` does not unwind remaining caller scopes.
 - Owned values are automatically dropped at scope end.
-- Owned values are dropped in reverse declaration order.
-- `return`, `fail`, and `try` propagation run the same scope-end drop behavior.
+- Initialized owned values are dropped in reverse declaration order.
+- Maybe initialized owned values use compiler-generated conditional drop.
+- Uninitialized bindings are not dropped.
+- `return`, `fail`, and `try` propagation run the same scope-end drop behavior, including conditional drop.
 - A moved value is not dropped through the original binding.
+
+### Explicit Drop Statements
 
 Explicit early destruction uses a `drop` statement.
 
@@ -196,10 +211,50 @@ var file = try File.open(path)
 drop file
 ```
 
-After `drop file`, the binding is no longer valid.
+After `drop file`, the binding enters an uninitialized state.
 
 ```nct
 file.read() // error
+```
+
+Rules:
+
+- `drop name` is a statement.
+- In v0, the operand of `drop` must be a local binding name or parameter binding name.
+- `drop` is a reserved keyword, not an ordinary function.
+- The operand must be initialized.
+- The operand must be a move-only owned binding.
+- Copy types cannot be explicitly dropped.
+- Borrow bindings such as `&T` and `&+T` cannot be explicitly dropped because they do not own the referenced value.
+- Maybe initialized bindings cannot be explicitly dropped.
+- Uninitialized bindings cannot be explicitly dropped.
+- A binding cannot be explicitly dropped while it is borrowed.
+- `drop name` runs the same drop glue as scope-end automatic drop.
+- `drop` is not fallible.
+- `drop` produces no value.
+- After `drop name`, the binding is uninitialized on all later reachable paths.
+- A dropped `var` binding may be reinitialized by assigning to the whole binding. The detailed rules are specified in [Values and Types](02-values-types.md#reinitialization-after-move-or-drop).
+- A dropped `let` binding cannot be reinitialized.
+- `drop object.field`, `drop array[index]`, and `drop make_value()` are not part of v0.
+
+Examples:
+
+```nct
+var file = try File.open(path)
+drop file
+
+file = try File.open(other)
+try file.read()
+```
+
+Invalid in v0:
+
+```nct
+drop count
+drop ref
+drop object.field
+drop array[index]
+drop make_value()
 ```
 
 ## Copy and Move
@@ -253,6 +308,67 @@ consume(text)      // error
 consume(move text) // OK
 ```
 
+## Move Expressions
+
+Adopted: `move` is a unary expression that explicitly transfers ownership from a binding.
+
+```nct
+let b = move a
+consume(move text)
+return move value
+```
+
+Rules:
+
+- `move` is a reserved keyword, not an ordinary function.
+- `move name` is an expression.
+- In v0, the operand of `move` must be a local binding name or parameter binding name.
+- The operand binding may be immutable or mutable.
+- The operand binding must have a move-only type.
+- Using `move` on a copy type is a compile error in v0.
+- `move name` has the same type as `name`.
+- Evaluating `move name` transfers ownership out of that binding.
+- After `move name`, the binding enters an uninitialized state on all later reachable paths.
+- A moved `var` binding may be reinitialized by assigning to the whole binding. The detailed rules are specified in [Values and Types](02-values-types.md#reinitialization-after-move-or-drop).
+- A moved `let` binding cannot be reinitialized.
+- A moved binding is not dropped through its original binding.
+- A binding cannot be moved while it is borrowed.
+- `move` describes ownership transfer. It does not specify whether generated code copies bytes, passes a pointer, or elides a copy.
+- Moving a newly constructed value is unnecessary and invalid in v0.
+- Moving from a field, index, dereference, call result, `try` expression, conditional expression, or parenthesized complex expression is not part of v0.
+- Partial move from a struct field is not part of v0.
+- Index move from an array or collection is not part of v0.
+
+Valid in v0:
+
+```nct
+let b = move a
+consume(move text)
+return move value
+user.name = move name
+```
+
+Invalid in v0:
+
+```nct
+move make_value()
+move (try make_value())
+move (condition ? a : b)
+move object.field
+move array[index]
+move copy_value
+```
+
+To change one field of a move-only struct, move the whole value into a new binding, mutate that binding, then return or pass the whole value.
+
+```nct
+func rename(user: User, name: String): User {
+    var next = move user
+    next.name = move name
+    return move next
+}
+```
+
 ## Return Values
 
 Adopted: returning an existing move-only binding requires explicit `move`.
@@ -261,7 +377,7 @@ Rules:
 
 - `return value` may return a copy value by copying it.
 - `return value` is invalid when `value` is an existing move-only binding.
-- `return move value` returns an existing move-only binding by moving it.
+- `return move value` returns an existing move-only binding by moving it. In v0, `value` must be a binding name.
 - After `return move value`, that binding is no longer valid on any remaining reachable path.
 - A newly constructed owned value may be returned with `return expr` without `move`.
 - Newly constructed owned values include struct literals, enum variant constructors, array literals, and function or method call results.
@@ -316,13 +432,15 @@ Borrow-like return values include:
 - `WriteView<T>`
 - structs, enums, optionals, fallible values, and arrays containing borrow-like values
 
+The detailed provenance source kinds are specified in [Strings, Arrays, Views, and Pointers](07-strings-arrays-views-pointers.md#borrow-like-provenance).
+
 Rules:
 
 - Borrow-like return values must carry provenance to storage that outlives the function call.
 - Borrow-like values derived from static storage, such as string literals, may be returned.
-- Borrow-like values derived from input borrow parameters may be returned when the return value's provenance is still tied to that input borrow.
-- A readonly borrow-like value may be returned from an input `&T` or `&+T` source.
-- A readwrite borrow-like value may be returned only from an input `&+T` source.
+- Borrow-like values derived from input borrow-like parameters may be returned when the return value's provenance is still tied to that input borrow-like value.
+- A readonly borrow-like value may be returned from a readonly or readwrite input borrow-like source.
+- A readwrite borrow-like value may be returned only from a readwrite input borrow-like source, such as `&+T` or `WriteView<T>`.
 - Borrow-like values derived from local owned values cannot be returned.
 - Borrow-like values derived from temporary owned values cannot be returned.
 - Borrow-like values derived from owned parameters cannot be returned, because owned parameters are dropped at function scope end unless moved.

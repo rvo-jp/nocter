@@ -134,20 +134,26 @@ std/os/macos.syscall3
     -> std/io.IOError
 ```
 
-### Process Exit
+### Process Termination
 
-`std/process`'s `exit` is a normal standard-library API.
+`std/process`'s terminating functions are normal standard-library APIs.
 
 ```nct
 pub func exit(code: i32): never
+pub func abort(): never
 ```
 
 Rules:
 
 - `exit` is not a compiler primitive.
+- `abort` is not a compiler primitive.
 - `exit` does not return an error.
+- `abort` does not return an error.
+- `exit` terminates the process with an explicit status code.
+- `abort` terminates the process immediately as abnormal termination.
+- Neither `exit` nor `abort` runs caller-scope Nocter cleanup. Code that needs cleanup must do it before calling them.
 - The target implementation uses the active target's syscall or process termination boundary.
-- If the platform exit operation unexpectedly returns, the implementation calls `trap()`.
+- If the platform termination operation unexpectedly returns, the implementation calls `trap()`.
 - The module path is `std/process`, but the physical implementation may live in the active target overlay when the implementation depends on process ABI.
 
 ### Not Adopted
@@ -156,7 +162,7 @@ Rules:
 
 ## Standard Library and Low-Level Code
 
-The compiler must not special-case names such as `print`, `exit`, or `File`.
+The compiler must not special-case names such as `print`, `exit`, `abort`, or `File`.
 
 Standard library functions provide these features.
 
@@ -189,19 +195,51 @@ pub primitive trap(): never
 pub primitive unreachable(): never
 ```
 
+`trap()` terminates the current process or thread with a target-defined illegal-instruction, breakpoint, or equivalent non-recoverable stop. It has type `never`, does not return an error, and does not unwind.
+
+`unreachable()` is a standard-library marker for paths that should be impossible. Reaching it traps.
+
 Initial policy:
 
 - `primitive` declarations are allowed only inside the active Nocter home common `std/` directory or the active target overlay `std/` directory in the initial design.
 - A primitive declaration has no function body.
 - A primitive declaration uses normal Nocter parameter and return types.
-- Primitive calls follow the Nocter ABI.
+- Primitive calls are allowed only from trusted modules inside the active Nocter home.
+- Primitive calls follow the Nocter ABI after the caller has passed the trusted-boundary restriction.
 - The compiler validates each primitive declaration against the target-independent core primitive set or the closed primitive set for the active target.
 - The compiler validates primitives by module path, name, and exact signature.
 - An ordinary `func` with the same name as a primitive has no primitive behavior.
 - Standard-library wrappers should expose user-facing APIs such as `exit`, `write`, `alloc`, and `free`.
-- `print`, `exit`, file operations, allocators, `String`, and `Buffer` are not primitives in v0.
+- `print`, `exit`, `abort`, file operations, allocators, `String`, and `Buffer` are not primitives in v0.
 - General user code cannot declare primitives in the initial design.
+- General user code cannot call primitives directly in the initial design.
 - Arbitrary inline `asm` is not part of the initial language.
+
+### Trusted Boundary
+
+Adopted: v0 has no `unsafe` keyword, no `unsafe` block, and no `unsafe func`.
+
+Instead, the trusted boundary is the active Nocter home:
+
+```text
+~/.nocter/std/
+~/.nocter/targets/<target>/std/
+```
+
+Rules:
+
+- User project modules are always safe Nocter code in v0.
+- `unsafe` is not a reserved keyword in v0.
+- `trusted` is not a reserved keyword in v0.
+- Modules inside the active Nocter home may contain primitive declarations when those declarations match the closed primitive set.
+- Modules inside the active Nocter home may call primitive declarations.
+- Modules inside the active Nocter home may call restricted low-level APIs such as `std/ptr.from_addr`.
+- User project modules must not declare primitives.
+- User project modules must not call primitive declarations directly.
+- User project modules must not call restricted low-level APIs such as `std/ptr.from_addr`.
+- Trusted modules still go through normal parsing, type checking, ownership checking, borrowing rules, and drop checking.
+- Trusted modules should expose ordinary safe APIs to user code, using types such as `File`, `String`, `Buffer<T>`, `OSError`, `IOError`, `Allocator`, `View<T>`, and `WriteView<T>`.
+- If trusted standard-library code violates an invariant required by its public safe API, that is a standard-library or compiler bug. It is not an opt-in source-level permission granted to user code.
 
 Initial primitive declaration syntax:
 
@@ -229,7 +267,7 @@ pub primitive from_ref_mut<T>(value: &+T): *T
 pub primitive from_addr<T>(address: usize): *T
 ```
 
-`from_addr` is restricted to modules inside the active Nocter home. User project modules must not call it.
+`from_addr` is restricted to trusted modules inside the active Nocter home. User project modules must not call it.
 
 Initial `arm64-macos` target primitive set v0:
 
@@ -298,6 +336,7 @@ catch
 fail
 none
 move
+drop
 as
 region
 using

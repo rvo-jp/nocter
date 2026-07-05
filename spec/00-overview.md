@@ -31,6 +31,7 @@ Nocter prioritizes:
 - value-centered program structure using `struct`, `enum`, `func`, `impl`, and modules
 - memory management without GC
 - standard-library implementation in Nocter, with limited typed `primitive` declarations for low-level boundaries
+- no user-facing `unsafe` mode in v0; low-level trusted code is restricted to the active Nocter home
 
 ## Program Entry
 

@@ -64,6 +64,30 @@ Rules:
 - Error conversion is not implicit in the initial design.
 - `throw` is not part of the language.
 
+## Recoverable Failure and Non-Recoverable Termination
+
+Adopted: `fail`, `trap`, and `abort` are distinct mechanisms.
+
+```text
+fail  = recoverable failure through T!E
+trap  = non-recoverable program defect or violated runtime check
+abort = immediate process termination
+```
+
+Rules:
+
+- `fail error` is valid only inside a function returning `T!E`.
+- `fail` follows normal `return`-like cleanup for scopes it leaves.
+- `trap` has type `never`.
+- `trap` is used for program defects, compiler-inserted safety checks, and impossible paths.
+- Out-of-bounds indexing, integer overflow in normal arithmetic, division by zero, invalid live `bool` values, invalid enum tags, and explicit unreachable execution all trap.
+- `trap` does not unwind the stack.
+- `abort` has type `never`.
+- `abort` terminates the process immediately and does not run Nocter cleanup.
+- `panic` is not a language feature in v0.
+- Stack unwinding is not part of v0.
+- Build modes must not disable these trap checks; see [Safety Checks and Build Modes](03-control-flow.md#safety-checks-and-build-modes).
+
 Adopted: `catch` handles the failure side of a fallible value at the `try` site.
 
 ```nct

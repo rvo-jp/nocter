@@ -156,7 +156,7 @@ pub from std/string import String, StringView
 pub from std/view import View, WriteView
 ```
 
-The prelude should remain small. Names such as `File`, `IOError`, `print`, `args`, and `exit` should be imported explicitly from their domain modules.
+The prelude should remain small. Names such as `File`, `IOError`, `print`, `args`, `exit`, and `abort` should be imported explicitly from their domain modules.
 
 ## Compile Unit
 

@@ -149,6 +149,13 @@ nocter build app.nct --target x64-linux
 
 If `--target` is omitted, the compiler uses the host target. The initial implementation can emit only `arm64-macos`. Reserved targets may be recognized by name, but they must produce a not-implemented diagnostic until their backend, executable writer, primitive set, and target standard-library overlay are implemented.
 
+Build profile direction:
+
+- The initial language semantics do not define different safety levels for debug and release builds.
+- Future profile options may control optimization level, debug information, and diagnostics.
+- Profile options must not disable the safety checks specified in [Control Flow](03-control-flow.md#safety-checks-and-build-modes).
+- A release build may be faster because the optimizer proves checks unnecessary, not because checks are globally removed.
+
 Users install Nocter by placing the extracted payload at `~/.nocter` or another location, then adding that directory to `PATH`.
 
 Example shell setup:

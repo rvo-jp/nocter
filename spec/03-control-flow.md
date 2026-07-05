@@ -13,7 +13,7 @@ func scan_words(text: StringView): WordStats {
 }
 ```
 
-Names do not define special behavior. A function named `main`, `init`, `drop`, or `new` is ordinary unless the language later defines a syntactic rule around a trait or declaration.
+Names do not define special behavior. A function named `main`, `init`, or `new` is ordinary unless the language defines a syntactic rule around a declaration. `drop` is reserved for destructor declarations and explicit drop statements.
 
 Parameters are written as `name: Type`. `var name: Type` parameters are not part of v0. Parameter binding and ownership rules are specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#function-parameters).
 
@@ -205,12 +205,16 @@ Rules:
 - Function call arguments are evaluated left-to-right.
 - Method call receiver expressions are evaluated before method arguments.
 - For evaluated method arguments, evaluation remains left-to-right.
+- Struct literal field initializer expressions are evaluated left-to-right in the order written in the literal, regardless of declaration order.
+- Assignment evaluates the right-hand side before replacing the target place. The detailed assignment rules are specified in [Values and Types](02-values-types.md#bindings-and-assignment).
 - Operators with conditional evaluation, such as `&&`, `||`, `??`, and `condition ? then : else`, evaluate only the needed operand or branch.
 - When an operand or branch is evaluated, its subexpressions still follow the normal left-to-right rule.
-- Temporaries are dropped at the end of the current statement unless ownership is moved into a longer-lived place.
+- Temporaries are dropped at the end of the current statement in reverse creation order unless ownership is moved into a longer-lived owner.
+- Longer-lived owners include local bindings, owned parameters, constructed aggregate values, assigned target places, and returned values.
 - Blocks, `if` bodies, `match` arms, and loop bodies create scopes.
-- Local values are dropped at scope end in reverse declaration order.
-- `try`, `return`, `fail`, `break`, and `continue` run the required drops for scopes they leave.
+- Initialized local values are dropped at scope end in reverse declaration order.
+- Maybe initialized local values use compiler-generated conditional drop at scope end.
+- `try`, `return`, `fail`, `break`, and `continue` first drop temporaries already created by the current statement, then run the required normal or conditional drops for scopes they leave.
 - Borrows and borrow-like views derived from temporaries cannot escape the statement.
 - Temporary lifetime extension is not part of the initial design.
 
@@ -250,6 +254,14 @@ try file.write("hello")
 ```
 
 The call above creates a temporary readwrite borrow of `file` for the duration of the call and ends that borrow after the call.
+
+Fallible temporary receivers must make each fallible step explicit:
+
+```nct
+try (try File.open(path)).write("hello")
+```
+
+If `File.open(path)` fails, no `File` temporary exists. If `write` fails, the temporary `File` produced by `File.open(path)` is dropped before the failure propagates. If `write` succeeds, the temporary `File` is dropped at the end of the statement.
 
 ## Loops
 
@@ -340,36 +352,36 @@ Adopted: `never` represents a computation that does not return normally.
 
 Typical uses:
 
-- `panic(message): never`
-- `abort(message): never`
-- `exit(code): never`
+- `trap(): never`
+- `std/process.abort(): never`
+- `std/process.exit(code): never`
 - an infinite event loop that has no reachable `break`
 - an explicit unreachable-code marker in the standard library
 
-These names are examples of standard-library APIs. The compiler does not special-case `panic`, `abort`, `exit`, or `unreachable`.
+`trap` is the primitive boundary for non-recoverable program defects. The compiler may also generate traps for checked operations such as out-of-bounds indexing or invalid arithmetic.
+
+`abort` and `exit` are standard-library process APIs. They are not compiler primitives.
+
+`panic` is not a language feature in v0. No stack unwinding mechanism is part of v0.
 
 Example:
 
 ```nct
 import std/process as process
 
-func panic(message: StringView): never {
-    process.abort(message)
-}
-
 func require_path(path: StringView?): StringView {
     if let value = path {
         return value
     }
 
-    panic("missing path")
+    process.abort()
 }
 ```
 
 Rules:
 
 - A function declared as returning `never` must not complete normally.
-- A `never` function body must terminate all reachable paths with another `never` call, a non-breaking infinite `loop`, a low-level standard-library termination primitive, or equivalent terminating control flow.
+- A `never` function body must terminate all reachable paths with another `never` call, a non-breaking infinite `loop`, a low-level primitive such as `trap`, a standard-library terminating API such as `abort` or `exit`, or equivalent terminating control flow.
 - `return` and `return value` are not valid in a `never` function.
 - Falling off the end of a `never` function is a compile error.
 - A call whose type is `never` terminates the current control path.
@@ -377,22 +389,29 @@ Rules:
 - Unreachable code is a compile-time error in the initial design.
 - A `never`-typed expression can appear where another expression type is required because it produces no value.
 - `never` cannot be constructed, stored in a variable, used as a field type, or used as an array element type in the initial design.
-- Calling a `never` function does not imply stack unwinding or caller-scope `drop` execution.
+- Calling a `never` function does not imply stack unwinding, statement-end temporary drops, or caller-scope `drop` execution.
 - If cleanup is required before a terminating API such as `exit` or `abort`, the program must perform that cleanup before the `never` call or use a normal `return`, `fail`, `break`, or `continue` path.
+- `fail` is recoverable failure and is valid only through fallible type `T!E`.
+- `trap` is non-recoverable failure caused by a program defect, violated compiler check, or impossible execution path.
+- `abort` is immediate process termination and does not run Nocter cleanup.
+- `panic` and stack unwinding are not part of v0.
+- `panic` is not reserved. A user-defined function named `panic` is ordinary and has no language-defined behavior.
 
 Example:
 
 ```nct
-let path = maybe_path ?? panic("missing path")
+func require_path_short(path: StringView?): StringView {
+    return path ?? process.abort()
+}
 ```
 
-The expression above has type `StringView` if `maybe_path` has type `StringView?`. The right side does not produce a fallback `StringView`; it terminates the current path.
+The `??` expression above has type `StringView`. The right side does not produce a fallback `StringView`; it terminates the current path.
 
 `never` also satisfies `catch` block termination:
 
 ```nct
 let file = try File.open(path) catch error {
-    panic("cannot open file")
+    process.abort()
 }
 ```
 
@@ -404,9 +423,37 @@ func invalid(): never {
 }
 
 func also_invalid(): i32 {
-    panic("stop")
+    process.abort()
     return 0
 }
 ```
 
 The first function returns normally. The second contains unreachable code after a `never` call.
+
+## Safety Checks and Build Modes
+
+Adopted: safety checks are part of Nocter semantics and remain enabled in every build mode.
+
+Build modes may change diagnostics, debug information, and optimization level. They must not change the safety meaning of a valid Nocter program.
+
+Always-on checks:
+
+- Bounds checks for indexing.
+- Integer overflow checks for normal arithmetic.
+- Division and remainder by zero checks.
+- Signed division overflow checks.
+- Shift count range checks.
+- Invalid live `bool` bit-pattern checks where a value can enter from a primitive or ABI boundary.
+- Invalid enum tag checks where a value can enter from a primitive or ABI boundary.
+- Reaching `unreachable()` or an equivalent impossible-path marker.
+
+Rules:
+
+- Debug and release builds have the same trap conditions.
+- A build mode must not turn a checked operation into undefined behavior.
+- The optimizer may remove a safety check only when it proves that the trap condition cannot occur on that path.
+- Removing a check is valid only when the source-level observable behavior is unchanged.
+- If a check is statically known to fail, the compiler may emit an unconditional trap for that path.
+- General user code has no unchecked arithmetic, unchecked indexing, or unchecked enum-tag operation in v0.
+- Wrapping arithmetic is not unchecked arithmetic. It must be exposed through explicit numeric APIs.
+- Target overlays and compiler primitive lowering may use target-specific machine instructions internally, but that must not expose undefined behavior to ordinary Nocter code.

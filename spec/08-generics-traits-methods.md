@@ -73,7 +73,9 @@ Meaning:
 - `Self` is a consuming receiver. It requires copy or explicit move according to the normal ownership rules.
 - Calling a `&Self` method borrows the receiver readonly.
 - Calling a `&+Self` method borrows the receiver readwrite and requires a writable receiver place.
+- A newly created owned temporary may be used as a `&+Self` receiver for that single method call because it has no existing aliases.
 - Calling a `Self` method consumes or copies the receiver according to the receiver type.
+- Borrow-like values derived from a temporary receiver cannot escape the current statement.
 
 Call rules:
 

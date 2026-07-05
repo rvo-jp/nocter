@@ -151,6 +151,7 @@ Rules:
 - The region handle cannot be explicitly dropped or moved out of the region.
 - The region handle provides access to a region allocator through ordinary standard-library APIs such as `name.allocator()`.
 - The compiler tracks allocator values derived from a region handle by provenance, not by special-casing the method name `allocator`.
+- Region-derived values use the `region` provenance source kind described in [Strings, Arrays, Views, and Pointers](07-strings-arrays-views-pointers.md#borrow-like-provenance).
 - The compiler tracks values allocated through a region allocator as region-owned.
 - Owned values backed by region allocation cannot be moved out of the region.
 - Borrows of region-owned values cannot escape the region.

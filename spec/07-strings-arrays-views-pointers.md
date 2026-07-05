@@ -34,6 +34,7 @@ Rules:
 - `*T` is non-null.
 - If null is needed, use `*T?`.
 - `*void` is allowed as an opaque raw pointer type.
+- Raw pointer dereference has no user-facing escape hatch in v0. There is no `unsafe` block that enables it.
 
 Raw pointer dereference is not part of the initial user-facing language.
 
@@ -46,7 +47,7 @@ pointer.load()
 pointer.store(value)
 ```
 
-These operations may be reconsidered only after an `unsafe` or trusted-standard-library design exists.
+These operations may be reconsidered only if Nocter later adopts an explicit unsafe or trusted-code model. They are not enabled by v0's Nocter-home trusted boundary.
 
 ### `std/ptr`
 
@@ -66,7 +67,7 @@ Restricted API:
 pub primitive from_addr<T>(address: usize): *T
 ```
 
-`from_addr` is restricted to modules inside the active Nocter home: the common `std/` and the active target overlay `std/`. User project modules must not call it. The declaration is public only so distributed standard-library modules can import it across module boundaries; the compiler enforces the caller restriction.
+`from_addr` is restricted to trusted modules inside the active Nocter home: the common `std/` and the active target overlay `std/`. User project modules must not call it. The declaration is public only so distributed standard-library modules can import it across module boundaries; the compiler enforces the caller restriction.
 
 Rules:
 
@@ -113,7 +114,7 @@ impl StringView {
 
 `ptr()` returns a raw pointer. It does not grant dereference permission.
 
-Syscall-oriented example:
+Trusted standard-library implementation example:
 
 ```nct
 import std/ptr as ptr
@@ -128,6 +129,8 @@ let result = os.syscall3(
 )
 ```
 
+User project modules must not call syscall primitives directly.
+
 ### Pointer Intrinsics
 
 The `std/ptr` functions above are target-independent core primitive declarations. They are separate from the active target's OS primitive set such as `std/os/macos`'s `syscall0`.
@@ -141,7 +144,7 @@ std/ptr.from_ref_mut
 std/ptr.from_addr
 ```
 
-These core pointer primitives exist because address conversion and borrow-to-pointer conversion cannot be implemented in ordinary Nocter code. They do not make `print`, `exit`, allocation, strings, buffers, or file APIs compiler primitives.
+These core pointer primitives exist because address conversion and borrow-to-pointer conversion cannot be implemented in ordinary Nocter code. They do not make `print`, `exit`, `abort`, allocation, strings, buffers, or file APIs compiler primitives.
 
 ## Arrays and Views
 
@@ -203,6 +206,76 @@ Important distinction:
 
 These are not the same thing.
 
+### Borrow-Like Provenance
+
+Adopted: borrows and views carry hidden provenance tracked by the compiler.
+
+Borrow-like values:
+
+- `&T`
+- `&+T`
+- `StringView`
+- `View<T>`
+- `WriteView<T>`
+- aggregates containing any borrow-like value
+
+Provenance is compile-time information. It is not stored in the runtime value, does not affect ABI, and does not change the `ptr + len` layout of views.
+
+Initial provenance source kinds:
+
+```text
+static       string literals and other static data
+local        local owned values and stack storage
+param_borrow storage reached through an input borrow-like parameter
+owned_param  owned parameter storage
+region       storage allocated through a region allocator
+unknown      storage the compiler cannot prove
+```
+
+Rules:
+
+- Borrow-like values keep the provenance of the storage they refer to.
+- Derived views keep the same provenance as their source. For example, `StringView.bytes()` keeps the `StringView` provenance.
+- Aggregates containing borrow-like values carry the contained provenance.
+- `static` provenance may escape any function or region.
+- `local` provenance must not escape the local scope.
+- `owned_param` provenance must not escape the function because the owned parameter is dropped at function scope end unless moved.
+- `region` provenance must not escape the region.
+- `param_borrow` provenance may be returned from the function, but the caller may not use the returned borrow-like value longer than the original input borrow remains valid.
+- `unknown` provenance cannot be returned from a function or stored into a longer-lived place in safe v0 code.
+- `WriteView<T>` carries readwrite permission and follows the exclusivity rules of `&+T` for the viewed storage.
+- `View<T>` and `StringView` carry readonly permission.
+- A readonly borrow-like value may be derived from readonly or readwrite provenance.
+- A readwrite borrow-like value may be derived only from readwrite provenance.
+- If the compiler cannot prove the provenance and permission required for an escape or mutation, the program is invalid.
+
+Examples:
+
+```nct
+func ok(): StringView {
+    return "hello" // static
+}
+```
+
+```nct
+func bad(allocator: &+Allocator): StringView!AllocError {
+    var text = try String.copy(allocator, "hello")
+    return text.view() // error: local
+}
+```
+
+```nct
+func slice(input: StringView): StringView {
+    return input // param_borrow-like provenance
+}
+```
+
+```nct
+func writable(input: WriteView<u8>): WriteView<u8> {
+    return input // readwrite param_borrow-like provenance
+}
+```
+
 Indexing uses bounds checks.
 
 ```nct
@@ -210,7 +283,7 @@ let first = read[0]      // traps if out of bounds
 let maybe = read.get(0)  // u8?
 ```
 
-`x[i]` traps on out-of-bounds access. `x.get(i)` returns `T?` and is used when absence should be handled as a value.
+`x[i]` traps on out-of-bounds access. Bounds checks are always-on for every build mode; see [Safety Checks and Build Modes](03-control-flow.md#safety-checks-and-build-modes). Trap semantics are specified in [Control Flow](03-control-flow.md#never-and-reachability). `x.get(i)` returns `T?` and is used when absence should be handled as a value.
 
 Length is exposed through normal methods, not special fields.
 

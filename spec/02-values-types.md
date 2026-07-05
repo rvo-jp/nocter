@@ -45,15 +45,37 @@ Rules:
 - Uninitialized local variables are not part of the initial design.
 - `let` bindings cannot be reassigned.
 - `var` bindings may be reassigned.
-- Assignment requires a writable place.
-- Assignment to a borrowed value is an error.
-- For reassignment, the right-hand side is evaluated first.
-- If right-hand-side evaluation succeeds, the old value is dropped and the new value is stored.
-- If right-hand-side evaluation fails through `try`, the old value is not replaced before propagation. Normal scope-end cleanup still applies if control leaves the scope.
+- After `move name`, the binding enters an uninitialized state.
+- After `drop name`, the binding enters an uninitialized state.
+- A moved or explicitly dropped `let` binding cannot be reinitialized.
+- A moved or explicitly dropped `var` binding may be reinitialized by assigning to the whole binding.
+- Reinitializing a moved or explicitly dropped `var` binding does not drop an old value.
+- If the right-hand side of a reinitialization fails through `try`, the binding remains uninitialized.
+- An uninitialized binding cannot be read, borrowed, dropped, assigned through a field, or used for field access.
+- Uninitialized bindings are not dropped at scope end.
+- A maybe initialized binding cannot be read, borrowed, moved, explicitly dropped, assigned through a field, or used for field access.
+- At scope end, maybe initialized bindings use conditional drop.
+- To use a binding after a branch, every reachable path to that use must leave the binding initialized.
+- Reinitializing only a field of an uninitialized binding is not part of v0.
+- Assignment is a statement, not an expression.
+- Assignment target must be a writable place.
+- Writable places in v0 are `var` bindings, fields reachable through writable places, and fields reachable through `&+T` borrow bindings or parameters.
+- `let` bindings are not writable places.
+- Fields reached through `&T` are not writable places.
+- Index assignment into `WriteView<T>`, arrays, or collections is deferred.
+- Assignment to a borrowed value, or to a place whose parent is borrowed, is an error.
+- Field assignment overwrites the field. It is not a partial move.
+- For assignment, the right-hand side is evaluated first.
+- If right-hand-side evaluation succeeds, the old value in the target place is dropped and the new value is stored.
+- If right-hand-side evaluation fails through `try`, the target place is not changed. Normal scope-end cleanup still applies if control leaves the scope.
+- Whole-binding assignment to a maybe initialized `var` binding is allowed. If the right-hand side succeeds, the compiler conditionally drops the old value if it is initialized, then stores the new value.
 - Assigning an existing non-copy value requires explicit `move`.
 - Assigning a copy value copies it.
 - Field assignment follows the same ownership and borrow rules as local reassignment.
-- Compound assignment such as `+=` follows the same writable-place and borrow rules as assignment.
+- Assignment itself produces no value.
+- Chained assignment such as `a = b = c` is not part of v0.
+- Compound assignment such as `+=` is allowed only for numeric writable places in v0.
+- Compound assignment follows the same writable-place and borrow rules as assignment.
 
 Examples:
 
@@ -80,6 +102,154 @@ stats.lines += 1
 ```
 
 If an owned field is overwritten, the old field value is dropped after the new value has been successfully evaluated.
+
+```nct
+var user = move old_user
+user.name = move new_name
+```
+
+The field assignment above means:
+
+1. Evaluate `move new_name`.
+2. If evaluation succeeds, drop the old value in `user.name`.
+3. Store the new value into `user.name`.
+4. Mark `new_name` invalid.
+
+If step 1 fails because the right-hand side contains `try`, `user.name` is not changed.
+
+### Reinitialization After Move Or Drop
+
+Adopted: v0 allows reinitialization only for whole `var` bindings after `move` or explicit `drop`.
+
+```nct
+var text = String.new()
+consume(move text)
+
+text = String.new() // OK: reinitializes the var binding
+consume(move text)
+```
+
+Rules:
+
+- Reinitialization is assignment to a whole `var` binding that is currently uninitialized because it was moved or explicitly dropped.
+- Reinitialization is not reassignment over a live value, so no old value is dropped.
+- If reinitialization succeeds, the binding becomes initialized again.
+- If reinitialization fails through `try`, the binding remains uninitialized.
+- `let` bindings cannot be reinitialized after move or explicit drop.
+- Field reinitialization after moving a whole binding is not part of v0.
+- Partial initialization states for structs are not part of v0.
+- At scope end, only initialized bindings are dropped.
+- Definite initialization is checked across control flow.
+
+Examples:
+
+```nct
+var file = try File.open(path)
+close(move file)
+
+file.read() // error: file is uninitialized
+
+file = try File.open(other_path)
+try file.read()
+```
+
+```nct
+var text = String.new()
+
+if condition {
+    consume(move text)
+    text = String.new()
+}
+
+consume(move text) // OK: both paths leave text initialized
+```
+
+```nct
+var text = String.new()
+
+if condition {
+    consume(move text)
+}
+
+consume(move text) // error: text may be uninitialized
+```
+
+### Initialization State Across Control Flow
+
+Adopted: the compiler tracks binding initialization state across control flow.
+
+Tracked states:
+
+```text
+initialized
+uninitialized
+maybe initialized
+```
+
+Rules:
+
+- New `let` and `var` bindings start initialized because local bindings require initializers.
+- `move name` changes that binding to uninitialized on paths that continue after the move.
+- `drop name` changes that binding to uninitialized on paths that continue after the drop.
+- Successful whole-binding assignment to a `var` binding changes that binding to initialized.
+- Reads, borrows, moves, field access, field assignment, method calls through the binding, and explicit `drop name` require initialized state.
+- A maybe initialized binding cannot be used directly.
+- At a control-flow join, only reachable incoming paths are considered.
+- If all incoming paths have the binding initialized, the joined state is initialized.
+- If all incoming paths have the binding uninitialized, the joined state is uninitialized.
+- If incoming paths disagree, the joined state is maybe initialized.
+- Scope end drops initialized bindings.
+- Scope end does not drop uninitialized bindings.
+- Scope end conditionally drops maybe initialized bindings.
+- Conditional drop is generated by the compiler. It is not user-visible state and does not change the source-level type.
+- A whole-binding assignment to a maybe initialized `var` binding may be used to restore the state to initialized.
+- `if`, `match`, loop exits, `break`, `continue`, `return`, `fail`, and `try` propagation participate in the same state analysis.
+- For loops, the compiler treats the body as running zero or more times and computes a conservative fixed point. If a binding's state may differ after the loop, the result is maybe initialized.
+
+Examples:
+
+```nct
+var text = String.new()
+
+if condition {
+    consume(move text)
+    text = String.new()
+}
+
+consume(move text) // OK: initialized on all paths
+```
+
+```nct
+var text = String.new()
+
+if condition {
+    consume(move text)
+}
+
+consume(move text) // error: maybe initialized
+```
+
+```nct
+var file = try File.open(path)
+
+if should_close {
+    close(move file)
+}
+
+// file is maybe initialized here.
+// It cannot be used directly, but scope end will conditionally drop it.
+```
+
+```nct
+var file = try File.open(path)
+
+if should_close {
+    close(move file)
+}
+
+file = try File.open(other_path)
+try file.read() // OK: whole-binding assignment restored initialized state
+```
 
 ## Values and Types
 
@@ -117,7 +287,7 @@ none
 
 `true` and `false` have type `bool`. `none` is a contextual optional absence literal and requires an expected `T?` type.
 
-Names such as `String`, `StringView`, `View`, `WriteView`, `Allocator`, `File`, `IOError`, `OSError`, `print`, and `exit` are not compiler built-ins.
+Names such as `String`, `StringView`, `View`, `WriteView`, `Allocator`, `File`, `IOError`, `OSError`, `print`, `exit`, and `abort` are not compiler built-ins.
 
 `Int` is not a compiler built-in name.
 
@@ -260,6 +430,8 @@ Arithmetic trap rules:
 - Shift counts greater than or equal to the bit width of the shifted value trap.
 - Shift counts must be non-negative.
 
+Trap semantics are specified in [Control Flow](03-control-flow.md#never-and-reachability). These arithmetic safety checks are always-on for every build mode; see [Safety Checks and Build Modes](03-control-flow.md#safety-checks-and-build-modes).
+
 The exact names for wrapping arithmetic APIs belong to the primitive numeric API surface, not to the operator grammar.
 
 ## Operators, Comparison, and Precedence
@@ -299,7 +471,7 @@ Precedence, from highest to lowest:
    expr as Type
 
 3. unary
-   !x, -x, &x, &+x, move x, try x
+   !x, -x, &x, &+x, move name, try x
 
 4. multiplicative
    *, /, %
@@ -373,6 +545,7 @@ Rules:
 - Duplicate fields are compile errors.
 - Field initializer expressions are evaluated left to right in the order written in the literal.
 - Field initializer expressions follow normal ownership, move, copy, borrow, and `try` rules.
+- If a later field initializer fails through `try`, already initialized owned field values are dropped in reverse initialization order before the failure propagates.
 - Private fields may be initialized only inside the module that defines the struct.
 - Public fields may be initialized from other modules.
 - There is no constructor overloading in v0.

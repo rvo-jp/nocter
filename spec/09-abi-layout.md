@@ -90,6 +90,8 @@ Rules:
 
 Small integer arguments are extended to one ABI word. Unsigned integers are zero-extended. Signed integers are sign-extended. `bool` uses `0` for false and `1` for true; other bit patterns are invalid for a live `bool` value.
 
+When a live `bool` or enum value can enter from a primitive or ABI boundary and the compiler cannot prove that its bit pattern or tag is valid, the required validation is an always-on safety check. The general safety-check policy is specified in [Control Flow](03-control-flow.md#safety-checks-and-build-modes).
+
 ### Returns
 
 Return rules:
@@ -223,7 +225,7 @@ pub primitive trap(): never
 
 Rules:
 
-- The source-level call to a primitive is type checked like a normal function call.
+- After trusted-boundary restrictions have allowed the call, the source-level call to a primitive is type checked like a normal function call.
 - The primitive's parameters and return type are lowered using Nocter ABI.
 - The backend then lowers the primitive body to target-specific machine code or target-specific calling sequences.
 - A primitive may internally use OS syscall conventions, but those conventions are not exposed as the source-level ABI.

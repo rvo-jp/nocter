@@ -139,6 +139,8 @@ nocter build app.nct --target x64-linux
 error: target x64-linux is recognized but not implemented
 ```
 
+build profile は安全性を変えません。将来 debug / release や最適化 option を持つ場合でも、bounds check、整数 overflow check、division by zero check、shift range check、invalid bool / enum tag check、`unreachable()` 到達 check は常に有効です。release build が速くなる場合は、compiler が check 不要を証明して削除できた場合だけです。unchecked arithmetic、unchecked indexing、unchecked enum-tag operation は v0 の一般ユーザー API として公開しません。
+
 ## 設計方針
 
 ### パス由来モジュール
@@ -356,7 +358,7 @@ program(): i32 {
 
 ### ビルトイン関数を極力作らない
 
-`print`、`exit`、ファイル操作、文字列操作などは、言語仕様に組み込まず標準ライブラリで提供します。
+`print`、`exit`、`abort`、ファイル操作、文字列操作などは、言語仕様に組み込まず標準ライブラリで提供します。
 
 ```nct
 func print(msg: string): void {
@@ -387,9 +389,13 @@ pub primitive trap(): never
 pub primitive unreachable(): never
 ```
 
-`primitive` は高級言語とコンパイラ内蔵の低レベル実装を接続するための境界です。初期仕様では Nocter home の共通 `std/` と active target overlay の `std/` 内だけで宣言できます。一般ユーザーコードは `primitive` を宣言できません。
+`trap()` は target が定める illegal instruction、breakpoint、または同等の復帰不能停止へ下げます。`unreachable()` は到達不能の明示で、到達した場合は trap します。どちらも `never` を返し、stack unwinding は行いません。
 
-初期 `arm64-macos` target primitive set v0 は、`syscall0` から `syscall6`、`trap`、`unreachable` だけです。別枠として、target 非依存の `std/ptr` core pointer primitive を持ちます。`print`、`exit`、file 操作、allocator、`String`、`Buffer` は primitive にしません。これらは標準ライブラリの通常 API として実装します。
+`primitive` は高級言語とコンパイラ内蔵の低レベル実装を接続するための境界です。初期仕様では Nocter home の共通 `std/` と active target overlay の `std/` 内だけで宣言できます。一般ユーザーコードは `primitive` を宣言できず、直接呼び出すこともできません。
+
+v0 では `unsafe` keyword、`unsafe` block、`unsafe func` を採用しません。一般ユーザーコードは常に safe Nocter code です。低レベル実装の trusted boundary は active Nocter home 内、つまり共通 `std/` と `targets/<target>/std/` に限定します。trusted module も通常の型チェック、所有権、borrow、drop 検査を受けます。
+
+初期 `arm64-macos` target primitive set v0 は、`syscall0` から `syscall6`、`trap`、`unreachable` だけです。別枠として、target 非依存の `std/ptr` core pointer primitive を持ちます。`print`、`exit`、`abort`、file 操作、allocator、`String`、`Buffer` は primitive にしません。これらは標準ライブラリの通常 API として実装します。
 
 任意 `asm` ではなく型付き `primitive` に絞る理由は次の通りです。
 
@@ -556,6 +562,7 @@ std/io / std/process
     File
     print
     exit
+    abort
 ```
 
 `SyscallResult` と `Errno` は target overlay の低レベル型です。通常のユーザー向け API はこれらを返さず、`std/os` の `OSError` や `std/io` の `IOError` へ変換します。
@@ -570,9 +577,9 @@ std/os/macos.syscall3
 
 common `std/os` には `Errno` という名前を置きません。Windows は errno ではないため、公開 API は `OSError` に統一します。`OSError.code` は macOS / Linux では errno、Windows では将来 Win32 error code など target が定める raw code になります。
 
-`std/process` の `exit(code): never` は標準ライブラリ API です。compiler primitive ではありません。target overlay の syscall を使って実装し、万一 OS の exit 操作から戻った場合は `trap()` します。
+`std/process` の `exit(code): never` と `abort(): never` は標準ライブラリ API です。compiler primitive ではありません。target overlay の syscall や process termination boundary を使って実装し、万一 OS の終了操作から戻った場合は `trap()` します。`exit` / `abort` は caller scope の Nocter cleanup を実行しません。cleanup が必要な場合は、呼び出し前に明示します。
 
-`std/process` はユーザー向け module path ですが、`exit` は process ABI に依存するため、初期実装では target overlay 側に物理配置します。利用者は配置を意識せず `from std/process import exit` で使います。
+`std/process` はユーザー向け module path ですが、`exit` / `abort` は process ABI に依存するため、初期実装では target overlay 側に物理配置します。利用者は配置を意識せず `from std/process import exit` や `from std/process import abort` で使います。
 
 ## ランタイム
 
@@ -612,6 +619,12 @@ Nocter のメモリ管理方針は、GC なし、所有権あり、静的検査�
 - 所有権を持つ値だけがメモリを解放できる
 - 型はデフォルトで move-only とし、`copy struct` だけ暗黙コピーを許可する
 - 非copy値の代入・引数渡し・return には `move` を明示する
+- v0 の `move` operand は local / parameter binding 名だけに限定する
+- field move、index move、partial move は v0 では採用しない
+- `move name` 後、binding は uninitialized state になる
+- `drop name` 後、binding は uninitialized state になる
+- `var` binding 全体だけは move / drop 後に再初期化できる
+- `let` binding、field 単位、index 単位の再初期化は v0 では採用しない
 - parameter は immutable binding とし、`var` parameter は採用しない
 - owned parameter は関数本体が所有し、未 move の owned parameter は関数 scope 終了時に破棄する
 - 既存の move-only binding を返す場合は `return move value` と書く
@@ -621,9 +634,10 @@ Nocter のメモリ管理方針は、GC なし、所有権あり、静的検査�
 - readwrite borrow は `&+T` として表現し、同時に他の readonly / readwrite borrow と共存できない
 - `&+` は単一トークンとして扱い、単項 `+x` は採用しない
 - スコープ終了時に破棄処理を挿入する
-- 破棄処理は `impl` 内の専用 `drop` 構文で定義する
+- 破棄処理は `impl` 内の専用 `drop` member で定義する
 - use-after-free、double-free、dangling pointer を型チェック段階で防ぐ
 - raw pointer は address-carrying value として扱い、初期仕様では dereference を一般ユーザーに提供しない
+- `unsafe` は v0 では採用せず、低レベル境界は active Nocter home 内の trusted module に閉じる
 
 借用の基本規則:
 
@@ -644,24 +658,37 @@ Nocter のメモリ管理方針は、GC なし、所有権あり、静的検査�
 - `let` / `var` は initializer 必須
 - `let` は再代入できない
 - `var` は再代入できる
+- assignment は statement であり、値を返さない
+- assignment target は writable place である必要がある
+- v0 の writable place は `var` binding、writable place から到達できる field、`&+T` borrow から到達できる field
 - 再代入では、右辺の評価に成功してから古い値を `drop` し、新しい値を格納する
 - 右辺の `try` が失敗した場合、古い値は置き換えられず、通常の `try` 伝播と scope-end `drop` に従う
 - 借用中の値には再代入できない
 - 非copy値を既存の値から代入する場合は `move` が必要
 - copy 型は通常の代入で copy する
-- フィールド代入も同じ所有権規則に従う
-- `+=` などの複合代入も writable place と借用規則に従う
+- field assignment は partial move ではなく overwrite として扱う
+- move 後の `var` binding 再初期化では古い値を `drop` しない
+- 再初期化の右辺が `try` で失敗した場合、binding は uninitialized のまま
+- 分岐後に binding を使うには、すべての到達経路で initialized である必要がある
+- compiler は binding の状態を `initialized` / `uninitialized` / `maybe initialized` として追跡する
+- `maybe initialized` binding は直接使えない
+- scope 終了時の `maybe initialized` binding には compiler が条件付き drop を生成する
+- chained assignment は v0 では採用しない
+- `+=` などの複合代入は v0 では数値型の writable place のみに許可する
+- `WriteView<T>`、array、collection への index assignment は v0 では延期する
 
 評価順序と一時値の基本規則:
 
 - 式は左から右に評価する
 - 関数引数も左から右に評価する
 - `method` 呼び出しでは receiver を最初に評価する
+- struct literal の field initializer は、literal に書いた順に評価する
 - `??` と三項条件演算子は必要な側だけ評価する
-- 一時値は原則として文末で `drop` する
+- 一時値は原則として文末で生成の逆順に `drop` する
+- 一時値の所有権が local binding、owned parameter、構築中の aggregate、代入先、return value に移った場合、その一時値自体は caller 側の文末では `drop` しない
 - block、`if` body、`match` arm、loop body は scope を作る
 - scope 終了時は local 変数を宣言の逆順で `drop` する
-- `try` / `return` / `fail` / `break` / `continue` で途中離脱する場合も、離脱で抜ける scope の `drop` を実行する
+- `try` / `return` / `fail` / `break` / `continue` で途中離脱する場合は、現在の statement で生成済みの一時値を先に `drop` し、その後に離脱で抜ける scope の `drop` を実行する
 - 一時値から作った borrow や view を文の外へ逃がせない
 - local owned value、temporary owned value、owned parameter から作った borrow / view は返せない
 - 初期仕様では一時値の lifetime extension を採用しない
@@ -685,6 +712,68 @@ let b = move a
 
 `move` 後の `a` は使用できません。これにより二重解放を防ぎます。
 
+`move` または明示 `drop` 後の binding は uninitialized state になります。`var` binding 全体だけは再初期化できます。`let` binding や field だけの再初期化は v0 ではできません。
+
+```nct
+var text = String.new()
+consume(move text)
+
+text = String.new()
+consume(move text)
+```
+
+再初期化では古い値を `drop` しません。右辺の `try` が失敗した場合、binding は uninitialized のままです。分岐後に使う binding は、すべての到達経路で initialized でなければなりません。
+
+```nct
+var file = try File.open(path)
+close(move file)
+
+file.read() // error
+
+file = try File.open(other_path)
+try file.read()
+```
+
+control flow の合流では、全 path で initialized なら initialized、全 path で uninitialized なら uninitialized、path に差があれば maybe initialized です。maybe initialized binding は読み取り、borrow、move、field access、明示 `drop` に使えません。ただし scope end では compiler が条件付き drop を生成します。
+
+```nct
+var file = try File.open(path)
+
+if should_close {
+    close(move file)
+}
+
+// file is maybe initialized here.
+// Direct use is an error, but scope end is safe.
+```
+
+`move` は予約語による unary expression で、所有権を移すことだけを表します。v0 では operand を local / parameter binding 名に限定します。
+
+```nct
+let b = move a
+consume(move text)
+return move value
+```
+
+copy 型に `move` を使うこと、field / index から直接 move すること、新規生成値に `move` を付けることは v0 ではエラーです。
+
+```nct
+move object.field  // error
+move array[index]  // error
+move make_value()  // error
+move copy_value    // error
+```
+
+field を差し替えたい場合は、所有値全体を新しい binding に move して、その binding を変更します。
+
+```nct
+func rename(user: User, name: String): User {
+    var next = move user
+    next.name = move name
+    return move next
+}
+```
+
 通常の関数に borrow を渡す場合は、呼び出し側で `&` / `&+` を明示します。
 
 ```nct
@@ -707,6 +796,14 @@ impl File {
 try file.write("hello")
 ```
 
+新規生成された owned temporary は、その1回の method call に限って `&+Self` receiver として使えます。
+
+```nct
+try (try File.open(path)).write("hello")
+```
+
+`File.open(path)` が失敗した場合、`File` temporary は存在しません。`write` が失敗した場合、生成済みの temporary `File` を drop してから failure を伝播します。成功した場合は statement 終端で temporary `File` を drop します。
+
 再代入は、古い所有値を安全に破棄してから新しい値を入れます。
 
 ```nct
@@ -714,6 +811,15 @@ var file = try File.open(path)
 
 file = try File.open(other_path)
 ```
+
+field assignment も同じ overwrite 規則です。右辺を先に評価し、成功した後に古い field 値を `drop` して新しい値を格納します。右辺の `try` が失敗した場合、左辺は変更しません。
+
+```nct
+var user = move old_user
+user.name = move new_name
+```
+
+`let` binding、`&T` 経由の field、borrow 中の値、その親が borrow 中の field には代入できません。assignment は値を返さないため、`a = b = c` のような chained assignment は v0 では採用しません。
 
 非copy値を別の変数から移す場合は `move` を使います。
 
@@ -778,7 +884,7 @@ let p1 = Point{x: 1, y: 2}
 let p2 = p1
 ```
 
-所有値の破棄はスコープ終了時に自動で行います。`drop` は trait ではなく、`impl` 内に置ける専用構文です。`drop` は戻り値型を書かず、`pub` も付けません。明示的に早く破棄したい場合は `drop value` 文を使います。
+所有値の破棄はスコープ終了時に自動で行います。破棄処理の定義には、trait ではなく `impl` 内の専用 `drop` member を使います。`drop` member は戻り値型を書かず、`pub` も付けません。明示的に早く破棄したい場合は `drop name` 文を使います。
 
 ```nct
 import std/os as os
@@ -792,6 +898,18 @@ impl File {
 var file = try File.open(path)
 drop file
 ```
+
+`drop name` の operand は v0 では local / parameter binding 名だけです。initialized な move-only owned binding だけを明示 drop できます。copy 型、borrow、maybe initialized、uninitialized binding は明示 drop できません。`drop name` 後、その binding は uninitialized state になります。`var` binding はその後に再初期化できます。
+
+```nct
+var file = try File.open(path)
+drop file
+
+file = try File.open(other)
+try file.read()
+```
+
+`drop object.field`、`drop array[index]`、`drop make_value()` は v0 では採用しません。
 
 一時的な大量確保には、言語構文として `region` を使います。`region` は allocator から短命な一時領域を作り、block 終了時にその領域の確保をまとめて解放する仕組みです。
 
@@ -836,6 +954,7 @@ Nocter は raw pointer 型 `*T` を持ちます。`*T` は所有権でも borrow
 - `*T` は lifetime を延長しない
 - `*T` は read / write 権限を表さない
 - 初期仕様では一般ユーザーコードに raw pointer dereference を提供しない
+- `unsafe` block で dereference を有効化する仕組みは v0 では採用しない
 
 pointer と address の変換は `std/ptr` に置きます。
 
@@ -845,9 +964,9 @@ pub primitive from_ref<T>(value: &T): *T
 pub primitive from_ref_mut<T>(value: &+T): *T
 ```
 
-`usize` から pointer を作る `from_addr<T>(address: usize): *T` は、初期仕様では共通 `std/` と active target overlay の内部だけで使える制限 API です。一般ユーザーコードからは呼べません。
+`usize` から pointer を作る `from_addr<T>(address: usize): *T` は、初期仕様では共通 `std/` と active target overlay の trusted module だけが使える制限 API です。一般ユーザーコードからは呼べません。
 
-`View<T>`、`WriteView<T>`、`StringView` は `ptr()` と `len()` を持ちます。syscall に buffer を渡す場合は、`ptr()` で raw pointer を取り、`std/ptr` の `addr(...)` で `usize` へ変換します。
+`View<T>`、`WriteView<T>`、`StringView` は `ptr()` と `len()` を持ちます。標準ライブラリ内の trusted module が syscall に buffer を渡す場合は、`ptr()` で raw pointer を取り、`std/ptr` の `addr(...)` で `usize` へ変換します。一般ユーザーコードは syscall primitive を直接呼べません。
 
 ```nct
 import std/ptr as ptr
@@ -862,7 +981,9 @@ let result = os.syscall3(
 )
 ```
 
-`std/ptr` の関数は target 非依存の core pointer primitive です。OS 境界の `std/os/macos` の `syscall0..6` とは別扱いです。これは raw pointer 型そのものに必要な最小操作であり、`print`、`exit`、file 操作、allocator、`String`、`Buffer` を compiler primitive にするものではありません。
+`std/ptr` の関数は target 非依存の core pointer primitive です。OS 境界の `std/os/macos` の `syscall0..6` とは別扱いです。これは raw pointer 型そのものに必要な最小操作であり、`print`、`exit`、`abort`、file 操作、allocator、`String`、`Buffer` を compiler primitive にするものではありません。
+
+trusted module が public API の不変条件を破った場合、それは標準ライブラリまたは compiler のバグとして扱います。一般ユーザーコードが `unsafe` に opt-in した結果とは扱いません。`unsafe` と `trusted` は v0 では予約語にしません。
 
 ## 文字列
 
@@ -945,7 +1066,39 @@ View<T>       // readonly contiguous view
 WriteView<T> // readwrite contiguous view
 ```
 
-index 演算子 `x[i]` は境界チェックを行います。範囲外の場合は trap します。範囲外を値として扱いたい場合は `get(i)` を使います。
+borrow と view は、コンパイラ内部の hidden provenance を持ちます。provenance は実行時値ではなく、ABI や `ptr + len` layout に影響しません。
+
+v0 の provenance source kind:
+
+```text
+static
+local
+param_borrow
+owned_param
+region
+unknown
+```
+
+`static` は返却・保存できます。`local`、`owned_param`、`region` は外へ逃がせません。`param_borrow` は返却できますが、呼び出し側では元の borrow より長く使えません。`unknown` は安全側に倒し、safe v0 code では関数から返したり長寿命の場所へ保存したりできません。
+
+`WriteView<T>` は `&+T` と同じく readwrite permission と排他性を持ちます。`View<T>` と `StringView` は readonly permission を持ちます。
+
+```nct
+func ok(): StringView {
+    return "hello" // static
+}
+
+func bad(allocator: &+Allocator): StringView!AllocError {
+    var text = try String.copy(allocator, "hello")
+    return text.view() // error: local
+}
+
+func slice(input: StringView): StringView {
+    return input // param_borrow-like provenance
+}
+```
+
+index 演算子 `x[i]` は境界チェックを行います。範囲外の場合は trap します。この境界チェックは debug / release に関係なく常に有効です。範囲外を値として扱いたい場合は `get(i)` を使います。
 
 ```nct
 let first = read[0]      // 範囲外なら trap
@@ -994,7 +1147,7 @@ T!E
 [T; N]
 ```
 
-`String`、`StringView`、`View<T>`、`WriteView<T>`、`Allocator`、`File`、`IOError`、`print`、`exit` は compiler built-in ではありません。
+`String`、`StringView`、`View<T>`、`WriteView<T>`、`Allocator`、`File`、`IOError`、`print`、`exit`、`abort` は compiler built-in ではありません。
 
 整数リテラルは文脈型があればその整数型になり、文脈がなければ `i32` になります。
 
@@ -1070,7 +1223,7 @@ let checked = u8.checked(big)   // u8?
 let truncated = u8.truncate(big) // u8
 ```
 
-通常の整数演算で overflow した場合は trap します。wrapping 演算は通常演算ではなく、明示 API で扱います。division by zero と、型の bit 幅以上の shift も trap します。`bool` と整数の暗黙変換は行いません。
+通常の整数演算で overflow した場合は trap します。wrapping 演算は通常演算ではなく、明示 API で扱います。division by zero と、型の bit 幅以上の shift も trap します。これらの安全チェックは debug / release に関係なく常に有効です。compiler が trap 条件が起こらないことを証明できる場合だけ check を削除できます。`bool` と整数の暗黙変換は行いません。
 
 比較と論理演算は、初期仕様では小さく保ちます。
 
@@ -1104,6 +1257,16 @@ func print(msg: string): void
 `T!E` は成功時に `T`、失敗時に `E` を返す型です。fallible 関数内では `return value` が成功、`fail error` が失敗を表します。
 
 `try` は fallible value の成功値を取り出す構文です。失敗した場合は現在の関数から同じ error で失敗します。例外やスタック巻き戻しではありません。`try` は `T!E` 専用で、`T?` には使いません。
+
+`fail`、`trap`、`abort` は別の仕組みです。
+
+```text
+fail  = T!E を通る回復可能エラー
+trap  = プログラムバグ、契約違反、compiler check 失敗による復帰不能停止
+abort = cleanup なしの即時 process termination
+```
+
+`fail` は `return` と同じく、離脱する scope の通常 cleanup を実行します。`trap` と `abort` は `never` を返し、stack unwinding を行いません。`panic` と unwind は v0 では採用しません。
 
 ```nct
 func open(path: StringView): File!IOError {
@@ -1233,25 +1396,27 @@ for i in 0..<bytes.len() {
 
 `start..<end` は `start` 以上 `end` 未満を表します。`start` と `end` は loop 開始前に 1 回だけ評価します。step は常に `+1`、loop 変数は immutable binding です。`for item in collection` は初期仕様では採用しません。collection の走査は `for i in 0..<items.len()` と index、または標準ライブラリの通常メソッド `iter()` / `next()` を明示的に使います。
 
-通常復帰しない処理は `never` で表します。`never` は値を持つ型ではなく、呼び出し元へ戻らない制御フローを表す型です。`panic`、`abort`、`exit`、停止しないイベントループ、到達不能分岐の明示に使います。`panic`、`abort`、`exit` は標準ライブラリ API の候補名であり、コンパイラが特別扱いする名前ではありません。
+通常復帰しない処理は `never` で表します。`never` は値を持つ型ではなく、呼び出し元へ戻らない制御フローを表す型です。`trap()`、`std/process.abort()`、`std/process.exit(code)`、停止しないイベントループ、到達不能分岐の明示に使います。
+
+`trap` はプログラムバグや runtime check 失敗のための primitive 境界です。compiler も out-of-bounds indexing、整数 overflow、division by zero、invalid enum tag、unreachable 到達などで trap を生成できます。
+
+`abort` と `exit` は標準ライブラリ API であり、compiler primitive ではありません。どちらも caller scope の Nocter cleanup を実行しません。cleanup が必要なら呼び出し前に行います。
+
+`panic` は v0 の言語機能ではなく、標準ライブラリ API としても採用しません。予約語でもありません。ユーザーが `panic` という通常関数を定義しても、言語仕様上の特別な動作はありません。stack unwinding も v0 では採用しません。
 
 ```nct
 import std/process as process
-
-func panic(message: StringView): never {
-    process.abort(message)
-}
 
 func require_path(path: StringView?): StringView {
     if let value = path {
         return value
     }
 
-    panic("missing path")
+    process.abort()
 }
 ```
 
-`never` を返す関数を呼んだ後の同一 block 内の文は到達不能です。Nocter は初期仕様で到達不能コードをコンパイルエラーにします。`never` は値を生成しないため、三項条件演算子や `try ... catch` の分岐で必要な型に収まりますが、変数に格納する値としては存在しません。`void` 以外の関数はすべての到達可能経路で値を返すか、`fail` / `return none` / `never` などで経路を終端する必要があります。`never` 呼び出しは例外や stack unwinding ではないため、呼び出し元の `drop` 実行を暗黙に保証しません。
+`never` を返す関数を呼んだ後の同一 block 内の文は到達不能です。Nocter は初期仕様で到達不能コードをコンパイルエラーにします。`never` は値を生成しないため、三項条件演算子や `try ... catch` の分岐で必要な型に収まりますが、変数に格納する値としては存在しません。`void` 以外の関数はすべての到達可能経路で値を返すか、`fail` / `return none` / `never` などで経路を終端する必要があります。`never` 呼び出しは例外や stack unwinding ではないため、statement-end temporary drop や caller scope の `drop` 実行を暗黙に保証しません。
 
 ジェネリクスは `<T>` を使います。制約は `T: Trait`、複数制約は `T: A + B` と書きます。
 
