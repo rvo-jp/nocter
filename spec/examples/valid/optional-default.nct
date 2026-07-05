@@ -1,0 +1,16 @@
+use std/prelude
+
+from std/process import env
+
+program(): i32 {
+    let user = (try env("USER") catch error {
+        return 1
+    }) ?? "unknown"
+
+    use_name(user)
+    return 0
+}
+
+func use_name(name: StringView): void {
+    return
+}

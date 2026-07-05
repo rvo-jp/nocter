@@ -14,7 +14,7 @@ Import paths use `/` as the path separator:
 ```text
 examples/word_count.nct                                  => examples/word_count
 ~/.nocter/std/io.nct                                     => std/io
-~/.nocter/targets/arm64-macos/std/os/macos.nct           => std/os/macos
+~/.nocter/targets/arm64-darwin/std/os/macos.nct           => std/os/macos
 ```
 
 The file path is the source of truth. There is no separate module name inside the file.
@@ -157,7 +157,7 @@ pub from std/string import String, StringView
 pub from std/view import View, WriteView
 ```
 
-The prelude should remain small. Names such as `File`, `IOError`, `print`, `args`, `exit`, and `abort` should be imported explicitly from their domain modules.
+The prelude should remain small. Names such as `File`, `IOError`, `print`, `args`, `env`, `cwd`, `exit`, and `abort` should be imported explicitly from their domain modules.
 
 ## Package Layout
 
@@ -201,7 +201,11 @@ from ./src/config import Config
 
 program(): i32 {
     let config = Config.default()
-    print(config.name)
+
+    try print(config.name) catch error {
+        return 1
+    }
+
     return 0
 }
 ```
@@ -286,10 +290,10 @@ absolute:     /Users/me/.nocter/std/io.nct
 
 ```text
 Nocter home:  /Users/me/.nocter
-target:       arm64-macos
-source file:  /Users/me/.nocter/targets/arm64-macos/std/os/macos.nct
-display:      targets/arm64-macos/std/os/macos.nct
-absolute:     /Users/me/.nocter/targets/arm64-macos/std/os/macos.nct
+target:       arm64-darwin
+source file:  /Users/me/.nocter/targets/arm64-darwin/std/os/macos.nct
+display:      targets/arm64-darwin/std/os/macos.nct
+absolute:     /Users/me/.nocter/targets/arm64-darwin/std/os/macos.nct
 ```
 
 ## Import Path Resolution
@@ -320,12 +324,12 @@ from std/fs import File
 
 Non-relative paths are resolved inside the active Nocter home, normally `~/.nocter/` after user installation.
 
-The archive payload may be named `.nocter-<host>/`, such as `.nocter-arm64-macos/`, but once installed and renamed to `~/.nocter/`, import resolution must not depend on the payload directory name.
+Release archive names include the host, such as `nocter-v0.1.0-arm64-darwin.tar.gz`, but the archive root is `.nocter/`. Import resolution depends on the active Nocter home path, not on the release archive filename.
 
 For `std/...` paths, the active target overlay is searched before the common standard library:
 
 ```text
-~/.nocter/targets/arm64-macos/std/io.nct
+~/.nocter/targets/arm64-darwin/std/io.nct
 ~/.nocter/std/io.nct
 ```
 
@@ -346,8 +350,9 @@ Rules:
 - `.nct` is not written in import declarations.
 - Directory modules such as `std/io/mod.nct` or `std/io/index.nct` are not part of the initial design.
 - If a `std/...` file exists in both the active target overlay and common `std/`, the active target overlay wins.
-- The compiler locates Nocter home from `NOCTER_HOME` if set, otherwise from the directory containing the running `nocter` executable.
-- The repository development output directory `.nocter-arm64-macos/` may act as Nocter home during local development. This is a development detail, not the user-facing installation convention.
+- The compiler locates Nocter home from `NOCTER_HOME` if set, otherwise from the resolved real path of the running `nocter` executable and its parent directory.
+- The compiler does not automatically search `cwd/.nocter` or `~/.nocter`.
+- The repository development output directory `.nocter/` may act as Nocter home during local development. This is a development detail, not the user-facing installation convention.
 
 ## Name Resolution
 
@@ -385,7 +390,7 @@ pub struct File {
 }
 
 impl File {
-    pub func open(path: StringView): File!IOError {
+    pub func open(path: StringView): File ! IOError {
         ...
     }
 
@@ -458,7 +463,7 @@ Initial rules:
 - Initial design does not support `mod.nct` directory modules.
 - Standard library modules live under `std`.
 - `~/.nocter/std/io.nct` resolves from import path `std/io` when the active Nocter home is `~/.nocter`.
-- `~/.nocter/targets/arm64-macos/std/os/macos.nct` resolves from import path `std/os/macos` when the active target is `arm64-macos`.
+- `~/.nocter/targets/arm64-darwin/std/os/macos.nct` resolves from import path `std/os/macos` when the active target is `arm64-darwin`.
 
 Import roots:
 

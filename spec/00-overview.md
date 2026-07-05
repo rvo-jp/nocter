@@ -7,13 +7,14 @@ The specification entry point is [../SPEC.md](../SPEC.md).
 
 - Language name: Nocter
 - Source extension: `.nct`
-- Initial target: `arm64-macos`
+- Initial target: `arm64-darwin`
 - Initial output: ARM64 Mach-O executable
 - Initial cross compilation: disabled, but host and target are modeled separately
 - Runtime GC: none
 - Entry syntax: `program`
 - User Nocter home: `~/.nocter/`
-- Initial archive payload: `.nocter-arm64-macos/`
+- Initial archive root: `.nocter/`
+- Release metadata: `VERSION` and `MANIFEST.json`
 - Compiler command: `nocter`
 
 ## Core Principles
@@ -25,13 +26,16 @@ The language avoids giving special meaning to ordinary identifier names. Names s
 Nocter prioritizes:
 
 - direct compilation from `.nct` to native executable output
-- initial direct output for `arm64-macos`: ARM64 Mach-O
+- initial direct output for `arm64-darwin`: ARM64 Mach-O
 - no dependency on `clang`, `as`, `ld`, Xcode Command Line Tools, or external runtime libraries
 - simple and readable high-level syntax
+- AI-readable and AI-writable source through one canonical style, stable examples, and machine-readable diagnostics
 - value-centered program structure using `struct`, `enum`, `func`, `impl`, and modules
 - memory management without GC
 - standard-library implementation in Nocter, with limited typed `primitive` declarations for low-level boundaries
 - no user-facing `unsafe` mode in v0; low-level trusted code is restricted to the active Nocter home
+
+AI support must not fragment the language surface. Nocter should prefer `nocter fmt`, `nocter check --format json`, `nocter tokens --format json`, `nocter ast --format json`, and curated examples over alternate syntax forms for the same concept.
 
 ## Program Entry
 
@@ -63,14 +67,6 @@ program(): i32 {
 }
 ```
 
-Future candidate:
-
-```nct
-program(args: View<StringView>): i32 {
-    ...
-}
-```
-
 Rules:
 
 - An executable must contain exactly one `program` construct.
@@ -78,7 +74,18 @@ Rules:
 - `program` is not imported or exported as a normal function.
 - `program(): void` exits with status code `0`.
 - `program(): i32` uses the returned value as the process exit status.
+- `program` parameters are not part of v0.
+- `program(args: View<StringView>)` is not part of v0.
+- Command-line arguments and environment variables are accessed through `std/process`, not through special `program` parameters.
 - `func main()` has no special meaning. `main` is an ordinary identifier if used.
+
+Process entry context:
+
+- The compiler-generated low-level entry code receives the platform process entry information, such as `argc`, `argv`, and environment data when the target provides them.
+- User code does not see the platform entry ABI.
+- The generated entry code makes process entry information available to the standard library's process context.
+- `std/process` exposes process information through ordinary functions such as `args()` and `env(...)`.
+- Names such as `args`, `env`, `cwd`, `exit`, and `abort` are standard-library names, not compiler-special identifiers.
 
 Rationale:
 
@@ -86,6 +93,7 @@ Rationale:
 - avoids requiring a general attribute system before the language needs one
 - makes executable source files visually clear
 - keeps the entry point explicit without adding project configuration
+- keeps process arguments in the standard library instead of expanding entry syntax
 
 ## Attributes
 

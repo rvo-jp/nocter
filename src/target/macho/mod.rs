@@ -1,0 +1,1 @@
+//! Mach-O executable writer.

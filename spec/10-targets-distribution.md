@@ -10,7 +10,7 @@ Adopted: Nocter has one initial target, but the compiler architecture should kee
 Initial target:
 
 ```text
-arm64-macos
+arm64-darwin
 ```
 
 Initial target properties:
@@ -24,8 +24,8 @@ Initial target properties:
 
 Rules:
 
-- The initial compiler implementation targets only `arm64-macos`.
-- The initial implementation does not support cross compilation beyond `arm64-macos`, but the compiler still models host and target separately.
+- The initial compiler implementation targets only `arm64-darwin`.
+- The initial implementation does not support cross compilation beyond `arm64-darwin`, but the compiler still models host and target separately.
 - The default active target is the host target.
 - The language grammar, type system, ownership model, borrow rules, regions, and high-level standard-library APIs should not depend on macOS-specific names.
 - Target-specific logic belongs in target backends, primitive lowering, executable writers, and OS-specific standard-library modules.
@@ -38,7 +38,7 @@ Rules:
 Current target-specific standard-library boundary:
 
 ```text
-~/.nocter/targets/arm64-macos/std/os/macos.nct
+~/.nocter/targets/arm64-darwin/std/os/macos.nct
 ```
 
 Future target-specific boundaries may use parallel target overlays such as:
@@ -55,7 +55,7 @@ These future files are not part of the initial implementation goal.
 Recognized targets:
 
 ```text
-arm64-macos    implemented first
+arm64-darwin    implemented first
 x64-linux      reserved, not implemented
 arm64-linux    reserved, not implemented
 x64-windows    reserved, not implemented
@@ -70,26 +70,30 @@ error: target x64-linux is recognized but not implemented
 
 ## Distribution Layout
 
-Adopted: the downloadable archive is host-specific, but the normal user installation directory is host-independent.
+Adopted: the downloadable archive name is host-specific, but the archive root and normal user installation directory are host-independent.
 
-The initial archive name and payload are:
+The initial archive name and root are:
 
 ```text
-nocter-<version>-arm64-macos.tar.gz
+nocter-v<version>-arm64-darwin.tar.gz
 
-.nocter-arm64-macos/
+.nocter/
     nocter
+    VERSION
+    MANIFEST.json
     std/
     targets/
 ```
 
-Users install the payload by moving or renaming it to `~/.nocter/`.
+The archive root is always `.nocter/`. Users install Nocter by extracting the archive so that `.nocter/` becomes `~/.nocter/`, or by moving the extracted `.nocter/` to another chosen Nocter home.
 
 The installed layout is:
 
 ```text
 ~/.nocter/
     nocter
+    VERSION
+    MANIFEST.json
     std/
         prelude.nct
         io.nct
@@ -99,7 +103,7 @@ The installed layout is:
         string.nct
         view.nct
     targets/
-        arm64-macos/
+        arm64-darwin/
             std/
                 process.nct
                 os/
@@ -114,20 +118,106 @@ The installed layout is:
             std/
 ```
 
-The `host` part in the archive and payload name identifies the environment that runs the `nocter` compiler binary. The first host is `arm64-macos`. Future downloaded payloads may include names such as `.nocter-x64-linux/` or `.nocter-arm64-linux/`, but the recommended installed directory remains `~/.nocter/`.
+The `host` part in the archive name identifies the environment that runs the `nocter` compiler binary. The first host is `arm64-darwin`. Future downloaded archives may use names such as `nocter-v<version>-x64-linux.tar.gz` or `nocter-v<version>-arm64-linux.tar.gz`, but each archive still extracts a `.nocter/` root.
 
 The installed Nocter home contains common standard-library source files and one or more target overlays under `targets/<target>/`.
 
-Because cross compilation beyond `arm64-macos` is not part of the initial implementation, the default active target is the host target. For example, the `arm64-macos` archive contains the compiler that runs on ARM64 macOS, and `targets/arm64-macos/` contains the standard-library primitive boundary for the `arm64-macos` target.
+Because cross compilation beyond `arm64-darwin` is not part of the initial implementation, the default active target is the host target. For example, the `arm64-darwin` archive contains the compiler that runs on ARM64 macOS, and `targets/arm64-darwin/` contains the standard-library primitive boundary for the `arm64-darwin` target.
+
+## Release Metadata
+
+Adopted: each Nocter home contains simple release metadata at its root.
+
+```text
+.nocter/
+    nocter
+    VERSION
+    MANIFEST.json
+    std/
+    targets/
+```
+
+`VERSION` is a single UTF-8 text line containing the release version:
+
+```text
+0.1.0
+```
+
+`MANIFEST.json` is structured metadata for tools:
+
+```json
+{
+  "schema": "nocter.manifest",
+  "schema_version": 1,
+  "release": "0.1.0",
+  "host": "arm64-darwin",
+  "default_target": "arm64-darwin",
+  "compiler": {
+    "path": "nocter"
+  },
+  "std": {
+    "path": "std"
+  },
+  "implemented_targets": [
+    {
+      "name": "arm64-darwin",
+      "std_path": "targets/arm64-darwin/std",
+      "backend": "arm64",
+      "executable": "macho",
+      "os": "darwin"
+    }
+  ],
+  "archive": {
+    "name": "nocter-v0.1.0-arm64-darwin.tar.gz",
+    "root": ".nocter"
+  }
+}
+```
+
+Rules:
+
+- `VERSION` and `MANIFEST.json` are required in a release archive.
+- `VERSION` must match `MANIFEST.json`'s `release`.
+- `MANIFEST.json.host` identifies the host that runs the bundled `nocter` binary.
+- `MANIFEST.json.default_target` is the target used when `--target` is omitted.
+- `MANIFEST.json.implemented_targets` lists implemented targets bundled with this Nocter home, not merely reserved target names.
+- `compiler.path` is `nocter` and is relative to Nocter home.
+- `std.path` is `std` and is relative to Nocter home.
+- `implemented_targets[*].std_path` is relative to Nocter home and must exist.
+- v1 does not include a compiler checksum. Checksum metadata should be added only after the release pipeline and hash verification rules are designed.
+- The source repository tag for release `0.1.0` is `v0.1.0`.
+- The GitHub Release asset for the first host is `nocter-v0.1.0-arm64-darwin.tar.gz`.
+
+## Nocter Home Resolution
+
+Adopted: `nocter` must use an explicit, deterministic Nocter home. It must not silently search unrelated directories.
+
+Resolution order:
+
+1. If `NOCTER_HOME` is set, use it as the active Nocter home.
+2. Otherwise, resolve the real path of the running `nocter` executable and use its parent directory.
+
+Rules:
+
+- `NOCTER_HOME` must point to a Nocter home directory, not to `std/` or `targets/`.
+- The executable path resolution should resolve symlinks when the host can provide the real executable path.
+- `cwd/.nocter` is not searched automatically.
+- `~/.nocter` is not searched automatically.
+- The parent directory of the running `nocter` binary works naturally when the user runs `~/.nocter/nocter` through `PATH`.
+- If the user copies or symlinks `nocter` outside Nocter home and executable-path resolution no longer points into Nocter home, the user must set `NOCTER_HOME`.
+- The selected Nocter home must contain `VERSION`, `MANIFEST.json`, `std/`, and `targets/`.
+- The compiler should report a command-line or Nocter-home error if the selected home is missing required files.
 
 Future cross compilation adds target overlays and compiler backends to the installed Nocter home:
 
 ```text
 ~/.nocter/
     nocter
+    VERSION
+    MANIFEST.json
     std/
     targets/
-        arm64-macos/
+        arm64-darwin/
             std/
         x64-linux/
             std/
@@ -142,14 +232,18 @@ Future cross compilation adds target overlays and compiler backends to the insta
 Initial command-line direction:
 
 ```sh
+nocter --version
+nocter doctor
 nocter build app.nct
 nocter build app.nct -o app
 nocter run app.nct
 nocter app.nct
 nocter check app.nct
 nocter check app.nct --format json
+nocter fmt app.nct
+nocter fmt --check app.nct
 nocter lsp
-nocter build app.nct --target arm64-macos
+nocter build app.nct --target arm64-darwin
 nocter build app.nct --target x64-linux
 ```
 
@@ -159,7 +253,7 @@ The command-line contract is specified in [Command Line Interface](15-command-li
 
 `-o path` sets the executable output path. If `-o` is omitted, the initial driver may derive an output path from the root file stem.
 
-If `--target` is omitted, the compiler uses the host target. The initial implementation can emit only `arm64-macos`. Reserved targets may be recognized by name, but they must produce a not-implemented diagnostic until their backend, executable writer, primitive set, and target standard-library overlay are implemented.
+If `--target` is omitted, the compiler uses the host target. The initial implementation can emit only `arm64-darwin`. Reserved targets may be recognized by name, but they must produce a not-implemented diagnostic until their backend, executable writer, primitive set, and target standard-library overlay are implemented.
 
 Build profile direction:
 
@@ -168,7 +262,7 @@ Build profile direction:
 - Profile options must not disable the safety checks specified in [Control Flow](03-control-flow.md#safety-checks-and-build-modes).
 - A release build may be faster because the optimizer proves checks unnecessary, not because checks are globally removed.
 
-Users install Nocter by placing the extracted payload at `~/.nocter` or another location, then adding that directory to `PATH`.
+Users install Nocter by placing the extracted `.nocter/` directory at `~/.nocter` or another location, then adding that directory to `PATH`.
 
 Example shell setup:
 
@@ -178,4 +272,4 @@ export PATH="$HOME/.nocter:$PATH"
 
 `NOCTER_HOME` may point to the active Nocter home if the user does not want to rely on the location of the `nocter` executable.
 
-The repository uses `.nocter-arm64-macos/` as the current development output directory for the distributable compiler and standard library. This directory is a generated host package and is not committed to git.
+The repository uses `.nocter/` as the current development output directory for the distributable compiler and standard library. This directory is a generated host package and is not committed to git.

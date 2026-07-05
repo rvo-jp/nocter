@@ -8,7 +8,7 @@ use std/prelude
 
 from std/io import File, stderr, stdout
 from std/mem import Allocator
-from std/process import args, exit
+from std/process import ProcessError, args, exit
 
 import std/mem as mem
 
@@ -48,14 +48,15 @@ enum ScanState {
 pub enum AppError {
     missing_path
     too_many_args
+    process_failed(error: ProcessError)
     open_failed(path: StringView)
     read_failed(path: StringView)
     write_failed
 }
 
 pub trait Writer {
-    method (writer: &+Self).write(text: StringView): void!AppError
-    method (writer: &+Self).write_u64(value: u64): void!AppError
+    method (writer: &+Self).write(text: StringView): void ! AppError
+    method (writer: &+Self).write_u64(value: u64): void ! AppError
 }
 
 pub func scan_words(text: StringView): WordStats {
@@ -82,7 +83,7 @@ func print_stats<W: Writer>(
     out: &+W,
     path: StringView,
     stats: WordStats,
-): void!AppError {
+): void ! AppError {
     try out.write(path)
     try out.write(": ")
     try out.write_u64(stats.lines)
@@ -98,7 +99,7 @@ func print_stats<W: Writer>(
 func read_all(
     allocator: &+Allocator,
     path: StringView,
-): String!AppError {
+): String ! AppError {
     var file = try File.open(path) catch error {
         fail AppError.open_failed(path)
     }
@@ -112,8 +113,10 @@ func read_all(
     return move text
 }
 
-func run(allocator: &+Allocator): void!AppError {
-    let argv = args()
+func run(allocator: &+Allocator): void ! AppError {
+    let argv = try args() catch error {
+        fail AppError.process_failed(error)
+    }
 
     if argv.len() < 2 {
         fail AppError.missing_path
@@ -143,23 +146,26 @@ func report_error(error: AppError): void {
 
     match error {
         is AppError.missing_path {
-            err.write("usage: word_count <path>\n").ignore()
+            err.write_text("usage: word_count <path>\n").ignore()
         }
         is AppError.too_many_args {
-            err.write("error: expected exactly one path\n").ignore()
+            err.write_text("error: expected exactly one path\n").ignore()
+        }
+        is AppError.process_failed(error) {
+            err.write_text("error: cannot read process context\n").ignore()
         }
         is AppError.open_failed(path) {
-            err.write("error: cannot open ").ignore()
-            err.write(path).ignore()
-            err.write("\n").ignore()
+            err.write_text("error: cannot open ").ignore()
+            err.write_text(path).ignore()
+            err.write_text("\n").ignore()
         }
         is AppError.read_failed(path) {
-            err.write("error: cannot read ").ignore()
-            err.write(path).ignore()
-            err.write("\n").ignore()
+            err.write_text("error: cannot read ").ignore()
+            err.write_text(path).ignore()
+            err.write_text("\n").ignore()
         }
         is AppError.write_failed {
-            err.write("error: cannot write output\n").ignore()
+            err.write_text("error: cannot write output\n").ignore()
         }
     }
 }

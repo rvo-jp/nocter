@@ -1,0 +1,6 @@
+// invalid: Nocter module identity comes from the file path.
+module app/main
+
+program(): i32 {
+    return 0
+}

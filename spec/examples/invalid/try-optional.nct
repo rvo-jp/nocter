@@ -1,0 +1,14 @@
+use std/prelude
+
+program(): i32 {
+    let value = lookup()
+
+    // invalid: `try` unwraps T ! E, not T?
+    let number = try value
+
+    return number
+}
+
+func lookup(): i32? {
+    return none
+}

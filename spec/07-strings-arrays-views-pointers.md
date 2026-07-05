@@ -194,7 +194,7 @@ func checksum(bytes: View<u8>): u32 {
     ...
 }
 
-func read_into(file: &+File, output: WriteView<u8>): usize!IOError {
+func read_into(file: &+File, output: WriteView<u8>): usize ! IOError {
     ...
 }
 ```
@@ -259,7 +259,7 @@ func ok(): StringView {
 ```
 
 ```nct
-func bad(allocator: &+Allocator): StringView!AllocError {
+func bad(allocator: &+Allocator): StringView ! AllocError {
     var text = try String.copy(allocator, "hello")
     return text.view() // error: local
 }
@@ -383,7 +383,7 @@ var owned = try String.copy(allocator, view)
 open(view)
 open(owned.view())
 
-func open(path: StringView): File!IOError {
+func open(path: StringView): File ! IOError {
     ...
 }
 ```
@@ -392,7 +392,7 @@ Adopted standard library surface:
 
 ```nct
 impl String {
-    pub func copy(allocator: &+Allocator, text: StringView): String!AllocError
+    pub func copy(allocator: &+Allocator, text: StringView): String ! AllocError
     pub method (text: &Self).view(): StringView
 }
 

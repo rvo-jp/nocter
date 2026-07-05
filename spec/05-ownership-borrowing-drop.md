@@ -12,7 +12,7 @@ func inspect(file: &File): void {
     ...
 }
 
-func write(file: &+File, data: StringView): void!IOError {
+func write(file: &+File, data: StringView): void ! IOError {
     ...
 }
 ```
@@ -73,24 +73,24 @@ Method receiver borrows are automatic:
 
 ```nct
 impl File {
-    pub method (file: &+Self).write(text: StringView): void!IOError {
+    pub method (file: &+Self).write_text(text: StringView): void ! IOError {
         ...
     }
 }
 
-try file.write("hello")
+try file.write_text("hello")
 ```
 
 The method call above creates a temporary readwrite borrow of `file` for the call. This does not enable UFCS-style calls:
 
 ```nct
-File.write(&+file, "hello") // error
+File.write_text(&+file, "hello") // error
 ```
 
 A newly created owned temporary may be used as a readwrite receiver for one method call:
 
 ```nct
-try (try File.open(path)).write("hello")
+try (try File.open(path)).write_text("hello")
 ```
 
 The temporary receiver is dropped according to the statement-end temporary rules in [Control Flow](03-control-flow.md#evaluation-order-and-temporaries).
@@ -164,7 +164,7 @@ Rules:
 Adopted: parameters are immutable bindings inside the function body.
 
 ```nct
-func create<W: Writer>(name: String, count: i32, out: &+W): User!IOError {
+func create<W: Writer>(name: String, count: i32, out: &+W): User ! IOError {
     try out.write(name.view())
 
     return User{
@@ -451,7 +451,7 @@ Rules:
 - Moved bindings are not dropped.
 - Copy parameters may be returned with `return parameter`.
 - Move-only owned parameters require `return move parameter`.
-- `return none` is valid only for optional return type `T?`.
+- `return none` is valid for optional return type `T?` and for fallible optional return type `T? ! E`, where it returns success absence.
 - Bare `return` is valid only for `void` return type.
 
 Examples:
@@ -532,7 +532,7 @@ func first_byte(bytes: View<u8>): u8? {
 ```
 
 ```nct
-func bad(allocator: &+Allocator): StringView!AllocError {
+func bad(allocator: &+Allocator): StringView ! AllocError {
     var text = try String.copy(allocator, "hello")
     return text.view() // error: view points to local owned value
 }

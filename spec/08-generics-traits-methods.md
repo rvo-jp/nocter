@@ -90,8 +90,8 @@ Call rules:
 - The initial design has no qualified method-call escape hatch for ambiguity resolution.
 
 ```nct
-try file.write("hello")          // OK: method call
-try File.write(&+file, "hello")  // error: methods are not UFCS functions
+try file.write_text("hello")          // OK: method call
+try File.write_text(&+file, "hello")  // error: methods are not UFCS functions
 ```
 
 ## Method Lookup
@@ -105,7 +105,7 @@ If the receiver has a concrete nominal type, the compiler looks only for inheren
 If the receiver is a generic type parameter, the compiler looks at the receiver type parameter's explicit trait bound. A method declared by that bound may be called through the generic value.
 
 ```nct
-func write_line<W: Writer>(writer: &+W, text: StringView): void!IOError {
+func write_line<W: Writer>(writer: &+W, text: StringView): void ! IOError {
     try writer.write(text)
     try writer.write("\n")
     return
@@ -136,7 +136,7 @@ Adopted: traits describe required behavior without class inheritance.
 
 ```nct
 trait Writer {
-    method (out: &+Self).write(text: StringView): void!IOError
+    method (out: &+Self).write(text: StringView): void ! IOError
 }
 ```
 
@@ -146,7 +146,7 @@ Trait implementation uses `impl Trait for Type`.
 
 ```nct
 impl Writer for File {
-    method (file: &+Self).write(text: StringView): void!IOError {
+    method (file: &+Self).write(text: StringView): void ! IOError {
         ...
     }
 }
@@ -159,7 +159,7 @@ Each required trait method must be implemented exactly once, and its signature m
 Generic functions may use trait bounds.
 
 ```nct
-func print_line<W: Writer>(writer: &+W, text: StringView): void!IOError {
+func print_line<W: Writer>(writer: &+W, text: StringView): void ! IOError {
     try writer.write(text)
     try writer.write("\n")
     return
@@ -185,14 +185,14 @@ Rules:
 
 // In the module that defines File: OK.
 impl Writer for File {
-    method (file: &+Self).write(text: StringView): void!IOError {
+    method (file: &+Self).write(text: StringView): void ! IOError {
         ...
     }
 }
 
 // In the module that defines Writer: OK, even if File is external.
 impl Writer for File {
-    method (file: &+Self).write(text: StringView): void!IOError {
+    method (file: &+Self).write(text: StringView): void ! IOError {
         ...
     }
 }

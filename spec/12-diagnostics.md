@@ -14,7 +14,7 @@ Diagnostics for type checking, ownership, borrowing, initialization state, visib
 - why it is invalid
 - the most useful correction direction when one is known
 
-Diagnostic text must use Nocter source concepts such as `binding`, `borrow`, `move`, `drop`, `pub(nocter)`, `T!E`, `T?`, `program`, `primitive`, and `Nocter home`. It should not expose backend implementation details such as temporary register allocation, Mach-O offsets, internal AST node names, or recovery placeholders.
+Diagnostic text must use Nocter source concepts such as `binding`, `borrow`, `move`, `drop`, `pub(nocter)`, `T ! E`, `T?`, `T? ! E`, `program`, `primitive`, and `Nocter home`. It should not expose backend implementation details such as temporary register allocation, Mach-O offsets, internal AST node names, or recovery placeholders.
 
 ## Format
 
@@ -48,6 +48,58 @@ Rules:
 - Error codes should not encode compiler phase. The same user-visible mistake should keep the same code even if implementation phases change.
 - Error codes become compatibility-sensitive once published in user-facing documentation.
 
+## Source And Span Model
+
+Adopted: compiler source identity and source positions are byte-based internally.
+
+Internal model:
+
+```text
+SourceId
+SourceMap
+ByteSpan { source, start, end }
+```
+
+Rules:
+
+- `SourceId` is an internal compiler integer ID.
+- `SourceId` is never emitted in public JSON.
+- `SourceMap` owns loaded source files and maps `SourceId` to display path, canonical absolute path when known, normalized text, and line-start offsets.
+- `ByteSpan.source` is a `SourceId`.
+- `ByteSpan.start` and `ByteSpan.end` are UTF-8 byte offsets in the normalized source text.
+- `ByteSpan.end` is exclusive.
+- The compiler normalizes CRLF to LF before computing spans.
+- Bare carriage return is a source error in v0.
+- Internal compiler analysis should use `ByteSpan` instead of line/column pairs.
+- Line and column pairs are derived only for human-readable diagnostics, JSON output, editor adapters, tests, and AI tooling.
+
+Public JSON span shape:
+
+```json
+{
+  "file": "app.nct",
+  "absolute_path": "/Users/me/project/app.nct",
+  "start_byte": 120,
+  "end_byte": 124,
+  "start_line": 12,
+  "start_column_byte": 18,
+  "end_line": 12,
+  "end_column_byte": 22
+}
+```
+
+JSON span rules:
+
+- `file` is the diagnostic display path.
+- `absolute_path` is the canonical absolute path used for editor integration and source-file identity, or `null` when unknown.
+- `start_byte` and `end_byte` are UTF-8 byte offsets after line-ending normalization.
+- `end_byte` is exclusive.
+- `start_line` and `end_line` are 1-based line numbers after line-ending normalization.
+- `start_column_byte` and `end_column_byte` are 1-based UTF-8 byte columns within the normalized line.
+- These JSON line and column fields are not LSP positions.
+- LSP adapters convert byte offsets or byte columns into the client position encoding.
+- Display path rules and canonical source-file identity are specified in [Modules and Imports](01-modules-imports.md#source-file-identity).
+
 ## Machine-Readable JSON Diagnostics
 
 Adopted: `nocter check --format json` writes exactly one JSON object to stdout.
@@ -60,7 +112,7 @@ Top-level envelope:
   "version": 1,
   "ok": false,
   "command": "check",
-  "target": "arm64-macos",
+  "target": "arm64-darwin",
   "root": "app.nct",
   "root_absolute_path": "/Users/me/project/app.nct",
   "diagnostics": []
@@ -96,9 +148,9 @@ Diagnostic object:
     "start_byte": 120,
     "end_byte": 124,
     "start_line": 12,
-    "start_column": 18,
+    "start_column_byte": 18,
     "end_line": 12,
-    "end_column": 22
+    "end_column_byte": 22
   },
   "notes": [
     {
@@ -109,9 +161,9 @@ Diagnostic object:
         "start_byte": 84,
         "end_byte": 88,
         "start_line": 10,
-        "start_column": 16,
+        "start_column_byte": 16,
         "end_line": 10,
-        "end_column": 20
+        "end_column_byte": 20
       }
     }
   ],
@@ -135,16 +187,9 @@ Diagnostic object rules:
 
 Span rules:
 
-- `file` is the diagnostic display path.
-- `absolute_path` is the canonical absolute path used for editor integration and source-file identity.
-- `start_byte` and `end_byte` are UTF-8 byte offsets after line-ending normalization.
-- `end_byte` is exclusive.
-- `start_line` and `end_line` are 1-based line numbers after line-ending normalization.
-- `start_column` and `end_column` are 1-based UTF-8 byte columns within the normalized line.
-- The compiler's internal canonical span identity is byte-offset based.
-- These JSON line and column fields are not LSP positions.
-- Editor adapters may convert positions to the encoding required by the editor API.
-- Display path rules and canonical source-file identity are specified in [Modules and Imports](01-modules-imports.md#source-file-identity).
+- Diagnostic JSON uses the public JSON span shape defined in [Source And Span Model](#source-and-span-model).
+- `primary_span` and note `span` may be `null`.
+- Non-null spans must include byte offsets and byte-column positions.
 
 Example for a command-line or filesystem diagnostic:
 
@@ -190,6 +235,8 @@ Adopted: common Nocter-specific mistakes should have dedicated diagnostics inste
 Required v0 diagnostic families:
 
 - Root file path missing, not found, or not a `.nct` file.
+- Nocter home missing, not a directory, or missing required entries such as `VERSION`, `MANIFEST.json`, `std/`, or `targets/`.
+- Malformed `MANIFEST.json`, release mismatch between `VERSION` and manifest, host mismatch, or default target missing from implemented target list.
 - Source file is not valid UTF-8.
 - Unsupported source line ending, such as a bare carriage return.
 - Unterminated block comment, string literal, or byte literal.
@@ -224,6 +271,7 @@ Required v0 diagnostic families:
 - Fallible error type mismatch for `try`.
 - `catch` block that can fall through.
 - `try` used on `T?`.
+- Mixed optional/fallible type syntax requiring parentheses, such as `T ! E?`.
 - Optional propagation syntax such as postfix `?` used in v0.
 - Optional `if let` / `if var` / `while let` / `while var` used on a non-optional expression.
 - Borrowed optional projection used in `while let` or `while var`.
@@ -231,6 +279,7 @@ Required v0 diagnostic families:
 - Mismatched borrowed optional projection form, such as `if var name = &place` or `if let name = &+place`.
 - `program` missing, duplicated, or defined outside the root file.
 - `program` with an invalid return type.
+- `program` with parameters, such as `program(args: ...)`, used in v0.
 - `pub from` attempting to re-export a private or `pub(nocter)` name.
 - Reserved target requested before implementation.
 
@@ -260,7 +309,7 @@ error[E0310]: `try` would fail with `IOError`, but this function fails with `App
 8 |     let file = try File.open(path)
    |                ^^^^^^^^^^^^^^^^^^^
    |
-note: current function returns `String!AppError`
+note: current function returns `String ! AppError`
 help: use `try ... catch` to map the error
 ```
 

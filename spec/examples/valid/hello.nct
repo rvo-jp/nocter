@@ -1,0 +1,11 @@
+use std/prelude
+
+from std/io import print
+
+program(): i32 {
+    try print("Hello") catch error {
+        return 1
+    }
+
+    return 0
+}

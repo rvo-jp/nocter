@@ -16,7 +16,7 @@ std/io              user-facing I/O errors and APIs
 std/process         user-facing process APIs
 ```
 
-The compiler must not special-case names such as `OSError`, `IOError`, `Errno`, `File`, or `exit`. These are ordinary standard-library names.
+The compiler must not special-case names such as `OSError`, `IOError`, `Errno`, `File`, `args`, `env`, `cwd`, `exit`, or `abort`. These are ordinary standard-library names.
 
 ### Target Raw Errors
 
@@ -96,33 +96,64 @@ Target overlays convert raw target errors into `OSError`.
 SyscallResult -> Errno -> OSError
 ```
 
-### I/O Errors
+### I/O API
 
-User-facing I/O APIs return `std/io`'s `IOError`, not `SyscallResult` or `Errno`.
+Adopted: `std/io` provides the initial user-facing file and text output API. The compiler must not special-case `File`, `IOError`, `stdout`, `stderr`, or `print`.
 
 Initial public surface:
 
 ```nct
+from std/os import OSError
+
 pub enum IOError {
-    interrupted(error: OSError)
-    would_block(error: OSError)
-    not_found(error: OSError)
-    permission_denied(error: OSError)
-    already_exists(error: OSError)
-    invalid_input(error: OSError)
-    broken_pipe(error: OSError)
-    timed_out(error: OSError)
-    unsupported(error: OSError)
+    not_found(path: StringView)
+    permission_denied(path: StringView)
+    invalid_path(path: StringView)
+    interrupted
+    broken_pipe
     unexpected_os_error(error: OSError)
 }
+
+pub struct File {
+    ...
+}
+
+impl File {
+    pub func open(path: StringView): File ! IOError
+    pub method (file: &+Self).read(buffer: WriteView<u8>): usize ! IOError
+    pub method (file: &+Self).write(bytes: View<u8>): void ! IOError
+    pub method (file: &+Self).write_text(text: StringView): void ! IOError
+
+    drop File(file: &+Self) {
+        ...
+    }
+}
+
+pub func stdout(): File
+pub func stderr(): File
+pub func print(text: StringView): void ! IOError
 ```
 
-Examples:
+Rules:
 
-```nct
-func open(path: StringView): File!IOError
-func write(file: &+File, text: StringView): void!IOError
-```
+- `File` is a move-only standard-library type with private representation.
+- `File.open(path)` opens an existing file for reading in v0.
+- File creation, append, truncate, read-write modes, and open options are deferred.
+- `File.open(path)` maps path-related OS errors into `not_found(path)`, `permission_denied(path)`, or `invalid_path(path)` when the target can classify them.
+- `IOError` variants that store `path: StringView` carry a view of the caller-provided path. Long-lived application errors should copy the path into an owned application error if needed.
+- `read(buffer)` reads into a writable byte view and returns the number of bytes read.
+- `read(buffer)` returning `0` means end of file for regular files.
+- `read(buffer)` may return fewer bytes than `buffer.len()` without treating that as an error.
+- `write(bytes)` writes all bytes in the view or fails.
+- Target implementations handle partial OS writes inside `write(bytes)`.
+- `write_text(text)` writes the UTF-8 bytes of `StringView` without encoding conversion.
+- `print(text)` writes `text` to `stdout()` and does not append a newline.
+- `stdout()` and `stderr()` return `File` values representing the process standard streams.
+- `File` internally distinguishes owned handles from borrowed process standard streams.
+- Dropping a `File` returned by `File.open(path)` closes the owned handle.
+- Dropping a `File` returned by `stdout()` or `stderr()` must not close the process standard stream.
+- `drop File` cannot fail. Close errors are ignored in v0 unless a future explicit close API is adopted.
+- `IOError.unexpected_os_error(error)` preserves an `OSError` when the target error cannot be mapped to the smaller `IOError` surface.
 
 Conversion flow:
 
@@ -133,6 +164,85 @@ std/os/macos.syscall3
     -> std/os.OSError
     -> std/io.IOError
 ```
+
+Not adopted in v0:
+
+- buffered I/O
+- async I/O
+- seek
+- directory traversal
+- path object
+- encoding conversion
+- automatic newline printing
+- compiler magic for `print`
+- `println` as a compiler feature
+
+### Process Context
+
+Adopted: command-line arguments and environment access are standard-library APIs in `std/process`, not `program` parameters.
+
+Initial public surface direction:
+
+```nct
+pub enum ProcessError {
+    invalid_encoding
+    unsupported(error: OSError)
+    unexpected_os_error(error: OSError)
+}
+
+pub func args(): View<StringView> ! ProcessError
+pub func env(name: StringView): StringView? ! ProcessError
+pub func cwd(): StringView ! ProcessError
+pub func exit(code: i32): never
+pub func abort(): never
+```
+
+Rules:
+
+- `program(args: ...)` is not part of v0.
+- The compiler must not special-case a function named `args`, `env`, `cwd`, `exit`, or `abort`.
+- The generated low-level entry code may receive platform process entry information such as `argc`, `argv`, and `envp`.
+- That platform information is connected to a `std/process` process context inside the active target implementation.
+- User code reads command-line arguments with `std/process.args()`.
+- User code reads environment values with `std/process.env(name)`.
+- `args()` returns a readonly view of `StringView` values on success.
+- The first argument follows the host platform convention and represents the executable path or invocation name when the platform provides one.
+- `env(name)` has type `StringView? ! ProcessError`, meaning `(StringView?) ! ProcessError`.
+- `env(name)` succeeds with `none` when the variable is absent.
+- `env(name)` succeeds with a present `StringView` when the variable is present and valid UTF-8.
+- `cwd()` returns the current working directory or `fail`s with `ProcessError`.
+- Process context string storage is valid for the whole program.
+- Argument, environment, and current-working-directory views returned by `std/process` are not owned by the caller and must be treated as borrowed view data.
+- The caller must not drop process-context storage.
+- APIs that need owned strings must explicitly copy into an allocator-owned `String`.
+- Target implementations must validate process strings before exposing them as `StringView`.
+- `args()` fails with `ProcessError.invalid_encoding` if any returned argument cannot be represented as UTF-8.
+- `env(name)` fails with `ProcessError.invalid_encoding` if the matching environment value exists but cannot be represented as UTF-8.
+- `cwd()` fails with `ProcessError.invalid_encoding` if the current working directory cannot be represented as UTF-8.
+
+Example:
+
+```nct
+from std/process import args
+
+program(): i32 {
+    let argv = try args() catch error {
+        return 1
+    }
+
+    if argv.len() < 2 {
+        return 1
+    }
+
+    return 0
+}
+```
+
+Physical placement:
+
+- `std/process` is the user-facing module path.
+- Process context implementation may live in the active target overlay when it depends on the target process ABI.
+- Common process API names should remain stable across targets.
 
 ### Process Termination
 
@@ -162,7 +272,7 @@ Rules:
 
 ## Standard Library and Low-Level Code
 
-The compiler must not special-case names such as `print`, `exit`, `abort`, or `File`.
+The compiler must not special-case names such as `print`, `args`, `env`, `cwd`, `exit`, `abort`, or `File`.
 
 Standard library functions provide these features.
 
@@ -171,7 +281,7 @@ from std/io import stdout
 
 program(): i32 {
     var out = stdout()
-    out.write("Hello\n").ignore()
+    out.write_text("Hello\n").ignore()
     return 0
 }
 ```
@@ -209,7 +319,7 @@ Initial policy:
 - The compiler validates each primitive declaration against the target-independent core primitive set or the closed primitive set for the active target.
 - The compiler validates primitives by module path, name, and exact signature.
 - An ordinary `func` with the same name as a primitive has no primitive behavior.
-- Standard-library wrappers should expose user-facing APIs such as `exit`, `write`, `alloc`, and `free`.
+- Standard-library wrappers should expose user-facing APIs such as `exit`, `write`, `write_text`, `alloc`, and `free`.
 - `print`, `exit`, `abort`, file operations, allocators, `String`, and `Buffer` are not primitives in v0.
 - General user code cannot declare primitives in v0. The long-term default direction is that user project modules do not declare primitives.
 - General user code can call only the small public primitive APIs intentionally exposed by the standard library, such as safe raw-pointer address conversion. Target syscall primitives are `pub(nocter)`.
@@ -252,12 +362,12 @@ Initial primitive files:
 
 ```text
 ~/.nocter/std/ptr.nct
-~/.nocter/targets/arm64-macos/std/os/macos.nct
+~/.nocter/targets/arm64-darwin/std/os/macos.nct
 ```
 
 `std/ptr.nct` contains target-independent core pointer primitive declarations. These are required for raw pointer address conversion and borrow-to-pointer conversion.
 
-`std/os/macos.nct` is target-specific for `arm64-macos` and is loaded from the `arm64-macos` target overlay. Future OS targets should add separate target overlays instead of changing the language-level primitive syntax.
+`std/os/macos.nct` is target-specific for `arm64-darwin` and is loaded from the `arm64-darwin` target overlay. Future OS targets should add separate target overlays instead of changing the language-level primitive syntax.
 
 Initial core pointer primitive set:
 
@@ -270,7 +380,7 @@ pub(nocter) primitive from_addr<T>(address: usize): *T
 
 `from_addr` is `pub(nocter)` and therefore restricted to trusted modules inside the active Nocter home. User project modules must not call it.
 
-Initial `arm64-macos` target primitive set v0:
+Initial `arm64-darwin` target primitive set v0:
 
 ```nct
 pub(nocter) copy struct SyscallResult {
@@ -305,12 +415,12 @@ An ordinary function named `syscall3` elsewhere is not primitive.
 
 Adopted: typed wrappers over low-level target operations are standard-library APIs, not compiler primitives.
 
-The closed compiler primitive set stays small. For the initial `arm64-macos` target, the OS primitive boundary is `syscall0` through `syscall6`, `trap`, and `unreachable`; separately, `std/ptr` owns the target-independent core pointer primitive set.
+The closed compiler primitive set stays small. For the initial `arm64-darwin` target, the OS primitive boundary is `syscall0` through `syscall6`, `trap`, and `unreachable`; separately, `std/ptr` owns the target-independent core pointer primitive set.
 
 Target overlays may define narrower typed wrappers around those primitives:
 
 ```nct
-pub(nocter) func write_fd(fd: FileDescriptor, bytes: View<u8>): void!OSError {
+pub(nocter) func write_fd(fd: FileDescriptor, bytes: View<u8>): void ! OSError {
     ...
 }
 ```
@@ -318,7 +428,7 @@ pub(nocter) func write_fd(fd: FileDescriptor, bytes: View<u8>): void!OSError {
 User-facing modules then expose safe ordinary APIs:
 
 ```nct
-pub method (file: &+File).write(bytes: View<u8>): void!IOError {
+pub method (file: &+File).write(bytes: View<u8>): void ! IOError {
     ...
 }
 ```

@@ -21,8 +21,9 @@ Return checking:
 
 - A `void` function may use bare `return` or reach the end of the function body.
 - A non-fallible, non-optional function returning a non-`void` type must return a value on every reachable normal path, unless the path terminates with `never`.
-- A fallible function `T!E` must return a success value, `fail` with an error, or terminate with `never` on every reachable path.
+- A fallible function `T ! E` must return a success value, `fail` with an error, or terminate with `never` on every reachable path.
 - An optional function `T?` must return a present value, `return none`, or terminate with `never` on every reachable path.
+- A fallible optional function `T? ! E` must return a present success value, `return none` as success absence, `fail` with an error, or terminate with `never` on every reachable path.
 - `program(): void` and `program(): i32` follow the same return checking rules as functions with those return types.
 
 Return value ownership, move, borrow, and view rules are specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#return-values).
@@ -32,7 +33,7 @@ Return value ownership, move, borrow, and view rules are specified in [Ownership
 Adopted: v0 uses positional arguments only.
 
 ```nct
-func copy(allocator: &+Allocator, source: StringView): String!AllocError {
+func copy(allocator: &+Allocator, source: StringView): String ! AllocError {
     ...
 }
 
@@ -63,7 +64,7 @@ Examples:
 pub func copy(
     allocator: &+Allocator,
     source: StringView,
-): String!AllocError {
+): String ! AllocError {
     ...
 }
 ```
@@ -80,7 +81,7 @@ Invalid in v0:
 ```nct
 String.copy(allocator: &+allocator, source: "hello") // named arguments
 
-func open(path: StringView = "input.txt"): File!IOError {
+func open(path: StringView = "input.txt"): File ! IOError {
     ...
 }
 
@@ -88,11 +89,11 @@ func print_all(parts: StringView...): void {
     ...
 }
 
-func open(path: StringView): File!IOError {
+func open(path: StringView): File ! IOError {
     ...
 }
 
-func open(path: StringView, mode: OpenMode): File!IOError {
+func open(path: StringView, mode: OpenMode): File ! IOError {
     ...
 }
 ```
@@ -164,7 +165,7 @@ Rules:
 - Blocks `{ ... }` do not return trailing expression values.
 - `return value` is required to return a value from a function.
 - `fail error` is required to return a failure from a fallible function.
-- `return none` is required to return absence from an optional function.
+- `return none` is required to return absence from an optional function, or success absence from a fallible optional function.
 - Expression-valued `if`, `match`, and block forms are deferred.
 
 Invalid in the initial design:
@@ -251,7 +252,7 @@ let view = text.view()
 A method receiver borrow lasts only for the call unless the method returns a value whose type carries a borrow-like lifetime tracked by the compiler.
 
 ```nct
-try file.write("hello")
+try file.write_text("hello")
 ```
 
 The call above creates a temporary readwrite borrow of `file` for the duration of the call and ends that borrow after the call.
@@ -259,10 +260,10 @@ The call above creates a temporary readwrite borrow of `file` for the duration o
 Fallible temporary receivers must make each fallible step explicit:
 
 ```nct
-try (try File.open(path)).write("hello")
+try (try File.open(path)).write_text("hello")
 ```
 
-If `File.open(path)` fails, no `File` temporary exists. If `write` fails, the temporary `File` produced by `File.open(path)` is dropped before the failure propagates. If `write` succeeds, the temporary `File` is dropped at the end of the statement.
+If `File.open(path)` fails, no `File` temporary exists. If `write_text` fails, the temporary `File` produced by `File.open(path)` is dropped before the failure propagates. If `write_text` succeeds, the temporary `File` is dropped at the end of the statement.
 
 ## Loops
 
@@ -408,7 +409,7 @@ Rules:
 - `never` cannot be constructed, stored in a variable, used as a field type, or used as an array element type in the initial design.
 - Calling a `never` function does not imply stack unwinding, statement-end temporary drops, or caller-scope `drop` execution.
 - If cleanup is required before a terminating API such as `exit` or `abort`, the program must perform that cleanup before the `never` call or use a normal `return`, `fail`, `break`, or `continue` path.
-- `fail` is recoverable failure and is valid only through fallible type `T!E`.
+- `fail` is recoverable failure and is valid only through fallible type `T ! E`.
 - `trap` is non-recoverable failure caused by a program defect, violated compiler check, or impossible execution path.
 - `abort` is immediate process termination and does not run Nocter cleanup.
 - `panic` and stack unwinding are not part of v0.

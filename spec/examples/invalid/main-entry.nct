@@ -1,0 +1,6 @@
+use std/prelude
+
+// invalid: Nocter uses `program`, not `main`, as the entry declaration.
+func main(): i32 {
+    return 0
+}

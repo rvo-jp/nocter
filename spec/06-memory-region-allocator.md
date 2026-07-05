@@ -83,7 +83,7 @@ pub struct Allocator {
 }
 
 pub func page_allocator(): Allocator
-pub func alloc(allocator: &+Allocator, size: usize, align: usize): RawBuffer!AllocError
+pub func alloc(allocator: &+Allocator, size: usize, align: usize): RawBuffer ! AllocError
 pub func free(allocator: &+Allocator, buffer: RawBuffer): void
 ```
 
@@ -92,7 +92,7 @@ In primitive set v0, allocator operations are not compiler primitives. These pub
 Rules:
 
 - Allocation is explicit.
-- Allocation APIs are fallible and return `T!AllocError` where allocation can fail.
+- Allocation APIs are fallible and return `T ! AllocError` where allocation can fail.
 - Out-of-memory is reported as `AllocError.out_of_memory`.
 - Invalid size / alignment requests are reported as `AllocError.invalid_layout`.
 - Allocation mutates allocator state, so allocation APIs take `&+Allocator`.
@@ -109,7 +109,7 @@ from std/mem import Allocator, AllocError, RawBuffer
 
 import std/mem as mem
 
-func make_bytes(allocator: &+Allocator, size: usize): RawBuffer!AllocError {
+func make_bytes(allocator: &+Allocator, size: usize): RawBuffer ! AllocError {
     let buffer = try mem.alloc(allocator, size, 16)
     return move buffer
 }
@@ -170,7 +170,7 @@ Rules:
 Invalid:
 
 ```nct
-func load_path(allocator: &+Allocator): StringView!IOError {
+func load_path(allocator: &+Allocator): StringView ! IOError {
     region scratch using allocator {
         let text = try read_file(scratch.allocator(), "main.nct")
         return text.view() // error: view points into scratch
@@ -181,7 +181,7 @@ func load_path(allocator: &+Allocator): StringView!IOError {
 Invalid:
 
 ```nct
-func load_text(allocator: &+Allocator): String!IOError {
+func load_text(allocator: &+Allocator): String ! IOError {
     region scratch using allocator {
         let text = try read_file(scratch.allocator(), "main.nct")
         return move text // error: String is backed by scratch
@@ -192,7 +192,7 @@ func load_text(allocator: &+Allocator): String!IOError {
 Valid:
 
 ```nct
-func count_words(allocator: &+Allocator, path: StringView): WordStats!IOError {
+func count_words(allocator: &+Allocator, path: StringView): WordStats ! IOError {
     region scratch using allocator {
         let text = try read_file(scratch.allocator(), path)
         let stats = scan_words(text.view())

@@ -273,12 +273,18 @@ Initial built-in type syntax:
 &T
 &+T
 T?
-T!E
+T ! E
+T? ! E
 [T; N]
 (T)
 ```
 
-Parentheses in type syntax group a type without creating a new type. For example, `(&T)?` means an optional readonly borrow, while `&(T?)` means a readonly borrow of an optional value.
+Official source style writes fallible type syntax with spaces around `!`.
+Whitespace is not semantically required: `T!E`, `T ! E`, and `T !E` parse as the same type when tokenization is otherwise unambiguous.
+The formatter must emit `T ! E` and `T? ! E`.
+`T !E` is valid source but not preferred, because it makes `!E` look like a prefix form attached to the error type.
+
+Parentheses in type syntax group a type without creating a new type. For example, `(&T)?` means an optional readonly borrow, while `&(T?)` means a readonly borrow of an optional value. `T? ! E` means `(T?) ! E`: a fallible value whose success payload is optional.
 
 Initial built-in literal values:
 
@@ -290,7 +296,7 @@ none
 
 `true` and `false` have type `bool`. `none` is a contextual optional absence literal and requires an expected `T?` type.
 
-Names such as `String`, `StringView`, `View`, `WriteView`, `ViewIter`, `Allocator`, `File`, `IOError`, `OSError`, `print`, `exit`, and `abort` are not compiler built-ins.
+Names such as `String`, `StringView`, `View`, `WriteView`, `ViewIter`, `Allocator`, `File`, `IOError`, `OSError`, `print`, `args`, `env`, `cwd`, `exit`, and `abort` are not compiler built-ins.
 
 `Int` is not a compiler built-in name.
 
@@ -663,5 +669,5 @@ Rules:
 - `else if enum_expr is Pattern` is equivalent to `else { if enum_expr is Pattern { ... } }`.
 - Payload names are not available in `else` or later `else if` branches.
 - `if is` is a statement and does not produce a value.
-- `if is` does not apply to fallible values `T!E`.
+- `if is` does not apply to fallible values `T ! E`.
 - `if is` does not apply to optional values `T?`.

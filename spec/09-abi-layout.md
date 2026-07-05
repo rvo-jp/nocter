@@ -7,11 +7,11 @@ The specification entry point is [../SPEC.md](../SPEC.md).
 
 Adopted: Nocter uses its own internal ABI for Nocter functions and primitives.
 
-Nocter ABI v0 is defined only for the initial `arm64-macos` target. It is not a C ABI, and it does not guarantee binary compatibility with C, Swift, Objective-C, or the platform dynamic linker ABI. Future C interop, if added, should use an explicit separate ABI form such as an `extern "c"`-style declaration.
+Nocter ABI v0 is defined only for the initial `arm64-darwin` target. It is not a C ABI, and it does not guarantee binary compatibility with C, Swift, Objective-C, or the platform dynamic linker ABI. Future C interop, if added, should use an explicit separate ABI form such as an `extern "c"`-style declaration.
 
 Scope:
 
-- target: `arm64-macos`
+- target: `arm64-darwin`
 - word size: 64-bit
 - endian: little-endian
 - stack alignment: 16 bytes at call boundaries
@@ -170,10 +170,10 @@ No niche optimization is part of ABI v0. Even if a type has unused bit patterns,
 
 ### Fallible Layout
 
-`T!E` is represented as a tag plus a payload union.
+`T ! E` is represented as a tag plus a payload union.
 
 ```text
-T!E:
+T ! E:
   tag 0 = success
   tag 1 = failure
 ```
@@ -188,6 +188,8 @@ Rules:
 - Drop code drops only the active payload.
 
 Nocter source uses `return value` for success and `fail error` for failure. ABI v0 does not reserve the identifier `success`; it defines only the binary tag meaning.
+
+Composed optional and fallible values use the same layout rules recursively. For example, `T? ! E` is laid out as `(T?) ! E`: the success payload of the outer fallible value is the explicit-tag layout of `T?`.
 
 ### Drop ABI
 

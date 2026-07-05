@@ -1,0 +1,21 @@
+use std/prelude
+
+from std/io import IOError
+from std/io import print
+
+program(): i32 {
+    try run() catch error {
+        try print("failed") catch print_error {
+            return 1
+        }
+
+        return 1
+    }
+
+    return 0
+}
+
+func run(): void ! IOError {
+    try print("Hello")
+    return
+}

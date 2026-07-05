@@ -8,7 +8,7 @@ The specification entry point is [../SPEC.md](../SPEC.md).
 Adopted: failure is represented with fallible types, not exceptions.
 
 ```nct
-func open(path: StringView): File!IOError {
+func open(path: StringView): File ! IOError {
     if failed {
         fail IOError.not_found(path)
     }
@@ -17,18 +17,21 @@ func open(path: StringView): File!IOError {
 }
 ```
 
-`T!E` is a fallible type. It means the expression or function succeeds with `T` or fails with `E`.
+`T ! E` is a fallible type. It means the expression or function succeeds with `T` or fails with `E`.
 
 ```text
-T!E = fallible T with error E
+T ! E = fallible T with error E
 ```
 
-Inside a function returning `T!E`, `return value` returns the success value and `fail error` returns the failure value.
+Official source style writes spaces around `!`: `T ! E`.
+The parser accepts compact spelling such as `T!E`, but formatter output must use the spaced form.
+
+Inside a function returning `T ! E`, `return value` returns the success value and `fail error` returns the failure value.
 
 ```nct
-func write(file: &+File, text: StringView): void!IOError {
+func write(file: &+File, text: StringView): void ! IOError {
     if failed {
-        fail IOError.write_failed
+        fail IOError.broken_pipe
     }
 
     return
@@ -41,7 +44,7 @@ Adopted: the `try` operator unwraps fallible values for propagation.
 let file = try File.open(path)
 ```
 
-For `T!E`, `try expr` evaluates to the success value when `expr` succeeds. On failure, the current function fails with the same error unless a `catch` clause is present.
+For `T ! E`, `try expr` evaluates to the success value when `expr` succeeds. On failure, the current function fails with the same error unless a `catch` clause is present.
 
 `try` does not apply to optional values `T?` in the initial design.
 
@@ -57,7 +60,7 @@ Rules:
 
 - `try` is not an exception mechanism.
 - `try` does not perform stack unwinding.
-- `try` on `T!E` without `catch` can be used inside a fallible function with the same error type `E`.
+- `try` on `T ! E` without `catch` can be used inside a fallible function with the same error type `E`.
 - `try` does not apply to `T?`.
 - `fail` can be used only inside a function returning a fallible type.
 - Scope-end cleanup and `drop` behavior still run as they would for an explicit `return` or `fail`.
@@ -69,14 +72,14 @@ Rules:
 Adopted: `fail`, `trap`, and `abort` are distinct mechanisms.
 
 ```text
-fail  = recoverable failure through T!E
+fail  = recoverable failure through T ! E
 trap  = non-recoverable program defect or violated runtime check
 abort = immediate process termination
 ```
 
 Rules:
 
-- `fail error` is valid only inside a function returning `T!E`.
+- `fail error` is valid only inside a function returning `T ! E`.
 - `fail` follows normal `return`-like cleanup for scopes it leaves.
 - `trap` has type `never`.
 - `trap` is used for program defects, compiler-inserted safety checks, and impossible paths.
@@ -104,7 +107,7 @@ let file = try File.open(path) catch error {
 
 Rules:
 
-- `catch` applies only to fallible values of type `T!E`.
+- `catch` applies only to fallible values of type `T ! E`.
 - `catch` does not apply to optional values `T?`.
 - The catch binding has the failure type `E`.
 - The catch block is evaluated only on failure.
@@ -125,7 +128,7 @@ Rules:
 func read_all(
     allocator: &+Allocator,
     path: StringView,
-): String!AppError {
+): String ! AppError {
     var file = try File.open(path) catch error {
         fail AppError.open_failed(path)
     }
@@ -144,8 +147,8 @@ Fallible values are not pattern matched in the initial design.
 
 Rules:
 
-- `match` does not apply to `T!E`.
-- `if expr is Pattern` does not apply to `T!E`.
+- `match` does not apply to `T ! E`.
+- `if expr is Pattern` does not apply to `T ! E`.
 - `is ok(...)` and `is fail(...)` patterns are not part of the language.
 - `ok` is not a reserved keyword.
 - Fallible values are handled with `try` and `try ... catch`.
@@ -163,7 +166,7 @@ An optional value is either present with a `T` value or absent.
 Inside a function returning `T?`, `return value` returns a present value and `return none` returns absence.
 
 ```nct
-func env(name: StringView): StringView? {
+func lookup(name: StringView): StringView? {
     if missing {
         return none
     }
@@ -184,6 +187,65 @@ Rules:
 - `some(value)` is not part of the initial language.
 - `some` is not a reserved keyword.
 
+## Composing Optionals and Fallible Types
+
+Adopted: optional and fallible type constructors may be composed explicitly.
+
+Preferred source spelling:
+
+```text
+T? ! E = (T?) ! E
+```
+
+`T? ! E` means the computation can fail with `E`. If it succeeds, the success value is optional: present `T` or `none`.
+
+Rules:
+
+- `?` binds to the success type before `! E`.
+- `StringView? ! ProcessError` means `(StringView?) ! ProcessError`.
+- `try expr` on `T? ! E` unwraps only the fallible layer and produces `T?`.
+- `try` still does not apply to the optional layer.
+- In a function returning `T? ! E`, `return value` returns success with a present `T`.
+- In a function returning `T? ! E`, `return none` returns success with absence.
+- In a function returning `T? ! E`, `fail error` returns failure with `E`.
+- Other mixed forms must use parentheses in v0.
+- `(T ! E)?` means an optional fallible value.
+- `T ! (E?)` means a fallible value whose error payload is optional.
+
+Example:
+
+```nct
+func env(name: StringView): StringView? ! ProcessError {
+    if missing {
+        return none
+    }
+
+    if invalid_utf8 {
+        fail ProcessError.invalid_encoding
+    }
+
+    return value
+}
+```
+
+Using a fallible optional:
+
+```nct
+let maybe_home = try process.env("HOME")
+
+if let home = maybe_home {
+    use(home)
+}
+```
+
+Equivalent compact use:
+
+```nct
+if let home = try process.env("HOME") {
+    use(home)
+}
+```
+
 ### Optional Propagation
 
 Adopted: optional propagation syntax is not part of v0.
@@ -192,7 +254,7 @@ Nocter does not provide a postfix `expr?` operator or a `try`-like construct for
 
 ```nct
 func require_home(): StringView? {
-    if let home = env("HOME") {
+    if let home = lookup("HOME") {
         return home
     }
 
@@ -202,7 +264,7 @@ func require_home(): StringView? {
 
 Rules:
 
-- `try` remains exclusive to fallible `T!E` values.
+- `try` remains exclusive to fallible `T ! E` values.
 - `try optional_value` is invalid.
 - Postfix optional propagation such as `optional_value?` is not part of v0.
 - An optional function must use `return none` to return absence.
@@ -329,7 +391,7 @@ Rules:
 - If the default expression has type `T?`, the whole expression has type `T?`.
 - The operator is right-associative.
 - The default expression is evaluated only when needed.
-- The operator does not apply to fallible `T!E` values.
+- The operator does not apply to fallible `T ! E` values.
 
 Example:
 

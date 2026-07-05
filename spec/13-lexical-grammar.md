@@ -91,6 +91,49 @@ Rules:
 
 The lexer uses longest-match tokenization for multi-character tokens.
 
+Adopted v0 lexer boundary:
+
+- The lexer receives a `SourceId` and normalized UTF-8 source text from `SourceMap`.
+- The lexer returns a token stream and diagnostics.
+- The token stream includes keyword tokens, newline tokens, and one EOF token.
+- Comments are not emitted as tokens.
+- Literal tokens keep their source text; final literal value interpretation belongs to later compiler stages except for lexical validity checks.
+- Invalid lexical constructs produce diagnostics. The v0 lexer may stop after the first unrecoverable lexical error.
+- `nocter tokens app.nct --format json` emits a JSON envelope even when lexer diagnostics are present.
+
+Initial token categories:
+
+```text
+identifier
+keyword
+integer_literal
+string_literal
+byte_literal
+newline
+punctuation
+eof
+```
+
+Keyword rules:
+
+- Reserved keywords are emitted as keyword tokens.
+- `nocter` is emitted as an identifier token; parser and resolver treat it contextually in `pub(nocter)`.
+- `ok`, `some`, `unsafe`, and `trusted` are not reserved in v0 and are emitted as identifier tokens.
+
+Newline rules:
+
+- A normalized LF line ending is emitted as a `newline` token.
+- Parser rules decide whether a newline can separate statements.
+- The terminating newline after a line comment is emitted as a `newline` token.
+- LF bytes inside a block comment are emitted as `newline` tokens so block comments can preserve statement separation.
+- Comment text itself is not emitted as tokens.
+- Newlines inside string literals and byte literals are lexical errors.
+
+EOF rules:
+
+- The lexer emits exactly one EOF token.
+- EOF span is empty at the end of the normalized source text.
+
 Examples of single lexical tokens:
 
 ```text

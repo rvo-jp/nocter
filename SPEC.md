@@ -5,6 +5,7 @@ The detailed specification is split by topic under [`spec/`](spec/) so each desi
 
 Nocter is a statically typed, value-centered, module-oriented, low-dependency systems language.
 Its compiler is intended to produce native executables directly, without requiring an external assembler, linker, runtime library, or platform SDK for normal users.
+Nocter also treats AI readability and writability as a tooling goal: the language keeps one canonical style, machine-readable diagnostics, and an example corpus instead of adding multiple alternate spellings.
 
 ## Chapters
 
@@ -24,10 +25,17 @@ Its compiler is intended to produce native executables directly, without requiri
 - [Lexical Grammar](spec/13-lexical-grammar.md)
 - [Tooling and Editor Integration](spec/14-tooling-editor-integration.md)
 - [Command Line Interface](spec/15-command-line-interface.md)
+- [Source Style and Formatting](spec/16-source-style-formatting.md)
+
+## Supporting Material
+
+- [AI Guide](AI.md)
+- [Example Corpus](spec/examples/)
 
 ## Editing Policy
 
 - Keep this file as the table of contents and high-level entry point.
 - Put normative language rules in the relevant `spec/*.md` chapter.
 - Keep examples close to the rule they explain.
+- Keep `AI.md` compact and example-oriented; do not let it replace normative specification chapters.
 - When a design is still provisional, mark it explicitly in that chapter instead of hiding uncertainty in broad wording.

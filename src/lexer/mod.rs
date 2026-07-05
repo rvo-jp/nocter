@@ -1,0 +1,786 @@
+//! Tokenization for `.nct` source files.
+
+use crate::diagnostics::Diagnostic;
+use crate::source::{ByteSpan, JsonSpan, SourceId, SourceMap};
+use serde::Serialize;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Token {
+    pub kind: TokenKind,
+    pub span: ByteSpan,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TokenKind {
+    Identifier,
+    Keyword(Keyword),
+    IntegerLiteral,
+    StringLiteral,
+    ByteLiteral,
+    Newline,
+    Punctuation(&'static str),
+    Eof,
+}
+
+impl TokenKind {
+    pub fn json_kind(&self) -> &'static str {
+        match self {
+            TokenKind::Identifier => "identifier",
+            TokenKind::Keyword(_) => "keyword",
+            TokenKind::IntegerLiteral => "integer_literal",
+            TokenKind::StringLiteral => "string_literal",
+            TokenKind::ByteLiteral => "byte_literal",
+            TokenKind::Newline => "newline",
+            TokenKind::Punctuation(_) => "punctuation",
+            TokenKind::Eof => "eof",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Keyword {
+    From,
+    Import,
+    Use,
+    Program,
+    Func,
+    Pub,
+    Type,
+    Copy,
+    Struct,
+    Enum,
+    Trait,
+    Impl,
+    Method,
+    Let,
+    Var,
+    Return,
+    If,
+    Else,
+    For,
+    In,
+    While,
+    Loop,
+    Break,
+    Continue,
+    Match,
+    Is,
+    Try,
+    Catch,
+    Fail,
+    None,
+    Move,
+    Drop,
+    As,
+    Region,
+    Using,
+    Primitive,
+    Void,
+    Never,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LexOutput {
+    pub tokens: Vec<Token>,
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+pub fn lex(sources: &SourceMap, source: SourceId) -> LexOutput {
+    let Some(file) = sources.get(source) else {
+        return LexOutput {
+            tokens: Vec::new(),
+            diagnostics: vec![Diagnostic::error(
+                "E0100",
+                format!("unknown source id {}", source.raw()),
+            )],
+        };
+    };
+
+    let text = file.text();
+    let bytes = text.as_bytes();
+    let mut lexer = Lexer {
+        sources,
+        source,
+        text,
+        bytes,
+        index: 0,
+        tokens: Vec::new(),
+        diagnostics: Vec::new(),
+    };
+
+    lexer.run();
+
+    LexOutput {
+        tokens: lexer.tokens,
+        diagnostics: lexer.diagnostics,
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct JsonToken {
+    pub kind: String,
+    pub lexeme: String,
+    pub span: JsonSpan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TokensEnvelope {
+    pub schema: &'static str,
+    pub version: u32,
+    pub ok: bool,
+    pub command: &'static str,
+    pub file: String,
+    pub absolute_path: Option<String>,
+    pub tokens: Vec<JsonToken>,
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+impl TokensEnvelope {
+    pub fn new(
+        file: impl Into<String>,
+        absolute_path: Option<String>,
+        tokens: Vec<JsonToken>,
+        diagnostics: Vec<Diagnostic>,
+    ) -> Self {
+        let ok = diagnostics.is_empty();
+
+        Self {
+            schema: "nocter.tokens",
+            version: 1,
+            ok,
+            command: "tokens",
+            file: file.into(),
+            absolute_path,
+            tokens,
+            diagnostics,
+        }
+    }
+}
+
+impl LexOutput {
+    pub fn to_json_envelope(
+        &self,
+        sources: &SourceMap,
+        source: SourceId,
+    ) -> Result<TokensEnvelope, String> {
+        let file = sources
+            .get(source)
+            .ok_or_else(|| format!("unknown source id {}", source.raw()))?;
+        let mut json_tokens = Vec::with_capacity(self.tokens.len());
+
+        for token in &self.tokens {
+            let span = sources.span_to_json(token.span)?;
+            let lexeme = file
+                .text()
+                .get(token.span.start..token.span.end)
+                .unwrap_or("")
+                .to_string();
+            json_tokens.push(JsonToken {
+                kind: token.kind.json_kind().to_string(),
+                lexeme,
+                span,
+            });
+        }
+
+        Ok(TokensEnvelope::new(
+            file.display_path().to_string(),
+            file.absolute_path()
+                .map(|path| path.to_string_lossy().into_owned()),
+            json_tokens,
+            self.diagnostics.clone(),
+        ))
+    }
+}
+
+struct Lexer<'a> {
+    sources: &'a SourceMap,
+    source: SourceId,
+    text: &'a str,
+    bytes: &'a [u8],
+    index: usize,
+    tokens: Vec<Token>,
+    diagnostics: Vec<Diagnostic>,
+}
+
+impl Lexer<'_> {
+    fn run(&mut self) {
+        while !self.is_at_end() {
+            let byte = self.bytes[self.index];
+            match byte {
+                b' ' | b'\t' => {
+                    self.index += 1;
+                }
+                b'\n' => {
+                    self.push(TokenKind::Newline, self.index, self.index + 1);
+                    self.index += 1;
+                }
+                b'\r' => {
+                    let start = self.index;
+                    self.index += 1;
+                    self.error(
+                        start,
+                        self.index,
+                        "bare carriage return is invalid in source",
+                    );
+                }
+                b'/' if self.peek(1) == Some(b'/') => self.skip_line_comment(),
+                b'/' if self.peek(1) == Some(b'*') => self.skip_block_comment(),
+                b'b' if self.peek(1) == Some(b'\'') => self.scan_byte_literal(),
+                b'A'..=b'Z' | b'a'..=b'z' | b'_' => self.scan_identifier_or_keyword(),
+                b'0'..=b'9' => self.scan_integer_literal(),
+                b'"' => self.scan_string_literal(),
+                b'\'' => {
+                    let start = self.index;
+                    self.index += 1;
+                    self.error(
+                        start,
+                        self.index,
+                        "plain single-quoted character literals are not part of v0",
+                    );
+                }
+                b';' => {
+                    let start = self.index;
+                    self.index += 1;
+                    self.error(
+                        start,
+                        self.index,
+                        "semicolon statement terminators are invalid",
+                    );
+                }
+                b'@' => {
+                    let start = self.index;
+                    self.index += 1;
+                    self.error(
+                        start,
+                        self.index,
+                        "`@` is reserved and invalid in v0 source",
+                    );
+                }
+                b'.' if self.peek(1).is_some_and(|next| next.is_ascii_digit()) => {
+                    self.scan_invalid_leading_dot_float()
+                }
+                byte if byte.is_ascii() => {
+                    if !self.scan_punctuation() {
+                        let start = self.index;
+                        self.index += 1;
+                        self.error(start, self.index, "unexpected character in source");
+                    }
+                }
+                _ => self.scan_invalid_non_ascii(),
+            }
+        }
+
+        self.push(TokenKind::Eof, self.index, self.index);
+    }
+
+    fn is_at_end(&self) -> bool {
+        self.index >= self.bytes.len()
+    }
+
+    fn peek(&self, offset: usize) -> Option<u8> {
+        self.bytes.get(self.index + offset).copied()
+    }
+
+    fn push(&mut self, kind: TokenKind, start: usize, end: usize) {
+        self.tokens.push(Token {
+            kind,
+            span: ByteSpan::new(self.source, start, end),
+        });
+    }
+
+    fn error(&mut self, start: usize, end: usize, message: impl Into<String>) {
+        let span = ByteSpan::new(self.source, start, end);
+        let primary_span = self.sources.span_to_json(span).ok();
+        let mut diagnostic = Diagnostic::error("E0100", message);
+        diagnostic.primary_span = primary_span.map(Box::new);
+        self.diagnostics.push(diagnostic);
+    }
+
+    fn skip_line_comment(&mut self) {
+        self.index += 2;
+        while !self.is_at_end() && self.bytes[self.index] != b'\n' {
+            self.index += 1;
+        }
+    }
+
+    fn skip_block_comment(&mut self) {
+        let start = self.index;
+        self.index += 2;
+
+        while !self.is_at_end() {
+            if self.bytes[self.index] == b'*' && self.peek(1) == Some(b'/') {
+                self.index += 2;
+                return;
+            }
+
+            if self.bytes[self.index] == b'\n' {
+                self.push(TokenKind::Newline, self.index, self.index + 1);
+            }
+
+            self.index += 1;
+        }
+
+        self.error(start, self.index, "unterminated block comment");
+    }
+
+    fn scan_identifier_or_keyword(&mut self) {
+        let start = self.index;
+        self.index += 1;
+
+        while !self.is_at_end() && is_identifier_continue(self.bytes[self.index]) {
+            self.index += 1;
+        }
+
+        let text = &self.text[start..self.index];
+        match keyword(text) {
+            Some(keyword) => self.push(TokenKind::Keyword(keyword), start, self.index),
+            None => self.push(TokenKind::Identifier, start, self.index),
+        }
+    }
+
+    fn scan_integer_literal(&mut self) {
+        let start = self.index;
+
+        if self.bytes[self.index] == b'0' {
+            match self.peek(1) {
+                Some(b'x') => {
+                    self.index += 2;
+                    self.scan_prefixed_integer_tail(start, NumberBase::Hex);
+                    return;
+                }
+                Some(b'b') => {
+                    self.index += 2;
+                    self.scan_prefixed_integer_tail(start, NumberBase::Binary);
+                    return;
+                }
+                _ => {
+                    self.index += 1;
+                }
+            }
+        } else {
+            self.index += 1;
+        }
+
+        while !self.is_at_end()
+            && (self.bytes[self.index].is_ascii_digit() || self.bytes[self.index] == b'_')
+        {
+            self.index += 1;
+        }
+
+        if self.index < self.bytes.len()
+            && self.bytes[self.index] == b'.'
+            && self.peek(1).is_some_and(|next| next.is_ascii_digit())
+        {
+            self.index += 1;
+            while !self.is_at_end() && is_number_body_byte(self.bytes[self.index]) {
+                self.index += 1;
+            }
+            self.error(start, self.index, "float literals are not part of v0");
+            return;
+        }
+
+        if matches!(self.peek(0), Some(b'e' | b'E')) {
+            let next = self.peek(1);
+            if next.is_some_and(|byte| byte.is_ascii_digit() || byte == b'+' || byte == b'-') {
+                self.index += 1;
+                while !self.is_at_end() && is_number_body_byte(self.bytes[self.index]) {
+                    self.index += 1;
+                }
+                self.error(start, self.index, "float literals are not part of v0");
+                return;
+            }
+        }
+
+        if self
+            .peek(0)
+            .is_some_and(|byte| byte.is_ascii_alphabetic() || byte == b'_')
+        {
+            while !self.is_at_end() && is_number_body_byte(self.bytes[self.index]) {
+                self.index += 1;
+            }
+            self.error(
+                start,
+                self.index,
+                "integer type suffixes are not part of v0",
+            );
+            return;
+        }
+
+        if let Err(message) =
+            validate_integer_literal(&self.text[start..self.index], NumberBase::Decimal)
+        {
+            self.error(start, self.index, message);
+        }
+
+        self.push(TokenKind::IntegerLiteral, start, self.index);
+    }
+
+    fn scan_prefixed_integer_tail(&mut self, start: usize, base: NumberBase) {
+        while !self.is_at_end() && is_number_body_byte(self.bytes[self.index]) {
+            self.index += 1;
+        }
+
+        if let Err(message) = validate_integer_literal(&self.text[start..self.index], base) {
+            self.error(start, self.index, message);
+        }
+
+        self.push(TokenKind::IntegerLiteral, start, self.index);
+    }
+
+    fn scan_invalid_leading_dot_float(&mut self) {
+        let start = self.index;
+        self.index += 1;
+        while !self.is_at_end() && is_number_body_byte(self.bytes[self.index]) {
+            self.index += 1;
+        }
+        self.error(start, self.index, "float literals are not part of v0");
+    }
+
+    fn scan_string_literal(&mut self) {
+        let start = self.index;
+        self.index += 1;
+
+        while !self.is_at_end() {
+            match self.bytes[self.index] {
+                b'"' => {
+                    self.index += 1;
+                    self.push(TokenKind::StringLiteral, start, self.index);
+                    return;
+                }
+                b'\n' | b'\r' => {
+                    self.error(
+                        start,
+                        self.index + 1,
+                        "raw newlines are invalid in string literals",
+                    );
+                    return;
+                }
+                b'\\' => {
+                    if let Err(message) = self.scan_escape() {
+                        self.error(start, self.index, message);
+                        return;
+                    }
+                }
+                _ => {
+                    self.index += current_char_len(self.text, self.index);
+                }
+            }
+        }
+
+        self.error(start, self.index, "unterminated string literal");
+    }
+
+    fn scan_byte_literal(&mut self) {
+        let start = self.index;
+        self.index += 2;
+        let mut decoded_bytes = 0usize;
+
+        while !self.is_at_end() {
+            match self.bytes[self.index] {
+                b'\'' => {
+                    self.index += 1;
+                    if decoded_bytes == 1 {
+                        self.push(TokenKind::ByteLiteral, start, self.index);
+                    } else {
+                        self.error(
+                            start,
+                            self.index,
+                            "byte literal must decode to exactly one byte",
+                        );
+                    }
+                    return;
+                }
+                b'\n' | b'\r' => {
+                    self.error(
+                        start,
+                        self.index + 1,
+                        "raw newlines are invalid in byte literals",
+                    );
+                    return;
+                }
+                b'\\' => {
+                    if let Err(message) = self.scan_escape() {
+                        self.error(start, self.index, message);
+                        return;
+                    }
+                    decoded_bytes += 1;
+                }
+                byte if byte.is_ascii() => {
+                    self.index += 1;
+                    decoded_bytes += 1;
+                }
+                _ => {
+                    let char_len = current_char_len(self.text, self.index);
+                    self.index += char_len;
+                    decoded_bytes += char_len;
+                }
+            }
+        }
+
+        self.error(start, self.index, "unterminated byte literal");
+    }
+
+    fn scan_escape(&mut self) -> Result<(), &'static str> {
+        self.index += 1;
+        if self.is_at_end() {
+            return Err("unterminated escape sequence");
+        }
+
+        match self.bytes[self.index] {
+            b'n' | b'r' | b't' | b'0' | b'\\' | b'"' | b'\'' => {
+                self.index += 1;
+                Ok(())
+            }
+            b'x' => {
+                if self.peek(1).is_some_and(is_hex_digit) && self.peek(2).is_some_and(is_hex_digit)
+                {
+                    self.index += 3;
+                    Ok(())
+                } else {
+                    Err("`\\x` escape must be followed by two hexadecimal digits")
+                }
+            }
+            _ => Err("invalid escape sequence"),
+        }
+    }
+
+    fn scan_punctuation(&mut self) -> bool {
+        let start = self.index;
+        const MULTI: &[(&[u8], &str)] = &[
+            (b"..<", "..<"),
+            (b"&+", "&+"),
+            (b"??", "??"),
+            (b"==", "=="),
+            (b"!=", "!="),
+            (b"<=", "<="),
+            (b">=", ">="),
+            (b"&&", "&&"),
+            (b"||", "||"),
+            (b"<<", "<<"),
+            (b">>", ">>"),
+            (b"+=", "+="),
+            (b"-=", "-="),
+            (b"*=", "*="),
+            (b"/=", "/="),
+            (b"%=", "%="),
+        ];
+
+        for &(bytes, spelling) in MULTI {
+            if self.bytes[start..].starts_with(bytes) {
+                self.index += bytes.len();
+                self.push(TokenKind::Punctuation(spelling), start, self.index);
+                return true;
+            }
+        }
+
+        let spelling = match self.bytes[start] {
+            b'(' => "(",
+            b')' => ")",
+            b'{' => "{",
+            b'}' => "}",
+            b'[' => "[",
+            b']' => "]",
+            b',' => ",",
+            b':' => ":",
+            b'.' => ".",
+            b'+' => "+",
+            b'-' => "-",
+            b'*' => "*",
+            b'/' => "/",
+            b'%' => "%",
+            b'=' => "=",
+            b'!' => "!",
+            b'<' => "<",
+            b'>' => ">",
+            b'&' => "&",
+            b'|' => "|",
+            b'?' => "?",
+            _ => return false,
+        };
+
+        self.index += 1;
+        self.push(TokenKind::Punctuation(spelling), start, self.index);
+        true
+    }
+
+    fn scan_invalid_non_ascii(&mut self) {
+        let start = self.index;
+        let char_len = current_char_len(self.text, self.index);
+        self.index += char_len;
+        self.error(
+            start,
+            self.index,
+            "non-ASCII characters are invalid outside string literals, byte literals, and comments",
+        );
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NumberBase {
+    Decimal,
+    Hex,
+    Binary,
+}
+
+fn current_char_len(text: &str, offset: usize) -> usize {
+    text[offset..]
+        .chars()
+        .next()
+        .map(char::len_utf8)
+        .unwrap_or(1)
+}
+
+fn is_identifier_continue(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_'
+}
+
+fn is_number_body_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_'
+}
+
+fn is_hex_digit(byte: u8) -> bool {
+    byte.is_ascii_hexdigit()
+}
+
+fn validate_integer_literal(text: &str, base: NumberBase) -> Result<(), &'static str> {
+    let digits = match base {
+        NumberBase::Decimal => text,
+        NumberBase::Hex | NumberBase::Binary => {
+            if text.len() == 2 {
+                return Err("integer literal prefix must be followed by digits");
+            }
+            &text[2..]
+        }
+    };
+
+    let mut previous_underscore = false;
+    let mut previous_digit = false;
+
+    for byte in digits.bytes() {
+        if byte == b'_' {
+            if !previous_digit || previous_underscore {
+                return Err("invalid digit separator placement in integer literal");
+            }
+            previous_underscore = true;
+            previous_digit = false;
+            continue;
+        }
+
+        if !digit_matches_base(byte, base) {
+            return Err("integer literal contains a digit that is invalid for its base");
+        }
+
+        previous_underscore = false;
+        previous_digit = true;
+    }
+
+    if previous_underscore || !previous_digit {
+        return Err("invalid digit separator placement in integer literal");
+    }
+
+    Ok(())
+}
+
+fn digit_matches_base(byte: u8, base: NumberBase) -> bool {
+    match base {
+        NumberBase::Decimal => byte.is_ascii_digit(),
+        NumberBase::Hex => byte.is_ascii_hexdigit(),
+        NumberBase::Binary => matches!(byte, b'0' | b'1'),
+    }
+}
+
+fn keyword(text: &str) -> Option<Keyword> {
+    Some(match text {
+        "from" => Keyword::From,
+        "import" => Keyword::Import,
+        "use" => Keyword::Use,
+        "program" => Keyword::Program,
+        "func" => Keyword::Func,
+        "pub" => Keyword::Pub,
+        "type" => Keyword::Type,
+        "copy" => Keyword::Copy,
+        "struct" => Keyword::Struct,
+        "enum" => Keyword::Enum,
+        "trait" => Keyword::Trait,
+        "impl" => Keyword::Impl,
+        "method" => Keyword::Method,
+        "let" => Keyword::Let,
+        "var" => Keyword::Var,
+        "return" => Keyword::Return,
+        "if" => Keyword::If,
+        "else" => Keyword::Else,
+        "for" => Keyword::For,
+        "in" => Keyword::In,
+        "while" => Keyword::While,
+        "loop" => Keyword::Loop,
+        "break" => Keyword::Break,
+        "continue" => Keyword::Continue,
+        "match" => Keyword::Match,
+        "is" => Keyword::Is,
+        "try" => Keyword::Try,
+        "catch" => Keyword::Catch,
+        "fail" => Keyword::Fail,
+        "none" => Keyword::None,
+        "move" => Keyword::Move,
+        "drop" => Keyword::Drop,
+        "as" => Keyword::As,
+        "region" => Keyword::Region,
+        "using" => Keyword::Using,
+        "primitive" => Keyword::Primitive,
+        "void" => Keyword::Void,
+        "never" => Keyword::Never,
+        _ => return None,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::source::SourceMap;
+
+    #[test]
+    fn lexes_keywords_newlines_and_eof() {
+        let mut sources = SourceMap::new();
+        let id = sources.add_source("app.nct", None, "program(): i32 {\n    return 0\n}\n");
+        let output = lex(&sources, id);
+
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        assert_eq!(output.tokens[0].kind, TokenKind::Keyword(Keyword::Program));
+        assert!(
+            output
+                .tokens
+                .iter()
+                .any(|token| token.kind == TokenKind::Newline)
+        );
+        assert_eq!(output.tokens.last().unwrap().kind, TokenKind::Eof);
+    }
+
+    #[test]
+    fn skips_comments() {
+        let mut sources = SourceMap::new();
+        let id = sources.add_source(
+            "app.nct",
+            None,
+            "let a = 1 // comment\n/* block */\nlet b = 2",
+        );
+        let output = lex(&sources, id);
+
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        assert!(
+            !output
+                .tokens
+                .iter()
+                .any(|token| matches!(token.kind, TokenKind::Punctuation("/*" | "*/" | "//")))
+        );
+    }
+
+    #[test]
+    fn diagnoses_float_literals() {
+        let mut sources = SourceMap::new();
+        let id = sources.add_source("app.nct", None, "let value = 1.0");
+        let output = lex(&sources, id);
+
+        assert_eq!(output.diagnostics.len(), 1);
+        assert!(output.diagnostics[0].message.contains("float literals"));
+    }
+}

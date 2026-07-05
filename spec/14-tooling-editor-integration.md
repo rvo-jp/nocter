@@ -9,6 +9,8 @@ Adopted: editor tooling must be able to start with TextMate grammar support and 
 
 The compiler is the source of truth for language semantics. Editor extensions may present Nocter code, but they must not become a second implementation of import resolution, name lookup, type checking, ownership checking, or borrow checking.
 
+AI-assisted coding tools follow the same rule. They may generate, format, inspect, and repair Nocter code, but they should use compiler-owned formatting, diagnostics, token dumps, and AST dumps instead of maintaining a separate interpretation of the language.
+
 Initial VS Code extension layout:
 
 ```text
@@ -75,6 +77,30 @@ Editor path mapping rules:
 - Do not use display paths to decide whether two source files are the same file.
 - LSP document mapping must follow the canonical source-file identity rules in [Modules and Imports](01-modules-imports.md#source-file-identity).
 
+## AI-Assisted Tooling Stage
+
+Nocter should be easy for AI tools to read, write, review, and repair without adding alternate syntax to the language.
+
+Reserved command direction:
+
+```sh
+nocter tokens app.nct --format json
+nocter ast app.nct --format json
+```
+
+Rules:
+
+- `tokens` exposes the compiler lexer output for one source file.
+- `ast` exposes the compiler parser output for one source file.
+- Both commands are tooling and debugging commands, not user program execution commands.
+- Both commands are JSON-only in v0.
+- Both commands use compiler-owned source spans and token / AST node names.
+- Both commands must not perform name resolution, type checking, ownership checking, target lowering, code generation, or execution.
+- The JSON shapes are versioned and may evolve while the parser and AST are still unstable.
+- AI tools should prefer `nocter fmt`, `nocter check --format json`, `nocter tokens --format json`, and `nocter ast --format json` over reimplementing syntax and semantics.
+
+The compact AI-facing guide is [../AI.md](../AI.md). The example corpus is [examples/](examples/).
+
 ## LSP Stage
 
 Long-term editor support should be provided by a compiler-backed language server.
@@ -103,7 +129,9 @@ Feature order:
 5. completion for imports and visible names
 6. rename
 7. semantic tokens
-8. formatting, only after the grammar is stable
+8. formatting through `nocter fmt`
+
+Formatting behavior is specified in [Source Style and Formatting](16-source-style-formatting.md). Editor extensions may call `nocter fmt`, but they must not maintain a separate formatter whose output can diverge from the compiler toolchain.
 
 ## Non-goals
 
@@ -114,5 +142,6 @@ The following are not part of the intended editor architecture:
 - implementing type checking inside the VS Code extension
 - implementing borrow checking inside the VS Code extension
 - maintaining a separate editor-only module graph
+- maintaining a separate AI-only parser or semantic model
 - making TextMate scopes part of the language specification
 - requiring VS Code for normal command-line use
