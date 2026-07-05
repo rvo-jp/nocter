@@ -197,7 +197,7 @@ The root path and source span path rules are specified in [Modules and Imports](
 
 Initial implementation note:
 
-- The first `check --format json` implementation may stop after source loading, lexing, parsing, typed AST construction, and `program` entry validation.
+- The first `check --format json` implementation may stop after source loading, lexing, parsing, typed AST construction, `program` entry validation, and basic return checking.
 - Later implementations should extend the same command with import resolution, name resolution, type checking, ownership checking, target selection, and target validation.
 
 ## Format

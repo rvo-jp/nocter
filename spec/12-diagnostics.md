@@ -280,6 +280,10 @@ Required v0 diagnostic families:
 - `program` missing, duplicated, or defined outside the root file.
 - `program` with an invalid return type.
 - `program` with parameters, such as `program(args: ...)`, used in v0.
+- `return` without a value in a non-`void` function or `program`.
+- `return` with a value in a `void` function or `program`.
+- `return` value type mismatch when both expected and actual types are known.
+- Non-`void` function or `program` reaching the end without an explicit return.
 - `pub from` attempting to re-export a private or `pub(nocter)` name.
 - Reserved target requested before implementation.
 

@@ -303,8 +303,14 @@ Current semantic coverage:
 - `func main` without `program` receives a dedicated diagnostic because `main` is an ordinary function name
 - executable root has no duplicate `program` entries
 - `program` return type is exactly `i32` or `void`
+- primitive return type checking for `i32`, `void`, `never`, `StringView`, `T?`, and the success side of `T ! E`
+- integer literals have type `i32` in v0 checking
+- string literals have type `StringView` in v0 checking
+- `return` expression type must match the declared success return type when both sides are known
+- bare `return` is valid only for `void` success returns
+- non-`void` functions and `program(): i32` must not fall through without an explicit return
 
-The current `check` implementation does not resolve imports, type-check expressions, validate function calls, check ownership, select a target, or lower code. Those phases must be added behind the same diagnostics pipeline.
+The current `check` implementation does not resolve imports, infer local binding types beyond literal expressions, validate function calls, check ownership, select a target, or lower code. Unknown expression types are not diagnosed until name resolution and full type checking exist.
 
 `nocter check app.nct --format json` runs:
 
@@ -314,11 +320,12 @@ SourceMap::load_file
     -> parser
     -> typed AST
     -> entry validation
+    -> basic return checking
     -> DiagnosticsEnvelope
     -> JSON stdout
 ```
 
-If source loading, lexing, or parsing fails, `check` returns a `nocter.diagnostics` envelope with those diagnostics and does not run entry validation.
+If source loading, lexing, or parsing fails, `check` returns a `nocter.diagnostics` envelope with those diagnostics and does not run semantic checks.
 
 The first standard-library source files are `.nocter/std/prelude.nct`, `.nocter/std/string.nct`, `.nocter/std/view.nct`, `.nocter/std/mem.nct`, `.nocter/std/ptr.nct`, `.nocter/std/os.nct`, `.nocter/std/io.nct`, `.nocter/targets/arm64-darwin/std/process.nct`, and `.nocter/targets/arm64-darwin/std/os/macos.nct`. They define the explicit prelude, string and view types, initial memory API, core pointer primitive boundary, common OS error model, user-facing I/O errors, `File`, `stdout`, `stderr`, `print`, byte read/write, text write, macOS process API implementation, and macOS primitive boundary. Future target support should add target overlays without changing ordinary user-facing APIs.
 
