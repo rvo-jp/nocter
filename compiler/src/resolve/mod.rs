@@ -5,8 +5,9 @@ use crate::ast::{
     Stmt, TypeExpr,
 };
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
-use crate::source::{ByteSpan, SourceMap};
+use crate::source::{ByteSpan, SourceId, SourceMap};
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SymbolId(u32);
@@ -141,18 +142,29 @@ pub struct ImportedSymbol {
 }
 
 pub fn resolve(sources: &SourceMap, ast: &AstFile) -> ResolveOutput {
+    resolve_compile_unit(sources, ast, std::slice::from_ref(ast))
+}
+
+pub fn resolve_compile_unit(
+    sources: &SourceMap,
+    root: &AstFile,
+    files: &[AstFile],
+) -> ResolveOutput {
+    let module_index = ModuleIndex::new(sources, files);
     let mut resolver = Resolver {
         sources,
+        module_index,
         output: ResolveOutput::new(),
     };
 
-    resolver.collect_top_level_symbols(ast);
-    resolver.resolve_callable_bodies(ast);
+    resolver.collect_top_level_symbols(root);
+    resolver.resolve_callable_bodies(root);
     resolver.output
 }
 
 struct Resolver<'a> {
     sources: &'a SourceMap,
+    module_index: ModuleIndex<'a>,
     output: ResolveOutput,
 }
 
@@ -168,6 +180,11 @@ impl Resolver<'_> {
     }
 
     fn collect_imported_symbols(&mut self, item: &FromImportItem) {
+        if is_relative_module_path(&item.path.value) {
+            self.collect_relative_imported_symbols(item);
+            return;
+        }
+
         for name in &item.names {
             self.define_symbol(
                 name.name.clone(),
@@ -180,20 +197,44 @@ impl Resolver<'_> {
         }
     }
 
+    fn collect_relative_imported_symbols(&mut self, item: &FromImportItem) {
+        let Some(imported_ast) = self.module_index.relative_import_ast(self.sources, item) else {
+            for name in &item.names {
+                self.output.diagnostics.push(unloaded_import_diagnostic(
+                    self.sources,
+                    &item.path.value,
+                    name.span,
+                ));
+            }
+            return;
+        };
+
+        for name in &item.names {
+            match find_function(imported_ast, &name.name) {
+                Some(function) => self.define_symbol(
+                    name.name.clone(),
+                    name.span,
+                    function.name_span,
+                    SymbolKind::Function(function_signature(function)),
+                ),
+                None => {
+                    self.output.diagnostics.push(missing_import_diagnostic(
+                        self.sources,
+                        &name.name,
+                        &item.path.value,
+                        name.span,
+                    ));
+                }
+            }
+        }
+    }
+
     fn collect_function_symbol(&mut self, function: &FunctionDecl) {
         self.define_symbol(
             function.name.clone(),
             function.name_span,
-            function.span,
-            SymbolKind::Function(FunctionSignature {
-                parameters: function
-                    .parameters
-                    .parameters
-                    .iter()
-                    .map(parameter_signature)
-                    .collect(),
-                return_type: function.return_type.clone(),
-            }),
+            function.name_span,
+            SymbolKind::Function(function_signature(function)),
         );
     }
 
@@ -363,6 +404,64 @@ impl Resolver<'_> {
     }
 }
 
+struct ModuleIndex<'a> {
+    by_absolute_path: HashMap<PathBuf, &'a AstFile>,
+}
+
+impl<'a> ModuleIndex<'a> {
+    fn new(sources: &SourceMap, files: &'a [AstFile]) -> Self {
+        let mut by_absolute_path = HashMap::new();
+
+        for ast in files {
+            if let Some(path) = source_absolute_path(sources, ast.span.source) {
+                by_absolute_path.insert(path, ast);
+            }
+        }
+
+        Self { by_absolute_path }
+    }
+
+    fn relative_import_ast(
+        &self,
+        sources: &SourceMap,
+        item: &FromImportItem,
+    ) -> Option<&'a AstFile> {
+        let source_file = sources.get(item.path.span.source)?;
+        let source_path = source_file.absolute_path()?;
+        let source_dir = source_path.parent()?;
+        let import_path = source_dir.join(format!("{}.nct", item.path.value));
+        let canonical = import_path.canonicalize().ok()?;
+        self.by_absolute_path.get(&canonical).copied()
+    }
+}
+
+fn source_absolute_path(sources: &SourceMap, source: SourceId) -> Option<PathBuf> {
+    sources.get(source)?.absolute_path().cloned()
+}
+
+fn is_relative_module_path(path: &str) -> bool {
+    path.starts_with("./") || path.starts_with("../")
+}
+
+fn find_function<'a>(ast: &'a AstFile, name: &str) -> Option<&'a FunctionDecl> {
+    ast.items.iter().find_map(|item| match item {
+        Item::Function(function) if function.name == name => Some(function),
+        _ => None,
+    })
+}
+
+fn function_signature(function: &FunctionDecl) -> FunctionSignature {
+    FunctionSignature {
+        parameters: function
+            .parameters
+            .parameters
+            .iter()
+            .map(parameter_signature)
+            .collect(),
+        return_type: function.return_type.clone(),
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 struct Scope {
     locals: HashMap<String, ByteSpan>,
@@ -427,6 +526,38 @@ fn builtin_name_reuse_diagnostic(sources: &SourceMap, name: &str, span: ByteSpan
     );
     diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
     diagnostic.help = Some("choose a binding name that is not a built-in type name".to_string());
+    diagnostic
+}
+
+fn unloaded_import_diagnostic(
+    sources: &SourceMap,
+    import_path: &str,
+    span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0411",
+        format!("relative import `{import_path}` was not loaded before name resolution"),
+    );
+    diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+    diagnostic.help = Some("load relative imports before running name resolution".to_string());
+    diagnostic
+}
+
+fn missing_import_diagnostic(
+    sources: &SourceMap,
+    name: &str,
+    import_path: &str,
+    span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0411",
+        format!("import `{import_path}` does not export function `{name}` in v0"),
+    );
+    diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+    diagnostic.help = Some(
+        "define a top-level `func` with that name in the imported file, or import an existing function"
+            .to_string(),
+    );
     diagnostic
 }
 

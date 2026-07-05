@@ -4,7 +4,7 @@ use crate::ast::AstEnvelope;
 use crate::diagnostics::{Diagnostic, DiagnosticsEnvelope};
 use crate::lexer::{TokensEnvelope, lex};
 use crate::parser::parse;
-use crate::resolve::resolve;
+use crate::resolve::resolve_compile_unit;
 use crate::source::SourceMap;
 use crate::typecheck::check;
 use manifest::Manifest;
@@ -390,7 +390,7 @@ fn run_frontend_check(sources: &mut SourceMap, source: crate::source::SourceId) 
         Err(diagnostics) => return diagnostics,
     };
 
-    let resolved = resolve(sources, &unit.root_ast);
+    let resolved = resolve_compile_unit(sources, &unit.root_ast, &unit.files);
     let mut diagnostics = resolved.diagnostics.clone();
     diagnostics.extend(check(sources, &unit.root_ast, &resolved));
     diagnostics
@@ -399,6 +399,7 @@ fn run_frontend_check(sources: &mut SourceMap, source: crate::source::SourceId) 
 #[derive(Debug, Clone)]
 struct CompileUnit {
     root_ast: crate::ast::AstFile,
+    files: Vec<crate::ast::AstFile>,
 }
 
 fn load_compile_unit(
@@ -410,6 +411,7 @@ fn load_compile_unit(
     let mut loaded_paths = HashSet::new();
     let mut diagnostics = Vec::new();
     let mut root_ast = None;
+    let mut files = Vec::new();
 
     if let Some(path) = sources
         .get(root)
@@ -431,6 +433,7 @@ fn load_compile_unit(
         if source == root {
             root_ast = Some(ast.clone());
         }
+        files.push(ast.clone());
 
         for path in relative_import_paths(&ast) {
             let Some(resolved_path) = resolve_relative_import_path(sources, source, path) else {
@@ -488,7 +491,7 @@ fn load_compile_unit(
         )]);
     };
 
-    Ok(CompileUnit { root_ast })
+    Ok(CompileUnit { root_ast, files })
 }
 
 fn parse_source_for_check(
@@ -1049,7 +1052,7 @@ mod tests {
             r#"from ./config import answer
 
 program(): i32 {
-    return 0
+    return answer()
 }
 "#,
         )
@@ -1069,6 +1072,100 @@ program(): i32 {
         fs::remove_dir_all(&root).unwrap();
 
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn check_uses_relative_imported_function_return_type() {
+        let root = make_temp_project("relative-import-return-type");
+        fs::write(
+            root.join("app.nct"),
+            r#"from ./config import title
+
+program(): i32 {
+    return title()
+}
+"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("config.nct"),
+            r#"func title(): StringView {
+    return "Nocter"
+}
+"#,
+        )
+        .unwrap();
+
+        let mut sources = SourceMap::new();
+        let source = sources.load_file(root.join("app.nct")).unwrap();
+        let diagnostics = run_frontend_check(&mut sources, source);
+        fs::remove_dir_all(&root).unwrap();
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "E0312");
+        assert!(diagnostics[0].message.contains("StringView"));
+    }
+
+    #[test]
+    fn check_uses_relative_imported_function_parameters() {
+        let root = make_temp_project("relative-import-parameters");
+        fs::write(
+            root.join("app.nct"),
+            r#"from ./config import answer
+
+program(): i32 {
+    return answer()
+}
+"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("config.nct"),
+            r#"func answer(value: i32): i32 {
+    return value
+}
+"#,
+        )
+        .unwrap();
+
+        let mut sources = SourceMap::new();
+        let source = sources.load_file(root.join("app.nct")).unwrap();
+        let diagnostics = run_frontend_check(&mut sources, source);
+        fs::remove_dir_all(&root).unwrap();
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "E0320");
+    }
+
+    #[test]
+    fn check_reports_missing_relative_imported_names() {
+        let root = make_temp_project("missing-relative-imported-name");
+        fs::write(
+            root.join("app.nct"),
+            r#"from ./config import missing
+
+program(): i32 {
+    return 0
+}
+"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("config.nct"),
+            r#"func answer(): i32 {
+    return 1
+}
+"#,
+        )
+        .unwrap();
+
+        let mut sources = SourceMap::new();
+        let source = sources.load_file(root.join("app.nct")).unwrap();
+        let diagnostics = run_frontend_check(&mut sources, source);
+        fs::remove_dir_all(&root).unwrap();
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "E0411");
     }
 
     #[test]

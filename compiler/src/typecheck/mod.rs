@@ -843,7 +843,7 @@ fn argument_count_mismatch_diagnostic(
     );
     diagnostic.primary_span = sources.span_to_json(call.arguments_span).ok().map(Box::new);
     if let Some(symbol) = resolved.symbol_for_call(call)
-        && let Ok(span) = sources.span_to_json(symbol.name_span)
+        && let Ok(span) = sources.span_to_json(symbol.declaration_span)
     {
         diagnostic.notes.push(DiagnosticNote {
             message: format!("function `{}` is declared here", symbol.name),
