@@ -8,8 +8,8 @@ use crate::ast::{
 };
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
 use crate::resolve::{
-    EnumVariantSignature, FunctionSignature, ParameterSignature, ResolveOutput, TypeSymbol,
-    TypeSymbolKind,
+    EnumVariantSignature, FunctionSignature, ParameterSignature, ResolveOutput,
+    StructFieldSignature, TypeSymbol, TypeSymbolKind,
 };
 use crate::source::{ByteSpan, SourceMap};
 use std::collections::HashMap;
@@ -1305,6 +1305,7 @@ fn check_expression_calls(
             );
             check_enum_variant_member(sources, expression, resolved, diagnostics);
             check_error_member_expression(sources, expression, resolved, diagnostics, environment);
+            check_struct_member_expression(sources, expression, resolved, diagnostics, environment);
         }
         Expr::Index(expression) => {
             check_expression_calls(
@@ -1964,6 +1965,73 @@ fn check_error_member_expression(
     }
 
     diagnostics.push(error_member_unknown_diagnostic(sources, member));
+}
+
+fn struct_member_type(
+    member: &MemberExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<Type> {
+    let target_type = expression_type(&member.object, resolved, environment);
+    let struct_symbol = struct_type_symbol_for_type(&target_type, resolved)?;
+    Some(
+        struct_field_for_member(member, struct_symbol)
+            .map(|field| type_expr_to_type(&field.ty, resolved))
+            .unwrap_or(Type::Unknown),
+    )
+}
+
+fn check_struct_member_expression(
+    sources: &SourceMap,
+    member: &MemberExpr,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+    environment: &TypeEnvironment,
+) {
+    let target_type = expression_type(&member.object, resolved, environment);
+    if target_type.is_unknown_or_unresolved() || target_type == Type::Error {
+        return;
+    }
+
+    let Some(struct_symbol) = struct_type_symbol_for_type(&target_type, resolved) else {
+        diagnostics.push(member_target_type_mismatch_diagnostic(
+            sources,
+            member,
+            &target_type,
+        ));
+        return;
+    };
+
+    if struct_field_for_member(member, struct_symbol).is_none() {
+        diagnostics.push(struct_field_unknown_diagnostic(
+            sources,
+            member,
+            struct_symbol,
+        ));
+    }
+}
+
+fn struct_type_symbol_for_type<'a>(
+    ty: &Type,
+    resolved: &'a ResolveOutput,
+) -> Option<&'a TypeSymbol> {
+    let Type::Named(canonical_name) = ty else {
+        return None;
+    };
+
+    resolved
+        .type_symbol_by_canonical_name(canonical_name)
+        .filter(|symbol| symbol.kind == TypeSymbolKind::Struct)
+}
+
+fn struct_field_for_member<'a>(
+    member: &MemberExpr,
+    struct_symbol: &'a TypeSymbol,
+) -> Option<&'a StructFieldSignature> {
+    struct_symbol
+        .fields
+        .iter()
+        .find(|field| field.name == member.member)
 }
 
 fn enum_symbol_for_member<'a>(
@@ -2631,6 +2699,7 @@ fn expression_type(
             .unwrap_or(Type::Unknown),
         Expr::Member(expression) => enum_variant_member_type(expression, resolved)
             .or_else(|| error_member_type(expression, resolved, environment))
+            .or_else(|| struct_member_type(expression, resolved, environment))
             .unwrap_or(Type::Unknown),
     }
 }
@@ -3988,6 +4057,43 @@ fn error_member_unknown_diagnostic(sources: &SourceMap, member: &MemberExpr) -> 
     diagnostic
 }
 
+fn struct_field_unknown_diagnostic(
+    sources: &SourceMap,
+    member: &MemberExpr,
+    struct_symbol: &TypeSymbol,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0370",
+        format!(
+            "struct `{}` has no field `{}`",
+            struct_symbol.canonical_name, member.member
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(member.member_span).ok().map(Box::new);
+    diagnostic.help = Some("use a field declared by the struct".to_string());
+    diagnostic
+}
+
+fn member_target_type_mismatch_diagnostic(
+    sources: &SourceMap,
+    member: &MemberExpr,
+    actual: &Type,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0371",
+        format!(
+            "field access target has type `{}`, but fields require a struct value",
+            actual.display()
+        ),
+    );
+    diagnostic.primary_span = sources
+        .span_to_json(member.object.span())
+        .ok()
+        .map(Box::new);
+    diagnostic.help = Some("access fields on a struct value".to_string());
+    diagnostic
+}
+
 fn type_symbol_kind_name(kind: TypeSymbolKind) -> &'static str {
     match kind {
         TypeSymbolKind::Alias => "type alias",
@@ -4574,6 +4680,95 @@ func title(): str {
         );
 
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn accepts_struct_field_access() {
+        let diagnostics = check_text(
+            r#"struct Point {
+    x: i32
+    label: str
+}
+
+program(): i32 {
+    return 0
+}
+
+func x(point: Point): i32 {
+    return point.x
+}
+
+func label(point: Point): str {
+    return point.label
+}
+"#,
+        );
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn uses_struct_field_type_for_return_checking() {
+        let diagnostics = check_text(
+            r#"struct Point {
+    x: i32
+}
+
+program(): i32 {
+    return 0
+}
+
+func x(point: Point): str {
+    return point.x
+}
+"#,
+        );
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0312");
+        assert!(diagnostics[0].message.contains("i32"));
+        assert!(diagnostics[0].message.contains("str"));
+    }
+
+    #[test]
+    fn diagnoses_unknown_struct_field() {
+        let diagnostics = check_text(
+            r#"struct Point {
+    x: i32
+}
+
+program(): i32 {
+    return 0
+}
+
+func y(point: Point): i32 {
+    return point.y
+}
+"#,
+        );
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0370");
+        assert!(diagnostics[0].message.contains("Point"));
+        assert!(diagnostics[0].message.contains("y"));
+    }
+
+    #[test]
+    fn diagnoses_field_access_on_non_struct_value() {
+        let diagnostics = check_text(
+            r#"program(): i32 {
+    return 0
+}
+
+func invalid(value: i32): i32 {
+    return value.x
+}
+"#,
+        );
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0371");
+        assert!(diagnostics[0].message.contains("i32"));
     }
 
     #[test]

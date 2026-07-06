@@ -2,7 +2,7 @@
 
 use crate::ast::{
     AstFile, Block, CallExpr, EnumVariant, Expr, FromImportItem, FunctionDecl, IdentifierExpr,
-    ImportItem, Item, Parameter, PrimitiveDecl, Stmt, TypeExpr, UseItem, Visibility,
+    ImportItem, Item, Parameter, PrimitiveDecl, Stmt, StructField, TypeExpr, UseItem, Visibility,
 };
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
 use crate::source::{ByteSpan, SourceId, SourceMap};
@@ -153,6 +153,7 @@ pub struct TypeSymbol {
     pub kind: TypeSymbolKind,
     pub canonical_name: String,
     pub alias_target: Option<TypeExpr>,
+    pub fields: Vec<StructFieldSignature>,
     pub variants: Vec<EnumVariantSignature>,
 }
 
@@ -169,6 +170,14 @@ pub struct EnumVariantSignature {
     pub name: String,
     pub name_span: ByteSpan,
     pub payload: Vec<ParameterSignature>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StructFieldSignature {
+    pub name: String,
+    pub name_span: ByteSpan,
+    pub visibility: Visibility,
+    pub ty: TypeExpr,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -251,7 +260,7 @@ impl Resolver<'_> {
                     struct_.name.clone(),
                     struct_.name_span,
                     struct_.span,
-                    nominal_type_symbol(struct_.name.clone(), TypeSymbolKind::Struct),
+                    struct_type_symbol(struct_.name.clone(), &struct_.fields),
                 ),
                 Item::Enum(enum_) => self.collect_type_symbol(
                     enum_.name.clone(),
@@ -340,6 +349,7 @@ impl Resolver<'_> {
         for name in &item.names {
             match self.find_importable_symbol(imported_ast, &name.name) {
                 Some(imported) if imported.is_visible_to(access) => {
+                    let imported = filter_importable_symbol_for_access(imported, access);
                     let imported = qualify_imported_symbol(imported, &item.path.value, &name.name);
                     self.define_symbol(
                         name.local_name().to_string(),
@@ -417,8 +427,9 @@ impl Resolver<'_> {
                     let imported = type_importable_symbol(
                         struct_.span,
                         struct_.visibility,
-                        nominal_type_symbol(struct_.name.clone(), TypeSymbolKind::Struct),
+                        struct_type_symbol(struct_.name.clone(), &struct_.fields),
                     );
+                    let imported = filter_importable_symbol_for_access(imported, access);
                     let imported = qualify_imported_symbol(imported, module_path, &struct_.name);
                     self.collect_public_export(
                         struct_.name.clone(),
@@ -491,6 +502,7 @@ impl Resolver<'_> {
                     if imported.visibility == Visibility::Public
                         && imported.is_visible_to(access) =>
                 {
+                    let imported = filter_importable_symbol_for_access(imported, access);
                     let imported = qualify_imported_symbol(imported, &item.path.value, &name.name);
                     self.define_symbol(
                         name.local_name().to_string(),
@@ -950,7 +962,7 @@ fn direct_importable_symbol(ast: &AstFile, name: &str) -> Option<ImportableSymbo
         Item::Struct(struct_) if struct_.name == name => Some(type_importable_symbol(
             struct_.span,
             struct_.visibility,
-            nominal_type_symbol(struct_.name.clone(), TypeSymbolKind::Struct),
+            struct_type_symbol(struct_.name.clone(), &struct_.fields),
         )),
         Item::Enum(enum_) if enum_.name == name => Some(type_importable_symbol(
             enum_.span,
@@ -999,11 +1011,33 @@ fn type_importable_symbol(
     }
 }
 
+fn filter_importable_symbol_for_access(
+    mut imported: ImportableSymbol,
+    access: ImportAccess,
+) -> ImportableSymbol {
+    if let SymbolKind::Type(symbol) = &mut imported.kind {
+        symbol
+            .fields
+            .retain(|field| field_visibility_is_visible_to(field.visibility, access));
+    }
+
+    imported
+}
+
+fn field_visibility_is_visible_to(visibility: Visibility, access: ImportAccess) -> bool {
+    match visibility {
+        Visibility::Public => true,
+        Visibility::Nocter => access == ImportAccess::Nocter,
+        Visibility::Private => false,
+    }
+}
+
 fn alias_type_symbol(canonical_name: String, alias_target: TypeExpr) -> TypeSymbol {
     TypeSymbol {
         kind: TypeSymbolKind::Alias,
         canonical_name,
         alias_target: Some(alias_target),
+        fields: Vec::new(),
         variants: Vec::new(),
     }
 }
@@ -1013,6 +1047,25 @@ fn nominal_type_symbol(canonical_name: String, kind: TypeSymbolKind) -> TypeSymb
         kind,
         canonical_name,
         alias_target: None,
+        fields: Vec::new(),
+        variants: Vec::new(),
+    }
+}
+
+fn struct_type_symbol(canonical_name: String, fields: &[StructField]) -> TypeSymbol {
+    TypeSymbol {
+        kind: TypeSymbolKind::Struct,
+        canonical_name,
+        alias_target: None,
+        fields: fields
+            .iter()
+            .map(|field| StructFieldSignature {
+                name: field.name.clone(),
+                name_span: field.name_span,
+                visibility: field.visibility,
+                ty: field.ty.clone(),
+            })
+            .collect(),
         variants: Vec::new(),
     }
 }
@@ -1022,6 +1075,7 @@ fn enum_type_symbol(canonical_name: String, variants: &[EnumVariant]) -> TypeSym
         kind: TypeSymbolKind::Enum,
         canonical_name,
         alias_target: None,
+        fields: Vec::new(),
         variants: variants
             .iter()
             .map(|variant| EnumVariantSignature {
@@ -1263,6 +1317,8 @@ func answer(): i32 {
 	pub type Bytes = [u8]
 
 pub struct File {
+    pub fd: i32
+    name: str
 }
 
 pub enum IOError {
@@ -1287,13 +1343,20 @@ program(): i32 {
                 ..
             })
         ));
-        assert!(matches!(
-            &output.symbols.symbol_by_name("File").unwrap().kind,
-            SymbolKind::Type(TypeSymbol {
-                kind: TypeSymbolKind::Struct,
-                ..
-            })
-        ));
+        let file_symbol = output.symbols.symbol_by_name("File").unwrap();
+        let SymbolKind::Type(TypeSymbol {
+            kind: TypeSymbolKind::Struct,
+            fields,
+            ..
+        }) = &file_symbol.kind
+        else {
+            panic!("expected struct symbol");
+        };
+        assert_eq!(fields.len(), 2);
+        assert_eq!(fields[0].name, "fd");
+        assert_eq!(fields[0].visibility, Visibility::Public);
+        assert_eq!(fields[1].name, "name");
+        assert_eq!(fields[1].visibility, Visibility::Private);
         assert!(matches!(
             &output.symbols.symbol_by_name("IOError").unwrap().kind,
             SymbolKind::Type(TypeSymbol {

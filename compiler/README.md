@@ -398,6 +398,7 @@ Current semantic coverage:
 - postfix `?` and `catch` expressions unwrap the success side of known `T!` expressions
 - `fail expr` is valid only inside a function returning `T!`, and `expr` must have type `error` when both sides are known
 - built-in `error.code` and `error.message` fields have type `str`; other `error` fields are diagnosed
+- direct struct field access resolves field types for known struct values and diagnoses unknown fields
 - `let ... else` and `var ... else` require a known `T?` initializer when the initializer type is known
 - `let ... else` and `var ... else` expose the contained `T` type on the continuing path
 - `let ... else` and `var ... else` require an `else` block that terminates; parser/check v0 currently recognizes `return` and `fail` as terminating forms
@@ -406,7 +407,7 @@ Current semantic coverage:
 - bare `return` is valid only for `void` success returns
 - non-`void` functions and `program(): i32` / `program(): i32!` must not fall through without an explicit return or failure
 
-The current `check` implementation loads imported files, applies import aliases, and registers namespace aliases as visible names, but it does not resolve namespace member access, full alias-target expansion, struct fields other than built-in `error` fields, enum payload fields, method or associated function calls, trait obligations, perform full block control-flow analysis beyond last-statement `return`, check ownership, select a target beyond the default active target, or lower code. Unknown expression types are not diagnosed until import resolution and full type checking exist.
+The current `check` implementation loads imported files, applies import aliases, and registers namespace aliases as visible names, but it does not resolve namespace member access, full alias-target expansion, enum payload fields, method or associated function calls, trait obligations, perform full block control-flow analysis beyond last-statement `return`, check ownership, select a target beyond the default active target, or lower code. Unknown expression types are not diagnosed until import resolution and full type checking exist.
 
 `nocter check app.nct --format json` runs:
 
