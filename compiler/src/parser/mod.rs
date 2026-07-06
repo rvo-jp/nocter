@@ -8,9 +8,10 @@ use crate::ast::{
     IfStmt, ImplDecl, ImplMember, ImportAlias, ImportItem, ImportedName, IndexExpr, Item,
     LiteralExpr, LoopStmt, MemberExpr, MethodDecl, ModulePath, OptionalDefaultExpr, OptionalType,
     Parameter, ParameterList, PointerType, PrimitiveDecl, ProgramDecl, ReturnStmt, Stmt,
-    StructDecl, StructField, SwitchArm, SwitchElseArm, SwitchPayloadBinding, SwitchStmt, TraitDecl,
-    TryCatchExpr, TryExpr, TypeAliasDecl, TypeConversionExpr, TypeExpr, TypeReference, UnaryExpr,
-    UnaryOperator, UseItem, ViewType, Visibility, WhileLetStmt, WhileStmt,
+    StructDecl, StructField, StructLiteralExpr, StructLiteralField, SwitchArm, SwitchElseArm,
+    SwitchPayloadBinding, SwitchStmt, TraitDecl, TryCatchExpr, TryExpr, TypeAliasDecl,
+    TypeConversionExpr, TypeExpr, TypeReference, UnaryExpr, UnaryOperator, UseItem, ViewType,
+    Visibility, WhileLetStmt, WhileStmt,
 };
 use crate::diagnostics::Diagnostic;
 use crate::lexer::{Keyword, Token, TokenKind};
@@ -1495,13 +1496,61 @@ impl Parser<'_> {
         }))
     }
 
+    fn finish_struct_literal_expression(&mut self, ty: TypeExpr) -> ParseResult<Expr> {
+        let start = ty.span().start;
+        let open = self.expect_punctuation("{", "`{`")?;
+        let mut fields = Vec::new();
+        self.skip_newlines();
+
+        while !self.at_punctuation("}") {
+            if self.at_eof() {
+                self.error_current("expected `}` to close struct literal");
+                return Err(());
+            }
+
+            let name = self.expect_identifier("expected struct literal field name")?;
+            self.expect_punctuation(":", "`:`")?;
+            let value = self.parse_expression()?;
+            fields.push(StructLiteralField {
+                span: self.span(name.span.start, value.span().end),
+                name: name.value,
+                name_span: name.span,
+                value,
+            });
+
+            self.skip_newlines();
+            if self.match_punctuation(",").is_none() {
+                break;
+            }
+            self.skip_newlines();
+        }
+
+        let close = self.expect_punctuation("}", "`}`")?;
+        Ok(Expr::StructLiteral(StructLiteralExpr {
+            span: self.span(start, close.span.end),
+            ty,
+            fields_span: self.span(open.span.start, close.span.end),
+            fields,
+        }))
+    }
+
     fn parse_primary_expression(&mut self) -> ParseResult<Expr> {
         match self.current().kind {
             TokenKind::Identifier => {
                 let token = self.bump();
+                let name = self.lexeme(&token);
+                if self.looks_like_struct_literal_body() {
+                    return self.finish_struct_literal_expression(TypeExpr::Reference(
+                        TypeReference {
+                            span: token.span,
+                            name,
+                        },
+                    ));
+                }
+
                 Ok(Expr::Identifier(IdentifierExpr {
                     span: token.span,
-                    name: self.lexeme(&token),
+                    name,
                 }))
             }
             TokenKind::IntegerLiteral => {
@@ -1802,6 +1851,40 @@ impl Parser<'_> {
 
     fn at_punctuation(&self, punctuation: &str) -> bool {
         matches!(self.current().kind, TokenKind::Punctuation(actual) if actual == punctuation)
+    }
+
+    fn looks_like_struct_literal_body(&self) -> bool {
+        if !self.at_punctuation("{") {
+            return false;
+        }
+
+        let mut index = self.index + 1;
+        while matches!(
+            self.tokens.get(index).map(|token| token.kind),
+            Some(TokenKind::Newline)
+        ) {
+            index += 1;
+        }
+
+        if !matches!(
+            self.tokens.get(index).map(|token| token.kind),
+            Some(TokenKind::Identifier)
+        ) {
+            return false;
+        }
+
+        index += 1;
+        while matches!(
+            self.tokens.get(index).map(|token| token.kind),
+            Some(TokenKind::Newline)
+        ) {
+            index += 1;
+        }
+
+        matches!(
+            self.tokens.get(index).map(|token| token.kind),
+            Some(TokenKind::Punctuation(":"))
+        )
     }
 
     fn at_statement_end(&self) -> bool {
@@ -2739,6 +2822,40 @@ program(): i32 {
             panic!("expected array literal");
         };
         assert_eq!(array.elements.len(), 4);
+    }
+
+    #[test]
+    fn parses_struct_literal_expression() {
+        let output = parse_text(
+            r#"struct Point {
+    x: i32
+    label: str
+}
+
+program(): i32 {
+    let point = Point{
+        x: 1,
+        label: "home",
+    }
+    return point.x
+}
+"#,
+        );
+
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        let ast = output.ast.unwrap();
+        let Item::Program(program) = &ast.items[1] else {
+            panic!("expected program item");
+        };
+        let Stmt::Binding(binding) = &program.body.statements[0] else {
+            panic!("expected binding statement");
+        };
+        let Expr::StructLiteral(literal) = &binding.initializer else {
+            panic!("expected struct literal");
+        };
+        assert_eq!(literal.fields.len(), 2);
+        assert_eq!(literal.fields[0].name, "x");
+        assert_eq!(literal.fields[1].name, "label");
     }
 
     #[test]

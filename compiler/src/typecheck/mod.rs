@@ -3,8 +3,9 @@
 use crate::ast::{
     ArrayLiteralExpr, AstFile, BinaryExpr, BinaryOperator, BindingKind, BindingStmt, Block,
     CallExpr, Expr, FailStmt, ForRangeStmt, FunctionDecl, IfIsStmt, IfLetStmt, IfStmt, IndexExpr,
-    Item, LiteralExpr, MemberExpr, Parameter, ProgramDecl, ReturnStmt, Stmt, SwitchArm, SwitchStmt,
-    TypeConversionExpr, TypeExpr, UnaryExpr, UnaryOperator, WhileLetStmt, WhileStmt,
+    Item, LiteralExpr, MemberExpr, Parameter, ProgramDecl, ReturnStmt, Stmt, StructLiteralExpr,
+    StructLiteralField, SwitchArm, SwitchStmt, TypeConversionExpr, TypeExpr, UnaryExpr,
+    UnaryOperator, WhileLetStmt, WhileStmt,
 };
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
 use crate::resolve::{
@@ -653,6 +654,18 @@ fn check_expression_for_nested_returns(
                 check_expression_for_nested_returns(
                     sources,
                     element,
+                    context,
+                    resolved,
+                    diagnostics,
+                    environment,
+                );
+            }
+        }
+        Expr::StructLiteral(expression) => {
+            for field in &expression.fields {
+                check_expression_for_nested_returns(
+                    sources,
+                    &field.value,
                     context,
                     resolved,
                     diagnostics,
@@ -1339,6 +1352,25 @@ fn check_expression_calls(
             }
             check_array_literal_elements(sources, expression, resolved, diagnostics, environment);
         }
+        Expr::StructLiteral(expression) => {
+            for field in &expression.fields {
+                check_expression_calls(
+                    sources,
+                    &field.value,
+                    resolved,
+                    diagnostics,
+                    environment,
+                    loop_depth,
+                );
+            }
+            check_struct_literal_expression(
+                sources,
+                expression,
+                resolved,
+                diagnostics,
+                environment,
+            );
+        }
         Expr::Group(expression) => {
             check_expression_calls(
                 sources,
@@ -2011,6 +2043,110 @@ fn check_struct_member_expression(
     }
 }
 
+fn struct_literal_type(literal: &StructLiteralExpr, resolved: &ResolveOutput) -> Type {
+    let target_type = type_expr_to_type(&literal.ty, resolved);
+    if struct_type_symbol_for_type(&target_type, resolved).is_some() {
+        target_type
+    } else {
+        Type::Unknown
+    }
+}
+
+fn check_struct_literal_expression(
+    sources: &SourceMap,
+    literal: &StructLiteralExpr,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+    environment: &TypeEnvironment,
+) {
+    let target_type = type_expr_to_type(&literal.ty, resolved);
+    if target_type.is_unknown_or_unresolved() {
+        return;
+    }
+
+    let Some(struct_symbol) = struct_type_symbol_for_type(&target_type, resolved) else {
+        diagnostics.push(struct_literal_target_type_mismatch_diagnostic(
+            sources,
+            literal,
+            &target_type,
+            resolved,
+        ));
+        return;
+    };
+
+    let mut seen: HashMap<String, &StructLiteralField> = HashMap::new();
+    for field in &literal.fields {
+        if let Some(first) = seen.get(&field.name) {
+            diagnostics.push(struct_literal_duplicate_field_diagnostic(
+                sources,
+                field,
+                first,
+                struct_symbol,
+            ));
+            continue;
+        }
+        seen.insert(field.name.clone(), field);
+
+        let Some(expected_field) = struct_field_for_literal_field(field, struct_symbol) else {
+            diagnostics.push(struct_literal_unknown_field_diagnostic(
+                sources,
+                field,
+                struct_symbol,
+            ));
+            continue;
+        };
+
+        if !expected_field.is_accessible {
+            diagnostics.push(struct_literal_inaccessible_field_diagnostic(
+                sources,
+                field.name_span,
+                struct_symbol,
+                expected_field,
+            ));
+            continue;
+        }
+
+        let expected = type_expr_to_type(&expected_field.ty, resolved);
+        let actual = expression_type(&field.value, resolved, environment);
+        if expected.is_unknown_or_unresolved() || actual.is_unknown_or_unresolved() {
+            continue;
+        }
+
+        if !is_expression_assignable(&expected, &field.value, resolved, environment) {
+            diagnostics.push(struct_literal_field_type_mismatch_diagnostic(
+                sources,
+                field,
+                expected_field,
+                &expected,
+                &actual,
+                struct_symbol,
+            ));
+        }
+    }
+
+    for expected_field in &struct_symbol.fields {
+        if seen.contains_key(&expected_field.name) {
+            continue;
+        }
+
+        if expected_field.is_accessible {
+            diagnostics.push(struct_literal_missing_field_diagnostic(
+                sources,
+                literal,
+                struct_symbol,
+                expected_field,
+            ));
+        } else {
+            diagnostics.push(struct_literal_inaccessible_missing_field_diagnostic(
+                sources,
+                literal,
+                struct_symbol,
+                expected_field,
+            ));
+        }
+    }
+}
+
 fn struct_type_symbol_for_type<'a>(
     ty: &Type,
     resolved: &'a ResolveOutput,
@@ -2032,6 +2168,16 @@ fn struct_field_for_member<'a>(
         .fields
         .iter()
         .find(|field| field.name == member.member)
+}
+
+fn struct_field_for_literal_field<'a>(
+    field: &StructLiteralField,
+    struct_symbol: &'a TypeSymbol,
+) -> Option<&'a StructFieldSignature> {
+    struct_symbol
+        .fields
+        .iter()
+        .find(|expected| expected.name == field.name)
 }
 
 fn enum_symbol_for_member<'a>(
@@ -2666,6 +2812,7 @@ fn expression_type(
         Expr::BoolLiteral(_) => Type::Primitive("bool".to_string()),
         Expr::NoneLiteral(_) => Type::None,
         Expr::ArrayLiteral(expression) => array_literal_type(expression, resolved, environment),
+        Expr::StructLiteral(expression) => struct_literal_type(expression, resolved),
         Expr::Binary(expression) => binary_expression_type(expression, resolved, environment),
         Expr::Unary(expression) => match expression.operator {
             UnaryOperator::LogicalNot => Type::Primitive("bool".to_string()),
@@ -4094,6 +4241,176 @@ fn member_target_type_mismatch_diagnostic(
     diagnostic
 }
 
+fn struct_literal_target_type_mismatch_diagnostic(
+    sources: &SourceMap,
+    literal: &StructLiteralExpr,
+    actual: &Type,
+    resolved: &ResolveOutput,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0372",
+        format!(
+            "struct literal target has type `{}`, but struct literals require a struct type",
+            actual.display()
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(literal.ty.span()).ok().map(Box::new);
+    if let Type::Named(name) = actual
+        && let Some(symbol) = resolved.type_symbol_by_canonical_name(name)
+    {
+        diagnostic.help = Some(format!(
+            "`{}` is a {}; use a struct type in the literal",
+            symbol.canonical_name,
+            type_symbol_kind_name(symbol.kind)
+        ));
+    } else {
+        diagnostic.help = Some("use a struct type before `{ ... }`".to_string());
+    }
+    diagnostic
+}
+
+fn struct_literal_unknown_field_diagnostic(
+    sources: &SourceMap,
+    field: &StructLiteralField,
+    struct_symbol: &TypeSymbol,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0373",
+        format!(
+            "struct `{}` has no field `{}`",
+            struct_symbol.canonical_name, field.name
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(field.name_span).ok().map(Box::new);
+    diagnostic.help = Some("initialize a field declared by the struct".to_string());
+    diagnostic
+}
+
+fn struct_literal_duplicate_field_diagnostic(
+    sources: &SourceMap,
+    field: &StructLiteralField,
+    first: &StructLiteralField,
+    struct_symbol: &TypeSymbol,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0374",
+        format!(
+            "struct `{}` field `{}` is initialized more than once",
+            struct_symbol.canonical_name, field.name
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(field.name_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(first.name_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "first initialization is here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some("initialize each struct field exactly once".to_string());
+    diagnostic
+}
+
+fn struct_literal_missing_field_diagnostic(
+    sources: &SourceMap,
+    literal: &StructLiteralExpr,
+    struct_symbol: &TypeSymbol,
+    field: &StructFieldSignature,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0375",
+        format!(
+            "struct `{}` literal does not initialize field `{}`",
+            struct_symbol.canonical_name, field.name
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(literal.fields_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(field.name_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: format!("field `{}` is declared here", field.name),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some(format!("add `{}` to the struct literal", field.name));
+    diagnostic
+}
+
+fn struct_literal_field_type_mismatch_diagnostic(
+    sources: &SourceMap,
+    field: &StructLiteralField,
+    expected_field: &StructFieldSignature,
+    expected: &Type,
+    actual: &Type,
+    struct_symbol: &TypeSymbol,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0376",
+        format!(
+            "struct `{}` field `{}` is initialized with `{}`, but the field expects `{}`",
+            struct_symbol.canonical_name,
+            field.name,
+            actual.display(),
+            expected.display()
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(field.value.span()).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(expected_field.name_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: format!("field `{}` is declared here", expected_field.name),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some(format!(
+        "initialize `{}` with a value of type `{}`",
+        field.name,
+        expected.display()
+    ));
+    diagnostic
+}
+
+fn struct_literal_inaccessible_field_diagnostic(
+    sources: &SourceMap,
+    field_span: ByteSpan,
+    struct_symbol: &TypeSymbol,
+    field: &StructFieldSignature,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0377",
+        format!(
+            "field `{}` of struct `{}` is not visible here",
+            field.name, struct_symbol.canonical_name
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(field_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(field.name_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: format!("field `{}` is declared here", field.name),
+            span: Some(span),
+        });
+    }
+    diagnostic.help =
+        Some("construct this value through a visible API from its defining module".to_string());
+    diagnostic
+}
+
+fn struct_literal_inaccessible_missing_field_diagnostic(
+    sources: &SourceMap,
+    literal: &StructLiteralExpr,
+    struct_symbol: &TypeSymbol,
+    field: &StructFieldSignature,
+) -> Diagnostic {
+    let mut diagnostic = struct_literal_inaccessible_field_diagnostic(
+        sources,
+        literal.ty.span(),
+        struct_symbol,
+        field,
+    );
+    diagnostic.message = format!(
+        "struct `{}` literal cannot initialize hidden field `{}`",
+        struct_symbol.canonical_name, field.name
+    );
+    diagnostic
+}
+
 fn type_symbol_kind_name(kind: TypeSymbolKind) -> &'static str {
     match kind {
         TypeSymbolKind::Alias => "type alias",
@@ -4768,6 +5085,152 @@ func invalid(value: i32): i32 {
 
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
         assert_eq!(diagnostics[0].code, "E0371");
+        assert!(diagnostics[0].message.contains("i32"));
+    }
+
+    #[test]
+    fn accepts_struct_literal_expression() {
+        let diagnostics = check_text(
+            r#"struct Point {
+    x: i32
+    label: str
+}
+
+program(): i32 {
+    let point = Point{
+        label: "home",
+        x: 1,
+    }
+    return point.x
+}
+"#,
+        );
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn accepts_contextual_integer_struct_literal_field() {
+        let diagnostics = check_text(
+            r#"struct Byte {
+    value: u8
+}
+
+program(): i32 {
+    let byte = Byte{
+        value: 255,
+    }
+    return 0
+}
+"#,
+        );
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn diagnoses_non_struct_literal_target() {
+        let diagnostics = check_text(
+            r#"type Number = i32
+
+program(): i32 {
+    let value = Number{
+        value: 1,
+    }
+    return 0
+}
+"#,
+        );
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0372");
+    }
+
+    #[test]
+    fn diagnoses_unknown_struct_literal_field() {
+        let diagnostics = check_text(
+            r#"struct Point {
+    x: i32
+}
+
+program(): i32 {
+    let point = Point{
+        x: 1,
+        y: 2,
+    }
+    return 0
+}
+"#,
+        );
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0373");
+        assert!(diagnostics[0].message.contains("y"));
+    }
+
+    #[test]
+    fn diagnoses_duplicate_struct_literal_field() {
+        let diagnostics = check_text(
+            r#"struct Point {
+    x: i32
+}
+
+program(): i32 {
+    let point = Point{
+        x: 1,
+        x: 2,
+    }
+    return 0
+}
+"#,
+        );
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0374");
+        assert!(diagnostics[0].message.contains("x"));
+    }
+
+    #[test]
+    fn diagnoses_missing_struct_literal_field() {
+        let diagnostics = check_text(
+            r#"struct Point {
+    x: i32
+    y: i32
+}
+
+program(): i32 {
+    let point = Point{
+        x: 1,
+    }
+    return 0
+}
+"#,
+        );
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0375");
+        assert!(diagnostics[0].message.contains("y"));
+    }
+
+    #[test]
+    fn diagnoses_struct_literal_field_type_mismatch() {
+        let diagnostics = check_text(
+            r#"struct Point {
+    x: i32
+}
+
+program(): i32 {
+    let point = Point{
+        x: "bad",
+    }
+    return 0
+}
+"#,
+        );
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0376");
+        assert!(diagnostics[0].message.contains("str"));
         assert!(diagnostics[0].message.contains("i32"));
     }
 

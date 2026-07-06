@@ -513,6 +513,7 @@ pub enum Expr {
     BoolLiteral(LiteralExpr),
     NoneLiteral(LiteralExpr),
     ArrayLiteral(ArrayLiteralExpr),
+    StructLiteral(StructLiteralExpr),
     Try(TryExpr),
     TryCatch(TryCatchExpr),
     Unary(UnaryExpr),
@@ -542,6 +543,22 @@ pub struct ArrayLiteralExpr {
     pub span: ByteSpan,
     pub elements_span: ByteSpan,
     pub elements: Vec<Expr>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StructLiteralExpr {
+    pub span: ByteSpan,
+    pub ty: TypeExpr,
+    pub fields_span: ByteSpan,
+    pub fields: Vec<StructLiteralField>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StructLiteralField {
+    pub span: ByteSpan,
+    pub name: String,
+    pub name_span: ByteSpan,
+    pub value: Expr,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -977,6 +994,17 @@ impl StructField {
     }
 }
 
+impl StructLiteralField {
+    fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
+        JsonAstNode::with_value(
+            "struct_literal_field",
+            self.name.clone(),
+            json_span(sources, self.span),
+            vec![self.value.to_json(sources)],
+        )
+    }
+}
+
 impl EnumVariant {
     fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         JsonAstNode::with_value(
@@ -1370,6 +1398,7 @@ impl Expr {
             Expr::BoolLiteral(expression) => expression.span,
             Expr::NoneLiteral(expression) => expression.span,
             Expr::ArrayLiteral(expression) => expression.span,
+            Expr::StructLiteral(expression) => expression.span,
             Expr::Try(expression) => expression.span,
             Expr::TryCatch(expression) => expression.span,
             Expr::Unary(expression) => expression.span,
@@ -1423,6 +1452,22 @@ impl Expr {
                     .iter()
                     .map(|element| element.to_json(sources))
                     .collect(),
+            ),
+            Expr::StructLiteral(expression) => JsonAstNode::new(
+                "struct_literal",
+                json_span(sources, expression.span),
+                vec![
+                    expression.ty.to_json(sources),
+                    JsonAstNode::new(
+                        "struct_literal_field_list",
+                        json_span(sources, expression.fields_span),
+                        expression
+                            .fields
+                            .iter()
+                            .map(|field| field.to_json(sources))
+                            .collect(),
+                    ),
+                ],
             ),
             Expr::Try(expression) => JsonAstNode::new(
                 "fallible_propagation_expression",

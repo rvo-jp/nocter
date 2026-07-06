@@ -308,6 +308,7 @@ Initial grammar coverage:
 - `as` type conversion expressions
 - grouped expressions
 - array literal expressions
+- simple named-field struct literal expressions such as `Point{ x: 1 }`
 - arithmetic expressions with `+`, `-`, `*`, `/`, and `%`
 - shift expressions with `<<` and `>>`
 - comparison expressions with `==`, `!=`, `<`, `<=`, `>`, and `>=`
@@ -341,7 +342,7 @@ Current semantic coverage:
 - executable root has a `program` entry
 - `func main` without `program` receives a dedicated diagnostic because `main` is an ordinary function name
 - executable root has no duplicate `program` entries
-- `program` return type is exactly `i32` or `void`
+- `program` return type is `i32!`, `i32`, or `void`
 - relative imports starting with `./` or `../` are loaded recursively and lexed/parsed before root semantic checks run
 - `from ./path import name` resolves imported top-level `func`, `primitive`, `type`, `struct`, and `enum` declarations
 - imported `func` and `primitive` signatures are used for direct call checking
@@ -356,8 +357,8 @@ Current semantic coverage:
 - duplicate visible names among same-file declarations, explicit imported names, parameters, locals, and catch bindings are diagnosed
 - direct calls to same-file functions are resolved and checked for argument count
 - direct calls to same-file functions check argument types when both expected and actual types are known
-- primitive return type checking for built-in primitive types, `str`, `error`, `[T]`, `[+T]`, `[T; N]`, array literals, `void`, `never`, `T?`, and the success side of `T!`
-- local binding types are tracked inside a callable when they come from literals, annotations, parameters, known direct calls, postfix `?`, `catch`, `??`, optional `let ... else`, optional `if let` / `if var`, or optional `while let` / `while var`
+- primitive return type checking for built-in primitive types, nominal struct types, `str`, `error`, `[T]`, `[+T]`, `[T; N]`, array literals, struct literals, `void`, `never`, `T?`, and the success side of `T!`
+- local binding types are tracked inside a callable when they come from literals, struct literals, annotations, parameters, known direct calls, postfix `?`, `catch`, `??`, optional `let ... else`, optional `if let` / `if var`, or optional `while let` / `while var`
 - integer literals have type `i32` in v0 checking
 - integer literals can be checked against an expected integer type in returns, function arguments, annotated bindings, and array literal elements
 - bool literals have type `bool` in v0 checking
@@ -373,6 +374,7 @@ Current semantic coverage:
 - `[T]` and `[+T]` parse as built-in readonly/readwrite view type syntax
 - `[T; N]` parses as built-in fixed-size array type syntax, and `[a, b, c]` infers `[T; N]`
 - index expressions check `[T; N]`, `[T]`, `[+T]`, and `str` targets with integer indexes
+- struct literals check the target type, required fields, duplicate fields, unknown fields, hidden fields, and field initializer types
 - `if` statement conditions must have type `bool`
 - `if ... else`, `if is ... else`, and `if let ... else` statements count as terminating when both branches terminate; parser/check v0 currently recognizes `return`, `fail`, nested terminal `if ... else`, nested terminal `if is ... else`, nested terminal `if let ... else`, `loop`, and terminal `switch ... else` as terminating forms
 - `if is` targets must have a known enum type when the target type is known

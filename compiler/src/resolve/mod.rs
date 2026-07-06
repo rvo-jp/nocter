@@ -177,6 +177,7 @@ pub struct StructFieldSignature {
     pub name: String,
     pub name_span: ByteSpan,
     pub visibility: Visibility,
+    pub is_accessible: bool,
     pub ty: TypeExpr,
 }
 
@@ -797,6 +798,11 @@ impl Resolver<'_> {
                     self.resolve_expression(element, scope);
                 }
             }
+            Expr::StructLiteral(expression) => {
+                for field in &expression.fields {
+                    self.resolve_expression(&field.value, scope);
+                }
+            }
             Expr::Group(expression) => self.resolve_expression(&expression.expression, scope),
             Expr::OptionalDefault(expression) => {
                 self.resolve_expression(&expression.value, scope);
@@ -1016,9 +1022,10 @@ fn filter_importable_symbol_for_access(
     access: ImportAccess,
 ) -> ImportableSymbol {
     if let SymbolKind::Type(symbol) = &mut imported.kind {
-        symbol
-            .fields
-            .retain(|field| field_visibility_is_visible_to(field.visibility, access));
+        for field in &mut symbol.fields {
+            field.is_accessible =
+                field.is_accessible && field_visibility_is_visible_to(field.visibility, access);
+        }
     }
 
     imported
@@ -1063,6 +1070,7 @@ fn struct_type_symbol(canonical_name: String, fields: &[StructField]) -> TypeSym
                 name: field.name.clone(),
                 name_span: field.name_span,
                 visibility: field.visibility,
+                is_accessible: true,
                 ty: field.ty.clone(),
             })
             .collect(),
