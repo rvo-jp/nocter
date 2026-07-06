@@ -1304,6 +1304,7 @@ fn check_expression_calls(
                 loop_depth,
             );
             check_enum_variant_member(sources, expression, resolved, diagnostics);
+            check_error_member_expression(sources, expression, resolved, diagnostics, environment);
         }
         Expr::Index(expression) => {
             check_expression_calls(
@@ -1930,6 +1931,39 @@ fn check_enum_variant_call(
             ));
         }
     }
+}
+
+fn error_member_type(
+    member: &MemberExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<Type> {
+    if expression_type(&member.object, resolved, environment) != Type::Error {
+        return None;
+    }
+
+    match member.member.as_str() {
+        "code" | "message" => Some(Type::Str),
+        _ => Some(Type::Unknown),
+    }
+}
+
+fn check_error_member_expression(
+    sources: &SourceMap,
+    member: &MemberExpr,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+    environment: &TypeEnvironment,
+) {
+    if expression_type(&member.object, resolved, environment) != Type::Error {
+        return;
+    }
+
+    if matches!(member.member.as_str(), "code" | "message") {
+        return;
+    }
+
+    diagnostics.push(error_member_unknown_diagnostic(sources, member));
 }
 
 fn enum_symbol_for_member<'a>(
@@ -2595,9 +2629,9 @@ fn expression_type(
             .get(&expression.name)
             .cloned()
             .unwrap_or(Type::Unknown),
-        Expr::Member(expression) => {
-            enum_variant_member_type(expression, resolved).unwrap_or(Type::Unknown)
-        }
+        Expr::Member(expression) => enum_variant_member_type(expression, resolved)
+            .or_else(|| error_member_type(expression, resolved, environment))
+            .unwrap_or(Type::Unknown),
     }
 }
 
@@ -3943,6 +3977,14 @@ fn enum_variant_payload_type_mismatch_diagnostic(
         "pass a payload value of type `{}`",
         expected.display()
     ));
+    diagnostic
+}
+
+fn error_member_unknown_diagnostic(sources: &SourceMap, member: &MemberExpr) -> Diagnostic {
+    let mut diagnostic =
+        Diagnostic::error("E0369", format!("`error` has no field `{}`", member.member));
+    diagnostic.primary_span = sources.span_to_json(member.member_span).ok().map(Box::new);
+    diagnostic.help = Some("use `error.code` or `error.message`".to_string());
     diagnostic
 }
 
@@ -5881,6 +5923,70 @@ func run(error: error): i32! {
         );
 
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn accepts_error_code_and_message_fields() {
+        let diagnostics = check_text(
+            r#"program(): i32 {
+    return 0
+}
+
+func error_code(error: error): str {
+    return error.code
+}
+
+func error_message(error: error): str {
+    return error.message
+}
+"#,
+        );
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn accepts_error_fields_inside_catch_block() {
+        let diagnostics = check_text(
+            r#"program(): i32! {
+    run() catch error {
+        report(error.code)
+        report(error.message)
+        return 1
+    }
+
+    return 0
+}
+
+func run(): i32! {
+    return 0
+}
+
+func report(text: str): void {
+    return
+}
+"#,
+        );
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn diagnoses_unknown_error_field() {
+        let diagnostics = check_text(
+            r#"program(): i32 {
+    return 0
+}
+
+func error_code(error: error): str {
+    return error.raw_code
+}
+"#,
+        );
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0369");
+        assert!(diagnostics[0].message.contains("raw_code"));
     }
 
     #[test]
