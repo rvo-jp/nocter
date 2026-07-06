@@ -2,10 +2,8 @@ use std/prelude
 
 from std/process import env
 
-program(): i32 {
-    let user = (env("USER") catch error {
-        return 1
-    }) ?? "unknown"
+program(): i32! {
+    let user = env("USER")? ?? "unknown"
 
     use_name(user)
     return 0

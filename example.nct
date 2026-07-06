@@ -92,13 +92,13 @@ func read_all(
     path: str,
 ): String! {
     var file = File.open(path) catch error {
-        fail Error.new(ErrorCode.io_open_failed, error.message)
+        fail Error.new("std.io.open_failed", error.message)
     }
 
     // String owns its allocation. It is dropped automatically when ownership
     // does not move to the caller.
     let text = file.read_to_string(allocator) catch error {
-        fail Error.new(ErrorCode.io_read_failed, error.message)
+        fail Error.new("std.io.read_failed", error.message)
     }
 
     return move text
@@ -108,11 +108,11 @@ func run(allocator: &+Allocator): void! {
     let argv = args()?
 
     if argv.len() < 2 {
-        fail Error.new(ErrorCode.invalid_argument, "missing path")
+        fail Error.new("app.invalid_argument", "missing path")
     }
 
     if argv.len() > 2 {
-        fail Error.new(ErrorCode.invalid_argument, "expected exactly one path")
+        fail Error.new("app.invalid_argument", "expected exactly one path")
     }
 
     let path = argv[1]
@@ -142,12 +142,8 @@ func fatal(error: error): never {
     exit(1)
 }
 
-program(): i32 {
+program(): i32! {
     var allocator = mem.page_allocator()
-
-    run(&+allocator) catch error {
-        fatal(error)
-    }
-
+    run(&+allocator)?
     return 0
 }

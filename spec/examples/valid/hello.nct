@@ -2,10 +2,7 @@ use std/prelude
 
 from std/io import print
 
-program(): i32 {
-    print("Hello") catch error {
-        return 1
-    }
-
+program(): i32! {
+    print("Hello")?
     return 0
 }

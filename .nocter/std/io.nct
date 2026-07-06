@@ -4,7 +4,7 @@
 // and fail with the compiler built-in `error` payload. Target-specific syscall
 // results and errno wrappers stay inside target overlays.
 
-from std/error import ErrorCode, make_error
+from std/error import make_error
 from std/os import OSError
 
 // Compatibility classification type. It is an ordinary enum, not the fallible
@@ -49,5 +49,5 @@ pub func write_text(file: &+File, text: str): void! {
 }
 
 pub func unsupported(): error {
-    return make_error(ErrorCode.unsupported, "unsupported I/O operation")
+    return make_error("std.io.unsupported", "unsupported I/O operation")
 }

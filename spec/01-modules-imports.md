@@ -207,12 +207,9 @@ Example:
 from std/io import print
 from ./src/config import Config
 
-program(): i32 {
+program(): i32! {
     let config = Config.default()
-
-    print(config.name) catch error {
-        return 1
-    }
+    print(config.name)?
 
     return 0
 }

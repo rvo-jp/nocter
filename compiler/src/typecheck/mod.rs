@@ -68,7 +68,13 @@ fn find_main_function(ast: &AstFile) -> Option<&FunctionDecl> {
 }
 
 fn is_valid_program_return_type(ty: &TypeExpr) -> bool {
-    matches!(ty, TypeExpr::Reference(reference) if reference.name == "i32" || reference.name == "void")
+    match ty {
+        TypeExpr::Reference(reference) => reference.name == "i32" || reference.name == "void",
+        TypeExpr::Fallible(fallible) => {
+            matches!(fallible.success.as_ref(), TypeExpr::Reference(reference) if reference.name == "i32")
+        }
+        _ => false,
+    }
 }
 
 fn check_return_types(
@@ -793,7 +799,9 @@ fn check_call_expressions(
             | Item::Primitive(_)
             | Item::TypeAlias(_)
             | Item::Struct(_)
-            | Item::Enum(_) => {}
+            | Item::Enum(_)
+            | Item::Trait(_)
+            | Item::Impl(_) => {}
         }
     }
 }
@@ -3208,7 +3216,10 @@ fn missing_program_diagnostic(sources: &SourceMap, span: ByteSpan) -> Diagnostic
         "executable root file must define exactly one `program` entry",
     );
     diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
-    diagnostic.help = Some("add `program(): i32 { ... }` or `program(): void { ... }`".to_string());
+    diagnostic.help = Some(
+        "add `program(): i32! { ... }`, `program(): i32 { ... }`, or `program(): void { ... }`"
+            .to_string(),
+    );
     diagnostic
 }
 
@@ -3219,7 +3230,7 @@ fn main_is_not_entry_diagnostic(sources: &SourceMap, function: &FunctionDecl) ->
     );
     diagnostic.primary_span = sources.span_to_json(function.name_span).ok().map(Box::new);
     diagnostic.help = Some(
-        "replace the entry declaration with `program(): i32 { ... }` or `program(): void { ... }`"
+        "replace the entry declaration with `program(): i32! { ... }`, `program(): i32 { ... }`, or `program(): void { ... }`"
             .to_string(),
     );
     diagnostic
@@ -3251,11 +3262,12 @@ fn invalid_program_return_type_diagnostic(
 ) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(
         "E0303",
-        "`program` return type must be `i32` or `void` in v0",
+        "`program` return type must be `i32!`, `i32`, or `void` in v0",
     );
     diagnostic.primary_span = sources.span_to_json(return_type_span).ok().map(Box::new);
     diagnostic.help = Some(
-        "use `program(): i32` for an exit status or `program(): void` for status 0".to_string(),
+        "use `program(): i32!` for a fallible entry point, `program(): i32` for an infallible exit status, or `program(): void` for status 0"
+            .to_string(),
     );
     diagnostic
 }
@@ -3939,6 +3951,7 @@ fn type_symbol_kind_name(kind: TypeSymbolKind) -> &'static str {
         TypeSymbolKind::Alias => "type alias",
         TypeSymbolKind::Struct => "struct",
         TypeSymbolKind::Enum => "enum",
+        TypeSymbolKind::Trait => "trait",
     }
 }
 
@@ -4373,6 +4386,22 @@ mod tests {
     fn accepts_program_i32() {
         let diagnostics = check_text(
             r#"program(): i32 {
+    return 0
+}
+"#,
+        );
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn accepts_program_i32_fallible() {
+        let diagnostics = check_text(
+            r#"program(): i32! {
+    return run()?
+}
+
+func run(): i32! {
     return 0
 }
 "#,

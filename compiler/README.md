@@ -275,9 +275,15 @@ Initial grammar coverage:
 - `use std/prelude`
 - `from std/io import print`
 - `pub from std/string import String`
-- `program(): i32 { ... }`
+- `from std/io import File as StdFile`
+- `import std/io as io`
+- `program(): i32! { ... }`, plus infallible `program(): i32 { ... }` and `program(): void { ... }`
 - `func name(...): Type { ... }`
+- `trait Name { method (...)... }`
+- `impl Type { func ... method ... }`
+- `impl Trait for Type { method ... }`
 - parameter lists
+- generic parameter lists, including inline bounds such as `T: Trait`
 - `str`, `error`, `[T]`, `[+T]`, `[T; N]`, `T?`, and `T!` type syntax
 - blocks
 - `return`
@@ -397,9 +403,9 @@ Current semantic coverage:
 - postfix `?` is diagnosed when used in a non-fallible current callable
 - `return` expression type must match the declared success return type when both sides are known
 - bare `return` is valid only for `void` success returns
-- non-`void` functions and `program(): i32` must not fall through without an explicit return
+- non-`void` functions and `program(): i32` / `program(): i32!` must not fall through without an explicit return or failure
 
-The current `check` implementation does not resolve import aliases, namespace imports, full alias-target expansion, struct fields or enum payloads, method or associated function calls, perform full block control-flow analysis beyond last-statement `return`, check ownership, select a target beyond the default active target, or lower code. Unknown expression types are not diagnosed until import resolution and full type checking exist.
+The current `check` implementation loads imported files, applies import aliases, and registers namespace aliases as visible names, but it does not resolve namespace member access, full alias-target expansion, struct fields or enum payloads, method or associated function calls, trait obligations, perform full block control-flow analysis beyond last-statement `return`, check ownership, select a target beyond the default active target, or lower code. Unknown expression types are not diagnosed until import resolution and full type checking exist.
 
 `nocter check app.nct --format json` runs:
 
@@ -515,10 +521,10 @@ Milestone grouping:
 10. name resolution and visibility
 11. basic type checking
 12. Nocter ABI v0 data layout for primitives, pointers, borrows, structs, enums, `T?`, and adopted `T!`
-13. `program` entry validation, allowing only `program(): void` and `program(): i32`
+13. `program` entry validation, allowing `program(): i32!`, `program(): i32`, and `program(): void`
 14. ARM64 instruction encoder
 15. minimal Mach-O writer
-16. compile a `program(): i32` returning a constant
+16. compile a `program(): i32!` / `program(): i32` returning a constant
 17. string literal placement
 18. Nocter ABI v0 function call and return lowering
 19. statement control flow: `if`, `switch`, `while`, `loop`, range `for`, `break`, `continue`

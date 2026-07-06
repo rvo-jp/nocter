@@ -291,13 +291,9 @@ nocter build app.nct -o app
 from std/io import print
 from ./src/config import Config
 
-program(): i32 {
+program(): i32! {
     let config = Config.default()
-
-    print(config.name) catch error {
-        return 1
-    }
-
+    print(config.name)?
     return 0
 }
 ```
@@ -521,26 +517,21 @@ switch error {
 ```nct
 from std/io import print
 
-program(): i32 {
-    print("Hello") catch error {
-        return 1
-    }
-
+program(): i32! {
+    print("Hello")?
     return 0
 }
 ```
 
 低レベルの処理はコンパイラと標準ライブラリが引き受けます。
 
-`program` は v0 では `program(): void` と `program(): i32` のみです。`program(args: ...)` は採用しません。command-line arguments、environment、current working directory、process termination は `std/process` の通常 API で扱います。
+`program` の標準形は `program(): i32!` です。成功時は返した `i32` が process exit status になり、失敗時は compiler-generated entry wrapper が built-in `error` を stderr へ出力して status `1` で終了します。stderr 出力自体が失敗した場合、その失敗は無視して status `1` で終了します。simple infallible entry point 用に `program(): void` と `program(): i32` も v0 では受け付けます。`program(args: ...)` は採用しません。command-line arguments、environment、current working directory、process termination は `std/process` の通常 API で扱います。
 
 ```nct
 from std/process import args
 
-program(): i32 {
-    let argv = args() catch error {
-        return 1
-    }
+program(): i32! {
+    let argv = args()?
 
     if argv.len() < 2 {
         return 1
@@ -788,7 +779,7 @@ std/os/macos.syscall3
 
 common `std/os` には `Errno` という名前を置きません。Windows は errno ではないため、公開 API は `OSError` に統一します。`OSError.code` は macOS / Linux では errno、Windows では将来 Win32 error code など target が定める raw code になります。
 
-`ErrorCode` は標準ライブラリが提供する分類 API です。compiler は `ErrorCode` という名前を知らず、`Error.new(ErrorCode..., message)` のような標準ライブラリ constructor が built-in `error` payload の primitive code 表現へ変換します。
+`ErrorCode` は標準ライブラリが提供する `str` alias です。compiler は `ErrorCode` という名前を知らず、`Error.new("std.io.not_found", message)` のような標準ライブラリ constructor が built-in `error` payload の primitive code 表現へ変換します。`ErrorCode` は open な文字列コードなので、ユーザーやライブラリ作者は `"app.config.missing_key"` のような独自コードを追加できます。
 
 `std/io` の初期公開 API は、`File`、`stdout`、`stderr`、`print`、byte read/write、text write に限定します。`print` は compiler built-in ではなく、標準ライブラリ関数です。
 
@@ -821,7 +812,7 @@ pub func print(text: str): void!
 
 `std/process` の `args(): [str]!`、`env(name): (str?)!`、`cwd(): str!`、`exit(code): never`、`abort(): never` は標準ライブラリ API です。compiler primitive ではありません。`args` / `env` / `cwd` / `exit` / `abort` という名前を compiler は特別扱いしません。
 
-`(str?)!` は、処理そのものは `error` で失敗しえますが、成功した場合の値は optional であることを表します。`args()`、`env(name)`、`cwd()` が返す `str` は process context storage を指す readonly view であり、呼び出し側は所有しません。owned `String` が必要な場合は明示的に copy します。target 実装は OS 由来の `argv` / `envp` / cwd を UTF-8 として検証し、`str` にできない場合は `ErrorCode.invalid_encoding` で失敗します。
+`(str?)!` は、処理そのものは `error` で失敗しえますが、成功した場合の値は optional であることを表します。`args()`、`env(name)`、`cwd()` が返す `str` は process context storage を指す readonly view であり、呼び出し側は所有しません。owned `String` が必要な場合は明示的に copy します。target 実装は OS 由来の `argv` / `envp` / cwd を UTF-8 として検証し、`str` にできない場合は `"std.process.invalid_encoding"` で失敗します。
 
 `exit` / `abort` は target overlay の syscall や process termination boundary を使って実装し、万一 OS の終了操作から戻った場合は `trap()` します。`exit` / `abort` は caller scope の Nocter cleanup を実行しません。cleanup が必要な場合は、呼び出し前に明示します。
 
@@ -1193,7 +1184,7 @@ let buffer = mem.alloc(&+allocator, 4096, 16)?
 mem.free(&+allocator, move buffer)
 ```
 
-確保失敗は `ErrorCode.out_of_memory` などを持つ `error` として扱います。OOM を暗黙に `panic` / `abort` しません。`RawBuffer` は低レベル API であり、通常のコードでは `String` や `Buffer<T>` のような所有型を使います。
+確保失敗は `"std.mem.out_of_memory"` などを持つ `error` として扱います。OOM を暗黙に `panic` / `abort` しません。`RawBuffer` は低レベル API であり、通常のコードでは `String` や `Buffer<T>` のような所有型を使います。
 
 ## Raw Pointer と Address API
 
@@ -1535,25 +1526,25 @@ abort = cleanup なしの即時 process termination
 ```nct
 func open(path: str): File! {
     if failed {
-        fail Error.new(ErrorCode.io_not_found, "file not found")
+        fail Error.new("std.io.not_found", "file not found")
     }
 
     return file
 }
 ```
 
-fallible type は `T!` と書きます。成功時は `T`、失敗時は built-in type の `error` を返します。`Error` と `ErrorCode` は標準ライブラリが提供する通常名であり、compiler はこれらの大文字名を特別扱いしません。`ErrorCode` は `Error.new(...)` などの標準ライブラリ API を通じて、built-in `error` payload の primitive code 表現へ変換されます。
+fallible type は `T!` と書きます。成功時は `T`、失敗時は built-in type の `error` を返します。`Error` と `ErrorCode` は標準ライブラリが提供する通常名であり、compiler はこれらの大文字名を特別扱いしません。`ErrorCode` は `str` の alias で、`Error.new(...)` などの標準ライブラリ API を通じて、built-in `error` payload の primitive code 表現へ変換されます。
 
 fallible value を伝播する場合は postfix `?` を使います。失敗側を別の `error` に置き換えて離脱したい場合は `catch error { ... }` を使います。
 
 ```nct
 func read_all(allocator: &+Allocator, path: str): String! {
     var file = File.open(path) catch error {
-        fail Error.new(ErrorCode.io_open_failed, error.message)
+        fail Error.new("std.io.open_failed", error.message)
     }
 
     var text = file.read_to_string(allocator) catch error {
-        fail Error.new(ErrorCode.io_read_failed, error.message)
+        fail Error.new("std.io.read_failed", error.message)
     }
 
     return move text

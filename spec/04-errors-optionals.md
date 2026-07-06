@@ -10,7 +10,7 @@ Adopted: failure is represented with fallible types, not exceptions.
 ```nct
 func open(path: str): File! {
     if failed {
-        fail Error.new(ErrorCode.io_not_found, "file not found")
+        fail Error.new("std.io.not_found", "file not found")
     }
 
     return file
@@ -28,7 +28,7 @@ The failure type is not written at each call site. All fallible values use the s
 Initial conceptual payload fields:
 
 ```text
-raw_code: u32
+code: str
 message: str
 ```
 
@@ -39,18 +39,20 @@ Rules:
 - The spelling `error` may still be used as an ordinary value binding name. For example, `catch error` binds a local value named `error`.
 - `T!` always means success `T` or failure `error`.
 - `Error` may be provided by `std/prelude` as a normal alias or wrapper for `error`.
-- `ErrorCode` is a standard-library classification type, not a compiler-reserved name.
-- Standard-library constructors such as `Error.new(ErrorCode.io_not_found, "...")` translate `ErrorCode` into the built-in payload's primitive code representation.
+- `ErrorCode` is a standard-library `str` alias, not a compiler-reserved name.
+- `ErrorCode` is intentionally open. Standard-library, user, and package code may introduce dotted string codes such as `"std.io.not_found"`, `"app.config.missing_key"`, or `"package.module.reason"`.
+- Standard-library constructors such as `Error.new("std.io.not_found", "...")` translate the `ErrorCode` string into the built-in payload's primitive code representation.
 - The compiler must not special-case ordinary names such as `Error`, `ErrorCode`, `IOError`, or `Result`.
 - Domain detail is represented in the `error` payload and standard-library helper APIs, especially through classification code and `message`, not by writing a different failure type in the signature.
-- `error.message` is the initial direct user-facing field for reporting. `raw_code` is a low-level representation detail and should normally be interpreted through standard-library helper APIs.
+- `error.code` and `error.message` are the initial direct user-facing fields for reporting.
+- `error.code` is an open dotted string code such as `"std.io.not_found"` or `"app.config.missing_key"`.
 
 Inside a function returning `T!`, `return value` returns the success value and `fail error_value` returns the failure value.
 
 ```nct
 func write(file: &+File, text: str): void! {
     if failed {
-        fail Error.new(ErrorCode.io_broken_pipe, "broken pipe")
+        fail Error.new("std.io.broken_pipe", "broken pipe")
     }
 
     return
@@ -115,7 +117,7 @@ Adopted: `catch` handles the failure side of a fallible expression.
 
 ```nct
 let file = File.open(path) catch error {
-    fail Error.new(ErrorCode.io_open_failed, error.message)
+    fail Error.new("std.io.open_failed", error.message)
 }
 ```
 
@@ -151,11 +153,11 @@ func read_all(
     path: str,
 ): String! {
     var file = File.open(path) catch error {
-        fail Error.new(ErrorCode.io_open_failed, error.message)
+        fail Error.new("std.io.open_failed", error.message)
     }
 
     var text = file.read_to_string(allocator) catch error {
-        fail Error.new(ErrorCode.io_read_failed, error.message)
+        fail Error.new("std.io.read_failed", error.message)
     }
 
     return move text
@@ -242,7 +244,7 @@ func env(name: str): (str?)! {
     }
 
     if invalid_utf8 {
-        fail Error.new(ErrorCode.invalid_encoding, "environment value is not UTF-8")
+        fail Error.new("std.process.invalid_encoding", "environment value is not UTF-8")
     }
 
     return value

@@ -88,8 +88,8 @@ Rules:
 
 - Allocation is explicit.
 - Allocation APIs are fallible and return `T!` where allocation can fail.
-- Out-of-memory is reported as `ErrorCode.out_of_memory`.
-- Invalid size / alignment requests are reported as `ErrorCode.invalid_argument`.
+- Out-of-memory is reported as `"std.mem.out_of_memory"`.
+- Invalid size / alignment requests are reported as `"std.mem.invalid_argument"`.
 - Allocation mutates allocator state, so allocation APIs take `&+Allocator`.
 - `RawBuffer` is a low-level standard-library type for untyped bytes.
 - General application code should prefer owning wrappers such as `String` and `Buffer<T>`.

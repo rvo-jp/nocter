@@ -161,6 +161,7 @@ pub enum TypeSymbolKind {
     Alias,
     Struct,
     Enum,
+    Trait,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -258,7 +259,13 @@ impl Resolver<'_> {
                     enum_.span,
                     enum_type_symbol(enum_.name.clone(), &enum_.variants),
                 ),
-                Item::Program(_) => {}
+                Item::Trait(trait_) => self.collect_type_symbol(
+                    trait_.name.clone(),
+                    trait_.name_span,
+                    trait_.span,
+                    nominal_type_symbol(trait_.name.clone(), TypeSymbolKind::Trait),
+                ),
+                Item::Impl(_) | Item::Program(_) => {}
             }
         }
     }
@@ -434,10 +441,28 @@ impl Resolver<'_> {
                         access,
                     );
                 }
+                Item::Trait(trait_) => {
+                    let imported = type_importable_symbol(
+                        trait_.span,
+                        trait_.visibility,
+                        nominal_type_symbol(trait_.name.clone(), TypeSymbolKind::Trait),
+                    );
+                    let imported = qualify_imported_symbol(imported, module_path, &trait_.name);
+                    self.collect_public_export(
+                        trait_.name.clone(),
+                        trait_.name_span,
+                        imported,
+                        access,
+                    );
+                }
                 Item::FromImport(item) if item.visibility == Visibility::Public => {
                     self.collect_public_reexports(item, access);
                 }
-                Item::Use(_) | Item::Import(_) | Item::FromImport(_) | Item::Program(_) => {}
+                Item::Use(_)
+                | Item::Import(_)
+                | Item::FromImport(_)
+                | Item::Impl(_)
+                | Item::Program(_) => {}
             }
         }
     }
@@ -587,7 +612,9 @@ impl Resolver<'_> {
                 | Item::Primitive(_)
                 | Item::TypeAlias(_)
                 | Item::Struct(_)
-                | Item::Enum(_) => {}
+                | Item::Enum(_)
+                | Item::Trait(_)
+                | Item::Impl(_) => {}
             }
         }
     }
@@ -929,6 +956,11 @@ fn direct_importable_symbol(ast: &AstFile, name: &str) -> Option<ImportableSymbo
             enum_.span,
             enum_.visibility,
             enum_type_symbol(enum_.name.clone(), &enum_.variants),
+        )),
+        Item::Trait(trait_) if trait_.name == name => Some(type_importable_symbol(
+            trait_.span,
+            trait_.visibility,
+            nominal_type_symbol(trait_.name.clone(), TypeSymbolKind::Trait),
         )),
         _ => None,
     })
@@ -1394,6 +1426,30 @@ program(): i32 {
         let symbol = output.symbols.symbol_by_name("io").unwrap();
         assert_eq!(symbol.name, "io");
         assert!(matches!(symbol.kind, SymbolKind::Imported(_)));
+    }
+
+    #[test]
+    fn collects_trait_symbols() {
+        let output = resolve_text(
+            r#"pub trait Writer {
+    method (writer: &+Self).write(text: str): void!
+}
+
+program(): i32 {
+    return 0
+}
+"#,
+        );
+
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        let symbol = output.symbols.symbol_by_name("Writer").unwrap();
+        assert!(matches!(
+            &symbol.kind,
+            SymbolKind::Type(TypeSymbol {
+                kind: TypeSymbolKind::Trait,
+                ..
+            })
+        ));
     }
 
     #[test]

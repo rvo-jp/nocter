@@ -42,7 +42,8 @@ AI support must not fragment the language surface. Nocter should prefer `nocter 
 Adopted: Nocter uses a dedicated top-level `program` construct for executable entry points.
 
 ```nct
-program(): i32 {
+program(): i32! {
+    run()?
     return 0
 }
 ```
@@ -54,6 +55,12 @@ The compiler generates the real Mach-O entry code and connects it to the `progra
 ### Allowed Forms
 
 Initial allowed forms:
+
+```nct
+program(): i32! {
+    ...
+}
+```
 
 ```nct
 program(): void {
@@ -72,8 +79,15 @@ Rules:
 - An executable must contain exactly one `program` construct.
 - Library modules must not define `program`.
 - `program` is not imported or exported as a normal function.
+- `program(): i32!` is the standard executable entry form.
+- If `program(): i32!` succeeds, the returned `i32` is used as the process exit status.
+- If `program(): i32!` fails, the compiler-generated entry wrapper writes the built-in `error` payload to stderr and exits with status code `1`.
+- The generated failure report should include `error.code` and `error.message` when both fields are available.
+- If stderr reporting itself fails, the wrapper ignores that reporting failure and still exits with status code `1`.
+- The compiler-generated entry wrapper must not require allocation or call fallible standard-library APIs.
 - `program(): void` exits with status code `0`.
 - `program(): i32` uses the returned value as the process exit status.
+- `program(): void` and `program(): i32` are accepted for simple infallible entry points in v0, but `program(): i32!` is the preferred form for applications.
 - `program` parameters are not part of v0.
 - `program(args: [str])` is not part of v0.
 - Command-line arguments and environment variables are accessed through `std/process`, not through special `program` parameters.

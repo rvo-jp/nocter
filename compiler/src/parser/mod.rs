@@ -5,12 +5,12 @@ use crate::ast::{
     BindingStmt, Block, BorrowType, BreakStmt, CallExpr, ContinueStmt, EnumDecl, EnumVariant, Expr,
     ExpressionStmt, FailStmt, FallibleType, ForRangeStmt, FromImportItem, FunctionDecl,
     GenericParam, GenericParamList, GenericType, GroupExpr, IdentifierExpr, IfIsStmt, IfLetStmt,
-    IfStmt, ImportAlias, ImportItem, ImportedName, IndexExpr, Item, LiteralExpr, LoopStmt,
-    MemberExpr, ModulePath, OptionalDefaultExpr, OptionalType, Parameter, ParameterList,
-    PointerType, PrimitiveDecl, ProgramDecl, ReturnStmt, Stmt, StructDecl, StructField, SwitchArm,
-    SwitchElseArm, SwitchPayloadBinding, SwitchStmt, TryCatchExpr, TryExpr, TypeAliasDecl,
-    TypeConversionExpr, TypeExpr, TypeReference, UnaryExpr, UnaryOperator, UseItem, ViewType,
-    Visibility, WhileLetStmt, WhileStmt,
+    IfStmt, ImplDecl, ImplMember, ImportAlias, ImportItem, ImportedName, IndexExpr, Item,
+    LiteralExpr, LoopStmt, MemberExpr, MethodDecl, ModulePath, OptionalDefaultExpr, OptionalType,
+    Parameter, ParameterList, PointerType, PrimitiveDecl, ProgramDecl, ReturnStmt, Stmt,
+    StructDecl, StructField, SwitchArm, SwitchElseArm, SwitchPayloadBinding, SwitchStmt, TraitDecl,
+    TryCatchExpr, TryExpr, TypeAliasDecl, TypeConversionExpr, TypeExpr, TypeReference, UnaryExpr,
+    UnaryOperator, UseItem, ViewType, Visibility, WhileLetStmt, WhileStmt,
 };
 use crate::diagnostics::Diagnostic;
 use crate::lexer::{Keyword, Token, TokenKind};
@@ -149,6 +149,26 @@ impl Parser<'_> {
             return self.parse_enum_decl(visibility);
         }
 
+        if self.at_keyword(Keyword::Trait) {
+            if is_copy {
+                self.error_current("`copy` applies only to `struct` declarations in v0");
+                return Err(());
+            }
+            return self.parse_trait_decl(visibility);
+        }
+
+        if self.at_keyword(Keyword::Impl) {
+            if is_copy {
+                self.error_current("`copy` applies only to `struct` declarations in v0");
+                return Err(());
+            }
+            if visibility != Visibility::Private {
+                self.error_current("`impl` blocks do not use visibility modifiers in v0");
+                return Err(());
+            }
+            return self.parse_impl_decl();
+        }
+
         if visibility != Visibility::Private || is_copy {
             self.error_current("expected declaration after top-level modifier");
             return Err(());
@@ -268,6 +288,11 @@ impl Parser<'_> {
     }
 
     fn parse_function_decl(&mut self, visibility: Visibility) -> ParseResult<Item> {
+        self.parse_function_decl_data(visibility)
+            .map(Item::Function)
+    }
+
+    fn parse_function_decl_data(&mut self, visibility: Visibility) -> ParseResult<FunctionDecl> {
         let start = self.expect_keyword(Keyword::Func, "`func`")?;
         let name = self.expect_identifier("expected function name after `func`")?;
         let generics = self.parse_generic_param_list()?;
@@ -277,7 +302,7 @@ impl Parser<'_> {
         let body = self.parse_block()?;
         let end = body.span.end;
 
-        Ok(Item::Function(FunctionDecl {
+        Ok(FunctionDecl {
             span: self.span(start.span.start, end),
             visibility,
             name: name.value,
@@ -286,7 +311,7 @@ impl Parser<'_> {
             parameters,
             return_type,
             body,
-        }))
+        })
     }
 
     fn parse_primitive_decl(&mut self, visibility: Visibility) -> ParseResult<Item> {
@@ -428,6 +453,138 @@ impl Parser<'_> {
 
         let end = self.expect_punctuation("}", "`}`")?;
         Ok((self.span(start.span.start, end.span.end), variants))
+    }
+
+    fn parse_trait_decl(&mut self, visibility: Visibility) -> ParseResult<Item> {
+        let start = self.expect_keyword(Keyword::Trait, "`trait`")?;
+        let name = self.expect_identifier("expected trait name after `trait`")?;
+        let generics = self.parse_generic_param_list()?;
+        let open = self.expect_punctuation("{", "`{`")?;
+        let mut methods = Vec::new();
+        self.skip_newlines();
+
+        while !self.at_punctuation("}") {
+            if self.at_eof() {
+                self.error_at(open.span, "expected `}` to close trait declaration");
+                return Err(());
+            }
+
+            let method_visibility = self.parse_visibility()?;
+            if !self.at_keyword(Keyword::Method) {
+                self.error_current("expected `method` in trait declaration");
+                return Err(());
+            }
+            methods.push(self.parse_method_decl(method_visibility, false)?);
+            self.skip_newlines();
+            _ = self.match_punctuation(",");
+            self.skip_newlines();
+        }
+
+        let close = self.expect_punctuation("}", "`}`")?;
+        Ok(Item::Trait(TraitDecl {
+            span: self.span(start.span.start, close.span.end),
+            visibility,
+            name: name.value,
+            name_span: name.span,
+            generics,
+            methods,
+        }))
+    }
+
+    fn parse_impl_decl(&mut self) -> ParseResult<Item> {
+        let start = self.expect_keyword(Keyword::Impl, "`impl`")?;
+        let first_ty = self.parse_type()?;
+        let (trait_ty, target_ty) = if self.match_keyword(Keyword::For).is_some() {
+            let target_ty = self.parse_type()?;
+            (Some(first_ty), target_ty)
+        } else {
+            (None, first_ty)
+        };
+        let open = self.expect_punctuation("{", "`{`")?;
+        let mut members = Vec::new();
+        self.skip_newlines();
+
+        while !self.at_punctuation("}") {
+            if self.at_eof() {
+                self.error_at(open.span, "expected `}` to close impl block");
+                return Err(());
+            }
+
+            let visibility = self.parse_visibility()?;
+            if self.at_keyword(Keyword::Func) {
+                members.push(ImplMember::Function(
+                    self.parse_function_decl_data(visibility)?,
+                ));
+            } else if self.at_keyword(Keyword::Method) {
+                members.push(ImplMember::Method(
+                    self.parse_method_decl(visibility, true)?,
+                ));
+            } else {
+                self.error_current("expected `func` or `method` in impl block");
+                return Err(());
+            }
+
+            self.skip_newlines();
+        }
+
+        let close = self.expect_punctuation("}", "`}`")?;
+        Ok(Item::Impl(ImplDecl {
+            span: self.span(start.span.start, close.span.end),
+            trait_ty,
+            target_ty,
+            members,
+        }))
+    }
+
+    fn parse_method_decl(
+        &mut self,
+        visibility: Visibility,
+        require_body: bool,
+    ) -> ParseResult<MethodDecl> {
+        let start = self.expect_keyword(Keyword::Method, "`method`")?;
+        let receiver = self.parse_method_receiver()?;
+        self.expect_punctuation(".", "`.`")?;
+        let name = self.expect_identifier("expected method name after `.`")?;
+        let parameters = self.parse_parameter_list()?;
+        self.expect_punctuation(":", "`:`")?;
+        let return_type = self.parse_type()?;
+        let body = if require_body {
+            Some(self.parse_block()?)
+        } else if self.at_punctuation("{") {
+            self.error_current("trait method signatures cannot have bodies in v0");
+            return Err(());
+        } else {
+            None
+        };
+        let end = body
+            .as_ref()
+            .map_or(return_type.span().end, |body| body.span.end);
+
+        Ok(MethodDecl {
+            span: self.span(start.span.start, end),
+            visibility,
+            receiver,
+            name: name.value,
+            name_span: name.span,
+            parameters,
+            return_type,
+            body,
+        })
+    }
+
+    fn parse_method_receiver(&mut self) -> ParseResult<Parameter> {
+        let open = self.expect_punctuation("(", "`(`")?;
+        let name = self.expect_identifier("expected receiver name")?;
+        self.expect_punctuation(":", "`:`")?;
+        let ty = self.parse_type()?;
+        let close = self.expect_punctuation(")", "`)`")?;
+
+        Ok(Parameter {
+            span: self.span(open.span.start, close.span.end),
+            name: name.value,
+            name_span: name.span,
+            ty,
+        })
     }
 
     fn parse_parameter_list(&mut self) -> ParseResult<ParameterList> {
@@ -632,9 +789,18 @@ impl Parser<'_> {
             }
 
             let parameter = self.expect_identifier("expected generic parameter name")?;
+            let bound = if self.match_punctuation(":").is_some() {
+                Some(self.parse_type()?)
+            } else {
+                None
+            };
+            let end = bound
+                .as_ref()
+                .map_or(parameter.span.end, |bound| bound.span().end);
             parameters.push(GenericParam {
-                span: parameter.span,
+                span: self.span(parameter.span.start, end),
                 name: parameter.value,
+                bound,
             });
 
             self.skip_newlines();
@@ -1763,7 +1929,7 @@ fn with_type_span(ty: TypeExpr, span: ByteSpan) -> TypeExpr {
 mod tests {
     use super::*;
 
-    use crate::ast::{Expr, Item, Stmt, TypeExpr, Visibility};
+    use crate::ast::{Expr, ImplMember, Item, Stmt, TypeExpr, Visibility};
     use crate::lexer::lex;
 
     fn parse_text(text: &str) -> ParseOutput {
@@ -1832,6 +1998,94 @@ program(): i32 {
         assert_eq!(from_import.names[1].local_name(), "stdout");
         assert_eq!(reexport.visibility, Visibility::Public);
         assert_eq!(reexport.names[0].local_name(), "StdString");
+    }
+
+    #[test]
+    fn parses_impl_trait_methods_and_generic_bounds() {
+        let output = parse_text(
+            r#"pub struct Counter {
+    value: i32
+}
+
+impl Counter {
+    pub func zero(): i32 {
+        return 0
+    }
+
+    pub method (counter: &+Self).add(value: i32): void {
+        return
+    }
+}
+
+pub trait Writer {
+    method (writer: &+Self).write(text: str): void!
+}
+
+impl Writer for Counter {
+    method (counter: &+Self).write(text: str): void! {
+        return
+    }
+}
+
+func print<W: Writer>(writer: &+W): void! {
+    return
+}
+
+program(): i32 {
+    return 0
+}
+"#,
+        );
+
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        let ast = output.ast.unwrap();
+
+        let Item::Impl(inherent_impl) = &ast.items[1] else {
+            panic!("expected inherent impl");
+        };
+        assert!(inherent_impl.trait_ty.is_none());
+        assert!(matches!(
+            &inherent_impl.target_ty,
+            TypeExpr::Reference(reference) if reference.name == "Counter"
+        ));
+        assert!(matches!(
+            &inherent_impl.members[0],
+            ImplMember::Function(function) if function.name == "zero"
+        ));
+        let ImplMember::Method(method) = &inherent_impl.members[1] else {
+            panic!("expected method");
+        };
+        assert_eq!(method.name, "add");
+        assert!(method.body.is_some());
+        assert!(matches!(&method.receiver.ty, TypeExpr::Borrow(_)));
+
+        let Item::Trait(trait_) = &ast.items[2] else {
+            panic!("expected trait");
+        };
+        assert_eq!(trait_.visibility, Visibility::Public);
+        assert_eq!(trait_.name, "Writer");
+        assert_eq!(trait_.methods.len(), 1);
+        assert_eq!(trait_.methods[0].name, "write");
+        assert!(trait_.methods[0].body.is_none());
+
+        let Item::Impl(trait_impl) = &ast.items[3] else {
+            panic!("expected trait impl");
+        };
+        assert!(trait_impl.trait_ty.is_some());
+        assert!(matches!(
+            &trait_impl.target_ty,
+            TypeExpr::Reference(reference) if reference.name == "Counter"
+        ));
+
+        let Item::Function(function) = &ast.items[4] else {
+            panic!("expected generic function");
+        };
+        assert_eq!(function.generics.parameters.len(), 1);
+        assert_eq!(function.generics.parameters[0].name, "W");
+        assert!(matches!(
+            &function.generics.parameters[0].bound,
+            Some(TypeExpr::Reference(reference)) if reference.name == "Writer"
+        ));
     }
 
     #[test]

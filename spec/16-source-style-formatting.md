@@ -161,7 +161,7 @@ Examples:
 
 ```nct
 let file = File.open(path) catch error {
-    fail Error.new(ErrorCode.io_open_failed, error.message)
+    fail Error.new("std.io.open_failed", error.message)
 }
 
 switch error {

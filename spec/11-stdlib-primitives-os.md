@@ -104,21 +104,7 @@ The built-in failure payload is `error`. The standard library exposes ordinary n
 Initial public surface direction:
 
 ```nct
-pub enum ErrorCode {
-    io_not_found
-    io_permission_denied
-    io_invalid_path
-    io_interrupted
-    io_broken_pipe
-    io_timed_out
-    invalid_encoding
-    invalid_argument
-    out_of_memory
-    unsupported
-    internal
-    unexpected_os_error
-}
-
+pub type ErrorCode = str
 pub type Error = error
 
 impl Error {
@@ -130,7 +116,8 @@ Rules:
 
 - `error` is the compiler built-in payload type.
 - `Error` and `ErrorCode` are ordinary standard-library names.
-- The compiler does not know the name `ErrorCode`. `Error.new` converts the standard-library classification value into the built-in `error` payload's primitive code representation.
+- The compiler does not know the name `ErrorCode`. `ErrorCode` is an open string classification alias, and `Error.new` converts that string value into the built-in `error` payload's primitive code representation.
+- Standard-library codes use dotted names such as `"std.io.not_found"`, `"std.mem.out_of_memory"`, and `"std.process.invalid_encoding"`. User and package code may use their own prefixes, such as `"app.config.missing_key"`.
 - Standard-library modules should fail with `error`, not domain-specific fallible error type parameters.
 - Domain-specific detail is represented by `ErrorCode`, `message`, and, where needed later, additional standard-library helper APIs.
 
@@ -166,7 +153,7 @@ Rules:
 - `File` is a move-only standard-library type with private representation.
 - `File.open(path)` opens an existing file for reading in v0.
 - File creation, append, truncate, read-write modes, and open options are deferred.
-- `File.open(path)` maps path-related OS errors into `ErrorCode.io_not_found`, `ErrorCode.io_permission_denied`, or `ErrorCode.io_invalid_path` when the target can classify them.
+- `File.open(path)` maps path-related OS errors into `"std.io.not_found"`, `"std.io.permission_denied"`, or `"std.io.invalid_path"` when the target can classify them.
 - `read(buffer)` reads into a writable byte view and returns the number of bytes read.
 - `read(buffer)` returning `0` means end of file for regular files.
 - `read(buffer)` may return fewer bytes than `buffer.len()` without treating that as an error.
@@ -179,7 +166,7 @@ Rules:
 - Dropping a `File` returned by `File.open(path)` closes the owned handle.
 - Dropping a `File` returned by `stdout()` or `stderr()` must not close the process standard stream.
 - `drop File` cannot fail. Close errors are ignored in v0 unless a future explicit close API is adopted.
-- Unexpected OS errors are converted to `ErrorCode.unexpected_os_error` with a message that preserves useful target context.
+- Unexpected OS errors are converted to `"std.os.unexpected_os_error"` with a message that preserves useful target context.
 
 Conversion flow:
 
@@ -236,19 +223,17 @@ Rules:
 - The caller must not drop process-context storage.
 - APIs that need owned strings must explicitly copy into an allocator-owned `String`.
 - Target implementations must validate process strings before exposing them as `str`.
-- `args()` fails with `ErrorCode.invalid_encoding` if any returned argument cannot be represented as UTF-8.
-- `env(name)` fails with `ErrorCode.invalid_encoding` if the matching environment value exists but cannot be represented as UTF-8.
-- `cwd()` fails with `ErrorCode.invalid_encoding` if the current working directory cannot be represented as UTF-8.
+- `args()` fails with `"std.process.invalid_encoding"` if any returned argument cannot be represented as UTF-8.
+- `env(name)` fails with `"std.process.invalid_encoding"` if the matching environment value exists but cannot be represented as UTF-8.
+- `cwd()` fails with `"std.process.invalid_encoding"` if the current working directory cannot be represented as UTF-8.
 
 Example:
 
 ```nct
 from std/process import args
 
-program(): i32 {
-    let argv = args() catch error {
-        return 1
-    }
+program(): i32! {
+    let argv = args()?
 
     if argv.len() < 2 {
         return 1
@@ -299,9 +284,9 @@ Standard library functions provide these features.
 ```nct
 from std/io import stdout
 
-program(): i32 {
+program(): i32! {
     var out = stdout()
-    out.write_text("Hello\n").ignore()
+    out.write_text("Hello\n")?
     return 0
 }
 ```

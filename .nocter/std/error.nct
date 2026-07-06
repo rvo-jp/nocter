@@ -3,28 +3,11 @@
 // `error` is the compiler built-in fallible payload type. Error and ErrorCode
 // are ordinary standard-library names that user modules receive through the
 // synthetic prelude.
+//
+// ErrorCode is intentionally open. Standard-library and user-library code use
+// dotted string codes such as "std.io.not_found" or "app.config.missing_key".
 
-pub enum ErrorCode {
-    io_not_found
-    io_permission_denied
-    io_invalid_path
-    io_interrupted
-    io_would_block
-    io_already_exists
-    io_invalid_input
-    io_broken_pipe
-    io_timed_out
-    io_open_failed
-    io_read_failed
-    io_write_failed
-    invalid_encoding
-    invalid_argument
-    out_of_memory
-    unsupported
-    internal
-    unexpected_os_error
-}
-
+pub type ErrorCode = str
 pub type Error = error
 
 // Placeholder primitive until associated functions are implemented.

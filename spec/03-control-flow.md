@@ -24,6 +24,7 @@ Return checking:
 - A fallible function `T!` must return a success value, `fail` with an `error`, or terminate with `never` on every reachable path.
 - An optional function `T?` must return a present value, `return none`, or terminate with `never` on every reachable path.
 - A fallible optional function `(T?)!` must return a present success value, `return none` as success absence, `fail` with an `error`, or terminate with `never` on every reachable path.
+- `program(): i32!` follows the same source-level return checking rules as a function returning `i32!`; success returns `i32`, and failure uses `fail error`.
 - `program(): void` and `program(): i32` follow the same return checking rules as functions with those return types.
 
 Return value ownership, move, borrow, and view rules are specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#return-values).

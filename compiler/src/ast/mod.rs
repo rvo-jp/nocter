@@ -55,6 +55,8 @@ pub enum Item {
     TypeAlias(TypeAliasDecl),
     Struct(StructDecl),
     Enum(EnumDecl),
+    Trait(TraitDecl),
+    Impl(ImplDecl),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -185,6 +187,42 @@ pub struct EnumVariant {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TraitDecl {
+    pub span: ByteSpan,
+    pub visibility: Visibility,
+    pub name: String,
+    pub name_span: ByteSpan,
+    pub generics: GenericParamList,
+    pub methods: Vec<MethodDecl>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImplDecl {
+    pub span: ByteSpan,
+    pub trait_ty: Option<TypeExpr>,
+    pub target_ty: TypeExpr,
+    pub members: Vec<ImplMember>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ImplMember {
+    Function(FunctionDecl),
+    Method(MethodDecl),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MethodDecl {
+    pub span: ByteSpan,
+    pub visibility: Visibility,
+    pub receiver: Parameter,
+    pub name: String,
+    pub name_span: ByteSpan,
+    pub parameters: ParameterList,
+    pub return_type: TypeExpr,
+    pub body: Option<Block>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenericParamList {
     pub span: Option<ByteSpan>,
     pub parameters: Vec<GenericParam>,
@@ -194,6 +232,7 @@ pub struct GenericParamList {
 pub struct GenericParam {
     pub span: ByteSpan,
     pub name: String,
+    pub bound: Option<TypeExpr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -632,6 +671,8 @@ impl Item {
             Item::TypeAlias(item) => item.span,
             Item::Struct(item) => item.span,
             Item::Enum(item) => item.span,
+            Item::Trait(item) => item.span,
+            Item::Impl(item) => item.span,
         }
     }
 
@@ -730,6 +771,36 @@ impl Item {
                     children,
                 )
             }
+            Item::Trait(item) => {
+                let mut children = vec![
+                    visibility_json(item.visibility),
+                    item.generics.to_json(sources),
+                ];
+                children.extend(item.methods.iter().map(|method| method.to_json(sources)));
+                JsonAstNode::with_value(
+                    "trait_decl",
+                    item.name.clone(),
+                    json_span(sources, item.span),
+                    children,
+                )
+            }
+            Item::Impl(item) => {
+                let mut children = Vec::new();
+                if let Some(trait_ty) = &item.trait_ty {
+                    children.push(JsonAstNode::new(
+                        "trait_type",
+                        json_span(sources, trait_ty.span()),
+                        vec![trait_ty.to_json(sources)],
+                    ));
+                }
+                children.push(JsonAstNode::new(
+                    "impl_target_type",
+                    json_span(sources, item.target_ty.span()),
+                    vec![item.target_ty.to_json(sources)],
+                ));
+                children.extend(item.members.iter().map(|member| member.to_json(sources)));
+                JsonAstNode::new("impl_decl", json_span(sources, item.span), children)
+            }
         }
     }
 }
@@ -821,11 +892,65 @@ impl GenericParamList {
 
 impl GenericParam {
     fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
+        let children = self
+            .bound
+            .as_ref()
+            .map(|bound| vec![bound.to_json(sources)])
+            .unwrap_or_default();
         JsonAstNode::with_value(
             "generic_param",
             self.name.clone(),
             json_span(sources, self.span),
-            Vec::new(),
+            children,
+        )
+    }
+}
+
+impl ImplMember {
+    fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
+        match self {
+            ImplMember::Function(function) => JsonAstNode::with_value(
+                "associated_function_decl",
+                function.name.clone(),
+                json_span(sources, function.span),
+                vec![
+                    visibility_json(function.visibility),
+                    function.generics.to_json(sources),
+                    function.parameters.to_json(sources),
+                    function.return_type.to_json(sources),
+                    function.body.to_json(sources),
+                ],
+            ),
+            ImplMember::Method(method) => method.to_json(sources),
+        }
+    }
+}
+
+impl MethodDecl {
+    fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
+        let mut children = vec![
+            visibility_json(self.visibility),
+            JsonAstNode::new(
+                "method_receiver",
+                json_span(sources, self.receiver.span),
+                vec![self.receiver.to_json(sources)],
+            ),
+            self.parameters.to_json(sources),
+            self.return_type.to_json(sources),
+        ];
+        if let Some(body) = &self.body {
+            children.push(body.to_json(sources));
+        }
+
+        JsonAstNode::with_value(
+            if self.body.is_some() {
+                "method_decl"
+            } else {
+                "method_signature"
+            },
+            self.name.clone(),
+            json_span(sources, self.span),
+            children,
         )
     }
 }
