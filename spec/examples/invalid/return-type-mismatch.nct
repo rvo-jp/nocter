@@ -1,6 +1,6 @@
 use std/prelude
 
 program(): i32 {
-    // invalid: `program` returns `i32`, but this return value is `StringView`.
+    // invalid: `program` returns `i32`, but this return value is `str`.
     return "hello"
 }

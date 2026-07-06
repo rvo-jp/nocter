@@ -57,6 +57,8 @@ Rules:
 - Unicode letters are not accepted in identifiers in v0.
 - Reserved keywords are not identifiers.
 - `nocter` is not a reserved keyword except as the contextual visibility scope in `pub(nocter)`.
+- `Self` has identifier spelling but is reserved as contextual type syntax in `impl` and `trait` type positions. It is not a valid binding, declaration, field, variant, module, type parameter, or import alias name.
+- `error` is not a reserved keyword. In type positions, the exact spelling `error` is compiler built-in type syntax. In value positions, it is an ordinary identifier, so `catch error { ... }` binds a local value named `error`.
 - A single `_` is reserved for a future discard or wildcard design and is not a valid binding, declaration, field, variant, type parameter, or import alias name in v0.
 - Identifiers beginning with `_` are otherwise valid.
 
@@ -77,13 +79,13 @@ Rules:
 
 ## Statement Separation
 
-Nocter does not use semicolons in v0.
+Nocter does not use semicolons as statement terminators in v0. The `;` token is reserved for grammar positions that explicitly require it, such as fixed-size array types `[T; N]`.
 
 Rules:
 
 - A newline separates statements where the grammar can end a statement.
 - A closing brace `}` ends the current block or arm.
-- A semicolon is invalid in source code.
+- A semicolon does not terminate a statement. Outside an explicit grammar position such as `[T; N]`, it is a syntax error.
 - Multi-line expressions are valid only when the expression syntax clearly continues, such as inside calls, literals, indexes, parenthesized expressions, or before an operator that requires a right operand.
 - Whitespace other than newline is only a token separator.
 
@@ -118,6 +120,8 @@ Keyword rules:
 
 - Reserved keywords are emitted as keyword tokens.
 - `nocter` is emitted as an identifier token; parser and resolver treat it contextually in `pub(nocter)`.
+- `Self` may be emitted as an identifier-shaped token by the lexer, but the parser treats that exact spelling contextually as type syntax only where [Values and Types](02-values-types.md#self-type-syntax) allows it.
+- `error` is emitted as an identifier token; the parser treats it contextually as built-in type syntax only in type positions.
 - `ok`, `some`, `unsafe`, and `trusted` are not reserved in v0 and are emitted as identifier tokens.
 
 Newline rules:

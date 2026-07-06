@@ -8,7 +8,7 @@ use std/prelude
 
 from std/io import File, stderr, stdout
 from std/mem import Allocator
-from std/process import ProcessError, args, exit
+from std/process import args, exit
 
 import std/mem as mem
 
@@ -45,21 +45,12 @@ enum ScanState {
     inside_word
 }
 
-pub enum AppError {
-    missing_path
-    too_many_args
-    process_failed(error: ProcessError)
-    open_failed(path: StringView)
-    read_failed(path: StringView)
-    write_failed
-}
-
 pub trait Writer {
-    method (writer: &+Self).write(text: StringView): void ! AppError
-    method (writer: &+Self).write_u64(value: u64): void ! AppError
+    method (writer: &+Self).write(text: str): void!
+    method (writer: &+Self).write_u64(value: u64): void!
 }
 
-pub func scan_words(text: StringView): WordStats {
+pub func scan_words(text: str): WordStats {
     var stats = WordStats.empty()
     var state = ScanState.outside_word
     let bytes = text.bytes()
@@ -81,49 +72,47 @@ pub func scan_words(text: StringView): WordStats {
 
 func print_stats<W: Writer>(
     out: &+W,
-    path: StringView,
+    path: str,
     stats: WordStats,
-): void ! AppError {
-    try out.write(path)
-    try out.write(": ")
-    try out.write_u64(stats.lines)
-    try out.write(" lines, ")
-    try out.write_u64(stats.words)
-    try out.write(" words, ")
-    try out.write_u64(stats.bytes)
-    try out.write(" bytes\n")
+): void! {
+    out.write(path)?
+    out.write(": ")?
+    out.write_u64(stats.lines)?
+    out.write(" lines, ")?
+    out.write_u64(stats.words)?
+    out.write(" words, ")?
+    out.write_u64(stats.bytes)?
+    out.write(" bytes\n")?
 
     return
 }
 
 func read_all(
     allocator: &+Allocator,
-    path: StringView,
-): String ! AppError {
-    var file = try File.open(path) catch error {
-        fail AppError.open_failed(path)
+    path: str,
+): String! {
+    var file = File.open(path) catch error {
+        fail Error.new(ErrorCode.io_open_failed, error.message)
     }
 
     // String owns its allocation. It is dropped automatically when ownership
     // does not move to the caller.
-    let text = try file.read_to_string(allocator) catch error {
-        fail AppError.read_failed(path)
+    let text = file.read_to_string(allocator) catch error {
+        fail Error.new(ErrorCode.io_read_failed, error.message)
     }
 
     return move text
 }
 
-func run(allocator: &+Allocator): void ! AppError {
-    let argv = try args() catch error {
-        fail AppError.process_failed(error)
-    }
+func run(allocator: &+Allocator): void! {
+    let argv = args()?
 
     if argv.len() < 2 {
-        fail AppError.missing_path
+        fail Error.new(ErrorCode.invalid_argument, "missing path")
     }
 
     if argv.len() > 2 {
-        fail AppError.too_many_args
+        fail Error.new(ErrorCode.invalid_argument, "expected exactly one path")
     }
 
     let path = argv[1]
@@ -131,46 +120,24 @@ func run(allocator: &+Allocator): void ! AppError {
     // A region is useful for temporary allocations whose lifetime is bounded
     // by this block. References into scratch cannot escape the region.
     region scratch using allocator {
-        let text = try read_all(scratch.allocator(), path.view())
+        let text = read_all(scratch.allocator(), path)?
         let stats = scan_words(text.view())
 
         var out = stdout()
-        try print_stats(&+out, path.view(), stats)
+        print_stats(&+out, path, stats)?
     }
 
     return
 }
 
-func report_error(error: AppError): void {
+func report_error(error: error): void {
     var err = stderr()
-
-    match error {
-        is AppError.missing_path {
-            err.write_text("usage: word_count <path>\n").ignore()
-        }
-        is AppError.too_many_args {
-            err.write_text("error: expected exactly one path\n").ignore()
-        }
-        is AppError.process_failed(error) {
-            err.write_text("error: cannot read process context\n").ignore()
-        }
-        is AppError.open_failed(path) {
-            err.write_text("error: cannot open ").ignore()
-            err.write_text(path).ignore()
-            err.write_text("\n").ignore()
-        }
-        is AppError.read_failed(path) {
-            err.write_text("error: cannot read ").ignore()
-            err.write_text(path).ignore()
-            err.write_text("\n").ignore()
-        }
-        is AppError.write_failed {
-            err.write_text("error: cannot write output\n").ignore()
-        }
-    }
+    err.write_text("error: ").ignore()
+    err.write_text(error.message).ignore()
+    err.write_text("\n").ignore()
 }
 
-func fatal(error: AppError): never {
+func fatal(error: error): never {
     report_error(error)
     exit(1)
 }
@@ -178,7 +145,7 @@ func fatal(error: AppError): never {
 program(): i32 {
     var allocator = mem.page_allocator()
 
-    try run(&+allocator) catch error {
+    run(&+allocator) catch error {
         fatal(error)
     }
 

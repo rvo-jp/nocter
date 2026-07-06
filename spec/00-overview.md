@@ -75,7 +75,7 @@ Rules:
 - `program(): void` exits with status code `0`.
 - `program(): i32` uses the returned value as the process exit status.
 - `program` parameters are not part of v0.
-- `program(args: View<StringView>)` is not part of v0.
+- `program(args: [str])` is not part of v0.
 - Command-line arguments and environment variables are accessed through `std/process`, not through special `program` parameters.
 - `func main()` has no special meaning. `main` is an ordinary identifier if used.
 

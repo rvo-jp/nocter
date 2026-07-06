@@ -1,0 +1,9 @@
+// Common owning string type.
+//
+// `str` is the compiler built-in non-owning UTF-8 view type and the type of
+// string literals. String is the future owning string type; its storage details
+// are intentionally not exposed here.
+
+pub struct String {
+    bytes: [u8]
+}

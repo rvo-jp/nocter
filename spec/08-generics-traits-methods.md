@@ -43,9 +43,9 @@ impl WordStats {
 stats.add_word()
 ```
 
-`Self` is a contextual type name inside an `impl` block. In `impl WordStats`, `Self` means `WordStats`.
+`Self` is type-position syntax inside an `impl` block. It is not an ordinary identifier and is not resolved through normal name lookup. In `impl WordStats`, `Self` means `WordStats`.
 
-Nocter does not reserve `self` or `this`. The receiver name is chosen by the author. `self` may be used as an ordinary receiver name, but it has no special meaning.
+Nocter does not reserve `self` or `this`. The receiver name is chosen by the author. `self` may be used as an ordinary receiver name, but it has no special meaning. The restrictions on `Self` are specified in [Values and Types](02-values-types.md#self-type-syntax).
 
 The target of an `impl` block must be a nominal type declaration, such as a `struct` or `enum`. An `impl` block cannot target a type alias because aliases do not create distinct types.
 
@@ -90,8 +90,8 @@ Call rules:
 - The initial design has no qualified method-call escape hatch for ambiguity resolution.
 
 ```nct
-try file.write_text("hello")          // OK: method call
-try File.write_text(&+file, "hello")  // error: methods are not UFCS functions
+file.write_text("hello")?          // OK: method call
+File.write_text(&+file, "hello")?  // error: methods are not UFCS functions
 ```
 
 ## Method Lookup
@@ -105,9 +105,9 @@ If the receiver has a concrete nominal type, the compiler looks only for inheren
 If the receiver is a generic type parameter, the compiler looks at the receiver type parameter's explicit trait bound. A method declared by that bound may be called through the generic value.
 
 ```nct
-func write_line<W: Writer>(writer: &+W, text: StringView): void ! IOError {
-    try writer.write(text)
-    try writer.write("\n")
+func write_line<W: Writer>(writer: &+W, text: str): void! {
+    writer.write(text)?
+    writer.write("\n")?
     return
 }
 ```
@@ -136,17 +136,17 @@ Adopted: traits describe required behavior without class inheritance.
 
 ```nct
 trait Writer {
-    method (out: &+Self).write(text: StringView): void ! IOError
+    method (out: &+Self).write(text: str): void!
 }
 ```
 
-`Self` is also available inside a trait declaration and means the implementing type.
+`Self` is also available in type positions inside a trait declaration and means the implementing type. A trait declaration does not introduce a value named `Self`.
 
 Trait implementation uses `impl Trait for Type`.
 
 ```nct
 impl Writer for File {
-    method (file: &+Self).write(text: StringView): void ! IOError {
+    method (file: &+Self).write(text: str): void! {
         ...
     }
 }
@@ -159,9 +159,9 @@ Each required trait method must be implemented exactly once, and its signature m
 Generic functions may use trait bounds.
 
 ```nct
-func print_line<W: Writer>(writer: &+W, text: StringView): void ! IOError {
-    try writer.write(text)
-    try writer.write("\n")
+func print_line<W: Writer>(writer: &+W, text: str): void! {
+    writer.write(text)?
+    writer.write("\n")?
     return
 }
 ```
@@ -185,14 +185,14 @@ Rules:
 
 // In the module that defines File: OK.
 impl Writer for File {
-    method (file: &+Self).write(text: StringView): void ! IOError {
+    method (file: &+Self).write(text: str): void! {
         ...
     }
 }
 
 // In the module that defines Writer: OK, even if File is external.
 impl Writer for File {
-    method (file: &+Self).write(text: StringView): void ! IOError {
+    method (file: &+Self).write(text: str): void! {
         ...
     }
 }
@@ -212,7 +212,7 @@ struct Buffer<T> {
     ...
 }
 
-func first<T>(items: View<T>): T? {
+func first<T>(items: [T]): T? {
     ...
 }
 ```

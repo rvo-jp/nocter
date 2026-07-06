@@ -4,8 +4,8 @@ use crate::ast::AstEnvelope;
 use crate::diagnostics::{Diagnostic, DiagnosticsEnvelope};
 use crate::lexer::{TokensEnvelope, lex};
 use crate::parser::parse;
-use crate::resolve::{ImportSourceMap, resolve_compile_unit};
-use crate::source::{SourceId, SourceMap};
+use crate::resolve::{ImportAccess, ImportSource, ImportSourceMap, resolve_compile_unit};
+use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::check;
 use manifest::Manifest;
 use std::collections::{HashSet, VecDeque};
@@ -19,6 +19,7 @@ use std::process::ExitCode;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const HOST: &str = "arm64-darwin";
 pub const DEFAULT_TARGET: &str = HOST;
+const STANDARD_PRELUDE_PATH: &str = "std/prelude";
 const MANIFEST_SCHEMA: &str = "nocter.manifest";
 const MANIFEST_SCHEMA_VERSION: u32 = 1;
 
@@ -449,13 +450,17 @@ fn load_compile_unit(
     }
 
     while let Some(source) = queue.pop_front() {
-        let ast = match parse_source_for_check(sources, source) {
+        let mut ast = match parse_source_for_check(sources, source) {
             Ok(ast) => ast,
             Err(source_diagnostics) => {
                 diagnostics.extend(source_diagnostics);
                 continue;
             }
         };
+
+        if should_synthesize_prelude(sources, source, &ast, options, &mut resolved_nocter_home) {
+            synthesize_prelude_use(source, &mut ast);
+        }
 
         if source == root {
             root_ast = Some(ast.clone());
@@ -496,7 +501,18 @@ fn load_compile_unit(
                 },
             };
 
-            import_sources.insert(path.span, imported);
+            import_sources.insert(
+                path.span,
+                ImportSource {
+                    source: imported,
+                    access: import_access_for_source(
+                        sources,
+                        source,
+                        options,
+                        &resolved_nocter_home,
+                    ),
+                },
+            );
 
             if queued_sources.insert(imported) {
                 queue.push_back(imported);
@@ -551,10 +567,56 @@ fn import_paths(ast: &crate::ast::AstFile) -> Vec<&crate::ast::ModulePath> {
         .iter()
         .filter_map(|item| match item {
             crate::ast::Item::Use(item) => Some(&item.path),
+            crate::ast::Item::Import(item) => Some(&item.path),
             crate::ast::Item::FromImport(item) => Some(&item.path),
             _ => None,
         })
         .collect()
+}
+
+fn should_synthesize_prelude(
+    sources: &SourceMap,
+    source: SourceId,
+    ast: &crate::ast::AstFile,
+    options: &FrontendOptions,
+    resolved_nocter_home: &mut Option<Result<PathBuf, String>>,
+) -> bool {
+    if ast.items.iter().any(is_standard_prelude_use) {
+        return false;
+    }
+
+    let Ok(home) = active_nocter_home(options, resolved_nocter_home) else {
+        return true;
+    };
+    let home = canonicalize_existing(&home);
+    let Some(source_path) = sources
+        .get(source)
+        .and_then(|file| file.absolute_path())
+        .map(|path| canonicalize_existing(path))
+    else {
+        return true;
+    };
+
+    !source_path.starts_with(home)
+}
+
+fn is_standard_prelude_use(item: &crate::ast::Item) -> bool {
+    matches!(item, crate::ast::Item::Use(use_) if use_.path.value == STANDARD_PRELUDE_PATH)
+}
+
+fn synthesize_prelude_use(source: SourceId, ast: &mut crate::ast::AstFile) {
+    let span = ByteSpan::new(source, 0, 0);
+    ast.items.insert(
+        0,
+        crate::ast::Item::Use(crate::ast::UseItem {
+            span,
+            path: crate::ast::ModulePath {
+                span,
+                value: STANDARD_PRELUDE_PATH.to_string(),
+                segments: vec!["std".to_string(), "prelude".to_string()],
+            },
+        }),
+    );
 }
 
 fn is_relative_module_path(path: &str) -> bool {
@@ -634,6 +696,48 @@ fn active_nocter_home(
     let resolved = resolve_nocter_home();
     *resolved_nocter_home = Some(resolved.clone());
     resolved
+}
+
+fn import_access_for_source(
+    sources: &SourceMap,
+    source: SourceId,
+    options: &FrontendOptions,
+    resolved_nocter_home: &Option<Result<PathBuf, String>>,
+) -> ImportAccess {
+    let Some(home) = current_nocter_home(options, resolved_nocter_home) else {
+        return ImportAccess::Public;
+    };
+    let Some(source_path) = sources
+        .get(source)
+        .and_then(|file| file.absolute_path())
+        .map(|path| canonicalize_existing(path))
+    else {
+        return ImportAccess::Public;
+    };
+
+    if source_path.starts_with(home) {
+        ImportAccess::Nocter
+    } else {
+        ImportAccess::Public
+    }
+}
+
+fn current_nocter_home(
+    options: &FrontendOptions,
+    resolved_nocter_home: &Option<Result<PathBuf, String>>,
+) -> Option<PathBuf> {
+    if let Some(home) = &options.nocter_home {
+        return Some(canonicalize_existing(home));
+    }
+
+    resolved_nocter_home
+        .as_ref()
+        .and_then(|home| home.as_ref().ok())
+        .map(|home| canonicalize_existing(home))
+}
+
+fn canonicalize_existing(path: &Path) -> PathBuf {
+    path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
 }
 
 fn non_relative_import_candidates(home: &Path, target: &str, import_path: &str) -> Vec<PathBuf> {
@@ -1066,6 +1170,7 @@ mod tests {
         let home = root.join(".nocter");
         fs::create_dir_all(home.join("std")).unwrap();
         fs::create_dir_all(home.join("targets/arm64-darwin/std")).unwrap();
+        fs::write(home.join("std/prelude.nct"), "pub type Int = i32\n").unwrap();
         home
     }
 
@@ -1207,6 +1312,7 @@ mod tests {
     #[test]
     fn check_loads_relative_imports() {
         let root = make_temp_project("relative-import");
+        let home = make_nocter_home(&root);
         fs::write(
             root.join("app.nct"),
             r#"from ./config import answer
@@ -1219,7 +1325,7 @@ program(): i32 {
         .unwrap();
         fs::write(
             root.join("config.nct"),
-            r#"func answer(): i32 {
+            r#"pub func answer(): i32 {
     return 1
 }
 "#,
@@ -1228,7 +1334,7 @@ program(): i32 {
 
         let mut sources = SourceMap::new();
         let source = sources.load_file(root.join("app.nct")).unwrap();
-        let diagnostics = run_frontend_check(&mut sources, source);
+        let diagnostics = check_with_nocter_home(&mut sources, source, &home);
         fs::remove_dir_all(&root).unwrap();
 
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
@@ -1237,6 +1343,7 @@ program(): i32 {
     #[test]
     fn check_uses_relative_imported_function_return_type() {
         let root = make_temp_project("relative-import-return-type");
+        let home = make_nocter_home(&root);
         fs::write(
             root.join("app.nct"),
             r#"from ./config import title
@@ -1249,7 +1356,7 @@ program(): i32 {
         .unwrap();
         fs::write(
             root.join("config.nct"),
-            r#"func title(): StringView {
+            r#"pub func title(): str {
     return "Nocter"
 }
 "#,
@@ -1258,17 +1365,18 @@ program(): i32 {
 
         let mut sources = SourceMap::new();
         let source = sources.load_file(root.join("app.nct")).unwrap();
-        let diagnostics = run_frontend_check(&mut sources, source);
+        let diagnostics = check_with_nocter_home(&mut sources, source, &home);
         fs::remove_dir_all(&root).unwrap();
 
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0].code, "E0312");
-        assert!(diagnostics[0].message.contains("StringView"));
+        assert!(diagnostics[0].message.contains("str"));
     }
 
     #[test]
     fn check_uses_relative_imported_function_parameters() {
         let root = make_temp_project("relative-import-parameters");
+        let home = make_nocter_home(&root);
         fs::write(
             root.join("app.nct"),
             r#"from ./config import answer
@@ -1281,7 +1389,7 @@ program(): i32 {
         .unwrap();
         fs::write(
             root.join("config.nct"),
-            r#"func answer(value: i32): i32 {
+            r#"pub func answer(value: i32): i32 {
     return value
 }
 "#,
@@ -1290,7 +1398,7 @@ program(): i32 {
 
         let mut sources = SourceMap::new();
         let source = sources.load_file(root.join("app.nct")).unwrap();
-        let diagnostics = run_frontend_check(&mut sources, source);
+        let diagnostics = check_with_nocter_home(&mut sources, source, &home);
         fs::remove_dir_all(&root).unwrap();
 
         assert_eq!(diagnostics.len(), 1);
@@ -1300,6 +1408,7 @@ program(): i32 {
     #[test]
     fn check_reports_missing_relative_imported_names() {
         let root = make_temp_project("missing-relative-imported-name");
+        let home = make_nocter_home(&root);
         fs::write(
             root.join("app.nct"),
             r#"from ./config import missing
@@ -1321,7 +1430,7 @@ program(): i32 {
 
         let mut sources = SourceMap::new();
         let source = sources.load_file(root.join("app.nct")).unwrap();
-        let diagnostics = run_frontend_check(&mut sources, source);
+        let diagnostics = check_with_nocter_home(&mut sources, source, &home);
         fs::remove_dir_all(&root).unwrap();
 
         assert_eq!(diagnostics.len(), 1);
@@ -1329,8 +1438,42 @@ program(): i32 {
     }
 
     #[test]
+    fn check_reports_private_relative_imported_names() {
+        let root = make_temp_project("private-relative-imported-name");
+        let home = make_nocter_home(&root);
+        fs::write(
+            root.join("app.nct"),
+            r#"from ./config import answer
+
+program(): i32 {
+    return 0
+}
+"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("config.nct"),
+            r#"func answer(): i32 {
+    return 1
+}
+"#,
+        )
+        .unwrap();
+
+        let mut sources = SourceMap::new();
+        let source = sources.load_file(root.join("app.nct")).unwrap();
+        let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+        fs::remove_dir_all(&root).unwrap();
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "E0412");
+        assert!(diagnostics[0].message.contains("private"));
+    }
+
+    #[test]
     fn check_reports_relative_import_parse_errors() {
         let root = make_temp_project("relative-import-parse-error");
+        let home = make_nocter_home(&root);
         fs::write(
             root.join("app.nct"),
             r#"from ./config import answer
@@ -1345,7 +1488,7 @@ program(): i32 {
 
         let mut sources = SourceMap::new();
         let source = sources.load_file(root.join("app.nct")).unwrap();
-        let diagnostics = run_frontend_check(&mut sources, source);
+        let diagnostics = check_with_nocter_home(&mut sources, source, &home);
         fs::remove_dir_all(&root).unwrap();
 
         assert_eq!(diagnostics.len(), 1);
@@ -1355,6 +1498,7 @@ program(): i32 {
     #[test]
     fn check_reports_missing_relative_imports() {
         let root = make_temp_project("missing-relative-import");
+        let home = make_nocter_home(&root);
         fs::write(
             root.join("app.nct"),
             r#"from ./missing import Missing
@@ -1368,7 +1512,7 @@ program(): i32 {
 
         let mut sources = SourceMap::new();
         let source = sources.load_file(root.join("app.nct")).unwrap();
-        let diagnostics = run_frontend_check(&mut sources, source);
+        let diagnostics = check_with_nocter_home(&mut sources, source, &home);
         fs::remove_dir_all(&root).unwrap();
 
         assert_eq!(diagnostics.len(), 1);
@@ -1391,7 +1535,38 @@ program(): i32 {
         .unwrap();
         fs::write(
             home.join("std/io.nct"),
-            r#"func answer(): i32 {
+            r#"pub func answer(): i32 {
+    return 1
+}
+"#,
+        )
+        .unwrap();
+
+        let mut sources = SourceMap::new();
+        let source = sources.load_file(root.join("app.nct")).unwrap();
+        let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+        fs::remove_dir_all(&root).unwrap();
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn check_loads_namespace_imports_from_nocter_home() {
+        let root = make_temp_project("std-namespace-import");
+        let home = make_nocter_home(&root);
+        fs::write(
+            root.join("app.nct"),
+            r#"import std/io as io
+
+program(): i32 {
+    return 0
+}
+"#,
+        )
+        .unwrap();
+        fs::write(
+            home.join("std/io.nct"),
+            r#"pub func answer(): i32 {
     return 1
 }
 "#,
@@ -1422,7 +1597,7 @@ program(): i32 {
         .unwrap();
         fs::write(
             home.join("std/io.nct"),
-            r#"func title(): StringView {
+            r#"pub func title(): str {
     return "Nocter"
 }
 "#,
@@ -1436,7 +1611,7 @@ program(): i32 {
 
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0].code, "E0312");
-        assert!(diagnostics[0].message.contains("StringView"));
+        assert!(diagnostics[0].message.contains("str"));
     }
 
     #[test]
@@ -1455,7 +1630,7 @@ program(): i32 {
         .unwrap();
         fs::write(
             home.join("std/io.nct"),
-            r#"func answer(): StringView {
+            r#"pub func answer(): str {
     return "common"
 }
 "#,
@@ -1463,7 +1638,7 @@ program(): i32 {
         .unwrap();
         fs::write(
             home.join("targets/arm64-darwin/std/io.nct"),
-            r#"func answer(): i32 {
+            r#"pub func answer(): i32 {
     return 1
 }
 "#,
@@ -1472,6 +1647,158 @@ program(): i32 {
 
         let mut sources = SourceMap::new();
         let source = sources.load_file(root.join("app.nct")).unwrap();
+        let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+        fs::remove_dir_all(&root).unwrap();
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn check_synthesizes_standard_prelude_for_user_modules() {
+        let root = make_temp_project("synthetic-prelude");
+        let home = make_nocter_home(&root);
+        fs::write(
+            root.join("app.nct"),
+            r#"program(): i32 {
+    return answer()
+}
+"#,
+        )
+        .unwrap();
+        fs::write(
+            home.join("std/prelude.nct"),
+            r#"pub from std/prelude_helpers import answer
+"#,
+        )
+        .unwrap();
+        fs::write(
+            home.join("std/prelude_helpers.nct"),
+            r#"pub func answer(value: i32): i32 {
+    return value
+}
+"#,
+        )
+        .unwrap();
+
+        let mut sources = SourceMap::new();
+        let source = sources.load_file(root.join("app.nct")).unwrap();
+        let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+        fs::remove_dir_all(&root).unwrap();
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "E0320");
+    }
+
+    #[test]
+    fn check_accepts_builtin_str_return_type() {
+        let root = make_temp_project("builtin-str-return");
+        let home = make_nocter_home(&root);
+        fs::write(
+            root.join("app.nct"),
+            r#"program(): i32 {
+    return 0
+}
+
+func title(): str {
+    return "Nocter"
+}
+"#,
+        )
+        .unwrap();
+
+        let mut sources = SourceMap::new();
+        let source = sources.load_file(root.join("app.nct")).unwrap();
+        let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+        fs::remove_dir_all(&root).unwrap();
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn check_diagnoses_mismatched_builtin_str_return_type() {
+        let root = make_temp_project("builtin-str-return-mismatch");
+        let home = make_nocter_home(&root);
+        fs::write(
+            root.join("app.nct"),
+            r#"program(): i32 {
+    return 0
+}
+
+func title(): str {
+    return 1
+}
+"#,
+        )
+        .unwrap();
+
+        let mut sources = SourceMap::new();
+        let source = sources.load_file(root.join("app.nct")).unwrap();
+        let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+        fs::remove_dir_all(&root).unwrap();
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "E0312");
+        assert!(diagnostics[0].message.contains("str"));
+    }
+
+    #[test]
+    fn check_reports_nocter_visibility_import_from_user_project() {
+        let root = make_temp_project("nocter-visibility-user-import");
+        let home = make_nocter_home(&root);
+        fs::write(
+            root.join("app.nct"),
+            r#"from std/ptr import internal
+
+program(): i32 {
+    return 0
+}
+"#,
+        )
+        .unwrap();
+        fs::write(
+            home.join("std/ptr.nct"),
+            r#"pub(nocter) func internal(): i32 {
+    return 1
+}
+"#,
+        )
+        .unwrap();
+
+        let mut sources = SourceMap::new();
+        let source = sources.load_file(root.join("app.nct")).unwrap();
+        let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+        fs::remove_dir_all(&root).unwrap();
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "E0412");
+        assert!(diagnostics[0].message.contains("pub(nocter)"));
+    }
+
+    #[test]
+    fn check_allows_nocter_visibility_import_inside_nocter_home() {
+        let root = make_temp_project("nocter-visibility-home-import");
+        let home = make_nocter_home(&root);
+        fs::write(
+            home.join("std/io.nct"),
+            r#"from std/ptr import internal
+
+program(): i32 {
+    return internal()
+}
+"#,
+        )
+        .unwrap();
+        fs::write(
+            home.join("std/ptr.nct"),
+            r#"pub(nocter) func internal(): i32 {
+    return 1
+}
+"#,
+        )
+        .unwrap();
+
+        let mut sources = SourceMap::new();
+        let source = sources.load_file(home.join("std/io.nct")).unwrap();
         let diagnostics = check_with_nocter_home(&mut sources, source, &home);
         fs::remove_dir_all(&root).unwrap();
 

@@ -12,7 +12,7 @@ func inspect(file: &File): void {
     ...
 }
 
-func write(file: &+File, data: StringView): void ! IOError {
+func write(file: &+File, data: str): void! {
     ...
 }
 ```
@@ -40,7 +40,7 @@ Rules:
 Examples:
 
 ```nct
-var file = try File.open(path)
+var file = File.open(path)?
 
 let a = &file
 let b = &file       // OK: multiple readonly borrows
@@ -51,7 +51,7 @@ inspect(b)
 ```
 
 ```nct
-var file = try File.open(path)
+var file = File.open(path)?
 
 let w = &+file
 drop file           // error: w is used below
@@ -73,12 +73,12 @@ Method receiver borrows are automatic:
 
 ```nct
 impl File {
-    pub method (file: &+Self).write_text(text: StringView): void ! IOError {
+    pub method (file: &+Self).write_text(text: str): void! {
         ...
     }
 }
 
-try file.write_text("hello")
+file.write_text("hello")?
 ```
 
 The method call above creates a temporary readwrite borrow of `file` for the call. This does not enable UFCS-style calls:
@@ -90,7 +90,7 @@ File.write_text(&+file, "hello") // error
 A newly created owned temporary may be used as a readwrite receiver for one method call:
 
 ```nct
-try (try File.open(path)).write_text("hello")
+(File.open(path)?).write_text("hello")?
 ```
 
 The temporary receiver is dropped according to the statement-end temporary rules in [Control Flow](03-control-flow.md#evaluation-order-and-temporaries).
@@ -130,7 +130,7 @@ Rules:
 - Method receiver borrows last only for the call unless the method returns a borrow-like value derived from the receiver.
 - If a method returns a borrow-like value derived from the receiver, the receiver borrow remains active for the returned value's live range.
 - Borrowed optional projections create a borrow only inside the then body, as specified in [Errors and Optionals](04-errors-optionals.md#borrowed-optional-projections).
-- `StringView`, `View<T>`, `WriteView<T>`, `ViewIter<T>`, and aggregates containing borrow-like values participate in the same live-range and provenance checks.
+- `str`, `[T]`, `[+T]`, `ViewIter<T>`, and aggregates containing borrow-like values participate in the same live-range and provenance checks.
 - Borrow-like return values are governed by [Borrow-like Return Values](#borrow-like-return-values).
 
 ### Field-Sensitive Borrows
@@ -141,7 +141,7 @@ Field-sensitive tracking applies only to direct named field paths whose base is 
 
 ```nct
 var user = User{
-    name: try String.copy(allocator, "alice"),
+    name: String.copy(allocator, "alice")?,
     count: 0,
 }
 
@@ -156,7 +156,7 @@ Rules:
 - A borrow of one named field does not conflict with mutation or borrowing of a disjoint named field.
 - Moving, dropping, reinitializing, or assigning the whole parent value conflicts with any active field borrow.
 - Assigning a field conflicts with active borrows of that same field and active borrows of the whole parent value.
-- Field-sensitive tracking does not apply to array indexes, collection indexes, `View<T>` elements, pointer dereferences, method-call results, enum payloads, or computed projections in v0.
+- Field-sensitive tracking does not apply to array indexes, collection indexes, `[T]` elements, pointer dereferences, method-call results, enum payloads, or computed projections in v0.
 - If the compiler cannot prove two places are disjoint, it treats them as conflicting.
 
 ## Function Parameters
@@ -164,8 +164,8 @@ Rules:
 Adopted: parameters are immutable bindings inside the function body.
 
 ```nct
-func create<W: Writer>(name: String, count: i32, out: &+W): User ! IOError {
-    try out.write(name.view())
+func create<W: Writer>(name: String, count: i32, out: &+W): User! {
+    out.write(name.view())?
 
     return User{
         name: move name,
@@ -263,7 +263,7 @@ Rules:
 - Initialized owned values are dropped in reverse declaration order.
 - Maybe initialized owned values use compiler-generated conditional drop.
 - Uninitialized bindings are not dropped.
-- `return`, `fail`, and `try` propagation run the same scope-end drop behavior, including conditional drop.
+- `return`, `fail`, and postfix `?` propagation run the same scope-end drop behavior, including conditional drop.
 - A moved value is not dropped through the original binding.
 
 ### Explicit Drop Statements
@@ -271,7 +271,7 @@ Rules:
 Explicit early destruction uses a `drop` statement.
 
 ```nct
-var file = try File.open(path)
+var file = File.open(path)?
 drop file
 ```
 
@@ -304,11 +304,11 @@ Rules:
 Examples:
 
 ```nct
-var file = try File.open(path)
+var file = File.open(path)?
 drop file
 
-file = try File.open(other)
-try file.read()
+file = File.open(other)?
+file.read()?
 ```
 
 Invalid in v0:
@@ -399,7 +399,7 @@ Rules:
 - A binding cannot be moved while it is borrowed.
 - `move` describes ownership transfer. It does not specify whether generated code copies bytes, passes a pointer, or elides a copy.
 - Moving a newly constructed value is unnecessary and invalid in v0.
-- Moving from a field, index, dereference, call result, `try` expression, conditional expression, or parenthesized complex expression is not part of v0.
+- Moving from a field, index, dereference, call result, postfix `?` expression, conditional expression, or parenthesized complex expression is not part of v0.
 - Partial move from a struct field is not part of v0.
 - Index move from an array or collection is not part of v0.
 
@@ -416,7 +416,7 @@ Invalid in v0:
 
 ```nct
 move make_value()
-move (try make_value())
+move (make_value()?)
 move (condition ? a : b)
 move object.field
 move array[index]
@@ -451,7 +451,7 @@ Rules:
 - Moved bindings are not dropped.
 - Copy parameters may be returned with `return parameter`.
 - Move-only owned parameters require `return move parameter`.
-- `return none` is valid for optional return type `T?` and for fallible optional return type `T? ! E`, where it returns success absence.
+- `return none` is valid for optional return type `T?` and for fallible optional return type `(T?)!`, where it returns success absence.
 - Bare `return` is valid only for `void` return type.
 
 Examples:
@@ -491,9 +491,9 @@ Borrow-like return values include:
 
 - `&T`
 - `&+T`
-- `StringView`
-- `View<T>`
-- `WriteView<T>`
+- `str`
+- `[T]`
+- `[+T]`
 - `ViewIter<T>`
 - structs, enums, optionals, fallible values, and arrays containing borrow-like values
 
@@ -505,7 +505,7 @@ Rules:
 - Borrow-like values derived from static storage, such as string literals, may be returned.
 - Borrow-like values derived from input borrow-like parameters may be returned when the return value's provenance is still tied to that input borrow-like value.
 - A readonly borrow-like value may be returned from a readonly or readwrite input borrow-like source.
-- A readwrite borrow-like value may be returned only from a readwrite input borrow-like source, such as `&+T` or `WriteView<T>`.
+- A readwrite borrow-like value may be returned only from a readwrite input borrow-like source, such as `&+T` or `[+T]`.
 - Borrow-like values derived from local owned values cannot be returned.
 - Borrow-like values derived from temporary owned values cannot be returned.
 - Borrow-like values derived from owned parameters cannot be returned, because owned parameters are dropped at function scope end unless moved.
@@ -516,13 +516,13 @@ Rules:
 Examples:
 
 ```nct
-func greeting(): StringView {
+func greeting(): str {
     return "hello" // OK: string literal storage is static
 }
 ```
 
 ```nct
-func first_byte(bytes: View<u8>): u8? {
+func first_byte(bytes: [u8]): u8? {
     if bytes.len() == 0 {
         return none
     }
@@ -532,14 +532,14 @@ func first_byte(bytes: View<u8>): u8? {
 ```
 
 ```nct
-func bad(allocator: &+Allocator): StringView ! AllocError {
-    var text = try String.copy(allocator, "hello")
+func bad(allocator: &+Allocator): str! {
+    var text = String.copy(allocator, "hello")?
     return text.view() // error: view points to local owned value
 }
 ```
 
 ```nct
-func also_bad(text: String): StringView {
+func also_bad(text: String): str {
     return text.view() // error: view points to an owned parameter dropped at return
 }
 ```

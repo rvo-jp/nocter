@@ -3,7 +3,7 @@ use std/prelude
 from std/process import env
 
 program(): i32 {
-    let user = (try env("USER") catch error {
+    let user = (env("USER") catch error {
         return 1
     }) ?? "unknown"
 
@@ -11,6 +11,6 @@ program(): i32 {
     return 0
 }
 
-func use_name(name: StringView): void {
+func use_name(name: str): void {
     return
 }

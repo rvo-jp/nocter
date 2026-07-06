@@ -14,7 +14,7 @@ Diagnostics for type checking, ownership, borrowing, initialization state, visib
 - why it is invalid
 - the most useful correction direction when one is known
 
-Diagnostic text must use Nocter source concepts such as `binding`, `borrow`, `move`, `drop`, `pub(nocter)`, `T ! E`, `T?`, `T? ! E`, `program`, `primitive`, and `Nocter home`. It should not expose backend implementation details such as temporary register allocation, Mach-O offsets, internal AST node names, or recovery placeholders.
+Diagnostic text must use Nocter source concepts such as `binding`, `borrow`, `move`, `drop`, `pub(nocter)`, `T!`, `error`, `T?`, `(T?)!`, `program`, `primitive`, and `Nocter home`. It should not expose backend implementation details such as temporary register allocation, Mach-O offsets, internal AST node names, or recovery placeholders.
 
 ## Format
 
@@ -268,11 +268,11 @@ Required v0 diagnostic families:
 - Invalid reinitialization target after `move` or `drop`.
 - Borrow escaping the storage, temporary, or region it refers to.
 - Returning a borrow-like value whose provenance cannot outlive the function.
-- Fallible error type mismatch for `try`.
+- Postfix `?` used outside a fallible function.
 - `catch` block that can fall through.
-- `try` used on `T?`.
-- Mixed optional/fallible type syntax requiring parentheses, such as `T ! E?`.
-- Optional propagation syntax such as postfix `?` used in v0.
+- Postfix `?` used on `T?`.
+- Mixed optional/fallible type syntax requiring parentheses, such as `T?!`.
+- Optional propagation syntax such as `optional?` used in v0.
 - Optional `if let` / `if var` / `while let` / `while var` used on a non-optional expression.
 - Optional `let ... else` / `var ... else` used on a non-optional expression.
 - Optional `let ... else` / `var ... else` whose `else` block can fall through.
@@ -306,17 +306,17 @@ note: `from_addr` is declared as `pub(nocter)`
 help: use a public safe API instead
 ```
 
-Fallible error mismatch:
+Fallible propagation outside a fallible function:
 
 ```text
-error[E0310]: `try` would fail with `IOError`, but this function fails with `AppError`
+error[E0310]: postfix `?` can only propagate from a fallible function
   --> app.nct:8:16
    |
-8 |     let file = try File.open(path)
-   |                ^^^^^^^^^^^^^^^^^^^
+8 |     let file = File.open(path)?
+   |                              ^
    |
-note: current function returns `String ! AppError`
-help: use `try ... catch` to map the error
+note: current function returns `String`
+help: change the return type to `String!` or handle the failure with `catch`
 ```
 
 Maybe initialized binding:
@@ -325,8 +325,8 @@ Maybe initialized binding:
 error[E0220]: `file` may be uninitialized on this path
   --> app.nct:11:9
    |
-11 |     try file.read()
-   |         ^^^^
+11 |     file.read()?
+   |     ^^^^
    |
 note: `file` is moved on one branch above
 help: reinitialize `file` on every path before using it

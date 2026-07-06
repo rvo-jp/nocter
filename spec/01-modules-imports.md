@@ -29,21 +29,18 @@ from std/mem import Allocator
 Adopted import forms:
 
 ```nct
-use std/prelude
-
 from std/mem import Allocator
 from std/io import File, stdout, stderr
 from std/io import File as StdFile
 from ./config import AppConfig
 from ../shared/path import Path
-pub from std/string import String, StringView
+pub from std/string import String
 
 import std/io as io
 ```
 
 Meaning:
 
-- `use std/prelude` explicitly enables the standard prelude for the current file.
 - `from path import Name` imports one exported name into the current file.
 - `from path import NameA, NameB` imports multiple exported names from one file.
 - `from path import Name as Alias` imports one exported name under an alias.
@@ -54,13 +51,18 @@ Meaning:
 Examples:
 
 ```nct
-use std/prelude
-
 import std/io as io
 from std/io import File as StdFile
 
 var out = io.stdout()
-let file = try StdFile.open(path)
+let file = StdFile.open(path)?
+```
+
+`use std/prelude` is not normally written in user source. User project modules receive the standard prelude synthetically as described in [Synthetic Standard Prelude](#synthetic-standard-prelude).
+
+```nct
+use std/prelude
+// accepted but redundant in a user project module
 ```
 
 Name collisions are compile errors.
@@ -99,7 +101,7 @@ Wildcard imports, bare imports without an alias, dotted import paths, namespace 
 Adopted: public re-export uses `pub from`.
 
 ```nct
-pub from std/string import String, StringView
+pub from std/string import String
 pub from std/io import File as StdFile
 ```
 
@@ -122,30 +124,38 @@ Rules:
 - `pub from` does not create a namespace alias.
 - Import cycles involving `pub from` are still import cycles and are errors in the initial design.
 
-## Explicit Prelude
+## Synthetic Standard Prelude
 
-Adopted: Nocter uses an explicit file-local prelude statement.
+Adopted: user project modules behave as if the compiler inserted a synthetic `use std/prelude` at the beginning of the file.
 
 ```nct
 use std/prelude
 ```
 
-`use std/prelude` imports the public prelude names from `std/prelude.nct` into the current file's import scope.
+The compiler does not rewrite source text. The synthetic prelude exists in the module/import model only. Diagnostics, formatting, AST source spans, and editor views should continue to refer to the user's original source.
+
+The purpose is to avoid requiring this boilerplate in every file while keeping prelude behavior defined as an import rule rather than as special compiler treatment for names such as `Int`. Built-in forms such as `str`, `[T]`, and `[+T]` are not provided by the prelude.
 
 Initial rules:
 
-- `use std/prelude` is optional.
+- Every user project module has a synthetic file-local `use std/prelude`.
+- The synthetic prelude is applied independently to each user project module.
+- The synthetic prelude does not propagate from one file to another; each user project file gets its own synthetic prelude.
+- The synthetic prelude is not applied to files inside the active Nocter home.
+- The synthetic prelude is not applied to common standard-library files under `std/`.
+- The synthetic prelude is not applied to active target overlay files under `targets/<target>/std/`.
+- The synthetic prelude is not applied to `std/prelude.nct` itself.
+- An explicit source-level `use std/prelude` is accepted in a user project module but is redundant.
+- An explicit source-level `use std/prelude` does not introduce names twice and does not collide with the synthetic prelude.
+- If a file is ineligible for the synthetic prelude, an explicit `use std/prelude` follows the normal `use` rules.
 - `use std/prelude` is allowed only at top level.
-- `use std/prelude` affects only the file that contains it.
-- `use std/prelude` does not propagate to imported files.
-- A file may contain at most one `use std/prelude` statement.
 - In v0, `use` is accepted only for `std/prelude`.
 - `use std/prelude as prelude` is invalid.
 - `use ./prelude` is invalid.
 - `include std/prelude` is invalid.
-- Names introduced by `use std/prelude` participate in the same collision checks as explicit imports.
+- Names introduced by the synthetic or explicit prelude participate in the same collision checks as explicit imports.
 - If a prelude name collides with a local declaration, top-level declaration, parameter, local binding, explicit import, or built-in name, the program is invalid.
-- There is no implicit prelude.
+- Diagnostics should identify collisions with the synthetic prelude as prelude collisions, not as hidden compiler built-ins.
 - Project-wide prelude configuration is not part of the initial design.
 
 Initial prelude surface direction:
@@ -153,11 +163,11 @@ Initial prelude surface direction:
 ```nct
 pub type Int = i32
 
-pub from std/string import String, StringView
-pub from std/view import View, WriteView
+pub from std/error import Error, ErrorCode
+pub from std/string import String
 ```
 
-The prelude should remain small. Names such as `File`, `IOError`, `print`, `args`, `env`, `cwd`, `exit`, and `abort` should be imported explicitly from their domain modules.
+The prelude must remain small. It should contain only core type aliases and ubiquitous value-free standard-library types needed to write ordinary signatures. Names such as `File`, `Allocator`, `Layout`, `RawBuffer`, `print`, `stdout`, `stderr`, `args`, `env`, `cwd`, `exit`, and `abort` should be imported explicitly from their domain modules.
 
 ## Package Layout
 
@@ -194,15 +204,13 @@ Example:
 
 ```nct
 // app.nct
-use std/prelude
-
 from std/io import print
 from ./src/config import Config
 
 program(): i32 {
     let config = Config.default()
 
-    try print(config.name) catch error {
+    print(config.name) catch error {
         return 1
     }
 
@@ -212,10 +220,8 @@ program(): i32 {
 
 ```nct
 // src/config.nct
-use std/prelude
-
 pub struct Config {
-    pub name: StringView
+    pub name: str
 }
 
 impl Config {
@@ -231,11 +237,12 @@ impl Config {
 
 `nocter build app.nct`, `nocter run app.nct`, and `nocter check app.nct` treat `app.nct` as the root file. The CLI contract is specified in [Command Line Interface](15-command-line-interface.md).
 
-The compile unit is the root file plus every `.nct` file reached by following `from`, `pub from`, `import`, and `use std/prelude` declarations recursively.
+The compile unit is the root file plus every `.nct` file reached by following `from`, `pub from`, `import`, explicit `use std/prelude`, and eligible synthetic `use std/prelude` declarations recursively.
 
 Rules:
 
-- Import, re-export, and `use` declarations are allowed only at top level.
+- Import, re-export, and explicit `use` declarations are allowed only at top level.
+- Synthetic `use std/prelude` is compiler-internal and behaves as if it appears before source-level imports for eligible user project modules.
 - Top-level executable statements are not allowed.
 - A root executable must contain exactly one `program` construct.
 - `program` is allowed only in the root file.
@@ -364,7 +371,7 @@ Lookup order:
 2. Outer lexical block bindings.
 3. Function parameters.
 4. Same-file top-level declarations.
-5. Explicitly imported names and names introduced by `use std/prelude`.
+5. Explicitly imported names and names introduced by the synthetic or explicit prelude.
 6. Built-in types and reserved syntax forms.
 
 Initial rules:
@@ -373,12 +380,13 @@ Initial rules:
 - Function parameter names must be unique within the parameter list.
 - A function parameter must not reuse a visible local, parameter, top-level, imported, prelude, or built-in type name.
 - A local binding must not reuse a visible local, parameter, top-level, imported, or built-in type name.
-- Two imports, a re-export, or `use std/prelude` introducing the same local name are errors.
+- Two imports, a re-export, or a prelude name introducing the same local name are errors.
 - A same-file top-level declaration and an imported name must not have the same local name.
 - `import path as alias` introduces only the alias name.
 - Names inside an imported namespace alias are accessed with member syntax, such as `io.stdout()`.
 - There is no wildcard import.
 - There is no implicit import of every name from `std`.
+- The synthetic prelude is limited to `std/prelude`; it is not a general implicit import facility.
 
 ## Visibility
 
@@ -390,7 +398,7 @@ pub struct File {
 }
 
 impl File {
-    pub func open(path: StringView): File ! IOError {
+    pub func open(path: str): File! {
         ...
     }
 

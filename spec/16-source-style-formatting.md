@@ -66,7 +66,7 @@ if path.len() == 0 {
 
 ```nct
 impl File {
-    pub method (file: &+Self).write_text(text: StringView): void ! IOError {
+    pub method (file: &+Self).write_text(text: str): void! {
         ...
     }
 }
@@ -76,23 +76,24 @@ impl File {
 
 Rules:
 
-- Fallible type syntax is formatted as `T ! E`.
-- Fallible optional success is formatted as `T? ! E`.
+- Fallible type syntax is formatted as `T!`.
+- Fallible optional success is formatted as `(T?)!`.
 - Optional type syntax is attached to the success type: `T?`.
 - Pointer and borrow syntax is attached to the type: `*T`, `&T`, `&+T`.
-- Generic type arguments are attached to the type name: `View<T>`.
+- Generic type arguments are attached to the type name: `Buffer<T>`.
+- Built-in view type syntax is formatted as `[T]` and `[+T]`.
 - Fixed-size arrays are formatted as `[T; N]`.
-- Parentheses used for type grouping do not add internal padding: `(T ! E)?`.
+- Parentheses used for type grouping do not add internal padding: `(T?)!`.
 
 Examples:
 
 ```nct
-func open(path: StringView): File ! IOError
-func env(name: StringView): StringView? ! ProcessError
-func first(items: View<StringView>): StringView?
+func open(path: str): File!
+func env(name: str): (str?)!
+func first(items: [str]): str?
 ```
 
-The parser may accept compact fallible spelling such as `T!E`, but formatter output must use `T ! E`.
+The parser may later accept compact fallible optional spelling such as `T?!`, but formatter output must use `(T?)!`.
 
 ## Declarations
 
@@ -115,8 +116,8 @@ let home = maybe_home else {
 
 func read_all(
     allocator: &+Allocator,
-    path: StringView,
-): String ! IOError {
+    path: str,
+): String! {
     ...
 }
 ```
@@ -150,22 +151,27 @@ file.write_text("hello")
 Rules:
 
 - Control-flow keywords are followed by one space before their condition or pattern.
-- `catch` in `try ... catch` is separated from the preceding expression by one space.
-- `match` arms use `is Pattern { ... }`.
+- `catch` after a fallible expression is separated from the expression by one space.
+- Single-pattern enum checks use `if expr is Pattern { ... }`.
+- `switch` arms use `is Pattern { ... }`.
+- `switch` fallback arms use `else { ... }` and must be written last.
 - Range `for` syntax is formatted as `for i in start..<end { ... }`.
 
 Examples:
 
 ```nct
-let file = try File.open(path) catch error {
-    fail AppError.open_failed(path)
+let file = File.open(path) catch error {
+    fail Error.new(ErrorCode.io_open_failed, error.message)
 }
 
-match error {
+switch error {
     is AppError.missing_path {
         ...
     }
     is AppError.open_failed(path) {
+        ...
+    }
+    else {
         ...
     }
 }

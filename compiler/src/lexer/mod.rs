@@ -63,12 +63,13 @@ pub enum Keyword {
     Loop,
     Break,
     Continue,
-    Match,
+    Switch,
     Is,
-    Try,
     Catch,
     Fail,
     None,
+    True,
+    False,
     Move,
     Drop,
     As,
@@ -236,15 +237,6 @@ impl Lexer<'_> {
                         start,
                         self.index,
                         "plain single-quoted character literals are not part of v0",
-                    );
-                }
-                b';' => {
-                    let start = self.index;
-                    self.index += 1;
-                    self.error(
-                        start,
-                        self.index,
-                        "semicolon statement terminators are invalid",
                     );
                 }
                 b'@' => {
@@ -582,6 +574,7 @@ impl Lexer<'_> {
             b']' => "]",
             b',' => ",",
             b':' => ":",
+            b';' => ";",
             b'.' => ".",
             b'+' => "+",
             b'-' => "-",
@@ -715,12 +708,13 @@ fn keyword(text: &str) -> Option<Keyword> {
         "loop" => Keyword::Loop,
         "break" => Keyword::Break,
         "continue" => Keyword::Continue,
-        "match" => Keyword::Match,
+        "switch" => Keyword::Switch,
         "is" => Keyword::Is,
-        "try" => Keyword::Try,
         "catch" => Keyword::Catch,
         "fail" => Keyword::Fail,
         "none" => Keyword::None,
+        "true" => Keyword::True,
+        "false" => Keyword::False,
         "move" => Keyword::Move,
         "drop" => Keyword::Drop,
         "as" => Keyword::As,
@@ -772,6 +766,49 @@ mod tests {
                 .iter()
                 .any(|token| matches!(token.kind, TokenKind::Punctuation("/*" | "*/" | "//")))
         );
+    }
+
+    #[test]
+    fn lexes_half_open_range_punctuation() {
+        let mut sources = SourceMap::new();
+        let id = sources.add_source("app.nct", None, "for i in 0..<4 {}");
+        let output = lex(&sources, id);
+
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        assert!(
+            output
+                .tokens
+                .iter()
+                .any(|token| token.kind == TokenKind::Punctuation("..<"))
+        );
+    }
+
+    #[test]
+    fn lexes_switch_keyword_and_match_identifier() {
+        let mut sources = SourceMap::new();
+        let id = sources.add_source(
+            "app.nct",
+            None,
+            "switch value {}\nlet match = 1\nlet try = 2",
+        );
+        let output = lex(&sources, id);
+
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        assert_eq!(output.tokens[0].kind, TokenKind::Keyword(Keyword::Switch));
+        assert!(output.tokens.iter().any(|token| {
+            token.kind == TokenKind::Identifier
+                && sources
+                    .get(token.span.source)
+                    .and_then(|file| file.text().get(token.span.start..token.span.end))
+                    == Some("match")
+        }));
+        assert!(output.tokens.iter().any(|token| {
+            token.kind == TokenKind::Identifier
+                && sources
+                    .get(token.span.source)
+                    .and_then(|file| file.text().get(token.span.start..token.span.end))
+                    == Some("try")
+        }));
     }
 
     #[test]

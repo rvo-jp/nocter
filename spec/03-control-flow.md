@@ -8,7 +8,7 @@ The specification entry point is [../SPEC.md](../SPEC.md).
 Functions are declared with `func`.
 
 ```nct
-func scan_words(text: StringView): WordStats {
+func scan_words(text: str): WordStats {
     ...
 }
 ```
@@ -21,9 +21,9 @@ Return checking:
 
 - A `void` function may use bare `return` or reach the end of the function body.
 - A non-fallible, non-optional function returning a non-`void` type must return a value on every reachable normal path, unless the path terminates with `never`.
-- A fallible function `T ! E` must return a success value, `fail` with an error, or terminate with `never` on every reachable path.
+- A fallible function `T!` must return a success value, `fail` with an `error`, or terminate with `never` on every reachable path.
 - An optional function `T?` must return a present value, `return none`, or terminate with `never` on every reachable path.
-- A fallible optional function `T? ! E` must return a present success value, `return none` as success absence, `fail` with an error, or terminate with `never` on every reachable path.
+- A fallible optional function `(T?)!` must return a present success value, `return none` as success absence, `fail` with an `error`, or terminate with `never` on every reachable path.
 - `program(): void` and `program(): i32` follow the same return checking rules as functions with those return types.
 
 Return value ownership, move, borrow, and view rules are specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#return-values).
@@ -33,11 +33,11 @@ Return value ownership, move, borrow, and view rules are specified in [Ownership
 Adopted: v0 uses positional arguments only.
 
 ```nct
-func copy(allocator: &+Allocator, source: StringView): String ! AllocError {
+func copy(allocator: &+Allocator, source: str): String! {
     ...
 }
 
-let text = try String.copy(&+allocator, "hello")
+let text = String.copy(&+allocator, "hello")?
 ```
 
 Rules:
@@ -63,17 +63,17 @@ Examples:
 ```nct
 pub func copy(
     allocator: &+Allocator,
-    source: StringView,
-): String ! AllocError {
+    source: str,
+): String! {
     ...
 }
 ```
 
 ```nct
-let text = try String.copy(
+let text = String.copy(
     &+allocator,
     "hello",
-)
+)?
 ```
 
 Invalid in v0:
@@ -81,19 +81,19 @@ Invalid in v0:
 ```nct
 String.copy(allocator: &+allocator, source: "hello") // named arguments
 
-func open(path: StringView = "input.txt"): File ! IOError {
+func open(path: str = "input.txt"): File! {
     ...
 }
 
-func print_all(parts: StringView...): void {
+func print_all(parts: str...): void {
     ...
 }
 
-func open(path: StringView): File ! IOError {
+func open(path: str): File! {
     ...
 }
 
-func open(path: StringView, mode: OpenMode): File ! IOError {
+func open(path: str, mode: OpenMode): File! {
     ...
 }
 ```
@@ -107,11 +107,11 @@ pub struct OpenOptions {
     pub create: bool
 }
 
-let file = try File.open_with(path, OpenOptions{
+let file = File.open_with(path, OpenOptions{
     read: true,
     write: false,
     create: false,
-})
+})?
 ```
 
 ## Conditional Operator
@@ -141,7 +141,7 @@ let label = count == 0 ? "empty" : "ready"
 
 Adopted: the initial language is statement-centered.
 
-`if`, `match`, and block bodies do not produce values in the initial design. Functions return values with explicit `return`. Fallible functions fail with explicit `fail`. Optional functions return absence with explicit `return none`.
+`if`, `switch`, and block bodies do not produce values in the initial design. Functions return values with explicit `return`. Fallible functions fail with explicit `fail`. Optional functions return absence with explicit `return none`.
 
 ```nct
 func max(a: i32, b: i32): i32 {
@@ -162,14 +162,14 @@ Rules:
 - `let name = optional_expr else { ... }` is a declaration statement.
 - `var name = optional_expr else { ... }` is a declaration statement.
 - `if enum_expr is Pattern { ... }` is a statement.
-- `match enum_expr { ... }` is a statement.
+- `switch enum_expr { ... }` and `switch enum_expr { ... else { ... } }` are statements.
 - `for name in start..<end { ... }` is a statement.
 - Blocks `{ ... }` do not return trailing expression values.
 - `return value` is required to return a value from a function.
 - `fail error` is required to return a failure from a fallible function.
 - `return none` is required to return absence from an optional function, or success absence from a fallible optional function.
 - Optional `let ... else` and `var ... else` declarations must use an `else` block that terminates the current control path.
-- Expression-valued `if`, `match`, and block forms are deferred.
+- Expression-valued `if`, `switch`, and block forms are deferred.
 
 Invalid in the initial design:
 
@@ -180,7 +180,7 @@ let value = if condition {
     b
 }
 
-return match error {
+return switch error {
     is AppError.open_failed(path) { 1 }
     else { 0 }
 }
@@ -216,10 +216,10 @@ Rules:
 - When an operand or branch is evaluated, its subexpressions still follow the normal left-to-right rule.
 - Temporaries are dropped at the end of the current statement in reverse creation order unless ownership is moved into a longer-lived owner.
 - Longer-lived owners include local bindings, owned parameters, constructed aggregate values, assigned target places, and returned values.
-- Blocks, `if` bodies, `match` arms, and loop bodies create scopes.
+- Blocks, `if` bodies, `switch` arms, and loop bodies create scopes.
 - Initialized local values are dropped at scope end in reverse declaration order.
 - Maybe initialized local values use compiler-generated conditional drop at scope end.
-- `try`, `return`, `fail`, `break`, and `continue` first drop temporaries already created by the current statement, then run the required normal or conditional drops for scopes they leave.
+- Postfix `?`, `return`, `fail`, `break`, and `continue` first drop temporaries already created by the current statement, then run the required normal or conditional drops for scopes they leave.
 - Borrows and borrow-like views derived from temporaries cannot escape the statement.
 - Temporary lifetime extension is not part of the initial design.
 
@@ -240,22 +240,22 @@ Evaluation order:
 This is invalid:
 
 ```nct
-let view = (try String.copy(allocator, "abc")).view()
+let view = (String.copy(allocator, "abc")?).view()
 ```
 
-`String.copy(...)` produces a temporary owned `String`. `.view()` borrows from that temporary. The temporary would be dropped at the end of the statement, so the `StringView` cannot be stored in `view`.
+`String.copy(...)` produces a temporary owned `String`. `.view()` borrows from that temporary. The temporary would be dropped at the end of the statement, so the `str` cannot be stored in `view`.
 
 Write this instead:
 
 ```nct
-var text = try String.copy(allocator, "abc")
+var text = String.copy(allocator, "abc")?
 let view = text.view()
 ```
 
 A method receiver borrow lasts only for the call unless the method returns a value whose type carries a borrow-like lifetime tracked by the compiler.
 
 ```nct
-try file.write_text("hello")
+file.write_text("hello")?
 ```
 
 The call above creates a temporary readwrite borrow of `file` for the duration of the call and ends that borrow after the call.
@@ -263,7 +263,7 @@ The call above creates a temporary readwrite borrow of `file` for the duration o
 Fallible temporary receivers must make each fallible step explicit:
 
 ```nct
-try (try File.open(path)).write_text("hello")
+(File.open(path)?).write_text("hello")?
 ```
 
 If `File.open(path)` fails, no `File` temporary exists. If `write_text` fails, the temporary `File` produced by `File.open(path)` is dropped before the failure propagates. If `write_text` succeeds, the temporary `File` is dropped at the end of the statement.
@@ -340,7 +340,7 @@ Rules:
 Deferred:
 
 - `for item in expr { ... }`
-- mutable element iteration over `WriteView<T>`
+- mutable element iteration over `[+T]`
 - compiler-lowered iteration syntax that treats ordinary names such as `iter` or `next` specially
 - reverse iteration and custom step syntax
 
@@ -390,7 +390,7 @@ Example:
 ```nct
 import std/process as process
 
-func require_path(path: StringView?): StringView {
+func require_path(path: str?): str {
     if let value = path {
         return value
     }
@@ -412,7 +412,7 @@ Rules:
 - `never` cannot be constructed, stored in a variable, used as a field type, or used as an array element type in the initial design.
 - Calling a `never` function does not imply stack unwinding, statement-end temporary drops, or caller-scope `drop` execution.
 - If cleanup is required before a terminating API such as `exit` or `abort`, the program must perform that cleanup before the `never` call or use a normal `return`, `fail`, `break`, or `continue` path.
-- `fail` is recoverable failure and is valid only through fallible type `T ! E`.
+- `fail` is recoverable failure and is valid only through fallible type `T!`.
 - `trap` is non-recoverable failure caused by a program defect, violated compiler check, or impossible execution path.
 - `abort` is immediate process termination and does not run Nocter cleanup.
 - `panic` and stack unwinding are not part of v0.
@@ -421,17 +421,17 @@ Rules:
 Example:
 
 ```nct
-func require_path_short(path: StringView?): StringView {
+func require_path_short(path: str?): str {
     return path ?? process.abort()
 }
 ```
 
-The `??` expression above has type `StringView`. The right side does not produce a fallback `StringView`; it terminates the current path.
+The `??` expression above has type `str`. The right side does not produce a fallback `str`; it terminates the current path.
 
 `never` also satisfies `catch` block termination:
 
 ```nct
-let file = try File.open(path) catch error {
+let file = File.open(path) catch error {
     process.abort()
 }
 ```

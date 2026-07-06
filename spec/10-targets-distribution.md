@@ -101,7 +101,6 @@ The installed layout is:
         os.nct
         ptr.nct
         string.nct
-        view.nct
     targets/
         arm64-darwin/
             std/

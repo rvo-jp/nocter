@@ -60,9 +60,9 @@ One-word values:
 
 Two-word values:
 
-- `StringView`
-- `View<T>`
-- `WriteView<T>`
+- `str`
+- `[T]`
+- `[+T]`
 
 Layout of these view types:
 
@@ -71,7 +71,7 @@ word 0: ptr
 word 1: len
 ```
 
-`ptr` points to the first byte or element. `len` is a `usize` count. For `StringView`, `len` is the number of UTF-8 bytes.
+`ptr` points to the first byte or element. `len` is a `usize` count. For `str`, `len` is the number of UTF-8 bytes.
 
 Values larger than 16 bytes are classified as indirect values.
 
@@ -170,10 +170,10 @@ No niche optimization is part of ABI v0. Even if a type has unused bit patterns,
 
 ### Fallible Layout
 
-`T ! E` is represented as a tag plus a payload union.
+`T!` is represented as a tag plus a payload union.
 
 ```text
-T ! E:
+T!:
   tag 0 = success
   tag 1 = failure
 ```
@@ -182,14 +182,14 @@ Rules:
 
 - The tag type is `u32`.
 - Success payload layout is the layout of `T`.
-- Failure payload layout is the layout of `E`.
+- Failure payload layout is the layout of the built-in `error` type.
 - The payload area is large enough and aligned enough for either payload.
 - The payload is live only for the active tag.
 - Drop code drops only the active payload.
 
 Nocter source uses `return value` for success and `fail error` for failure. ABI v0 does not reserve the identifier `success`; it defines only the binary tag meaning.
 
-Composed optional and fallible values use the same layout rules recursively. For example, `T? ! E` is laid out as `(T?) ! E`: the success payload of the outer fallible value is the explicit-tag layout of `T?`.
+Composed optional and fallible values use the same layout rules recursively. For example, `(T?)!` is laid out as a fallible value whose success payload is the explicit-tag layout of `T?`.
 
 ### Drop ABI
 

@@ -93,20 +93,20 @@ func address_of(value: &u8): usize {
 
 ### View Pointer APIs
 
-`View<T>`, `WriteView<T>`, and `StringView` expose pointer and length methods.
+`[T]`, `[+T]`, and `str` expose pointer and length methods.
 
 ```nct
-impl View<T> {
+impl [T] {
     pub method (view: Self).ptr(): *T
     pub method (view: Self).len(): usize
 }
 
-impl WriteView<T> {
+impl [+T] {
     pub method (view: Self).ptr(): *T
     pub method (view: Self).len(): usize
 }
 
-impl StringView {
+impl str {
     pub method (text: Self).ptr(): *u8
     pub method (text: Self).len(): usize
 }
@@ -167,42 +167,40 @@ Rules:
 Owned growable memory is represented by standard-library types such as `Buffer<T>`. `Buffer<T>` is not a compiler builtin.
 
 ```nct
-var bytes = try Buffer<u8>.with_capacity(allocator, 4096)
-try bytes.push(10)
+var bytes = Buffer<u8>.with_capacity(allocator, 4096)?
+bytes.push(10)?
 
-let read: View<u8> = bytes.view()
-let write: WriteView<u8> = bytes.write_view()
+let read: [u8] = bytes.view()
+let write: [+u8] = bytes.write_view()
 ```
 
-Nocter uses `View<T>` and `WriteView<T>` for non-owning views over contiguous elements.
-
-Their canonical standard-library module path is `std/view`.
+Nocter uses built-in `[T]` and `[+T]` type syntax for non-owning views over contiguous elements.
 
 ```nct
-View<T>       // readonly contiguous view
-WriteView<T> // readwrite contiguous view
+[T]       // readonly contiguous view
+[+T]      // readwrite contiguous view
 ```
 
-`View<T>` allows reading contiguous `T` elements but does not own them.
+`[T]` allows reading contiguous `T` elements but does not own them.
 
-`WriteView<T>` allows reading and writing contiguous `T` elements but does not own them.
+`[+T]` allows reading and writing contiguous `T` elements but does not own them.
 
-The names are chosen to align with `StringView`.
+The syntax mirrors borrow permissions: `&T` and `[T]` are readonly, while `&+T` and `[+T]` are readwrite.
 
 ```nct
-func checksum(bytes: View<u8>): u32 {
+func checksum(bytes: [u8]): u32 {
     ...
 }
 
-func read_into(file: &+File, output: WriteView<u8>): usize ! IOError {
+func read_into(file: &+File, output: [+u8]): usize! {
     ...
 }
 ```
 
 Important distinction:
 
-- `WriteView<T>` means the viewed elements are readwrite.
-- `&+View<T>` means the `View<T>` value itself is readwrite borrowed.
+- `[+T]` means the viewed elements are readwrite.
+- `&+[T]` means the `[T]` value itself is readwrite borrowed.
 
 These are not the same thing.
 
@@ -214,9 +212,9 @@ Borrow-like values:
 
 - `&T`
 - `&+T`
-- `StringView`
-- `View<T>`
-- `WriteView<T>`
+- `str`
+- `[T]`
+- `[+T]`
 - `ViewIter<T>`
 - aggregates containing any borrow-like value
 
@@ -236,7 +234,7 @@ unknown      storage the compiler cannot prove
 Rules:
 
 - Borrow-like values keep the provenance of the storage they refer to.
-- Derived views keep the same provenance as their source. For example, `StringView.bytes()` keeps the `StringView` provenance.
+- Derived views keep the same provenance as their source. For example, `str.bytes()` keeps the `str` provenance.
 - Aggregates containing borrow-like values carry the contained provenance.
 - `static` provenance may escape any function or region.
 - `local` provenance must not escape the local scope.
@@ -244,8 +242,8 @@ Rules:
 - `region` provenance must not escape the region.
 - `param_borrow` provenance may be returned from the function, but the caller may not use the returned borrow-like value longer than the original input borrow remains valid.
 - `unknown` provenance cannot be returned from a function or stored into a longer-lived place in safe v0 code.
-- `WriteView<T>` carries readwrite permission and follows the exclusivity rules of `&+T` for the viewed storage.
-- `View<T>` and `StringView` carry readonly permission.
+- `[+T]` carries readwrite permission and follows the exclusivity rules of `&+T` for the viewed storage.
+- `[T]` and `str` carry readonly permission.
 - A readonly borrow-like value may be derived from readonly or readwrite provenance.
 - A readwrite borrow-like value may be derived only from readwrite provenance.
 - If the compiler cannot prove the provenance and permission required for an escape or mutation, the program is invalid.
@@ -253,26 +251,26 @@ Rules:
 Examples:
 
 ```nct
-func ok(): StringView {
+func ok(): str {
     return "hello" // static
 }
 ```
 
 ```nct
-func bad(allocator: &+Allocator): StringView ! AllocError {
-    var text = try String.copy(allocator, "hello")
+func bad(allocator: &+Allocator): str! {
+    var text = String.copy(allocator, "hello")?
     return text.view() // error: local
 }
 ```
 
 ```nct
-func slice(input: StringView): StringView {
+func slice(input: str): str {
     return input // param_borrow-like provenance
 }
 ```
 
 ```nct
-func writable(input: WriteView<u8>): WriteView<u8> {
+func writable(input: [+u8]): [+u8] {
     return input // readwrite param_borrow-like provenance
 }
 ```
@@ -299,11 +297,11 @@ Initial collection method direction:
 - `len(): usize`
 - `get(index: usize): T?`
 - `ptr(): *T` for contiguous views
-- `view(): View<T>` for owning collections that can expose readonly contiguous storage
-- `write_view(): WriteView<T>` for owning collections that can expose readwrite contiguous storage
+- `view(): [T]` for owning collections that can expose readonly contiguous storage
+- `write_view(): [+T]` for owning collections that can expose readwrite contiguous storage
 - readonly borrow iteration through ordinary `iter()` and `next()` methods
 
-The compiler may need built-in knowledge for fixed-size array layout and array literal typing. `Buffer<T>`, `View<T>`, `WriteView<T>`, `ViewIter<T>`, `get`, `len`, `ptr`, `view`, `write_view`, `iter`, and `next` should remain standard-library surface where possible.
+The compiler owns the layout and provenance rules for fixed-size arrays, `[T]`, and `[+T]`. `Buffer<T>`, `ViewIter<T>`, `get`, `len`, `ptr`, `view`, `write_view`, `iter`, and `next` remain ordinary API surface; the compiler must not special-case those names.
 
 ### Iteration
 
@@ -311,14 +309,14 @@ Adopted: v0 collection iteration is explicit readonly borrow iteration through s
 
 The compiler does not lower `for item in collection` into calls to `iter` or `next`. The names `iter`, `next`, `ViewIter`, and `into_iter` are not special to the compiler.
 
-Initial `std/view` iterator surface:
+Future iterator surface:
 
 ```nct
 pub struct ViewIter<T> {
     ...
 }
 
-impl View<T> {
+impl [T] {
     pub method (view: &Self).iter(): ViewIter<T>
 }
 
@@ -327,7 +325,7 @@ impl ViewIter<T> {
 }
 ```
 
-`View<T>.iter()` returns an iterator over readonly borrows into the viewed storage. `ViewIter<T>.next()` advances the iterator and returns an optional readonly borrow. The result type is written as `(&T)?` to mean "optional borrow"; it is not a borrow of an optional value.
+`[T].iter()` returns an iterator over readonly borrows into the viewed storage. `ViewIter<T>.next()` advances the iterator and returns an optional readonly borrow. The result type is written as `(&T)?` to mean "optional borrow"; it is not a borrow of an optional value.
 
 ```nct
 var iter = bytes.iter()
@@ -339,34 +337,34 @@ while let byte = iter.next() {
 
 Rules:
 
-- `ViewIter<T>` is a standard-library type in `std/view`, not a compiler built-in.
-- `ViewIter<T>` carries the same hidden provenance as the source `View<T>`.
-- The `&T` returned from `next()` carries the same provenance and readonly permission as the source `View<T>`.
+- `ViewIter<T>` is a standard-library type, not a compiler built-in.
+- `ViewIter<T>` carries the same hidden provenance as the source `[T]`.
+- The `&T` returned from `next()` carries the same provenance and readonly permission as the source `[T]`.
 - The iterator must be stored in a `var` binding to call `next()` repeatedly because `next()` requires a `&+Self` receiver.
-- `WriteView<T>` mutable element iteration is not part of v0.
+- `[+T]` mutable element iteration is not part of v0.
 - Owned iteration that moves elements out of a collection, such as `into_iter()`, is not part of v0.
 - Range `for` remains the only `for` syntax in v0.
 
 ## Strings
 
-String literals have the canonical standard-library type `std/string.StringView`.
+String literals have the built-in type `str`.
 
 ```nct
-let name = "Nocter" // std/string.StringView
+let name = "Nocter" // str
 ```
 
-Source code can write the unqualified name `StringView` only when that name has been introduced by `use std/prelude` or explicitly imported from `std/string`.
+`str` is a built-in type name and does not require an import. It is not exported by `std/string` or `std/prelude`.
 
 The compiler places string literal bytes into the Mach-O image. A string literal is not an owned `String`, and the compiler must not allocate a heap object for it.
 
-`StringView` is the borrowed string view type:
+`str` is the borrowed string view type:
 
 - It is a copy type.
 - It is non-owning.
 - It points to valid UTF-8 bytes.
 - It does not run `drop`.
 - It may point to static literal bytes or bytes owned by another object.
-- It can expose its bytes as `View<u8>`.
+- It can expose its bytes as `[u8]`.
 
 `String` is the owning string type:
 
@@ -374,40 +372,40 @@ The compiler places string literal bytes into the Mach-O image. A string literal
 - It is move-only.
 - It is implemented in the standard library, likely on top of `Buffer<u8>`.
 - It releases its buffer when dropped.
-- It can produce a `StringView`.
+- It can produce a `str`.
 
 ```nct
-let view: StringView = "README.md"
-var owned = try String.copy(allocator, view)
+let view: str = "README.md"
+var owned = String.copy(allocator, view)?
 
 open(view)
 open(owned.view())
 
-func open(path: StringView): File ! IOError {
+func open(path: str): File! {
     ...
 }
 ```
 
-Adopted standard library surface:
+Adopted method surface direction:
 
 ```nct
 impl String {
-    pub func copy(allocator: &+Allocator, text: StringView): String ! AllocError
-    pub method (text: &Self).view(): StringView
+    pub func copy(allocator: &+Allocator, text: str): String!
+    pub method (text: &Self).view(): str
 }
 
-impl StringView {
+impl str {
     pub method (text: Self).ptr(): *u8
     pub method (text: Self).len(): usize
-    pub method (text: Self).bytes(): View<u8>
+    pub method (text: Self).bytes(): [u8]
 }
 ```
 
-`View<u8>` represents arbitrary bytes and is not necessarily valid UTF-8. Converting `StringView` to `View<u8>` is allowed. Converting `View<u8>` to `StringView` requires UTF-8 validation.
+`[u8]` represents arbitrary bytes and is not necessarily valid UTF-8. Converting `str` to `[u8]` is allowed. Converting `[u8]` to `str` requires UTF-8 validation.
 
-There is no implicit conversion from a string literal to `&String`. `&String` borrows an existing owned `String` object. A string literal is already a `StringView`; creating an owned `String` from it requires an explicit copy.
+There is no implicit conversion from a string literal to `&String`. `&String` borrows an existing owned `String` object. A string literal is already a `str`; creating an owned `String` from it requires an explicit copy.
 
-The `char` type is deferred. Initial string APIs should operate on `StringView` and bytes until Unicode scalar and grapheme behavior is specified.
+The `char` type is deferred. Initial string APIs should operate on `str` and bytes until Unicode scalar and grapheme behavior is specified.
 
 ## Byte Literals and Escapes
 
@@ -428,7 +426,7 @@ Rules:
 - Plain single-quoted literals such as `'a'` are not part of the initial design.
 - The `char` type remains deferred.
 - Single quote syntax is reserved for a future `Char` or Unicode scalar design.
-- String literals use `"..."` and have canonical type `std/string.StringView`.
+- String literals use `"..."` and have built-in type `str`.
 - String literals are UTF-8.
 - String literal length APIs report byte length unless a future Unicode API explicitly says otherwise.
 - Escapes are interpreted by the compiler before placing literal bytes into the Mach-O image.

@@ -33,7 +33,6 @@ The distributable archive root for the initial host is:
         os.nct
         ptr.nct
         string.nct
-        view.nct
     targets/
         arm64-darwin/
             std/
@@ -263,6 +262,8 @@ When source loading fails, the command still writes a `nocter.tokens` JSON envel
 
 The v0 parser receives the lexer token stream and builds the initial typed AST used by later compiler phases. `nocter ast app.nct --format json` converts that typed AST into tooling JSON at the CLI boundary.
 
+Fallible syntax uses `T!`, postfix `expr?`, and `expr catch error { ... }` with built-in `error`. The previous `T ! E`, `try expr`, and `try expr catch name { ... }` forms are no longer accepted by the parser.
+
 Output:
 
 - `Option<AstFile>`
@@ -273,21 +274,42 @@ Initial grammar coverage:
 
 - `use std/prelude`
 - `from std/io import print`
+- `pub from std/string import String`
 - `program(): i32 { ... }`
 - `func name(...): Type { ... }`
 - parameter lists
-- `T?` and `T ! E` type syntax
+- `str`, `error`, `[T]`, `[+T]`, `[T; N]`, `T?`, and `T!` type syntax
 - blocks
 - `return`
+- `fail expr`
 - `let` and `var` bindings with initializers
 - `let name = optional else { ... }` and `var name = optional else { ... }`
-- `try expr`
-- `try expr catch name { ... }`
+- `if condition { ... }` and `if condition { ... } else { ... }`
+- `if value is Enum.variant { ... }` enum pattern statements, with optional single-payload pattern bindings
+- `if let name = optional { ... }` and `if var name = optional { ... }`
+- `else if`, `else if let`, and `else if var` chains, represented internally as nested `if` statements in synthetic else blocks
+- `switch value { is Enum.variant { ... } else { ... } }` enum switch statements, with optional single-payload arm bindings and an optional fallback arm
+- `while condition { ... }`
+- `while let name = optional { ... }` and `while var name = optional { ... }`
+- `for name in start..<end { ... }` half-open integer range loops
+- `loop { ... }`
+- `break` and `continue` statements without labels or values
+- postfix fallible propagation `expr?`
+- fallible catch expression `expr catch name { ... }`
 - call expressions
 - member expressions
+- index expressions
+- `as` type conversion expressions
 - grouped expressions
+- array literal expressions
+- arithmetic expressions with `+`, `-`, `*`, `/`, and `%`
+- shift expressions with `<<` and `>>`
+- comparison expressions with `==`, `!=`, `<`, `<=`, `>`, and `>=`
+- logical expressions with `&&` and `||`
+- prefix logical not expressions with `!`
+- prefix numeric negation expressions with `-`
 - `??` optional-default expressions
-- identifier, integer, string, and `none` expressions
+- identifier, integer, string, bool, and `none` expressions
 
 Parser v0 deliberately does not resolve imports, validate the `program` signature, type-check expressions, check ownership, or follow imported files. It may stop after the first syntax error. When lexing fails, `nocter ast` returns a `nocter.ast` envelope with `ast: null` and the lexer diagnostics.
 
@@ -315,31 +337,69 @@ Current semantic coverage:
 - executable root has no duplicate `program` entries
 - `program` return type is exactly `i32` or `void`
 - relative imports starting with `./` or `../` are loaded recursively and lexed/parsed before root semantic checks run
-- `from ./path import name` resolves imported top-level `func` declarations and uses their signatures for direct call checking
-- missing imported function names from relative imports are diagnosed
+- `from ./path import name` resolves imported top-level `func`, `primitive`, `type`, `struct`, and `enum` declarations
+- imported `func` and `primitive` signatures are used for direct call checking
+- missing imported top-level names from relative imports are diagnosed
 - non-relative imports are loaded recursively from the active Nocter home when needed
 - `std/...` import paths search `targets/<active-target>/std/` before common `std/`
-- `from std/path import name` resolves imported top-level `func` declarations and uses their signatures for direct call checking
-- `use std/prelude` loads the imported file in v0, but does not introduce prelude names yet
-- same-file top-level `func` declarations are collected into a resolver-owned symbol table
-- duplicate visible names among same-file functions, explicit imported names, parameters, locals, and catch bindings are diagnosed
+- `from std/path import name` resolves imported top-level `func`, `primitive`, `type`, `struct`, and `enum` declarations
+- imported names must be `pub`, or `pub(nocter)` when the importing file is inside the active Nocter home; private and inaccessible `pub(nocter)` imports are diagnosed
+- eligible user project modules synthesize `use std/prelude`
+- explicit or synthetic `use std/prelude` loads the prelude and introduces its public declarations and public `pub from` re-exports
+- same-file top-level `func`, `primitive`, `type`, `struct`, and `enum` declarations are collected into a resolver-owned symbol table
+- duplicate visible names among same-file declarations, explicit imported names, parameters, locals, and catch bindings are diagnosed
 - direct calls to same-file functions are resolved and checked for argument count
 - direct calls to same-file functions check argument types when both expected and actual types are known
-- primitive return type checking for `i32`, `void`, `never`, `StringView`, `T?`, and the success side of `T ! E`
-- local binding types are tracked inside a callable when they come from literals, annotations, parameters, known direct calls, `try`, `try ... catch`, `??`, or optional `let ... else`
+- primitive return type checking for built-in primitive types, `str`, `error`, `[T]`, `[+T]`, `[T; N]`, array literals, `void`, `never`, `T?`, and the success side of `T!`
+- local binding types are tracked inside a callable when they come from literals, annotations, parameters, known direct calls, postfix `?`, `catch`, `??`, optional `let ... else`, optional `if let` / `if var`, or optional `while let` / `while var`
 - integer literals have type `i32` in v0 checking
-- string literals have type `StringView` in v0 checking
+- integer literals can be checked against an expected integer type in returns, function arguments, annotated bindings, and array literal elements
+- bool literals have type `bool` in v0 checking
+- string literals are modeled as built-in `str` values in v0 checking
+- `Enum.variant` and `Enum.variant(args...)` construct enum values and check declared variant payload arity and payload types
+- `as` type conversion expressions require lossless integer conversion and return the target type
+- arithmetic expressions return the resolved integer operand type and require matching integer operands
+- shift expressions return the left integer operand type and require an integer shift count
+- comparison expressions return `bool`; equality is checked for supported `bool`, integer, and `str` operands, and ordering requires matching known integer operand types
+- logical expressions return `bool` and require `bool` operands
+- prefix logical not expressions return `bool` and require a `bool` operand
+- prefix numeric negation expressions return the operand type and require a signed integer operand
+- `[T]` and `[+T]` parse as built-in readonly/readwrite view type syntax
+- `[T; N]` parses as built-in fixed-size array type syntax, and `[a, b, c]` infers `[T; N]`
+- index expressions check `[T; N]`, `[T]`, `[+T]`, and `str` targets with integer indexes
+- `if` statement conditions must have type `bool`
+- `if ... else`, `if is ... else`, and `if let ... else` statements count as terminating when both branches terminate; parser/check v0 currently recognizes `return`, `fail`, nested terminal `if ... else`, nested terminal `if is ... else`, nested terminal `if let ... else`, `loop`, and terminal `switch ... else` as terminating forms
+- `if is` targets must have a known enum type when the target type is known
+- `if is` patterns must name the same enum type as the target and a variant declared by that enum
+- `if is` payload bindings must match the variant payload shape; parser/check v0 supports no payload or one payload binding
+- `if is` exposes the payload binding only inside the then block
+- `if let` and `if var` require a known `T?` initializer when the initializer type is known
+- `if let` and `if var` expose the contained `T` type only inside the then block
+- `switch` statement targets must have a known enum type when the target type is known
+- `switch` arm patterns must name the same enum type as the target and a variant declared by that enum
+- `switch` arm payload bindings must match the variant payload shape; parser/check v0 supports no payload or one payload binding
+- `switch` supports one optional `else` fallback arm, and `else` must be the last arm
+- `switch ... else` counts as terminating when every explicit arm and the `else` arm terminate; `switch` without `else` is not treated as terminating because exhaustiveness checking is deferred
+- `while` statement conditions must have type `bool`
+- `while let` and `while var` require a known `T?` initializer when the initializer type is known
+- `while let` and `while var` expose the contained `T` type only inside the loop body
+- range `for` bounds must be matching integer types, with integer literals contextually checked against the other bound type
+- range `for` exposes the loop variable inside the loop body with the resolved range bound type
+- `loop` bodies are checked as loop bodies and count as terminating when the body itself terminates
+- `break` and `continue` are valid only inside loop bodies
+- annotated bindings check their initializer type when both sides are known
 - same-file function call expressions use the callee return type
-- `try` and `try ... catch` expressions unwrap the success side of known `T ! E` expressions
+- postfix `?` and `catch` expressions unwrap the success side of known `T!` expressions
+- `fail expr` is valid only inside a function returning `T!`, and `expr` must have type `error` when both sides are known
 - `let ... else` and `var ... else` require a known `T?` initializer when the initializer type is known
 - `let ... else` and `var ... else` expose the contained `T` type on the continuing path
-- `let ... else` and `var ... else` require an `else` block that terminates; parser/check v0 currently recognizes `return` as the terminating form
-- `try` without `catch` is diagnosed when used in a non-fallible current callable or with a mismatched known error type
+- `let ... else` and `var ... else` require an `else` block that terminates; parser/check v0 currently recognizes `return` and `fail` as terminating forms
+- postfix `?` is diagnosed when used in a non-fallible current callable
 - `return` expression type must match the declared success return type when both sides are known
 - bare `return` is valid only for `void` success returns
 - non-`void` functions and `program(): i32` must not fall through without an explicit return
 
-The current `check` implementation does not introduce prelude names, resolve imported types or non-function declarations in other files, validate method or associated function calls, perform full block control-flow analysis beyond last-statement `return`, check ownership, select a target beyond the default active target, or lower code. Unknown expression types are not diagnosed until import resolution and full type checking exist.
+The current `check` implementation does not resolve import aliases, namespace imports, full alias-target expansion, struct fields or enum payloads, method or associated function calls, perform full block control-flow analysis beyond last-statement `return`, check ownership, select a target beyond the default active target, or lower code. Unknown expression types are not diagnosed until import resolution and full type checking exist.
 
 `nocter check app.nct --format json` runs:
 
@@ -348,8 +408,9 @@ SourceMap::load_file
     -> lexer
     -> parser
     -> typed AST
+    -> synthetic standard prelude insertion for eligible user project modules
     -> recursive relative and non-relative import loading and parsing
-    -> same-file, relative imported, and Nocter-home imported function resolver
+    -> same-file, relative imported, and Nocter-home imported top-level symbol resolver
     -> entry validation
     -> call validation for known same-file functions
     -> basic return checking
@@ -359,7 +420,7 @@ SourceMap::load_file
 
 If source loading, lexing, or parsing fails, `check` returns a `nocter.diagnostics` envelope with those diagnostics and does not run semantic checks.
 
-The first standard-library source files are `.nocter/std/prelude.nct`, `.nocter/std/string.nct`, `.nocter/std/view.nct`, `.nocter/std/mem.nct`, `.nocter/std/ptr.nct`, `.nocter/std/os.nct`, `.nocter/std/io.nct`, `.nocter/targets/arm64-darwin/std/process.nct`, and `.nocter/targets/arm64-darwin/std/os/macos.nct`. They define the explicit prelude, string and view types, initial memory API, core pointer primitive boundary, common OS error model, user-facing I/O errors, `File`, `stdout`, `stderr`, `print`, byte read/write, text write, macOS process API implementation, and macOS primitive boundary. Future target support should add target overlays without changing ordinary user-facing APIs.
+The first standard-library source files are `.nocter/std/prelude.nct`, `.nocter/std/string.nct`, `.nocter/std/mem.nct`, `.nocter/std/ptr.nct`, `.nocter/std/os.nct`, `.nocter/std/io.nct`, `.nocter/targets/arm64-darwin/std/process.nct`, and `.nocter/targets/arm64-darwin/std/os/macos.nct`. They currently form a Parser v0-readable skeleton for the synthetic user prelude, owning string type, initial memory API, core pointer primitive boundary, common OS error model, user-facing I/O errors, `File`, `stdout`, `stderr`, `print`, macOS process API placeholder, and macOS primitive boundary. Future target support should add target overlays without changing ordinary user-facing APIs.
 
 The target-independent core pointer primitive set is:
 
@@ -390,7 +451,7 @@ The compiler should validate primitives by module path, name, and exact signatur
 
 Future typed wrappers such as raw file, process, allocation, or memory-map helpers should be ordinary Nocter APIs in common `std/` or the active target overlay. The normal implementation path is to grow the standard library on top of the closed primitive set, not to add compiler primitives for each OS operation. User project modules remain outside the primitive declaration boundary.
 
-Initial `std/io.nct` should expose `IOError`, `File`, `File.open`, `File.read`, `File.write`, `File.write_text`, `stdout`, `stderr`, and `print`. `File.open` creates an owned handle whose drop closes it. `stdout` and `stderr` return `File` values for borrowed process standard streams, and their drop must not close the underlying standard stream.
+Initial `std/io.nct` should expose `File`, `File.open`, `File.read`, `File.write`, `File.write_text`, `stdout`, `stderr`, and `print`. Fallible APIs return `T!` and fail with built-in `error`; common classification names such as `Error` and `ErrorCode` belong to `std/prelude` / `std/error`, not to compiler special cases. `File.open` creates an owned handle whose drop closes it. `stdout` and `stderr` return `File` values for borrowed process standard streams, and their drop must not close the underlying standard stream.
 
 OS error flow belongs in the standard library:
 
@@ -398,7 +459,7 @@ OS error flow belongs in the standard library:
 std/os/macos.SyscallResult
 std/os/macos.Errno
 std/os.OSError
-std/io.IOError
+built-in error
 ```
 
 The compiler should not special-case any of those names.
@@ -453,14 +514,14 @@ Milestone grouping:
 9. path-derived module loading
 10. name resolution and visibility
 11. basic type checking
-12. Nocter ABI v0 data layout for primitives, pointers, borrows, structs, enums, `T?`, and `T ! E`
+12. Nocter ABI v0 data layout for primitives, pointers, borrows, structs, enums, `T?`, and adopted `T!`
 13. `program` entry validation, allowing only `program(): void` and `program(): i32`
 14. ARM64 instruction encoder
 15. minimal Mach-O writer
 16. compile a `program(): i32` returning a constant
 17. string literal placement
 18. Nocter ABI v0 function call and return lowering
-19. statement control flow: `if`, `match`, `while`, `loop`, range `for`, `break`, `continue`
+19. statement control flow: `if`, `switch`, `while`, `loop`, range `for`, `break`, `continue`
 20. fallible and optional control flow
 21. `never` and unreachable-code diagnostics
 22. ownership, move, borrow, and drop checks
@@ -468,17 +529,16 @@ Milestone grouping:
 24. region scopes and escape diagnostics
 25. initial `.nocter/std/prelude.nct`
 26. initial `.nocter/std/string.nct`
-27. initial `.nocter/std/view.nct`
-28. initial `.nocter/std/mem.nct`
-29. initial `.nocter/std/ptr.nct`
-30. initial `.nocter/std/os.nct`
-31. initial `.nocter/std/io.nct`
-32. initial `.nocter/targets/arm64-darwin/std/process.nct` with process context APIs and termination APIs
-33. initial `.nocter/targets/arm64-darwin/std/os/macos.nct`
-34. core pointer primitive validation and lowering for `std/ptr`
-35. closed target primitive set validation for `std/os/macos.syscall0..6`, `trap`, and `unreachable`
-36. primitive lowering for the active target
-37. imports from the active target overlay and common Nocter home `std`
+27. initial `.nocter/std/mem.nct`
+28. initial `.nocter/std/ptr.nct`
+29. initial `.nocter/std/os.nct`
+30. initial `.nocter/std/io.nct`
+31. initial `.nocter/targets/arm64-darwin/std/process.nct` with process context APIs and termination APIs
+32. initial `.nocter/targets/arm64-darwin/std/os/macos.nct`
+33. core pointer primitive validation and lowering for `std/ptr`
+34. closed target primitive set validation for `std/os/macos.syscall0..6`, `trap`, and `unreachable`
+35. primitive lowering for the active target
+36. imports from the active target overlay and common Nocter home `std`
 38. standard-library growth
 39. `nocter --version` reporting release, host, and default target
 40. `nocter doctor` validating Nocter home metadata and directory structure
@@ -497,10 +557,15 @@ Exceptions are syntax and core type forms adopted by the language, such as:
 
 - `program`
 - `T?`
-- `T ! E`
+- `T!`
+- `error`
+- `str`
+- `[T]`
+- `[+T]`
 - `return none`
 - `fail error`
-- `try ... catch`
+- postfix `?`
+- `catch`
 - `never`
 - `region ... using`
 - `primitive`

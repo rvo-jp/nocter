@@ -3,8 +3,8 @@ use std/prelude
 program(): i32 {
     let value = lookup()
 
-    // invalid: `try` unwraps T ! E, not T?
-    let number = try value
+    // invalid: postfix `?` propagates T!, not T?
+    let number = value?
 
     return number
 }

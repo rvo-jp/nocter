@@ -8,63 +8,82 @@ The specification entry point is [../SPEC.md](../SPEC.md).
 Adopted: failure is represented with fallible types, not exceptions.
 
 ```nct
-func open(path: StringView): File ! IOError {
+func open(path: str): File! {
     if failed {
-        fail IOError.not_found(path)
+        fail Error.new(ErrorCode.io_not_found, "file not found")
     }
 
     return file
 }
 ```
 
-`T ! E` is a fallible type. It means the expression or function succeeds with `T` or fails with `E`.
+`T!` is a fallible type. It means the expression or function succeeds with `T` or fails with the built-in `error` payload.
 
 ```text
-T ! E = fallible T with error E
+T! = fallible T with built-in error
 ```
 
-Official source style writes spaces around `!`: `T ! E`.
-The parser accepts compact spelling such as `T!E`, but formatter output must use the spaced form.
+The failure type is not written at each call site. All fallible values use the same failure payload type, `error`.
 
-Inside a function returning `T ! E`, `return value` returns the success value and `fail error` returns the failure value.
+Initial conceptual payload fields:
+
+```text
+raw_code: u32
+message: str
+```
+
+Rules:
+
+- `error` is compiler built-in type-position syntax, like `str`, `i32`, and `never`.
+- `error` is not looked up through imports and cannot be redefined as a type declaration.
+- The spelling `error` may still be used as an ordinary value binding name. For example, `catch error` binds a local value named `error`.
+- `T!` always means success `T` or failure `error`.
+- `Error` may be provided by `std/prelude` as a normal alias or wrapper for `error`.
+- `ErrorCode` is a standard-library classification type, not a compiler-reserved name.
+- Standard-library constructors such as `Error.new(ErrorCode.io_not_found, "...")` translate `ErrorCode` into the built-in payload's primitive code representation.
+- The compiler must not special-case ordinary names such as `Error`, `ErrorCode`, `IOError`, or `Result`.
+- Domain detail is represented in the `error` payload and standard-library helper APIs, especially through classification code and `message`, not by writing a different failure type in the signature.
+- `error.message` is the initial direct user-facing field for reporting. `raw_code` is a low-level representation detail and should normally be interpreted through standard-library helper APIs.
+
+Inside a function returning `T!`, `return value` returns the success value and `fail error_value` returns the failure value.
 
 ```nct
-func write(file: &+File, text: StringView): void ! IOError {
+func write(file: &+File, text: str): void! {
     if failed {
-        fail IOError.broken_pipe
+        fail Error.new(ErrorCode.io_broken_pipe, "broken pipe")
     }
 
     return
 }
 ```
 
-Adopted: the `try` operator unwraps fallible values for propagation.
+Adopted: postfix `?` unwraps fallible values for propagation.
 
 ```nct
-let file = try File.open(path)
+let file = File.open(path)?
 ```
 
-For `T ! E`, `try expr` evaluates to the success value when `expr` succeeds. On failure, the current function fails with the same error unless a `catch` clause is present.
+For `T!`, `expr?` evaluates to the success value when `expr` succeeds. On failure, the current function fails with the same `error` payload.
 
-`try` does not apply to optional values `T?` in the initial design.
+Postfix `?` does not apply to optional values `T?` in the initial design.
 
 Example:
 
 ```nct
-let file = try File.open(path)
+let file = File.open(path)?
 ```
 
-This binds `file` to the successful `File` value. If `File.open(path)` fails, the current function fails with that error as if `fail error` had been executed.
+This binds `file` to the successful `File` value. If `File.open(path)` fails, the current function fails with that `error` as if `fail error_value` had been executed.
 
 Rules:
 
-- `try` is not an exception mechanism.
-- `try` does not perform stack unwinding.
-- `try` on `T ! E` without `catch` can be used inside a fallible function with the same error type `E`.
-- `try` does not apply to `T?`.
-- `fail` can be used only inside a function returning a fallible type.
+- Postfix `?` is not an exception mechanism.
+- Postfix `?` does not perform stack unwinding.
+- Postfix `?` on `T!` can be used only inside a fallible function.
+- Postfix `?` does not apply to `T?`.
+- `fail` can be used only inside a function returning `T!`.
 - Scope-end cleanup and `drop` behavior still run as they would for an explicit `return` or `fail`.
-- Error conversion is not implicit in the initial design.
+- Error conversion is not needed for propagation because every fallible value fails with `error`.
 - `throw` is not part of the language.
 
 ## Recoverable Failure and Non-Recoverable Termination
@@ -72,14 +91,15 @@ Rules:
 Adopted: `fail`, `trap`, and `abort` are distinct mechanisms.
 
 ```text
-fail  = recoverable failure through T ! E
+fail  = recoverable failure through T!
 trap  = non-recoverable program defect or violated runtime check
 abort = immediate process termination
 ```
 
 Rules:
 
-- `fail error` is valid only inside a function returning `T ! E`.
+- `fail expr` is valid only inside a function returning `T!`.
+- `expr` must have type `error`.
 - `fail` follows normal `return`-like cleanup for scopes it leaves.
 - `trap` has type `never`.
 - `trap` is used for program defects, compiler-inserted safety checks, and impossible paths.
@@ -91,25 +111,26 @@ Rules:
 - Stack unwinding is not part of v0.
 - Build modes must not disable these trap checks; see [Safety Checks and Build Modes](03-control-flow.md#safety-checks-and-build-modes).
 
-Adopted: `catch` handles the failure side of a fallible value at the `try` site.
+Adopted: `catch` handles the failure side of a fallible expression.
 
 ```nct
-let file = try File.open(path) catch error {
-    fail AppError.open_failed(path)
+let file = File.open(path) catch error {
+    fail Error.new(ErrorCode.io_open_failed, error.message)
 }
 ```
 
-`try expr catch error { ... }` means:
+`expr catch error { ... }` means:
 
 - Evaluate `expr`.
-- If `expr` succeeds, the whole `try ... catch` expression evaluates to the success value.
-- If `expr` fails, bind the failure value to `error` and execute the `catch` block.
+- If `expr` succeeds, the whole `catch` expression evaluates to the success value.
+- If `expr` fails, bind the failure value to the catch binding and execute the `catch` block.
 
 Rules:
 
-- `catch` applies only to fallible values of type `T ! E`.
+- `catch` applies only to fallible values of type `T!`.
 - `catch` does not apply to optional values `T?`.
-- The catch binding has the failure type `E`.
+- The catch binding has type `error`.
+- The binding name after `catch` is an ordinary local name. `catch error` is conventional, but `catch err` is also valid.
 - The catch block is evaluated only on failure.
 - The catch block must not fall through in the initial design.
 - The catch block must leave the current control path with `fail`, `return`, `break`, `continue`, a call returning `never`, or another terminating construct.
@@ -118,23 +139,23 @@ Rules:
 - `catch` does not perform stack unwinding.
 - `catch` runs the same scope-end cleanup that the explicit terminating control flow would run.
 - If a `catch` block terminates by calling a `never` function, cleanup behavior is determined by that `never` function. The compiler does not add implicit unwinding.
-- The `catch` clause belongs to the preceding `try` expression. It is not a general handler after arbitrary expressions.
+- The `catch` clause belongs to the immediately preceding fallible expression. It is not a general handler after arbitrary expressions.
 
-`try` without `catch` propagates the original failure. The propagated error type must match the current fallible function's error type exactly in the initial design.
+Postfix `?` propagates the original failure.
 
-`try` with `catch` is used for explicit error mapping.
+`catch` is used for explicit local handling or error replacement.
 
 ```nct
 func read_all(
     allocator: &+Allocator,
-    path: StringView,
-): String ! AppError {
-    var file = try File.open(path) catch error {
-        fail AppError.open_failed(path)
+    path: str,
+): String! {
+    var file = File.open(path) catch error {
+        fail Error.new(ErrorCode.io_open_failed, error.message)
     }
 
-    var text = try file.read_to_string(allocator) catch error {
-        fail AppError.read_failed(path)
+    var text = file.read_to_string(allocator) catch error {
+        fail Error.new(ErrorCode.io_read_failed, error.message)
     }
 
     return move text
@@ -147,11 +168,11 @@ Fallible values are not pattern matched in the initial design.
 
 Rules:
 
-- `match` does not apply to `T ! E`.
-- `if expr is Pattern` does not apply to `T ! E`.
+- `switch` does not apply to `T!`.
+- `if expr is Pattern` does not apply to `T!`.
 - `is ok(...)` and `is fail(...)` patterns are not part of the language.
 - `ok` is not a reserved keyword.
-- Fallible values are handled with `try` and `try ... catch`.
+- Fallible values are handled with postfix `?` and `catch`.
 
 ## Optional Types
 
@@ -166,7 +187,7 @@ An optional value is either present with a `T` value or absent.
 Inside a function returning `T?`, `return value` returns a present value and `return none` returns absence.
 
 ```nct
-func lookup(name: StringView): StringView? {
+func lookup(name: str): str? {
     if missing {
         return none
     }
@@ -181,8 +202,8 @@ Rules:
 - `none` is the optional absent literal.
 - `return value` in a `T?` function returns the present value.
 - `return none` in a `T?` function returns absence.
-- `try` does not apply to `T?`.
-- `match` does not apply to `T?` in the initial design.
+- Postfix `?` does not apply to `T?`; it is reserved for fallible propagation.
+- `switch` does not apply to `T?` in the initial design.
 - `if expr is Pattern` does not apply to `T?` in the initial design.
 - `some(value)` is not part of the initial language.
 - `some` is not a reserved keyword.
@@ -194,34 +215,34 @@ Adopted: optional and fallible type constructors may be composed explicitly.
 Preferred source spelling:
 
 ```text
-T? ! E = (T?) ! E
+(T?)! = fallible optional success
 ```
 
-`T? ! E` means the computation can fail with `E`. If it succeeds, the success value is optional: present `T` or `none`.
+`(T?)!` means the computation can fail with `error`. If it succeeds, the success value is optional: present `T` or `none`.
 
 Rules:
 
-- `?` binds to the success type before `! E`.
-- `StringView? ! ProcessError` means `(StringView?) ! ProcessError`.
-- `try expr` on `T? ! E` unwraps only the fallible layer and produces `T?`.
-- `try` still does not apply to the optional layer.
-- In a function returning `T? ! E`, `return value` returns success with a present `T`.
-- In a function returning `T? ! E`, `return none` returns success with absence.
-- In a function returning `T? ! E`, `fail error` returns failure with `E`.
+- `T!` means a fallible success value.
+- `T?` means an optional value.
+- Prefer `(T?)!` over compact `T?!` in official style.
+- `expr?` on `(T?)!` unwraps only the fallible layer and produces `T?`.
+- Postfix `?` still does not apply to the optional layer.
+- In a function returning `(T?)!`, `return value` returns success with a present `T`.
+- In a function returning `(T?)!`, `return none` returns success with absence.
+- In a function returning `(T?)!`, `fail error_value` returns failure with `error`.
 - Other mixed forms must use parentheses in v0.
-- `(T ! E)?` means an optional fallible value.
-- `T ! (E?)` means a fallible value whose error payload is optional.
+- `(T!)?` means an optional fallible value.
 
 Example:
 
 ```nct
-func env(name: StringView): StringView? ! ProcessError {
+func env(name: str): (str?)! {
     if missing {
         return none
     }
 
     if invalid_utf8 {
-        fail ProcessError.invalid_encoding
+        fail Error.new(ErrorCode.invalid_encoding, "environment value is not UTF-8")
     }
 
     return value
@@ -231,7 +252,7 @@ func env(name: StringView): StringView? ! ProcessError {
 Using a fallible optional:
 
 ```nct
-let maybe_home = try process.env("HOME")
+let maybe_home = process.env("HOME")?
 
 if let home = maybe_home {
     use(home)
@@ -241,7 +262,7 @@ if let home = maybe_home {
 Equivalent compact use:
 
 ```nct
-if let home = try process.env("HOME") {
+if let home = process.env("HOME")? {
     use(home)
 }
 ```
@@ -250,10 +271,10 @@ if let home = try process.env("HOME") {
 
 Adopted: optional propagation syntax is not part of v0.
 
-Nocter does not provide a postfix `expr?` operator or a `try`-like construct for optional values in v0. Returning absence remains explicit.
+Nocter does not provide propagation for optional values in v0. Returning absence remains explicit.
 
 ```nct
-func require_home(): StringView? {
+func require_home(): str? {
     if let home = lookup("HOME") {
         return home
     }
@@ -264,9 +285,8 @@ func require_home(): StringView? {
 
 Rules:
 
-- `try` remains exclusive to fallible `T ! E` values.
-- `try optional_value` is invalid.
-- Postfix optional propagation such as `optional_value?` is not part of v0.
+- Postfix `?` is exclusive to fallible `T!` values.
+- `optional_value?` is invalid.
 - An optional function must use `return none` to return absence.
 - Present / absent branching uses `if let`, `if var`, `while let`, and `while var`.
 - Early-exit extraction uses `let ... else` and `var ... else`.
@@ -480,7 +500,7 @@ Rules:
 - If the default expression has type `T?`, the whole expression has type `T?`.
 - The operator is right-associative.
 - The default expression is evaluated only when needed.
-- The operator does not apply to fallible `T ! E` values.
+- The operator does not apply to fallible `T!` values.
 
 Example:
 

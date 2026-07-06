@@ -5,18 +5,19 @@ The specification entry point is [../SPEC.md](../SPEC.md).
 
 ## OS Error Model
 
-Adopted: Nocter uses a layered OS error model. Target-specific raw errors are converted into common standard-library errors, then into domain-specific user-facing errors.
+Adopted: Nocter uses a layered OS error model. Target-specific raw errors are converted into common standard-library records, then into the built-in `error` payload used by `T!`.
 
 Layering:
 
 ```text
 std/os/macos        target overlay: syscall, SyscallResult, Errno, errno mapping
 std/os              common std: Platform, OSErrorKind, OSError
-std/io              user-facing I/O errors and APIs
+std/error           Error, ErrorCode, and constructors for the built-in error payload
+std/io              user-facing I/O APIs
 std/process         user-facing process APIs
 ```
 
-The compiler must not special-case names such as `OSError`, `IOError`, `Errno`, `File`, `args`, `env`, `cwd`, `exit`, or `abort`. These are ordinary standard-library names.
+The compiler must not special-case names such as `Error`, `ErrorCode`, `OSError`, `Errno`, `File`, `args`, `env`, `cwd`, `exit`, or `abort`. These are ordinary standard-library names. The only compiler-level failure type is lowercase `error`.
 
 ### Target Raw Errors
 
@@ -96,33 +97,59 @@ Target overlays convert raw target errors into `OSError`.
 SyscallResult -> Errno -> OSError
 ```
 
+### Common Error Payload
+
+The built-in failure payload is `error`. The standard library exposes ordinary names and constructors for it.
+
+Initial public surface direction:
+
+```nct
+pub enum ErrorCode {
+    io_not_found
+    io_permission_denied
+    io_invalid_path
+    io_interrupted
+    io_broken_pipe
+    io_timed_out
+    invalid_encoding
+    invalid_argument
+    out_of_memory
+    unsupported
+    internal
+    unexpected_os_error
+}
+
+pub type Error = error
+
+impl Error {
+    pub func new(code: ErrorCode, message: str): Error
+}
+```
+
+Rules:
+
+- `error` is the compiler built-in payload type.
+- `Error` and `ErrorCode` are ordinary standard-library names.
+- The compiler does not know the name `ErrorCode`. `Error.new` converts the standard-library classification value into the built-in `error` payload's primitive code representation.
+- Standard-library modules should fail with `error`, not domain-specific fallible error type parameters.
+- Domain-specific detail is represented by `ErrorCode`, `message`, and, where needed later, additional standard-library helper APIs.
+
 ### I/O API
 
-Adopted: `std/io` provides the initial user-facing file and text output API. The compiler must not special-case `File`, `IOError`, `stdout`, `stderr`, or `print`.
+Adopted: `std/io` provides the initial user-facing file and text output API. The compiler must not special-case `File`, `stdout`, `stderr`, or `print`.
 
 Initial public surface:
 
 ```nct
-from std/os import OSError
-
-pub enum IOError {
-    not_found(path: StringView)
-    permission_denied(path: StringView)
-    invalid_path(path: StringView)
-    interrupted
-    broken_pipe
-    unexpected_os_error(error: OSError)
-}
-
 pub struct File {
     ...
 }
 
 impl File {
-    pub func open(path: StringView): File ! IOError
-    pub method (file: &+Self).read(buffer: WriteView<u8>): usize ! IOError
-    pub method (file: &+Self).write(bytes: View<u8>): void ! IOError
-    pub method (file: &+Self).write_text(text: StringView): void ! IOError
+    pub func open(path: str): File!
+    pub method (file: &+Self).read(buffer: [+u8]): usize!
+    pub method (file: &+Self).write(bytes: [u8]): void!
+    pub method (file: &+Self).write_text(text: str): void!
 
     drop File(file: &+Self) {
         ...
@@ -131,7 +158,7 @@ impl File {
 
 pub func stdout(): File
 pub func stderr(): File
-pub func print(text: StringView): void ! IOError
+pub func print(text: str): void!
 ```
 
 Rules:
@@ -139,21 +166,20 @@ Rules:
 - `File` is a move-only standard-library type with private representation.
 - `File.open(path)` opens an existing file for reading in v0.
 - File creation, append, truncate, read-write modes, and open options are deferred.
-- `File.open(path)` maps path-related OS errors into `not_found(path)`, `permission_denied(path)`, or `invalid_path(path)` when the target can classify them.
-- `IOError` variants that store `path: StringView` carry a view of the caller-provided path. Long-lived application errors should copy the path into an owned application error if needed.
+- `File.open(path)` maps path-related OS errors into `ErrorCode.io_not_found`, `ErrorCode.io_permission_denied`, or `ErrorCode.io_invalid_path` when the target can classify them.
 - `read(buffer)` reads into a writable byte view and returns the number of bytes read.
 - `read(buffer)` returning `0` means end of file for regular files.
 - `read(buffer)` may return fewer bytes than `buffer.len()` without treating that as an error.
 - `write(bytes)` writes all bytes in the view or fails.
 - Target implementations handle partial OS writes inside `write(bytes)`.
-- `write_text(text)` writes the UTF-8 bytes of `StringView` without encoding conversion.
+- `write_text(text)` writes the UTF-8 bytes of `str` without encoding conversion.
 - `print(text)` writes `text` to `stdout()` and does not append a newline.
 - `stdout()` and `stderr()` return `File` values representing the process standard streams.
 - `File` internally distinguishes owned handles from borrowed process standard streams.
 - Dropping a `File` returned by `File.open(path)` closes the owned handle.
 - Dropping a `File` returned by `stdout()` or `stderr()` must not close the process standard stream.
 - `drop File` cannot fail. Close errors are ignored in v0 unless a future explicit close API is adopted.
-- `IOError.unexpected_os_error(error)` preserves an `OSError` when the target error cannot be mapped to the smaller `IOError` surface.
+- Unexpected OS errors are converted to `ErrorCode.unexpected_os_error` with a message that preserves useful target context.
 
 Conversion flow:
 
@@ -162,7 +188,7 @@ std/os/macos.syscall3
     -> SyscallResult
     -> Errno
     -> std/os.OSError
-    -> std/io.IOError
+    -> error
 ```
 
 Not adopted in v0:
@@ -184,15 +210,9 @@ Adopted: command-line arguments and environment access are standard-library APIs
 Initial public surface direction:
 
 ```nct
-pub enum ProcessError {
-    invalid_encoding
-    unsupported(error: OSError)
-    unexpected_os_error(error: OSError)
-}
-
-pub func args(): View<StringView> ! ProcessError
-pub func env(name: StringView): StringView? ! ProcessError
-pub func cwd(): StringView ! ProcessError
+pub func args(): [str]!
+pub func env(name: str): (str?)!
+pub func cwd(): str!
 pub func exit(code: i32): never
 pub func abort(): never
 ```
@@ -205,20 +225,20 @@ Rules:
 - That platform information is connected to a `std/process` process context inside the active target implementation.
 - User code reads command-line arguments with `std/process.args()`.
 - User code reads environment values with `std/process.env(name)`.
-- `args()` returns a readonly view of `StringView` values on success.
+- `args()` returns a readonly view of `str` values on success.
 - The first argument follows the host platform convention and represents the executable path or invocation name when the platform provides one.
-- `env(name)` has type `StringView? ! ProcessError`, meaning `(StringView?) ! ProcessError`.
+- `env(name)` has type `(str?)!`.
 - `env(name)` succeeds with `none` when the variable is absent.
-- `env(name)` succeeds with a present `StringView` when the variable is present and valid UTF-8.
-- `cwd()` returns the current working directory or `fail`s with `ProcessError`.
+- `env(name)` succeeds with a present `str` when the variable is present and valid UTF-8.
+- `cwd()` returns the current working directory or fails with `error`.
 - Process context string storage is valid for the whole program.
 - Argument, environment, and current-working-directory views returned by `std/process` are not owned by the caller and must be treated as borrowed view data.
 - The caller must not drop process-context storage.
 - APIs that need owned strings must explicitly copy into an allocator-owned `String`.
-- Target implementations must validate process strings before exposing them as `StringView`.
-- `args()` fails with `ProcessError.invalid_encoding` if any returned argument cannot be represented as UTF-8.
-- `env(name)` fails with `ProcessError.invalid_encoding` if the matching environment value exists but cannot be represented as UTF-8.
-- `cwd()` fails with `ProcessError.invalid_encoding` if the current working directory cannot be represented as UTF-8.
+- Target implementations must validate process strings before exposing them as `str`.
+- `args()` fails with `ErrorCode.invalid_encoding` if any returned argument cannot be represented as UTF-8.
+- `env(name)` fails with `ErrorCode.invalid_encoding` if the matching environment value exists but cannot be represented as UTF-8.
+- `cwd()` fails with `ErrorCode.invalid_encoding` if the current working directory cannot be represented as UTF-8.
 
 Example:
 
@@ -226,7 +246,7 @@ Example:
 from std/process import args
 
 program(): i32 {
-    let argv = try args() catch error {
+    let argv = args() catch error {
         return 1
     }
 
@@ -348,7 +368,7 @@ Rules:
 - User project modules must not call `pub(nocter)` primitive declarations.
 - User project modules must not call restricted low-level APIs such as `std/ptr.from_addr`.
 - Trusted modules still go through normal parsing, type checking, ownership checking, borrowing rules, and drop checking.
-- Trusted modules should expose ordinary safe APIs to user code, using types such as `File`, `String`, `Buffer<T>`, `OSError`, `IOError`, `Allocator`, `View<T>`, and `WriteView<T>`.
+- Trusted modules should expose ordinary safe APIs to user code, using types such as `File`, `String`, `Buffer<T>`, `OSError`, `Allocator`, `error`, `[T]`, and `[+T]`.
 - If trusted standard-library code violates an invariant required by its public safe API, that is a standard-library or compiler bug. It is not an opt-in source-level permission granted to user code.
 
 Initial primitive declaration syntax:
@@ -420,7 +440,7 @@ The closed compiler primitive set stays small. For the initial `arm64-darwin` ta
 Target overlays may define narrower typed wrappers around those primitives:
 
 ```nct
-pub(nocter) func write_fd(fd: FileDescriptor, bytes: View<u8>): void ! OSError {
+pub(nocter) func write_fd(fd: FileDescriptor, bytes: [u8]): void! {
     ...
 }
 ```
@@ -428,7 +448,7 @@ pub(nocter) func write_fd(fd: FileDescriptor, bytes: View<u8>): void ! OSError {
 User-facing modules then expose safe ordinary APIs:
 
 ```nct
-pub method (file: &+File).write(bytes: View<u8>): void ! IOError {
+pub method (file: &+File).write(bytes: [u8]): void! {
     ...
 }
 ```
@@ -471,9 +491,8 @@ while
 loop
 break
 continue
-match
+switch
 is
-try
 catch
 fail
 none

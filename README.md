@@ -99,7 +99,6 @@ tools/
         os.nct
         ptr.nct
         string.nct
-        view.nct
     targets/
         arm64-darwin/
             std/
@@ -256,13 +255,11 @@ examples/word_count.nct                                  => examples/word_count
 import は明示的な名前指定を基本にします。`./` または `../` で始まる path は現在ファイルから見た `.nct` を探し、それ以外の path は active Nocter home、通常は `~/.nocter/` 内から探します。
 
 ```nct
-use std/prelude
-
 from std/mem import Allocator
 from std/io import File, stdout, stderr
 from std/io import File as StdFile
 from ./config import AppConfig
-pub from std/string import String, StringView
+pub from std/string import String
 
 import std/io as io
 ```
@@ -271,7 +268,9 @@ import std/io as io
 
 ワイルドカード import、bare import、namespace alias re-export、absolute path、import path 内の `.nct` 拡張子は初期仕様では採用しません。
 
-`use std/prelude` は明示 prelude です。書いたファイルにだけ効き、import された別ファイルへは伝播しません。暗黙 prelude と project-wide prelude 設定は初期仕様では採用しません。
+user project module は、compiler が内部的にファイル先頭へ synthetic `use std/prelude` を持つものとして扱います。source text は書き換えず、diagnostic や formatter は元の source を基準にします。synthetic prelude は user project module ごとに独立して適用され、`.nocter/std/` と `targets/<target>/std/` には適用しません。明示的な `use std/prelude` は書いてもよいですが、user project module では冗長です。
+
+prelude は小さく保ちます。`Int` のような基本 alias、`Error` / `ErrorCode`、所有文字列 `String` のような ubiquitous な標準ライブラリ型だけを置きます。`str`、`error`、`[T]`、`[+T]` は compiler built-in の型構文です。`File`、`Allocator`、`print`、`stdout`、`stderr`、`args`、`env`、`cwd`、`exit`、`abort` は domain module から明示 import します。project-wide prelude 設定は初期仕様では採用しません。
 
 v0 では package manifest と project root discovery を採用しません。compiler に渡した `.nct` が root file です。`program` は root file にだけ書けます。compiler は root file から import graph を辿り、到達した `.nct` ファイル全体を1つの compile unit として name resolution、type checking、ownership checking、code generation します。separate compilation、incremental build、package registry、lockfile、workspace は v0 では扱いません。
 
@@ -289,15 +288,13 @@ nocter build app.nct -o app
 
 ```nct
 // app.nct
-use std/prelude
-
 from std/io import print
 from ./src/config import Config
 
 program(): i32 {
     let config = Config.default()
 
-    try print(config.name) catch error {
+    print(config.name) catch error {
         return 1
     }
 
@@ -307,10 +304,8 @@ program(): i32 {
 
 ```nct
 // src/config.nct
-use std/prelude
-
 pub struct Config {
-    pub name: StringView
+    pub name: str
 }
 
 impl Config {
@@ -330,7 +325,7 @@ pub struct File {
 }
 
 impl File {
-    pub func open(path: StringView): File ! Error {
+    pub func open(path: str): File! {
         ...
     }
 }
@@ -354,7 +349,7 @@ comment は `// line comment` と `/* block comment */` を採用します。blo
 
 source style は formatter が統一します。compiler は空白や改行に寛容にし、style 違反を compile error にはしません。`nocter fmt app.nct` は指定された1ファイルを公式 style に書き戻し、`nocter fmt --check app.nct` は CI や editor integration 用に差分有無だけを検査します。formatter output が仕様書、README、`example.nct` の正準表記です。
 
-初期 style は、indent 4 spaces、`a: Type` は `:` の後だけ空白、`name = value` と binary operator は前後に空白、`func(arg)` と `file.write(arg)` は callee / receiver に密着、block の `{` は同じ行、fallible type は `T ! E` / `T? ! E` とします。`T!E` のような compact spelling は parse できますが、formatter は空白ありに整形します。
+初期 style は、indent 4 spaces、`a: Type` は `:` の後だけ空白、`name = value` と binary operator は前後に空白、`func(arg)` と `file.write(arg)` は callee / receiver に密着、block の `{` は同じ行、fallible type は `T!`、fallible optional success は `(T?)!` とします。
 
 整数リテラルは decimal、hex `0xFF`、binary `0b1010` を採用し、桁区切り `_` を `1_000` や `0xFF_FF` のように数字の間で使えます。float literal は v0 では採用しません。
 
@@ -369,7 +364,7 @@ struct File {
     fd: i32
 }
 
-func write(file: &+File, data: StringView): void ! Error {
+func write(file: &+File, data: str): void! {
     ...
 }
 ```
@@ -384,7 +379,7 @@ pub struct User {
 
 let user = User{
     id: 1,
-    name: try String.copy(allocator, "alice"),
+    name: String.copy(allocator, "alice")?,
 }
 ```
 
@@ -407,11 +402,11 @@ field default value、struct update syntax、positional struct、tuple struct、
 
 ```nct
 impl File {
-    pub func open(path: StringView): File ! Error {
+    pub func open(path: str): File! {
         ...
     }
 
-    pub method (file: &+Self).write(data: StringView): void ! Error {
+    pub method (file: &+Self).write(data: str): void! {
         ...
     }
 }
@@ -424,11 +419,11 @@ method lookup は v0 では小さく保ちます。receiver が concrete nominal
 関数、associated function、method、primitive の呼び出しは v0 では位置引数のみです。引数は書いた順に parameter へ対応し、個数は完全一致します。各引数は通常の文脈型付け、所有権、move、copy、borrow 規則で parameter 型に適合する必要があります。
 
 ```nct
-func copy(allocator: &+Allocator, source: StringView): String ! AllocError {
+func copy(allocator: &+Allocator, source: str): String! {
     ...
 }
 
-let text = try String.copy(&+allocator, "hello")
+let text = String.copy(&+allocator, "hello")?
 ```
 
 parameter は関数本体内では immutable binding として扱います。`var` parameter は v0 では採用しません。owned parameter は関数本体が所有し、move-only parameter は `move name` で別の所有先へ移せます。移されなかった owned parameter は関数 scope 終了時に破棄されます。
@@ -466,11 +461,11 @@ pub struct OpenOptions {
     pub create: bool
 }
 
-let file = try File.open_with(path, OpenOptions{
+let file = File.open_with(path, OpenOptions{
     read: true,
     write: false,
     create: false,
-})
+})?
 ```
 
 複数行の parameter list と argument list では trailing comma を許可します。単一行 list の trailing comma は v0 では許可しません。
@@ -478,8 +473,8 @@ let file = try File.open_with(path, OpenOptions{
 ```nct
 pub func copy(
     allocator: &+Allocator,
-    source: StringView,
-): String ! AllocError {
+    source: str,
+): String! {
     ...
 }
 ```
@@ -488,13 +483,13 @@ pub func copy(
 
 ```nct
 trait Writer {
-    method (writer: &+Self).write(data: StringView): void ! Error
+    method (writer: &+Self).write(data: str): void!
 }
 ```
 
 `impl Trait for Type` は、trait を定義した module または実装対象の nominal type を定義した module でだけ書けます。外部 trait を外部 type へ実装することはできません。同じ trait と type の組み合わせに対する実装は、読み込まれた program 全体で1つだけです。
 
-`enum` は有限個の variant を持つ型です。variant の分岐には `match` を使い、各 arm は `is Pattern { ... }` で書きます。`else` がない enum match は網羅性を要求します。
+`enum` は有限個の variant を持つ型です。variant の分岐には `switch` を使い、各 arm は `is Pattern { ... }` で書きます。fallback には最後の arm として `else { ... }` を使います。v0 では網羅性チェックを延期するため、`else` がない `switch` は終端文として扱いません。
 
 payload を持たない variant は `Enum.variant`、payload を持つ variant は `Enum.variant(args...)` で作ります。variant constructor は enum 宣言から生まれる構文上の値生成手段であり、通常の関数名や特別な識別子ではありません。unqualified variant constructor は v0 では採用しません。
 
@@ -504,11 +499,14 @@ let error = AppError.open_failed(path)
 ```
 
 ```nct
-match error {
+switch error {
     is AppError.missing_path {
         ...
     }
     is AppError.open_failed(path) {
+        ...
+    }
+    else {
         ...
     }
 }
@@ -524,7 +522,7 @@ match error {
 from std/io import print
 
 program(): i32 {
-    try print("Hello") catch error {
+    print("Hello") catch error {
         return 1
     }
 
@@ -540,7 +538,7 @@ program(): i32 {
 from std/process import args
 
 program(): i32 {
-    let argv = try args() catch error {
+    let argv = args() catch error {
         return 1
     }
 
@@ -559,7 +557,7 @@ compiler が生成する低レベル entry code は target の process entry 情
 `print`、`args`、`env`、`cwd`、`exit`、`abort`、ファイル操作、文字列操作などは、言語仕様に組み込まず標準ライブラリで提供します。
 
 ```nct
-pub func print(text: StringView): void ! IOError {
+pub func print(text: str): void! {
     ...
 }
 ```
@@ -689,13 +687,13 @@ Nocter は C ABI 互換を目指しません。通常の Nocter 関数、method�
 - `x8` を indirect return pointer に使う
 - `x19-x28` は callee-saved
 - `struct` は宣言順 layout、field reordering なし
-- `enum`、`T?`、`T ! E` は `u32` tag と payload で表す
-- `StringView`、`View<T>`、`WriteView<T>` は `ptr + len` の 2 word layout
+- `enum`、`T?`、`T!` は `u32` tag と payload で表す
+- `str`、`[T]`、`[+T]` は `ptr + len` の 2 word layout
 - 16 bytes 以下の値は直接渡し、16 bytes を超える値は pointer 経由で渡す
 - `drop` は `x0 = &+Self`、戻り値なし
 - `primitive` も Nocter ABI の境界を通り、OS syscall ABI は backend 内に隠す
 
-C 連携が必要になった場合は、将来 `extern "c"` のような別 ABI を明示的に追加します。C ABI へ暗黙に寄せると、`T?`、`T ! E`、move-only、drop、region の設計が歪むためです。
+C 連携が必要になった場合は、将来 `extern "c"` のような別 ABI を明示的に追加します。C ABI へ暗黙に寄せると、`T?`、`T!`、move-only、drop、region の設計が歪むためです。
 
 ## 標準ライブラリ
 
@@ -717,7 +715,6 @@ C 連携が必要になった場合は、将来 `extern "c"` のような別 ABI
         os.nct
         ptr.nct
         string.nct
-        view.nct
     targets/
         arm64-darwin/
             std/
@@ -744,7 +741,7 @@ from std/io import print
 
 ## OS Error Model
 
-OS error は target 固有の raw error を common std の公開 error へ変換し、最後に domain error としてユーザーへ見せます。
+OS error は target 固有の raw error を common std の公開 record へ変換し、最後に built-in `error` payload としてユーザーへ見せます。
 
 採用する層構造:
 
@@ -760,8 +757,14 @@ std/os
     OSErrorKind
     OSError
 
+compiler built-in
+    error
+
+std/prelude
+    ErrorCode
+    Error
+
 std/io / std/process
-    IOError
     File
     stdout
     stderr
@@ -773,41 +776,32 @@ std/io / std/process
     abort
 ```
 
-`SyscallResult` と `Errno` は target overlay の低レベル型です。通常のユーザー向け API はこれらを返さず、`std/os` の `OSError` や `std/io` の `IOError` へ変換します。
+`SyscallResult` と `Errno` は target overlay の低レベル型です。通常のユーザー向け API はこれらを返さず、`std/os` の `OSError` を経由して built-in `error` へ変換します。
 
 ```text
 std/os/macos.syscall3
     -> SyscallResult
     -> Errno
     -> std/os.OSError
-    -> std/io.IOError
+    -> error
 ```
 
 common `std/os` には `Errno` という名前を置きません。Windows は errno ではないため、公開 API は `OSError` に統一します。`OSError.code` は macOS / Linux では errno、Windows では将来 Win32 error code など target が定める raw code になります。
 
-`std/io` の初期公開 API は、`File`、`IOError`、`stdout`、`stderr`、`print`、byte read/write、text write に限定します。`print` は compiler built-in ではなく、標準ライブラリ関数です。
+`ErrorCode` は標準ライブラリが提供する分類 API です。compiler は `ErrorCode` という名前を知らず、`Error.new(ErrorCode..., message)` のような標準ライブラリ constructor が built-in `error` payload の primitive code 表現へ変換します。
+
+`std/io` の初期公開 API は、`File`、`stdout`、`stderr`、`print`、byte read/write、text write に限定します。`print` は compiler built-in ではなく、標準ライブラリ関数です。
 
 ```nct
-from std/os import OSError
-
-pub enum IOError {
-    not_found(path: StringView)
-    permission_denied(path: StringView)
-    invalid_path(path: StringView)
-    interrupted
-    broken_pipe
-    unexpected_os_error(error: OSError)
-}
-
 pub struct File {
     ...
 }
 
 impl File {
-    pub func open(path: StringView): File ! IOError
-    pub method (file: &+Self).read(buffer: WriteView<u8>): usize ! IOError
-    pub method (file: &+Self).write(bytes: View<u8>): void ! IOError
-    pub method (file: &+Self).write_text(text: StringView): void ! IOError
+    pub func open(path: str): File!
+    pub method (file: &+Self).read(buffer: [+u8]): usize!
+    pub method (file: &+Self).write(bytes: [u8]): void!
+    pub method (file: &+Self).write_text(text: str): void!
 
     drop File(file: &+Self) {
         ...
@@ -816,18 +810,18 @@ impl File {
 
 pub func stdout(): File
 pub func stderr(): File
-pub func print(text: StringView): void ! IOError
+pub func print(text: str): void!
 ```
 
 `File.open(path)` は v0 では既存ファイルを読み取り用に開きます。作成、追記、truncate、seek、directory traversal、buffered I/O、async I/O、path object、encoding conversion は初期仕様では採用しません。
 
-`read(buffer)` は読み込んだ byte 数を返し、通常ファイルでは `0` が EOF です。`write(bytes)` は byte view 全体を書き切るか `IOError` で失敗します。`write_text(text)` は `StringView` の UTF-8 bytes をそのまま書きます。`print(text)` は `stdout()` へ text を書き、改行は追加しません。
+`read(buffer)` は読み込んだ byte 数を返し、通常ファイルでは `0` が EOF です。`write(bytes)` は byte view 全体を書き切るか `error` で失敗します。`write_text(text)` は `str` の UTF-8 bytes をそのまま書きます。`print(text)` は `stdout()` へ text を書き、改行は追加しません。
 
 `File` は内部的に owned handle と borrowed process standard stream を区別します。`File.open(path)` で得た `File` の drop は handle を閉じますが、`stdout()` / `stderr()` で得た `File` の drop は process の標準出力 / 標準エラーを閉じません。`drop File` は失敗できないため、close error は v0 では無視します。将来必要なら明示的な `close` API を追加します。
 
-`std/process` の `args(): View<StringView> ! ProcessError`、`env(name): StringView? ! ProcessError`、`cwd(): StringView ! ProcessError`、`exit(code): never`、`abort(): never` は標準ライブラリ API です。compiler primitive ではありません。`args` / `env` / `cwd` / `exit` / `abort` という名前を compiler は特別扱いしません。
+`std/process` の `args(): [str]!`、`env(name): (str?)!`、`cwd(): str!`、`exit(code): never`、`abort(): never` は標準ライブラリ API です。compiler primitive ではありません。`args` / `env` / `cwd` / `exit` / `abort` という名前を compiler は特別扱いしません。
 
-`StringView? ! ProcessError` は `(StringView?) ! ProcessError` です。つまり、処理そのものは `ProcessError` で失敗しえますが、成功した場合の値は optional です。`args()`、`env(name)`、`cwd()` が返す `StringView` は process context storage を指す readonly view であり、呼び出し側は所有しません。owned `String` が必要な場合は明示的に copy します。target 実装は OS 由来の `argv` / `envp` / cwd を UTF-8 として検証し、`StringView` にできない場合は `ProcessError.invalid_encoding` で失敗します。
+`(str?)!` は、処理そのものは `error` で失敗しえますが、成功した場合の値は optional であることを表します。`args()`、`env(name)`、`cwd()` が返す `str` は process context storage を指す readonly view であり、呼び出し側は所有しません。owned `String` が必要な場合は明示的に copy します。target 実装は OS 由来の `argv` / `envp` / cwd を UTF-8 として検証し、`str` にできない場合は `ErrorCode.invalid_encoding` で失敗します。
 
 `exit` / `abort` は target overlay の syscall や process termination boundary を使って実装し、万一 OS の終了操作から戻った場合は `trap()` します。`exit` / `abort` は caller scope の Nocter cleanup を実行しません。cleanup が必要な場合は、呼び出し前に明示します。
 
@@ -906,10 +900,10 @@ Nocter のメモリ管理方針は、GC なし、所有権あり、静的検査�
 - borrow は作成位置から、その borrow-like value の最後の source-level 使用位置まで有効です
 - borrow binding の lexical scope が続いていても、その後に使われないなら borrow はそこで終了できます
 - method receiver borrow は通常 call の間だけ有効ですが、receiver 由来の borrow-like value を返す場合は、その戻り値の最後の使用位置まで有効です
-- `StringView`、`View<T>`、`WriteView<T>`、`ViewIter<T>`、borrow-like value を含む aggregate も同じ live range / provenance check を受けます
+- `str`、`[T]`、`[+T]`、`ViewIter<T>`、borrow-like value を含む aggregate も同じ live range / provenance check を受けます
 - direct named field については限定的な field-sensitive borrow を行います
 - whole value の borrow は全 field と競合しますが、互いに disjoint な named field 同士は同時に扱えます
-- array index、collection index、`View<T>` element、pointer dereference、method call result、enum payload は v0 では field-sensitive に扱いません
+- array index、collection index、`[T]` element、pointer dereference、method call result、enum payload は v0 では field-sensitive に扱いません
 
 初期化と代入の基本規則:
 
@@ -921,20 +915,20 @@ Nocter のメモリ管理方針は、GC なし、所有権あり、静的検査�
 - assignment target は writable place である必要がある
 - v0 の writable place は `var` binding、writable place から到達できる field、`&+T` borrow から到達できる field
 - 再代入では、右辺の評価に成功してから古い値を `drop` し、新しい値を格納する
-- 右辺の `try` が失敗した場合、古い値は置き換えられず、通常の `try` 伝播と scope-end `drop` に従う
+- 右辺の postfix `?` が失敗した場合、古い値は置き換えられず、通常の failure 伝播と scope-end `drop` に従う
 - active borrow と競合する場所には再代入できない
 - 非copy値を既存の値から代入する場合は `move` が必要
 - copy 型は通常の代入で copy する
 - field assignment は partial move ではなく overwrite として扱う
 - move 後の `var` binding 再初期化では古い値を `drop` しない
-- 再初期化の右辺が `try` で失敗した場合、binding は uninitialized のまま
+- 再初期化の右辺が postfix `?` で失敗した場合、binding は uninitialized のまま
 - 分岐後に binding を使うには、すべての到達経路で initialized である必要がある
 - compiler は binding の状態を `initialized` / `uninitialized` / `maybe initialized` として追跡する
 - `maybe initialized` binding は直接使えない
 - scope 終了時の `maybe initialized` binding には compiler が条件付き drop を生成する
 - chained assignment は v0 では採用しない
 - `+=` などの複合代入は v0 では数値型の writable place のみに許可する
-- `WriteView<T>`、array、collection への index assignment は v0 では延期する
+- `[+T]`、array、collection への index assignment は v0 では延期する
 
 評価順序と一時値の基本規則:
 
@@ -945,9 +939,9 @@ Nocter のメモリ管理方針は、GC なし、所有権あり、静的検査�
 - `??` と三項条件演算子は必要な側だけ評価する
 - 一時値は原則として文末で生成の逆順に `drop` する
 - 一時値の所有権が local binding、owned parameter、構築中の aggregate、代入先、return value に移った場合、その一時値自体は caller 側の文末では `drop` しない
-- block、`if` body、`match` arm、loop body は scope を作る
+- block、`if` body、`switch` arm、loop body は scope を作る
 - scope 終了時は local 変数を宣言の逆順で `drop` する
-- `try` / `return` / `fail` / `break` / `continue` で途中離脱する場合は、現在の statement で生成済みの一時値を先に `drop` し、その後に離脱で抜ける scope の `drop` を実行する
+- postfix `?` / `return` / `fail` / `break` / `continue` で途中離脱する場合は、現在の statement で生成済みの一時値を先に `drop` し、その後に離脱で抜ける scope の `drop` を実行する
 - 一時値から作った borrow や view を文の外へ逃がせない
 - local owned value、temporary owned value、owned parameter から作った borrow / view は返せない
 - 初期仕様では一時値の lifetime extension を採用しない
@@ -981,22 +975,22 @@ text = String.new()
 consume(move text)
 ```
 
-再初期化では古い値を `drop` しません。右辺の `try` が失敗した場合、binding は uninitialized のままです。分岐後に使う binding は、すべての到達経路で initialized でなければなりません。
+再初期化では古い値を `drop` しません。右辺の postfix `?` が失敗した場合、binding は uninitialized のままです。分岐後に使う binding は、すべての到達経路で initialized でなければなりません。
 
 ```nct
-var file = try File.open(path)
+var file = File.open(path)?
 close(move file)
 
 file.read() // error
 
-file = try File.open(other_path)
-try file.read()
+file = File.open(other_path)?
+file.read()?
 ```
 
 control flow の合流では、全 path で initialized なら initialized、全 path で uninitialized なら uninitialized、path に差があれば maybe initialized です。maybe initialized binding は読み取り、borrow、move、field access、明示 `drop` に使えません。ただし scope end では compiler が条件付き drop を生成します。
 
 ```nct
-var file = try File.open(path)
+var file = File.open(path)?
 
 if should_close {
     close(move file)
@@ -1047,18 +1041,18 @@ inspect(&file)
 
 ```nct
 impl File {
-    pub method (file: &+Self).write_text(text: StringView): void ! IOError {
+    pub method (file: &+Self).write_text(text: str): void! {
         ...
     }
 }
 
-try file.write_text("hello")
+file.write_text("hello")?
 ```
 
 新規生成された owned temporary は、その1回の method call に限って `&+Self` receiver として使えます。
 
 ```nct
-try (try File.open(path)).write_text("hello")
+(File.open(path)?).write_text("hello")?
 ```
 
 `File.open(path)` が失敗した場合、`File` temporary は存在しません。`write_text` が失敗した場合、生成済みの temporary `File` を drop してから failure を伝播します。成功した場合は statement 終端で temporary `File` を drop します。
@@ -1066,12 +1060,12 @@ try (try File.open(path)).write_text("hello")
 再代入は、古い所有値を安全に破棄してから新しい値を入れます。
 
 ```nct
-var file = try File.open(path)
+var file = File.open(path)?
 
-file = try File.open(other_path)
+file = File.open(other_path)?
 ```
 
-field assignment も同じ overwrite 規則です。右辺を先に評価し、成功した後に古い field 値を `drop` して新しい値を格納します。右辺の `try` が失敗した場合、左辺は変更しません。
+field assignment も同じ overwrite 規則です。右辺を先に評価し、成功した後に古い field 値を `drop` して新しい値を格納します。右辺の postfix `?` が失敗した場合、左辺は変更しません。
 
 ```nct
 var user = move old_user
@@ -1083,8 +1077,8 @@ user.name = move new_name
 非copy値を別の変数から移す場合は `move` を使います。
 
 ```nct
-var a = try File.open(path_a)
-var b = try File.open(path_b)
+var a = File.open(path_a)?
+var b = File.open(path_b)?
 
 a = move b
 ```
@@ -1092,13 +1086,13 @@ a = move b
 一時的な所有値から view を取り出して外へ残すことは禁止します。
 
 ```nct
-let view = (try String.copy(allocator, "abc")).view() // error
+let view = (String.copy(allocator, "abc")?).view() // error
 ```
 
 所有値を束縛してから view を作ります。
 
 ```nct
-var text = try String.copy(allocator, "abc")
+var text = String.copy(allocator, "abc")?
 let view = text.view()
 ```
 
@@ -1121,12 +1115,12 @@ func make_user(name: String): User {
 borrow / view を返す場合は、参照元が返却後も生きている必要があります。v0 では source-level lifetime 注釈を持たず、コンパイラが provenance を追跡できる範囲に制限します。
 
 ```nct
-func greeting(): StringView {
+func greeting(): str {
     return "hello" // OK: static storage
 }
 
-func bad(allocator: &+Allocator): StringView ! AllocError {
-    var text = try String.copy(allocator, "hello")
+func bad(allocator: &+Allocator): str! {
+    var text = String.copy(allocator, "hello")?
     return text.view() // error: local owned value is dropped at return
 }
 ```
@@ -1154,18 +1148,18 @@ impl File {
     }
 }
 
-var file = try File.open(path)
+var file = File.open(path)?
 drop file
 ```
 
 `drop name` の operand は v0 では local / parameter binding 名だけです。initialized な move-only owned binding だけを明示 drop できます。copy 型、borrow、maybe initialized、uninitialized binding は明示 drop できません。`drop name` 後、その binding は uninitialized state になります。`var` binding はその後に再初期化できます。
 
 ```nct
-var file = try File.open(path)
+var file = File.open(path)?
 drop file
 
-file = try File.open(other)
-try file.read()
+file = File.open(other)?
+file.read()?
 ```
 
 `drop object.field`、`drop array[index]`、`drop make_value()` は v0 では採用しません。
@@ -1174,8 +1168,8 @@ try file.read()
 
 ```nct
 region scratch using allocator {
-    let source = try read_file(scratch.allocator(), "main.nct")
-    let tokens = try lex(scratch.allocator(), source.view())
+    let source = read_file(scratch.allocator(), "main.nct")?
+    let tokens = lex(scratch.allocator(), source.view())?
 }
 ```
 
@@ -1185,21 +1179,21 @@ region scratch using allocator {
 
 `region` を抜けると、まず block 内の所有値を通常通り逆順に `drop` し、その後で region allocator が残りの region 確保をまとめて解放します。`return`、`fail`、`break`、`continue` で region block を抜ける場合も同じ cleanup を行います。`never` 呼び出しは stack unwinding ではないため、呼び出し元 region の cleanup を暗黙には保証しません。
 
-コンパイラは、region 内で確保した所有値、region 由来の borrow、`StringView` / `View<T>` などの view が region の外へ漏れないことを検査します。copy 値でも、region 由来の参照や backing storage を含む場合は外へ持ち出せません。純粋な `i32` や統計値のように region へ依存しない copy 値だけを外へ持ち出せます。
+コンパイラは、region 内で確保した所有値、region 由来の borrow、`str` / `[T]` などの view が region の外へ漏れないことを検査します。copy 値でも、region 由来の参照や backing storage を含む場合は外へ持ち出せません。純粋な `i32` や統計値のように region へ依存しない copy 値だけを外へ持ち出せます。
 
-`Allocator`、`AllocError`、`Layout`、`RawBuffer` は `std/mem` の普通の公開 API として定義します。コンパイラは `Allocator` という名前を特別扱いしません。特別なのは `region ... using ...` 構文と、region 由来 allocator の provenance tracking だけです。
+`Allocator`、`Layout`、`RawBuffer` は `std/mem` の普通の公開 API として定義します。コンパイラは `Allocator` という名前を特別扱いしません。特別なのは `region ... using ...` 構文と、region 由来 allocator の provenance tracking だけです。
 
 ```nct
-from std/mem import Allocator, AllocError, Layout, RawBuffer
+from std/mem import Allocator, Layout, RawBuffer
 
 import std/mem as mem
 
 var allocator = mem.page_allocator()
-let buffer = try mem.alloc(&+allocator, 4096, 16)
+let buffer = mem.alloc(&+allocator, 4096, 16)?
 mem.free(&+allocator, move buffer)
 ```
 
-確保失敗は `AllocError` を使う fallible value として扱います。OOM を暗黙に `panic` / `abort` しません。`RawBuffer` は低レベル API であり、通常のコードでは `String` や `Buffer<T>` のような所有型を使います。
+確保失敗は `ErrorCode.out_of_memory` などを持つ `error` として扱います。OOM を暗黙に `panic` / `abort` しません。`RawBuffer` は低レベル API であり、通常のコードでは `String` や `Buffer<T>` のような所有型を使います。
 
 ## Raw Pointer と Address API
 
@@ -1226,7 +1220,7 @@ pub(nocter) primitive from_addr<T>(address: usize): *T
 
 `usize` から pointer を作る `from_addr<T>(address: usize): *T` は `pub(nocter)` です。初期仕様では共通 `std/` と active target overlay の trusted module だけが使える制限 API で、一般ユーザーコードからは呼べません。
 
-`View<T>`、`WriteView<T>`、`StringView` は `ptr()` と `len()` を持ちます。標準ライブラリ内の trusted module が syscall に buffer を渡す場合は、`ptr()` で raw pointer を取り、`std/ptr` の `addr(...)` で `usize` へ変換します。一般ユーザーコードは syscall primitive を直接呼べません。
+`[T]`、`[+T]`、`str` は `ptr()` と `len()` を持ちます。標準ライブラリ内の trusted module が syscall に buffer を渡す場合は、`ptr()` で raw pointer を取り、`std/ptr` の `addr(...)` で `usize` へ変換します。一般ユーザーコードは syscall primitive を直接呼べません。
 
 ```nct
 import std/ptr as ptr
@@ -1247,46 +1241,46 @@ trusted module が public API の不変条件を破った場合、それは標�
 
 ## 文字列
 
-文字列リテラルの型は canonical standard-library type の `std/string.StringView` とします。
+文字列リテラルの型は compiler built-in の `str` とします。
 
 ```nct
-let name = "Nocter" // std/string.StringView
+let name = "Nocter" // str
 ```
 
-ソースコードで `StringView` という非修飾名を書くには、`use std/prelude` または `from std/string import StringView` のように明示します。`StringView` は、UTF-8 として妥当な文字列を指す非所有 view です。実体は Mach-O 内の静的データ、または別の所有オブジェクトが持つバッファです。`StringView` 自身は所有権を持たず、drop も発生しません。
+`str` は import なしで使える built-in 型です。UTF-8 として妥当な文字列を指す非所有 view で、実体は Mach-O 内の静的データ、または別の所有オブジェクトが持つバッファです。`str` 自身は所有権を持たず、drop も発生しません。
 
 `String` は所有する文字列型です。標準ライブラリ側では `Buffer<u8>` などを使って実装し、スコープ終了時に内部バッファを破棄します。`String` は move-only とし、暗黙 copy は行いません。
 
 ```nct
-let view: StringView = "README.md"
-var owned = try String.copy(allocator, view)
+let view: str = "README.md"
+var owned = String.copy(allocator, view)?
 
 open(view)
 open(owned.view())
 
-func open(path: StringView): File ! IOError {
+func open(path: str): File! {
     ...
 }
 ```
 
 文字列リテラルをグローバルな `String` として扱う方針は採用しません。`String` は所有型なので、リテラルから `String` が必要な場合は `String.copy(...)` で明示的に確保します。
 
-連続した要素列の非所有ビューには `View<T>` / `WriteView<T>` を使います。`View<T>` は readonly view、`WriteView<T>` は readwrite view です。`StringView` は文字列専用の view として扱います。
+連続した要素列の非所有ビューには `[T]` / `[+T]` を使います。`[T]` は readonly view、`[+T]` は readwrite view です。`str` は文字列専用の view として扱います。
 
 ```nct
-func checksum(bytes: View<u8>): u32
-func read_into(file: &+File, output: WriteView<u8>): usize ! IOError
+func checksum(bytes: [u8]): u32
+func read_into(file: &+File, output: [+u8]): usize!
 
-impl StringView {
+impl str {
     pub method (text: Self).ptr(): *u8
     pub method (text: Self).len(): usize
-    pub method (text: Self).bytes(): View<u8>
+    pub method (text: Self).bytes(): [u8]
 }
 ```
 
-`View<u8>` は任意のバイト列を表し、UTF-8 であるとは限りません。`StringView` からは `View<u8>` を得られますが、`View<u8>` から `StringView` を作る場合は UTF-8 検証を必要とします。
+`[u8]` は任意のバイト列を表し、UTF-8 であるとは限りません。`str` からは `[u8]` を得られますが、`[u8]` から `str` を作る場合は UTF-8 検証を必要とします。
 
-`"abc"` を `&String` として渡す暗黙変換は採用しません。`&String` は実在する所有 `String` への borrow であり、文字列リテラルは `StringView` として扱います。
+`"abc"` を `&String` として渡す暗黙変換は採用しません。`&String` は実在する所有 `String` への borrow であり、文字列リテラルは `str` として扱います。
 
 byte literal は `b'...'` と書き、型は `u8` です。裸の `'...'` は初期仕様では採用せず、将来の `Char` 用に空けておきます。
 
@@ -1296,7 +1290,7 @@ let newline: u8 = b'\n'
 let raw: u8 = b'\xFF'
 ```
 
-文字列リテラルと byte literal では、`\n`、`\r`、`\t`、`\0`、`\\`、`\"`、`\'`、`\xNN` を使えます。文字列リテラルは UTF-8 の `std/string.StringView` です。byte literal は escape 解決後にちょうど 1 byte でなければなりません。
+文字列リテラルと byte literal では、`\n`、`\r`、`\t`、`\0`、`\\`、`\"`、`\'`、`\xNN` を使えます。文字列リテラルは UTF-8 の `str` です。byte literal は escape 解決後にちょうど 1 byte でなければなりません。
 
 ## 配列とコレクション
 
@@ -1312,21 +1306,21 @@ let numbers = [1, 2, 3] // [i32; 3]
 所有する可変長バッファは標準ライブラリの `Buffer<T>` で表します。`Buffer<T>` は言語組み込みではなく、標準ライブラリ型です。
 
 ```nct
-var bytes = try Buffer<u8>.with_capacity(allocator, 4096)
-try bytes.push(10)
+var bytes = Buffer<u8>.with_capacity(allocator, 4096)?
+bytes.push(10)?
 
-let read: View<u8> = bytes.view()
-let write: WriteView<u8> = bytes.write_view()
+let read: [u8] = bytes.view()
+let write: [+u8] = bytes.write_view()
 ```
 
-非所有 view は `View<T>` / `WriteView<T>` を使います。canonical module path は `std/view` です。
+非所有 view は compiler built-in の `[T]` / `[+T]` を使います。
 
 ```nct
-View<T>       // readonly contiguous view
-WriteView<T> // readwrite contiguous view
+[T]       // readonly contiguous view
+[+T] // readwrite contiguous view
 ```
 
-borrow と view は、コンパイラ内部の hidden provenance を持ちます。provenance は実行時値ではなく、ABI や `ptr + len` layout に影響しません。`&T`、`&+T`、`StringView`、`View<T>`、`WriteView<T>`、`ViewIter<T>`、これらを含む aggregate が borrow-like value です。
+borrow と view は、コンパイラ内部の hidden provenance を持ちます。provenance は実行時値ではなく、ABI や `ptr + len` layout に影響しません。`&T`、`&+T`、`str`、`[T]`、`[+T]`、`ViewIter<T>`、これらを含む aggregate が borrow-like value です。
 
 v0 の provenance source kind:
 
@@ -1341,19 +1335,19 @@ unknown
 
 `static` は返却・保存できます。`local`、`owned_param`、`region` は外へ逃がせません。`param_borrow` は返却できますが、呼び出し側では元の borrow より長く使えません。`unknown` は安全側に倒し、safe v0 code では関数から返したり長寿命の場所へ保存したりできません。
 
-`WriteView<T>` は `&+T` と同じく readwrite permission と排他性を持ちます。`View<T>` と `StringView` は readonly permission を持ちます。
+`[+T]` は `&+T` と同じく readwrite permission と排他性を持ちます。`[T]` と `str` は readonly permission を持ちます。
 
 ```nct
-func ok(): StringView {
+func ok(): str {
     return "hello" // static
 }
 
-func bad(allocator: &+Allocator): StringView ! AllocError {
-    var text = try String.copy(allocator, "hello")
+func bad(allocator: &+Allocator): str! {
+    var text = String.copy(allocator, "hello")?
     return text.view() // error: local
 }
 
-func slice(input: StringView): StringView {
+func slice(input: str): str {
     return input // param_borrow-like provenance
 }
 ```
@@ -1371,7 +1365,7 @@ let maybe = read.get(0)  // u8?
 let count = read.len()
 ```
 
-collection 用の操作は標準ライブラリの通常メソッドとして用意します。`len()`、`get()`、`ptr()`、`view()`、`write_view()` は collection / view の基本 API です。v0 の collection iteration は `View<T>` から `ViewIter<T>` を作る readonly borrow iteration です。`iter()`、`next()`、`ViewIter<T>` は普通の標準ライブラリ API であり、`for` 構文が名前で特別扱いすることはありません。
+collection 用の操作は標準ライブラリの通常メソッドとして用意します。`len()`、`get()`、`ptr()`、`view()`、`write_view()` は collection / view の基本 API です。v0 の collection iteration は `[T]` から `ViewIter<T>` を作る readonly borrow iteration です。`iter()`、`next()`、`ViewIter<T>` は普通の標準ライブラリ API であり、`for` 構文が名前で特別扱いすることはありません。
 
 ```nct
 var iter = read.iter()
@@ -1381,7 +1375,7 @@ while let byte = iter.next() {
 }
 ```
 
-`ViewIter<T>.next()` は `(&T)?` を返します。これは optional readonly borrow であり、optional value への borrow ではありません。`WriteView<T>` の mutable element iteration と、collection から要素を move する owned iteration は v0 では採用しません。
+`ViewIter<T>.next()` は `(&T)?` を返します。これは optional readonly borrow であり、optional value への borrow ではありません。`[+T]` の mutable element iteration と、collection から要素を move する owned iteration は v0 では採用しません。
 
 ## 型システム
 
@@ -1394,24 +1388,28 @@ bool
 i8 i16 i32 i64
 u8 u16 u32 u64
 usize isize
+str
+error
 void
 never
 
 *T
 &T
 &+T
+[T]
+[+T]
 T?
-T ! E
-T? ! E
+T!
+(T?)!
 [T; N]
 (T)
 ```
 
-fallible type の公式表記は `!` の前後に空白を入れる `T ! E` です。空白は文法上必須ではないため、`T!E`、`T ! E`、`T !E` は同じ型として parse できます。ただし formatter は必ず `T ! E` / `T? ! E` に整形します。`T !E` は `!E` が error 型への接頭記号に見えるため、推奨しません。
+fallible type の公式表記は `T!` です。成功値が optional の fallible type は `(T?)!` と書きます。
 
-型構文の括弧はグルーピングだけを行います。例えば `(&T)?` は optional readonly borrow、`&(T?)` は optional value への readonly borrow です。`T? ! E` は `(T?) ! E` で、成功値が optional の fallible type です。
+型構文の括弧はグルーピングだけを行います。例えば `(&T)?` は optional readonly borrow、`&(T?)` は optional value への readonly borrow です。`(T?)!` は成功値が optional の fallible type です。
 
-`String`、`StringView`、`View<T>`、`WriteView<T>`、`ViewIter<T>`、`Allocator`、`File`、`IOError`、`print`、`args`、`env`、`cwd`、`exit`、`abort` は compiler built-in ではありません。
+`str`、`error`、`[T]`、`[+T]` は compiler built-in の基礎型です。`String`、`Error`、`ErrorCode`、`ViewIter<T>`、`Allocator`、`File`、`print`、`args`、`env`、`cwd`、`exit`、`abort` は compiler built-in ではありません。
 
 整数リテラルは decimal、hex `0x...`、binary `0b...` を持ち、桁区切り `_` を使えます。文脈型があればその整数型になり、文脈がなければ `i32` になります。float literal は v0 では採用しません。
 
@@ -1420,11 +1418,9 @@ let count = 10      // i32
 let size: u64 = 10  // u64
 ```
 
-`Int` は compiler built-in ではありません。使う場合は `std/prelude` が提供する通常の alias として、`use std/prelude` で明示的に取り込みます。暗黙 prelude はこの規則には含めません。
+`Int` は compiler built-in ではありません。`std/prelude` が提供する通常の alias です。user project module では synthetic prelude により利用できます。標準ライブラリ内部では `from std/prelude import Int` のように明示 import します。
 
 ```nct
-use std/prelude
-
 let count: Int = 10 // Int is an alias of i32
 ```
 
@@ -1432,7 +1428,7 @@ let count: Int = 10 // Int is an alias of i32
 
 ```nct
 pub type Int = i32
-pub type Bytes = View<u8>
+pub type Bytes = [u8]
 pub type Map<K, V> = HashMap<K, V>
 ```
 
@@ -1491,16 +1487,18 @@ let truncated = u8.truncate(big) // u8
 
 比較と論理演算は、初期仕様では小さく保ちます。
 
-- `==` / `!=` は同じ型同士に限定する
+- `==` / `!=` は初期仕様では `bool`、整数型、`str`、payload を持たない enum に限定する
 - ordering 比較 `<` / `<=` / `>` / `>=` は同じ数値型同士に限定する
+- shift 演算 `<<` / `>>` は左辺を整数値、右辺を整数の shift count とし、結果は左辺の型にする
 - `&&` / `||` は `bool` 専用で短絡評価する
 - `!expr` は `bool` 専用
-- 単項 `-expr` は数値型専用
+- 単項 `-expr` は符号付き整数型専用
 - 単項 `+expr` は採用しない
 - ユーザー定義 operator overload は初期仕様では採用しない
+- `String == String` や `String == str` は std 側の演算子定義が必要になるため v0 では保留する
 - `==` を struct に自動生成しない
 - payload を持たない enum の比較は許可する
-- payload を持つ enum の比較は初期仕様では採用せず、`match` / `if expr is Pattern` を使う
+- payload を持つ enum の比較は初期仕様では採用せず、`switch` / `if expr is Pattern` を使う
 
 演算子の優先順位は、call / method / index / field を最も高くし、`??` と三項条件演算子を低くします。`&&`、`||`、`??`、三項条件演算子は必要な側だけ評価します。
 
@@ -1513,19 +1511,21 @@ if count > 0 && state == ScanState.inside_word {
 例:
 
 ```nct
-func log(msg: StringView): void
+func log(msg: str): void
 ```
 
-戻り値を持たない関数は `void` を返します。失敗を表す値には、例外ではなく fallible type `T ! E` を使います。
+戻り値を持たない関数は `void` を返します。失敗を表す値には、例外ではなく fallible type `T!` を使います。
 
-`T ! E` は成功時に `T`、失敗時に `E` を返す型です。fallible 関数内では `return value` が成功、`fail error` が失敗を表します。
+`T!` は成功時に `T`、失敗時に built-in `error` を返す型です。fallible 関数内では `return value` が成功、`fail error_value` が失敗を表します。
 
-`try` は fallible value の成功値を取り出す構文です。失敗した場合は現在の関数から同じ error で失敗します。例外やスタック巻き戻しではありません。`try` は `T ! E` 専用で、`T?` には使いません。
+`error` は型位置で意味を持つ compiler built-in 構文です。import で解決される通常名ではなく、ユーザー定義の型名として再定義できません。一方で、値の束縛名としての `error` は通常のローカル名です。`catch error { ... }` の `error` は慣習的な束縛名であり、`catch err { ... }` のような別名も有効です。
+
+postfix `?` は fallible value の成功値を取り出す構文です。失敗した場合は現在の関数から同じ `error` で失敗します。例外やスタック巻き戻しではありません。postfix `?` は `T!` 専用で、`T?` には使いません。
 
 `fail`、`trap`、`abort` は別の仕組みです。
 
 ```text
-fail  = T ! E を通る回復可能エラー
+fail  = T! を通る回復可能エラー
 trap  = プログラムバグ、契約違反、compiler check 失敗による復帰不能停止
 abort = cleanup なしの即時 process termination
 ```
@@ -1533,39 +1533,41 @@ abort = cleanup なしの即時 process termination
 `fail` は `return` と同じく、離脱する scope の通常 cleanup を実行します。`trap` と `abort` は `never` を返し、stack unwinding を行いません。`panic` と unwind は v0 では採用しません。
 
 ```nct
-func open(path: StringView): File ! IOError {
+func open(path: str): File! {
     if failed {
-        fail IOError.not_found(path)
+        fail Error.new(ErrorCode.io_not_found, "file not found")
     }
 
     return file
 }
 ```
 
-error 型の暗黙変換は行いません。fallible value の失敗側を別の error に変換して離脱したい場合は `try ... catch` を使います。
+fallible type は `T!` と書きます。成功時は `T`、失敗時は built-in type の `error` を返します。`Error` と `ErrorCode` は標準ライブラリが提供する通常名であり、compiler はこれらの大文字名を特別扱いしません。`ErrorCode` は `Error.new(...)` などの標準ライブラリ API を通じて、built-in `error` payload の primitive code 表現へ変換されます。
+
+fallible value を伝播する場合は postfix `?` を使います。失敗側を別の `error` に置き換えて離脱したい場合は `catch error { ... }` を使います。
 
 ```nct
-func read_all(allocator: &+Allocator, path: StringView): String ! AppError {
-    var file = try File.open(path) catch error {
-        fail AppError.open_failed(path)
+func read_all(allocator: &+Allocator, path: str): String! {
+    var file = File.open(path) catch error {
+        fail Error.new(ErrorCode.io_open_failed, error.message)
     }
 
-    var text = try file.read_to_string(allocator) catch error {
-        fail AppError.read_failed(path)
+    var text = file.read_to_string(allocator) catch error {
+        fail Error.new(ErrorCode.io_read_failed, error.message)
     }
 
     return move text
 }
 ```
 
-`catch` は例外処理ではありません。`try expr catch error { ... }` は `expr` が失敗した場合だけ `catch` block を実行します。初期仕様では `catch` block は `fail`、`return`、`break`、`continue`、`never` を返す関数呼び出しなどで現在の制御フローを離脱し、通常の末尾到達はできません。`catch` は `T ! E` 専用で、`T?` には使いません。
+`catch` は例外処理ではありません。`expr catch error { ... }` は `expr` が失敗した場合だけ `catch` block を実行します。初期仕様では `catch` block は `fail`、`return`、`break`、`continue`、`never` を返す関数呼び出しなどで現在の制御フローを離脱し、通常の末尾到達はできません。`catch` は `T!` 専用で、`T?` には使いません。
 
-fallible value は `match` で分解しません。`match` は enum 専用に戻し、`ok` / `fail` pattern は採用しません。fallible value は `try` または `try ... catch` で扱います。
+fallible value は `switch` で分解しません。`switch` は enum 専用に戻し、`ok` / `fail` pattern は採用しません。fallible value は postfix `?` または `catch` で扱います。
 
 値が存在しない可能性は `T?` で表します。`Option<T>` という名前付き型を特別扱いしません。optional 関数では `return value` が present、`return none` が absent を表します。
 
 ```nct
-func lookup(name: StringView): StringView? {
+func lookup(name: str): str? {
     if missing {
         return none
     }
@@ -1573,7 +1575,7 @@ func lookup(name: StringView): StringView? {
     return value
 }
 
-func require_home(): StringView? {
+func require_home(): str? {
     if let home = lookup("HOME") {
         return home
     }
@@ -1582,15 +1584,15 @@ func require_home(): StringView? {
 }
 ```
 
-optional と fallible は合成できます。`T? ! E` は `(T?) ! E` と読み、失敗しうる処理の成功値が optional であることを表します。`try` は fallible layer だけを外すため、`try process.env("HOME")` の型は `StringView?` です。
+optional と fallible は合成できます。`(T?)!` は、失敗しうる処理の成功値が optional であることを表します。postfix `?` は fallible layer だけを外すため、`process.env("HOME")?` の型は `str?` です。
 
 ```nct
-if let home = try process.env("HOME") {
+if let home = process.env("HOME")? {
     use(home)
 }
 ```
 
-v0 では optional propagation syntax を採用しません。postfix `expr?` はなく、`try` も `T?` には使いません。absence を現在の optional 関数から返す場合は `return none`、present / absent で分岐する場合は `if let` / `if var`、値がなければ現在の制御フローを抜ける場合は `let ... else` / `var ... else`、default value を選ぶ場合は `??` を使います。
+v0 では optional propagation syntax を採用しません。postfix `?` は fallible value 専用で、`T?` には使いません。absence を現在の optional 関数から返す場合は `return none`、present / absent で分岐する場合は `if let` / `if var`、値がなければ現在の制御フローを抜ける場合は `let ... else` / `var ... else`、default value を選ぶ場合は `??` を使います。
 
 optional を値として使う前に、値がない場合だけ早期離脱したいときは `let ... else` を使います。
 
@@ -1640,7 +1642,7 @@ optional value には default operator `??` を使えます。右結合で、必
 let port = env_int("PORT") ?? config.default_port ?? 8080
 ```
 
-`T?` も `match` では分解しません。local に present / absent を分岐したい場合は `if let` / `if var` を使います。optional を繰り返し取り出す場合は `while let` / `while var` を使います。
+`T?` も `switch` では分解しません。local に present / absent を分岐したい場合は `if let` / `if var` を使います。optional を繰り返し取り出す場合は `while let` / `while var` を使います。
 
 ```nct
 if let home = env("HOME") {
@@ -1695,7 +1697,7 @@ bool 条件の値選択には三項条件演算子 `a ? b : c` を使えます�
 let label = count == 0 ? "empty" : "ready"
 ```
 
-初期仕様では statement 中心にします。`if`、`match`、block `{ ... }` は値を返しません。関数の成功終了は `return`、fallible の失敗は `fail`、optional の absent は `return none` で明示します。
+初期仕様では statement 中心にします。`if`、`switch`、block `{ ... }` は値を返しません。関数の成功終了は `return`、fallible の失敗は `fail`、optional の absent は `return none` で明示します。
 
 ```nct
 func max(a: i32, b: i32): i32 {
@@ -1765,7 +1767,7 @@ while let byte = iter.next() {
 ```nct
 import std/process as process
 
-func require_path(path: StringView?): StringView {
+func require_path(path: str?): str {
     if let value = path {
         return value
     }
@@ -1774,7 +1776,7 @@ func require_path(path: StringView?): StringView {
 }
 ```
 
-`never` を返す関数を呼んだ後の同一 block 内の文は到達不能です。Nocter は初期仕様で到達不能コードをコンパイルエラーにします。`never` は値を生成しないため、三項条件演算子や `try ... catch` の分岐で必要な型に収まりますが、変数に格納する値としては存在しません。`void` 以外の関数はすべての到達可能経路で値を返すか、`fail` / `return none` / `never` などで経路を終端する必要があります。`never` 呼び出しは例外や stack unwinding ではないため、statement-end temporary drop や caller scope の `drop` 実行を暗黙に保証しません。
+`never` を返す関数を呼んだ後の同一 block 内の文は到達不能です。Nocter は初期仕様で到達不能コードをコンパイルエラーにします。`never` は値を生成しないため、三項条件演算子や `catch` の分岐で必要な型に収まりますが、変数に格納する値としては存在しません。`void` 以外の関数はすべての到達可能経路で値を返すか、`fail` / `return none` / `never` などで経路を終端する必要があります。`never` 呼び出しは例外や stack unwinding ではないため、statement-end temporary drop や caller scope の `drop` 実行を暗黙に保証しません。
 
 ジェネリクスは `<T>` を使います。制約は v0 では `T: Trait` だけです。複数制約 `T: A + B`、`where` clause、default type parameter は採用しません。
 
@@ -1783,13 +1785,13 @@ struct Buffer<T> {
     ...
 }
 
-func first<T>(items: View<T>): T? {
+func first<T>(items: [T]): T? {
     ...
 }
 
-func write_line<W: Writer>(writer: &+W, text: StringView): void ! IOError {
-    try writer.write(text)
-    try writer.write("\n")
+func write_line<W: Writer>(writer: &+W, text: str): void! {
+    writer.write(text)?
+    writer.write("\n")?
     return
 }
 ```
@@ -1835,7 +1837,7 @@ help: end the borrow before moving `file`
 
 v0 では、source-level compiler error に `E0000` 形式の error code を付け、primary span を1つ持たせます。関連する原因箇所がある場合は related span と `note` を出し、修正方向が明確な場合は `help` を出します。parser は最初の構文エラーで止まってよく、型チェック以降は複数の独立エラーを出せますが、cascade error は抑制します。
 
-`pub(nocter)` 違反、borrow 違反、move 後の使用、明示 `drop` 後の使用、maybe initialized binding の使用、fallible error type mismatch、`catch` の fallthrough、`program` の欠落や重複などは専用診断にします。診断文は compiler 内部都合ではなく、Nocter の source-level 概念で説明します。
+`pub(nocter)` 違反、borrow 違反、move 後の使用、明示 `drop` 後の使用、maybe initialized binding の使用、`fail` に `error` 以外を渡した場合、fallible ではない値への postfix `?`、`catch` の fallthrough、`program` の欠落や重複などは専用診断にします。診断文は compiler 内部都合ではなく、Nocter の source-level 概念で説明します。
 
 ## エディタ連携
 
@@ -1878,7 +1880,7 @@ compiler 内部の source span は UTF-8 byte offset を正とし、CLI 用 JSON
 12. `print`
 13. `import`
 14. `struct`
-15. `if` / `match`
+15. `if` / `switch`
 16. `while` / `loop` / range `for` / `break` / `continue`
 17. 所有型のコピー禁止
 18. `move`

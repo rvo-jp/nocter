@@ -1,19 +1,13 @@
 // Nocter standard library memory API.
 //
 // This file is the initial public surface for std.mem. The compiler must not
-// special-case the names Allocator, AllocError, Layout, RawBuffer, alloc,
-// free, or page_allocator. Region-specific behavior is tracked through
+// special-case the names Allocator, Layout, RawBuffer, alloc, free, or
+// page_allocator. Region-specific behavior is tracked through
 // allocator provenance from the `region ... using ...` language construct.
 //
 // The public functions below are ordinary standard-library APIs. Allocation is
-// not part of the compiler primitive set in v0. The initial bodies are
-// placeholders until std.mem is implemented through target-overlay syscall
-// wrappers and ordinary Nocter code.
-
-pub enum AllocError {
-    out_of_memory
-    invalid_layout
-}
+// not part of the compiler primitive set in v0. The initial bodies are Parser
+// v0 placeholders until target-backed allocation wrappers are implemented.
 
 pub copy struct Layout {
     pub size: usize
@@ -32,15 +26,15 @@ pub struct Allocator {
 }
 
 pub func page_allocator(): Allocator {
-    return Allocator{state: 0, kind: 0}
+    return Allocator.placeholder()
 }
 
 pub func alloc(
     allocator: &+Allocator,
     size: usize,
     align: usize,
-): RawBuffer!AllocError {
-    fail AllocError.out_of_memory
+): RawBuffer! {
+    return RawBuffer.placeholder()
 }
 
 pub func free(allocator: &+Allocator, buffer: RawBuffer): void {

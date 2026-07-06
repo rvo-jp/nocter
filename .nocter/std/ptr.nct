@@ -14,4 +14,4 @@ pub primitive from_ref_mut<T>(value: &+T): *T
 // Restricted API: callable only from modules inside the active Nocter home
 // common std/ or active target overlay std/. User project modules must not call
 // this function.
-pub primitive from_addr<T>(address: usize): *T
+pub(nocter) primitive from_addr<T>(address: usize): *T

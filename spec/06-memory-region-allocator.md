@@ -20,7 +20,7 @@ The memory model is based on:
 Owned values are destroyed when their scope ends unless ownership is moved.
 
 ```nct
-let text = try file.read_to_string(allocator)
+let text = file.read_to_string(allocator)?
 return move text
 ```
 
@@ -36,8 +36,8 @@ Temporary allocation uses regions when the lifetime is bounded by a lexical bloc
 
 ```nct
 region scratch using allocator {
-    let source = try read_file(scratch.allocator(), "main.nct")
-    let tokens = try lex(scratch.allocator(), source.view())
+    let source = read_file(scratch.allocator(), "main.nct")?
+    let tokens = lex(scratch.allocator(), source.view())?
 }
 ```
 
@@ -51,7 +51,7 @@ The initial file for this module is:
 ~/.nocter/std/mem.nct
 ```
 
-`Allocator`, `AllocError`, `Layout`, and `RawBuffer` are ordinary standard-library names. The compiler must not special-case those identifiers.
+`Allocator`, `Layout`, and `RawBuffer` are ordinary standard-library names. The compiler must not special-case those identifiers.
 
 The special language behavior is limited to:
 
@@ -62,11 +62,6 @@ The special language behavior is limited to:
 Initial public surface:
 
 ```nct
-pub enum AllocError {
-    out_of_memory
-    invalid_layout
-}
-
 pub copy struct Layout {
     pub size: usize
     pub align: usize
@@ -83,7 +78,7 @@ pub struct Allocator {
 }
 
 pub func page_allocator(): Allocator
-pub func alloc(allocator: &+Allocator, size: usize, align: usize): RawBuffer ! AllocError
+pub func alloc(allocator: &+Allocator, size: usize, align: usize): RawBuffer!
 pub func free(allocator: &+Allocator, buffer: RawBuffer): void
 ```
 
@@ -92,9 +87,9 @@ In primitive set v0, allocator operations are not compiler primitives. These pub
 Rules:
 
 - Allocation is explicit.
-- Allocation APIs are fallible and return `T ! AllocError` where allocation can fail.
-- Out-of-memory is reported as `AllocError.out_of_memory`.
-- Invalid size / alignment requests are reported as `AllocError.invalid_layout`.
+- Allocation APIs are fallible and return `T!` where allocation can fail.
+- Out-of-memory is reported as `ErrorCode.out_of_memory`.
+- Invalid size / alignment requests are reported as `ErrorCode.invalid_argument`.
 - Allocation mutates allocator state, so allocation APIs take `&+Allocator`.
 - `RawBuffer` is a low-level standard-library type for untyped bytes.
 - General application code should prefer owning wrappers such as `String` and `Buffer<T>`.
@@ -105,12 +100,12 @@ Rules:
 Example:
 
 ```nct
-from std/mem import Allocator, AllocError, RawBuffer
+from std/mem import Allocator, RawBuffer
 
 import std/mem as mem
 
-func make_bytes(allocator: &+Allocator, size: usize): RawBuffer ! AllocError {
-    let buffer = try mem.alloc(allocator, size, 16)
+func make_bytes(allocator: &+Allocator, size: usize): RawBuffer! {
+    let buffer = mem.alloc(allocator, size, 16)?
     return move buffer
 }
 ```
@@ -133,9 +128,9 @@ Example:
 
 ```nct
 region scratch using allocator {
-    let source = try read_file(scratch.allocator(), "main.nct")
-    let tokens = try lex(scratch.allocator(), source.view())
-    let ast = try parse(scratch.allocator(), tokens.view())
+    let source = read_file(scratch.allocator(), "main.nct")?
+    let tokens = lex(scratch.allocator(), source.view())?
+    let ast = parse(scratch.allocator(), tokens.view())?
 
     consume(ast)
 }
@@ -156,7 +151,7 @@ Rules:
 - Owned values backed by region allocation cannot be moved out of the region.
 - Borrows of region-owned values cannot escape the region.
 - Borrow-like views into region-owned storage cannot escape the region.
-- `StringView`, `View<T>`, `WriteView<T>`, raw pointers, or user structs that carry region-derived storage cannot escape the region.
+- `str`, `[T]`, `[+T]`, raw pointers, or user structs that carry region-derived storage cannot escape the region.
 - A copy value may leave the region only if its type and value do not carry region-derived storage.
 - Pure copy values such as integers, booleans, and copy structs containing only region-independent fields may leave the region.
 - Returning a region-owned value from inside the region is a compile error.
@@ -170,9 +165,9 @@ Rules:
 Invalid:
 
 ```nct
-func load_path(allocator: &+Allocator): StringView ! IOError {
+func load_path(allocator: &+Allocator): str! {
     region scratch using allocator {
-        let text = try read_file(scratch.allocator(), "main.nct")
+        let text = read_file(scratch.allocator(), "main.nct")?
         return text.view() // error: view points into scratch
     }
 }
@@ -181,9 +176,9 @@ func load_path(allocator: &+Allocator): StringView ! IOError {
 Invalid:
 
 ```nct
-func load_text(allocator: &+Allocator): String ! IOError {
+func load_text(allocator: &+Allocator): String! {
     region scratch using allocator {
-        let text = try read_file(scratch.allocator(), "main.nct")
+        let text = read_file(scratch.allocator(), "main.nct")?
         return move text // error: String is backed by scratch
     }
 }
@@ -192,9 +187,9 @@ func load_text(allocator: &+Allocator): String ! IOError {
 Valid:
 
 ```nct
-func count_words(allocator: &+Allocator, path: StringView): WordStats ! IOError {
+func count_words(allocator: &+Allocator, path: str): WordStats! {
     region scratch using allocator {
-        let text = try read_file(scratch.allocator(), path)
+        let text = read_file(scratch.allocator(), path)?
         let stats = scan_words(text.view())
         return stats
     }
