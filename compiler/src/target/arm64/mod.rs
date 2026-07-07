@@ -2,4 +2,4 @@
 
 mod encoder;
 
-pub(crate) use encoder::{Encoder, MoveWideShift, WReg};
+pub(crate) use encoder::{Encoder, MoveWideShift, WReg, XReg};

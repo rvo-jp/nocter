@@ -18,6 +18,9 @@ pub(crate) struct Function {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Instruction {
+    // Lowering will produce this for top-level `fail` once error construction is wired in.
+    #[allow(dead_code)]
+    WriteStaticStderr(Vec<u8>),
     ReturnI32(i32),
     ReturnVoid,
 }
