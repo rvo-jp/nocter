@@ -5,13 +5,21 @@ pub(crate) struct ExecutableImage {
     pub(crate) bytes: Vec<u8>,
 }
 
-pub(crate) fn write_arm64_macos_executable(text: &[u8]) -> ExecutableImage {
-    let layout = Layout::new(text.len());
+#[cfg(test)]
+fn write_arm64_macos_executable(text: &[u8]) -> ExecutableImage {
+    write_arm64_macos_executable_with_data(text, &[])
+}
+
+pub(crate) fn write_arm64_macos_executable_with_data(
+    text: &[u8],
+    read_only_data: &[u8],
+) -> ExecutableImage {
+    let layout = Layout::new(text.len(), read_only_data.len());
     let mut writer = Writer::new();
 
     write_header(&mut writer, &layout);
     write_pagezero_segment(&mut writer);
-    write_text_segment(&mut writer, &layout, text.len());
+    write_text_segment(&mut writer, &layout, text.len(), read_only_data.len());
     write_linkedit_segment(&mut writer, &layout);
     write_symtab(&mut writer);
     write_dysymtab(&mut writer);
@@ -21,6 +29,10 @@ pub(crate) fn write_arm64_macos_executable(text: &[u8]) -> ExecutableImage {
     write_code_signature_command(&mut writer, &layout);
     writer.pad_to(layout.text_file_offset);
     writer.write_bytes(text);
+    if !read_only_data.is_empty() {
+        writer.pad_to(layout.read_only_data_file_offset);
+        writer.write_bytes(read_only_data);
+    }
     writer.pad_to(layout.code_signature_offset);
     let signature = write_adhoc_signature(&writer.bytes, CODE_SIGNATURE_IDENTIFIER, text.len());
     assert_eq!(signature.len(), layout.code_signature_size);
@@ -57,9 +69,16 @@ fn write_pagezero_segment(writer: &mut Writer) {
     writer.write_u32(0);
 }
 
-fn write_text_segment(writer: &mut Writer, layout: &Layout, text_len: usize) {
+fn write_text_segment(
+    writer: &mut Writer,
+    layout: &Layout,
+    text_len: usize,
+    read_only_data_len: usize,
+) {
+    let section_count = if read_only_data_len == 0 { 1 } else { 2 };
+
     writer.write_u32(LC_SEGMENT_64);
-    writer.write_u32(SEGMENT_COMMAND_64_SIZE + SECTION_64_SIZE);
+    writer.write_u32(SEGMENT_COMMAND_64_SIZE + SECTION_64_SIZE * section_count);
     writer.write_fixed_name("__TEXT");
     writer.write_u64(TEXT_BASE_ADDRESS);
     writer.write_u64(layout.text_segment_file_size as u64);
@@ -67,7 +86,7 @@ fn write_text_segment(writer: &mut Writer, layout: &Layout, text_len: usize) {
     writer.write_u64(layout.text_segment_file_size as u64);
     writer.write_u32(VM_PROT_READ | VM_PROT_EXECUTE);
     writer.write_u32(VM_PROT_READ | VM_PROT_EXECUTE);
-    writer.write_u32(1);
+    writer.write_u32(section_count);
     writer.write_u32(0);
 
     writer.write_fixed_name("__text");
@@ -82,6 +101,21 @@ fn write_text_segment(writer: &mut Writer, layout: &Layout, text_len: usize) {
     writer.write_u32(0);
     writer.write_u32(0);
     writer.write_u32(0);
+
+    if read_only_data_len != 0 {
+        writer.write_fixed_name("__const");
+        writer.write_fixed_name("__TEXT");
+        writer.write_u64(TEXT_BASE_ADDRESS + layout.read_only_data_file_offset as u64);
+        writer.write_u64(read_only_data_len as u64);
+        writer.write_u32(layout.read_only_data_file_offset as u32);
+        writer.write_u32(3);
+        writer.write_u32(0);
+        writer.write_u32(0);
+        writer.write_u32(S_REGULAR);
+        writer.write_u32(0);
+        writer.write_u32(0);
+        writer.write_u32(0);
+    }
 }
 
 fn write_linkedit_segment(writer: &mut Writer, layout: &Layout) {
@@ -150,6 +184,7 @@ fn write_code_signature_command(writer: &mut Writer, layout: &Layout) {
 struct Layout {
     load_commands_size: u32,
     text_file_offset: usize,
+    read_only_data_file_offset: usize,
     text_segment_file_size: usize,
     code_signature_offset: usize,
     code_signature_size: usize,
@@ -158,10 +193,11 @@ struct Layout {
 }
 
 impl Layout {
-    fn new(text_len: usize) -> Self {
+    fn new(text_len: usize, read_only_data_len: usize) -> Self {
+        let text_section_count = if read_only_data_len == 0 { 1 } else { 2 };
         let load_commands_size = SEGMENT_COMMAND_64_SIZE
             + SEGMENT_COMMAND_64_SIZE
-            + SECTION_64_SIZE
+            + SECTION_64_SIZE * text_section_count
             + SEGMENT_COMMAND_64_SIZE
             + SYMTAB_COMMAND_SIZE
             + DYSYMTAB_COMMAND_SIZE
@@ -170,7 +206,13 @@ impl Layout {
             + ENTRY_POINT_COMMAND_SIZE
             + CODE_SIGNATURE_COMMAND_SIZE;
         let text_file_offset = align_usize(MACH_HEADER_64_SIZE + load_commands_size as usize, 16);
-        let text_segment_file_size = align_usize(text_file_offset + text_len, PAGE_SIZE);
+        let read_only_data_file_offset = align_usize(text_file_offset + text_len, 8);
+        let text_segment_end = if read_only_data_len == 0 {
+            text_file_offset + text_len
+        } else {
+            read_only_data_file_offset + read_only_data_len
+        };
+        let text_segment_file_size = align_usize(text_segment_end, PAGE_SIZE);
         let code_signature_offset = text_segment_file_size;
         let code_signature_size =
             adhoc_signature_size(code_signature_offset, CODE_SIGNATURE_IDENTIFIER);
@@ -180,6 +222,7 @@ impl Layout {
         Self {
             load_commands_size,
             text_file_offset,
+            read_only_data_file_offset,
             text_segment_file_size,
             code_signature_offset,
             code_signature_size,
@@ -370,10 +413,48 @@ mod tests {
     }
 
     #[test]
+    fn writes_read_only_data_section_when_data_is_present() {
+        let text = [0xc0, 0x03, 0x5f, 0xd6];
+        let data = b"failed\n";
+        let image = write_arm64_macos_executable_with_data(&text, data);
+        let layout = Layout::new(text.len(), data.len());
+        let segment = MACH_HEADER_64_SIZE + SEGMENT_COMMAND_64_SIZE as usize;
+        let text_section = segment + SEGMENT_COMMAND_64_SIZE as usize;
+        let data_section = text_section + SECTION_64_SIZE as usize;
+
+        assert_eq!(read_u32(&image.bytes, segment), LC_SEGMENT_64);
+        assert_eq!(
+            read_u32(&image.bytes, segment + 4),
+            SEGMENT_COMMAND_64_SIZE + SECTION_64_SIZE * 2
+        );
+        assert_eq!(read_u32(&image.bytes, segment + 64), 2);
+
+        assert_eq!(
+            fixed_name(&image.bytes[data_section..data_section + 16]),
+            "__const"
+        );
+        assert_eq!(
+            fixed_name(&image.bytes[data_section + 16..data_section + 32]),
+            "__TEXT"
+        );
+        assert_eq!(
+            read_u64(&image.bytes, data_section + 32),
+            TEXT_BASE_ADDRESS + layout.read_only_data_file_offset as u64
+        );
+        assert_eq!(read_u64(&image.bytes, data_section + 40), data.len() as u64);
+        assert_eq!(
+            read_u32(&image.bytes, data_section + 48),
+            layout.read_only_data_file_offset as u32
+        );
+        assert_eq!(read_u32(&image.bytes, data_section + 52), 3);
+        assert_eq!(read_u32(&image.bytes, data_section + 64), S_REGULAR);
+    }
+
+    #[test]
     fn writes_linkedit_segment() {
         let text = [0xc0, 0x03, 0x5f, 0xd6];
         let image = write_arm64_macos_executable(&text);
-        let layout = Layout::new(text.len());
+        let layout = Layout::new(text.len(), 0);
         let segment = MACH_HEADER_64_SIZE
             + SEGMENT_COMMAND_64_SIZE as usize
             + (SEGMENT_COMMAND_64_SIZE + SECTION_64_SIZE) as usize;
@@ -489,7 +570,7 @@ mod tests {
     fn writes_code_signature_command() {
         let text = [0xc0, 0x03, 0x5f, 0xd6];
         let image = write_arm64_macos_executable(&text);
-        let layout = Layout::new(text.len());
+        let layout = Layout::new(text.len(), 0);
         let code_signature = MACH_HEADER_64_SIZE
             + SEGMENT_COMMAND_64_SIZE as usize
             + (SEGMENT_COMMAND_64_SIZE + SECTION_64_SIZE) as usize
@@ -519,7 +600,7 @@ mod tests {
     fn places_text_and_appends_code_signature() {
         let text = [0x00, 0x00, 0x80, 0x52, 0xc0, 0x03, 0x5f, 0xd6];
         let image = write_arm64_macos_executable(&text);
-        let layout = Layout::new(text.len());
+        let layout = Layout::new(text.len(), 0);
 
         assert_eq!(
             &image.bytes[layout.text_file_offset..layout.text_file_offset + text.len()],
@@ -535,6 +616,78 @@ mod tests {
             read_be_u32(&image.bytes, layout.code_signature_offset),
             0xfade_0cc0
         );
+    }
+
+    #[test]
+    fn places_text_read_only_data_and_appends_code_signature() {
+        let text = [0xc0, 0x03, 0x5f, 0xd6];
+        let data = b"message";
+        let image = write_arm64_macos_executable_with_data(&text, data);
+        let layout = Layout::new(text.len(), data.len());
+
+        assert_eq!(
+            &image.bytes[layout.text_file_offset..layout.text_file_offset + text.len()],
+            text
+        );
+        assert_eq!(
+            &image.bytes
+                [layout.read_only_data_file_offset..layout.read_only_data_file_offset + data.len()],
+            data
+        );
+        assert!(
+            image.bytes[layout.text_file_offset + text.len()..layout.read_only_data_file_offset]
+                .iter()
+                .all(|byte| *byte == 0)
+        );
+        assert!(
+            image.bytes
+                [layout.read_only_data_file_offset + data.len()..layout.code_signature_offset]
+                .iter()
+                .all(|byte| *byte == 0)
+        );
+        assert_eq!(image.bytes.len(), layout.file_size);
+        assert_eq!(
+            read_be_u32(&image.bytes, layout.code_signature_offset),
+            0xfade_0cc0
+        );
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
+    fn executable_with_read_only_data_runs() {
+        let text = [
+            0x00, 0x00, 0x80, 0x52, // movz w0, #0
+            0x30, 0x00, 0x80, 0x52, // movz w16, #1
+            0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
+            0x01, 0x10, 0x00, 0xd4, // svc #0x80
+        ];
+        let image = write_arm64_macos_executable_with_data(&text, b"unused data");
+        let executable = write_temp_executable("macho-data-runs", &image.bytes);
+
+        let status = std::process::Command::new(&executable).status().unwrap();
+        let _ = std::fs::remove_file(executable);
+
+        assert_eq!(status.code(), Some(0));
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    fn write_temp_executable(name: &str, bytes: &[u8]) -> std::path::PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+
+        let unique = format!(
+            "nocter-{name}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+        let executable = std::env::temp_dir().join(unique);
+        std::fs::write(&executable, bytes).unwrap();
+        let mut permissions = std::fs::metadata(&executable).unwrap().permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&executable, permissions).unwrap();
+        executable
     }
 
     fn read_u32(bytes: &[u8], offset: usize) -> u32 {

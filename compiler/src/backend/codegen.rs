@@ -5,6 +5,7 @@ use crate::target::arm64::{Encoder, MoveWideShift, WReg};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct MachineCode {
     pub(crate) text: Vec<u8>,
+    pub(crate) read_only_data: Vec<u8>,
 }
 
 pub(crate) fn generate_arm64_darwin_entry(
@@ -20,6 +21,7 @@ pub(crate) fn generate_arm64_darwin_entry(
 
     Ok(MachineCode {
         text: encoder.finish(),
+        read_only_data: Vec::new(),
     })
 }
 

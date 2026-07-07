@@ -7,7 +7,7 @@ use crate::analysis::CompileUnitAnalysis;
 use crate::diagnostics::Diagnostic;
 use crate::ir::lower_program;
 use crate::target::DEFAULT_TARGET;
-use crate::target::macho::{ExecutableImage, write_arm64_macos_executable};
+use crate::target::macho::{ExecutableImage, write_arm64_macos_executable_with_data};
 use codegen::generate_arm64_darwin_entry;
 use output::write_executable_image;
 use std::path::Path;
@@ -34,6 +34,7 @@ pub(crate) fn build_executable(request: BuildRequest<'_>) -> Result<(), Vec<Diag
 
     let ir = lower_program(analysis)?;
     let machine_code = generate_arm64_darwin_entry(&ir)?;
-    let executable_image: ExecutableImage = write_arm64_macos_executable(&machine_code.text);
+    let executable_image: ExecutableImage =
+        write_arm64_macos_executable_with_data(&machine_code.text, &machine_code.read_only_data);
     write_executable_image(output_path, &executable_image)
 }
