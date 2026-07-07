@@ -8,7 +8,7 @@ fn accepts_switch_over_enum() {
     open_failed(path: str)
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -39,7 +39,7 @@ fn accepts_switch_else_as_terminal_statement() {
     open_failed(path: str)
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -72,7 +72,7 @@ fn accepts_if_is_over_enum() {
     open_failed(path: str)
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -98,7 +98,7 @@ fn diagnoses_if_is_non_enum_target() {
     missing_path
 }
 
-program(): i32 {
+func main(): i32 {
     if 1 is AppError.missing_path {
         return 1
     }
@@ -123,7 +123,7 @@ enum OtherError {
     missing_path
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -148,7 +148,7 @@ fn diagnoses_if_is_unknown_variant() {
     missing_path
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -173,7 +173,7 @@ fn diagnoses_if_is_payload_mismatch() {
     open_failed(path: str)
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -198,7 +198,7 @@ fn diagnoses_switch_else_with_non_terminal_arm() {
     missing_path
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -227,7 +227,7 @@ fn accepts_payloadless_enum_variant_construction() {
     missing_path
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -247,7 +247,7 @@ fn accepts_payload_enum_variant_construction() {
     open_failed(path: str)
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -267,7 +267,7 @@ fn diagnoses_enum_variant_construction_in_fail() {
     open_failed(path: str)
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -288,7 +288,7 @@ fn diagnoses_unknown_enum_variant_construction() {
     missing_path
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -309,7 +309,7 @@ fn diagnoses_enum_variant_payload_count_mismatch() {
     open_failed(path: str)
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -330,7 +330,7 @@ fn diagnoses_payloadless_enum_variant_call() {
     missing_path
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -351,7 +351,7 @@ fn diagnoses_enum_variant_payload_type_mismatch() {
     open_failed(path: str)
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -374,7 +374,7 @@ fn diagnoses_switch_non_enum_target() {
     missing_path
 }
 
-program(): i32 {
+func main(): i32 {
     switch 1 {
         is AppError.missing_path {
             return 1
@@ -401,7 +401,7 @@ enum OtherError {
     missing_path
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -428,7 +428,7 @@ fn diagnoses_switch_unknown_variant() {
     missing_path
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -455,7 +455,7 @@ fn diagnoses_switch_payload_mismatch() {
     open_failed(path: str)
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -482,7 +482,7 @@ fn diagnoses_switch_as_non_terminal_statement() {
     missing_path
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 

@@ -8,7 +8,7 @@ fn check_synthesizes_standard_prelude_for_user_modules() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return answer()
 }
 "#,

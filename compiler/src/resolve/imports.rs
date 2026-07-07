@@ -198,11 +198,7 @@ impl Resolver<'_> {
                 Item::FromImport(item) if item.visibility == Visibility::Public => {
                     self.collect_public_reexports(item, access);
                 }
-                Item::Use(_)
-                | Item::Import(_)
-                | Item::FromImport(_)
-                | Item::Impl(_)
-                | Item::Program(_) => {}
+                Item::Use(_) | Item::Import(_) | Item::FromImport(_) | Item::Impl(_) => {}
             }
         }
     }

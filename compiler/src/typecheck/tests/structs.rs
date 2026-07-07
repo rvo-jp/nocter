@@ -8,7 +8,7 @@ fn accepts_struct_field_access() {
     label: str
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -32,7 +32,7 @@ fn uses_struct_field_type_for_return_checking() {
     x: i32
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -55,7 +55,7 @@ fn diagnoses_unknown_struct_field() {
     x: i32
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -74,7 +74,7 @@ func y(point: Point): i32 {
 #[test]
 fn diagnoses_field_access_on_non_struct_value() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -97,7 +97,7 @@ fn accepts_struct_literal_expression() {
     label: str
 }
 
-program(): i32 {
+func main(): i32 {
     let point = Point{
         label: "home",
         x: 1,
@@ -117,7 +117,7 @@ fn accepts_contextual_integer_struct_literal_field() {
     value: u8
 }
 
-program(): i32 {
+func main(): i32 {
     let byte = Byte{
         value: 255,
     }
@@ -134,7 +134,7 @@ fn diagnoses_non_struct_literal_target() {
     let diagnostics = check_text(
         r#"type Number = i32
 
-program(): i32 {
+func main(): i32 {
     let value = Number{
         value: 1,
     }
@@ -154,7 +154,7 @@ fn diagnoses_unknown_struct_literal_field() {
     x: i32
 }
 
-program(): i32 {
+func main(): i32 {
     let point = Point{
         x: 1,
         y: 2,
@@ -176,7 +176,7 @@ fn diagnoses_duplicate_struct_literal_field() {
     x: i32
 }
 
-program(): i32 {
+func main(): i32 {
     let point = Point{
         x: 1,
         x: 2,
@@ -199,7 +199,7 @@ fn diagnoses_missing_struct_literal_field() {
     y: i32
 }
 
-program(): i32 {
+func main(): i32 {
     let point = Point{
         x: 1,
     }
@@ -220,7 +220,7 @@ fn diagnoses_struct_literal_field_type_mismatch() {
     x: i32
 }
 
-program(): i32 {
+func main(): i32 {
     let point = Point{
         x: "bad",
     }

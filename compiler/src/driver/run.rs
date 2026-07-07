@@ -1,4 +1,4 @@
-use super::pipeline::build_file_to_path;
+use super::pipeline::build_file_to_path_with_entry;
 use crate::diagnostics::write_text_diagnostics;
 use std::fs;
 use std::io;
@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, ExitStatus};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub(super) fn run_file(file: &Path) -> ExitCode {
+pub(super) fn run_file(file: &Path, entry_name: &str) -> ExitCode {
     let artifact = match RunArtifact::new() {
         Ok(artifact) => artifact,
         Err(error) => {
@@ -15,7 +15,7 @@ pub(super) fn run_file(file: &Path) -> ExitCode {
         }
     };
 
-    let output = build_file_to_path(file, artifact.executable_path());
+    let output = build_file_to_path_with_entry(file, artifact.executable_path(), entry_name);
     if !output.is_ok() {
         let mut stderr = io::stderr().lock();
         if let Err(error) = write_text_diagnostics(&mut stderr, &output.diagnostics) {

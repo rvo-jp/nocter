@@ -1,5 +1,5 @@
 use super::*;
-use crate::analysis::{CompileUnit, analyze_compile_unit};
+use crate::analysis::{CompileUnit, analyze_compile_unit_with_entry};
 use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::ir::{Function, I32Location, I32Value, Instruction, IrModule, Type};
@@ -9,9 +9,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 #[test]
-fn lowers_program_returning_i32_literal() {
+fn lowers_entry_returning_i32_literal() {
     let ir = lower_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 42
 }
 "#,
@@ -20,7 +20,7 @@ fn lowers_program_returning_i32_literal() {
     assert_eq!(
         ir,
         IrModule::new(vec![Function {
-            name: "program".to_string(),
+            name: "main".to_string(),
             return_type: Type::I32,
             instructions: vec![set_return_i32(42), Instruction::Return],
         }])
@@ -28,9 +28,30 @@ fn lowers_program_returning_i32_literal() {
 }
 
 #[test]
-fn lowers_program_returning_negative_i32_literal() {
+fn lowers_configured_entry_name() {
+    let ir = lower_text_with_entry(
+        r#"func start(): i32 {
+    return 9
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+        "start",
+    );
+
+    assert_eq!(ir.functions[0].name, "start");
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![set_return_i32(9), Instruction::Return]
+    );
+}
+
+#[test]
+fn lowers_entry_returning_negative_i32_literal() {
     let ir = lower_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return -42
 }
 "#,
@@ -43,9 +64,9 @@ fn lowers_program_returning_negative_i32_literal() {
 }
 
 #[test]
-fn lowers_fallible_program_returning_i32_literal() {
+fn lowers_fallible_entry_returning_i32_literal() {
     let ir = lower_text(
-        r#"program(): i32! {
+        r#"func main(): i32! {
     return 7
 }
 "#,
@@ -54,7 +75,7 @@ fn lowers_fallible_program_returning_i32_literal() {
     assert_eq!(
         ir,
         IrModule::new(vec![Function {
-            name: "program".to_string(),
+            name: "main".to_string(),
             return_type: Type::Fallible(Box::new(Type::I32)),
             instructions: vec![set_return_i32(7), Instruction::Return],
         }])
@@ -62,11 +83,11 @@ fn lowers_fallible_program_returning_i32_literal() {
 }
 
 #[test]
-fn lowers_fallible_program_fail_make_error() {
+fn lowers_fallible_entry_fail_make_error() {
     let ir = lower_text(
         r#"primitive make_error(code: str, message: str): error
 
-program(): i32! {
+func main(): i32! {
     fail make_error("app.failed", "failed")
 }
 "#,
@@ -75,7 +96,7 @@ program(): i32! {
     assert_eq!(
         ir,
         IrModule::new(vec![Function {
-            name: "program".to_string(),
+            name: "main".to_string(),
             return_type: Type::Fallible(Box::new(Type::I32)),
             instructions: vec![
                 Instruction::WriteStaticStderr(b"failed\n".to_vec()),
@@ -87,11 +108,11 @@ program(): i32! {
 }
 
 #[test]
-fn lowers_fallible_program_fail_message_without_duplicate_newline() {
+fn lowers_fallible_entry_fail_message_without_duplicate_newline() {
     let ir = lower_text(
         r#"primitive make_error(code: str, message: str): error
 
-program(): i32! {
+func main(): i32! {
     fail make_error("app.failed", "failed\n")
 }
 "#,
@@ -112,7 +133,7 @@ fn reports_unsupported_fail_payload() {
     let diagnostics = lower_text_diagnostics(
         r#"primitive make_error(code: str, message: str): error
 
-program(): i32! {
+func main(): i32! {
     fail make_error("app.failed", dynamic())
 }
 
@@ -126,9 +147,9 @@ func dynamic(): str {
 }
 
 #[test]
-fn lowers_void_program_with_empty_body() {
+fn lowers_void_entry_with_empty_body() {
     let ir = lower_text(
-        r#"program(): void {
+        r#"func main(): void {
 }
 "#,
     );
@@ -136,7 +157,7 @@ fn lowers_void_program_with_empty_body() {
     assert_eq!(
         ir,
         IrModule::new(vec![Function {
-            name: "program".to_string(),
+            name: "main".to_string(),
             return_type: Type::Void,
             instructions: vec![Instruction::Return],
         }])
@@ -144,9 +165,9 @@ fn lowers_void_program_with_empty_body() {
 }
 
 #[test]
-fn lowers_program_returning_same_file_function_call() {
+fn lowers_entry_returning_same_file_function_call() {
     let ir = lower_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return answer()
 }
 
@@ -160,7 +181,7 @@ func answer(): i32 {
         ir,
         IrModule::new(vec![
             Function {
-                name: "program".to_string(),
+                name: "main".to_string(),
                 return_type: Type::I32,
                 instructions: vec![tail_call("answer", vec![])],
             },
@@ -174,9 +195,9 @@ func answer(): i32 {
 }
 
 #[test]
-fn lowers_program_returning_i32_function_call_with_arguments() {
+fn lowers_entry_returning_i32_function_call_with_arguments() {
     let ir = lower_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return add(20, 22)
 }
 
@@ -190,7 +211,7 @@ func add(a: i32, b: i32): i32 {
         ir,
         IrModule::new(vec![
             Function {
-                name: "program".to_string(),
+                name: "main".to_string(),
                 return_type: Type::I32,
                 instructions: vec![tail_call("add", vec![i32_const(20), i32_const(22)])],
             },
@@ -211,9 +232,9 @@ func add(a: i32, b: i32): i32 {
 }
 
 #[test]
-fn reports_unsupported_program_body() {
+fn reports_unsupported_entry_body() {
     let diagnostics = lower_text_diagnostics(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let value = 1
     return value
 }
@@ -226,7 +247,7 @@ fn reports_unsupported_program_body() {
 #[test]
 fn rejects_nested_negative_integer_literal() {
     let diagnostics = lower_text_diagnostics(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return -(-42)
 }
 "#,
@@ -236,11 +257,15 @@ fn rejects_nested_negative_integer_literal() {
 }
 
 fn lower_text(text: &str) -> IrModule {
-    let diagnostics = lower_text_diagnostics(text);
+    lower_text_with_entry(text, crate::entry::DEFAULT_ENTRY_NAME)
+}
+
+fn lower_text_with_entry(text: &str, entry_name: &str) -> IrModule {
+    let diagnostics = lower_text_diagnostics_with_entry(text, entry_name);
     match diagnostics.as_slice() {
         [] => {
-            let analysis = analyze_text(text);
-            lower_program(&analysis).unwrap()
+            let analysis = analyze_text_with_entry(text, entry_name);
+            lower_executable_with_entry(&analysis, entry_name).unwrap()
         }
         diagnostics => panic!("unexpected diagnostics: {diagnostics:?}"),
     }
@@ -269,14 +294,18 @@ fn i32_param(index: usize) -> I32Value {
 }
 
 fn lower_text_diagnostics(text: &str) -> Vec<Diagnostic> {
-    let analysis = analyze_text(text);
-    match lower_program(&analysis) {
+    lower_text_diagnostics_with_entry(text, crate::entry::DEFAULT_ENTRY_NAME)
+}
+
+fn lower_text_diagnostics_with_entry(text: &str, entry_name: &str) -> Vec<Diagnostic> {
+    let analysis = analyze_text_with_entry(text, entry_name);
+    match lower_executable_with_entry(&analysis, entry_name) {
         Ok(_) => Vec::new(),
         Err(diagnostics) => diagnostics,
     }
 }
 
-fn analyze_text(text: &str) -> crate::analysis::CompileUnitAnalysis {
+fn analyze_text_with_entry(text: &str, entry_name: &str) -> crate::analysis::CompileUnitAnalysis {
     let mut sources = SourceMap::new();
     let source = sources.add_source("app.nct", None, text);
     let temp_root = make_temp_project();
@@ -290,7 +319,7 @@ fn analyze_text(text: &str) -> crate::analysis::CompileUnitAnalysis {
         },
     )
     .unwrap();
-    let analysis = analyze_compile_unit(&sources, &unit);
+    let analysis = analyze_compile_unit_with_entry(&sources, &unit, entry_name);
     let diagnostics = analysis.diagnostics();
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     analysis

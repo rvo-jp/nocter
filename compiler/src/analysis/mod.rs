@@ -73,7 +73,11 @@ pub(crate) struct FileAnalysis {
     pub(crate) is_root: bool,
 }
 
-pub(crate) fn analyze_compile_unit(sources: &SourceMap, unit: &CompileUnit) -> CompileUnitAnalysis {
+pub(crate) fn analyze_compile_unit_with_entry(
+    sources: &SourceMap,
+    unit: &CompileUnit,
+    entry_name: &str,
+) -> CompileUnitAnalysis {
     let root_source = unit.root_ast.span.source;
     let files = unit
         .files
@@ -83,7 +87,7 @@ pub(crate) fn analyze_compile_unit(sources: &SourceMap, unit: &CompileUnit) -> C
             let resolved = resolve_compile_unit(sources, file, &unit.files, &unit.import_sources);
             let mut diagnostics = resolved.diagnostics.clone();
             if is_root {
-                diagnostics.extend(check(sources, file, &resolved));
+                diagnostics.extend(check(sources, file, &resolved, entry_name));
             } else {
                 diagnostics.extend(check_module(sources, file, &resolved));
             }

@@ -14,7 +14,7 @@ Diagnostics for type checking, ownership, borrowing, initialization state, visib
 - why it is invalid
 - the most useful correction direction when one is known
 
-Diagnostic text must use Nocter source concepts such as `binding`, `borrow`, `move`, `drop`, `pub(nocter)`, `T!`, `error`, `T?`, `(T?)!`, `program`, `primitive`, and `Nocter home`. It should not expose backend implementation details such as temporary register allocation, Mach-O offsets, internal AST node names, or recovery placeholders.
+Diagnostic text must use Nocter source concepts such as `binding`, `borrow`, `move`, `drop`, `pub(nocter)`, `T!`, `error`, `T?`, `(T?)!`, `entry function`, `primitive`, and `Nocter home`. It should not expose backend implementation details such as temporary register allocation, Mach-O offsets, internal AST node names, or recovery placeholders.
 
 ## Format
 
@@ -279,13 +279,14 @@ Required v0 diagnostic families:
 - Borrowed optional projection used in `while let` or `while var`.
 - Readwrite borrowed optional projection from a non-writable place.
 - Mismatched borrowed optional projection form, such as `if var name = &place`, `if let name = &+place`, `var name = &place else { ... }`, or `let name = &+place else { ... }`.
-- `program` missing, duplicated, or defined outside the root file.
-- `program` with an invalid return type.
-- `program` with parameters, such as `program(args: ...)`, used in v0.
-- `return` without a value in a non-`void` function or `program`.
-- `return` with a value in a `void` function or `program`.
+- Selected entry function missing from the root file.
+- Selected entry function with an invalid return type.
+- Selected entry function with parameters, such as `func main(args: [str]): i32!`, used in v0.
+- Duplicate selected entry function names, reported by the normal duplicate visible-name diagnostic.
+- `return` without a value in a non-`void` function.
+- `return` with a value in a `void` function.
 - `return` value type mismatch when both expected and actual types are known.
-- Non-`void` function or `program` reaching the end without an explicit return.
+- Non-`void` function reaching the end without an explicit return.
 - `pub from` attempting to re-export a private or `pub(nocter)` name.
 - Reserved target requested before implementation.
 

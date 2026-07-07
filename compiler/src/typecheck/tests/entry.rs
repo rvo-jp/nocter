@@ -1,9 +1,9 @@
-use super::check_text;
+use super::{check_text, check_text_with_entry};
 
 #[test]
-fn accepts_program_i32() {
+fn accepts_default_main_i32() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 "#,
@@ -13,9 +13,9 @@ fn accepts_program_i32() {
 }
 
 #[test]
-fn accepts_program_i32_fallible() {
+fn accepts_default_main_i32_fallible() {
     let diagnostics = check_text(
-        r#"program(): i32! {
+        r#"func main(): i32! {
     return run()?
 }
 
@@ -29,9 +29,9 @@ func run(): i32! {
 }
 
 #[test]
-fn accepts_program_void() {
+fn accepts_default_main_void() {
     let diagnostics = check_text(
-        r#"program(): void {
+        r#"func main(): void {
     return
 }
 "#,
@@ -41,22 +41,22 @@ fn accepts_program_void() {
 }
 
 #[test]
-fn diagnoses_main_without_program() {
+fn diagnoses_missing_default_main() {
     let diagnostics = check_text(
-        r#"func main(): i32 {
+        r#"func start(): i32 {
     return 0
 }
 "#,
     );
 
     assert_eq!(diagnostics.len(), 1);
-    assert_eq!(diagnostics[0].code, "E0301");
+    assert_eq!(diagnostics[0].code, "E0300");
 }
 
 #[test]
-fn diagnoses_invalid_program_return_type() {
+fn diagnoses_invalid_default_main_return_type() {
     let diagnostics = check_text(
-        r#"program(): u64 {
+        r#"func main(): u64 {
     return 0
 }
 "#,
@@ -67,18 +67,58 @@ fn diagnoses_invalid_program_return_type() {
 }
 
 #[test]
-fn diagnoses_duplicate_program() {
+fn diagnoses_duplicate_default_main_as_duplicate_function_name() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
-program(): void {
+func main(): void {
     return
 }
 "#,
     );
 
     assert_eq!(diagnostics.len(), 1);
-    assert_eq!(diagnostics[0].code, "E0302");
+    assert_eq!(diagnostics[0].code, "E0400");
+}
+
+#[test]
+fn diagnoses_default_main_with_parameters() {
+    let diagnostics = check_text(
+        r#"func main(args: str): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].code, "E0303");
+}
+
+#[test]
+fn accepts_configured_entry_name() {
+    let diagnostics = check_text_with_entry(
+        r#"func start(): i32 {
+    return 0
+}
+"#,
+        "start",
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn configured_entry_name_does_not_fall_back_to_main() {
+    let diagnostics = check_text_with_entry(
+        r#"func main(): i32 {
+    return 0
+}
+"#,
+        "start",
+    );
+
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].code, "E0300");
 }

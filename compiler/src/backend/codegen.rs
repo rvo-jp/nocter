@@ -11,9 +11,10 @@ pub(crate) struct MachineCode {
 
 pub(crate) fn generate_arm64_darwin_entry(
     module: &IrModule,
+    entry_name: &str,
 ) -> Result<MachineCode, Vec<Diagnostic>> {
     let mut emitter = EntryEmitter::new();
-    emitter.emit_module(module)?;
+    emitter.emit_module(module, entry_name)?;
     emitter.finish()
 }
 
@@ -39,19 +40,19 @@ impl EntryEmitter {
         }
     }
 
-    fn emit_module(&mut self, module: &IrModule) -> Result<(), Vec<Diagnostic>> {
-        let Some(program) = module
+    fn emit_module(&mut self, module: &IrModule, entry_name: &str) -> Result<(), Vec<Diagnostic>> {
+        let Some(entry) = module
             .functions
             .iter()
-            .find(|function| function.name == "program")
+            .find(|function| function.name == entry_name)
         else {
             return Err(vec![Diagnostic::error(
                 "E9002",
-                "codegen requires a lowered `program` function",
+                format!("codegen requires a lowered entry function `{entry_name}`"),
             )]);
         };
 
-        self.emit_process_entry(program);
+        self.emit_process_entry(entry);
 
         for function in &module.functions {
             self.emit_function(function)?;
@@ -60,9 +61,9 @@ impl EntryEmitter {
         Ok(())
     }
 
-    fn emit_process_entry(&mut self, program: &Function) {
-        self.emit_call(&program.name);
-        if matches!(program.return_type.success_type(), Type::Void) {
+    fn emit_process_entry(&mut self, entry: &Function) {
+        self.emit_call(&entry.name);
+        if matches!(entry.return_type.success_type(), Type::Void) {
             emit_mov_i32_to_w0(&mut self.encoder, 0);
         }
         emit_darwin_exit_syscall(&mut self.encoder);
@@ -357,17 +358,17 @@ mod tests {
     #[test]
     fn generates_exit_zero_for_return_i32_zero() {
         let module = IrModule::new(vec![Function {
-            name: "program".to_string(),
+            name: "main".to_string(),
             return_type: Type::I32,
             instructions: vec![set_return_i32(0), Instruction::Return],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module).unwrap();
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
 
         assert_eq!(
             code.text,
             vec![
-                0x04, 0x00, 0x00, 0x94, // bl program
+                0x04, 0x00, 0x00, 0x94, // bl main
                 0x30, 0x00, 0x80, 0x52, // movz w16, #1
                 0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
                 0x01, 0x10, 0x00, 0xd4, // svc #0x80
@@ -380,17 +381,17 @@ mod tests {
     #[test]
     fn generates_exit_code_for_return_i32_with_high_halfword() {
         let module = IrModule::new(vec![Function {
-            name: "program".to_string(),
+            name: "main".to_string(),
             return_type: Type::I32,
             instructions: vec![set_return_i32(0x1234_5678), Instruction::Return],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module).unwrap();
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
 
         assert_eq!(
             code.text,
             vec![
-                0x04, 0x00, 0x00, 0x94, // bl program
+                0x04, 0x00, 0x00, 0x94, // bl main
                 0x30, 0x00, 0x80, 0x52, // movz w16, #1
                 0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
                 0x01, 0x10, 0x00, 0xd4, // svc #0x80
@@ -404,17 +405,17 @@ mod tests {
     #[test]
     fn generates_exit_code_for_return_i32_negative_one() {
         let module = IrModule::new(vec![Function {
-            name: "program".to_string(),
+            name: "main".to_string(),
             return_type: Type::I32,
             instructions: vec![set_return_i32(-1), Instruction::Return],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module).unwrap();
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
 
         assert_eq!(
             code.text,
             vec![
-                0x04, 0x00, 0x00, 0x94, // bl program
+                0x04, 0x00, 0x00, 0x94, // bl main
                 0x30, 0x00, 0x80, 0x52, // movz w16, #1
                 0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
                 0x01, 0x10, 0x00, 0xd4, // svc #0x80
@@ -428,17 +429,17 @@ mod tests {
     #[test]
     fn generates_exit_code_for_fallible_success_return_i32() {
         let module = IrModule::new(vec![Function {
-            name: "program".to_string(),
+            name: "main".to_string(),
             return_type: Type::Fallible(Box::new(Type::I32)),
             instructions: vec![set_return_i32(7), Instruction::Return],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module).unwrap();
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
 
         assert_eq!(
             code.text,
             vec![
-                0x04, 0x00, 0x00, 0x94, // bl program
+                0x04, 0x00, 0x00, 0x94, // bl main
                 0x30, 0x00, 0x80, 0x52, // movz w16, #1
                 0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
                 0x01, 0x10, 0x00, 0xd4, // svc #0x80
@@ -452,7 +453,7 @@ mod tests {
     fn generates_same_file_function_call() {
         let module = IrModule::new(vec![
             Function {
-                name: "program".to_string(),
+                name: "main".to_string(),
                 return_type: Type::I32,
                 instructions: vec![tail_call("answer", vec![])],
             },
@@ -463,12 +464,12 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module).unwrap();
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
 
         assert_eq!(
             code.text,
             vec![
-                0x04, 0x00, 0x00, 0x94, // bl program
+                0x04, 0x00, 0x00, 0x94, // bl main
                 0x30, 0x00, 0x80, 0x52, // movz w16, #1
                 0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
                 0x01, 0x10, 0x00, 0xd4, // svc #0x80
@@ -483,7 +484,7 @@ mod tests {
     fn generates_i32_tail_call_with_arguments_and_add() {
         let module = IrModule::new(vec![
             Function {
-                name: "program".to_string(),
+                name: "main".to_string(),
                 return_type: Type::I32,
                 instructions: vec![tail_call("add", vec![i32_const(20), i32_const(22)])],
             },
@@ -501,12 +502,12 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module).unwrap();
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
 
         assert_eq!(
             code.text,
             vec![
-                0x04, 0x00, 0x00, 0x94, // bl program
+                0x04, 0x00, 0x00, 0x94, // bl main
                 0x30, 0x00, 0x80, 0x52, // movz w16, #1
                 0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
                 0x01, 0x10, 0x00, 0xd4, // svc #0x80
@@ -524,7 +525,7 @@ mod tests {
     #[test]
     fn generates_static_stderr_write_with_data_reference() {
         let module = IrModule::new(vec![Function {
-            name: "program".to_string(),
+            name: "main".to_string(),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::WriteStaticStderr(b"error\n".to_vec()),
@@ -533,13 +534,13 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module).unwrap();
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
 
         assert_eq!(code.read_only_data, b"error\n");
         assert_eq!(
             code.text,
             vec![
-                0x04, 0x00, 0x00, 0x94, // bl program
+                0x04, 0x00, 0x00, 0x94, // bl main
                 0x30, 0x00, 0x80, 0x52, // movz w16, #1
                 0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
                 0x01, 0x10, 0x00, 0xd4, // svc #0x80
@@ -559,7 +560,7 @@ mod tests {
     #[test]
     fn generated_static_stderr_write_runs() {
         let module = IrModule::new(vec![Function {
-            name: "program".to_string(),
+            name: "main".to_string(),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::WriteStaticStderr(b"failed\n".to_vec()),
@@ -567,7 +568,7 @@ mod tests {
                 Instruction::Return,
             ],
         }]);
-        let code = generate_arm64_darwin_entry(&module).unwrap();
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
         let image = crate::target::macho::write_arm64_macos_executable_with_data(
             &code.text,
             &code.read_only_data,
@@ -585,17 +586,17 @@ mod tests {
     #[test]
     fn generates_exit_zero_for_return_void() {
         let module = IrModule::new(vec![Function {
-            name: "program".to_string(),
+            name: "main".to_string(),
             return_type: Type::Void,
             instructions: vec![Instruction::Return],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module).unwrap();
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
 
         assert_eq!(
             code.text,
             vec![
-                0x05, 0x00, 0x00, 0x94, // bl program
+                0x05, 0x00, 0x00, 0x94, // bl main
                 0x00, 0x00, 0x80, 0x52, // movz w0, #0
                 0x30, 0x00, 0x80, 0x52, // movz w16, #1
                 0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16

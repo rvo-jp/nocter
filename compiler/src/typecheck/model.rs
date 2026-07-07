@@ -182,7 +182,6 @@ impl ReturnContext {
 
     pub(super) fn subject(&self) -> String {
         match &self.kind {
-            CallableKind::Program => "`program`".to_string(),
             CallableKind::Function(name) => format!("function `{name}`"),
             CallableKind::AssociatedFunction(name) => format!("associated function `{name}`"),
             CallableKind::Method(name) => format!("method `{name}`"),
@@ -192,7 +191,6 @@ impl ReturnContext {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum CallableKind {
-    Program,
     Function(String),
     AssociatedFunction(String),
     Method(String),

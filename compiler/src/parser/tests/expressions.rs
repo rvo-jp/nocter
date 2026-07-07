@@ -6,7 +6,7 @@ fn parses_optional_default_expression() {
     let output = parse_text(
         r#"use std/prelude
 
-program(): i32 {
+func main(): i32 {
     let user = (env("USER") catch error {
         return 1
     }) ?? "unknown"
@@ -18,10 +18,10 @@ program(): i32 {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Program(program) = &ast.items[1] else {
-        panic!("expected program item");
+    let Item::Function(function) = &ast.items[1] else {
+        panic!("expected function item");
     };
-    let Stmt::Binding(binding) = &program.body.statements[0] else {
+    let Stmt::Binding(binding) = &function.body.statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::OptionalDefault(expression) = &binding.initializer else {
@@ -35,7 +35,7 @@ program(): i32 {
 #[test]
 fn parses_force_unwrap_expression() {
     let output = parse_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return answer()!
 }
 "#,
@@ -43,10 +43,10 @@ fn parses_force_unwrap_expression() {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Program(program) = &ast.items[0] else {
-        panic!("expected program item");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
     };
-    let Stmt::Return(statement) = &program.body.statements[0] else {
+    let Stmt::Return(statement) = &function.body.statements[0] else {
         panic!("expected return statement");
     };
     let Some(Expr::Force(expression)) = &statement.expression else {
@@ -60,7 +60,7 @@ fn parses_force_unwrap_expression() {
 #[test]
 fn ast_json_includes_expression_operator_spans() {
     let (sources, output) = parse_text_with_sources(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let value = maybe() ?? 0
     let handled = answer() catch error {
         return 1
@@ -94,7 +94,7 @@ fn ast_json_includes_expression_operator_spans() {
 #[test]
 fn parses_array_literal_expression() {
     let output = parse_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let header = [
         0x7F,
         0x45,
@@ -108,10 +108,10 @@ fn parses_array_literal_expression() {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Program(program) = &ast.items[0] else {
-        panic!("expected program item");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
     };
-    let Stmt::Binding(binding) = &program.body.statements[0] else {
+    let Stmt::Binding(binding) = &function.body.statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::ArrayLiteral(array) = &binding.initializer else {
@@ -128,7 +128,7 @@ fn parses_struct_literal_expression() {
     label: str
 }
 
-program(): i32 {
+func main(): i32 {
     let point = Point{
         x: 1,
         label: "home",
@@ -140,10 +140,10 @@ program(): i32 {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Program(program) = &ast.items[1] else {
-        panic!("expected program item");
+    let Item::Function(function) = &ast.items[1] else {
+        panic!("expected function item");
     };
-    let Stmt::Binding(binding) = &program.body.statements[0] else {
+    let Stmt::Binding(binding) = &function.body.statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::StructLiteral(literal) = &binding.initializer else {
@@ -157,7 +157,7 @@ program(): i32 {
 #[test]
 fn parses_index_expression() {
     let output = parse_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let byte = header[0]
     let next = matrix[0][1]
     return 0
@@ -167,15 +167,15 @@ fn parses_index_expression() {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Program(program) = &ast.items[0] else {
-        panic!("expected program item");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
     };
-    let Stmt::Binding(first) = &program.body.statements[0] else {
+    let Stmt::Binding(first) = &function.body.statements[0] else {
         panic!("expected binding statement");
     };
     assert!(matches!(first.initializer, Expr::Index(_)));
 
-    let Stmt::Binding(second) = &program.body.statements[1] else {
+    let Stmt::Binding(second) = &function.body.statements[1] else {
         panic!("expected binding statement");
     };
     let Expr::Index(outer) = &second.initializer else {
@@ -187,7 +187,7 @@ fn parses_index_expression() {
 #[test]
 fn parses_comparison_expressions() {
     let output = parse_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let nonempty = count > 0
     let same = bytes[0] == 0
     return 0
@@ -197,15 +197,15 @@ fn parses_comparison_expressions() {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Program(program) = &ast.items[0] else {
-        panic!("expected program item");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
     };
-    let Stmt::Binding(first) = &program.body.statements[0] else {
+    let Stmt::Binding(first) = &function.body.statements[0] else {
         panic!("expected binding statement");
     };
     assert!(matches!(first.initializer, Expr::Binary(_)));
 
-    let Stmt::Binding(second) = &program.body.statements[1] else {
+    let Stmt::Binding(second) = &function.body.statements[1] else {
         panic!("expected binding statement");
     };
     let Expr::Binary(binary) = &second.initializer else {
@@ -217,7 +217,7 @@ fn parses_comparison_expressions() {
 #[test]
 fn parses_arithmetic_expression_precedence() {
     let output = parse_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let value = 1 + 2 * 3 - 4 / 2 % 2
     return 0
 }
@@ -226,10 +226,10 @@ fn parses_arithmetic_expression_precedence() {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Program(program) = &ast.items[0] else {
-        panic!("expected program item");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
     };
-    let Stmt::Binding(statement) = &program.body.statements[0] else {
+    let Stmt::Binding(statement) = &function.body.statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::Binary(subtract_expression) = &statement.initializer else {
@@ -261,7 +261,7 @@ fn parses_arithmetic_expression_precedence() {
 #[test]
 fn parses_type_conversion_expression_precedence() {
     let output = parse_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let value = byte as u64 + 1
     return 0
 }
@@ -270,10 +270,10 @@ fn parses_type_conversion_expression_precedence() {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Program(program) = &ast.items[0] else {
-        panic!("expected program item");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
     };
-    let Stmt::Binding(statement) = &program.body.statements[0] else {
+    let Stmt::Binding(statement) = &function.body.statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::Binary(add_expression) = &statement.initializer else {
@@ -289,7 +289,7 @@ fn parses_type_conversion_expression_precedence() {
 #[test]
 fn parses_shift_expression_precedence() {
     let output = parse_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let outside = value + 1 << count * 2 < limit
     return 0
 }
@@ -298,10 +298,10 @@ fn parses_shift_expression_precedence() {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Program(program) = &ast.items[0] else {
-        panic!("expected program item");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
     };
-    let Stmt::Binding(statement) = &program.body.statements[0] else {
+    let Stmt::Binding(statement) = &function.body.statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::Binary(ordering_expression) = &statement.initializer else {
@@ -328,7 +328,7 @@ fn parses_shift_expression_precedence() {
 #[test]
 fn parses_logical_expression_precedence() {
     let output = parse_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let condition = count > 0 && ready || fallback
     return 0
 }
@@ -337,10 +337,10 @@ fn parses_logical_expression_precedence() {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Program(program) = &ast.items[0] else {
-        panic!("expected program item");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
     };
-    let Stmt::Binding(statement) = &program.body.statements[0] else {
+    let Stmt::Binding(statement) = &function.body.statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::Binary(or_expression) = &statement.initializer else {
@@ -362,7 +362,7 @@ fn parses_logical_expression_precedence() {
 #[test]
 fn parses_logical_not_expression_precedence() {
     let output = parse_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let condition = !ready && fallback
     return 0
 }
@@ -371,10 +371,10 @@ fn parses_logical_not_expression_precedence() {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Program(program) = &ast.items[0] else {
-        panic!("expected program item");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
     };
-    let Stmt::Binding(statement) = &program.body.statements[0] else {
+    let Stmt::Binding(statement) = &function.body.statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::Binary(and_expression) = &statement.initializer else {
@@ -391,7 +391,7 @@ fn parses_logical_not_expression_precedence() {
 #[test]
 fn parses_numeric_negate_expression_precedence() {
     let output = parse_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let smaller = -count < 0
     return 0
 }
@@ -400,10 +400,10 @@ fn parses_numeric_negate_expression_precedence() {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Program(program) = &ast.items[0] else {
-        panic!("expected program item");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
     };
-    let Stmt::Binding(statement) = &program.body.statements[0] else {
+    let Stmt::Binding(statement) = &function.body.statements[0] else {
         panic!("expected binding statement");
     };
     let Expr::Binary(ordering_expression) = &statement.initializer else {

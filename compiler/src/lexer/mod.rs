@@ -42,7 +42,6 @@ pub enum Keyword {
     From,
     Import,
     Use,
-    Program,
     Func,
     Pub,
     Type,
@@ -687,7 +686,6 @@ fn keyword(text: &str) -> Option<Keyword> {
         "from" => Keyword::From,
         "import" => Keyword::Import,
         "use" => Keyword::Use,
-        "program" => Keyword::Program,
         "func" => Keyword::Func,
         "pub" => Keyword::Pub,
         "type" => Keyword::Type,
@@ -727,6 +725,16 @@ fn keyword(text: &str) -> Option<Keyword> {
     })
 }
 
+pub(crate) fn is_valid_identifier_name(text: &str) -> bool {
+    let Some(first) = text.as_bytes().first().copied() else {
+        return false;
+    };
+
+    matches!(first, b'A'..=b'Z' | b'a'..=b'z' | b'_')
+        && text.bytes().all(is_identifier_continue)
+        && keyword(text).is_none()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -735,11 +743,11 @@ mod tests {
     #[test]
     fn lexes_keywords_newlines_and_eof() {
         let mut sources = SourceMap::new();
-        let id = sources.add_source("app.nct", None, "program(): i32 {\n    return 0\n}\n");
+        let id = sources.add_source("app.nct", None, "func main(): i32 {\n    return 0\n}\n");
         let output = lex(&sources, id);
 
         assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
-        assert_eq!(output.tokens[0].kind, TokenKind::Keyword(Keyword::Program));
+        assert_eq!(output.tokens[0].kind, TokenKind::Keyword(Keyword::Func));
         assert!(
             output
                 .tokens
@@ -747,6 +755,27 @@ mod tests {
                 .any(|token| token.kind == TokenKind::Newline)
         );
         assert_eq!(output.tokens.last().unwrap().kind, TokenKind::Eof);
+    }
+
+    #[test]
+    fn lexes_program_as_identifier() {
+        let mut sources = SourceMap::new();
+        let id = sources.add_source("app.nct", None, "func program(): i32 {}");
+        let output = lex(&sources, id);
+
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        assert_eq!(output.tokens[1].kind, TokenKind::Identifier);
+    }
+
+    #[test]
+    fn validates_identifier_names() {
+        assert!(is_valid_identifier_name("main"));
+        assert!(is_valid_identifier_name("_entry2"));
+        assert!(is_valid_identifier_name("program"));
+        assert!(!is_valid_identifier_name(""));
+        assert!(!is_valid_identifier_name("2main"));
+        assert!(!is_valid_identifier_name("main-entry"));
+        assert!(!is_valid_identifier_name("func"));
     }
 
     #[test]

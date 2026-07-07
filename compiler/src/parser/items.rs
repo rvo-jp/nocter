@@ -2,8 +2,7 @@ use super::{ParseResult, Parser};
 use crate::ast::{
     AstFile, EnumDecl, EnumVariant, FromImportItem, FunctionDecl, ImplDecl, ImplMember,
     ImportAlias, ImportItem, ImportedName, Item, MethodDecl, ModulePath, Parameter, ParameterList,
-    PrimitiveDecl, ProgramDecl, StructDecl, StructField, TraitDecl, TypeAliasDecl, UseItem,
-    Visibility,
+    PrimitiveDecl, StructDecl, StructField, TraitDecl, TypeAliasDecl, UseItem, Visibility,
 };
 use crate::lexer::Keyword;
 use crate::source::ByteSpan;
@@ -36,10 +35,6 @@ impl Parser<'_> {
 
         if self.at_keyword(Keyword::Import) {
             return self.parse_import_item();
-        }
-
-        if self.at_keyword(Keyword::Program) {
-            return self.parse_program_decl();
         }
 
         let visibility = self.parse_visibility()?;
@@ -214,22 +209,6 @@ impl Parser<'_> {
             name: name.value,
             alias,
         })
-    }
-
-    pub(super) fn parse_program_decl(&mut self) -> ParseResult<Item> {
-        let start = self.expect_keyword(Keyword::Program, "`program`")?;
-        self.expect_punctuation("(", "`(`")?;
-        self.expect_punctuation(")", "`)`")?;
-        self.expect_punctuation(":", "`:`")?;
-        let return_type = self.parse_type()?;
-        let body = self.parse_block()?;
-        let end = body.span.end;
-
-        Ok(Item::Program(ProgramDecl {
-            span: self.span(start.span.start, end),
-            return_type,
-            body,
-        }))
     }
 
     pub(super) fn parse_function_decl(&mut self, visibility: Visibility) -> ParseResult<Item> {

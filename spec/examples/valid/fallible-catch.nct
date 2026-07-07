@@ -2,7 +2,7 @@ use std/prelude
 
 from std/io import print
 
-program(): i32! {
+func main(): i32! {
     run() catch error {
         print("failed") catch print_error {
             return 1

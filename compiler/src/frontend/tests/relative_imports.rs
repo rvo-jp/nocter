@@ -10,7 +10,7 @@ fn check_loads_relative_imports() {
         root.join("app.nct"),
         r#"from ./config import answer
 
-program(): i32 {
+func main(): i32 {
     return answer()
 }
 "#,
@@ -41,7 +41,7 @@ fn check_uses_relative_imported_function_return_type() {
         root.join("app.nct"),
         r#"from ./config import title
 
-program(): i32 {
+func main(): i32 {
     return title()
 }
 "#,
@@ -74,7 +74,7 @@ fn check_uses_relative_imported_function_parameters() {
         root.join("app.nct"),
         r#"from ./config import answer
 
-program(): i32 {
+func main(): i32 {
     return answer()
 }
 "#,
@@ -106,7 +106,7 @@ fn check_uses_relative_imported_associated_function_return_type() {
         root.join("app.nct"),
         r#"from ./geometry import Point
 
-program(): i32 {
+func main(): i32 {
     return Point.origin().x
 }
 "#,
@@ -143,7 +143,7 @@ fn check_uses_relative_imported_method_return_type() {
         root.join("app.nct"),
         r#"from ./geometry import Point
 
-program(): i32 {
+func main(): i32 {
     let point = Point.origin()
     return point.x_value()
 }
@@ -185,7 +185,7 @@ fn check_reports_relative_imported_function_body_errors() {
         root.join("app.nct"),
         r#"from ./config import answer
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,
@@ -219,7 +219,7 @@ fn check_reports_relative_imported_impl_member_name_duplicates() {
         root.join("app.nct"),
         r#"from ./geometry import Point
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,
@@ -261,7 +261,7 @@ fn check_reports_missing_relative_imported_names() {
         root.join("app.nct"),
         r#"from ./config import missing
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,
@@ -293,7 +293,7 @@ fn check_reports_private_relative_imported_names() {
         root.join("app.nct"),
         r#"from ./config import answer
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,
@@ -326,7 +326,7 @@ fn check_reports_relative_import_parse_errors() {
         root.join("app.nct"),
         r#"from ./config import answer
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,
@@ -351,7 +351,7 @@ fn check_reports_missing_relative_imports() {
         root.join("app.nct"),
         r#"from ./missing import Missing
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,

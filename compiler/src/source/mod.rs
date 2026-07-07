@@ -281,8 +281,8 @@ mod tests {
     #[test]
     fn converts_byte_span_to_json_span() {
         let mut sources = SourceMap::new();
-        let id = sources.add_source("app.nct", None, "program(): i32 {\n    return 0\n}\n");
-        let span = ByteSpan::new(id, 21, 27);
+        let id = sources.add_source("app.nct", None, "func main(): i32 {\n    return 0\n}\n");
+        let span = ByteSpan::new(id, 23, 29);
         let json = sources.span_to_json(span).unwrap();
 
         assert_eq!(json.file, "app.nct");

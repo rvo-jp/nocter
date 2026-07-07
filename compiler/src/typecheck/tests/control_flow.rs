@@ -3,7 +3,7 @@ use super::check_text;
 #[test]
 fn accepts_if_else_return_as_terminal_statement() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     if true {
         return 0
     } else {
@@ -19,7 +19,7 @@ fn accepts_if_else_return_as_terminal_statement() {
 #[test]
 fn accepts_if_condition_from_bool_binding() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let enabled = true
     if enabled {
         return 0
@@ -35,7 +35,7 @@ fn accepts_if_condition_from_bool_binding() {
 #[test]
 fn accepts_if_condition_from_comparison() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let count = 1
     if count > 0 {
         return 0
@@ -51,7 +51,7 @@ fn accepts_if_condition_from_comparison() {
 #[test]
 fn diagnoses_non_bool_if_condition() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     if 1 {
         return 0
     }
@@ -68,7 +68,7 @@ fn diagnoses_non_bool_if_condition() {
 #[test]
 fn diagnoses_if_without_else_as_non_terminal() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     if true {
         return 0
     }
@@ -83,7 +83,7 @@ fn diagnoses_if_without_else_as_non_terminal() {
 #[test]
 fn accepts_while_bool_condition() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     while ready() {
         tick()
     }
@@ -107,7 +107,7 @@ func tick(): void {
 #[test]
 fn diagnoses_non_bool_while_condition() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     while 1 {
         return 0
     }
@@ -125,7 +125,7 @@ fn diagnoses_non_bool_while_condition() {
 #[test]
 fn accepts_break_and_continue_inside_loops() {
     let diagnostics = check_text(
-        r#"program(): void {
+        r#"func main(): void {
     while ready() {
         break
     }
@@ -151,7 +151,7 @@ func maybe_answer(): i32? {
 #[test]
 fn accepts_break_inside_loop_expression_catch_block() {
     let diagnostics = check_text(
-        r#"program(): void {
+        r#"func main(): void {
     while ready() {
         let value = fallible() catch error {
             break
@@ -175,7 +175,7 @@ func fallible(): i32! {
 #[test]
 fn accepts_break_and_continue_inside_loop_statement() {
     let diagnostics = check_text(
-        r#"program(): void {
+        r#"func main(): void {
     loop {
         if ready() {
             break
@@ -197,7 +197,7 @@ func ready(): bool {
 #[test]
 fn accepts_range_for_integer_bounds() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     for i in 0..<4 {
         return i
     }
@@ -213,7 +213,7 @@ fn accepts_range_for_integer_bounds() {
 #[test]
 fn accepts_range_for_contextual_integer_literal_bound() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -233,7 +233,7 @@ func first(limit: u64): u64 {
 #[test]
 fn accepts_break_and_continue_inside_range_for() {
     let diagnostics = check_text(
-        r#"program(): void {
+        r#"func main(): void {
     for i in 0..<4 {
         if ready() {
             break
@@ -255,7 +255,7 @@ func ready(): bool {
 #[test]
 fn diagnoses_range_for_non_integer_bound() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     for i in "a"..<4 {
     }
 
@@ -272,7 +272,7 @@ fn diagnoses_range_for_non_integer_bound() {
 #[test]
 fn diagnoses_range_for_bound_type_mismatch() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let start: u16 = 0
     let end: u8 = 4
 
@@ -293,7 +293,7 @@ fn diagnoses_range_for_bound_type_mismatch() {
 #[test]
 fn diagnoses_range_for_as_non_terminal_statement() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     for i in 0..<1 {
         return i
     }
@@ -308,7 +308,7 @@ fn diagnoses_range_for_as_non_terminal_statement() {
 #[test]
 fn accepts_loop_with_return_as_terminal_statement() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     loop {
         return 0
     }
@@ -322,7 +322,7 @@ fn accepts_loop_with_return_as_terminal_statement() {
 #[test]
 fn diagnoses_non_terminal_loop_with_break() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     loop {
         break
     }
@@ -337,7 +337,7 @@ fn diagnoses_non_terminal_loop_with_break() {
 #[test]
 fn diagnoses_break_outside_loop() {
     let diagnostics = check_text(
-        r#"program(): void {
+        r#"func main(): void {
     break
 }
 "#,
@@ -351,7 +351,7 @@ fn diagnoses_break_outside_loop() {
 #[test]
 fn diagnoses_continue_outside_loop() {
     let diagnostics = check_text(
-        r#"program(): void {
+        r#"func main(): void {
     continue
 }
 "#,

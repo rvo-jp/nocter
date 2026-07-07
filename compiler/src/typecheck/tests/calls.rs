@@ -3,7 +3,7 @@ use super::check_text;
 #[test]
 fn uses_same_file_function_call_return_type() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return title()
 }
 
@@ -21,7 +21,7 @@ func title(): str {
 #[test]
 fn diagnoses_same_file_function_argument_count_mismatch() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return answer()
 }
 
@@ -38,7 +38,7 @@ func answer(value: i32): i32 {
 #[test]
 fn diagnoses_same_file_function_argument_type_mismatch() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return length("hello")
 }
 
@@ -65,7 +65,7 @@ impl Point {
     }
 }
 
-program(): i32 {
+func main(): i32 {
     return Point.origin().x
 }
 "#,
@@ -87,7 +87,7 @@ impl Parser {
     }
 }
 
-program(): i32 {
+func main(): i32 {
     return Parser.parse()
 }
 "#,
@@ -111,7 +111,7 @@ impl Parser {
     }
 }
 
-program(): i32 {
+func main(): i32 {
     return Parser.parse("bad")
 }
 "#,
@@ -134,7 +134,7 @@ impl Parser {
     }
 }
 
-program(): i32 {
+func main(): i32 {
     return Parser.parse()
 }
 "#,
@@ -166,7 +166,7 @@ func needs_value(value: i32): i32 {
     return value
 }
 
-program(): i32 {
+func main(): i32 {
     return Parser.parse()
 }
 "#,

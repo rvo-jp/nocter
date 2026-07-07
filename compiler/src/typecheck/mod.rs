@@ -26,10 +26,15 @@ use body::*;
 use entry::*;
 use returns::*;
 
-pub fn check(sources: &SourceMap, ast: &AstFile, resolved: &ResolveOutput) -> Vec<Diagnostic> {
+pub fn check(
+    sources: &SourceMap,
+    ast: &AstFile,
+    resolved: &ResolveOutput,
+    entry_name: &str,
+) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
 
-    check_program_entry(sources, ast, &mut diagnostics);
+    check_default_entry_function(sources, ast, entry_name, &mut diagnostics);
     diagnostics.extend(check_module(sources, ast, resolved));
 
     diagnostics

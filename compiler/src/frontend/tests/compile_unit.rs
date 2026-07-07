@@ -1,6 +1,7 @@
 use super::super::{FrontendOptions, load_compile_unit};
 use super::support::{check_with_nocter_home, make_nocter_home, make_temp_project};
-use crate::analysis::analyze_compile_unit;
+use crate::analysis::analyze_compile_unit_with_entry;
+use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::source::SourceMap;
 use crate::target::DEFAULT_TARGET;
 use std::fs;
@@ -13,7 +14,7 @@ fn compile_unit_analysis_retains_per_file_results() {
         root.join("app.nct"),
         r#"from ./config import answer
 
-program(): i32 {
+func main(): i32 {
     return answer()
 }
 "#,
@@ -35,7 +36,7 @@ program(): i32 {
         target: DEFAULT_TARGET.to_string(),
     };
     let unit = load_compile_unit(&mut sources, source, &options).unwrap();
-    let analysis = analyze_compile_unit(&sources, &unit);
+    let analysis = analyze_compile_unit_with_entry(&sources, &unit, DEFAULT_ENTRY_NAME);
     fs::remove_dir_all(&root).unwrap();
 
     assert_eq!(analysis.files.iter().filter(|file| file.is_root).count(), 1);
@@ -84,7 +85,7 @@ fn check_orders_diagnostics_by_source_position() {
     return value
 }
 
-program(): i32 {
+func main(): i32 {
     return "bad"
 }
 

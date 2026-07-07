@@ -8,7 +8,7 @@ fn parses_function_with_fallible_return_type() {
 
 from std/io import print
 
-program(): i32 {
+func main(): i32 {
     run() catch error {
         return 1
     }
@@ -58,7 +58,7 @@ fn parses_builtin_view_and_array_types() {
     return "ok"
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,

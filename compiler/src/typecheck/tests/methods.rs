@@ -13,7 +13,7 @@ impl Point {
     }
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,
@@ -35,7 +35,7 @@ impl Point {
     }
 }
 
-program(): i32 {
+func main(): i32 {
     let point = Point{ x: 1 }
     return point.x_value()
 }
@@ -58,7 +58,7 @@ impl Point {
     }
 }
 
-program(): i32 {
+func main(): i32 {
     let point = Point{ x: 1 }
     return point.same().x
 }
@@ -81,7 +81,7 @@ impl Parser {
     }
 }
 
-program(): i32 {
+func main(): i32 {
     let parser = Parser{ value: 0 }
     return parser.parse()
 }
@@ -106,7 +106,7 @@ impl Parser {
     }
 }
 
-program(): i32 {
+func main(): i32 {
     let parser = Parser{ value: 0 }
     return parser.parse("bad")
 }
@@ -130,7 +130,7 @@ impl File {
     }
 }
 
-program(): i32 {
+func main(): i32 {
     var file = File{ fd: 1 }
     return file.write()
 }
@@ -153,7 +153,7 @@ impl File {
     }
 }
 
-program(): i32 {
+func main(): i32 {
     let file = File{ fd: 1 }
     return file.write()
 }
@@ -177,7 +177,7 @@ impl File {
     }
 }
 
-program(): i32 {
+func main(): i32 {
     return File{ fd: 1 }.write()
 }
 "#,
@@ -200,7 +200,7 @@ impl File {
     }
 }
 
-program(): i32 {
+func main(): i32 {
     let file = File{ fd: 1 }
     if file.fd_value() == 0 {
         return File{ fd: 2 }.fd_value()
@@ -226,7 +226,7 @@ impl File {
     }
 }
 
-program(): i32 {
+func main(): i32 {
     let file = File{ fd: 1 }
     return file.bad()
 }
@@ -250,7 +250,7 @@ impl Point {
     }
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,

@@ -5,7 +5,7 @@ fn diagnoses_builtin_error_type_name_reuse() {
     let output = resolve_text(
         r#"type error = i32
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,
@@ -18,7 +18,7 @@ program(): i32 {
 #[test]
 fn diagnoses_duplicate_function_names() {
     let output = resolve_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -53,7 +53,7 @@ impl File {
     }
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,
@@ -82,7 +82,7 @@ impl File {
     }
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,
@@ -109,7 +109,7 @@ impl File {
     }
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,
@@ -122,7 +122,7 @@ program(): i32 {
 #[test]
 fn diagnoses_local_shadowing_top_level_function() {
     let output = resolve_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let answer = 0
     return answer
 }

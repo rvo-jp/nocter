@@ -1,59 +1,39 @@
-use super::diagnostics::{
-    duplicate_program_diagnostic, invalid_program_return_type_diagnostic,
-    main_is_not_entry_diagnostic, missing_program_diagnostic,
-};
-use crate::ast::{AstFile, FunctionDecl, Item, ProgramDecl, TypeExpr};
+use super::diagnostics::{invalid_entry_function_diagnostic, missing_entry_function_diagnostic};
+use crate::ast::{AstFile, FunctionDecl, Item, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::source::SourceMap;
 
-pub(super) fn check_program_entry(
+pub(super) fn check_default_entry_function(
     sources: &SourceMap,
     ast: &AstFile,
+    entry_name: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let programs: Vec<&ProgramDecl> = ast
-        .items
-        .iter()
-        .filter_map(|item| match item {
-            Item::Program(program) => Some(program),
-            _ => None,
-        })
-        .collect();
+    let Some(entry) = find_entry_function(ast, entry_name) else {
+        diagnostics.push(missing_entry_function_diagnostic(
+            sources, ast.span, entry_name,
+        ));
+        return;
+    };
 
-    match programs.as_slice() {
-        [] => {
-            if let Some(main) = find_main_function(ast) {
-                diagnostics.push(main_is_not_entry_diagnostic(sources, main));
-            } else {
-                diagnostics.push(missing_program_diagnostic(sources, ast.span));
-            }
-        }
-        [program] => {
-            if !is_valid_program_return_type(&program.return_type) {
-                diagnostics.push(invalid_program_return_type_diagnostic(
-                    sources,
-                    program.return_type.span(),
-                ));
-            }
-        }
-        [first, second, ..] => {
-            diagnostics.push(duplicate_program_diagnostic(
-                sources,
-                first.span,
-                second.span,
-            ));
-        }
+    if !entry.parameters.parameters.is_empty() || !is_valid_entry_return_type(&entry.return_type) {
+        diagnostics.push(invalid_entry_function_diagnostic(
+            sources, entry.span, entry_name,
+        ));
     }
 }
 
-fn find_main_function(ast: &AstFile) -> Option<&FunctionDecl> {
+pub(super) fn find_entry_function<'a>(
+    ast: &'a AstFile,
+    entry_name: &str,
+) -> Option<&'a FunctionDecl> {
     ast.items.iter().find_map(|item| match item {
-        Item::Function(function) if function.name == "main" => Some(function),
+        Item::Function(function) if function.name == entry_name => Some(function),
         _ => None,
     })
 }
 
-pub(super) fn is_valid_program_return_type(ty: &TypeExpr) -> bool {
+pub(super) fn is_valid_entry_return_type(ty: &TypeExpr) -> bool {
     match ty {
         TypeExpr::Reference(reference) => reference.name == "i32" || reference.name == "void",
         TypeExpr::Fallible(fallible) => {

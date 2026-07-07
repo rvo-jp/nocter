@@ -2,13 +2,13 @@ use super::support::parse_text;
 use crate::ast::{ImplMember, Item, TypeExpr, Visibility};
 
 #[test]
-fn parses_hello_program() {
+fn parses_hello_entry_function() {
     let output = parse_text(
         r#"use std/prelude
 
 from std/io import print
 
-program(): i32 {
+func main(): i32 {
     print("Hello") catch error {
         return 1
     }
@@ -23,7 +23,7 @@ program(): i32 {
     assert_eq!(ast.items.len(), 3);
     assert!(matches!(ast.items[0], Item::Use(_)));
     assert!(matches!(ast.items[1], Item::FromImport(_)));
-    assert!(matches!(ast.items[2], Item::Program(_)));
+    assert!(matches!(ast.items[2], Item::Function(_)));
 }
 
 #[test]
@@ -33,7 +33,7 @@ fn parses_import_aliases() {
 from std/io import File as StdFile, stdout
 pub from std/string import String as StdString
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,
@@ -92,7 +92,7 @@ func print<W: Writer>(writer: &+W): void! {
     return
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,
@@ -155,7 +155,7 @@ fn parses_relative_import_paths() {
         r#"from ./config import Config
 from ../shared/path import Path
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,
@@ -181,7 +181,7 @@ fn parses_public_reexports() {
     let output = parse_text(
         r#"pub from std/string import String
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,
@@ -218,7 +218,7 @@ pub func write(file: &+File, text: str): void! {
     return
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,
@@ -271,7 +271,7 @@ fn diagnoses_unknown_top_level_item() {
     let output = parse_text(
         r#"module app/main
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,

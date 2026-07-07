@@ -11,7 +11,7 @@ The specification entry point is [../SPEC.md](../SPEC.md).
 - Initial output: ARM64 Mach-O executable
 - Initial cross compilation: disabled, but host and target are modeled separately
 - Runtime GC: none
-- Entry syntax: `program`
+- Default entry function: `main`
 - User Nocter home: `~/.nocter/`
 - Initial archive root: `.nocter/`
 - Release metadata: `VERSION` and `MANIFEST.json`
@@ -21,7 +21,7 @@ The specification entry point is [../SPEC.md](../SPEC.md).
 
 Nocter is a statically typed, value-centered, module-oriented, low-dependency systems language.
 
-The language avoids giving special meaning to ordinary identifier names. Names such as `self`, `this`, `init`, and `main` are not magic. Special behavior must be represented by syntax, types, or explicit declarations.
+The language avoids giving intrinsic language semantics to ordinary identifier names. Names such as `self`, `this`, and `init` are not magic. The executable entry point is selected by the compiler's entry setting; in v0 that setting defaults to the ordinary top-level function name `main`.
 
 Nocter prioritizes:
 
@@ -37,61 +37,67 @@ Nocter prioritizes:
 
 AI support must not fragment the language surface. Nocter should prefer `nocter fmt`, `nocter check --format json`, `nocter tokens --format json`, `nocter ast --format json`, and curated examples over alternate syntax forms for the same concept.
 
-## Program Entry
+## Executable Entry
 
-Adopted: Nocter uses a dedicated top-level `program` construct for executable entry points.
+Adopted: Nocter uses a normal top-level function as the executable entry point.
+
+In v0, the compiler's default entry setting is `main`. The CLI can override it with `--entry <name>` for build, run, and check commands.
 
 ```nct
-program(): i32! {
+func main(): i32! {
     run()?
     return 0
 }
 ```
 
-`program` is not a function name. It is a reserved top-level construct that defines the source-level entry point for an executable.
+`main` is not a keyword, reserved word, built-in function, or implicitly imported symbol. It can be called like any other function. Its entry behavior comes from the compiler's default entry setting, not from the identifier having intrinsic language meaning.
 
-The compiler generates the real Mach-O entry code and connects it to the `program` body. The generated low-level entry code is an implementation detail.
+The compiler generates the real Mach-O entry code and connects it to the selected entry function. The generated low-level entry code is an implementation detail.
 
 ### Allowed Forms
 
 Initial allowed forms:
 
 ```nct
-program(): i32! {
+func main(): i32! {
     ...
 }
 ```
 
 ```nct
-program(): void {
+func main(): void {
     ...
 }
 ```
 
 ```nct
-program(): i32 {
+func main(): i32 {
     return 0
 }
 ```
 
 Rules:
 
-- An executable must contain exactly one `program` construct.
-- Library modules must not define `program`.
-- `program` is not imported or exported as a normal function.
-- `program(): i32!` is the standard executable entry form.
-- If `program(): i32!` succeeds, the returned `i32` is used as the process exit status.
-- If `program(): i32!` fails, the compiler-generated entry wrapper writes the built-in `error` payload to stderr and exits with status code `1`.
+- An executable root file must define exactly one top-level function named by the active entry setting.
+- v0 defaults the active entry setting to `main`.
+- `nocter build app.nct --entry start`, `nocter run app.nct --entry start`, `nocter app.nct --entry start`, and `nocter check app.nct --entry start` select `func start()` instead.
+- The `--entry` value must be a valid Nocter identifier and must not be a keyword.
+- Entry lookup considers only the root file's top-level functions.
+- Imported modules may define ordinary functions named `main`; they are not selected as the executable entry point.
+- Duplicate declarations for the selected entry name in one visible scope are normal duplicate function-name errors.
+- `func main(): i32!` is the standard executable entry form.
+- If `func main(): i32!` succeeds, the returned `i32` is used as the process exit status.
+- If `func main(): i32!` fails, the compiler-generated entry wrapper writes the built-in `error` payload to stderr and exits with status code `1`.
 - The generated failure report should include `error.code` and `error.message` when both fields are available.
 - If stderr reporting itself fails, the wrapper ignores that reporting failure and still exits with status code `1`.
 - The compiler-generated entry wrapper must not require allocation or call fallible standard-library APIs.
-- `program(): void` exits with status code `0`.
-- `program(): i32` uses the returned value as the process exit status.
-- `program(): void` and `program(): i32` are accepted for simple infallible entry points in v0, but `program(): i32!` is the preferred form for applications.
-- `program` parameters are not part of v0.
-- `program(args: [str])` is not part of v0.
-- Command-line arguments and environment variables are accessed through `std/process`, not through special `program` parameters.
-- `func main()` has no special meaning. `main` is an ordinary identifier if used.
+- `func main(): void` exits with status code `0`.
+- `func main(): i32` uses the returned value as the process exit status.
+- `func main(): void` and `func main(): i32` are accepted for simple infallible entry points in v0, but `func main(): i32!` is the preferred form for applications.
+- Entry function parameters are not part of v0.
+- Entry functions with parameters, such as `func main(args: [str]): i32!`, are not part of v0.
+- Command-line arguments and environment variables are accessed through `std/process`, not through special entry function parameters.
+- Future manifest configuration may allow setting the entry point without repeating `--entry` on every command.
 
 Process entry context:
 
@@ -103,10 +109,10 @@ Process entry context:
 
 Rationale:
 
-- avoids making the identifier `main` magical
+- keeps the entry point familiar without reserving a new source construct
 - avoids requiring a general attribute system before the language needs one
-- makes executable source files visually clear
-- keeps the entry point explicit without adding project configuration
+- lets `main` remain an ordinary function name outside root-file entry selection
+- leaves room for future explicit entry configuration
 - keeps process arguments in the standard library instead of expanding entry syntax
 
 ## Attributes

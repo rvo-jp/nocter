@@ -17,9 +17,9 @@ use super::calls::CheckedCallSignature;
 use super::model::{ReturnContext, Type};
 use super::type_expr::type_expr_display_lossy;
 use crate::ast::{
-    BinaryExpr, BindingKind, BindingStmt, Block, CallExpr, Expr, FailStmt, ForRangeStmt,
-    FunctionDecl, IfIsStmt, IfLetStmt, IndexExpr, MemberExpr, ReturnStmt, StructLiteralExpr,
-    StructLiteralField, SwitchArm, SwitchStmt, TypeConversionExpr, UnaryExpr, WhileLetStmt,
+    BinaryExpr, BindingKind, BindingStmt, Block, CallExpr, Expr, FailStmt, ForRangeStmt, IfIsStmt,
+    IfLetStmt, IndexExpr, MemberExpr, ReturnStmt, StructLiteralExpr, StructLiteralField, SwitchArm,
+    SwitchStmt, TypeConversionExpr, UnaryExpr, WhileLetStmt,
 };
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
 use crate::resolve::{

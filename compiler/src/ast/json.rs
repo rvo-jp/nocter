@@ -87,14 +87,6 @@ impl Item {
                     children,
                 )
             }
-            Item::Program(item) => JsonAstNode::new(
-                "program_decl",
-                json_span(sources, item.span),
-                vec![
-                    item.return_type.to_json(sources),
-                    item.body.to_json(sources),
-                ],
-            ),
             Item::Function(item) => JsonAstNode::with_value(
                 "function_decl",
                 item.name.clone(),

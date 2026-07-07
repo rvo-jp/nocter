@@ -3,7 +3,6 @@ use super::diagnostics::{
     missing_return_diagnostic, missing_return_value_diagnostic, return_type_mismatch_diagnostic,
     unexpected_return_value_diagnostic,
 };
-use super::entry::is_valid_program_return_type;
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_if_is_binding,
     environment_for_if_let_binding, environment_for_method, environment_for_parameters,
@@ -28,22 +27,6 @@ pub(super) fn check_return_types(
 ) {
     for item in &ast.items {
         match item {
-            Item::Program(program) if is_valid_program_return_type(&program.return_type) => {
-                let context = ReturnContext::new(
-                    CallableKind::Program,
-                    type_expr_to_type(&program.return_type, resolved),
-                    program.return_type.span(),
-                );
-                let mut environment = TypeEnvironment::default();
-                check_block_returns(
-                    sources,
-                    &program.body,
-                    &context,
-                    resolved,
-                    diagnostics,
-                    &mut environment,
-                );
-            }
             Item::Function(function) => {
                 let context = ReturnContext::new(
                     CallableKind::Function(function.name.clone()),

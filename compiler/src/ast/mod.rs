@@ -17,7 +17,6 @@ pub enum Item {
     Use(UseItem),
     Import(ImportItem),
     FromImport(FromImportItem),
-    Program(ProgramDecl),
     Function(FunctionDecl),
     Primitive(PrimitiveDecl),
     TypeAlias(TypeAliasDecl),
@@ -74,13 +73,6 @@ pub struct ImportedName {
     pub name_span: ByteSpan,
     pub name: String,
     pub alias: Option<ImportAlias>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProgramDecl {
-    pub span: ByteSpan,
-    pub return_type: TypeExpr,
-    pub body: Block,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -631,7 +623,6 @@ impl Item {
             Item::Use(item) => item.span,
             Item::Import(item) => item.span,
             Item::FromImport(item) => item.span,
-            Item::Program(item) => item.span,
             Item::Function(item) => item.span,
             Item::Primitive(item) => item.span,
             Item::TypeAlias(item) => item.span,

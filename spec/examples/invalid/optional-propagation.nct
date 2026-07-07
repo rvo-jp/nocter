@@ -1,6 +1,6 @@
 use std/prelude
 
-program(): i32 {
+func main(): i32 {
     let value = lookup()
 
     // invalid: postfix `?` on T? requires an optional return layer

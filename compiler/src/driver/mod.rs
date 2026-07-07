@@ -30,7 +30,7 @@ where
     S: Into<OsString>,
 {
     let mut args = args.into_iter().map(Into::into);
-    let _program = args.next();
+    let _program_name = args.next();
     let rest: Vec<OsString> = args.collect();
 
     match parse_command(&rest) {
@@ -45,10 +45,10 @@ where
             ExitCode::SUCCESS
         }
         Ok(Command::Doctor) => run_doctor(),
-        Ok(Command::Build(file)) => run_build(&file),
-        Ok(Command::Run(file)) => run_file(&file),
-        Ok(Command::Check(file)) => run_check(&file),
-        Ok(Command::CheckJson(file)) => run_check_json(&file),
+        Ok(Command::Build(command)) => run_build(&command.file, &command.entry),
+        Ok(Command::Run(command)) => run_file(&command.file, &command.entry),
+        Ok(Command::Check(command)) => run_check(&command.file, &command.entry),
+        Ok(Command::CheckJson(command)) => run_check_json(&command.file, &command.entry),
         Ok(Command::Fmt { check, file }) => {
             let mode = if check { "fmt --check" } else { "fmt" };
             not_implemented(mode, &file)
@@ -80,11 +80,11 @@ fn print_usage() {
     println!("usage: nocter <command> [args]");
     println!();
     println!("commands:");
-    println!("  build <file.nct>");
-    println!("  run <file.nct>");
-    println!("  <file.nct>");
-    println!("  check <file.nct>");
-    println!("  check <file.nct> --format json");
+    println!("  build <file.nct> [--entry <name>]");
+    println!("  run <file.nct> [--entry <name>]");
+    println!("  <file.nct> [--entry <name>]");
+    println!("  check <file.nct> [--entry <name>]");
+    println!("  check <file.nct> [--entry <name>] --format json");
     println!("  fmt [--check] <file.nct>");
     println!("  tokens <file.nct> --format json");
     println!("  ast <file.nct> --format json");

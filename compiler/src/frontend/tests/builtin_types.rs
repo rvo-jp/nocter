@@ -8,7 +8,7 @@ fn check_accepts_builtin_str_return_type() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -33,7 +33,7 @@ fn check_diagnoses_mismatched_builtin_str_return_type() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 

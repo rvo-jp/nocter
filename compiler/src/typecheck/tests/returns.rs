@@ -1,9 +1,9 @@
 use super::check_text;
 
 #[test]
-fn diagnoses_string_return_from_i32_program() {
+fn diagnoses_string_return_from_i32_function() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return "hello"
 }
 "#,
@@ -15,9 +15,9 @@ fn diagnoses_string_return_from_i32_program() {
 }
 
 #[test]
-fn diagnoses_bare_return_from_i32_program() {
+fn diagnoses_bare_return_from_i32_function() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return
 }
 "#,
@@ -28,9 +28,9 @@ fn diagnoses_bare_return_from_i32_program() {
 }
 
 #[test]
-fn diagnoses_value_return_from_void_program() {
+fn diagnoses_value_return_from_void_function() {
     let diagnostics = check_text(
-        r#"program(): void {
+        r#"func main(): void {
     return 0
 }
 "#,
@@ -41,9 +41,9 @@ fn diagnoses_value_return_from_void_program() {
 }
 
 #[test]
-fn diagnoses_missing_return_from_i32_program() {
+fn diagnoses_missing_return_from_i32_function() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let value = 0
 }
 "#,
@@ -56,7 +56,7 @@ fn diagnoses_missing_return_from_i32_program() {
 #[test]
 fn accepts_str_function_return() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -72,7 +72,7 @@ func title(): str {
 #[test]
 fn accepts_bool_function_return() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 

@@ -3,7 +3,7 @@ use super::check_text;
 #[test]
 fn accepts_equality_comparison_return() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -19,7 +19,7 @@ func same(): bool {
 #[test]
 fn accepts_contextual_integer_literal_comparison() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -35,7 +35,7 @@ func is_zero(byte: u8): bool {
 #[test]
 fn accepts_logical_expression_return() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -51,7 +51,7 @@ func enabled(left: bool, right: bool, count: i32): bool {
 #[test]
 fn accepts_logical_not_expression_return() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -67,7 +67,7 @@ func disabled(enabled: bool): bool {
 #[test]
 fn accepts_numeric_negate_expression_return() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -83,7 +83,7 @@ func negative(value: i32): i32 {
 #[test]
 fn accepts_contextual_negative_integer_literal_binding() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let value: i64 = -1
     return 0
 }
@@ -96,7 +96,7 @@ fn accepts_contextual_negative_integer_literal_binding() {
 #[test]
 fn accepts_arithmetic_expression_return() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -112,7 +112,7 @@ func calc(left: i32, right: i32): i32 {
 #[test]
 fn accepts_contextual_integer_literal_arithmetic() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -132,7 +132,7 @@ func add_one_reversed(byte: u8): u8 {
 #[test]
 fn accepts_lossless_integer_type_conversion() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let literal = 10 as u8
     return 0
 }
@@ -153,7 +153,7 @@ func widen_large(value: u32): u64 {
 #[test]
 fn accepts_shift_expression_return() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -173,7 +173,7 @@ func shift_right(value: i32): i32 {
 #[test]
 fn accepts_if_condition_from_logical_expression() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let count = 1
     let ready = true
     if count > 0 && ready {
@@ -190,7 +190,7 @@ fn accepts_if_condition_from_logical_expression() {
 #[test]
 fn diagnoses_equality_operand_type_mismatch() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let same = 1 == "1"
     return 0
 }
@@ -206,7 +206,7 @@ fn diagnoses_equality_operand_type_mismatch() {
 #[test]
 fn diagnoses_ordered_comparison_on_non_integer_operands() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let less = true < false
     return 0
 }
@@ -221,7 +221,7 @@ fn diagnoses_ordered_comparison_on_non_integer_operands() {
 #[test]
 fn diagnoses_ordered_comparison_integer_type_mismatch() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -240,7 +240,7 @@ func less(left: u8, right: u16): bool {
 #[test]
 fn diagnoses_arithmetic_integer_type_mismatch() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -259,7 +259,7 @@ func calc(left: u8, right: u16): void {
 #[test]
 fn diagnoses_arithmetic_on_non_integer_operands() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let invalid = true + false
     return 0
 }
@@ -274,7 +274,7 @@ fn diagnoses_arithmetic_on_non_integer_operands() {
 #[test]
 fn diagnoses_narrowing_integer_type_conversion() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -293,7 +293,7 @@ func narrow(value: u64): void {
 #[test]
 fn diagnoses_signed_to_unsigned_type_conversion() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -312,7 +312,7 @@ func convert(value: i32): void {
 #[test]
 fn diagnoses_non_integer_type_conversion() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let invalid = true as i32
     return 0
 }
@@ -328,7 +328,7 @@ fn diagnoses_non_integer_type_conversion() {
 #[test]
 fn diagnoses_shift_operand_type_mismatch() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let invalid = 1 << false
     return 0
 }
@@ -344,7 +344,7 @@ fn diagnoses_shift_operand_type_mismatch() {
 #[test]
 fn diagnoses_negative_shift_count() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let invalid = 1 << -1
     return 0
 }
@@ -358,7 +358,7 @@ fn diagnoses_negative_shift_count() {
 #[test]
 fn diagnoses_logical_operand_type_mismatch() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let invalid = true && 1
     return 0
 }
@@ -374,7 +374,7 @@ fn diagnoses_logical_operand_type_mismatch() {
 #[test]
 fn diagnoses_logical_not_operand_type_mismatch() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let invalid = !1
     return 0
 }
@@ -389,7 +389,7 @@ fn diagnoses_logical_not_operand_type_mismatch() {
 #[test]
 fn diagnoses_numeric_negate_operand_type_mismatch() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -407,7 +407,7 @@ func negative(value: u8): u8 {
 #[test]
 fn diagnoses_negative_integer_literal_unsigned_binding() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let value: u8 = -1
     return 0
 }
@@ -422,7 +422,7 @@ fn diagnoses_negative_integer_literal_unsigned_binding() {
 #[test]
 fn accepts_str_equality_return() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 

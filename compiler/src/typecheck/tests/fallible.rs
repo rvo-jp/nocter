@@ -3,7 +3,7 @@ use super::check_text;
 #[test]
 fn checks_success_type_of_fallible_return() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -19,7 +19,7 @@ func run(): void! {
 #[test]
 fn accepts_fail_in_fallible_function() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -35,7 +35,7 @@ func run(error: error): i32! {
 #[test]
 fn accepts_error_code_and_message_fields() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -55,7 +55,7 @@ func error_message(error: error): str {
 #[test]
 fn accepts_error_fields_inside_catch_block() {
     let diagnostics = check_text(
-        r#"program(): i32! {
+        r#"func main(): i32! {
     run() catch error {
         report(error.code)
         report(error.message)
@@ -81,7 +81,7 @@ func report(text: str): void {
 #[test]
 fn diagnoses_unknown_error_field() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -99,7 +99,7 @@ func error_code(error: error): str {
 #[test]
 fn diagnoses_non_error_fail_value() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -118,7 +118,7 @@ func run(): i32! {
 #[test]
 fn diagnoses_fail_in_non_fallible_function() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -135,7 +135,7 @@ func run(error: u64): i32 {
 #[test]
 fn diagnoses_fail_type_mismatch() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -154,7 +154,7 @@ func run(error: str): i32! {
 #[test]
 fn accepts_fail_as_terminal_branch() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -174,7 +174,7 @@ func run(error: error): i32! {
 #[test]
 fn unwraps_catch_expression_success_type() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return answer() catch error {
         return 1
     }
@@ -192,7 +192,7 @@ func answer(): i32! {
 #[test]
 fn accepts_fallible_force_unwrap() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return answer()!
 }
 
@@ -208,7 +208,7 @@ func answer(): i32! {
 #[test]
 fn diagnoses_force_unwrap_on_plain_value() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return answer()!
 }
 
@@ -227,7 +227,7 @@ func answer(): i32 {
 #[test]
 fn diagnoses_propagation_in_non_fallible_function() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return answer()?
 }
 
@@ -246,7 +246,7 @@ func answer(): i32! {
 #[test]
 fn diagnoses_catch_on_non_fallible_expression() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return answer() catch error {
         return 1
     }

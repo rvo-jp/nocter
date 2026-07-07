@@ -6,7 +6,7 @@ fn imported_calls_are_not_function_signatures_yet() {
     let output = resolve_text(
         r#"from std/io import print
 
-program(): i32 {
+func main(): i32 {
     print("hello") catch error {
         return 1
     }
@@ -32,7 +32,7 @@ fn imports_from_alias_under_local_name() {
     let output = resolve_text(
         r#"from std/io import print as write
 
-program(): i32 {
+func main(): i32 {
     write("hello") catch error {
         return 1
     }
@@ -54,7 +54,7 @@ fn imports_namespace_alias_as_visible_name() {
     let output = resolve_text(
         r#"import std/io as io
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,

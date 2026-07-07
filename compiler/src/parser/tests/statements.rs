@@ -4,7 +4,7 @@ use crate::ast::{BindingKind, Expr, Item, Stmt};
 #[test]
 fn parses_optional_let_else_binding() {
     let output = parse_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let home = lookup("HOME") else {
         return 1
     }
@@ -16,10 +16,10 @@ fn parses_optional_let_else_binding() {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Program(program) = &ast.items[0] else {
-        panic!("expected program item");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
     };
-    let Stmt::Binding(binding) = &program.body.statements[0] else {
+    let Stmt::Binding(binding) = &function.body.statements[0] else {
         panic!("expected binding statement");
     };
 
@@ -31,7 +31,7 @@ fn parses_optional_let_else_binding() {
 #[test]
 fn parses_optional_var_else_binding() {
     let output = parse_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     var text = maybe_text else {
         return 1
     }
@@ -43,10 +43,10 @@ fn parses_optional_var_else_binding() {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Program(program) = &ast.items[0] else {
-        panic!("expected program item");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
     };
-    let Stmt::Binding(binding) = &program.body.statements[0] else {
+    let Stmt::Binding(binding) = &function.body.statements[0] else {
         panic!("expected binding statement");
     };
 
@@ -57,7 +57,7 @@ fn parses_optional_var_else_binding() {
 #[test]
 fn parses_optional_if_let_and_if_var_statements() {
     let output = parse_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     if let home = maybe_home {
         return 0
     } else {
@@ -75,13 +75,13 @@ fn parses_optional_if_let_and_if_var_statements() {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Program(program) = &ast.items[0] else {
-        panic!("expected program item");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
     };
-    let Stmt::IfLet(first) = &program.body.statements[0] else {
+    let Stmt::IfLet(first) = &function.body.statements[0] else {
         panic!("expected if let statement");
     };
-    let Stmt::IfLet(second) = &program.body.statements[1] else {
+    let Stmt::IfLet(second) = &function.body.statements[1] else {
         panic!("expected if var statement");
     };
 
@@ -96,7 +96,7 @@ fn parses_optional_if_let_and_if_var_statements() {
 #[test]
 fn parses_else_if_chains_as_nested_else_blocks() {
     let output = parse_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     if ready {
         return 0
     } else if let value = maybe_value {
@@ -112,10 +112,10 @@ fn parses_else_if_chains_as_nested_else_blocks() {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Program(program) = &ast.items[0] else {
-        panic!("expected program item");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
     };
-    let Stmt::If(first) = &program.body.statements[0] else {
+    let Stmt::If(first) = &function.body.statements[0] else {
         panic!("expected if statement");
     };
     let first_else = first.else_block.as_ref().expect("expected else block");
@@ -140,7 +140,7 @@ fn parses_else_if_chains_as_nested_else_blocks() {
 #[test]
 fn parses_while_and_optional_while_statements() {
     let output = parse_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     while ready {
         tick()
     }
@@ -160,16 +160,16 @@ fn parses_while_and_optional_while_statements() {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Program(program) = &ast.items[0] else {
-        panic!("expected program item");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
     };
-    let Stmt::While(first) = &program.body.statements[0] else {
+    let Stmt::While(first) = &function.body.statements[0] else {
         panic!("expected while statement");
     };
-    let Stmt::WhileLet(second) = &program.body.statements[1] else {
+    let Stmt::WhileLet(second) = &function.body.statements[1] else {
         panic!("expected while let statement");
     };
-    let Stmt::WhileLet(third) = &program.body.statements[2] else {
+    let Stmt::WhileLet(third) = &function.body.statements[2] else {
         panic!("expected while var statement");
     };
 
@@ -183,7 +183,7 @@ fn parses_while_and_optional_while_statements() {
 #[test]
 fn parses_break_and_continue_statements() {
     let output = parse_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     while ready {
         break
     }
@@ -199,13 +199,13 @@ fn parses_break_and_continue_statements() {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Program(program) = &ast.items[0] else {
-        panic!("expected program item");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
     };
-    let Stmt::While(first) = &program.body.statements[0] else {
+    let Stmt::While(first) = &function.body.statements[0] else {
         panic!("expected while statement");
     };
-    let Stmt::While(second) = &program.body.statements[1] else {
+    let Stmt::While(second) = &function.body.statements[1] else {
         panic!("expected while statement");
     };
 
@@ -216,7 +216,7 @@ fn parses_break_and_continue_statements() {
 #[test]
 fn parses_loop_statement() {
     let output = parse_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     loop {
         continue
     }
@@ -228,10 +228,10 @@ fn parses_loop_statement() {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Program(program) = &ast.items[0] else {
-        panic!("expected program item");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
     };
-    let Stmt::Loop(statement) = &program.body.statements[0] else {
+    let Stmt::Loop(statement) = &function.body.statements[0] else {
         panic!("expected loop statement");
     };
 
@@ -241,7 +241,7 @@ fn parses_loop_statement() {
 #[test]
 fn parses_fail_statement() {
     let output = parse_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -267,7 +267,7 @@ fn parses_switch_statement() {
     open_failed(path: str)
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -315,7 +315,7 @@ fn parses_switch_else_arm() {
     missing_path
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -354,7 +354,7 @@ fn parses_if_is_statement() {
     open_failed(path: str)
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -401,7 +401,7 @@ fn rejects_switch_arm_after_else() {
     missing_path
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -430,7 +430,7 @@ fn rejects_duplicate_switch_else_arm() {
     missing_path
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 
@@ -455,7 +455,7 @@ func code(error: AppError): i32 {
 #[test]
 fn parses_range_for_statement() {
     let output = parse_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     for i in 0..<4 {
         use_value(i)
     }
@@ -467,10 +467,10 @@ fn parses_range_for_statement() {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Program(program) = &ast.items[0] else {
-        panic!("expected program item");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
     };
-    let Stmt::ForRange(statement) = &program.body.statements[0] else {
+    let Stmt::ForRange(statement) = &function.body.statements[0] else {
         panic!("expected range for statement");
     };
 
@@ -483,7 +483,7 @@ fn parses_range_for_statement() {
 #[test]
 fn rejects_non_range_for_statement() {
     let output = parse_text(
-        r#"program(): void {
+        r#"func main(): void {
     for item in items {
     }
 }
@@ -497,7 +497,7 @@ fn rejects_non_range_for_statement() {
 #[test]
 fn rejects_loop_control_with_values() {
     let output = parse_text(
-        r#"program(): void {
+        r#"func main(): void {
     while ready {
         break 1
     }
@@ -516,7 +516,7 @@ fn rejects_loop_control_with_values() {
 #[test]
 fn parses_if_else_statement_and_bool_literals() {
     let output = parse_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     if true {
         return 0
     } else {
@@ -528,10 +528,10 @@ fn parses_if_else_statement_and_bool_literals() {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Program(program) = &ast.items[0] else {
-        panic!("expected program item");
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
     };
-    let Stmt::If(statement) = &program.body.statements[0] else {
+    let Stmt::If(statement) = &function.body.statements[0] else {
         panic!("expected if statement");
     };
     assert!(matches!(statement.condition, Expr::BoolLiteral(_)));

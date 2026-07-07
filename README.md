@@ -175,10 +175,15 @@ export PATH="$HOME/.nocter:$PATH"
 ```sh
 nocter build app.nct
 nocter build app.nct -o app
+nocter build app.nct --entry start
 nocter run app.nct
+nocter run app.nct --entry start
 nocter app.nct
+nocter app.nct --entry start
 nocter check app.nct
+nocter check app.nct --entry start
 nocter check app.nct --format json
+nocter check app.nct --entry start --format json
 nocter fmt app.nct
 nocter fmt --check app.nct
 nocter tokens app.nct --format json
@@ -190,7 +195,7 @@ nocter build app.nct --target arm64-darwin
 nocter build app.nct --target x64-linux
 ```
 
-`build` は1つの root `.nct` file を受け取り、`-o path` で出力 executable path を指定します。`run` は一時 Mach-O executable を生成して実行し、終了後に削除します。`nocter app.nct` は quick trial 用の短縮形で、明示形は `nocter run app.nct` です。`fmt` は指定された1つの `.nct` source file だけを整形し、import graph は辿りません。
+`build` は1つの root `.nct` file を受け取り、`-o path` で出力 executable path を指定します。`run` は一時 Mach-O executable を生成して実行し、終了後に削除します。`nocter app.nct` は quick trial 用の短縮形で、明示形は `nocter run app.nct` です。`--entry name` は root file の top-level `func name()` を executable entry として選びます。省略時は `main` です。`fmt` は指定された1つの `.nct` source file だけを整形し、import graph は辿りません。
 
 RAM-only 実行や JIT 実行は v0 では採用しません。`run` も `build` と同じ parser、type checker、ownership checker、ARM64 code generator、Mach-O writer を通ります。違いは、成果物を project に残すか、一時 executable として実行後に削除するかだけです。
 
@@ -278,7 +283,7 @@ user project module は、compiler が内部的にファイル先頭へ syntheti
 
 prelude は小さく保ちます。`Int` のような基本 alias、`Error` / `ErrorCode`、所有文字列 `String` のような ubiquitous な標準ライブラリ型だけを置きます。`str`、`error`、`[T]`、`[+T]` は compiler built-in の型構文です。`File`、`Allocator`、`print`、`stdout`、`stderr`、`args`、`env`、`cwd`、`exit`、`abort` は domain module から明示 import します。project-wide prelude 設定は初期仕様では採用しません。
 
-v0 では package manifest と project root discovery を採用しません。compiler に渡した `.nct` が root file です。`program` は root file にだけ書けます。compiler は root file から import graph を辿り、到達した `.nct` ファイル全体を1つの compile unit として name resolution、type checking、ownership checking、code generation します。separate compilation、incremental build、package registry、lockfile、workspace は v0 では扱いません。
+v0 では package manifest と project root discovery を採用しません。compiler に渡した `.nct` が root file です。executable の entry point は compiler の entry setting で選ばれ、v0 の既定値は root file の top-level `func main()` です。`--entry start` を指定した場合は root file の top-level `func start()` を選びます。`main` や `start` は予約語や built-in ではなく、通常の関数名です。compiler は root file から import graph を辿り、到達した `.nct` ファイル全体を1つの compile unit として name resolution、type checking、ownership checking、code generation します。separate compilation、incremental build、package registry、lockfile、workspace は v0 では扱いません。
 
 ```text
 project/
@@ -297,7 +302,7 @@ nocter build app.nct -o app
 from std/io import print
 from ./src/config import Config
 
-program(): i32! {
+func main(): i32! {
     let config = Config.default()
     print(config.name)?
     return 0
@@ -523,7 +528,7 @@ switch error {
 ```nct
 from std/io import print
 
-program(): i32! {
+func main(): i32! {
     print("Hello")?
     return 0
 }
@@ -531,12 +536,12 @@ program(): i32! {
 
 低レベルの処理はコンパイラと標準ライブラリが引き受けます。
 
-`program` の標準形は `program(): i32!` です。成功時は返した `i32` が process exit status になり、失敗時は compiler-generated entry wrapper が built-in `error` を stderr へ出力して status `1` で終了します。stderr 出力自体が失敗した場合、その失敗は無視して status `1` で終了します。simple infallible entry point 用に `program(): void` と `program(): i32` も v0 では受け付けます。`program(args: ...)` は採用しません。command-line arguments、environment、current working directory、process termination は `std/process` の通常 API で扱います。
+標準の entry function は `func main(): i32!` です。`--entry name` を指定した場合は `func name(): i32!` が同じ役割を持ちます。成功時は返した `i32` が process exit status になり、失敗時は compiler-generated entry wrapper が built-in `error` を stderr へ出力して status `1` で終了します。stderr 出力自体が失敗した場合、その失敗は無視して status `1` で終了します。simple infallible entry point 用に `func main(): void` と `func main(): i32` も v0 では受け付けます。entry function parameters は採用しません。command-line arguments、environment、current working directory、process termination は `std/process` の通常 API で扱います。
 
 ```nct
 from std/process import args
 
-program(): i32! {
+func main(): i32! {
     let argv = args()?
 
     if argv.len() < 2 {
@@ -1836,7 +1841,7 @@ help: end the borrow before moving `file`
 
 v0 では、source-level compiler error に `E0000` 形式の error code を付け、primary span を1つ持たせます。関連する原因箇所がある場合は related span と `note` を出し、修正方向が明確な場合は `help` を出します。parser は最初の構文エラーで止まってよく、型チェック以降は複数の独立エラーを出せますが、cascade error は抑制します。
 
-`pub(nocter)` 違反、borrow 違反、move 後の使用、明示 `drop` 後の使用、maybe initialized binding の使用、`fail` に `error` 以外を渡した場合、`T!` / `T?` ではない値への postfix `?` / `!`、optional return layer のない場所での optional propagation、`catch` の fallthrough、`program` の欠落や重複などは専用診断にします。診断文は compiler 内部都合ではなく、Nocter の source-level 概念で説明します。
+`pub(nocter)` 違反、borrow 違反、move 後の使用、明示 `drop` 後の使用、maybe initialized binding の使用、`fail` に `error` 以外を渡した場合、`T!` / `T?` ではない値への postfix `?` / `!`、optional return layer のない場所での optional propagation、`catch` の fallthrough、selected entry function の欠落や不正な signature などは専用診断にします。診断文は compiler 内部都合ではなく、Nocter の source-level 概念で説明します。
 
 ## エディタ連携
 
@@ -1872,7 +1877,7 @@ compiler 内部の source span は UTF-8 byte offset を正とし、CLI 用 JSON
 5. 型チェック
 6. ARM64 命令エンコーダ
 7. Mach-O 生成
-8. `program` のみ実行可能にする
+8. root file の selected entry function のみ実行可能にする
 9. 文字列リテラル配置
 10. `exit`
 11. `primitive`

@@ -7,11 +7,11 @@ const NOCTER: &str = env!("CARGO_BIN_EXE_nocter");
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_program_exit_code() {
+fn run_command_returns_entry_exit_code() {
     let project = TempProject::new("cli-run-command");
     let source = project.write_source(
         "exit17.nct",
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 17
 }
 "#,
@@ -34,7 +34,7 @@ fn run_command_returns_same_file_function_call_exit_code() {
     let project = TempProject::new("cli-run-function-call");
     let source = project.write_source(
         "call.nct",
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return answer()
 }
 
@@ -61,7 +61,7 @@ fn run_command_returns_i32_function_call_with_arguments_exit_code() {
     let project = TempProject::new("cli-run-function-arguments");
     let source = project.write_source(
         "add.nct",
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return add(20, 22)
 }
 
@@ -84,11 +84,11 @@ func add(a: i32, b: i32): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_fallible_program_success_exit_code() {
+fn run_command_returns_fallible_entry_success_exit_code() {
     let project = TempProject::new("cli-run-fallible-success");
     let source = project.write_source(
         "exit19.nct",
-        r#"program(): i32! {
+        r#"func main(): i32! {
     return 19
 }
 "#,
@@ -107,13 +107,13 @@ fn run_command_returns_fallible_program_success_exit_code() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_reports_fallible_program_failure() {
+fn run_command_reports_fallible_entry_failure() {
     let project = TempProject::new("cli-run-fallible-failure");
     let source = project.write_source(
         "fail.nct",
         r#"primitive make_error(code: str, message: str): error
 
-program(): i32! {
+func main(): i32! {
     fail make_error("app.failed", "failed")
 }
 "#,
@@ -132,7 +132,7 @@ fn bare_source_command_runs_source_file() {
     let project = TempProject::new("cli-run-bare-source");
     let source = project.write_source(
         "exit23.nct",
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 23
 }
 "#,
@@ -154,7 +154,7 @@ fn run_command_reports_compile_diagnostics_without_running() {
     let project = TempProject::new("cli-run-diagnostics");
     let source = project.write_source(
         "bad.nct",
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return "bad"
 }
 "#,
@@ -175,8 +175,37 @@ fn run_command_reports_compile_diagnostics_without_running() {
         "expected return type diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("`return` value has type `str`, but `program` returns `i32`"),
+        stderr.contains("`return` value has type `str`, but function `main` returns `i32`"),
         "expected diagnostic message, got:\n{stderr}"
+    );
+}
+
+#[test]
+fn check_command_accepts_entry_option() {
+    let project = TempProject::new("cli-check-entry");
+    let source = project.write_source(
+        "custom.nct",
+        r#"func start(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(
+        &project,
+        ["check", source.to_str().unwrap(), "--entry", "start"],
+    );
+
+    assert_eq!(output.status.code(), Some(0));
+    assert!(
+        output.stdout.is_empty(),
+        "expected empty stdout, got:\n{}",
+        text(&output.stdout)
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
     );
 }
 

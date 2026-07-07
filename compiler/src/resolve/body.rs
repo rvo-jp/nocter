@@ -11,10 +11,6 @@ impl Resolver<'_> {
     pub(super) fn resolve_callable_bodies(&mut self, ast: &AstFile) {
         for item in &ast.items {
             match item {
-                Item::Program(program) => {
-                    let mut scope = Scope::new();
-                    self.resolve_block(&program.body, &mut scope);
-                }
                 Item::Function(function) => {
                     let mut scope = Scope::new();
                     self.define_parameters(&function.parameters.parameters, &mut scope);

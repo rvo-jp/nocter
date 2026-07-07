@@ -3,7 +3,7 @@ use super::check_text;
 #[test]
 fn diagnoses_binding_annotation_type_mismatch() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let byte: u8 = 300
     return 0
 }

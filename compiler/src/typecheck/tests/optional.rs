@@ -3,7 +3,7 @@ use super::check_text;
 #[test]
 fn accepts_optional_none_return() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -19,7 +19,7 @@ func lookup(): i32? {
 #[test]
 fn accepts_annotated_optional_binding_from_optional_initializer() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let value: i32? = maybe_answer()
     return 0
 }
@@ -36,7 +36,7 @@ func maybe_answer(): i32? {
 #[test]
 fn accepts_optional_propagation_in_optional_function() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -56,7 +56,7 @@ func maybe_answer(): i32? {
 #[test]
 fn accepts_optional_propagation_in_fallible_optional_success_function() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -76,7 +76,7 @@ func maybe_answer(): i32? {
 #[test]
 fn diagnoses_optional_propagation_in_non_optional_function() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return maybe_answer()?
 }
 
@@ -95,7 +95,7 @@ func maybe_answer(): i32? {
 #[test]
 fn diagnoses_optional_propagation_in_non_optional_fallible_function() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return 0
 }
 
@@ -118,7 +118,7 @@ func maybe_answer(): i32? {
 #[test]
 fn accepts_optional_force_unwrap() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return maybe_answer()!
 }
 
@@ -134,7 +134,7 @@ func maybe_answer(): i32? {
 #[test]
 fn diagnoses_catch_on_optional_expression() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return maybe_answer() catch error {
         return 0
     }
@@ -156,7 +156,7 @@ func maybe_answer(): i32? {
 #[test]
 fn accepts_optional_let_else_extraction() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let value = maybe_answer() else {
         return 1
     }
@@ -176,7 +176,7 @@ func maybe_answer(): i32? {
 #[test]
 fn diagnoses_optional_let_else_non_optional_initializer() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let value = 1 else {
         return 1
     }
@@ -193,7 +193,7 @@ fn diagnoses_optional_let_else_non_optional_initializer() {
 #[test]
 fn diagnoses_optional_let_else_fallthrough() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let value = maybe_answer() else {
         log_missing()
     }
@@ -218,7 +218,7 @@ func log_missing(): void {
 #[test]
 fn uses_optional_let_else_unwrapped_return_type() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     let value = maybe_title() else {
         return 1
     }
@@ -240,7 +240,7 @@ func maybe_title(): str? {
 #[test]
 fn accepts_optional_if_let_extraction() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     if let value = maybe_answer() {
         return value
     } else {
@@ -260,7 +260,7 @@ func maybe_answer(): i32? {
 #[test]
 fn accepts_optional_if_var_extraction() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     if var value = maybe_answer() {
         return value
     }
@@ -280,7 +280,7 @@ func maybe_answer(): i32? {
 #[test]
 fn diagnoses_optional_if_let_non_optional_initializer() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     if let value = 1 {
         return value
     }
@@ -298,7 +298,7 @@ fn diagnoses_optional_if_let_non_optional_initializer() {
 #[test]
 fn uses_optional_if_let_unwrapped_return_type() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     if let value = maybe_title() {
         return value
     }
@@ -320,7 +320,7 @@ func maybe_title(): str? {
 #[test]
 fn accepts_else_if_let_terminal_chain() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     if false {
         return 0
     } else if let value = maybe_answer() {
@@ -348,7 +348,7 @@ func maybe_fallback(): i32? {
 #[test]
 fn diagnoses_else_if_let_non_optional_initializer() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     if false {
         return 0
     } else if let value = 1 {
@@ -368,7 +368,7 @@ fn diagnoses_else_if_let_non_optional_initializer() {
 #[test]
 fn accepts_optional_while_let_extraction() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     while let value = maybe_answer() {
         return value
     }
@@ -388,7 +388,7 @@ func maybe_answer(): i32? {
 #[test]
 fn accepts_optional_while_var_extraction() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     while var value = maybe_answer() {
         return value
     }
@@ -408,7 +408,7 @@ func maybe_answer(): i32? {
 #[test]
 fn diagnoses_optional_while_let_non_optional_initializer() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     while let value = 1 {
         return value
     }
@@ -426,7 +426,7 @@ fn diagnoses_optional_while_let_non_optional_initializer() {
 #[test]
 fn uses_optional_while_let_unwrapped_return_type() {
     let diagnostics = check_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     while let value = maybe_title() {
         return value
     }

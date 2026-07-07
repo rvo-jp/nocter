@@ -44,7 +44,7 @@ impl Resolver<'_> {
                     trait_.span,
                     nominal_type_symbol(trait_.name.clone(), TypeSymbolKind::Trait),
                 ),
-                Item::Impl(_) | Item::Program(_) => {}
+                Item::Impl(_) => {}
             }
         }
 

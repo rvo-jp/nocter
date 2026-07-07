@@ -5,7 +5,7 @@ use crate::resolve::{SymbolKind, TypeSymbol, TypeSymbolKind};
 #[test]
 fn collects_function_symbols() {
     let output = resolve_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return answer()
 }
 
@@ -37,7 +37,7 @@ pub enum IOError {
     denied
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,
@@ -95,7 +95,7 @@ impl Point {
     }
 }
 
-program(): i32 {
+func main(): i32 {
     return Point.origin().x
 }
 "#,
@@ -129,7 +129,7 @@ fn collects_trait_symbols() {
     method (writer: &+Self).write(text: str): void!
 }
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,

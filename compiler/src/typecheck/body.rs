@@ -39,17 +39,6 @@ pub(super) fn check_body_expressions(
 ) {
     for item in &ast.items {
         match item {
-            Item::Program(program) => {
-                let mut environment = TypeEnvironment::default();
-                check_block_expressions(
-                    sources,
-                    &program.body,
-                    resolved,
-                    diagnostics,
-                    &mut environment,
-                    0,
-                );
-            }
             Item::Function(function) => {
                 let mut environment =
                     environment_for_parameters(&function.parameters.parameters, resolved);

@@ -10,7 +10,7 @@ fn check_loads_non_relative_std_imports_from_nocter_home() {
         root.join("app.nct"),
         r#"from std/io import answer
 
-program(): i32 {
+func main(): i32 {
     return answer()
 }
 "#,
@@ -41,7 +41,7 @@ fn check_loads_namespace_imports_from_nocter_home() {
         root.join("app.nct"),
         r#"import std/io as io
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,
@@ -72,7 +72,7 @@ fn check_uses_non_relative_imported_function_return_type() {
         root.join("app.nct"),
         r#"from std/io import title
 
-program(): i32 {
+func main(): i32 {
     return title()
 }
 "#,
@@ -105,7 +105,7 @@ fn check_prefers_target_overlay_for_std_imports() {
         root.join("app.nct"),
         r#"from std/io import answer
 
-program(): i32 {
+func main(): i32 {
     return answer()
 }
 "#,
@@ -144,7 +144,7 @@ fn check_reports_nocter_visibility_import_from_user_project() {
         root.join("app.nct"),
         r#"from std/ptr import internal
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,
@@ -177,7 +177,7 @@ fn check_allows_nocter_visibility_import_inside_nocter_home() {
         home.join("std/io.nct"),
         r#"from std/ptr import internal
 
-program(): i32 {
+func main(): i32 {
     return internal()
 }
 "#,
@@ -208,7 +208,7 @@ fn check_reports_missing_non_relative_imports() {
         root.join("app.nct"),
         r#"from std/missing import answer
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,
@@ -232,7 +232,7 @@ fn check_loads_non_relative_use_imports() {
         root.join("app.nct"),
         r#"use std/prelude
 
-program(): i32 {
+func main(): i32 {
     return 0
 }
 "#,

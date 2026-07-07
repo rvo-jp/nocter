@@ -2,7 +2,7 @@ use std/prelude
 
 from std/io import print
 
-program(): i32! {
+func main(): i32! {
     print("Hello")?
     return 0
 }

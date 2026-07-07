@@ -13,7 +13,7 @@ func scan_words(text: str): WordStats {
 }
 ```
 
-Names do not define special behavior. A function named `main`, `init`, or `new` is ordinary unless the language defines a syntactic rule around a declaration. `drop` is reserved for destructor declarations and explicit drop statements.
+Names do not define intrinsic language behavior. A function named `init` or `new` is ordinary. A root-file function named `main` is selected as the executable entry point only because the v0 compiler entry setting defaults to `main`; `--entry <name>` can select another root-file function. `drop` is reserved for destructor declarations and explicit drop statements.
 
 Parameters are written as `name: Type`. `var name: Type` parameters are not part of v0. Parameter binding and ownership rules are specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#function-parameters).
 
@@ -24,8 +24,8 @@ Return checking:
 - A fallible function `T!` must return a success value, `fail` with an `error`, or terminate with `never` on every reachable path.
 - An optional function `T?` must return a present value, `return none`, or terminate with `never` on every reachable path.
 - A fallible optional function `(T?)!` must return a present success value, `return none` as success absence, `fail` with an `error`, or terminate with `never` on every reachable path.
-- `program(): i32!` follows the same source-level return checking rules as a function returning `i32!`; success returns `i32`, and failure uses `fail error`.
-- `program(): void` and `program(): i32` follow the same return checking rules as functions with those return types.
+- `func main(): i32!` follows the same source-level return checking rules as a function returning `i32!`; success returns `i32`, and failure uses `fail error`.
+- `func main(): void` and `func main(): i32` follow the same return checking rules as functions with those return types.
 
 Return value ownership, move, borrow, and view rules are specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#return-values).
 

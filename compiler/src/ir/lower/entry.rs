@@ -1,40 +1,47 @@
 use super::errors::{lower_make_error_message, with_trailing_newline};
 use super::expressions::{I32ExpressionContext, lower_i32_return_expression};
-use crate::ast::{ProgramDecl, Stmt, TypeExpr};
+use crate::ast::{FunctionDecl, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{Function, I32Location, I32Value, Instruction, Type};
 
-pub(super) fn lower_program_function(program: &ProgramDecl) -> Result<Function, Vec<Diagnostic>> {
-    let return_type = lower_program_return_type(&program.return_type)?;
-    let instructions = lower_program_body(program, &return_type)?;
+pub(super) fn lower_entry_function(function: &FunctionDecl) -> Result<Function, Vec<Diagnostic>> {
+    if !function.generics.parameters.is_empty() || !function.parameters.parameters.is_empty() {
+        return Err(vec![Diagnostic::error(
+            "E8001",
+            "IR v0 can only lower a non-generic zero-parameter entry function",
+        )]);
+    }
+
+    let return_type = lower_entry_return_type(&function.return_type)?;
+    let instructions = lower_entry_body(function, &return_type)?;
 
     Ok(Function {
-        name: "program".to_string(),
+        name: function.name.clone(),
         return_type,
         instructions,
     })
 }
 
-fn lower_program_return_type(ty: &TypeExpr) -> Result<Type, Vec<Diagnostic>> {
+fn lower_entry_return_type(ty: &TypeExpr) -> Result<Type, Vec<Diagnostic>> {
     match ty {
         TypeExpr::Reference(reference) if reference.name == "i32" => Ok(Type::I32),
         TypeExpr::Reference(reference) if reference.name == "void" => Ok(Type::Void),
-        TypeExpr::Fallible(fallible) => lower_program_return_type(&fallible.success)
+        TypeExpr::Fallible(fallible) => lower_entry_return_type(&fallible.success)
             .map(|success| Type::Fallible(Box::new(success))),
         _ => Err(vec![Diagnostic::error(
             "E8001",
-            "IR v0 can only lower `program` return type `i32`, `i32!`, or `void`",
+            "IR v0 can only lower entry function return type `i32`, `i32!`, or `void`",
         )]),
     }
 }
 
-fn lower_program_body(
-    program: &ProgramDecl,
+fn lower_entry_body(
+    function: &FunctionDecl,
     return_type: &Type,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let success_type = return_type.success_type();
 
-    match program.body.statements.as_slice() {
+    match function.body.statements.as_slice() {
         [Stmt::Return(statement)] => match (success_type, &statement.expression) {
             (Type::I32, Some(expression)) => {
                 lower_i32_return_expression(expression, &I32ExpressionContext::empty())
@@ -42,11 +49,11 @@ fn lower_program_body(
             (Type::Void, None) => Ok(vec![Instruction::Return]),
             (Type::Void, Some(_)) => Err(vec![Diagnostic::error(
                 "E8002",
-                "IR v0 cannot lower value returns from `void` program",
+                "IR v0 cannot lower value returns from `void` entry function",
             )]),
             (Type::I32, None) => Err(vec![Diagnostic::error(
                 "E8002",
-                "IR v0 cannot lower bare returns from `i32` program",
+                "IR v0 cannot lower bare returns from `i32` entry function",
             )]),
             (Type::Fallible(_), _) => unreachable!("fallible success type must be unwrapped"),
         },
@@ -64,17 +71,17 @@ fn lower_program_body(
             }
             Type::Fallible(_) => Err(vec![Diagnostic::error(
                 "E8004",
-                "IR v0 can only lower `fail make_error(...)` from `program(): i32!`",
+                "IR v0 can only lower `fail make_error(...)` from `func main(): i32!`",
             )]),
             Type::I32 | Type::Void => Err(vec![Diagnostic::error(
                 "E8004",
-                "IR v0 cannot lower `fail` from non-fallible `program`",
+                "IR v0 cannot lower `fail` from a non-fallible entry function",
             )]),
         },
         [] if *return_type == Type::Void => Ok(vec![Instruction::Return]),
         _ => Err(vec![Diagnostic::error(
             "E8002",
-            "IR v0 can only lower `program` bodies containing `return <i32 literal>`, `fail make_error(...)`, or a void return",
+            "IR v0 can only lower entry function bodies containing `return <i32 literal>`, `fail make_error(...)`, or a void return",
         )]),
     }
 }

@@ -14,11 +14,16 @@ Initial commands:
 ```sh
 nocter --version
 nocter doctor
-nocter build app.nct -o app
+nocter build app.nct
+nocter build app.nct --entry start
 nocter run app.nct
+nocter run app.nct --entry start
 nocter app.nct
+nocter app.nct --entry start
 nocter check app.nct
+nocter check app.nct --entry start
 nocter check app.nct --format json
+nocter check app.nct --entry start --format json
 nocter fmt app.nct
 nocter fmt --check app.nct
 nocter tokens app.nct --format json
@@ -90,12 +95,43 @@ Rules:
 
 `fmt` takes one `.nct` source file but does not treat it as a compile-unit root. It formats only the file named on the command line.
 
+## Entry Selection
+
+`build`, `run`, shorthand run, and `check` select an executable entry function.
+
+Default:
+
+```sh
+nocter run app.nct
+```
+
+This selects root-file `func main()`.
+
+Explicit entry selection:
+
+```sh
+nocter run app.nct --entry start
+nocter check app.nct --entry start --format json
+```
+
+Rules:
+
+- `--entry <name>` is accepted by `build`, `run`, shorthand run, `check`, and `check --format json`.
+- If `--entry` is omitted, the active entry name is `main`.
+- `<name>` must be a valid Nocter identifier and must not be a keyword.
+- Entry lookup considers only top-level functions in the root file.
+- Imported functions with the same name are ordinary functions and are not selected as the executable entry.
+- The selected function must have no parameters and must return `i32!`, `i32`, or `void`.
+- `--entry` is a compiler setting, not a language keyword, attribute, import, or built-in function.
+- `fmt`, `tokens`, and `ast` do not accept `--entry` because they do not perform executable entry validation.
+
 ## Build
 
 `build` generates a persistent executable.
 
 ```sh
-nocter build app.nct -o app
+nocter build app.nct
+nocter build app.nct --entry start
 ```
 
 Rules:
@@ -114,6 +150,7 @@ Rules:
 
 ```sh
 nocter run app.nct
+nocter run app.nct --entry start
 ```
 
 Adopted: `run` uses a temporary Mach-O executable, not RAM-only execution.
@@ -137,7 +174,7 @@ Rules:
 - The temporary executable is removed after the executed program exits.
 - If compilation fails, no program is executed.
 - If temporary executable creation fails, the command reports a command-line or filesystem error.
-- RAM-only execution, JIT execution, and calling `program` inside the compiler process are not part of v0.
+- RAM-only execution, JIT execution, and calling the selected entry function inside the compiler process are not part of v0.
 - `run` must not require external tools.
 - `run` forwards the executed program's standard input, standard output, and standard error by default.
 
@@ -154,12 +191,14 @@ The command:
 
 ```sh
 nocter app.nct
+nocter app.nct --entry start
 ```
 
 is equivalent to:
 
 ```sh
 nocter run app.nct
+nocter run app.nct --entry start
 ```
 
 Rules:
@@ -177,7 +216,9 @@ Rules:
 
 ```sh
 nocter check app.nct
+nocter check app.nct --entry start
 nocter check app.nct --format json
+nocter check app.nct --entry start --format json
 ```
 
 Rules:
@@ -197,7 +238,7 @@ The root path and source span path rules are specified in [Modules and Imports](
 
 Initial implementation note:
 
-- The first `check --format json` implementation may stop after source loading, lexing, parsing, typed AST construction, `program` entry validation, and basic return checking.
+- The first `check --format json` implementation may stop after source loading, lexing, parsing, typed AST construction, selected entry function validation, and basic return checking.
 - Later implementations should extend the same command with import resolution, name resolution, type checking, ownership checking, target selection, and target validation.
 
 ## Format
@@ -256,16 +297,16 @@ Initial token JSON envelope:
   "tokens": [
     {
       "kind": "keyword",
-      "lexeme": "program",
+      "lexeme": "func",
       "span": {
         "file": "app.nct",
         "absolute_path": "/Users/me/project/app.nct",
         "start_byte": 0,
-        "end_byte": 7,
+        "end_byte": 4,
         "start_line": 1,
         "start_column_byte": 1,
         "end_line": 1,
-        "end_column_byte": 8
+        "end_column_byte": 5
       }
     }
   ],
@@ -434,11 +475,11 @@ The following are not part of v0:
 
 - RAM-only execution
 - JIT execution
-- in-process execution of Nocter `program`
+- in-process execution of the selected Nocter entry function
 - external assembler or linker fallback
 - project-wide formatting
 - package manifest commands
 - package registry commands
 - project-wide command configuration
 - passing `run` child-process arguments before the `--` forwarding design is implemented
-- `program(args: ...)` entry signatures
+- entry function parameters such as `func main(args: [str]): i32!`

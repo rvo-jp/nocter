@@ -2,7 +2,7 @@ use std/prelude
 
 from std/process import env
 
-program(): i32! {
+func main(): i32! {
     let user = env("USER")? ?? "unknown"
 
     use_name(user)

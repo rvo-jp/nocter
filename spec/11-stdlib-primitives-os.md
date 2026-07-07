@@ -192,7 +192,7 @@ Not adopted in v0:
 
 ### Process Context
 
-Adopted: command-line arguments and environment access are standard-library APIs in `std/process`, not `program` parameters.
+Adopted: command-line arguments and environment access are standard-library APIs in `std/process`, not entry function parameters.
 
 Initial public surface direction:
 
@@ -206,7 +206,7 @@ pub func abort(): never
 
 Rules:
 
-- `program(args: ...)` is not part of v0.
+- Entry function parameters, such as `func main(args: [str]): i32!`, are not part of v0.
 - The compiler must not special-case a function named `args`, `env`, `cwd`, `exit`, or `abort`.
 - The generated low-level entry code may receive platform process entry information such as `argc`, `argv`, and `envp`.
 - That platform information is connected to a `std/process` process context inside the active target implementation.
@@ -232,7 +232,7 @@ Example:
 ```nct
 from std/process import args
 
-program(): i32! {
+func main(): i32! {
     let argv = args()?
 
     if argv.len() < 2 {
@@ -284,7 +284,7 @@ Standard library functions provide these features.
 ```nct
 from std/io import stdout
 
-program(): i32! {
+func main(): i32! {
     var out = stdout()
     out.write_text("Hello\n")?
     return 0
@@ -455,7 +455,6 @@ Initial reserved keywords:
 from
 import
 use
-program
 func
 pub
 type
@@ -490,8 +489,6 @@ primitive
 void
 never
 ```
-
-`program` is reserved because it is a top-level entry construct, not a normal identifier.
 
 `nocter` is not a reserved keyword. It is recognized only as the contextual visibility scope in `pub(nocter)`.
 

@@ -207,7 +207,7 @@ Example:
 from std/io import print
 from ./src/config import Config
 
-program(): i32! {
+func main(): i32! {
     let config = Config.default()
     print(config.name)?
 
@@ -241,9 +241,11 @@ Rules:
 - Import, re-export, and explicit `use` declarations are allowed only at top level.
 - Synthetic `use std/prelude` is compiler-internal and behaves as if it appears before source-level imports for eligible user project modules.
 - Top-level executable statements are not allowed.
-- A root executable must contain exactly one `program` construct.
-- `program` is allowed only in the root file.
-- Imported files must not define `program`.
+- A root executable must define the active entry function in the root file.
+- v0 uses `main` as the default active entry function.
+- CLI `--entry <name>` overrides the active entry function for that command.
+- Entry lookup does not select imported functions.
+- Imported files may define ordinary functions named `main`, subject to normal name visibility and duplicate-name rules.
 - The same canonical file path is loaded at most once, even if reached through different relative paths.
 - Import cycles are errors in the initial design.
 - The whole compile unit is name-resolved, type-checked, ownership-checked, and lowered as one program.

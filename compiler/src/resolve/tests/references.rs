@@ -3,7 +3,7 @@ use super::support::resolve_text;
 #[test]
 fn resolves_direct_function_calls() {
     let output = resolve_text(
-        r#"program(): i32 {
+        r#"func main(): i32 {
     return answer()
 }
 

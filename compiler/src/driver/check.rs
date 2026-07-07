@@ -1,11 +1,11 @@
-use super::pipeline::check_file;
+use super::pipeline::check_file_with_entry;
 use crate::diagnostics::write_text_diagnostics;
 use std::io;
 use std::path::Path;
 use std::process::ExitCode;
 
-pub(super) fn run_check(file: &Path) -> ExitCode {
-    let output = check_file(file);
+pub(super) fn run_check(file: &Path, entry_name: &str) -> ExitCode {
+    let output = check_file_with_entry(file, entry_name);
 
     if output.is_ok() {
         return ExitCode::SUCCESS;

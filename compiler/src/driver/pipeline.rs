@@ -1,4 +1,4 @@
-use crate::analysis::analyze_compile_unit;
+use crate::analysis::analyze_compile_unit_with_entry;
 use crate::backend::{BuildRequest, build_executable};
 use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
@@ -36,9 +36,9 @@ impl BuildOutput {
     }
 }
 
-pub(super) fn check_file(file: &Path) -> CheckOutput {
+pub(super) fn check_file_with_entry(file: &Path, entry_name: &str) -> CheckOutput {
     let options = FrontendOptions::default();
-    let output = analyze_file(file, &options);
+    let output = analyze_file(file, &options, entry_name);
 
     CheckOutput {
         root: output.root,
@@ -47,21 +47,26 @@ pub(super) fn check_file(file: &Path) -> CheckOutput {
     }
 }
 
-pub(super) fn build_file(file: &Path) -> BuildOutput {
+pub(super) fn build_file_with_entry(file: &Path, entry_name: &str) -> BuildOutput {
     let output_path = default_executable_path(file);
-    build_file_to_path(file, &output_path)
+    build_file_to_path_with_entry(file, &output_path, entry_name)
 }
 
-pub(super) fn build_file_to_path(file: &Path, output_path: &Path) -> BuildOutput {
-    build_file_to_path_with_options(file, output_path, &FrontendOptions::default())
+pub(super) fn build_file_to_path_with_entry(
+    file: &Path,
+    output_path: &Path,
+    entry_name: &str,
+) -> BuildOutput {
+    build_file_to_path_with_options(file, output_path, &FrontendOptions::default(), entry_name)
 }
 
 fn build_file_to_path_with_options(
     file: &Path,
     output_path: &Path,
     options: &FrontendOptions,
+    entry_name: &str,
 ) -> BuildOutput {
-    let output = analyze_file(file, options);
+    let output = analyze_file(file, options, entry_name);
 
     if !output.diagnostics.is_empty() {
         return BuildOutput {
@@ -84,6 +89,7 @@ fn build_file_to_path_with_options(
         analysis,
         output_path,
         target: DEFAULT_TARGET,
+        entry_name,
     }) {
         Ok(()) => Vec::new(),
         Err(diagnostics) => diagnostics,
@@ -95,7 +101,7 @@ fn build_file_to_path_with_options(
     }
 }
 
-fn analyze_file(file: &Path, options: &FrontendOptions) -> FrontendOutput {
+fn analyze_file(file: &Path, options: &FrontendOptions, entry_name: &str) -> FrontendOutput {
     let mut sources = SourceMap::new();
 
     match sources.load_file(file) {
@@ -107,7 +113,7 @@ fn analyze_file(file: &Path, options: &FrontendOptions) -> FrontendOutput {
             let root_absolute_path = source_file
                 .absolute_path()
                 .map(|path| path.to_string_lossy().into_owned());
-            let (analysis, diagnostics) = analyze_source(&mut sources, source, options);
+            let (analysis, diagnostics) = analyze_source(&mut sources, source, options, entry_name);
 
             FrontendOutput {
                 root,
@@ -129,6 +135,7 @@ fn analyze_source(
     sources: &mut SourceMap,
     source: SourceId,
     options: &FrontendOptions,
+    entry_name: &str,
 ) -> (
     Option<crate::analysis::CompileUnitAnalysis>,
     Vec<Diagnostic>,
@@ -138,7 +145,7 @@ fn analyze_source(
         Err(diagnostics) => return (None, diagnostics),
     };
 
-    let analysis = analyze_compile_unit(sources, &unit);
+    let analysis = analyze_compile_unit_with_entry(sources, &unit, entry_name);
     let diagnostics = analysis.diagnostics();
 
     (Some(analysis), diagnostics)
@@ -160,6 +167,7 @@ fn canonical_absolute_string(path: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::entry::DEFAULT_ENTRY_NAME;
     use std::fs;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -187,7 +195,7 @@ mod tests {
         let source = root.join("app.nct");
         fs::write(
             &source,
-            r#"program(): i32 {
+            r#"func main(): i32 {
     return 0
 }
 "#,
@@ -195,8 +203,12 @@ mod tests {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output =
-            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
+        let output = build_file_to_path_with_options(
+            &source,
+            &executable,
+            &frontend_options(nocter_home),
+            DEFAULT_ENTRY_NAME,
+        );
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -216,15 +228,43 @@ mod tests {
         }
     }
 
+    #[test]
+    fn build_file_accepts_configured_entry_name() {
+        let root = make_temp_project("build-custom-entry");
+        let nocter_home = make_nocter_home(&root);
+        let source = root.join("app.nct");
+        fs::write(
+            &source,
+            r#"func start(): i32 {
+    return 0
+}
+"#,
+        )
+        .unwrap();
+
+        let executable = default_executable_path(&source);
+        let output = build_file_to_path_with_options(
+            &source,
+            &executable,
+            &frontend_options(nocter_home),
+            "start",
+        );
+
+        assert_diagnostics_empty(&output.diagnostics);
+        assert_eq!(output.output_path, executable);
+        let bytes = fs::read(&executable).unwrap();
+        assert_eq!(read_u32(&bytes, 0), 0xfeed_facf);
+    }
+
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     #[test]
-    fn build_file_output_runs_with_program_return_code() {
+    fn build_file_output_runs_with_entry_return_code() {
         let root = make_temp_project("build-run");
         let nocter_home = make_nocter_home(&root);
         let source = root.join("exit42.nct");
         fs::write(
             &source,
-            r#"program(): i32 {
+            r#"func main(): i32 {
     return 42
 }
 "#,
@@ -232,8 +272,12 @@ mod tests {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output =
-            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
+        let output = build_file_to_path_with_options(
+            &source,
+            &executable,
+            &frontend_options(nocter_home),
+            DEFAULT_ENTRY_NAME,
+        );
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -249,7 +293,7 @@ mod tests {
         let source = root.join("call.nct");
         fs::write(
             &source,
-            r#"program(): i32 {
+            r#"func main(): i32 {
     return answer()
 }
 
@@ -261,8 +305,12 @@ func answer(): i32 {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output =
-            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
+        let output = build_file_to_path_with_options(
+            &source,
+            &executable,
+            &frontend_options(nocter_home),
+            DEFAULT_ENTRY_NAME,
+        );
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -278,7 +326,7 @@ func answer(): i32 {
         let source = root.join("add.nct");
         fs::write(
             &source,
-            r#"program(): i32 {
+            r#"func main(): i32 {
     return add(20, 22)
 }
 
@@ -290,8 +338,12 @@ func add(a: i32, b: i32): i32 {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output =
-            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
+        let output = build_file_to_path_with_options(
+            &source,
+            &executable,
+            &frontend_options(nocter_home),
+            DEFAULT_ENTRY_NAME,
+        );
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -301,13 +353,13 @@ func add(a: i32, b: i32): i32 {
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     #[test]
-    fn build_file_output_runs_fallible_program_success_return_code() {
+    fn build_file_output_runs_fallible_entry_success_return_code() {
         let root = make_temp_project("build-run-fallible-success");
         let nocter_home = make_nocter_home(&root);
         let source = root.join("fallible.nct");
         fs::write(
             &source,
-            r#"program(): i32! {
+            r#"func main(): i32! {
     return 31
 }
 "#,
@@ -315,8 +367,12 @@ func add(a: i32, b: i32): i32 {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output =
-            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
+        let output = build_file_to_path_with_options(
+            &source,
+            &executable,
+            &frontend_options(nocter_home),
+            DEFAULT_ENTRY_NAME,
+        );
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -326,7 +382,7 @@ func add(a: i32, b: i32): i32 {
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     #[test]
-    fn build_file_output_runs_fallible_program_failure() {
+    fn build_file_output_runs_fallible_entry_failure() {
         let root = make_temp_project("build-run-fallible-failure");
         let nocter_home = make_nocter_home(&root);
         let source = root.join("fallible_fail.nct");
@@ -334,7 +390,7 @@ func add(a: i32, b: i32): i32 {
             &source,
             r#"primitive make_error(code: str, message: str): error
 
-program(): i32! {
+func main(): i32! {
     fail make_error("app.failed", "failed")
 }
 "#,
@@ -342,8 +398,12 @@ program(): i32! {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output =
-            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
+        let output = build_file_to_path_with_options(
+            &source,
+            &executable,
+            &frontend_options(nocter_home),
+            DEFAULT_ENTRY_NAME,
+        );
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -355,21 +415,25 @@ program(): i32! {
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     #[test]
-    fn build_file_output_runs_void_program_with_zero_exit_code() {
+    fn build_file_output_runs_void_entry_with_zero_exit_code() {
         let root = make_temp_project("build-run-void");
         let nocter_home = make_nocter_home(&root);
         let source = root.join("void.nct");
         fs::write(
             &source,
-            r#"program(): void {
+            r#"func main(): void {
 }
 "#,
         )
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output =
-            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
+        let output = build_file_to_path_with_options(
+            &source,
+            &executable,
+            &frontend_options(nocter_home),
+            DEFAULT_ENTRY_NAME,
+        );
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
