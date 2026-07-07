@@ -356,7 +356,7 @@ comment は `// line comment` と `/* block comment */` を採用します。blo
 
 source style は formatter が統一します。compiler は空白や改行に寛容にし、style 違反を compile error にはしません。`nocter fmt app.nct` は指定された1ファイルを公式 style に書き戻し、`nocter fmt --check app.nct` は CI や editor integration 用に差分有無だけを検査します。formatter output が仕様書、README、`example.nct` の正準表記です。current formatter v0 は comment を安全に保持する実装をまだ持たないため、comment を含む file は書き換えず diagnostic を出します。
 
-初期 style は、indent 4 spaces、`a: Type` は `:` の後だけ空白、`name = value` と binary operator は前後に空白、`func(arg)` と `file.write(arg)` は callee / receiver に密着、block の `{` は同じ行、fallible type は `T!`、fallible optional success は `(T?)!` とします。
+初期 style は、indent 4 spaces、`a: Type` は `:` の後だけ空白、`name = value` と binary operator は前後に空白、`func(arg)` と `file.write(arg)` は callee / receiver に密着、block の `{` は同じ行、fallible type は `T!`、fallible optional success は `T?!` とします。
 
 整数リテラルは decimal、hex `0xFF`、binary `0b1010` を採用し、桁区切り `_` を `1_000` や `0xFF_FF` のように数字の間で使えます。float literal は v0 では採用しません。
 
@@ -821,9 +821,9 @@ pub func print(text: str): void!
 
 `File` は内部的に owned handle と borrowed process standard stream を区別します。`File.open(path)` で得た `File` の drop は handle を閉じますが、`stdout()` / `stderr()` で得た `File` の drop は process の標準出力 / 標準エラーを閉じません。`drop File` は失敗できないため、close error は v0 では無視します。将来必要なら明示的な `close` API を追加します。
 
-`std/process` の `args(): [str]!`、`env(name): (str?)!`、`cwd(): str!`、`exit(code): never`、`abort(): never` は標準ライブラリ API です。compiler primitive ではありません。`args` / `env` / `cwd` / `exit` / `abort` という名前を compiler は特別扱いしません。
+`std/process` の `args(): [str]!`、`env(name): str?!`、`cwd(): str!`、`exit(code): never`、`abort(): never` は標準ライブラリ API です。compiler primitive ではありません。`args` / `env` / `cwd` / `exit` / `abort` という名前を compiler は特別扱いしません。
 
-`(str?)!` は、処理そのものは `error` で失敗しえますが、成功した場合の値は optional であることを表します。`args()`、`env(name)`、`cwd()` が返す `str` は process context storage を指す readonly view であり、呼び出し側は所有しません。owned `String` が必要な場合は明示的に copy します。target 実装は OS 由来の `argv` / `envp` / cwd を UTF-8 として検証し、`str` にできない場合は `"std.process.invalid_encoding"` で失敗します。
+`str?!` は、処理そのものは `error` で失敗しえますが、成功した場合の値は optional であることを表します。`args()`、`env(name)`、`cwd()` が返す `str` は process context storage を指す readonly view であり、呼び出し側は所有しません。owned `String` が必要な場合は明示的に copy します。target 実装は OS 由来の `argv` / `envp` / cwd を UTF-8 として検証し、`str` にできない場合は `"std.process.invalid_encoding"` で失敗します。
 
 `exit` / `abort` は target overlay の syscall や process termination boundary を使って実装し、万一 OS の終了操作から戻った場合は `trap()` します。`exit` / `abort` は caller scope の Nocter cleanup を実行しません。cleanup が必要な場合は、呼び出し前に明示します。
 
@@ -1402,14 +1402,14 @@ never
 [+T]
 T?
 T!
-(T?)!
+T?!
 [T; N]
 (T)
 ```
 
-fallible type の公式表記は `T!` です。成功値が optional の fallible type は `(T?)!` と書きます。
+fallible type の公式表記は `T!` です。成功値が optional の fallible type は `T?!` と書きます。
 
-型構文の括弧はグルーピングだけを行います。例えば `(&T)?` は optional readonly borrow、`&(T?)` は optional value への readonly borrow です。`(T?)!` は成功値が optional の fallible type です。
+型構文の括弧はグルーピングだけを行います。例えば `(&T)?` は optional readonly borrow、`&(T?)` は optional value への readonly borrow です。`T?!` は成功値が optional の fallible type です。
 
 `str`、`error`、`[T]`、`[+T]` は compiler built-in の基礎型です。`String`、`Error`、`ErrorCode`、`ViewIter<T>`、`Allocator`、`File`、`print`、`args`、`env`、`cwd`、`exit`、`abort` は compiler built-in ではありません。
 
@@ -1588,7 +1588,7 @@ func require_home(): str? {
 }
 ```
 
-optional と fallible は合成できます。`(T?)!` は、失敗しうる処理の成功値が optional であることを表します。`process.env("HOME")?` は fallible layer だけを外すため型は `str?` です。さらに optional return layer を持つ関数内では、もう一度 `?` を使って `none` を伝播できます。
+optional と fallible は合成できます。`T?!` は、失敗しうる処理の成功値が optional であることを表します。`process.env("HOME")?` は fallible layer だけを外すため型は `str?` です。さらに optional return layer を持つ関数内では、もう一度 `?` を使って `none` を伝播できます。
 
 ```nct
 if let home = process.env("HOME")? {

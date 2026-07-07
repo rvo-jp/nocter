@@ -237,28 +237,28 @@ Adopted: optional and fallible type constructors may be composed explicitly.
 Preferred source spelling:
 
 ```text
-(T?)! = fallible optional success
+T?! = fallible optional success
 ```
 
-`(T?)!` means the computation can fail with `error`. If it succeeds, the success value is optional: present `T` or `none`.
+`T?!` means the computation can fail with `error`. If it succeeds, the success value is optional: present `T` or `none`.
 
 Rules:
 
 - `T!` means a fallible success value.
 - `T?` means an optional value.
-- Prefer `(T?)!` over compact `T?!` in official style.
-- `expr?` on `(T?)!` unwraps only the fallible layer and produces `T?`.
+- Prefer `T?!` in official style.
+- `expr?` on `T?!` unwraps only the fallible layer and produces `T?`.
 - Applying `?` again to that `T?` propagates `none` through the current optional return layer.
-- In a function returning `(T?)!`, `return value` returns success with a present `T`.
-- In a function returning `(T?)!`, `return none` returns success with absence.
-- In a function returning `(T?)!`, `fail error_value` returns failure with `error`.
+- In a function returning `T?!`, `return value` returns success with a present `T`.
+- In a function returning `T?!`, `return none` returns success with absence.
+- In a function returning `T?!`, `fail error_value` returns failure with `error`.
 - Other mixed forms must use parentheses in v0.
 - `(T!)?` means an optional fallible value.
 
 Example:
 
 ```nct
-func env(name: str): (str?)! {
+func env(name: str): str?! {
     if missing {
         return none
     }

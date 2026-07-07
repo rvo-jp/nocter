@@ -78,23 +78,23 @@ impl File {
 Rules:
 
 - Fallible type syntax is formatted as `T!`.
-- Fallible optional success is formatted as `(T?)!`.
+- Fallible optional success is formatted as `T?!`.
 - Optional type syntax is attached to the success type: `T?`.
 - Pointer and borrow syntax is attached to the type: `*T`, `&T`, `&+T`.
 - Generic type arguments are attached to the type name: `Buffer<T>`.
 - Built-in view type syntax is formatted as `[T]` and `[+T]`.
 - Fixed-size arrays are formatted as `[T; N]`.
-- Parentheses used for type grouping do not add internal padding: `(T?)!`.
+- Parentheses used for type grouping do not add internal padding: `(T)!`.
 
 Examples:
 
 ```nct
 func open(path: str): File!
-func env(name: str): (str?)!
+func env(name: str): str?!
 func first(items: [str]): str?
 ```
 
-The parser may later accept compact fallible optional spelling such as `T?!`, but formatter output must use `(T?)!`.
+Formatter output uses `T?!` for fallible optional success values because the postfix operators can be read in order: optional success first, fallible wrapper second.
 
 ## Declarations
 

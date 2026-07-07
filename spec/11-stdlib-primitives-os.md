@@ -198,7 +198,7 @@ Initial public surface direction:
 
 ```nct
 pub func args(): [str]!
-pub func env(name: str): (str?)!
+pub func env(name: str): str?!
 pub func cwd(): str!
 pub func exit(code: i32): never
 pub func abort(): never
@@ -214,7 +214,7 @@ Rules:
 - User code reads environment values with `std/process.env(name)`.
 - `args()` returns a readonly view of `str` values on success.
 - The first argument follows the host platform convention and represents the executable path or invocation name when the platform provides one.
-- `env(name)` has type `(str?)!`.
+- `env(name)` has type `str?!`.
 - `env(name)` succeeds with `none` when the variable is absent.
 - `env(name)` succeeds with a present `str` when the variable is present and valid UTF-8.
 - `cwd()` returns the current working directory or fails with `error`.

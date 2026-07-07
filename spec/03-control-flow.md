@@ -23,7 +23,7 @@ Return checking:
 - A non-fallible, non-optional function returning a non-`void` type must return a value on every reachable normal path, unless the path terminates with `never`.
 - A fallible function `T!` must return a success value, `fail` with an `error`, or terminate with `never` on every reachable path.
 - An optional function `T?` must return a present value, `return none`, or terminate with `never` on every reachable path.
-- A fallible optional function `(T?)!` must return a present success value, `return none` as success absence, `fail` with an `error`, or terminate with `never` on every reachable path.
+- A fallible optional function `T?!` must return a present success value, `return none` as success absence, `fail` with an `error`, or terminate with `never` on every reachable path.
 - `func main(): i32!` follows the same source-level return checking rules as a function returning `i32!`; success returns `i32`, and failure uses `fail error`.
 - `func main(): void` and `func main(): i32` follow the same return checking rules as functions with those return types.
 

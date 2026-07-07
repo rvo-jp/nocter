@@ -14,7 +14,7 @@ Diagnostics for type checking, ownership, borrowing, initialization state, visib
 - why it is invalid
 - the most useful correction direction when one is known
 
-Diagnostic text must use Nocter source concepts such as `binding`, `borrow`, `move`, `drop`, `pub(nocter)`, `T!`, `error`, `T?`, `(T?)!`, `entry function`, `primitive`, and `Nocter home`. It should not expose backend implementation details such as temporary register allocation, Mach-O offsets, internal AST node names, or recovery placeholders.
+Diagnostic text must use Nocter source concepts such as `binding`, `borrow`, `move`, `drop`, `pub(nocter)`, `T!`, `error`, `T?`, `T?!`, `entry function`, `primitive`, and `Nocter home`. It should not expose backend implementation details such as temporary register allocation, Mach-O offsets, internal AST node names, or recovery placeholders.
 
 ## Format
 
@@ -272,7 +272,7 @@ Required v0 diagnostic families:
 - Postfix `?` used on `T?` outside a function whose current return layer can carry `none`.
 - Postfix `?` or `!` used on a non-fallible and non-optional expression.
 - `catch` block that can fall through.
-- Mixed optional/fallible type syntax requiring parentheses, such as `T?!`.
+- Mixed optional/fallible type syntax where grouping changes meaning, such as `(T!)?`.
 - Optional `if let` / `if var` / `while let` / `while var` used on a non-optional expression.
 - Optional `let ... else` / `var ... else` used on a non-optional expression.
 - Optional `let ... else` / `var ... else` whose `else` block can fall through.

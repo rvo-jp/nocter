@@ -9,19 +9,21 @@ fn format_text(text: &str) -> String {
     output.formatted.unwrap()
 }
 
+fn assert_formats_stably(input: &str, expected: &str) {
+    let formatted = format_text(input);
+    assert_eq!(formatted, expected);
+    assert_eq!(format_text(&formatted), formatted);
+}
+
 #[test]
 fn formats_top_level_items_and_blocks() {
-    let formatted = format_text(
+    assert_formats_stably(
         r#"use std/prelude
 pub   func   main(  ):i32{
 let x:i32=1+2*3
 if x>3{return x}else{return 0}
 }
 "#,
-    );
-
-    assert_eq!(
-        formatted,
         concat!(
             "use std/prelude\n",
             "\n",
@@ -33,22 +35,18 @@ if x>3{return x}else{return 0}
             "        return 0\n",
             "    }\n",
             "}\n",
-        )
+        ),
     );
 }
 
 #[test]
 fn formats_type_and_data_declarations() {
-    let formatted = format_text(
+    assert_formats_stably(
         r#"pub(nocter) type Path= [u8]
 copy struct Pair<T>{pub left:T,right:T}
 enum AppError{missing_path,open_failed(path:str)}
 trait Writer{method(out:&+Self).write(text:str):void!}
 "#,
-    );
-
-    assert_eq!(
-        formatted,
         concat!(
             "pub(nocter) type Path = [u8]\n",
             "\n",
@@ -65,23 +63,19 @@ trait Writer{method(out:&+Self).write(text:str):void!}
             "trait Writer {\n",
             "    method (out: &+Self).write(text: str): void!\n",
             "}\n",
-        )
+        ),
     );
 }
 
 #[test]
 fn formats_control_flow_and_postfix_expressions() {
-    let formatted = format_text(
+    assert_formats_stably(
         r#"func main():i32!{
 var file=File.open(path) catch error {return 1}
 for i in 0..<10{file.write("x")?}
 switch error{is AppError.missing_path{return 1}else{return file.size() as i32}}
 }
 "#,
-    );
-
-    assert_eq!(
-        formatted,
         concat!(
             "func main(): i32! {\n",
             "    var file = File.open(path) catch error {\n",
@@ -99,7 +93,53 @@ switch error{is AppError.missing_path{return 1}else{return file.size() as i32}}
             "        }\n",
             "    }\n",
             "}\n",
-        )
+        ),
+    );
+}
+
+#[test]
+fn formats_optional_fallible_types_stably() {
+    assert_formats_stably(
+        r#"func env(name:str):str?!{return none}
+func maybe_open(path:str):File?{return none}
+"#,
+        concat!(
+            "func env(name: str): str?! {\n",
+            "    return none\n",
+            "}\n",
+            "\n",
+            "func maybe_open(path: str): File? {\n",
+            "    return none\n",
+            "}\n",
+        ),
+    );
+}
+
+#[test]
+fn formats_imports_impls_and_literals_stably() {
+    assert_formats_stably(
+        r#"from std/io import print as write,File
+import std/process as process
+impl Writer for File{pub method(file:&+Self).write(text:str):void!{let bytes=[1,2,3]
+var point=Point{x:1,y:2}
+while var item=next(){print(item)}
+}}
+"#,
+        concat!(
+            "from std/io import print as write, File\n",
+            "\n",
+            "import std/process as process\n",
+            "\n",
+            "impl Writer for File {\n",
+            "    pub method (file: &+Self).write(text: str): void! {\n",
+            "        let bytes = [1, 2, 3]\n",
+            "        var point = Point { x: 1, y: 2 }\n",
+            "        while var item = next() {\n",
+            "            print(item)\n",
+            "        }\n",
+            "    }\n",
+            "}\n",
+        ),
     );
 }
 

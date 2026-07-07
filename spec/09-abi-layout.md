@@ -189,7 +189,7 @@ Rules:
 
 Nocter source uses `return value` for success and `fail error` for failure. ABI v0 does not reserve the identifier `success`; it defines only the binary tag meaning.
 
-Composed optional and fallible values use the same layout rules recursively. For example, `(T?)!` is laid out as a fallible value whose success payload is the explicit-tag layout of `T?`.
+Composed optional and fallible values use the same layout rules recursively. For example, `T?!` is laid out as a fallible value whose success payload is the explicit-tag layout of `T?`.
 
 ### Drop ABI
 

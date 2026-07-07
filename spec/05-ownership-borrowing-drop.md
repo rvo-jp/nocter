@@ -451,7 +451,7 @@ Rules:
 - Moved bindings are not dropped.
 - Copy parameters may be returned with `return parameter`.
 - Move-only owned parameters require `return move parameter`.
-- `return none` is valid for optional return type `T?` and for fallible optional return type `(T?)!`, where it returns success absence.
+- `return none` is valid for optional return type `T?` and for fallible optional return type `T?!`, where it returns success absence.
 - Bare `return` is valid only for `void` return type.
 
 Examples:

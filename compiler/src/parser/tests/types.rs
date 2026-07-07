@@ -32,9 +32,9 @@ func run(): void! {
 }
 
 #[test]
-fn parses_grouped_optional_fallible_return_type() {
+fn parses_compact_optional_fallible_return_type() {
     let output = parse_text(
-        r#"func env(name: str): (str?)! {
+        r#"func env(name: str): str?! {
     return none
 }
 "#,

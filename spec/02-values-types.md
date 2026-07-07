@@ -278,15 +278,15 @@ Initial built-in type syntax:
 [+T]
 T?
 T!
-(T?)!
+T?!
 [T; N]
 (T)
 Self
 ```
 
-`T!` means a fallible value whose success payload is `T` and whose failure payload is the built-in `error` type. Prefer `(T?)!` for a fallible optional success value; compact `T?!` may be accepted by the parser later, but the formatter should emit `(T?)!`.
+`T!` means a fallible value whose success payload is `T` and whose failure payload is the built-in `error` type. `T?!` means a fallible value whose success payload is optional.
 
-Parentheses in type syntax group a type without creating a new type. For example, `(&T)?` means an optional readonly borrow, while `&(T?)` means a readonly borrow of an optional value. `(T?)!` means a fallible value whose success payload is optional.
+Parentheses in type syntax group a type without creating a new type. For example, `(&T)?` means an optional readonly borrow, while `&(T?)` means a readonly borrow of an optional value.
 
 ### Self Type Syntax
 
