@@ -1,7 +1,11 @@
 //! Compiler-owned diagnostics shared by CLI, JSON output, and future LSP.
 
+mod text;
+
 use crate::source::JsonSpan;
 use serde::Serialize;
+
+pub use text::write_text_diagnostics;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
