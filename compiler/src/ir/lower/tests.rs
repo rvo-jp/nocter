@@ -2,7 +2,7 @@ use super::*;
 use crate::analysis::{CompileUnit, analyze_compile_unit};
 use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
-use crate::ir::{Function, Instruction, IrModule, Type};
+use crate::ir::{Function, I32Location, I32Value, Instruction, IrModule, Type};
 use crate::source::SourceMap;
 use crate::target::DEFAULT_TARGET;
 use std::fs;
@@ -22,7 +22,7 @@ fn lowers_program_returning_i32_literal() {
         IrModule::new(vec![Function {
             name: "program".to_string(),
             return_type: Type::I32,
-            instructions: vec![Instruction::LoadI32Const(42), Instruction::Return],
+            instructions: vec![set_return_i32(42), Instruction::Return],
         }])
     );
 }
@@ -38,7 +38,7 @@ fn lowers_program_returning_negative_i32_literal() {
 
     assert_eq!(
         ir.functions[0].instructions,
-        vec![Instruction::LoadI32Const(-42), Instruction::Return]
+        vec![set_return_i32(-42), Instruction::Return]
     );
 }
 
@@ -56,7 +56,7 @@ fn lowers_fallible_program_returning_i32_literal() {
         IrModule::new(vec![Function {
             name: "program".to_string(),
             return_type: Type::Fallible(Box::new(Type::I32)),
-            instructions: vec![Instruction::LoadI32Const(7), Instruction::Return],
+            instructions: vec![set_return_i32(7), Instruction::Return],
         }])
     );
 }
@@ -79,7 +79,7 @@ program(): i32! {
             return_type: Type::Fallible(Box::new(Type::I32)),
             instructions: vec![
                 Instruction::WriteStaticStderr(b"failed\n".to_vec()),
-                Instruction::LoadI32Const(1),
+                set_return_i32(1),
                 Instruction::Return,
             ],
         }])
@@ -101,7 +101,7 @@ program(): i32! {
         ir.functions[0].instructions,
         vec![
             Instruction::WriteStaticStderr(b"failed\n".to_vec()),
-            Instruction::LoadI32Const(1),
+            set_return_i32(1),
             Instruction::Return,
         ]
     );
@@ -162,12 +162,49 @@ func answer(): i32 {
             Function {
                 name: "program".to_string(),
                 return_type: Type::I32,
-                instructions: vec![Instruction::TailCall("answer".to_string())],
+                instructions: vec![tail_call("answer", vec![])],
             },
             Function {
                 name: "answer".to_string(),
                 return_type: Type::I32,
-                instructions: vec![Instruction::LoadI32Const(7), Instruction::Return],
+                instructions: vec![set_return_i32(7), Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
+fn lowers_program_returning_i32_function_call_with_arguments() {
+    let ir = lower_text(
+        r#"program(): i32 {
+    return add(20, 22)
+}
+
+func add(a: i32, b: i32): i32 {
+    return a + b
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "program".to_string(),
+                return_type: Type::I32,
+                instructions: vec![tail_call("add", vec![i32_const(20), i32_const(22)])],
+            },
+            Function {
+                name: "add".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::AddI32 {
+                        destination: I32Location::Return,
+                        left: i32_param(0),
+                        right: i32_param(1),
+                    },
+                    Instruction::Return,
+                ],
             },
         ])
     );
@@ -207,6 +244,28 @@ fn lower_text(text: &str) -> IrModule {
         }
         diagnostics => panic!("unexpected diagnostics: {diagnostics:?}"),
     }
+}
+
+fn set_return_i32(value: i32) -> Instruction {
+    Instruction::SetI32 {
+        destination: I32Location::Return,
+        value: i32_const(value),
+    }
+}
+
+fn tail_call(function: &str, arguments: Vec<I32Value>) -> Instruction {
+    Instruction::TailCall {
+        function: function.to_string(),
+        arguments,
+    }
+}
+
+fn i32_const(value: i32) -> I32Value {
+    I32Value::Const(value)
+}
+
+fn i32_param(index: usize) -> I32Value {
+    I32Value::Location(I32Location::Parameter(index))
 }
 
 fn lower_text_diagnostics(text: &str) -> Vec<Diagnostic> {

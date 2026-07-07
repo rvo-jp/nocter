@@ -19,9 +19,32 @@ pub(crate) struct Function {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Instruction {
     WriteStaticStderr(Vec<u8>),
-    LoadI32Const(i32),
-    TailCall(String),
+    SetI32 {
+        destination: I32Location,
+        value: I32Value,
+    },
+    AddI32 {
+        destination: I32Location,
+        left: I32Value,
+        right: I32Value,
+    },
+    TailCall {
+        function: String,
+        arguments: Vec<I32Value>,
+    },
     Return,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum I32Location {
+    Return,
+    Parameter(usize),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum I32Value {
+    Const(i32),
+    Location(I32Location),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

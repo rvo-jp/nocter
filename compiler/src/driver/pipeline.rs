@@ -272,6 +272,35 @@ func answer(): i32 {
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     #[test]
+    fn build_file_output_runs_i32_function_call_with_arguments() {
+        let root = make_temp_project("build-run-function-arguments");
+        let nocter_home = make_nocter_home(&root);
+        let source = root.join("add.nct");
+        fs::write(
+            &source,
+            r#"program(): i32 {
+    return add(20, 22)
+}
+
+func add(a: i32, b: i32): i32 {
+    return a + b
+}
+"#,
+        )
+        .unwrap();
+
+        let executable = default_executable_path(&source);
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
+
+        assert_diagnostics_empty(&output.diagnostics);
+        assert_eq!(output.output_path, executable);
+        let status = std::process::Command::new(&executable).status().unwrap();
+        assert_eq!(status.code(), Some(42));
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
     fn build_file_output_runs_fallible_program_success_return_code() {
         let root = make_temp_project("build-run-fallible-success");
         let nocter_home = make_nocter_home(&root);

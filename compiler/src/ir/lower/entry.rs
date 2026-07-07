@@ -1,8 +1,8 @@
 use super::errors::{lower_make_error_message, with_trailing_newline};
-use super::expressions::lower_i32_return_expression;
+use super::expressions::{I32ExpressionContext, lower_i32_return_expression};
 use crate::ast::{ProgramDecl, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
-use crate::ir::{Function, Instruction, Type};
+use crate::ir::{Function, I32Location, I32Value, Instruction, Type};
 
 pub(super) fn lower_program_function(program: &ProgramDecl) -> Result<Function, Vec<Diagnostic>> {
     let return_type = lower_program_return_type(&program.return_type)?;
@@ -36,7 +36,9 @@ fn lower_program_body(
 
     match program.body.statements.as_slice() {
         [Stmt::Return(statement)] => match (success_type, &statement.expression) {
-            (Type::I32, Some(expression)) => lower_i32_return_expression(expression),
+            (Type::I32, Some(expression)) => {
+                lower_i32_return_expression(expression, &I32ExpressionContext::empty())
+            }
             (Type::Void, None) => Ok(vec![Instruction::Return]),
             (Type::Void, Some(_)) => Err(vec![Diagnostic::error(
                 "E8002",
@@ -53,7 +55,10 @@ fn lower_program_body(
                 let message = lower_make_error_message(&statement.expression)?;
                 Ok(vec![
                     Instruction::WriteStaticStderr(with_trailing_newline(message)),
-                    Instruction::LoadI32Const(1),
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: I32Value::Const(1),
+                    },
                     Instruction::Return,
                 ])
             }

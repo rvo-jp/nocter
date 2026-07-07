@@ -80,7 +80,7 @@ fn call_targets(function: &Function) -> VecDeque<String> {
         .instructions
         .iter()
         .filter_map(|instruction| match instruction {
-            Instruction::TailCall(name) => Some(name.clone()),
+            Instruction::TailCall { function, .. } => Some(function.clone()),
             _ => None,
         })
         .collect()

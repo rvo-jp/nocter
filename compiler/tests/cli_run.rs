@@ -57,6 +57,33 @@ func answer(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_i32_function_call_with_arguments_exit_code() {
+    let project = TempProject::new("cli-run-function-arguments");
+    let source = project.write_source(
+        "add.nct",
+        r#"program(): i32 {
+    return add(20, 22)
+}
+
+func add(a: i32, b: i32): i32 {
+    return a + b
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_fallible_program_success_exit_code() {
     let project = TempProject::new("cli-run-fallible-success");
     let source = project.write_source(

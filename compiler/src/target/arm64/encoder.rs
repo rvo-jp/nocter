@@ -18,6 +18,14 @@ impl Encoder {
         self.emit_word(MOVK_W_BASE | move_wide_fields(rd.bits(), imm16, shift));
     }
 
+    pub(crate) fn emit_mov_w(&mut self, rd: WReg, rm: WReg) {
+        self.emit_word(ORR_W_BASE | (rm.bits() << 16) | (WZR_BITS << 5) | rd.bits());
+    }
+
+    pub(crate) fn emit_add_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
+        self.emit_word(ADD_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
+    }
+
     pub(crate) fn emit_movz_x(&mut self, rd: XReg, imm16: u16, shift: MoveWideShift) {
         self.emit_word(MOVZ_X_BASE | move_wide_fields(rd.bits(), imm16, shift));
     }
@@ -86,13 +94,41 @@ impl Encoder {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum WReg {
     W0,
+    W1,
+    W2,
+    W3,
+    W4,
+    W5,
+    W6,
+    W7,
     W16,
 }
 
 impl WReg {
+    pub(crate) fn argument(index: usize) -> Option<Self> {
+        match index {
+            0 => Some(Self::W0),
+            1 => Some(Self::W1),
+            2 => Some(Self::W2),
+            3 => Some(Self::W3),
+            4 => Some(Self::W4),
+            5 => Some(Self::W5),
+            6 => Some(Self::W6),
+            7 => Some(Self::W7),
+            _ => None,
+        }
+    }
+
     const fn bits(self) -> u32 {
         match self {
             Self::W0 => 0,
+            Self::W1 => 1,
+            Self::W2 => 2,
+            Self::W3 => 3,
+            Self::W4 => 4,
+            Self::W5 => 5,
+            Self::W6 => 6,
+            Self::W7 => 7,
             Self::W16 => 16,
         }
     }
@@ -140,6 +176,8 @@ impl MoveWideShift {
 
 const MOVZ_W_BASE: u32 = 0x5280_0000;
 const MOVK_W_BASE: u32 = 0x7280_0000;
+const ORR_W_BASE: u32 = 0x2a00_0000;
+const ADD_W_BASE: u32 = 0x0b00_0000;
 const MOVZ_X_BASE: u32 = 0xd280_0000;
 const MOVK_X_BASE: u32 = 0xf280_0000;
 const ADR_X_BASE: u32 = 0x1000_0000;
@@ -152,6 +190,7 @@ const ADR_MIN_BYTE_OFFSET: i32 = -(1 << 20);
 const ADR_MAX_BYTE_OFFSET: i32 = (1 << 20) - 1;
 const BL_MIN_BYTE_OFFSET: i32 = -(1 << 27);
 const BL_MAX_BYTE_OFFSET: i32 = (1 << 27) - 4;
+const WZR_BITS: u32 = 31;
 
 const fn move_wide_fields(rd: u32, imm16: u16, shift: MoveWideShift) -> u32 {
     (shift.hw() << 21) | ((imm16 as u32) << 5) | rd
@@ -209,6 +248,24 @@ mod tests {
         encoder.emit_movz_w(WReg::W16, 1, MoveWideShift::Lsl0);
 
         assert_eq!(encoder.finish(), vec![0x30, 0x00, 0x80, 0x52]);
+    }
+
+    #[test]
+    fn encodes_mov_w0_w1() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_mov_w(WReg::W0, WReg::W1);
+
+        assert_eq!(encoder.finish(), vec![0xe0, 0x03, 0x01, 0x2a]);
+    }
+
+    #[test]
+    fn encodes_add_w0_w0_w1() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_add_w(WReg::W0, WReg::W0, WReg::W1);
+
+        assert_eq!(encoder.finish(), vec![0x00, 0x00, 0x01, 0x0b]);
     }
 
     #[test]

@@ -1,5 +1,5 @@
 use crate::diagnostics::Diagnostic;
-use crate::ir::{Function, Instruction, IrModule, Type};
+use crate::ir::{Function, I32Location, I32Value, Instruction, IrModule, Type};
 use crate::target::arm64::{Encoder, MoveWideShift, WReg, XReg};
 use std::collections::HashMap;
 
@@ -54,7 +54,7 @@ impl EntryEmitter {
         self.emit_process_entry(program);
 
         for function in &module.functions {
-            self.emit_function(function);
+            self.emit_function(function)?;
         }
 
         Ok(())
@@ -68,30 +68,44 @@ impl EntryEmitter {
         emit_darwin_exit_syscall(&mut self.encoder);
     }
 
-    fn emit_function(&mut self, function: &Function) {
+    fn emit_function(&mut self, function: &Function) -> Result<(), Vec<Diagnostic>> {
         self.function_offsets
             .insert(function.name.clone(), self.encoder.position());
 
         for instruction in &function.instructions {
-            self.emit_instruction(instruction);
+            self.emit_instruction(instruction)?;
         }
+
+        Ok(())
     }
 
-    fn emit_instruction(&mut self, instruction: &Instruction) {
+    fn emit_instruction(&mut self, instruction: &Instruction) -> Result<(), Vec<Diagnostic>> {
         match instruction {
             Instruction::WriteStaticStderr(bytes) => {
                 self.emit_write_static_stderr(bytes);
             }
-            Instruction::LoadI32Const(value) => {
-                emit_mov_i32_to_w0(&mut self.encoder, *value);
+            Instruction::SetI32 { destination, value } => {
+                self.emit_set_i32(*destination, value)?;
             }
-            Instruction::TailCall(function) => {
-                self.emit_tail_call(function);
+            Instruction::AddI32 {
+                destination,
+                left,
+                right,
+            } => {
+                self.emit_add_i32(*destination, left, right)?;
+            }
+            Instruction::TailCall {
+                function,
+                arguments,
+            } => {
+                self.emit_tail_call(function, arguments)?;
             }
             Instruction::Return => {
                 self.encoder.emit_ret();
             }
         }
+
+        Ok(())
     }
 
     fn emit_call(&mut self, function: &str) {
@@ -103,13 +117,81 @@ impl EntryEmitter {
         });
     }
 
-    fn emit_tail_call(&mut self, function: &str) {
+    fn emit_tail_call(
+        &mut self,
+        function: &str,
+        arguments: &[I32Value],
+    ) -> Result<(), Vec<Diagnostic>> {
+        for (index, argument) in arguments.iter().enumerate() {
+            let Some(register) = WReg::argument(index) else {
+                return Err(vec![Diagnostic::error(
+                    "E9003",
+                    format!("codegen supports at most 8 i32 arguments, got argument {index}"),
+                )]);
+            };
+            self.emit_i32_value_to_w(argument, register)?;
+        }
+
         let instruction_offset = self.encoder.position();
         self.encoder.emit_b(0);
         self.tail_call_patches.push(FunctionCallPatch {
             instruction_offset,
             function: function.to_string(),
         });
+
+        Ok(())
+    }
+
+    fn emit_set_i32(
+        &mut self,
+        destination: I32Location,
+        value: &I32Value,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let destination = self.i32_location_register(destination)?;
+        self.emit_i32_value_to_w(value, destination)
+    }
+
+    fn emit_add_i32(
+        &mut self,
+        destination: I32Location,
+        left: &I32Value,
+        right: &I32Value,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let destination = self.i32_location_register(destination)?;
+        self.emit_i32_value_to_w(left, WReg::W16)?;
+        self.emit_i32_value_to_w(right, destination)?;
+        self.encoder.emit_add_w(destination, WReg::W16, destination);
+        Ok(())
+    }
+
+    fn emit_i32_value_to_w(
+        &mut self,
+        value: &I32Value,
+        destination: WReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match value {
+            I32Value::Const(value) => emit_mov_i32_to_w(&mut self.encoder, destination, *value),
+            I32Value::Location(location) => {
+                let source = self.i32_location_register(*location)?;
+                if source != destination {
+                    self.encoder.emit_mov_w(destination, source);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn i32_location_register(&self, location: I32Location) -> Result<WReg, Vec<Diagnostic>> {
+        match location {
+            I32Location::Return => Ok(WReg::W0),
+            I32Location::Parameter(index) => WReg::argument(index).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "E9003",
+                    format!("codegen supports at most 8 i32 parameters, got parameter {index}"),
+                )]
+            }),
+        }
     }
 
     fn emit_write_static_stderr(&mut self, bytes: &[u8]) {
@@ -212,7 +294,11 @@ struct FunctionCallPatch {
 }
 
 fn emit_mov_i32_to_w0(encoder: &mut Encoder, value: i32) {
-    emit_mov_u32_to_w(encoder, WReg::W0, value as u32);
+    emit_mov_i32_to_w(encoder, WReg::W0, value);
+}
+
+fn emit_mov_i32_to_w(encoder: &mut Encoder, register: WReg, value: i32) {
+    emit_mov_u32_to_w(encoder, register, value as u32);
 }
 
 fn emit_mov_u32_to_w(encoder: &mut Encoder, register: WReg, value: u32) {
@@ -266,14 +352,14 @@ const DARWIN_SYSCALL_TRAP: u16 = 0x80;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Function, Type};
+    use crate::ir::{Function, I32Location, I32Value, Type};
 
     #[test]
     fn generates_exit_zero_for_return_i32_zero() {
         let module = IrModule::new(vec![Function {
             name: "program".to_string(),
             return_type: Type::I32,
-            instructions: vec![Instruction::LoadI32Const(0), Instruction::Return],
+            instructions: vec![set_return_i32(0), Instruction::Return],
         }]);
 
         let code = generate_arm64_darwin_entry(&module).unwrap();
@@ -296,7 +382,7 @@ mod tests {
         let module = IrModule::new(vec![Function {
             name: "program".to_string(),
             return_type: Type::I32,
-            instructions: vec![Instruction::LoadI32Const(0x1234_5678), Instruction::Return],
+            instructions: vec![set_return_i32(0x1234_5678), Instruction::Return],
         }]);
 
         let code = generate_arm64_darwin_entry(&module).unwrap();
@@ -320,7 +406,7 @@ mod tests {
         let module = IrModule::new(vec![Function {
             name: "program".to_string(),
             return_type: Type::I32,
-            instructions: vec![Instruction::LoadI32Const(-1), Instruction::Return],
+            instructions: vec![set_return_i32(-1), Instruction::Return],
         }]);
 
         let code = generate_arm64_darwin_entry(&module).unwrap();
@@ -344,7 +430,7 @@ mod tests {
         let module = IrModule::new(vec![Function {
             name: "program".to_string(),
             return_type: Type::Fallible(Box::new(Type::I32)),
-            instructions: vec![Instruction::LoadI32Const(7), Instruction::Return],
+            instructions: vec![set_return_i32(7), Instruction::Return],
         }]);
 
         let code = generate_arm64_darwin_entry(&module).unwrap();
@@ -368,12 +454,12 @@ mod tests {
             Function {
                 name: "program".to_string(),
                 return_type: Type::I32,
-                instructions: vec![Instruction::TailCall("answer".to_string())],
+                instructions: vec![tail_call("answer", vec![])],
             },
             Function {
                 name: "answer".to_string(),
                 return_type: Type::I32,
-                instructions: vec![Instruction::LoadI32Const(7), Instruction::Return],
+                instructions: vec![set_return_i32(7), Instruction::Return],
             },
         ]);
 
@@ -394,13 +480,55 @@ mod tests {
     }
 
     #[test]
+    fn generates_i32_tail_call_with_arguments_and_add() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "program".to_string(),
+                return_type: Type::I32,
+                instructions: vec![tail_call("add", vec![i32_const(20), i32_const(22)])],
+            },
+            Function {
+                name: "add".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::AddI32 {
+                        destination: I32Location::Return,
+                        left: i32_param(0),
+                        right: i32_param(1),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module).unwrap();
+
+        assert_eq!(
+            code.text,
+            vec![
+                0x04, 0x00, 0x00, 0x94, // bl program
+                0x30, 0x00, 0x80, 0x52, // movz w16, #1
+                0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
+                0x01, 0x10, 0x00, 0xd4, // svc #0x80
+                0x80, 0x02, 0x80, 0x52, // movz w0, #20
+                0xc1, 0x02, 0x80, 0x52, // movz w1, #22
+                0x01, 0x00, 0x00, 0x14, // b add
+                0xf0, 0x03, 0x00, 0x2a, // mov w16, w0
+                0xe0, 0x03, 0x01, 0x2a, // mov w0, w1
+                0x00, 0x02, 0x00, 0x0b, // add w0, w16, w0
+                0xc0, 0x03, 0x5f, 0xd6, // ret
+            ]
+        );
+    }
+
+    #[test]
     fn generates_static_stderr_write_with_data_reference() {
         let module = IrModule::new(vec![Function {
             name: "program".to_string(),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::WriteStaticStderr(b"error\n".to_vec()),
-                Instruction::LoadI32Const(1),
+                set_return_i32(1),
                 Instruction::Return,
             ],
         }]);
@@ -435,7 +563,7 @@ mod tests {
             return_type: Type::I32,
             instructions: vec![
                 Instruction::WriteStaticStderr(b"failed\n".to_vec()),
-                Instruction::LoadI32Const(3),
+                set_return_i32(3),
                 Instruction::Return,
             ],
         }]);
@@ -495,5 +623,27 @@ mod tests {
         permissions.set_mode(0o755);
         std::fs::set_permissions(&executable, permissions).unwrap();
         executable
+    }
+
+    fn set_return_i32(value: i32) -> Instruction {
+        Instruction::SetI32 {
+            destination: I32Location::Return,
+            value: i32_const(value),
+        }
+    }
+
+    fn tail_call(function: &str, arguments: Vec<I32Value>) -> Instruction {
+        Instruction::TailCall {
+            function: function.to_string(),
+            arguments,
+        }
+    }
+
+    fn i32_const(value: i32) -> I32Value {
+        I32Value::Const(value)
+    }
+
+    fn i32_param(index: usize) -> I32Value {
+        I32Value::Location(I32Location::Parameter(index))
     }
 }
