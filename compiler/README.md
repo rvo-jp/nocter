@@ -146,6 +146,7 @@ src/
     ast/
     resolve/
     typecheck/
+    frontend/
     analysis/
     ir/
     abi/
@@ -166,6 +167,7 @@ Responsibilities:
 - `ast/`: source-level syntax tree definitions.
 - `resolve/`: imports, canonical absolute source-file identity, path-derived modules, visibility, and name lookup.
 - `typecheck/`: type rules, generics, traits, fallible types, optional types, `never` reachability, ownership checks, non-lexical borrow live ranges, field-sensitive borrow checks, provenance checks, and region escape checks.
+- `frontend/`: root `.nct` loading, lexing/parsing for semantic checks, recursive import graph loading, canonical-path module de-duplication, synthetic standard prelude insertion, Nocter home resolution for imports, active target overlay lookup, and common Nocter home `std` lookup.
 - `analysis/`: whole-compile-unit semantic analysis that combines per-file resolve and typecheck output into reusable `CompileUnitAnalysis` and `FileAnalysis` records for CLI diagnostics and future LSP features.
 - `ir/`: optional lower-level compiler representation if direct AST lowering becomes too tangled.
 - `abi/`: Nocter ABI v0 classification, data layout, aggregate layout, call lowering rules, return lowering rules, and drop glue rules.
@@ -173,7 +175,7 @@ Responsibilities:
 - `target/arm64/`: ARM64 instruction selection and binary instruction encoding.
 - `target/macho/`: Mach-O headers, segments, sections, symbols, relocations if needed, and executable layout.
 - `target/primitive/`: lowering and validation for target-independent core primitives and the closed primitive set of the active target.
-- `driver/`: command-line flow for `--version`, `doctor`, `build`, `run`, `check`, `fmt`, `tokens`, `ast`, and future `lsp`, Nocter home resolution, `VERSION` and `MANIFEST.json` validation, root `.nct` file loading, recursive import graph loading, canonical-path module de-duplication, target registry lookup, active target selection, active target overlay lookup, common Nocter home `std` lookup, temporary executable handling for `run`, and stdout/stderr discipline.
+- `driver/`: command-line flow for `--version`, `doctor`, `build`, `run`, `check`, `fmt`, `tokens`, `ast`, and future `lsp`, `VERSION` and `MANIFEST.json` validation for `doctor`, target registry lookup, active target selection, temporary executable handling for `run`, and stdout/stderr discipline.
 - `diagnostics/`: structured errors with source spans, display paths, canonical absolute paths, human rendering, and the `nocter.diagnostics` JSON envelope for `--format json`.
 - `lsp/`: future language-server entry point that reuses the compiler front end, resolver, type checker, ownership checker, and diagnostics instead of reimplementing language semantics for editors.
 
