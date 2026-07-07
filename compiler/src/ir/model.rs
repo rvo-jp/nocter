@@ -22,8 +22,18 @@ pub(crate) enum Instruction {
     ReturnVoid,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Type {
     I32,
     Void,
+    Fallible(Box<Type>),
+}
+
+impl Type {
+    pub(crate) fn success_type(&self) -> &Type {
+        match self {
+            Self::Fallible(success) => success,
+            Self::I32 | Self::Void => self,
+        }
+    }
 }

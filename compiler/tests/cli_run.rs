@@ -30,6 +30,29 @@ fn run_command_returns_program_exit_code() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_fallible_program_success_exit_code() {
+    let project = TempProject::new("cli-run-fallible-success");
+    let source = project.write_source(
+        "exit19.nct",
+        r#"program(): i32! {
+    return 19
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(19),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn bare_source_command_runs_source_file() {
     let project = TempProject::new("cli-run-bare-source");
     let source = project.write_source(

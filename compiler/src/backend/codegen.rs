@@ -128,6 +128,27 @@ mod tests {
     }
 
     #[test]
+    fn generates_exit_code_for_fallible_success_return_i32() {
+        let module = IrModule::new(vec![Function {
+            name: "program".to_string(),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![Instruction::ReturnI32(7)],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module).unwrap();
+
+        assert_eq!(
+            code.text,
+            vec![
+                0xe0, 0x00, 0x80, 0x52, // movz w0, #7
+                0x30, 0x00, 0x80, 0x52, // movz w16, #1
+                0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
+                0x01, 0x10, 0x00, 0xd4, // svc #0x80
+            ]
+        );
+    }
+
+    #[test]
     fn generates_exit_zero_for_return_void() {
         let module = IrModule::new(vec![Function {
             name: "program".to_string(),

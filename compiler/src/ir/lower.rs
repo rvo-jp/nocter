@@ -28,7 +28,7 @@ pub(crate) fn lower_program(analysis: &CompileUnitAnalysis) -> Result<IrModule, 
 
 fn lower_program_function(program: &ProgramDecl) -> Result<Function, Vec<Diagnostic>> {
     let return_type = lower_program_return_type(&program.return_type)?;
-    let instructions = lower_program_body(program, return_type)?;
+    let instructions = lower_program_body(program, &return_type)?;
 
     Ok(Function {
         name: "program".to_string(),
@@ -41,7 +41,8 @@ fn lower_program_return_type(ty: &TypeExpr) -> Result<Type, Vec<Diagnostic>> {
     match ty {
         TypeExpr::Reference(reference) if reference.name == "i32" => Ok(Type::I32),
         TypeExpr::Reference(reference) if reference.name == "void" => Ok(Type::Void),
-        TypeExpr::Fallible(fallible) => lower_program_return_type(&fallible.success),
+        TypeExpr::Fallible(fallible) => lower_program_return_type(&fallible.success)
+            .map(|success| Type::Fallible(Box::new(success))),
         _ => Err(vec![Diagnostic::error(
             "E8001",
             "IR v0 can only lower `program` return type `i32`, `i32!`, or `void`",
@@ -51,10 +52,12 @@ fn lower_program_return_type(ty: &TypeExpr) -> Result<Type, Vec<Diagnostic>> {
 
 fn lower_program_body(
     program: &ProgramDecl,
-    return_type: Type,
+    return_type: &Type,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let success_type = return_type.success_type();
+
     match program.body.statements.as_slice() {
-        [Stmt::Return(statement)] => match (return_type, &statement.expression) {
+        [Stmt::Return(statement)] => match (success_type, &statement.expression) {
             (Type::I32, Some(expression)) => {
                 let value = lower_i32_literal(expression)?;
                 Ok(vec![Instruction::ReturnI32(value)])
@@ -68,8 +71,9 @@ fn lower_program_body(
                 "E8002",
                 "IR v0 cannot lower bare returns from `i32` program",
             )]),
+            (Type::Fallible(_), _) => unreachable!("fallible success type must be unwrapped"),
         },
-        [] if return_type == Type::Void => Ok(vec![Instruction::ReturnVoid]),
+        [] if *return_type == Type::Void => Ok(vec![Instruction::ReturnVoid]),
         _ => Err(vec![Diagnostic::error(
             "E8002",
             "IR v0 can only lower `program` bodies containing `return <i32 literal>` or a void return",
@@ -180,6 +184,25 @@ mod tests {
         assert_eq!(
             ir.functions[0].instructions,
             vec![Instruction::ReturnI32(-42)]
+        );
+    }
+
+    #[test]
+    fn lowers_fallible_program_returning_i32_literal() {
+        let ir = lower_text(
+            r#"program(): i32! {
+    return 7
+}
+"#,
+        );
+
+        assert_eq!(
+            ir,
+            IrModule::new(vec![Function {
+                name: "program".to_string(),
+                return_type: Type::Fallible(Box::new(Type::I32)),
+                instructions: vec![Instruction::ReturnI32(7)],
+            }])
         );
     }
 
