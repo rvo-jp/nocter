@@ -1,0 +1,115 @@
+use super::*;
+
+pub(super) fn check_array_literal_elements(
+    sources: &SourceMap,
+    array: &ArrayLiteralExpr,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+    environment: &TypeEnvironment,
+) {
+    let mut first_known: Option<(&Expr, Type)> = None;
+
+    for element in &array.elements {
+        let element_type = expression_type(element, resolved, environment);
+        if element_type.is_unknown_or_unresolved() {
+            continue;
+        }
+
+        let Some((first_element, first_type)) = &first_known else {
+            first_known = Some((element, element_type));
+            continue;
+        };
+
+        if !same_known_type(first_type, &element_type) {
+            diagnostics.push(array_literal_element_type_mismatch_diagnostic(
+                sources,
+                element,
+                &element_type,
+                first_element,
+                first_type,
+            ));
+            return;
+        }
+    }
+}
+
+pub(super) fn array_literal_type(
+    array: &ArrayLiteralExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Type {
+    let element = infer_array_literal_element_type(&array.elements, resolved, environment)
+        .unwrap_or(Type::Unknown);
+
+    Type::Array {
+        element: Box::new(element),
+        length: array.elements.len().to_string(),
+    }
+}
+
+fn infer_array_literal_element_type(
+    elements: &[Expr],
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<Type> {
+    let mut inferred: Option<Type> = None;
+
+    for element in elements {
+        let element_type = expression_type(element, resolved, environment);
+        if element_type.is_unknown_or_unresolved() {
+            continue;
+        }
+
+        match &inferred {
+            Some(current) if !same_known_type(current, &element_type) => return None,
+            Some(_) => {}
+            None => inferred = Some(element_type),
+        }
+    }
+
+    inferred
+}
+
+pub(super) fn check_index_expression(
+    sources: &SourceMap,
+    index: &IndexExpr,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+    environment: &TypeEnvironment,
+) {
+    let target = expression_type(&index.object, resolved, environment);
+    if !target.is_unknown_or_unresolved() && !is_indexable_type(&target) {
+        diagnostics.push(index_target_type_mismatch_diagnostic(
+            sources, index, &target,
+        ));
+    }
+
+    let index_type = expression_type(&index.index, resolved, environment);
+    if !index_type.is_unknown_or_unresolved() && !is_integer_type(&index_type) {
+        diagnostics.push(index_value_type_mismatch_diagnostic(
+            sources,
+            index,
+            &index_type,
+        ));
+    }
+}
+
+pub(super) fn index_expression_type(
+    index: &IndexExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Type {
+    match expression_type(&index.object, resolved, environment) {
+        Type::Array { element, .. } | Type::View { element, .. } => *element,
+        Type::Str => Type::Primitive("u8".to_string()),
+        _ => Type::Unknown,
+    }
+}
+
+fn is_indexable_type(ty: &Type) -> bool {
+    matches!(ty, Type::Array { .. } | Type::View { .. } | Type::Str)
+}
+
+pub(super) fn array_length_matches(expected: &str, actual: usize) -> bool {
+    integer_literal_value(expected).is_some_and(|value| value == actual as u128)
+}

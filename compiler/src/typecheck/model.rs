@@ -1,3 +1,4 @@
+use crate::ast::BindingKind;
 use crate::source::ByteSpan;
 use std::collections::HashMap;
 
@@ -185,4 +186,8 @@ pub(super) enum CallableKind {
     Function(String),
     AssociatedFunction(String),
     Method(String),
+}
+
+pub(super) fn binding_kind_is_mutable(kind: BindingKind) -> bool {
+    matches!(kind, BindingKind::Var)
 }

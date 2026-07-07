@@ -1,4 +1,5 @@
 use super::*;
+use crate::ast::BindingKind;
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
 
 pub(super) fn missing_program_diagnostic(sources: &SourceMap, span: ByteSpan) -> Diagnostic {
