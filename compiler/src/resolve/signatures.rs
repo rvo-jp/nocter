@@ -1,0 +1,211 @@
+use super::{
+    AssociatedFunctionSignature, EnumVariantSignature, FunctionSignature, MethodSignature,
+    ParameterSignature, StructFieldSignature, TypeSymbol, TypeSymbolKind,
+};
+use crate::ast::{
+    AstFile, EnumVariant, FunctionDecl, ImplDecl, ImplMember, MethodDecl, Parameter, PrimitiveDecl,
+    StructField, TypeExpr,
+};
+use crate::diagnostics::Diagnostic;
+use crate::source::{ByteSpan, SourceMap};
+use std::collections::HashMap;
+
+use super::diagnostics::duplicate_inherent_member_name_diagnostic;
+
+pub(super) fn attach_inherent_impl_members_to_symbol(
+    symbol: &mut TypeSymbol,
+    ast: &AstFile,
+    type_name: &str,
+) {
+    if !matches!(symbol.kind, TypeSymbolKind::Struct | TypeSymbolKind::Enum) {
+        return;
+    }
+
+    for item in &ast.items {
+        let crate::ast::Item::Impl(impl_) = item else {
+            continue;
+        };
+        if impl_.trait_ty.is_some() || impl_target_type_name(&impl_.target_ty) != Some(type_name) {
+            continue;
+        }
+
+        symbol
+            .associated_functions
+            .extend(associated_function_signatures(impl_));
+        symbol.methods.extend(method_signatures(impl_));
+    }
+}
+
+pub(super) fn associated_function_signatures(
+    impl_: &ImplDecl,
+) -> impl Iterator<Item = AssociatedFunctionSignature> + '_ {
+    impl_.members.iter().filter_map(|member| match member {
+        ImplMember::Function(function) => Some(AssociatedFunctionSignature {
+            name: function.name.clone(),
+            name_span: function.name_span,
+            visibility: function.visibility,
+            is_accessible: true,
+            signature: function_signature(function),
+        }),
+        ImplMember::Method(_) => None,
+    })
+}
+
+pub(super) fn method_signatures(impl_: &ImplDecl) -> impl Iterator<Item = MethodSignature> + '_ {
+    impl_.members.iter().filter_map(|member| match member {
+        ImplMember::Method(method) => Some(method_signature(method)),
+        ImplMember::Function(_) => None,
+    })
+}
+
+pub(super) fn duplicate_inherent_member_name_diagnostics(
+    sources: &SourceMap,
+    target_name: &str,
+    type_symbol: &TypeSymbol,
+    impl_: &ImplDecl,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let mut seen = HashMap::<&str, ByteSpan>::new();
+    for function in &type_symbol.associated_functions {
+        seen.entry(function.name.as_str())
+            .or_insert(function.name_span);
+    }
+    for method in &type_symbol.methods {
+        seen.entry(method.name.as_str()).or_insert(method.name_span);
+    }
+
+    for member in &impl_.members {
+        let (name, span) = match member {
+            ImplMember::Function(function) => (function.name.as_str(), function.name_span),
+            ImplMember::Method(method) => (method.name.as_str(), method.name_span),
+        };
+        match seen.entry(name) {
+            std::collections::hash_map::Entry::Occupied(first) => {
+                diagnostics.push(duplicate_inherent_member_name_diagnostic(
+                    sources,
+                    target_name,
+                    name,
+                    *first.get(),
+                    span,
+                ));
+            }
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(span);
+            }
+        }
+    }
+
+    diagnostics
+}
+
+pub(super) fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {
+    let TypeExpr::Reference(reference) = ty else {
+        return None;
+    };
+
+    Some(&reference.name)
+}
+
+pub(super) fn function_signature(function: &FunctionDecl) -> FunctionSignature {
+    callable_signature(
+        &function.parameters.parameters,
+        function.return_type.clone(),
+    )
+}
+
+pub(super) fn primitive_signature(primitive: &PrimitiveDecl) -> FunctionSignature {
+    callable_signature(
+        &primitive.parameters.parameters,
+        primitive.return_type.clone(),
+    )
+}
+
+pub(super) fn alias_type_symbol(canonical_name: String, alias_target: TypeExpr) -> TypeSymbol {
+    TypeSymbol {
+        kind: TypeSymbolKind::Alias,
+        canonical_name,
+        alias_target: Some(alias_target),
+        fields: Vec::new(),
+        variants: Vec::new(),
+        associated_functions: Vec::new(),
+        methods: Vec::new(),
+    }
+}
+
+pub(super) fn nominal_type_symbol(canonical_name: String, kind: TypeSymbolKind) -> TypeSymbol {
+    TypeSymbol {
+        kind,
+        canonical_name,
+        alias_target: None,
+        fields: Vec::new(),
+        variants: Vec::new(),
+        associated_functions: Vec::new(),
+        methods: Vec::new(),
+    }
+}
+
+pub(super) fn struct_type_symbol(canonical_name: String, fields: &[StructField]) -> TypeSymbol {
+    TypeSymbol {
+        kind: TypeSymbolKind::Struct,
+        canonical_name,
+        alias_target: None,
+        fields: fields
+            .iter()
+            .map(|field| StructFieldSignature {
+                name: field.name.clone(),
+                name_span: field.name_span,
+                visibility: field.visibility,
+                is_accessible: true,
+                ty: field.ty.clone(),
+            })
+            .collect(),
+        variants: Vec::new(),
+        associated_functions: Vec::new(),
+        methods: Vec::new(),
+    }
+}
+
+pub(super) fn enum_type_symbol(canonical_name: String, variants: &[EnumVariant]) -> TypeSymbol {
+    TypeSymbol {
+        kind: TypeSymbolKind::Enum,
+        canonical_name,
+        alias_target: None,
+        fields: Vec::new(),
+        variants: variants
+            .iter()
+            .map(|variant| EnumVariantSignature {
+                name: variant.name.clone(),
+                name_span: variant.name_span,
+                payload: variant.payload.iter().map(parameter_signature).collect(),
+            })
+            .collect(),
+        associated_functions: Vec::new(),
+        methods: Vec::new(),
+    }
+}
+
+fn method_signature(method: &MethodDecl) -> MethodSignature {
+    MethodSignature {
+        name: method.name.clone(),
+        name_span: method.name_span,
+        visibility: method.visibility,
+        is_accessible: true,
+        receiver: parameter_signature(&method.receiver),
+        signature: callable_signature(&method.parameters.parameters, method.return_type.clone()),
+    }
+}
+
+fn callable_signature(parameters: &[Parameter], return_type: TypeExpr) -> FunctionSignature {
+    FunctionSignature {
+        parameters: parameters.iter().map(parameter_signature).collect(),
+        return_type,
+    }
+}
+
+fn parameter_signature(parameter: &Parameter) -> ParameterSignature {
+    ParameterSignature {
+        name: parameter.name.clone(),
+        name_span: parameter.name_span,
+        ty: parameter.ty.clone(),
+    }
+}

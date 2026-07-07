@@ -1,0 +1,418 @@
+use super::support::{find_json_node, parse_text, parse_text_with_sources};
+use crate::ast::{BinaryOperator, Expr, Item, Stmt, UnaryOperator};
+
+#[test]
+fn parses_optional_default_expression() {
+    let output = parse_text(
+        r#"use std/prelude
+
+program(): i32 {
+    let user = (env("USER") catch error {
+        return 1
+    }) ?? "unknown"
+
+    return 0
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Program(program) = &ast.items[1] else {
+        panic!("expected program item");
+    };
+    let Stmt::Binding(binding) = &program.body.statements[0] else {
+        panic!("expected binding statement");
+    };
+    let Expr::OptionalDefault(expression) = &binding.initializer else {
+        panic!("expected optional default expression");
+    };
+    assert_eq!(expression.operator_span.len(), 2);
+    assert!(expression.span.start < expression.operator_span.start);
+    assert!(expression.operator_span.end < expression.span.end);
+}
+
+#[test]
+fn parses_force_unwrap_expression() {
+    let output = parse_text(
+        r#"program(): i32 {
+    return answer()!
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Program(program) = &ast.items[0] else {
+        panic!("expected program item");
+    };
+    let Stmt::Return(statement) = &program.body.statements[0] else {
+        panic!("expected return statement");
+    };
+    let Some(Expr::Force(expression)) = &statement.expression else {
+        panic!("expected force unwrap expression");
+    };
+    assert_eq!(expression.operator_span.len(), 1);
+    assert!(expression.span.start < expression.operator_span.start);
+    assert_eq!(expression.span.end, expression.operator_span.end);
+}
+
+#[test]
+fn ast_json_includes_expression_operator_spans() {
+    let (sources, output) = parse_text_with_sources(
+        r#"program(): i32 {
+    let value = maybe() ?? 0
+    let handled = answer() catch error {
+        return 1
+    }
+    return handled!
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let json = output.ast.unwrap().to_json(&sources);
+    let optional_default = find_json_node(&json, "optional_default_expression")
+        .expect("expected optional default expression");
+    let optional_default_span = optional_default.operator_span.as_ref().unwrap();
+    assert_eq!(
+        optional_default_span.end_byte - optional_default_span.start_byte,
+        2
+    );
+
+    let catch = find_json_node(&json, "fallible_catch_expression")
+        .expect("expected fallible catch expression");
+    let catch_span = catch.operator_span.as_ref().unwrap();
+    assert_eq!(catch_span.end_byte - catch_span.start_byte, "catch".len());
+
+    let force =
+        find_json_node(&json, "force_unwrap_expression").expect("expected force unwrap expression");
+    let force_span = force.operator_span.as_ref().unwrap();
+    assert_eq!(force_span.end_byte - force_span.start_byte, 1);
+}
+
+#[test]
+fn parses_array_literal_expression() {
+    let output = parse_text(
+        r#"program(): i32 {
+    let header = [
+        0x7F,
+        0x45,
+        0x4C,
+        0x46,
+    ]
+    return 0
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Program(program) = &ast.items[0] else {
+        panic!("expected program item");
+    };
+    let Stmt::Binding(binding) = &program.body.statements[0] else {
+        panic!("expected binding statement");
+    };
+    let Expr::ArrayLiteral(array) = &binding.initializer else {
+        panic!("expected array literal");
+    };
+    assert_eq!(array.elements.len(), 4);
+}
+
+#[test]
+fn parses_struct_literal_expression() {
+    let output = parse_text(
+        r#"struct Point {
+    x: i32
+    label: str
+}
+
+program(): i32 {
+    let point = Point{
+        x: 1,
+        label: "home",
+    }
+    return point.x
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Program(program) = &ast.items[1] else {
+        panic!("expected program item");
+    };
+    let Stmt::Binding(binding) = &program.body.statements[0] else {
+        panic!("expected binding statement");
+    };
+    let Expr::StructLiteral(literal) = &binding.initializer else {
+        panic!("expected struct literal");
+    };
+    assert_eq!(literal.fields.len(), 2);
+    assert_eq!(literal.fields[0].name, "x");
+    assert_eq!(literal.fields[1].name, "label");
+}
+
+#[test]
+fn parses_index_expression() {
+    let output = parse_text(
+        r#"program(): i32 {
+    let byte = header[0]
+    let next = matrix[0][1]
+    return 0
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Program(program) = &ast.items[0] else {
+        panic!("expected program item");
+    };
+    let Stmt::Binding(first) = &program.body.statements[0] else {
+        panic!("expected binding statement");
+    };
+    assert!(matches!(first.initializer, Expr::Index(_)));
+
+    let Stmt::Binding(second) = &program.body.statements[1] else {
+        panic!("expected binding statement");
+    };
+    let Expr::Index(outer) = &second.initializer else {
+        panic!("expected outer index expression");
+    };
+    assert!(matches!(outer.object.as_ref(), Expr::Index(_)));
+}
+
+#[test]
+fn parses_comparison_expressions() {
+    let output = parse_text(
+        r#"program(): i32 {
+    let nonempty = count > 0
+    let same = bytes[0] == 0
+    return 0
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Program(program) = &ast.items[0] else {
+        panic!("expected program item");
+    };
+    let Stmt::Binding(first) = &program.body.statements[0] else {
+        panic!("expected binding statement");
+    };
+    assert!(matches!(first.initializer, Expr::Binary(_)));
+
+    let Stmt::Binding(second) = &program.body.statements[1] else {
+        panic!("expected binding statement");
+    };
+    let Expr::Binary(binary) = &second.initializer else {
+        panic!("expected binary expression");
+    };
+    assert_eq!(binary.operator, BinaryOperator::Equal);
+}
+
+#[test]
+fn parses_arithmetic_expression_precedence() {
+    let output = parse_text(
+        r#"program(): i32 {
+    let value = 1 + 2 * 3 - 4 / 2 % 2
+    return 0
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Program(program) = &ast.items[0] else {
+        panic!("expected program item");
+    };
+    let Stmt::Binding(statement) = &program.body.statements[0] else {
+        panic!("expected binding statement");
+    };
+    let Expr::Binary(subtract_expression) = &statement.initializer else {
+        panic!("expected top-level subtraction expression");
+    };
+    assert_eq!(subtract_expression.operator, BinaryOperator::Subtract);
+
+    let Expr::Binary(add_expression) = subtract_expression.left.as_ref() else {
+        panic!("expected addition on the left side of subtraction");
+    };
+    assert_eq!(add_expression.operator, BinaryOperator::Add);
+
+    let Expr::Binary(multiply_expression) = add_expression.right.as_ref() else {
+        panic!("expected multiplication on the right side of addition");
+    };
+    assert_eq!(multiply_expression.operator, BinaryOperator::Multiply);
+
+    let Expr::Binary(remainder_expression) = subtract_expression.right.as_ref() else {
+        panic!("expected remainder on the right side of subtraction");
+    };
+    assert_eq!(remainder_expression.operator, BinaryOperator::Remainder);
+
+    let Expr::Binary(divide_expression) = remainder_expression.left.as_ref() else {
+        panic!("expected division on the left side of remainder");
+    };
+    assert_eq!(divide_expression.operator, BinaryOperator::Divide);
+}
+
+#[test]
+fn parses_type_conversion_expression_precedence() {
+    let output = parse_text(
+        r#"program(): i32 {
+    let value = byte as u64 + 1
+    return 0
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Program(program) = &ast.items[0] else {
+        panic!("expected program item");
+    };
+    let Stmt::Binding(statement) = &program.body.statements[0] else {
+        panic!("expected binding statement");
+    };
+    let Expr::Binary(add_expression) = &statement.initializer else {
+        panic!("expected top-level addition expression");
+    };
+    assert_eq!(add_expression.operator, BinaryOperator::Add);
+    assert!(matches!(
+        add_expression.left.as_ref(),
+        Expr::TypeConversion(_)
+    ));
+}
+
+#[test]
+fn parses_shift_expression_precedence() {
+    let output = parse_text(
+        r#"program(): i32 {
+    let outside = value + 1 << count * 2 < limit
+    return 0
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Program(program) = &ast.items[0] else {
+        panic!("expected program item");
+    };
+    let Stmt::Binding(statement) = &program.body.statements[0] else {
+        panic!("expected binding statement");
+    };
+    let Expr::Binary(ordering_expression) = &statement.initializer else {
+        panic!("expected top-level ordering expression");
+    };
+    assert_eq!(ordering_expression.operator, BinaryOperator::Less);
+
+    let Expr::Binary(shift_expression) = ordering_expression.left.as_ref() else {
+        panic!("expected shift expression on the left side of ordering expression");
+    };
+    assert_eq!(shift_expression.operator, BinaryOperator::ShiftLeft);
+
+    let Expr::Binary(add_expression) = shift_expression.left.as_ref() else {
+        panic!("expected addition on the left side of shift expression");
+    };
+    assert_eq!(add_expression.operator, BinaryOperator::Add);
+
+    let Expr::Binary(multiply_expression) = shift_expression.right.as_ref() else {
+        panic!("expected multiplication on the right side of shift expression");
+    };
+    assert_eq!(multiply_expression.operator, BinaryOperator::Multiply);
+}
+
+#[test]
+fn parses_logical_expression_precedence() {
+    let output = parse_text(
+        r#"program(): i32 {
+    let condition = count > 0 && ready || fallback
+    return 0
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Program(program) = &ast.items[0] else {
+        panic!("expected program item");
+    };
+    let Stmt::Binding(statement) = &program.body.statements[0] else {
+        panic!("expected binding statement");
+    };
+    let Expr::Binary(or_expression) = &statement.initializer else {
+        panic!("expected top-level logical or expression");
+    };
+    assert_eq!(or_expression.operator, BinaryOperator::LogicalOr);
+
+    let Expr::Binary(and_expression) = or_expression.left.as_ref() else {
+        panic!("expected logical and on the left side of logical or");
+    };
+    assert_eq!(and_expression.operator, BinaryOperator::LogicalAnd);
+
+    let Expr::Binary(ordering_expression) = and_expression.left.as_ref() else {
+        panic!("expected ordering expression on the left side of logical and");
+    };
+    assert_eq!(ordering_expression.operator, BinaryOperator::Greater);
+}
+
+#[test]
+fn parses_logical_not_expression_precedence() {
+    let output = parse_text(
+        r#"program(): i32 {
+    let condition = !ready && fallback
+    return 0
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Program(program) = &ast.items[0] else {
+        panic!("expected program item");
+    };
+    let Stmt::Binding(statement) = &program.body.statements[0] else {
+        panic!("expected binding statement");
+    };
+    let Expr::Binary(and_expression) = &statement.initializer else {
+        panic!("expected logical and expression");
+    };
+    assert_eq!(and_expression.operator, BinaryOperator::LogicalAnd);
+
+    let Expr::Unary(not_expression) = and_expression.left.as_ref() else {
+        panic!("expected logical not on the left side of logical and");
+    };
+    assert_eq!(not_expression.operator, UnaryOperator::LogicalNot);
+}
+
+#[test]
+fn parses_numeric_negate_expression_precedence() {
+    let output = parse_text(
+        r#"program(): i32 {
+    let smaller = -count < 0
+    return 0
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Program(program) = &ast.items[0] else {
+        panic!("expected program item");
+    };
+    let Stmt::Binding(statement) = &program.body.statements[0] else {
+        panic!("expected binding statement");
+    };
+    let Expr::Binary(ordering_expression) = &statement.initializer else {
+        panic!("expected ordering expression");
+    };
+    assert_eq!(ordering_expression.operator, BinaryOperator::Less);
+
+    let Expr::Unary(negate_expression) = ordering_expression.left.as_ref() else {
+        panic!("expected numeric negation on the left side of ordering expression");
+    };
+    assert_eq!(negate_expression.operator, UnaryOperator::Negate);
+}
