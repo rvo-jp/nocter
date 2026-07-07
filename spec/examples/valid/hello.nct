@@ -1,5 +1,3 @@
-use std/prelude
-
 from std/io import print
 
 func main(): i32! {

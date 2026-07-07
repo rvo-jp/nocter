@@ -19,4 +19,5 @@ Rules:
 - `valid/` examples should be formatter-ready Nocter code.
 - `invalid/` examples should focus on one intended mistake per file.
 - Invalid examples should explain the intended mistake in comments.
+- Examples represent user project modules and normally omit redundant `use std/prelude`.
 - Do not use examples to introduce syntax that is not specified in `SPEC.md`.

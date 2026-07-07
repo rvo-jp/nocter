@@ -1,5 +1,3 @@
-use std/prelude
-
 from std/process import env
 
 func main(): i32! {
