@@ -1,4 +1,10 @@
-# Nocter
+<div align="center">
+  <img src="./assets/logo.svg" alt="Nocter logo" width="128">
+  <h1>Nocter</h1>
+  <p>
+    <img src="https://img.shields.io/badge/target-arm64--darwin-blue" alt="Target: arm64-darwin">
+  </p>
+</div>
 
 Nocter は、人間が読みやすく、AI も読み書きしやすい静的型付け高級言語を設計し、まず ARM64 macOS 向けのネイティブ実行ファイルへ直接コンパイルすることを目指すコンパイラプロジェクトです。
 
