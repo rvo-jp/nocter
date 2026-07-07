@@ -563,6 +563,48 @@ mod tests {
     }
 
     #[test]
+    fn generates_i32_local_addition_binding_return() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::SetI32 {
+                    destination: I32Location::Local(0),
+                    value: i32_const(40),
+                },
+                Instruction::AddI32 {
+                    destination: I32Location::Local(1),
+                    left: i32_local(0),
+                    right: i32_const(2),
+                },
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: i32_local(1),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert_eq!(
+            code.text,
+            vec![
+                0x04, 0x00, 0x00, 0x94, // bl main
+                0x30, 0x00, 0x80, 0x52, // movz w16, #1
+                0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
+                0x01, 0x10, 0x00, 0xd4, // svc #0x80
+                0x09, 0x05, 0x80, 0x52, // movz w9, #40
+                0xf0, 0x03, 0x09, 0x2a, // mov w16, w9
+                0x4a, 0x00, 0x80, 0x52, // movz w10, #2
+                0x0a, 0x02, 0x0a, 0x0b, // add w10, w16, w10
+                0xe0, 0x03, 0x0a, 0x2a, // mov w0, w10
+                0xc0, 0x03, 0x5f, 0xd6, // ret
+            ]
+        );
+    }
+
+    #[test]
     fn generates_static_stderr_write_with_data_reference() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),

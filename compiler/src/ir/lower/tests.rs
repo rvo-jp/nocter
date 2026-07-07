@@ -84,6 +84,42 @@ fn lowers_entry_i32_annotated_let_binding_then_return() {
 }
 
 #[test]
+fn lowers_entry_i32_local_addition_binding_then_return() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let base = 40
+    let result = base + 2
+    return result
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::SetI32 {
+                    destination: I32Location::Local(0),
+                    value: i32_const(40),
+                },
+                Instruction::AddI32 {
+                    destination: I32Location::Local(1),
+                    left: i32_local(0),
+                    right: i32_const(2),
+                },
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: i32_local(1),
+                },
+                Instruction::Return,
+            ],
+        }])
+    );
+}
+
+#[test]
 fn lowers_configured_entry_name() {
     let ir = lower_text_with_entry(
         r#"func start(): i32 {
@@ -320,6 +356,53 @@ func answer(): i32 {
                     Instruction::SetI32 {
                         destination: I32Location::Return,
                         value: i32_local(0),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ])
+    );
+}
+
+#[test]
+fn lowers_same_file_function_with_i32_local_addition() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    return answer()
+}
+
+func answer(): i32 {
+    let base = 40
+    let result = base + 2
+    return result
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                return_type: Type::I32,
+                instructions: vec![tail_call("answer", vec![])],
+            },
+            Function {
+                name: "answer".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(40),
+                    },
+                    Instruction::AddI32 {
+                        destination: I32Location::Local(1),
+                        left: i32_local(0),
+                        right: i32_const(2),
+                    },
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(1),
                     },
                     Instruction::Return,
                 ],
