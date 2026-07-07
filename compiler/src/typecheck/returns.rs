@@ -475,7 +475,7 @@ fn check_expression_for_nested_returns(
         Expr::Propagate(expression) => {
             check_propagation(
                 sources,
-                expression.span,
+                expression.operator_span,
                 &expression.expression,
                 context,
                 resolved,
@@ -494,7 +494,7 @@ fn check_expression_for_nested_returns(
         Expr::Catch(expression) => {
             check_catch_operand(
                 sources,
-                expression.span,
+                expression.catch_span,
                 &expression.expression,
                 resolved,
                 environment,

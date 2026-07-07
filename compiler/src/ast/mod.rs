@@ -548,18 +548,21 @@ pub struct StructLiteralField {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PropagationExpr {
     pub span: ByteSpan,
+    pub operator_span: ByteSpan,
     pub expression: Box<Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ForceExpr {
     pub span: ByteSpan,
+    pub operator_span: ByteSpan,
     pub expression: Box<Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatchExpr {
     pub span: ByteSpan,
+    pub catch_span: ByteSpan,
     pub expression: Box<Expr>,
     pub error_name: String,
     pub error_span: ByteSpan,

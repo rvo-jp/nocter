@@ -1416,6 +1416,7 @@ impl Parser<'_> {
             if let Some(question) = self.match_punctuation("?") {
                 expression = Expr::Propagate(PropagationExpr {
                     span: self.span(expression.span().start, question.span.end),
+                    operator_span: question.span,
                     expression: Box::new(expression),
                 });
                 continue;
@@ -1424,17 +1425,19 @@ impl Parser<'_> {
             if let Some(bang) = self.match_punctuation("!") {
                 expression = Expr::Force(ForceExpr {
                     span: self.span(expression.span().start, bang.span.end),
+                    operator_span: bang.span,
                     expression: Box::new(expression),
                 });
                 continue;
             }
 
-            if self.match_keyword(Keyword::Catch).is_some() {
+            if let Some(catch) = self.match_keyword(Keyword::Catch) {
                 let error = self.expect_identifier("expected catch binding name")?;
                 let catch_block = self.parse_block()?;
                 let end = catch_block.span.end;
                 expression = Expr::Catch(CatchExpr {
                     span: self.span(expression.span().start, end),
+                    catch_span: catch.span,
                     expression: Box::new(expression),
                     error_name: error.value,
                     error_span: error.span,
@@ -2272,7 +2275,12 @@ program(): i32 {
         let Stmt::Return(statement) = &program.body.statements[0] else {
             panic!("expected return statement");
         };
-        assert!(matches!(statement.expression, Some(Expr::Force(_))));
+        let Some(Expr::Force(expression)) = &statement.expression else {
+            panic!("expected force unwrap expression");
+        };
+        assert_eq!(expression.operator_span.len(), 1);
+        assert!(expression.span.start < expression.operator_span.start);
+        assert_eq!(expression.span.end, expression.operator_span.end);
     }
 
     #[test]

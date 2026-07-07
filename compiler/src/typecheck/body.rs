@@ -478,7 +478,7 @@ fn check_expression_tree(
             );
             check_force_unwrap_operand(
                 sources,
-                expression.span,
+                expression.operator_span,
                 &expression.expression,
                 resolved,
                 environment,

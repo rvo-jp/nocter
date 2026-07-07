@@ -220,6 +220,8 @@ func answer(): i32 {
 
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].code, "E0336");
+    let span = diagnostics[0].primary_span.as_ref().unwrap();
+    assert_eq!(span.end_byte - span.start_byte, 1);
 }
 
 #[test]
@@ -237,6 +239,8 @@ func answer(): i32! {
 
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].code, "E0331");
+    let span = diagnostics[0].primary_span.as_ref().unwrap();
+    assert_eq!(span.end_byte - span.start_byte, 1);
 }
 
 #[test]
@@ -256,4 +260,6 @@ func answer(): i32 {
 
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].code, "E0330");
+    let span = diagnostics[0].primary_span.as_ref().unwrap();
+    assert_eq!(span.end_byte - span.start_byte, "catch".len());
 }

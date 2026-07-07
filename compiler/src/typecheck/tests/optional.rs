@@ -88,6 +88,8 @@ func maybe_answer(): i32? {
 
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].code, "E0335");
+    let span = diagnostics[0].primary_span.as_ref().unwrap();
+    assert_eq!(span.end_byte - span.start_byte, 1);
 }
 
 #[test]
@@ -109,6 +111,8 @@ func maybe_answer(): i32? {
 
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].code, "E0335");
+    let span = diagnostics[0].primary_span.as_ref().unwrap();
+    assert_eq!(span.end_byte - span.start_byte, 1);
 }
 
 #[test]
@@ -145,6 +149,8 @@ func maybe_answer(): i32? {
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].code, "E0330");
     assert!(diagnostics[0].message.contains("catch"));
+    let span = diagnostics[0].primary_span.as_ref().unwrap();
+    assert_eq!(span.end_byte - span.start_byte, "catch".len());
 }
 
 #[test]
