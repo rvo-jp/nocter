@@ -1,4 +1,4 @@
-use super::support::parse_text;
+use super::support::{find_json_node, parse_text, parse_text_with_sources};
 use crate::ast::{ImplMember, Item, TypeExpr, Visibility};
 
 #[test]
@@ -264,6 +264,62 @@ func main(): i32 {
         TypeExpr::Borrow(borrow) if borrow.is_readwrite
     ));
     assert!(matches!(&function.return_type, TypeExpr::Fallible(_)));
+}
+
+#[test]
+fn ast_json_includes_attached_documentation() {
+    let (sources, output) = parse_text_with_sources(
+        r#"//! File docs.
+
+/// Stores a path.
+pub struct File {
+    /// Raw path view.
+    pub path: str
+}
+
+/// Runs the program.
+func main(): i32 {
+    /// Exit code.
+    let code = 0
+    return code
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap().to_json(&sources);
+
+    assert_eq!(ast.documentation.as_deref(), Some("File docs."));
+
+    let struct_ = find_json_node(&ast, "struct_decl").expect("expected struct node");
+    assert_eq!(struct_.documentation.as_deref(), Some("Stores a path."));
+
+    let field = find_json_node(&ast, "struct_field").expect("expected struct field node");
+    assert_eq!(field.documentation.as_deref(), Some("Raw path view."));
+
+    let function = find_json_node(&ast, "function_decl").expect("expected function node");
+    assert_eq!(function.documentation.as_deref(), Some("Runs the program."));
+
+    let binding = find_json_node(&ast, "let_statement").expect("expected let statement node");
+    assert_eq!(binding.documentation.as_deref(), Some("Exit code."));
+}
+
+#[test]
+fn ast_json_does_not_attach_documentation_across_empty_lines() {
+    let (sources, output) = parse_text_with_sources(
+        r#"/// Detached.
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap().to_json(&sources);
+    let function = find_json_node(&ast, "function_decl").expect("expected function node");
+
+    assert_eq!(function.documentation, None);
 }
 
 #[test]

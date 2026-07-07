@@ -1,5 +1,6 @@
 //! Source-level abstract syntax tree definitions.
 
+mod documentation;
 mod json;
 
 pub use json::{AstEnvelope, JsonAstNode};

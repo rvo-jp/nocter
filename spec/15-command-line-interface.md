@@ -344,6 +344,7 @@ Rules:
 - `ast` uses the same lexer and parser as `build`, `run`, and `check`.
 - The JSON output is intended for compiler debugging, editor integration, tests, and AI-assisted code repair.
 - The JSON output must include source spans for syntax nodes when practical.
+- The JSON output may include attached doc comment text for documentable nodes.
 - AST JSON is a compiler tooling format, not a stable serialization of the language specification.
 
 The AST command direction is part of [Tooling and Editor Integration](14-tooling-editor-integration.md#ai-assisted-tooling-stage).
@@ -387,6 +388,7 @@ AST JSON rules:
 - AST node objects include `kind` and should include `span` when practical.
 - Expression nodes with source-level operators or operator-like keywords may include `operator_span`, such as unary and binary operators, postfix `?`, postfix `!`, `??`, `as`, and `catch`.
 - AST node objects may include `value` for compact leaf information such as identifiers, literals, import paths, and type names.
+- AST node objects may include `documentation` when adjacent doc comments attach to that node. `source_file` uses `documentation` for `//!` and `/*! ... */`.
 - AST node `span` and `operator_span` fields use the public JSON span shape from [Diagnostics](12-diagnostics.md#source-and-span-model).
 - `diagnostics` uses the diagnostic object shape from [Diagnostics](12-diagnostics.md#machine-readable-json-diagnostics).
 - AST JSON is allowed to change while the AST is internal and unstable; AI tools should treat it as a tooling aid, not a source compatibility promise.

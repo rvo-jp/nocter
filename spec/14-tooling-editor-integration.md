@@ -88,6 +88,7 @@ Rules:
 - `//` and `/* ... */` are normal comments and must not appear in hover text.
 - Empty lines break attachment between a doc comment and the following construct.
 - Multiple adjacent doc comments are concatenated in source order.
+- `nocter ast app.nct --format json` may expose attached doc text through AST node `documentation` fields for tooling and tests.
 - The VS Code extension must request hover data from `nocter lsp` once LSP support exists.
 - Before LSP exists, the TextMate extension may highlight doc comments but must not infer hover text independently.
 
