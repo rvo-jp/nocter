@@ -268,6 +268,35 @@ mod tests {
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     #[test]
+    fn build_file_output_runs_fallible_program_failure() {
+        let root = make_temp_project("build-run-fallible-failure");
+        let nocter_home = make_nocter_home(&root);
+        let source = root.join("fallible_fail.nct");
+        fs::write(
+            &source,
+            r#"primitive make_error(code: str, message: str): error
+
+program(): i32! {
+    fail make_error("app.failed", "failed")
+}
+"#,
+        )
+        .unwrap();
+
+        let executable = default_executable_path(&source);
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
+
+        assert_diagnostics_empty(&output.diagnostics);
+        assert_eq!(output.output_path, executable);
+        let output = std::process::Command::new(&executable).output().unwrap();
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        assert_eq!(output.stderr, b"failed\n");
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
     fn build_file_output_runs_void_program_with_zero_exit_code() {
         let root = make_temp_project("build-run-void");
         let nocter_home = make_nocter_home(&root);

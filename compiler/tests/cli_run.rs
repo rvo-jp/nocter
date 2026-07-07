@@ -53,6 +53,27 @@ fn run_command_returns_fallible_program_success_exit_code() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_reports_fallible_program_failure() {
+    let project = TempProject::new("cli-run-fallible-failure");
+    let source = project.write_source(
+        "fail.nct",
+        r#"primitive make_error(code: str, message: str): error
+
+program(): i32! {
+    fail make_error("app.failed", "failed")
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(output.stderr, b"failed\n");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn bare_source_command_runs_source_file() {
     let project = TempProject::new("cli-run-bare-source");
     let source = project.write_source(
