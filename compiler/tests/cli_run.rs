@@ -1,0 +1,150 @@
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+const NOCTER: &str = env!("CARGO_BIN_EXE_nocter");
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_program_exit_code() {
+    let project = TempProject::new("cli-run-command");
+    let source = project.write_source(
+        "exit17.nct",
+        r#"program(): i32 {
+    return 17
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(17),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn bare_source_command_runs_source_file() {
+    let project = TempProject::new("cli-run-bare-source");
+    let source = project.write_source(
+        "exit23.nct",
+        r#"program(): i32 {
+    return 23
+}
+"#,
+    );
+
+    let output = nocter(&project, [source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(23),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[test]
+fn run_command_reports_compile_diagnostics_without_running() {
+    let project = TempProject::new("cli-run-diagnostics");
+    let source = project.write_source(
+        "bad.nct",
+        r#"program(): i32 {
+    return "bad"
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        output.stdout.is_empty(),
+        "expected empty stdout, got:\n{}",
+        text(&output.stdout)
+    );
+
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0312]"),
+        "expected return type diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("`return` value has type `str`, but `program` returns `i32`"),
+        "expected diagnostic message, got:\n{stderr}"
+    );
+}
+
+fn nocter<const N: usize>(project: &TempProject, args: [&str; N]) -> Output {
+    let mut command = Command::new(NOCTER);
+    command
+        .args(args)
+        .current_dir(project.root())
+        .env("NOCTER_HOME", project.nocter_home());
+
+    command.output().unwrap()
+}
+
+fn text(bytes: &[u8]) -> String {
+    String::from_utf8_lossy(bytes).into_owned()
+}
+
+struct TempProject {
+    root: PathBuf,
+}
+
+impl TempProject {
+    fn new(name: &str) -> Self {
+        let root = std::env::temp_dir().join(unique_name(name));
+        fs::create_dir_all(&root).unwrap();
+
+        let project = Self { root };
+        project.write_nocter_home();
+        project
+    }
+
+    fn root(&self) -> &Path {
+        &self.root
+    }
+
+    fn nocter_home(&self) -> PathBuf {
+        self.root.join(".nocter")
+    }
+
+    fn write_source(&self, name: &str, text: &str) -> PathBuf {
+        let path = self.root.join(name);
+        fs::write(&path, text).unwrap();
+        path
+    }
+
+    fn write_nocter_home(&self) {
+        let home = self.nocter_home();
+        fs::create_dir_all(home.join("std")).unwrap();
+        fs::create_dir_all(home.join("targets/arm64-darwin/std")).unwrap();
+        fs::write(home.join("std/prelude.nct"), "pub type Int = i32\n").unwrap();
+    }
+}
+
+impl Drop for TempProject {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.root);
+    }
+}
+
+fn unique_name(name: &str) -> String {
+    format!(
+        "nocter-{name}-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    )
+}
