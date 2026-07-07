@@ -134,6 +134,76 @@ fn invalid_example_corpus_fails_check() {
 }
 
 #[test]
+fn valid_example_corpus_passes_check_json() {
+    let project = TempProject::new("example-corpus-valid-json");
+
+    for example in VALID_EXAMPLES {
+        let source = repo_root().join(example.path);
+        let output = check_json(&project, &source, example.entry);
+
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "valid example `{}` failed JSON check\nstdout:\n{}\nstderr:\n{}",
+            example.path,
+            text(&output.stdout),
+            text(&output.stderr)
+        );
+        assert!(
+            output.stderr.is_empty(),
+            "valid example `{}` wrote JSON check stderr:\n{}",
+            example.path,
+            text(&output.stderr)
+        );
+
+        let json = parse_json_stdout(example.path, &output);
+        assert_check_json_envelope(&json, example.path, true);
+        assert_eq!(
+            json["diagnostics"].as_array().map(Vec::len),
+            Some(0),
+            "valid example `{}` reported diagnostics:\n{}",
+            example.path,
+            json
+        );
+    }
+}
+
+#[test]
+fn invalid_example_corpus_reports_check_json_diagnostics() {
+    let project = TempProject::new("example-corpus-invalid-json");
+
+    for example in INVALID_EXAMPLES {
+        let source = repo_root().join(example.path);
+        let output = check_json(&project, &source, None);
+
+        assert_ne!(
+            output.status.code(),
+            Some(0),
+            "invalid example `{}` unexpectedly passed JSON check\nstdout:\n{}\nstderr:\n{}",
+            example.path,
+            text(&output.stdout),
+            text(&output.stderr)
+        );
+        assert!(
+            output.stderr.is_empty(),
+            "invalid example `{}` wrote JSON check stderr:\n{}",
+            example.path,
+            text(&output.stderr)
+        );
+
+        let json = parse_json_stdout(example.path, &output);
+        assert_check_json_envelope(&json, example.path, false);
+        assert!(
+            diagnostics_contain_code(&json, example.error_code),
+            "invalid example `{}` did not report expected JSON diagnostic `{}`\nstdout:\n{}",
+            example.path,
+            example.error_code,
+            text(&output.stdout)
+        );
+    }
+}
+
+#[test]
 fn doc_comment_example_emits_ast_documentation() {
     let project = TempProject::new("example-corpus-docs");
     let source = repo_root().join("spec/examples/valid/doc-comments.nct");
@@ -183,6 +253,21 @@ fn check(project: &TempProject, source: &Path, entry: Option<&str>) -> Output {
         .unwrap()
 }
 
+fn check_json(project: &TempProject, source: &Path, entry: Option<&str>) -> Output {
+    let mut command = Command::new(NOCTER);
+    command.args(["check", source.to_str().unwrap(), "--format", "json"]);
+
+    if let Some(entry) = entry {
+        command.args(["--entry", entry]);
+    }
+
+    command
+        .current_dir(project.root())
+        .env("NOCTER_HOME", project.nocter_home())
+        .output()
+        .unwrap()
+}
+
 fn ast_json(project: &TempProject, source: &Path) -> Output {
     Command::new(NOCTER)
         .args(["ast", source.to_str().unwrap(), "--format", "json"])
@@ -190,6 +275,53 @@ fn ast_json(project: &TempProject, source: &Path) -> Output {
         .env("NOCTER_HOME", project.nocter_home())
         .output()
         .unwrap()
+}
+
+fn parse_json_stdout(example: &str, output: &Output) -> Value {
+    serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
+        panic!(
+            "example `{}` did not emit valid JSON: {}\nstdout:\n{}\nstderr:\n{}",
+            example,
+            error,
+            text(&output.stdout),
+            text(&output.stderr)
+        )
+    })
+}
+
+fn assert_check_json_envelope(json: &Value, example: &str, ok: bool) {
+    assert_eq!(
+        json["schema"],
+        Value::String("nocter.diagnostics".to_string())
+    );
+    assert_eq!(json["version"], Value::from(1));
+    assert_eq!(json["ok"], Value::Bool(ok));
+    assert_eq!(json["command"], Value::String("check".to_string()));
+    assert_eq!(json["target"], Value::Null);
+
+    let root = json["root"]
+        .as_str()
+        .expect("check JSON envelope should include root");
+    assert!(
+        root.ends_with(example),
+        "check JSON root `{root}` should end with `{example}`"
+    );
+
+    let absolute_root = json["root_absolute_path"]
+        .as_str()
+        .expect("check JSON envelope should include root_absolute_path");
+    assert!(
+        absolute_root.ends_with(example),
+        "check JSON root_absolute_path `{absolute_root}` should end with `{example}`"
+    );
+}
+
+fn diagnostics_contain_code(json: &Value, expected_code: &str) -> bool {
+    json["diagnostics"].as_array().is_some_and(|diagnostics| {
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic["code"].as_str() == Some(expected_code))
+    })
 }
 
 fn contains_documentation(value: &Value, expected: &str) -> bool {
