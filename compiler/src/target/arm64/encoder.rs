@@ -16,8 +16,8 @@ impl Encoder {
         self.emit_word(MOVK_W_BASE | move_wide_fields(rd, imm16, shift));
     }
 
-    pub(crate) fn emit_ret(&mut self) {
-        self.emit_word(RET_X30);
+    pub(crate) fn emit_svc(&mut self, imm16: u16) {
+        self.emit_word(SVC_BASE | ((imm16 as u32) << 5));
     }
 
     pub(crate) fn finish(self) -> Vec<u8> {
@@ -32,12 +32,14 @@ impl Encoder {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum WReg {
     W0,
+    W16,
 }
 
 impl WReg {
     const fn bits(self) -> u32 {
         match self {
             Self::W0 => 0,
+            Self::W16 => 16,
         }
     }
 }
@@ -59,7 +61,7 @@ impl MoveWideShift {
 
 const MOVZ_W_BASE: u32 = 0x5280_0000;
 const MOVK_W_BASE: u32 = 0x7280_0000;
-const RET_X30: u32 = 0xd65f_03c0;
+const SVC_BASE: u32 = 0xd400_0001;
 
 const fn move_wide_fields(rd: WReg, imm16: u16, shift: MoveWideShift) -> u32 {
     (shift.hw() << 21) | ((imm16 as u32) << 5) | rd.bits()
@@ -88,11 +90,20 @@ mod tests {
     }
 
     #[test]
-    fn encodes_ret_x30() {
+    fn encodes_movz_w16_imm16() {
         let mut encoder = Encoder::new();
 
-        encoder.emit_ret();
+        encoder.emit_movz_w(WReg::W16, 1, MoveWideShift::Lsl0);
 
-        assert_eq!(encoder.finish(), vec![0xc0, 0x03, 0x5f, 0xd6]);
+        assert_eq!(encoder.finish(), vec![0x30, 0x00, 0x80, 0x52]);
+    }
+
+    #[test]
+    fn encodes_svc_imm16() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_svc(0x80);
+
+        assert_eq!(encoder.finish(), vec![0x01, 0x10, 0x00, 0xd4]);
     }
 }

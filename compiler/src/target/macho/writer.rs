@@ -1,3 +1,5 @@
+use super::codesign::{adhoc_signature_size, write_adhoc_signature};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ExecutableImage {
     pub(crate) bytes: Vec<u8>,
@@ -8,12 +10,22 @@ pub(crate) fn write_arm64_macos_executable(text: &[u8]) -> ExecutableImage {
     let mut writer = Writer::new();
 
     write_header(&mut writer, &layout);
+    write_pagezero_segment(&mut writer);
     write_text_segment(&mut writer, &layout, text.len());
+    write_linkedit_segment(&mut writer, &layout);
+    write_symtab(&mut writer);
+    write_dysymtab(&mut writer);
+    write_load_dylinker(&mut writer);
     write_build_version(&mut writer);
     write_entry_point(&mut writer, &layout);
+    write_code_signature_command(&mut writer, &layout);
     writer.pad_to(layout.text_file_offset);
     writer.write_bytes(text);
-    writer.pad_to(layout.file_size);
+    writer.pad_to(layout.code_signature_offset);
+    let signature = write_adhoc_signature(&writer.bytes, CODE_SIGNATURE_IDENTIFIER, text.len());
+    assert_eq!(signature.len(), layout.code_signature_size);
+    writer.write_bytes(&signature);
+    assert_eq!(writer.len(), layout.file_size);
 
     ExecutableImage {
         bytes: writer.finish(),
@@ -31,14 +43,28 @@ fn write_header(writer: &mut Writer, layout: &Layout) {
     writer.write_u32(0);
 }
 
+fn write_pagezero_segment(writer: &mut Writer) {
+    writer.write_u32(LC_SEGMENT_64);
+    writer.write_u32(SEGMENT_COMMAND_64_SIZE);
+    writer.write_fixed_name("__PAGEZERO");
+    writer.write_u64(0);
+    writer.write_u64(PAGEZERO_SIZE);
+    writer.write_u64(0);
+    writer.write_u64(0);
+    writer.write_u32(0);
+    writer.write_u32(0);
+    writer.write_u32(0);
+    writer.write_u32(0);
+}
+
 fn write_text_segment(writer: &mut Writer, layout: &Layout, text_len: usize) {
     writer.write_u32(LC_SEGMENT_64);
     writer.write_u32(SEGMENT_COMMAND_64_SIZE + SECTION_64_SIZE);
     writer.write_fixed_name("__TEXT");
     writer.write_u64(TEXT_BASE_ADDRESS);
-    writer.write_u64(layout.segment_size);
+    writer.write_u64(layout.text_segment_file_size as u64);
     writer.write_u64(0);
-    writer.write_u64(layout.segment_size);
+    writer.write_u64(layout.text_segment_file_size as u64);
     writer.write_u32(VM_PROT_READ | VM_PROT_EXECUTE);
     writer.write_u32(VM_PROT_READ | VM_PROT_EXECUTE);
     writer.write_u32(1);
@@ -58,6 +84,45 @@ fn write_text_segment(writer: &mut Writer, layout: &Layout, text_len: usize) {
     writer.write_u32(0);
 }
 
+fn write_linkedit_segment(writer: &mut Writer, layout: &Layout) {
+    writer.write_u32(LC_SEGMENT_64);
+    writer.write_u32(SEGMENT_COMMAND_64_SIZE);
+    writer.write_fixed_name("__LINKEDIT");
+    writer.write_u64(TEXT_BASE_ADDRESS + layout.text_segment_file_size as u64);
+    writer.write_u64(layout.linkedit_segment_size as u64);
+    writer.write_u64(layout.code_signature_offset as u64);
+    writer.write_u64(layout.code_signature_size as u64);
+    writer.write_u32(VM_PROT_READ);
+    writer.write_u32(VM_PROT_READ);
+    writer.write_u32(0);
+    writer.write_u32(0);
+}
+
+fn write_symtab(writer: &mut Writer) {
+    writer.write_u32(LC_SYMTAB);
+    writer.write_u32(SYMTAB_COMMAND_SIZE);
+    writer.write_u32(0);
+    writer.write_u32(0);
+    writer.write_u32(0);
+    writer.write_u32(0);
+}
+
+fn write_dysymtab(writer: &mut Writer) {
+    writer.write_u32(LC_DYSYMTAB);
+    writer.write_u32(DYSYMTAB_COMMAND_SIZE);
+    for _ in 0..DYSYMTAB_FIELD_COUNT {
+        writer.write_u32(0);
+    }
+}
+
+fn write_load_dylinker(writer: &mut Writer) {
+    writer.write_u32(LC_LOAD_DYLINKER);
+    writer.write_u32(LOAD_DYLINKER_COMMAND_SIZE);
+    writer.write_u32(DYLINKER_PATH_OFFSET);
+    writer.write_bytes(DYLINKER_PATH);
+    writer.pad_to(writer.len().next_multiple_of(8));
+}
+
 fn write_build_version(writer: &mut Writer) {
     writer.write_u32(LC_BUILD_VERSION);
     writer.write_u32(BUILD_VERSION_COMMAND_SIZE);
@@ -74,28 +139,52 @@ fn write_entry_point(writer: &mut Writer, layout: &Layout) {
     writer.write_u64(0);
 }
 
+fn write_code_signature_command(writer: &mut Writer, layout: &Layout) {
+    writer.write_u32(LC_CODE_SIGNATURE);
+    writer.write_u32(CODE_SIGNATURE_COMMAND_SIZE);
+    writer.write_u32(layout.code_signature_offset as u32);
+    writer.write_u32(layout.code_signature_size as u32);
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Layout {
     load_commands_size: u32,
     text_file_offset: usize,
+    text_segment_file_size: usize,
+    code_signature_offset: usize,
+    code_signature_size: usize,
+    linkedit_segment_size: usize,
     file_size: usize,
-    segment_size: u64,
 }
 
 impl Layout {
     fn new(text_len: usize) -> Self {
         let load_commands_size = SEGMENT_COMMAND_64_SIZE
+            + SEGMENT_COMMAND_64_SIZE
             + SECTION_64_SIZE
+            + SEGMENT_COMMAND_64_SIZE
+            + SYMTAB_COMMAND_SIZE
+            + DYSYMTAB_COMMAND_SIZE
+            + LOAD_DYLINKER_COMMAND_SIZE
             + BUILD_VERSION_COMMAND_SIZE
-            + ENTRY_POINT_COMMAND_SIZE;
+            + ENTRY_POINT_COMMAND_SIZE
+            + CODE_SIGNATURE_COMMAND_SIZE;
         let text_file_offset = align_usize(MACH_HEADER_64_SIZE + load_commands_size as usize, 16);
-        let file_size = align_usize(text_file_offset + text_len, PAGE_SIZE);
+        let text_segment_file_size = align_usize(text_file_offset + text_len, PAGE_SIZE);
+        let code_signature_offset = text_segment_file_size;
+        let code_signature_size =
+            adhoc_signature_size(code_signature_offset, CODE_SIGNATURE_IDENTIFIER);
+        let linkedit_segment_size = align_usize(code_signature_size, PAGE_SIZE);
+        let file_size = code_signature_offset + code_signature_size;
 
         Self {
             load_commands_size,
             text_file_offset,
+            text_segment_file_size,
+            code_signature_offset,
+            code_signature_size,
+            linkedit_segment_size,
             file_size,
-            segment_size: file_size as u64,
         }
     }
 }
@@ -122,6 +211,10 @@ impl Writer {
         self.bytes.extend_from_slice(bytes);
     }
 
+    fn len(&self) -> usize {
+        self.bytes.len()
+    }
+
     fn write_fixed_name(&mut self, name: &str) {
         let bytes = name.as_bytes();
         assert!(bytes.len() <= FIXED_NAME_SIZE);
@@ -146,15 +239,22 @@ fn align_usize(value: usize, alignment: usize) -> usize {
 }
 
 const PAGE_SIZE: usize = 0x4000;
+const PAGEZERO_SIZE: u64 = 0x1_0000_0000;
 const TEXT_BASE_ADDRESS: u64 = 0x1_0000_0000;
 const FIXED_NAME_SIZE: usize = 16;
+const CODE_SIGNATURE_IDENTIFIER: &str = "nocter";
 
 const MACH_HEADER_64_SIZE: usize = 32;
 const SEGMENT_COMMAND_64_SIZE: u32 = 72;
 const SECTION_64_SIZE: u32 = 80;
+const SYMTAB_COMMAND_SIZE: u32 = 24;
+const DYSYMTAB_COMMAND_SIZE: u32 = 80;
+const LOAD_DYLINKER_COMMAND_SIZE: u32 = 32;
 const BUILD_VERSION_COMMAND_SIZE: u32 = 24;
 const ENTRY_POINT_COMMAND_SIZE: u32 = 24;
-const LOAD_COMMAND_COUNT: u32 = 3;
+const CODE_SIGNATURE_COMMAND_SIZE: u32 = 16;
+const LOAD_COMMAND_COUNT: u32 = 9;
+const DYSYMTAB_FIELD_COUNT: usize = 18;
 
 const MH_MAGIC_64: u32 = 0xfeed_facf;
 const CPU_TYPE_ARM64: u32 = 0x0100_000c;
@@ -166,9 +266,16 @@ const MH_TWOLEVEL: u32 = 0x80;
 const MH_PIE: u32 = 0x20_0000;
 
 const LC_REQ_DYLD: u32 = 0x8000_0000;
+const LC_SYMTAB: u32 = 0x2;
+const LC_DYSYMTAB: u32 = 0xb;
 const LC_SEGMENT_64: u32 = 0x19;
+const LC_CODE_SIGNATURE: u32 = 0x1d;
+const LC_LOAD_DYLINKER: u32 = 0xe;
 const LC_MAIN: u32 = 0x28 | LC_REQ_DYLD;
 const LC_BUILD_VERSION: u32 = 0x32;
+
+const DYLINKER_PATH_OFFSET: u32 = 12;
+const DYLINKER_PATH: &[u8] = b"/usr/lib/dyld\0";
 
 const VM_PROT_READ: u32 = 0x1;
 const VM_PROT_EXECUTE: u32 = 0x4;
@@ -193,7 +300,7 @@ mod tests {
         assert_eq!(read_u32(&image.bytes, 8), CPU_SUBTYPE_ARM64_ALL);
         assert_eq!(read_u32(&image.bytes, 12), MH_EXECUTE);
         assert_eq!(read_u32(&image.bytes, 16), LOAD_COMMAND_COUNT);
-        assert_eq!(read_u32(&image.bytes, 20), 200);
+        assert_eq!(read_u32(&image.bytes, 20), 496);
         assert_eq!(
             read_u32(&image.bytes, 24),
             MH_NOUNDEFS | MH_DYLDLINK | MH_TWOLEVEL | MH_PIE
@@ -202,11 +309,32 @@ mod tests {
     }
 
     #[test]
-    fn writes_text_segment_and_section() {
+    fn writes_pagezero_segment() {
         let image = write_arm64_macos_executable(&[0xc0, 0x03, 0x5f, 0xd6]);
         let segment = MACH_HEADER_64_SIZE;
+
+        assert_eq!(read_u32(&image.bytes, segment), LC_SEGMENT_64);
+        assert_eq!(read_u32(&image.bytes, segment + 4), SEGMENT_COMMAND_64_SIZE);
+        assert_eq!(
+            fixed_name(&image.bytes[segment + 8..segment + 24]),
+            "__PAGEZERO"
+        );
+        assert_eq!(read_u64(&image.bytes, segment + 24), 0);
+        assert_eq!(read_u64(&image.bytes, segment + 32), PAGEZERO_SIZE);
+        assert_eq!(read_u64(&image.bytes, segment + 40), 0);
+        assert_eq!(read_u64(&image.bytes, segment + 48), 0);
+        assert_eq!(read_u32(&image.bytes, segment + 56), 0);
+        assert_eq!(read_u32(&image.bytes, segment + 60), 0);
+        assert_eq!(read_u32(&image.bytes, segment + 64), 0);
+        assert_eq!(read_u32(&image.bytes, segment + 68), 0);
+    }
+
+    #[test]
+    fn writes_text_segment_and_section() {
+        let image = write_arm64_macos_executable(&[0xc0, 0x03, 0x5f, 0xd6]);
+        let segment = MACH_HEADER_64_SIZE + SEGMENT_COMMAND_64_SIZE as usize;
         let section = segment + SEGMENT_COMMAND_64_SIZE as usize;
-        let text_offset = align_usize(MACH_HEADER_64_SIZE + 200, 16);
+        let text_offset = align_usize(MACH_HEADER_64_SIZE + 496, 16);
 
         assert_eq!(read_u32(&image.bytes, segment), LC_SEGMENT_64);
         assert_eq!(
@@ -242,12 +370,101 @@ mod tests {
     }
 
     #[test]
+    fn writes_linkedit_segment() {
+        let text = [0xc0, 0x03, 0x5f, 0xd6];
+        let image = write_arm64_macos_executable(&text);
+        let layout = Layout::new(text.len());
+        let segment = MACH_HEADER_64_SIZE
+            + SEGMENT_COMMAND_64_SIZE as usize
+            + (SEGMENT_COMMAND_64_SIZE + SECTION_64_SIZE) as usize;
+
+        assert_eq!(read_u32(&image.bytes, segment), LC_SEGMENT_64);
+        assert_eq!(read_u32(&image.bytes, segment + 4), SEGMENT_COMMAND_64_SIZE);
+        assert_eq!(
+            fixed_name(&image.bytes[segment + 8..segment + 24]),
+            "__LINKEDIT"
+        );
+        assert_eq!(
+            read_u64(&image.bytes, segment + 24),
+            TEXT_BASE_ADDRESS + layout.text_segment_file_size as u64
+        );
+        assert_eq!(
+            read_u64(&image.bytes, segment + 32),
+            layout.linkedit_segment_size as u64
+        );
+        assert_eq!(
+            read_u64(&image.bytes, segment + 40),
+            layout.code_signature_offset as u64
+        );
+        assert_eq!(
+            read_u64(&image.bytes, segment + 48),
+            layout.code_signature_size as u64
+        );
+        assert_eq!(read_u32(&image.bytes, segment + 56), VM_PROT_READ);
+        assert_eq!(read_u32(&image.bytes, segment + 60), VM_PROT_READ);
+        assert_eq!(read_u32(&image.bytes, segment + 64), 0);
+    }
+
+    #[test]
+    fn writes_empty_symbol_tables() {
+        let image = write_arm64_macos_executable(&[0xc0, 0x03, 0x5f, 0xd6]);
+        let symtab = MACH_HEADER_64_SIZE
+            + SEGMENT_COMMAND_64_SIZE as usize
+            + (SEGMENT_COMMAND_64_SIZE + SECTION_64_SIZE) as usize
+            + SEGMENT_COMMAND_64_SIZE as usize;
+        let dysymtab = symtab + SYMTAB_COMMAND_SIZE as usize;
+
+        assert_eq!(read_u32(&image.bytes, symtab), LC_SYMTAB);
+        assert_eq!(read_u32(&image.bytes, symtab + 4), SYMTAB_COMMAND_SIZE);
+        assert_eq!(read_u32(&image.bytes, symtab + 8), 0);
+        assert_eq!(read_u32(&image.bytes, symtab + 12), 0);
+        assert_eq!(read_u32(&image.bytes, symtab + 16), 0);
+        assert_eq!(read_u32(&image.bytes, symtab + 20), 0);
+
+        assert_eq!(read_u32(&image.bytes, dysymtab), LC_DYSYMTAB);
+        assert_eq!(read_u32(&image.bytes, dysymtab + 4), DYSYMTAB_COMMAND_SIZE);
+        assert!(
+            image.bytes[dysymtab + 8..dysymtab + DYSYMTAB_COMMAND_SIZE as usize]
+                .iter()
+                .all(|byte| *byte == 0)
+        );
+    }
+
+    #[test]
+    fn writes_load_dylinker() {
+        let image = write_arm64_macos_executable(&[0xc0, 0x03, 0x5f, 0xd6]);
+        let dylinker = MACH_HEADER_64_SIZE
+            + SEGMENT_COMMAND_64_SIZE as usize
+            + (SEGMENT_COMMAND_64_SIZE + SECTION_64_SIZE) as usize
+            + SEGMENT_COMMAND_64_SIZE as usize
+            + SYMTAB_COMMAND_SIZE as usize
+            + DYSYMTAB_COMMAND_SIZE as usize;
+
+        assert_eq!(read_u32(&image.bytes, dylinker), LC_LOAD_DYLINKER);
+        assert_eq!(
+            read_u32(&image.bytes, dylinker + 4),
+            LOAD_DYLINKER_COMMAND_SIZE
+        );
+        assert_eq!(read_u32(&image.bytes, dylinker + 8), DYLINKER_PATH_OFFSET);
+        assert_eq!(
+            &image.bytes[dylinker + DYLINKER_PATH_OFFSET as usize
+                ..dylinker + DYLINKER_PATH_OFFSET as usize + DYLINKER_PATH.len()],
+            DYLINKER_PATH
+        );
+    }
+
+    #[test]
     fn writes_build_version_and_entry_point() {
         let image = write_arm64_macos_executable(&[0xc0, 0x03, 0x5f, 0xd6]);
-        let build_version =
-            MACH_HEADER_64_SIZE + SEGMENT_COMMAND_64_SIZE as usize + SECTION_64_SIZE as usize;
+        let build_version = MACH_HEADER_64_SIZE
+            + SEGMENT_COMMAND_64_SIZE as usize
+            + (SEGMENT_COMMAND_64_SIZE + SECTION_64_SIZE) as usize
+            + SEGMENT_COMMAND_64_SIZE as usize
+            + SYMTAB_COMMAND_SIZE as usize
+            + DYSYMTAB_COMMAND_SIZE as usize
+            + LOAD_DYLINKER_COMMAND_SIZE as usize;
         let entry_point = build_version + BUILD_VERSION_COMMAND_SIZE as usize;
-        let text_offset = align_usize(MACH_HEADER_64_SIZE + 200, 16);
+        let text_offset = align_usize(MACH_HEADER_64_SIZE + 496, 16);
 
         assert_eq!(read_u32(&image.bytes, build_version), LC_BUILD_VERSION);
         assert_eq!(
@@ -269,17 +486,54 @@ mod tests {
     }
 
     #[test]
-    fn places_text_at_entry_offset_and_pads_to_page() {
+    fn writes_code_signature_command() {
+        let text = [0xc0, 0x03, 0x5f, 0xd6];
+        let image = write_arm64_macos_executable(&text);
+        let layout = Layout::new(text.len());
+        let code_signature = MACH_HEADER_64_SIZE
+            + SEGMENT_COMMAND_64_SIZE as usize
+            + (SEGMENT_COMMAND_64_SIZE + SECTION_64_SIZE) as usize
+            + SEGMENT_COMMAND_64_SIZE as usize
+            + SYMTAB_COMMAND_SIZE as usize
+            + DYSYMTAB_COMMAND_SIZE as usize
+            + LOAD_DYLINKER_COMMAND_SIZE as usize
+            + BUILD_VERSION_COMMAND_SIZE as usize
+            + ENTRY_POINT_COMMAND_SIZE as usize;
+
+        assert_eq!(read_u32(&image.bytes, code_signature), LC_CODE_SIGNATURE);
+        assert_eq!(
+            read_u32(&image.bytes, code_signature + 4),
+            CODE_SIGNATURE_COMMAND_SIZE
+        );
+        assert_eq!(
+            read_u32(&image.bytes, code_signature + 8),
+            layout.code_signature_offset as u32
+        );
+        assert_eq!(
+            read_u32(&image.bytes, code_signature + 12),
+            layout.code_signature_size as u32
+        );
+    }
+
+    #[test]
+    fn places_text_and_appends_code_signature() {
         let text = [0x00, 0x00, 0x80, 0x52, 0xc0, 0x03, 0x5f, 0xd6];
         let image = write_arm64_macos_executable(&text);
-        let text_offset = align_usize(MACH_HEADER_64_SIZE + 200, 16);
+        let layout = Layout::new(text.len());
 
-        assert_eq!(&image.bytes[text_offset..text_offset + text.len()], text);
-        assert_eq!(image.bytes.len(), PAGE_SIZE);
+        assert_eq!(
+            &image.bytes[layout.text_file_offset..layout.text_file_offset + text.len()],
+            text
+        );
         assert!(
-            image.bytes[text_offset + text.len()..]
+            image.bytes[layout.text_file_offset + text.len()..layout.code_signature_offset]
                 .iter()
                 .all(|byte| *byte == 0)
+        );
+        assert_eq!(image.bytes.len(), layout.file_size);
+        assert_eq!(
+            read_be_u32(&image.bytes, layout.code_signature_offset),
+            0xfade_0cc0
         );
     }
 
@@ -293,6 +547,12 @@ mod tests {
         let mut value = [0; 8];
         value.copy_from_slice(&bytes[offset..offset + 8]);
         u64::from_le_bytes(value)
+    }
+
+    fn read_be_u32(bytes: &[u8], offset: usize) -> u32 {
+        let mut value = [0; 4];
+        value.copy_from_slice(&bytes[offset..offset + 4]);
+        u32::from_be_bytes(value)
     }
 
     fn fixed_name(bytes: &[u8]) -> &str {

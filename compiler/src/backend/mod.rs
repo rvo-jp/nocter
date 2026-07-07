@@ -1,12 +1,15 @@
 //! Native backend entry points.
 
 mod codegen;
+mod output;
 
 use crate::analysis::CompileUnitAnalysis;
 use crate::diagnostics::Diagnostic;
 use crate::ir::lower_program;
+use crate::target::DEFAULT_TARGET;
 use crate::target::macho::{ExecutableImage, write_arm64_macos_executable};
-use codegen::generate_arm64;
+use codegen::generate_arm64_darwin_entry;
+use output::write_executable_image;
 use std::path::Path;
 
 pub(crate) struct BuildRequest<'a> {
@@ -22,14 +25,15 @@ pub(crate) fn build_executable(request: BuildRequest<'_>) -> Result<(), Vec<Diag
         target,
     } = request;
 
-    let ir = lower_program(analysis)?;
-    let machine_code = generate_arm64(&ir)?;
-    let executable_image: ExecutableImage = write_arm64_macos_executable(&machine_code.text);
-    let _planned_output_path = output_path;
-    let _planned_file_size = executable_image.bytes.len();
+    if target != DEFAULT_TARGET {
+        return Err(vec![Diagnostic::error(
+            "E9000",
+            format!("target `{target}` is not supported by the native backend yet"),
+        )]);
+    }
 
-    Err(vec![Diagnostic::error(
-        "E9000",
-        format!("direct executable generation for `{target}` is not implemented yet"),
-    )])
+    let ir = lower_program(analysis)?;
+    let machine_code = generate_arm64_darwin_entry(&ir)?;
+    let executable_image: ExecutableImage = write_arm64_macos_executable(&machine_code.text);
+    write_executable_image(output_path, &executable_image)
 }
