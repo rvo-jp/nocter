@@ -4,6 +4,7 @@ mod command;
 mod doctor;
 mod json;
 mod pipeline;
+mod run;
 
 use crate::target::{DEFAULT_TARGET, HOST};
 use build::run_build;
@@ -11,6 +12,7 @@ use check::run_check;
 use command::{Command, parse_command};
 use doctor::run_doctor;
 use json::{run_ast_json, run_check_json, run_tokens_json};
+use run::run_file;
 use std::env;
 use std::ffi::OsString;
 use std::path::Path;
@@ -44,7 +46,7 @@ where
         }
         Ok(Command::Doctor) => run_doctor(),
         Ok(Command::Build(file)) => run_build(&file),
-        Ok(Command::Run(file)) => not_implemented("run", &file),
+        Ok(Command::Run(file)) => run_file(&file),
         Ok(Command::Check(file)) => run_check(&file),
         Ok(Command::CheckJson(file)) => run_check_json(&file),
         Ok(Command::Fmt { check, file }) => {

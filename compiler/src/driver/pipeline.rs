@@ -26,6 +26,7 @@ impl CheckOutput {
 }
 
 pub(super) struct BuildOutput {
+    pub output_path: PathBuf,
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -47,21 +48,31 @@ pub(super) fn check_file(file: &Path) -> CheckOutput {
 }
 
 pub(super) fn build_file(file: &Path) -> BuildOutput {
-    build_file_with_options(file, &FrontendOptions::default())
+    let output_path = default_executable_path(file);
+    build_file_to_path(file, &output_path)
 }
 
-fn build_file_with_options(file: &Path, options: &FrontendOptions) -> BuildOutput {
-    let output_path = default_executable_path(file);
+pub(super) fn build_file_to_path(file: &Path, output_path: &Path) -> BuildOutput {
+    build_file_to_path_with_options(file, output_path, &FrontendOptions::default())
+}
+
+fn build_file_to_path_with_options(
+    file: &Path,
+    output_path: &Path,
+    options: &FrontendOptions,
+) -> BuildOutput {
     let output = analyze_file(file, options);
 
     if !output.diagnostics.is_empty() {
         return BuildOutput {
+            output_path: output_path.to_path_buf(),
             diagnostics: output.diagnostics,
         };
     }
 
     let Some(analysis) = output.analysis.as_ref() else {
         return BuildOutput {
+            output_path: output_path.to_path_buf(),
             diagnostics: vec![Diagnostic::error(
                 "E0201",
                 "frontend analysis completed without diagnostics but produced no analysis output",
@@ -71,14 +82,17 @@ fn build_file_with_options(file: &Path, options: &FrontendOptions) -> BuildOutpu
 
     let diagnostics = match build_executable(BuildRequest {
         analysis,
-        output_path: &output_path,
+        output_path,
         target: DEFAULT_TARGET,
     }) {
         Ok(()) => Vec::new(),
         Err(diagnostics) => diagnostics,
     };
 
-    BuildOutput { diagnostics }
+    BuildOutput {
+        output_path: output_path.to_path_buf(),
+        diagnostics,
+    }
 }
 
 fn analyze_file(file: &Path, options: &FrontendOptions) -> FrontendOutput {
@@ -180,10 +194,12 @@ mod tests {
         )
         .unwrap();
 
-        let output = build_file_with_options(&source, &frontend_options(nocter_home));
+        let executable = default_executable_path(&source);
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
-        let executable = default_executable_path(&source);
+        assert_eq!(output.output_path, executable);
         let bytes = fs::read(&executable).unwrap();
         assert_eq!(read_u32(&bytes, 0), 0xfeed_facf);
         assert_eq!(read_u32(&bytes, 4), 0x0100_000c);
@@ -215,12 +231,38 @@ mod tests {
         )
         .unwrap();
 
-        let output = build_file_with_options(&source, &frontend_options(nocter_home));
+        let executable = default_executable_path(&source);
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
-        let executable = default_executable_path(&source);
+        assert_eq!(output.output_path, executable);
         let status = std::process::Command::new(&executable).status().unwrap();
         assert_eq!(status.code(), Some(42));
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
+    fn build_file_output_runs_void_program_with_zero_exit_code() {
+        let root = make_temp_project("build-run-void");
+        let nocter_home = make_nocter_home(&root);
+        let source = root.join("void.nct");
+        fs::write(
+            &source,
+            r#"program(): void {
+}
+"#,
+        )
+        .unwrap();
+
+        let executable = default_executable_path(&source);
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
+
+        assert_diagnostics_empty(&output.diagnostics);
+        assert_eq!(output.output_path, executable);
+        let status = std::process::Command::new(&executable).status().unwrap();
+        assert_eq!(status.code(), Some(0));
     }
 
     fn make_temp_project(name: &str) -> PathBuf {
