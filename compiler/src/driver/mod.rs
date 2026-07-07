@@ -8,6 +8,7 @@ use crate::resolve::{ImportAccess, ImportSource, ImportSourceMap, resolve_compil
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::{check, check_module};
 use manifest::Manifest;
+use std::cmp::Ordering;
 use std::collections::{HashSet, VecDeque};
 use std::env;
 use std::ffi::OsString;
@@ -458,10 +459,51 @@ pub(crate) struct CompileUnitAnalysis {
 
 impl CompileUnitAnalysis {
     fn diagnostics(&self) -> Vec<Diagnostic> {
-        self.files
+        let mut diagnostics = self
+            .files
             .iter()
-            .flat_map(|file| file.diagnostics.clone())
+            .enumerate()
+            .flat_map(|(file_index, file)| {
+                file.diagnostics
+                    .iter()
+                    .cloned()
+                    .map(move |diagnostic| (file_index, diagnostic))
+            })
+            .collect::<Vec<_>>();
+
+        diagnostics.sort_by(|(left_file, left), (right_file, right)| {
+            compare_diagnostics(*left_file, left, *right_file, right)
+        });
+
+        diagnostics
+            .into_iter()
+            .map(|(_, diagnostic)| diagnostic)
             .collect()
+    }
+}
+
+fn compare_diagnostics(
+    left_file: usize,
+    left: &Diagnostic,
+    right_file: usize,
+    right: &Diagnostic,
+) -> Ordering {
+    left_file
+        .cmp(&right_file)
+        .then_with(|| compare_diagnostic_primary_spans(left, right))
+        .then_with(|| left.code.cmp(&right.code))
+        .then_with(|| left.message.cmp(&right.message))
+}
+
+fn compare_diagnostic_primary_spans(left: &Diagnostic, right: &Diagnostic) -> Ordering {
+    match (left.primary_span.as_deref(), right.primary_span.as_deref()) {
+        (Some(left), Some(right)) => left
+            .start_byte
+            .cmp(&right.start_byte)
+            .then_with(|| left.end_byte.cmp(&right.end_byte)),
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        (None, None) => Ordering::Equal,
     }
 }
 
@@ -1303,6 +1345,41 @@ program(): i32 {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn check_orders_diagnostics_by_source_position() {
+        let root = make_temp_project("diagnostic-order");
+        let home = make_nocter_home(&root);
+        fs::write(
+            root.join("app.nct"),
+            r#"func takes_i32(value: i32): i32 {
+    return value
+}
+
+program(): i32 {
+    return "bad"
+}
+
+func later(): i32 {
+    return takes_i32("bad")
+}
+"#,
+        )
+        .unwrap();
+
+        let mut sources = SourceMap::new();
+        let source = sources.load_file(root.join("app.nct")).unwrap();
+        let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+        fs::remove_dir_all(&root).unwrap();
+
+        assert_eq!(diagnostics.len(), 2, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0312");
+        assert_eq!(diagnostics[1].code, "E0321");
+
+        let first_span = diagnostics[0].primary_span.as_ref().unwrap();
+        let second_span = diagnostics[1].primary_span.as_ref().unwrap();
+        assert!(first_span.start_byte < second_span.start_byte);
     }
 
     #[test]

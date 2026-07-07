@@ -432,13 +432,14 @@ SourceMap::load_file
     -> executable-root entry validation
     -> per-file call validation for known functions and methods
     -> per-file basic return checking
+    -> stable diagnostic ordering by loaded file, primary span, diagnostic code, and message
     -> DiagnosticsEnvelope
     -> JSON stdout
 ```
 
 If source loading, lexing, or parsing fails, `check` returns a `nocter.diagnostics` envelope with those diagnostics and does not run semantic checks.
 
-`CompileUnitAnalysis` is the driver-owned semantic-analysis result for the whole reachable compile unit. Each `FileAnalysis` keeps the file AST, its file-scoped `ResolveOutput`, that file's diagnostics, and whether the file is the executable root. This keeps the command-line checker aligned with future LSP features such as hover, completion, and definition lookup, where editor features need the semantic state for a specific file rather than only a flattened diagnostics list.
+`CompileUnitAnalysis` is the driver-owned semantic-analysis result for the whole reachable compile unit. Each `FileAnalysis` keeps the file AST, its file-scoped `ResolveOutput`, that file's diagnostics, and whether the file is the executable root. Flattened diagnostics are sorted by loaded file order, primary span start byte, primary span end byte, diagnostic code, and message. This keeps the command-line checker aligned with future LSP features such as hover, completion, and definition lookup, where editor features need the semantic state for a specific file rather than only a flattened diagnostics list.
 
 The first standard-library source files are `.nocter/std/prelude.nct`, `.nocter/std/string.nct`, `.nocter/std/mem.nct`, `.nocter/std/ptr.nct`, `.nocter/std/os.nct`, `.nocter/std/io.nct`, `.nocter/targets/arm64-darwin/std/process.nct`, and `.nocter/targets/arm64-darwin/std/os/macos.nct`. They currently form a Parser v0-readable skeleton for the synthetic user prelude, owning string type, initial memory API, core pointer primitive boundary, common OS error model, user-facing I/O errors, `File`, `stdout`, `stderr`, `print`, macOS process API placeholder, and macOS primitive boundary. Future target support should add target overlays without changing ordinary user-facing APIs.
 
