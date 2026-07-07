@@ -128,6 +128,48 @@ The compiler owns the whole pipeline:
 
 External assemblers and linkers are not part of the design.
 
+## Build V0 Boundary
+
+`nocter build` already runs the native backend path end to end:
+
+```text
+SourceMap
+    -> lexer/parser
+    -> import resolution
+    -> type checking
+    -> IR lowering
+    -> ARM64 Darwin machine code
+    -> Mach-O executable image
+    -> executable file
+```
+
+The current buildable language subset is intentionally smaller than the checkable language subset.
+The front end can parse and type-check more Nocter syntax than the backend can lower.
+
+Currently buildable:
+
+- root-file `main` or `--entry <name>`
+- entry return types `i32`, `i32!`, and `void`
+- literal `i32` returns
+- `void` entry with an empty body or bare `return`
+- same-file non-generic function calls
+- up to 8 `i32` parameters for lowered functions
+- `i32` addition used in a returned expression
+- simple fallible entry success
+- simple fallible entry failure through `fail make_error("code", "message")`
+
+Currently not buildable even when it may be checkable:
+
+- local bindings lowered into machine code
+- `if`, `while`, `loop`, range `for`, and `switch`
+- imported function calls
+- `str` values beyond static failure messages
+- optional values
+- aggregate values, arrays, views, pointers, methods, traits, generics, ownership lowering, and drop glue
+- custom output path selection through `-o`
+
+Use integration tests for user-visible CLI behavior and backend/unit tests for lower-level encoding and Mach-O layout. When extending build support, first add a small `nocter build` regression case, then expand IR lowering, code generation, and documentation together.
+
 ## Suggested Source Layout
 
 The exact implementation layout can evolve, but the first structure should keep each compiler phase separate.
