@@ -243,6 +243,35 @@ mod tests {
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     #[test]
+    fn build_file_output_runs_same_file_function_call() {
+        let root = make_temp_project("build-run-function-call");
+        let nocter_home = make_nocter_home(&root);
+        let source = root.join("call.nct");
+        fs::write(
+            &source,
+            r#"program(): i32 {
+    return answer()
+}
+
+func answer(): i32 {
+    return 29
+}
+"#,
+        )
+        .unwrap();
+
+        let executable = default_executable_path(&source);
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
+
+        assert_diagnostics_empty(&output.diagnostics);
+        assert_eq!(output.output_path, executable);
+        let status = std::process::Command::new(&executable).status().unwrap();
+        assert_eq!(status.code(), Some(29));
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
     fn build_file_output_runs_fallible_program_success_return_code() {
         let root = make_temp_project("build-run-fallible-success");
         let nocter_home = make_nocter_home(&root);

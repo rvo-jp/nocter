@@ -19,8 +19,9 @@ pub(crate) struct Function {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Instruction {
     WriteStaticStderr(Vec<u8>),
-    ReturnI32(i32),
-    ReturnVoid,
+    LoadI32Const(i32),
+    TailCall(String),
+    Return,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

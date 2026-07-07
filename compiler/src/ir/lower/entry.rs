@@ -1,5 +1,5 @@
 use super::errors::{lower_make_error_message, with_trailing_newline};
-use super::literals::lower_i32_literal;
+use super::expressions::lower_i32_return_expression;
 use crate::ast::{ProgramDecl, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{Function, Instruction, Type};
@@ -36,11 +36,8 @@ fn lower_program_body(
 
     match program.body.statements.as_slice() {
         [Stmt::Return(statement)] => match (success_type, &statement.expression) {
-            (Type::I32, Some(expression)) => {
-                let value = lower_i32_literal(expression)?;
-                Ok(vec![Instruction::ReturnI32(value)])
-            }
-            (Type::Void, None) => Ok(vec![Instruction::ReturnVoid]),
+            (Type::I32, Some(expression)) => lower_i32_return_expression(expression),
+            (Type::Void, None) => Ok(vec![Instruction::Return]),
             (Type::Void, Some(_)) => Err(vec![Diagnostic::error(
                 "E8002",
                 "IR v0 cannot lower value returns from `void` program",
@@ -56,7 +53,8 @@ fn lower_program_body(
                 let message = lower_make_error_message(&statement.expression)?;
                 Ok(vec![
                     Instruction::WriteStaticStderr(with_trailing_newline(message)),
-                    Instruction::ReturnI32(1),
+                    Instruction::LoadI32Const(1),
+                    Instruction::Return,
                 ])
             }
             Type::Fallible(_) => Err(vec![Diagnostic::error(
@@ -68,7 +66,7 @@ fn lower_program_body(
                 "IR v0 cannot lower `fail` from non-fallible `program`",
             )]),
         },
-        [] if *return_type == Type::Void => Ok(vec![Instruction::ReturnVoid]),
+        [] if *return_type == Type::Void => Ok(vec![Instruction::Return]),
         _ => Err(vec![Diagnostic::error(
             "E8002",
             "IR v0 can only lower `program` bodies containing `return <i32 literal>`, `fail make_error(...)`, or a void return",

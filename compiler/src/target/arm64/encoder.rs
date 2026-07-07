@@ -30,6 +30,18 @@ impl Encoder {
         self.emit_word(adr_x_word(rd, byte_offset));
     }
 
+    pub(crate) fn emit_b(&mut self, byte_offset: i32) {
+        self.emit_word(b_word(byte_offset));
+    }
+
+    pub(crate) fn emit_bl(&mut self, byte_offset: i32) {
+        self.emit_word(bl_word(byte_offset));
+    }
+
+    pub(crate) fn emit_ret(&mut self) {
+        self.emit_word(RET_X30);
+    }
+
     pub(crate) fn emit_svc(&mut self, imm16: u16) {
         self.emit_word(SVC_BASE | ((imm16 as u32) << 5));
     }
@@ -43,6 +55,22 @@ impl Encoder {
         debug_assert!(instruction_offset + 4 <= self.bytes.len());
 
         let word = adr_x_word(rd, byte_offset);
+        self.bytes[instruction_offset..instruction_offset + 4].copy_from_slice(&word.to_le_bytes());
+    }
+
+    pub(crate) fn patch_bl(&mut self, instruction_offset: usize, byte_offset: i32) {
+        debug_assert_eq!(instruction_offset % 4, 0);
+        debug_assert!(instruction_offset + 4 <= self.bytes.len());
+
+        let word = bl_word(byte_offset);
+        self.bytes[instruction_offset..instruction_offset + 4].copy_from_slice(&word.to_le_bytes());
+    }
+
+    pub(crate) fn patch_b(&mut self, instruction_offset: usize, byte_offset: i32) {
+        debug_assert_eq!(instruction_offset % 4, 0);
+        debug_assert!(instruction_offset + 4 <= self.bytes.len());
+
+        let word = b_word(byte_offset);
         self.bytes[instruction_offset..instruction_offset + 4].copy_from_slice(&word.to_le_bytes());
     }
 
@@ -115,10 +143,15 @@ const MOVK_W_BASE: u32 = 0x7280_0000;
 const MOVZ_X_BASE: u32 = 0xd280_0000;
 const MOVK_X_BASE: u32 = 0xf280_0000;
 const ADR_X_BASE: u32 = 0x1000_0000;
+const B_BASE: u32 = 0x1400_0000;
+const BL_BASE: u32 = 0x9400_0000;
+const RET_X30: u32 = 0xd65f_03c0;
 const SVC_BASE: u32 = 0xd400_0001;
 
 const ADR_MIN_BYTE_OFFSET: i32 = -(1 << 20);
 const ADR_MAX_BYTE_OFFSET: i32 = (1 << 20) - 1;
+const BL_MIN_BYTE_OFFSET: i32 = -(1 << 27);
+const BL_MAX_BYTE_OFFSET: i32 = (1 << 27) - 4;
 
 const fn move_wide_fields(rd: u32, imm16: u16, shift: MoveWideShift) -> u32 {
     (shift.hw() << 21) | ((imm16 as u32) << 5) | rd
@@ -131,6 +164,20 @@ fn adr_x_word(rd: XReg, byte_offset: i32) -> u32 {
     let immlo = encoded & 0x3;
     let immhi = (encoded >> 2) & 0x7ffff;
     ADR_X_BASE | (immlo << 29) | (immhi << 5) | rd.bits()
+}
+
+fn bl_word(byte_offset: i32) -> u32 {
+    debug_assert!((BL_MIN_BYTE_OFFSET..=BL_MAX_BYTE_OFFSET).contains(&byte_offset));
+    debug_assert_eq!(byte_offset % 4, 0);
+
+    BL_BASE | (((byte_offset / 4) as u32) & 0x03ff_ffff)
+}
+
+fn b_word(byte_offset: i32) -> u32 {
+    debug_assert!((BL_MIN_BYTE_OFFSET..=BL_MAX_BYTE_OFFSET).contains(&byte_offset));
+    debug_assert_eq!(byte_offset % 4, 0);
+
+    B_BASE | (((byte_offset / 4) as u32) & 0x03ff_ffff)
 }
 
 #[cfg(test)]
@@ -216,6 +263,78 @@ mod tests {
                 0x21, 0x01, 0x00, 0x10, // adr x1, #36
             ]
         );
+    }
+
+    #[test]
+    fn encodes_bl_positive_offset() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_bl(8);
+
+        assert_eq!(encoder.finish(), vec![0x02, 0x00, 0x00, 0x94]);
+    }
+
+    #[test]
+    fn encodes_b_positive_offset() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_b(8);
+
+        assert_eq!(encoder.finish(), vec![0x02, 0x00, 0x00, 0x14]);
+    }
+
+    #[test]
+    fn patches_b_offset() {
+        let mut encoder = Encoder::new();
+        let branch_offset = encoder.position();
+        encoder.emit_b(0);
+        encoder.emit_ret();
+
+        encoder.patch_b(branch_offset, 4);
+
+        assert_eq!(
+            encoder.finish(),
+            vec![
+                0x01, 0x00, 0x00, 0x14, // b +4
+                0xc0, 0x03, 0x5f, 0xd6, // ret
+            ]
+        );
+    }
+
+    #[test]
+    fn encodes_bl_negative_offset() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_bl(-4);
+
+        assert_eq!(encoder.finish(), vec![0xff, 0xff, 0xff, 0x97]);
+    }
+
+    #[test]
+    fn patches_bl_offset() {
+        let mut encoder = Encoder::new();
+        let branch_offset = encoder.position();
+        encoder.emit_bl(0);
+        encoder.emit_ret();
+
+        encoder.patch_bl(branch_offset, 4);
+
+        assert_eq!(
+            encoder.finish(),
+            vec![
+                0x01, 0x00, 0x00, 0x94, // bl +4
+                0xc0, 0x03, 0x5f, 0xd6, // ret
+            ]
+        );
+    }
+
+    #[test]
+    fn encodes_ret() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_ret();
+
+        assert_eq!(encoder.finish(), vec![0xc0, 0x03, 0x5f, 0xd6]);
     }
 
     #[test]

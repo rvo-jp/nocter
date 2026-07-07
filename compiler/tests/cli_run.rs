@@ -30,6 +30,33 @@ fn run_command_returns_program_exit_code() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_same_file_function_call_exit_code() {
+    let project = TempProject::new("cli-run-function-call");
+    let source = project.write_source(
+        "call.nct",
+        r#"program(): i32 {
+    return answer()
+}
+
+func answer(): i32 {
+    return 13
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(13),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_fallible_program_success_exit_code() {
     let project = TempProject::new("cli-run-fallible-success");
     let source = project.write_source(

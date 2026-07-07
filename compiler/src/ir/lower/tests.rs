@@ -22,7 +22,7 @@ fn lowers_program_returning_i32_literal() {
         IrModule::new(vec![Function {
             name: "program".to_string(),
             return_type: Type::I32,
-            instructions: vec![Instruction::ReturnI32(42)],
+            instructions: vec![Instruction::LoadI32Const(42), Instruction::Return],
         }])
     );
 }
@@ -38,7 +38,7 @@ fn lowers_program_returning_negative_i32_literal() {
 
     assert_eq!(
         ir.functions[0].instructions,
-        vec![Instruction::ReturnI32(-42)]
+        vec![Instruction::LoadI32Const(-42), Instruction::Return]
     );
 }
 
@@ -56,7 +56,7 @@ fn lowers_fallible_program_returning_i32_literal() {
         IrModule::new(vec![Function {
             name: "program".to_string(),
             return_type: Type::Fallible(Box::new(Type::I32)),
-            instructions: vec![Instruction::ReturnI32(7)],
+            instructions: vec![Instruction::LoadI32Const(7), Instruction::Return],
         }])
     );
 }
@@ -79,7 +79,8 @@ program(): i32! {
             return_type: Type::Fallible(Box::new(Type::I32)),
             instructions: vec![
                 Instruction::WriteStaticStderr(b"failed\n".to_vec()),
-                Instruction::ReturnI32(1),
+                Instruction::LoadI32Const(1),
+                Instruction::Return,
             ],
         }])
     );
@@ -100,7 +101,8 @@ program(): i32! {
         ir.functions[0].instructions,
         vec![
             Instruction::WriteStaticStderr(b"failed\n".to_vec()),
-            Instruction::ReturnI32(1),
+            Instruction::LoadI32Const(1),
+            Instruction::Return,
         ]
     );
 }
@@ -136,8 +138,38 @@ fn lowers_void_program_with_empty_body() {
         IrModule::new(vec![Function {
             name: "program".to_string(),
             return_type: Type::Void,
-            instructions: vec![Instruction::ReturnVoid],
+            instructions: vec![Instruction::Return],
         }])
+    );
+}
+
+#[test]
+fn lowers_program_returning_same_file_function_call() {
+    let ir = lower_text(
+        r#"program(): i32 {
+    return answer()
+}
+
+func answer(): i32 {
+    return 7
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "program".to_string(),
+                return_type: Type::I32,
+                instructions: vec![Instruction::TailCall("answer".to_string())],
+            },
+            Function {
+                name: "answer".to_string(),
+                return_type: Type::I32,
+                instructions: vec![Instruction::LoadI32Const(7), Instruction::Return],
+            },
+        ])
     );
 }
 
