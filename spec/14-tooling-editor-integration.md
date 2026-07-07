@@ -33,7 +33,7 @@ The first editor integration layer is TextMate grammar plus language configurati
 Allowed responsibilities:
 
 - syntax highlighting
-- comment toggling for `//` and `/* ... */`
+- comment toggling for `//`, `/* ... */`, `///`, `/** ... */`, `//!`, and `/*! ... */`
 - bracket matching for `()`, `{}`, and `[]`
 - auto closing quotes and braces
 - snippets for common declarations
@@ -76,6 +76,20 @@ Editor path mapping rules:
 - Use `span.file` for human-facing display.
 - Do not use display paths to decide whether two source files are the same file.
 - LSP document mapping must follow the canonical source-file identity rules in [Modules and Imports](01-modules-imports.md#source-file-identity).
+
+## Hover And Documentation
+
+Adopted: hover text and generated API documentation must come from compiler-owned semantic data, not from editor-side parsing.
+
+Rules:
+
+- `///` and `/** ... */` document the next declaration, field, enum variant, method, function, or local binding that the compiler marks as documentable.
+- `//!` and `/*! ... */` document the source file/module itself.
+- `//` and `/* ... */` are normal comments and must not appear in hover text.
+- Empty lines break attachment between a doc comment and the following construct.
+- Multiple adjacent doc comments are concatenated in source order.
+- The VS Code extension must request hover data from `nocter lsp` once LSP support exists.
+- Before LSP exists, the TextMate extension may highlight doc comments but must not infer hover text independently.
 
 ## AI-Assisted Tooling Stage
 

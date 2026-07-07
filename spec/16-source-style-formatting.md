@@ -186,11 +186,12 @@ for i in 0..<bytes.len() {
 
 Rules:
 
-- Formatter output must preserve line comments and block comments once comment-preserving formatting is implemented.
+- Formatter output must preserve normal comments and doc comments once comment-preserving formatting is implemented.
 - Current formatter v0 rejects files that contain comments with a diagnostic instead of rewriting them.
 - Formatter output may adjust surrounding whitespace but must not rewrite comment text.
 - Line comments keep at least one space between code and `//` when they share a line.
 - Block comments keep their internal text unchanged in v0.
+- Doc comments keep their doc marker spelling: `///`, `/**`, `//!`, or `/*!`.
 
 Comment paragraph reflow is not part of v0.
 

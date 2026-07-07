@@ -1,6 +1,5 @@
 //! Source formatter for Nocter syntax.
 
-mod comments;
 mod expressions;
 mod items;
 mod statements;
@@ -10,11 +9,11 @@ mod types;
 mod tests;
 
 use crate::ast::AstFile;
+use crate::comments::first_comment_span;
 use crate::diagnostics::Diagnostic;
 use crate::lexer::lex;
 use crate::parser::parse;
 use crate::source::{SourceId, SourceMap};
-use comments::first_comment_span;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FormatOutput {

@@ -350,7 +350,7 @@ v0 では attribute 構文を採用しません。`@inline`、`@repr(...)`、`@t
 
 `.nct` source file は UTF-8 とします。改行は LF と CRLF を受け付け、compiler 内部では LF に正規化します。識別子は ASCII の `[A-Za-z_][A-Za-z0-9_]*` に限定し、予約語と単独の `_` は通常名として使えません。module の file / directory name は snake_case identifier にします。
 
-comment は `// line comment` と `/* block comment */` を採用します。block comment の入れ子は v0 では採用しません。
+comment は `// line comment` と `/* block comment */` を採用します。doc comment は次の宣言や binding に付く `/// line doc` / `/** block doc */` と、file 全体に付く `//! file doc` / `/*! file doc */` を採用します。`////`、`/**/`、`/*** ... */` は通常 comment として扱います。通常 comment は実装メモ、doc comment は将来の hover、API docs、LSP 用の説明として扱います。block comment の入れ子は v0 では採用しません。
 
 文末セミコロンは採用しません。文は改行または `}` で区切ります。空白は token の区切りにだけ使い、indent に構文上の意味はありません。
 
@@ -1845,7 +1845,7 @@ v0 では、source-level compiler error に `E0000` 形式の error code を付�
 
 ## エディタ連携
 
-VS Code 拡張機能は初期段階では TextMate grammar による構文ハイライト、comment toggle、bracket matching、auto closing などの薄い表示層として扱います。言語仕様の正は `spec/13-lexical-grammar.md` と各仕様章に置き、拡張機能側で独自の名前解決、型推論、borrow check、import 解決を実装しません。
+VS Code 拡張機能は初期段階では TextMate grammar による構文ハイライト、comment toggle、bracket matching、auto closing などの薄い表示層として扱います。言語仕様の正は `spec/13-lexical-grammar.md` と各仕様章に置き、拡張機能側で独自の名前解決、型推論、borrow check、import 解決を実装しません。hover などの semantic editor feature は、compiler / LSP が `///`、`/** ... */`、`//!`、`/*! ... */` の doc comment を解析して提供します。
 
 配置方針:
 

@@ -26,14 +26,26 @@ Rules:
 - Indentation has no syntactic meaning.
 - `//` starts a line comment and runs until the next line ending or end of file.
 - `/*` starts a block comment and runs until the next `*/`.
+- `///` starts an item doc line comment for the next documentable construct.
+- `/**` starts an item doc block comment for the next documentable construct, except for `/**/` and comments beginning with `/***`.
+- `//!` starts a file doc line comment.
+- `/*!` starts a file doc block comment.
 - Block comments do not nest in v0.
 - Unterminated block comments are lexical errors.
 - Comments are not recognized inside string literals or byte literals.
 - Newlines inside block comments still count as line breaks for diagnostics and statement separation.
+- `////`, `/**/`, and block comments beginning with `/***` are normal comments, not doc comments.
 
 Examples:
 
 ```nct
+//! File-level documentation.
+
+/// Item documentation.
+func answer(): i32 {
+    return 42
+}
+
 let a = 1 // line comment
 
 /*
@@ -131,6 +143,7 @@ Newline rules:
 - The terminating newline after a line comment is emitted as a `newline` token.
 - LF bytes inside a block comment are emitted as `newline` tokens so block comments can preserve statement separation.
 - Comment text itself is not emitted as tokens.
+- Doc comment text is not emitted as ordinary tokens; compiler tooling scans source text to attach doc comments to symbols for future docs and LSP features.
 - Newlines inside string literals and byte literals are lexical errors.
 
 EOF rules:
