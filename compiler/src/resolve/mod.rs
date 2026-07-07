@@ -2,7 +2,8 @@
 
 use crate::ast::{
     AstFile, Block, CallExpr, EnumVariant, Expr, FromImportItem, FunctionDecl, IdentifierExpr,
-    ImportItem, Item, Parameter, PrimitiveDecl, Stmt, StructField, TypeExpr, UseItem, Visibility,
+    ImplDecl, ImplMember, ImportItem, Item, MethodDecl, Parameter, PrimitiveDecl, Stmt,
+    StructField, TypeExpr, UseItem, Visibility,
 };
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
 use crate::source::{ByteSpan, SourceId, SourceMap};
@@ -43,6 +44,58 @@ impl ResolveOutput {
             Some(SymbolKind::Function(signature)) => Some(signature),
             Some(SymbolKind::Type(_) | SymbolKind::Imported(_)) | None => None,
         }
+    }
+
+    pub fn associated_function_signature_for_call(
+        &self,
+        call: &CallExpr,
+    ) -> Option<&FunctionSignature> {
+        self.associated_function_for_call(call)
+            .map(|(_, function)| &function.signature)
+    }
+
+    pub fn associated_function_for_call(
+        &self,
+        call: &CallExpr,
+    ) -> Option<(&TypeSymbol, &AssociatedFunctionSignature)> {
+        let Expr::Member(member) = call.callee.as_ref() else {
+            return None;
+        };
+        let Expr::Identifier(type_name) = member.object.as_ref() else {
+            return None;
+        };
+
+        let Some(SymbolKind::Type(type_symbol)) = self
+            .symbol_for_identifier(type_name)
+            .map(|symbol| &symbol.kind)
+        else {
+            return None;
+        };
+
+        let function = type_symbol
+            .associated_functions
+            .iter()
+            .find(|function| function.is_accessible && function.name == member.member)?;
+        Some((type_symbol, function))
+    }
+
+    pub fn call_signature_for_call(&self, call: &CallExpr) -> Option<&FunctionSignature> {
+        self.function_signature_for_call(call)
+            .or_else(|| self.associated_function_signature_for_call(call))
+    }
+
+    pub fn call_name_for_diagnostic(&self, call: &CallExpr) -> String {
+        if let Some(symbol) = self.symbol_for_call(call) {
+            return symbol.name.clone();
+        }
+
+        if let Expr::Member(member) = call.callee.as_ref()
+            && let Expr::Identifier(type_name) = member.object.as_ref()
+        {
+            return format!("{}.{}", type_name.name, member.member);
+        }
+
+        "<unknown>".to_string()
     }
 
     pub fn type_symbol_by_name(&self, name: &str) -> Option<&TypeSymbol> {
@@ -155,6 +208,8 @@ pub struct TypeSymbol {
     pub alias_target: Option<TypeExpr>,
     pub fields: Vec<StructFieldSignature>,
     pub variants: Vec<EnumVariantSignature>,
+    pub associated_functions: Vec<AssociatedFunctionSignature>,
+    pub methods: Vec<MethodSignature>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -179,6 +234,25 @@ pub struct StructFieldSignature {
     pub visibility: Visibility,
     pub is_accessible: bool,
     pub ty: TypeExpr,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssociatedFunctionSignature {
+    pub name: String,
+    pub name_span: ByteSpan,
+    pub visibility: Visibility,
+    pub is_accessible: bool,
+    pub signature: FunctionSignature,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MethodSignature {
+    pub name: String,
+    pub name_span: ByteSpan,
+    pub visibility: Visibility,
+    pub is_accessible: bool,
+    pub receiver: ParameterSignature,
+    pub signature: FunctionSignature,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -276,6 +350,12 @@ impl Resolver<'_> {
                     nominal_type_symbol(trait_.name.clone(), TypeSymbolKind::Trait),
                 ),
                 Item::Impl(_) | Item::Program(_) => {}
+            }
+        }
+
+        for item in &ast.items {
+            if let Item::Impl(impl_) = item {
+                self.collect_inherent_impl_members(impl_);
             }
         }
     }
@@ -425,11 +505,9 @@ impl Resolver<'_> {
                     );
                 }
                 Item::Struct(struct_) => {
-                    let imported = type_importable_symbol(
-                        struct_.span,
-                        struct_.visibility,
-                        struct_type_symbol(struct_.name.clone(), &struct_.fields),
-                    );
+                    let mut symbol = struct_type_symbol(struct_.name.clone(), &struct_.fields);
+                    attach_inherent_impl_members_to_symbol(&mut symbol, ast, &struct_.name);
+                    let imported = type_importable_symbol(struct_.span, struct_.visibility, symbol);
                     let imported = filter_importable_symbol_for_access(imported, access);
                     let imported = qualify_imported_symbol(imported, module_path, &struct_.name);
                     self.collect_public_export(
@@ -440,11 +518,10 @@ impl Resolver<'_> {
                     );
                 }
                 Item::Enum(enum_) => {
-                    let imported = type_importable_symbol(
-                        enum_.span,
-                        enum_.visibility,
-                        enum_type_symbol(enum_.name.clone(), &enum_.variants),
-                    );
+                    let mut symbol = enum_type_symbol(enum_.name.clone(), &enum_.variants);
+                    attach_inherent_impl_members_to_symbol(&mut symbol, ast, &enum_.name);
+                    let imported = type_importable_symbol(enum_.span, enum_.visibility, symbol);
+                    let imported = filter_importable_symbol_for_access(imported, access);
                     let imported = qualify_imported_symbol(imported, module_path, &enum_.name);
                     self.collect_public_export(
                         enum_.name.clone(),
@@ -583,6 +660,55 @@ impl Resolver<'_> {
         self.define_symbol(name, name_span, declaration_span, SymbolKind::Type(symbol));
     }
 
+    fn collect_inherent_impl_members(&mut self, impl_: &ImplDecl) {
+        if impl_.trait_ty.is_some() {
+            return;
+        }
+
+        let Some(target_name) = impl_target_type_name(&impl_.target_ty) else {
+            return;
+        };
+        let Some(symbol_id) = self.output.symbols.by_name.get(target_name).copied() else {
+            return;
+        };
+        let Some(symbol) = self
+            .output
+            .symbols
+            .symbols
+            .get_mut(symbol_id.raw() as usize)
+        else {
+            return;
+        };
+        let diagnostics = {
+            let SymbolKind::Type(type_symbol) = &mut symbol.kind else {
+                return;
+            };
+
+            if !matches!(
+                type_symbol.kind,
+                TypeSymbolKind::Struct | TypeSymbolKind::Enum
+            ) {
+                return;
+            }
+
+            let mut associated_functions =
+                associated_function_signatures(impl_).collect::<Vec<_>>();
+            let mut methods = method_signatures(impl_).collect::<Vec<_>>();
+            let diagnostics = duplicate_inherent_member_name_diagnostics(
+                self.sources,
+                target_name,
+                type_symbol,
+                impl_,
+            );
+            type_symbol
+                .associated_functions
+                .append(&mut associated_functions);
+            type_symbol.methods.append(&mut methods);
+            diagnostics
+        };
+        self.output.diagnostics.extend(diagnostics);
+    }
+
     fn define_symbol(
         &mut self,
         name: String,
@@ -619,6 +745,7 @@ impl Resolver<'_> {
                     self.define_parameters(&function.parameters.parameters, &mut scope);
                     self.resolve_block(&function.body, &mut scope);
                 }
+                Item::Impl(impl_) => self.resolve_impl_bodies(impl_),
                 Item::Use(_)
                 | Item::Import(_)
                 | Item::FromImport(_)
@@ -626,8 +753,32 @@ impl Resolver<'_> {
                 | Item::TypeAlias(_)
                 | Item::Struct(_)
                 | Item::Enum(_)
-                | Item::Trait(_)
-                | Item::Impl(_) => {}
+                | Item::Trait(_) => {}
+            }
+        }
+    }
+
+    fn resolve_impl_bodies(&mut self, impl_: &ImplDecl) {
+        for member in &impl_.members {
+            match member {
+                ImplMember::Function(function) => {
+                    let mut scope = Scope::new();
+                    self.define_parameters(&function.parameters.parameters, &mut scope);
+                    self.resolve_block(&function.body, &mut scope);
+                }
+                ImplMember::Method(method) => {
+                    let Some(body) = &method.body else {
+                        continue;
+                    };
+                    let mut scope = Scope::new();
+                    self.define_local_name(
+                        method.receiver.name.clone(),
+                        method.receiver.name_span,
+                        &mut scope,
+                    );
+                    self.define_parameters(&method.parameters.parameters, &mut scope);
+                    self.resolve_block(body, &mut scope);
+                }
             }
         }
     }
@@ -965,16 +1116,20 @@ fn direct_importable_symbol(ast: &AstFile, name: &str) -> Option<ImportableSymbo
             alias.visibility,
             alias_type_symbol(alias.name.clone(), alias.target.clone()),
         )),
-        Item::Struct(struct_) if struct_.name == name => Some(type_importable_symbol(
-            struct_.span,
-            struct_.visibility,
-            struct_type_symbol(struct_.name.clone(), &struct_.fields),
-        )),
-        Item::Enum(enum_) if enum_.name == name => Some(type_importable_symbol(
-            enum_.span,
-            enum_.visibility,
-            enum_type_symbol(enum_.name.clone(), &enum_.variants),
-        )),
+        Item::Struct(struct_) if struct_.name == name => {
+            let mut symbol = struct_type_symbol(struct_.name.clone(), &struct_.fields);
+            attach_inherent_impl_members_to_symbol(&mut symbol, ast, &struct_.name);
+            Some(type_importable_symbol(
+                struct_.span,
+                struct_.visibility,
+                symbol,
+            ))
+        }
+        Item::Enum(enum_) if enum_.name == name => {
+            let mut symbol = enum_type_symbol(enum_.name.clone(), &enum_.variants);
+            attach_inherent_impl_members_to_symbol(&mut symbol, ast, &enum_.name);
+            Some(type_importable_symbol(enum_.span, enum_.visibility, symbol))
+        }
         Item::Trait(trait_) if trait_.name == name => Some(type_importable_symbol(
             trait_.span,
             trait_.visibility,
@@ -982,6 +1137,107 @@ fn direct_importable_symbol(ast: &AstFile, name: &str) -> Option<ImportableSymbo
         )),
         _ => None,
     })
+}
+
+fn attach_inherent_impl_members_to_symbol(symbol: &mut TypeSymbol, ast: &AstFile, type_name: &str) {
+    if !matches!(symbol.kind, TypeSymbolKind::Struct | TypeSymbolKind::Enum) {
+        return;
+    }
+
+    for item in &ast.items {
+        let Item::Impl(impl_) = item else {
+            continue;
+        };
+        if impl_.trait_ty.is_some() || impl_target_type_name(&impl_.target_ty) != Some(type_name) {
+            continue;
+        }
+
+        symbol
+            .associated_functions
+            .extend(associated_function_signatures(impl_));
+        symbol.methods.extend(method_signatures(impl_));
+    }
+}
+
+fn associated_function_signatures(
+    impl_: &ImplDecl,
+) -> impl Iterator<Item = AssociatedFunctionSignature> + '_ {
+    impl_.members.iter().filter_map(|member| match member {
+        ImplMember::Function(function) => Some(AssociatedFunctionSignature {
+            name: function.name.clone(),
+            name_span: function.name_span,
+            visibility: function.visibility,
+            is_accessible: true,
+            signature: function_signature(function),
+        }),
+        ImplMember::Method(_) => None,
+    })
+}
+
+fn method_signatures(impl_: &ImplDecl) -> impl Iterator<Item = MethodSignature> + '_ {
+    impl_.members.iter().filter_map(|member| match member {
+        ImplMember::Method(method) => Some(method_signature(method)),
+        ImplMember::Function(_) => None,
+    })
+}
+
+fn method_signature(method: &MethodDecl) -> MethodSignature {
+    MethodSignature {
+        name: method.name.clone(),
+        name_span: method.name_span,
+        visibility: method.visibility,
+        is_accessible: true,
+        receiver: parameter_signature(&method.receiver),
+        signature: callable_signature(&method.parameters.parameters, method.return_type.clone()),
+    }
+}
+
+fn duplicate_inherent_member_name_diagnostics(
+    sources: &SourceMap,
+    target_name: &str,
+    type_symbol: &TypeSymbol,
+    impl_: &ImplDecl,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let mut seen = HashMap::<&str, ByteSpan>::new();
+    for function in &type_symbol.associated_functions {
+        seen.entry(function.name.as_str())
+            .or_insert(function.name_span);
+    }
+    for method in &type_symbol.methods {
+        seen.entry(method.name.as_str()).or_insert(method.name_span);
+    }
+
+    for member in &impl_.members {
+        let (name, span) = match member {
+            ImplMember::Function(function) => (function.name.as_str(), function.name_span),
+            ImplMember::Method(method) => (method.name.as_str(), method.name_span),
+        };
+        match seen.entry(name) {
+            std::collections::hash_map::Entry::Occupied(first) => {
+                diagnostics.push(duplicate_inherent_member_name_diagnostic(
+                    sources,
+                    target_name,
+                    name,
+                    *first.get(),
+                    span,
+                ));
+            }
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(span);
+            }
+        }
+    }
+
+    diagnostics
+}
+
+fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {
+    let TypeExpr::Reference(reference) = ty else {
+        return None;
+    };
+
+    Some(&reference.name)
 }
 
 fn function_signature(function: &FunctionDecl) -> FunctionSignature {
@@ -1024,14 +1280,24 @@ fn filter_importable_symbol_for_access(
     if let SymbolKind::Type(symbol) = &mut imported.kind {
         for field in &mut symbol.fields {
             field.is_accessible =
-                field.is_accessible && field_visibility_is_visible_to(field.visibility, access);
+                field.is_accessible && visibility_is_visible_to(field.visibility, access);
+        }
+
+        for function in &mut symbol.associated_functions {
+            function.is_accessible =
+                function.is_accessible && visibility_is_visible_to(function.visibility, access);
+        }
+
+        for method in &mut symbol.methods {
+            method.is_accessible =
+                method.is_accessible && visibility_is_visible_to(method.visibility, access);
         }
     }
 
     imported
 }
 
-fn field_visibility_is_visible_to(visibility: Visibility, access: ImportAccess) -> bool {
+fn visibility_is_visible_to(visibility: Visibility, access: ImportAccess) -> bool {
     match visibility {
         Visibility::Public => true,
         Visibility::Nocter => access == ImportAccess::Nocter,
@@ -1046,6 +1312,8 @@ fn alias_type_symbol(canonical_name: String, alias_target: TypeExpr) -> TypeSymb
         alias_target: Some(alias_target),
         fields: Vec::new(),
         variants: Vec::new(),
+        associated_functions: Vec::new(),
+        methods: Vec::new(),
     }
 }
 
@@ -1056,6 +1324,8 @@ fn nominal_type_symbol(canonical_name: String, kind: TypeSymbolKind) -> TypeSymb
         alias_target: None,
         fields: Vec::new(),
         variants: Vec::new(),
+        associated_functions: Vec::new(),
+        methods: Vec::new(),
     }
 }
 
@@ -1075,6 +1345,8 @@ fn struct_type_symbol(canonical_name: String, fields: &[StructField]) -> TypeSym
             })
             .collect(),
         variants: Vec::new(),
+        associated_functions: Vec::new(),
+        methods: Vec::new(),
     }
 }
 
@@ -1092,6 +1364,8 @@ fn enum_type_symbol(canonical_name: String, variants: &[EnumVariant]) -> TypeSym
                 payload: variant.payload.iter().map(parameter_signature).collect(),
             })
             .collect(),
+        associated_functions: Vec::new(),
+        methods: Vec::new(),
     }
 }
 
@@ -1202,6 +1476,29 @@ fn builtin_type_declaration_name_reuse_diagnostic(
     );
     diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
     diagnostic.help = Some("choose a type name that is not a built-in type name".to_string());
+    diagnostic
+}
+
+fn duplicate_inherent_member_name_diagnostic(
+    sources: &SourceMap,
+    target_name: &str,
+    member_name: &str,
+    first_span: ByteSpan,
+    duplicate_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0413",
+        format!("type `{target_name}` already has an inherent member named `{member_name}`"),
+    );
+    diagnostic.primary_span = sources.span_to_json(duplicate_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(first_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "first inherent member with this name is here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help =
+        Some("choose a distinct member name; Nocter v0 does not support overloads".to_string());
     diagnostic
 }
 
@@ -1375,6 +1672,50 @@ program(): i32 {
     }
 
     #[test]
+    fn collects_associated_function_symbols() {
+        let output = resolve_text(
+            r#"struct Point {
+    x: i32
+}
+
+impl Point {
+    pub func origin(): Point {
+        return Point{ x: 0 }
+    }
+
+    method (point: Self).x_value(): i32 {
+        return point.x
+    }
+}
+
+program(): i32 {
+    return Point.origin().x
+}
+"#,
+        );
+
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        let point_symbol = output.symbols.symbol_by_name("Point").unwrap();
+        let SymbolKind::Type(TypeSymbol {
+            associated_functions,
+            methods,
+            ..
+        }) = &point_symbol.kind
+        else {
+            panic!("expected type symbol");
+        };
+
+        assert_eq!(associated_functions.len(), 1);
+        assert_eq!(associated_functions[0].name, "origin");
+        assert_eq!(associated_functions[0].visibility, Visibility::Public);
+        assert_eq!(associated_functions[0].signature.parameters.len(), 0);
+        assert_eq!(methods.len(), 1);
+        assert_eq!(methods[0].name, "x_value");
+        assert_eq!(methods[0].receiver.name, "point");
+        assert_eq!(methods[0].signature.parameters.len(), 0);
+    }
+
+    #[test]
     fn diagnoses_builtin_error_type_name_reuse() {
         let output = resolve_text(
             r#"type error = i32
@@ -1408,6 +1749,89 @@ func answer(): i32 {
 
         assert_eq!(output.diagnostics.len(), 1);
         assert_eq!(output.diagnostics[0].code, "E0400");
+    }
+
+    #[test]
+    fn diagnoses_duplicate_inherent_associated_function_names_in_same_impl() {
+        let output = resolve_text(
+            r#"struct File {
+    fd: i32
+}
+
+impl File {
+    func open(): i32 {
+        return 0
+    }
+
+    func open(path: str): i32 {
+        return 1
+    }
+}
+
+program(): i32 {
+    return 0
+}
+"#,
+        );
+
+        assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+        assert_eq!(output.diagnostics[0].code, "E0413");
+    }
+
+    #[test]
+    fn diagnoses_duplicate_inherent_method_names_across_impls() {
+        let output = resolve_text(
+            r#"struct File {
+    fd: i32
+}
+
+impl File {
+    method (file: Self).name(): i32 {
+        return file.fd
+    }
+}
+
+impl File {
+    method (file: Self).name(value: i32): i32 {
+        return value
+    }
+}
+
+program(): i32 {
+    return 0
+}
+"#,
+        );
+
+        assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+        assert_eq!(output.diagnostics[0].code, "E0413");
+    }
+
+    #[test]
+    fn diagnoses_duplicate_inherent_function_and_method_name() {
+        let output = resolve_text(
+            r#"struct File {
+    fd: i32
+}
+
+impl File {
+    func open(): i32 {
+        return 0
+    }
+
+    method (file: Self).open(): i32 {
+        return file.fd
+    }
+}
+
+program(): i32 {
+    return 0
+}
+"#,
+        );
+
+        assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+        assert_eq!(output.diagnostics[0].code, "E0413");
     }
 
     #[test]

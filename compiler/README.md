@@ -343,7 +343,7 @@ Current semantic coverage:
 - `func main` without `program` receives a dedicated diagnostic because `main` is an ordinary function name
 - executable root has no duplicate `program` entries
 - `program` return type is `i32!`, `i32`, or `void`
-- relative imports starting with `./` or `../` are loaded recursively and lexed/parsed before root semantic checks run
+- relative imports starting with `./` or `../` are loaded recursively and lexed/parsed before semantic checks run
 - `from ./path import name` resolves imported top-level `func`, `primitive`, `type`, `struct`, and `enum` declarations
 - imported `func` and `primitive` signatures are used for direct call checking
 - missing imported top-level names from relative imports are diagnosed
@@ -357,6 +357,13 @@ Current semantic coverage:
 - duplicate visible names among same-file declarations, explicit imported names, parameters, locals, and catch bindings are diagnosed
 - direct calls to same-file functions are resolved and checked for argument count
 - direct calls to same-file functions check argument types when both expected and actual types are known
+- same-file and imported inherent associated function calls such as `Type.func(args...)` use the associated function signature for argument checking and return type resolution
+- same-file and imported inherent method calls such as `value.method(args...)` use the concrete nominal receiver type for argument checking and return type resolution
+- same-file inherent associated functions and methods are duplicate-checked per target type; v0 does not support overloads or an associated function and method with the same name
+- each loaded file in the reachable compile unit is resolved and checked in its own file scope; `program` entry validation runs only for the executable root
+- inherent method calls support `Self`, `&Self`, and `&+Self` receiver declarations in v0; `&+Self` calls require the receiver expression to be a mutable `var` binding
+- inherent `impl` function bodies and method bodies are resolved and checked for calls, returns, fallible propagation, control-flow termination, and local binding types
+- inside an inherent `impl`, `Self` in return types, parameter types, receiver types, struct literals, and type conversions resolves to the impl target type
 - primitive return type checking for built-in primitive types, nominal struct types, `str`, `error`, `[T]`, `[+T]`, `[T; N]`, array literals, struct literals, `void`, `never`, `T?`, and the success side of `T!`
 - local binding types are tracked inside a callable when they come from literals, struct literals, annotations, parameters, known direct calls, postfix `?`, `catch`, `??`, optional `let ... else`, optional `if let` / `if var`, or optional `while let` / `while var`
 - integer literals have type `i32` in v0 checking
@@ -409,7 +416,7 @@ Current semantic coverage:
 - bare `return` is valid only for `void` success returns
 - non-`void` functions and `program(): i32` / `program(): i32!` must not fall through without an explicit return or failure
 
-The current `check` implementation loads imported files, applies import aliases, and registers namespace aliases as visible names, but it does not resolve namespace member access, full alias-target expansion, enum payload fields, method or associated function calls, trait obligations, perform full block control-flow analysis beyond last-statement `return`, check ownership, select a target beyond the default active target, or lower code. Unknown expression types are not diagnosed until import resolution and full type checking exist.
+The current `check` implementation loads imported files, applies import aliases, registers namespace aliases as visible names, and semantic-checks each reachable file in its own file scope, but it does not resolve namespace member access, full alias-target expansion, enum payload fields, trait method calls, trait obligations, receiver move semantics, borrow lifetimes, perform full block control-flow analysis beyond last-statement `return`, check ownership, select a target beyond the default active target, or lower code. Unknown expression types are not diagnosed until import resolution and full type checking exist.
 
 `nocter check app.nct --format json` runs:
 
@@ -420,10 +427,10 @@ SourceMap::load_file
     -> typed AST
     -> synthetic standard prelude insertion for eligible user project modules
     -> recursive relative and non-relative import loading and parsing
-    -> same-file, relative imported, and Nocter-home imported top-level symbol resolver
-    -> entry validation
-    -> call validation for known same-file functions
-    -> basic return checking
+    -> per-file same-file, relative imported, and Nocter-home imported top-level symbol resolver
+    -> executable-root entry validation
+    -> per-file call validation for known functions and methods
+    -> per-file basic return checking
     -> DiagnosticsEnvelope
     -> JSON stdout
 ```

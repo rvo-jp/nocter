@@ -2,14 +2,14 @@
 
 use crate::ast::{
     ArrayLiteralExpr, AstFile, BinaryExpr, BinaryOperator, BindingKind, BindingStmt, Block,
-    CallExpr, Expr, FailStmt, ForRangeStmt, FunctionDecl, IfIsStmt, IfLetStmt, IfStmt, IndexExpr,
-    Item, LiteralExpr, MemberExpr, Parameter, ProgramDecl, ReturnStmt, Stmt, StructLiteralExpr,
-    StructLiteralField, SwitchArm, SwitchStmt, TypeConversionExpr, TypeExpr, UnaryExpr,
-    UnaryOperator, WhileLetStmt, WhileStmt,
+    CallExpr, Expr, FailStmt, ForRangeStmt, FunctionDecl, IfIsStmt, IfLetStmt, IfStmt, ImplDecl,
+    ImplMember, IndexExpr, Item, LiteralExpr, MemberExpr, MethodDecl, Parameter, ProgramDecl,
+    ReturnStmt, Stmt, StructLiteralExpr, StructLiteralField, SwitchArm, SwitchStmt,
+    TypeConversionExpr, TypeExpr, UnaryExpr, UnaryOperator, WhileLetStmt, WhileStmt,
 };
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
 use crate::resolve::{
-    EnumVariantSignature, FunctionSignature, ParameterSignature, ResolveOutput,
+    EnumVariantSignature, FunctionSignature, MethodSignature, ParameterSignature, ResolveOutput,
     StructFieldSignature, TypeSymbol, TypeSymbolKind,
 };
 use crate::source::{ByteSpan, SourceMap};
@@ -19,6 +19,18 @@ pub fn check(sources: &SourceMap, ast: &AstFile, resolved: &ResolveOutput) -> Ve
     let mut diagnostics = Vec::new();
 
     check_program_entry(sources, ast, &mut diagnostics);
+    diagnostics.extend(check_module(sources, ast, resolved));
+
+    diagnostics
+}
+
+pub fn check_module(
+    sources: &SourceMap,
+    ast: &AstFile,
+    resolved: &ResolveOutput,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+
     check_call_expressions(sources, ast, resolved, &mut diagnostics);
     check_return_types(sources, ast, resolved, &mut diagnostics);
 
@@ -119,7 +131,71 @@ fn check_return_types(
                     &mut environment,
                 );
             }
+            Item::Impl(impl_) => {
+                check_impl_member_return_types(sources, impl_, resolved, diagnostics);
+            }
             _ => {}
+        }
+    }
+}
+
+fn check_impl_member_return_types(
+    sources: &SourceMap,
+    impl_: &ImplDecl,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let self_type = impl_self_type(impl_, resolved);
+
+    for member in &impl_.members {
+        match member {
+            ImplMember::Function(function) => {
+                let context = ReturnContext::new(
+                    CallableKind::AssociatedFunction(impl_member_name(impl_, &function.name)),
+                    type_expr_to_type_with_self_type(
+                        &function.return_type,
+                        resolved,
+                        Some(&self_type),
+                    ),
+                    function.return_type.span(),
+                );
+                let mut environment = environment_for_parameters_with_self_type(
+                    &function.parameters.parameters,
+                    resolved,
+                    self_type.clone(),
+                );
+                check_block_returns(
+                    sources,
+                    &function.body,
+                    &context,
+                    resolved,
+                    diagnostics,
+                    &mut environment,
+                );
+            }
+            ImplMember::Method(method) => {
+                let Some(body) = &method.body else {
+                    continue;
+                };
+                let context = ReturnContext::new(
+                    CallableKind::Method(impl_member_name(impl_, &method.name)),
+                    type_expr_to_type_with_self_type(
+                        &method.return_type,
+                        resolved,
+                        Some(&self_type),
+                    ),
+                    method.return_type.span(),
+                );
+                let mut environment = environment_for_method(method, resolved, self_type.clone());
+                check_block_returns(
+                    sources,
+                    body,
+                    &context,
+                    resolved,
+                    diagnostics,
+                    &mut environment,
+                );
+            }
         }
     }
 }
@@ -233,8 +309,13 @@ fn check_statement_returns(
                     &mut else_environment,
                 );
             }
-            let binding_type = continuing_binding_type(statement, initializer_type, resolved);
-            environment.define(statement.name.clone(), binding_type);
+            let binding_type =
+                continuing_binding_type(statement, initializer_type, resolved, environment);
+            environment.define_binding(
+                statement.name.clone(),
+                binding_type,
+                binding_kind_is_mutable(statement.kind),
+            );
         }
         Stmt::Try(statement) => {
             check_try_propagation(
@@ -806,6 +887,9 @@ fn check_call_expressions(
                     0,
                 );
             }
+            Item::Impl(impl_) => {
+                check_impl_member_calls(sources, impl_, resolved, diagnostics);
+            }
             Item::Use(_)
             | Item::Import(_)
             | Item::FromImport(_)
@@ -813,8 +897,43 @@ fn check_call_expressions(
             | Item::TypeAlias(_)
             | Item::Struct(_)
             | Item::Enum(_)
-            | Item::Trait(_)
-            | Item::Impl(_) => {}
+            | Item::Trait(_) => {}
+        }
+    }
+}
+
+fn check_impl_member_calls(
+    sources: &SourceMap,
+    impl_: &ImplDecl,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let self_type = impl_self_type(impl_, resolved);
+
+    for member in &impl_.members {
+        match member {
+            ImplMember::Function(function) => {
+                let mut environment = environment_for_parameters_with_self_type(
+                    &function.parameters.parameters,
+                    resolved,
+                    self_type.clone(),
+                );
+                check_block_calls(
+                    sources,
+                    &function.body,
+                    resolved,
+                    diagnostics,
+                    &mut environment,
+                    0,
+                );
+            }
+            ImplMember::Method(method) => {
+                let Some(body) = &method.body else {
+                    continue;
+                };
+                let mut environment = environment_for_method(method, resolved, self_type.clone());
+                check_block_calls(sources, body, resolved, diagnostics, &mut environment, 0);
+            }
         }
     }
 }
@@ -899,8 +1018,13 @@ fn check_statement_calls(
                 diagnostics,
                 environment,
             );
-            let binding_type = continuing_binding_type(statement, initializer_type, resolved);
-            environment.define(statement.name.clone(), binding_type);
+            let binding_type =
+                continuing_binding_type(statement, initializer_type, resolved, environment);
+            environment.define_binding(
+                statement.name.clone(),
+                binding_type,
+                binding_kind_is_mutable(statement.kind),
+            );
         }
         Stmt::Try(statement) => {
             check_expression_calls(
@@ -1274,7 +1398,18 @@ fn check_expression_calls(
             );
         }
         Expr::Call(expression) => {
-            if !is_enum_variant_call(expression, resolved) {
+            if let Some(method) = method_member_for_call(expression)
+                && resolved_method_for_call(resolved, expression, environment).is_some()
+            {
+                check_expression_calls(
+                    sources,
+                    &method.object,
+                    resolved,
+                    diagnostics,
+                    environment,
+                    loop_depth,
+                );
+            } else if !is_enum_variant_call(expression, resolved) {
                 check_expression_calls(
                     sources,
                     &expression.callee,
@@ -1296,16 +1431,17 @@ fn check_expression_calls(
             }
             check_enum_variant_call(sources, expression, resolved, diagnostics, environment);
 
-            if let Some(signature) = resolved.function_signature_for_call(expression) {
+            if let Some(signature) = resolved_call_signature(resolved, expression, environment) {
                 check_known_function_call(
                     sources,
                     expression,
-                    signature,
+                    &signature,
                     resolved,
                     diagnostics,
                     environment,
                 );
             }
+            check_method_receiver_call(sources, expression, resolved, diagnostics, environment);
         }
         Expr::Member(expression) => {
             check_expression_calls(
@@ -1410,18 +1546,18 @@ fn check_expression_calls(
 fn check_known_function_call(
     sources: &SourceMap,
     call: &CallExpr,
-    signature: &FunctionSignature,
+    signature: &CheckedCallSignature<'_>,
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
     environment: &TypeEnvironment,
 ) {
-    if call.arguments.len() != signature.parameters.len() {
+    if call.arguments.len() != signature.signature.parameters.len() {
         diagnostics.push(argument_count_mismatch_diagnostic(
             sources,
             call,
-            signature.parameters.len(),
+            signature,
+            signature.signature.parameters.len(),
             call.arguments.len(),
-            resolved,
         ));
         return;
     }
@@ -1429,10 +1565,11 @@ fn check_known_function_call(
     for (index, (argument, parameter)) in call
         .arguments
         .iter()
-        .zip(signature.parameters.iter())
+        .zip(signature.signature.parameters.iter())
         .enumerate()
     {
-        let expected = type_expr_to_type(&parameter.ty, resolved);
+        let expected =
+            type_expr_to_type_with_self_type(&parameter.ty, resolved, signature.self_type.as_ref());
         let actual = expression_type(argument, resolved, environment);
         if actual.is_unknown_or_unresolved() || expected.is_unknown_or_unresolved() {
             continue;
@@ -1444,6 +1581,173 @@ fn check_known_function_call(
             ));
         }
     }
+}
+
+#[derive(Debug, Clone)]
+struct CheckedCallSignature<'a> {
+    signature: &'a FunctionSignature,
+    self_type: Option<Type>,
+    name: String,
+    kind: CheckedCallKind,
+    declaration_span: Option<ByteSpan>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CheckedCallKind {
+    Function,
+    AssociatedFunction,
+    Method,
+}
+
+impl CheckedCallKind {
+    fn noun(self) -> &'static str {
+        match self {
+            CheckedCallKind::Function => "function",
+            CheckedCallKind::AssociatedFunction => "associated function",
+            CheckedCallKind::Method => "method",
+        }
+    }
+}
+
+fn resolved_call_signature<'a>(
+    resolved: &'a ResolveOutput,
+    call: &CallExpr,
+    environment: &TypeEnvironment,
+) -> Option<CheckedCallSignature<'a>> {
+    if let Some(signature) = resolved.function_signature_for_call(call) {
+        return Some(CheckedCallSignature {
+            signature,
+            self_type: None,
+            name: resolved.call_name_for_diagnostic(call),
+            kind: CheckedCallKind::Function,
+            declaration_span: resolved
+                .symbol_for_call(call)
+                .map(|symbol| symbol.declaration_span),
+        });
+    }
+
+    if let Some((owner, function)) = resolved.associated_function_for_call(call) {
+        return Some(CheckedCallSignature {
+            signature: &function.signature,
+            self_type: Some(Type::Named(owner.canonical_name.clone())),
+            name: format!("{}.{}", owner.canonical_name, function.name),
+            kind: CheckedCallKind::AssociatedFunction,
+            declaration_span: Some(function.name_span),
+        });
+    }
+
+    resolved_method_for_call(resolved, call, environment).map(|(owner, method)| {
+        CheckedCallSignature {
+            signature: &method.signature,
+            self_type: Some(Type::Named(owner.canonical_name.clone())),
+            name: format!("{}.{}", owner.canonical_name, method.name),
+            kind: CheckedCallKind::Method,
+            declaration_span: Some(method.name_span),
+        }
+    })
+}
+
+fn resolved_method_for_call<'a>(
+    resolved: &'a ResolveOutput,
+    call: &CallExpr,
+    environment: &TypeEnvironment,
+) -> Option<(&'a TypeSymbol, &'a MethodSignature)> {
+    let member = method_member_for_call(call)?;
+    let receiver_type = expression_type(&member.object, resolved, environment);
+    let owner = inherent_method_owner_for_type(&receiver_type, resolved)?;
+    let method = owner
+        .methods
+        .iter()
+        .find(|method| method.is_accessible && method.name == member.member)?;
+
+    Some((owner, method))
+}
+
+fn check_method_receiver_call(
+    sources: &SourceMap,
+    call: &CallExpr,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+    environment: &TypeEnvironment,
+) {
+    let Some((owner, method)) = resolved_method_for_call(resolved, call, environment) else {
+        return;
+    };
+    let Some(member) = method_member_for_call(call) else {
+        return;
+    };
+
+    match method_receiver_kind(method) {
+        Some(MethodReceiverKind::Owned | MethodReceiverKind::ReadonlyBorrow) => {}
+        Some(MethodReceiverKind::ReadwriteBorrow) => {
+            if receiver_is_mutable_binding(member, environment) {
+                return;
+            }
+
+            diagnostics.push(method_readwrite_receiver_requires_var_diagnostic(
+                sources, member, owner, method,
+            ));
+        }
+        None => diagnostics.push(method_receiver_unsupported_diagnostic(
+            sources, member, owner, method,
+        )),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MethodReceiverKind {
+    Owned,
+    ReadonlyBorrow,
+    ReadwriteBorrow,
+}
+
+fn method_receiver_kind(method: &MethodSignature) -> Option<MethodReceiverKind> {
+    match &method.receiver.ty {
+        TypeExpr::Reference(reference) if reference.name == "Self" => {
+            Some(MethodReceiverKind::Owned)
+        }
+        TypeExpr::Borrow(borrow) if type_expr_is_self_reference(&borrow.inner) => {
+            if borrow.is_readwrite {
+                Some(MethodReceiverKind::ReadwriteBorrow)
+            } else {
+                Some(MethodReceiverKind::ReadonlyBorrow)
+            }
+        }
+        _ => None,
+    }
+}
+
+fn type_expr_is_self_reference(ty: &TypeExpr) -> bool {
+    matches!(ty, TypeExpr::Reference(reference) if reference.name == "Self")
+}
+
+fn receiver_is_mutable_binding(member: &MemberExpr, environment: &TypeEnvironment) -> bool {
+    let Expr::Identifier(identifier) = member.object.as_ref() else {
+        return false;
+    };
+
+    environment.is_mutable_binding(&identifier.name)
+}
+
+fn inherent_method_owner_for_type<'a>(
+    ty: &Type,
+    resolved: &'a ResolveOutput,
+) -> Option<&'a TypeSymbol> {
+    let Type::Named(canonical_name) = ty else {
+        return None;
+    };
+
+    resolved
+        .type_symbol_by_canonical_name(canonical_name)
+        .filter(|symbol| matches!(symbol.kind, TypeSymbolKind::Struct | TypeSymbolKind::Enum))
+}
+
+fn method_member_for_call(call: &CallExpr) -> Option<&MemberExpr> {
+    let Expr::Member(member) = call.callee.as_ref() else {
+        return None;
+    };
+
+    Some(member)
 }
 
 fn block_guarantees_return(block: &Block) -> bool {
@@ -1490,13 +1794,54 @@ fn environment_for_parameters(
     resolved: &ResolveOutput,
 ) -> TypeEnvironment {
     let mut environment = TypeEnvironment::default();
-    for parameter in parameters {
-        environment.define(
-            parameter.name.clone(),
-            type_expr_to_type(&parameter.ty, resolved),
-        );
-    }
+    define_parameters_in_environment(parameters, resolved, &mut environment);
     environment
+}
+
+fn environment_for_parameters_with_self_type(
+    parameters: &[Parameter],
+    resolved: &ResolveOutput,
+    self_type: Type,
+) -> TypeEnvironment {
+    let mut environment = TypeEnvironment::with_self_type(self_type);
+    define_parameters_in_environment(parameters, resolved, &mut environment);
+    environment
+}
+
+fn environment_for_method(
+    method: &MethodDecl,
+    resolved: &ResolveOutput,
+    self_type: Type,
+) -> TypeEnvironment {
+    let mut environment = TypeEnvironment::with_self_type(self_type);
+    let receiver_type =
+        type_expr_to_type_in_environment(&method.receiver.ty, resolved, &environment);
+    environment.define(method.receiver.name.clone(), receiver_type);
+    define_parameters_in_environment(&method.parameters.parameters, resolved, &mut environment);
+    environment
+}
+
+fn define_parameters_in_environment(
+    parameters: &[Parameter],
+    resolved: &ResolveOutput,
+    environment: &mut TypeEnvironment,
+) {
+    for parameter in parameters {
+        let ty = type_expr_to_type_in_environment(&parameter.ty, resolved, environment);
+        environment.define(parameter.name.clone(), ty);
+    }
+}
+
+fn impl_self_type(impl_: &ImplDecl, resolved: &ResolveOutput) -> Type {
+    type_expr_to_type(&impl_.target_ty, resolved)
+}
+
+fn impl_member_name(impl_: &ImplDecl, member_name: &str) -> String {
+    format!(
+        "{}.{}",
+        type_expr_display_lossy(&impl_.target_ty),
+        member_name
+    )
 }
 
 fn environment_for_catch(
@@ -1520,9 +1865,10 @@ fn environment_for_if_let_binding(
     environment: &TypeEnvironment,
 ) -> TypeEnvironment {
     let mut then_environment = environment.clone();
-    then_environment.define(
+    then_environment.define_binding(
         statement.name.clone(),
         if_let_binding_type(statement, resolved, environment),
+        binding_kind_is_mutable(statement.kind),
     );
     then_environment
 }
@@ -1580,9 +1926,10 @@ fn environment_for_while_let_binding(
     environment: &TypeEnvironment,
 ) -> TypeEnvironment {
     let mut body_environment = environment.clone();
-    body_environment.define(
+    body_environment.define_binding(
         statement.name.clone(),
         while_let_binding_type(statement, resolved, environment),
+        binding_kind_is_mutable(statement.kind),
     );
     body_environment
 }
@@ -2008,7 +2355,7 @@ fn struct_member_type(
     let struct_symbol = struct_type_symbol_for_type(&target_type, resolved)?;
     Some(
         struct_field_for_member(member, struct_symbol)
-            .map(|field| type_expr_to_type(&field.ty, resolved))
+            .map(|field| type_expr_to_type_in_environment(&field.ty, resolved, environment))
             .unwrap_or(Type::Unknown),
     )
 }
@@ -2043,8 +2390,12 @@ fn check_struct_member_expression(
     }
 }
 
-fn struct_literal_type(literal: &StructLiteralExpr, resolved: &ResolveOutput) -> Type {
-    let target_type = type_expr_to_type(&literal.ty, resolved);
+fn struct_literal_type(
+    literal: &StructLiteralExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Type {
+    let target_type = type_expr_to_type_in_environment(&literal.ty, resolved, environment);
     if struct_type_symbol_for_type(&target_type, resolved).is_some() {
         target_type
     } else {
@@ -2059,7 +2410,7 @@ fn check_struct_literal_expression(
     diagnostics: &mut Vec<Diagnostic>,
     environment: &TypeEnvironment,
 ) {
-    let target_type = type_expr_to_type(&literal.ty, resolved);
+    let target_type = type_expr_to_type_in_environment(&literal.ty, resolved, environment);
     if target_type.is_unknown_or_unresolved() {
         return;
     }
@@ -2106,7 +2457,7 @@ fn check_struct_literal_expression(
             continue;
         }
 
-        let expected = type_expr_to_type(&expected_field.ty, resolved);
+        let expected = type_expr_to_type_in_environment(&expected_field.ty, resolved, environment);
         let actual = expression_type(&field.value, resolved, environment);
         if expected.is_unknown_or_unresolved() || actual.is_unknown_or_unresolved() {
             continue;
@@ -2320,6 +2671,7 @@ fn continuing_binding_type(
     statement: &BindingStmt,
     initializer_type: Type,
     resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
 ) -> Type {
     let inferred = if statement.else_block.is_some() {
         match initializer_type {
@@ -2332,7 +2684,7 @@ fn continuing_binding_type(
     };
 
     if let Some(ty) = &statement.ty {
-        return type_expr_to_type(ty, resolved);
+        return type_expr_to_type_in_environment(ty, resolved, environment);
     }
 
     inferred
@@ -2509,7 +2861,7 @@ fn check_type_conversion_expression(
     environment: &TypeEnvironment,
 ) {
     let source_type = expression_type(&expression.expression, resolved, environment);
-    let target_type = type_expr_to_type(&expression.ty, resolved);
+    let target_type = type_expr_to_type_in_environment(&expression.ty, resolved, environment);
     if source_type.is_unknown_or_unresolved() || target_type.is_unknown_or_unresolved() {
         return;
     }
@@ -2542,7 +2894,7 @@ fn check_binding_annotation(
         return;
     };
 
-    let binding_type = type_expr_to_type(annotation, resolved);
+    let binding_type = type_expr_to_type_in_environment(annotation, resolved, environment);
     let expected_initializer = if statement.else_block.is_some() {
         Type::Optional(Box::new(binding_type.clone()))
     } else {
@@ -2681,8 +3033,27 @@ fn is_indexable_type(ty: &Type) -> bool {
 }
 
 fn type_expr_to_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Type {
+    type_expr_to_type_with_self_type(ty, resolved, None)
+}
+
+fn type_expr_to_type_in_environment(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Type {
+    type_expr_to_type_with_self_type(ty, resolved, environment.self_type())
+}
+
+fn type_expr_to_type_with_self_type(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    self_type: Option<&Type>,
+) -> Type {
     match ty {
         TypeExpr::Reference(reference) => match reference.name.as_str() {
+            "Self" => self_type
+                .cloned()
+                .unwrap_or_else(|| Type::Unresolved("Self".to_string())),
             "i32" => Type::I32,
             "bool" | "i8" | "i16" | "i64" | "u8" | "u16" | "u32" | "u64" | "usize" | "isize" => {
                 Type::Primitive(reference.name.clone())
@@ -2697,29 +3068,50 @@ fn type_expr_to_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Type {
                 .unwrap_or_else(|| Type::Unresolved(name.to_string())),
         },
         TypeExpr::Generic(_) | TypeExpr::Pointer(_) | TypeExpr::Borrow(_) => {
-            type_expr_display(ty, resolved)
+            type_expr_display_with_self_type(ty, resolved, self_type)
                 .map(Type::Named)
                 .unwrap_or_else(|| Type::Unresolved(type_expr_display_lossy(ty)))
         }
         TypeExpr::View(ty) => Type::View {
             is_readwrite: ty.is_readwrite,
-            element: Box::new(type_expr_to_type(&ty.element, resolved)),
+            element: Box::new(type_expr_to_type_with_self_type(
+                &ty.element,
+                resolved,
+                self_type,
+            )),
         },
         TypeExpr::Array(ty) => Type::Array {
-            element: Box::new(type_expr_to_type(&ty.element, resolved)),
+            element: Box::new(type_expr_to_type_with_self_type(
+                &ty.element,
+                resolved,
+                self_type,
+            )),
             length: ty.length.value.clone(),
         },
-        TypeExpr::Optional(ty) => Type::Optional(Box::new(type_expr_to_type(&ty.inner, resolved))),
+        TypeExpr::Optional(ty) => Type::Optional(Box::new(type_expr_to_type_with_self_type(
+            &ty.inner, resolved, self_type,
+        ))),
         TypeExpr::Fallible(ty) => Type::Fallible {
-            success: Box::new(type_expr_to_type(&ty.success, resolved)),
-            error: Box::new(type_expr_to_type(&ty.error, resolved)),
+            success: Box::new(type_expr_to_type_with_self_type(
+                &ty.success,
+                resolved,
+                self_type,
+            )),
+            error: Box::new(type_expr_to_type_with_self_type(
+                &ty.error, resolved, self_type,
+            )),
         },
     }
 }
 
-fn type_expr_display(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<String> {
+fn type_expr_display_with_self_type(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    self_type: Option<&Type>,
+) -> Option<String> {
     match ty {
         TypeExpr::Reference(reference) => match reference.name.as_str() {
+            "Self" => self_type.map(Type::display),
             "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "usize"
             | "isize" | "str" | "error" | "void" | "never" => Some(reference.name.clone()),
             name => resolved
@@ -2730,7 +3122,7 @@ fn type_expr_display(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<String> 
             let arguments = generic
                 .arguments
                 .iter()
-                .map(|argument| type_expr_display(argument, resolved))
+                .map(|argument| type_expr_display_with_self_type(argument, resolved, self_type))
                 .collect::<Option<Vec<_>>>()?
                 .join(", ");
             let name = resolved
@@ -2738,32 +3130,38 @@ fn type_expr_display(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<String> 
                 .map(|symbol| symbol.canonical_name.clone())?;
             Some(format!("{name}<{arguments}>"))
         }
-        TypeExpr::Pointer(pointer) => {
-            Some(format!("*{}", type_expr_display(&pointer.inner, resolved)?))
-        }
-        TypeExpr::Borrow(borrow) if borrow.is_readwrite => {
-            Some(format!("&+{}", type_expr_display(&borrow.inner, resolved)?))
-        }
-        TypeExpr::Borrow(borrow) => {
-            Some(format!("&{}", type_expr_display(&borrow.inner, resolved)?))
-        }
+        TypeExpr::Pointer(pointer) => Some(format!(
+            "*{}",
+            type_expr_display_with_self_type(&pointer.inner, resolved, self_type)?
+        )),
+        TypeExpr::Borrow(borrow) if borrow.is_readwrite => Some(format!(
+            "&+{}",
+            type_expr_display_with_self_type(&borrow.inner, resolved, self_type)?
+        )),
+        TypeExpr::Borrow(borrow) => Some(format!(
+            "&{}",
+            type_expr_display_with_self_type(&borrow.inner, resolved, self_type)?
+        )),
         TypeExpr::View(view) if view.is_readwrite => Some(format!(
             "[+{}]",
-            type_expr_display(&view.element, resolved)?
+            type_expr_display_with_self_type(&view.element, resolved, self_type)?
         )),
-        TypeExpr::View(view) => Some(format!("[{}]", type_expr_display(&view.element, resolved)?)),
+        TypeExpr::View(view) => Some(format!(
+            "[{}]",
+            type_expr_display_with_self_type(&view.element, resolved, self_type)?
+        )),
         TypeExpr::Array(array) => Some(format!(
             "[{}; {}]",
-            type_expr_display(&array.element, resolved)?,
+            type_expr_display_with_self_type(&array.element, resolved, self_type)?,
             array.length.value
         )),
         TypeExpr::Optional(optional) => Some(format!(
             "{}?",
-            type_expr_display(&optional.inner, resolved)?
+            type_expr_display_with_self_type(&optional.inner, resolved, self_type)?
         )),
         TypeExpr::Fallible(fallible) => Some(format!(
             "{}!",
-            type_expr_display(&fallible.success, resolved)?
+            type_expr_display_with_self_type(&fallible.success, resolved, self_type)?
         )),
     }
 }
@@ -2812,13 +3210,15 @@ fn expression_type(
         Expr::BoolLiteral(_) => Type::Primitive("bool".to_string()),
         Expr::NoneLiteral(_) => Type::None,
         Expr::ArrayLiteral(expression) => array_literal_type(expression, resolved, environment),
-        Expr::StructLiteral(expression) => struct_literal_type(expression, resolved),
+        Expr::StructLiteral(expression) => struct_literal_type(expression, resolved, environment),
         Expr::Binary(expression) => binary_expression_type(expression, resolved, environment),
         Expr::Unary(expression) => match expression.operator {
             UnaryOperator::LogicalNot => Type::Primitive("bool".to_string()),
             UnaryOperator::Negate => expression_type(&expression.operand, resolved, environment),
         },
-        Expr::TypeConversion(expression) => type_expr_to_type(&expression.ty, resolved),
+        Expr::TypeConversion(expression) => {
+            type_expr_to_type_in_environment(&expression.ty, resolved, environment)
+        }
         Expr::Try(expression) => {
             expression_type(&expression.expression, resolved, environment).into_success_type()
         }
@@ -2827,9 +3227,14 @@ fn expression_type(
         }
         Expr::Call(expression) => {
             enum_variant_call_type(expression, resolved).unwrap_or_else(|| {
-                resolved
-                    .function_signature_for_call(expression)
-                    .map(|signature| type_expr_to_type(&signature.return_type, resolved))
+                resolved_call_signature(resolved, expression, environment)
+                    .map(|signature| {
+                        type_expr_to_type_with_self_type(
+                            &signature.signature.return_type,
+                            resolved,
+                            signature.self_type.as_ref(),
+                        )
+                    })
                     .unwrap_or(Type::Unknown)
             })
         }
@@ -3401,17 +3806,45 @@ impl Type {
 
 #[derive(Debug, Clone, Default)]
 struct TypeEnvironment {
-    bindings: HashMap<String, Type>,
+    bindings: HashMap<String, TypeBinding>,
+    self_type: Option<Type>,
 }
 
 impl TypeEnvironment {
+    fn with_self_type(self_type: Type) -> Self {
+        Self {
+            bindings: HashMap::new(),
+            self_type: Some(self_type),
+        }
+    }
+
     fn define(&mut self, name: String, ty: Type) {
-        self.bindings.insert(name, ty);
+        self.define_binding(name, ty, false);
+    }
+
+    fn define_binding(&mut self, name: String, ty: Type, is_mutable: bool) {
+        self.bindings.insert(name, TypeBinding { ty, is_mutable });
     }
 
     fn get(&self, name: &str) -> Option<&Type> {
-        self.bindings.get(name)
+        self.bindings.get(name).map(|binding| &binding.ty)
     }
+
+    fn is_mutable_binding(&self, name: &str) -> bool {
+        self.bindings
+            .get(name)
+            .is_some_and(|binding| binding.is_mutable)
+    }
+
+    fn self_type(&self) -> Option<&Type> {
+        self.self_type.as_ref()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TypeBinding {
+    ty: Type,
+    is_mutable: bool,
 }
 
 fn same_known_type(left: &Type, right: &Type) -> bool {
@@ -3450,6 +3883,8 @@ impl ReturnContext {
         match &self.kind {
             CallableKind::Program => "`program`".to_string(),
             CallableKind::Function(name) => format!("function `{name}`"),
+            CallableKind::AssociatedFunction(name) => format!("associated function `{name}`"),
+            CallableKind::Method(name) => format!("method `{name}`"),
         }
     }
 }
@@ -3458,6 +3893,8 @@ impl ReturnContext {
 enum CallableKind {
     Program,
     Function(String),
+    AssociatedFunction(String),
+    Method(String),
 }
 
 fn missing_program_diagnostic(sources: &SourceMap, span: ByteSpan) -> Diagnostic {
@@ -3654,30 +4091,35 @@ fn missing_return_diagnostic(
 fn argument_count_mismatch_diagnostic(
     sources: &SourceMap,
     call: &CallExpr,
+    signature: &CheckedCallSignature<'_>,
     expected: usize,
     actual: usize,
-    resolved: &ResolveOutput,
 ) -> Diagnostic {
-    let function_name = resolved
-        .symbol_for_call(call)
-        .map(|symbol| symbol.name.as_str())
-        .unwrap_or("<unknown>");
     let mut diagnostic = Diagnostic::error(
         "E0320",
         format!(
-            "function `{function_name}` expects {expected} argument(s), but call provides {actual}"
+            "{} `{}` expects {expected} argument(s), but call provides {actual}",
+            signature.kind.noun(),
+            signature.name
         ),
     );
     diagnostic.primary_span = sources.span_to_json(call.arguments_span).ok().map(Box::new);
-    if let Some(symbol) = resolved.symbol_for_call(call)
-        && let Ok(span) = sources.span_to_json(symbol.declaration_span)
+    if let Some(declaration_span) = signature.declaration_span
+        && let Ok(span) = sources.span_to_json(declaration_span)
     {
         diagnostic.notes.push(DiagnosticNote {
-            message: format!("function `{}` is declared here", symbol.name),
+            message: format!(
+                "{} `{}` is declared here",
+                signature.kind.noun(),
+                signature.name
+            ),
             span: Some(span),
         });
     }
-    diagnostic.help = Some("pass exactly the parameters declared by the function".to_string());
+    diagnostic.help = Some(format!(
+        "pass exactly the parameters declared by the {}",
+        signature.kind.noun()
+    ));
     diagnostic
 }
 
@@ -4218,6 +4660,60 @@ fn struct_field_unknown_diagnostic(
     );
     diagnostic.primary_span = sources.span_to_json(member.member_span).ok().map(Box::new);
     diagnostic.help = Some("use a field declared by the struct".to_string());
+    diagnostic
+}
+
+fn method_receiver_unsupported_diagnostic(
+    sources: &SourceMap,
+    member: &MemberExpr,
+    owner: &TypeSymbol,
+    method: &MethodSignature,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0377",
+        format!(
+            "method `{}.{}` uses unsupported receiver type `{}`",
+            owner.canonical_name,
+            method.name,
+            type_expr_display_lossy(&method.receiver.ty)
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(member.member_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(method.receiver.ty.span()) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "receiver type is declared here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help =
+        Some("v0 method calls require receiver type `Self`, `&Self`, or `&+Self`".to_string());
+    diagnostic
+}
+
+fn method_readwrite_receiver_requires_var_diagnostic(
+    sources: &SourceMap,
+    member: &MemberExpr,
+    owner: &TypeSymbol,
+    method: &MethodSignature,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0378",
+        format!(
+            "method `{}.{}` requires a mutable `var` receiver",
+            owner.canonical_name, method.name
+        ),
+    );
+    diagnostic.primary_span = sources
+        .span_to_json(member.object.span())
+        .ok()
+        .map(Box::new);
+    if let Ok(span) = sources.span_to_json(method.receiver.ty.span()) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "readwrite receiver is declared here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some("bind the receiver with `var` before calling this method".to_string());
     diagnostic
 }
 
@@ -4806,6 +5302,10 @@ fn binding_keyword(kind: BindingKind) -> &'static str {
         BindingKind::Let => "let",
         BindingKind::Var => "var",
     }
+}
+
+fn binding_kind_is_mutable(kind: BindingKind) -> bool {
+    matches!(kind, BindingKind::Var)
 }
 
 fn add_declared_return_note(
@@ -7272,6 +7772,391 @@ func length(value: i32): i32 {
 
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0].code, "E0321");
+    }
+
+    #[test]
+    fn accepts_associated_function_return_type() {
+        let diagnostics = check_text(
+            r#"struct Point {
+    x: i32
+}
+
+impl Point {
+    pub func origin(): Self {
+        return Self{ x: 0 }
+    }
+}
+
+program(): i32 {
+    return Point.origin().x
+}
+"#,
+        );
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn diagnoses_associated_function_argument_count_mismatch() {
+        let diagnostics = check_text(
+            r#"struct Parser {
+    value: i32
+}
+
+impl Parser {
+    pub func parse(value: i32): i32 {
+        return value
+    }
+}
+
+program(): i32 {
+    return Parser.parse()
+}
+"#,
+        );
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0320");
+        assert!(diagnostics[0].message.contains("Parser.parse"));
+    }
+
+    #[test]
+    fn diagnoses_associated_function_argument_type_mismatch() {
+        let diagnostics = check_text(
+            r#"struct Parser {
+    value: i32
+}
+
+impl Parser {
+    pub func parse(value: i32): i32 {
+        return value
+    }
+}
+
+program(): i32 {
+    return Parser.parse("bad")
+}
+"#,
+        );
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0321");
+    }
+
+    #[test]
+    fn diagnoses_associated_function_body_return_type_mismatch() {
+        let diagnostics = check_text(
+            r#"struct Parser {
+    value: i32
+}
+
+impl Parser {
+    pub func parse(): i32 {
+        return "bad"
+    }
+}
+
+program(): i32 {
+    return Parser.parse()
+}
+"#,
+        );
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0312");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("associated function `Parser.parse`")
+        );
+    }
+
+    #[test]
+    fn diagnoses_associated_function_body_call_argument_mismatch() {
+        let diagnostics = check_text(
+            r#"struct Parser {
+    value: i32
+}
+
+impl Parser {
+    pub func parse(): i32 {
+        return needs_value()
+    }
+}
+
+func needs_value(value: i32): i32 {
+    return value
+}
+
+program(): i32 {
+    return Parser.parse()
+}
+"#,
+        );
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0320");
+    }
+
+    #[test]
+    fn accepts_method_body_receiver_self_type() {
+        let diagnostics = check_text(
+            r#"struct Point {
+    x: i32
+}
+
+impl Point {
+    method (point: Self).x_value(): i32 {
+        return point.x
+    }
+}
+
+program(): i32 {
+    return 0
+}
+"#,
+        );
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn accepts_method_call_return_type() {
+        let diagnostics = check_text(
+            r#"struct Point {
+    x: i32
+}
+
+impl Point {
+    method (point: Self).x_value(): i32 {
+        return point.x
+    }
+}
+
+program(): i32 {
+    let point = Point{ x: 1 }
+    return point.x_value()
+}
+"#,
+        );
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn accepts_method_call_self_return_type() {
+        let diagnostics = check_text(
+            r#"struct Point {
+    x: i32
+}
+
+impl Point {
+    method (point: Self).same(): Self {
+        return Self{ x: point.x }
+    }
+}
+
+program(): i32 {
+    let point = Point{ x: 1 }
+    return point.same().x
+}
+"#,
+        );
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn diagnoses_method_call_argument_count_mismatch() {
+        let diagnostics = check_text(
+            r#"struct Parser {
+    value: i32
+}
+
+impl Parser {
+    method (parser: Self).parse(value: i32): i32 {
+        return value
+    }
+}
+
+program(): i32 {
+    let parser = Parser{ value: 0 }
+    return parser.parse()
+}
+"#,
+        );
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0320");
+        assert!(diagnostics[0].message.contains("method `Parser.parse`"));
+    }
+
+    #[test]
+    fn diagnoses_method_call_argument_type_mismatch() {
+        let diagnostics = check_text(
+            r#"struct Parser {
+    value: i32
+}
+
+impl Parser {
+    method (parser: Self).parse(value: i32): i32 {
+        return value
+    }
+}
+
+program(): i32 {
+    let parser = Parser{ value: 0 }
+    return parser.parse("bad")
+}
+"#,
+        );
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0321");
+    }
+
+    #[test]
+    fn accepts_readwrite_method_call_on_var_binding() {
+        let diagnostics = check_text(
+            r#"struct File {
+    fd: i32
+}
+
+impl File {
+    method (file: &+Self).write(): i32 {
+        return 0
+    }
+}
+
+program(): i32 {
+    var file = File{ fd: 1 }
+    return file.write()
+}
+"#,
+        );
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn diagnoses_readwrite_method_call_on_let_binding() {
+        let diagnostics = check_text(
+            r#"struct File {
+    fd: i32
+}
+
+impl File {
+    method (file: &+Self).write(): i32 {
+        return 0
+    }
+}
+
+program(): i32 {
+    let file = File{ fd: 1 }
+    return file.write()
+}
+"#,
+        );
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0378");
+    }
+
+    #[test]
+    fn diagnoses_readwrite_method_call_on_temporary() {
+        let diagnostics = check_text(
+            r#"struct File {
+    fd: i32
+}
+
+impl File {
+    method (file: &+Self).write(): i32 {
+        return 0
+    }
+}
+
+program(): i32 {
+    return File{ fd: 1 }.write()
+}
+"#,
+        );
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0378");
+    }
+
+    #[test]
+    fn accepts_readonly_method_call_on_let_binding_and_temporary() {
+        let diagnostics = check_text(
+            r#"struct File {
+    fd: i32
+}
+
+impl File {
+    method (file: &Self).fd_value(): i32 {
+        return 0
+    }
+}
+
+program(): i32 {
+    let file = File{ fd: 1 }
+    if file.fd_value() == 0 {
+        return File{ fd: 2 }.fd_value()
+    }
+    return 1
+}
+"#,
+        );
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn diagnoses_unsupported_method_receiver_type() {
+        let diagnostics = check_text(
+            r#"struct File {
+    fd: i32
+}
+
+impl File {
+    method (file: i32).bad(): i32 {
+        return 0
+    }
+}
+
+program(): i32 {
+    let file = File{ fd: 1 }
+    return file.bad()
+}
+"#,
+        );
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0377");
+    }
+
+    #[test]
+    fn diagnoses_method_body_return_type_mismatch() {
+        let diagnostics = check_text(
+            r#"struct Point {
+    x: i32
+}
+
+impl Point {
+    method (point: Self).x_value(): i32 {
+        return "bad"
+    }
+}
+
+program(): i32 {
+    return 0
+}
+"#,
+        );
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0312");
+        assert!(diagnostics[0].message.contains("method `Point.x_value`"));
     }
 
     #[test]
