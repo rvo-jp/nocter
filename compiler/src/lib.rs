@@ -5,6 +5,7 @@ pub mod backend;
 pub mod diagnostics;
 pub mod driver;
 pub mod entry;
+pub mod format;
 pub mod frontend;
 pub mod home;
 pub mod ir;

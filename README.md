@@ -354,7 +354,7 @@ comment は `// line comment` と `/* block comment */` を採用します。blo
 
 文末セミコロンは採用しません。文は改行または `}` で区切ります。空白は token の区切りにだけ使い、indent に構文上の意味はありません。
 
-source style は formatter が統一します。compiler は空白や改行に寛容にし、style 違反を compile error にはしません。`nocter fmt app.nct` は指定された1ファイルを公式 style に書き戻し、`nocter fmt --check app.nct` は CI や editor integration 用に差分有無だけを検査します。formatter output が仕様書、README、`example.nct` の正準表記です。
+source style は formatter が統一します。compiler は空白や改行に寛容にし、style 違反を compile error にはしません。`nocter fmt app.nct` は指定された1ファイルを公式 style に書き戻し、`nocter fmt --check app.nct` は CI や editor integration 用に差分有無だけを検査します。formatter output が仕様書、README、`example.nct` の正準表記です。current formatter v0 は comment を安全に保持する実装をまだ持たないため、comment を含む file は書き換えず diagnostic を出します。
 
 初期 style は、indent 4 spaces、`a: Type` は `:` の後だけ空白、`name = value` と binary operator は前後に空白、`func(arg)` と `file.write(arg)` は callee / receiver に密着、block の `{` は同じ行、fallible type は `T!`、fallible optional success は `(T?)!` とします。
 

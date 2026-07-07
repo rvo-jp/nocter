@@ -3,6 +3,7 @@ mod check;
 mod command;
 mod compile_options;
 mod doctor;
+mod fmt;
 mod fmt_options;
 mod json;
 mod json_tool_options;
@@ -14,11 +15,11 @@ use build::run_build;
 use check::run_check;
 use command::{Command, parse_command};
 use doctor::run_doctor;
+use fmt::run_fmt;
 use json::{run_ast_json, run_check_json, run_tokens_json};
 use run::run_file;
 use std::env;
 use std::ffi::OsString;
-use std::path::Path;
 use std::process::ExitCode;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -52,10 +53,7 @@ where
         Ok(Command::Run(command)) => run_file(&command.file, &command.entry),
         Ok(Command::Check(command)) => run_check(&command.file, &command.entry),
         Ok(Command::CheckJson(command)) => run_check_json(&command.file, &command.entry),
-        Ok(Command::Fmt { check, file }) => {
-            let mode = if check { "fmt --check" } else { "fmt" };
-            not_implemented(mode, &file)
-        }
+        Ok(Command::Fmt { check, file }) => run_fmt(&file, check),
         Ok(Command::Tokens(file)) => run_tokens_json(&file),
         Ok(Command::Ast(file)) => run_ast_json(&file),
         Ok(Command::Lsp) => {
@@ -69,14 +67,6 @@ where
             ExitCode::FAILURE
         }
     }
-}
-
-fn not_implemented(command: &str, file: &Path) -> ExitCode {
-    eprintln!(
-        "error: nocter {command} is not implemented yet for `{}`",
-        file.display()
-    );
-    ExitCode::FAILURE
 }
 
 fn print_usage() {

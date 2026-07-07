@@ -34,7 +34,8 @@ Rules:
 - `fmt` does not follow imports.
 - `fmt` does not treat the input as a compile-unit root.
 - `fmt` does not perform name resolution, type checking, ownership checking, target lowering, code generation, or execution.
-- `fmt` must parse enough source structure to preserve comments and produce valid Nocter syntax.
+- `fmt` must not delete or rewrite comments.
+- Until comment-preserving formatting is implemented, `fmt` must reject files that contain comments instead of rewriting them.
 - If parsing fails, `fmt` must not rewrite the file.
 - `fmt` rewrites the file in place only after formatting succeeds.
 - `fmt --check` compares the input against formatter output and does not rewrite the file.
@@ -185,7 +186,8 @@ for i in 0..<bytes.len() {
 
 Rules:
 
-- Formatter output preserves line comments and block comments.
+- Formatter output must preserve line comments and block comments once comment-preserving formatting is implemented.
+- Current formatter v0 rejects files that contain comments with a diagnostic instead of rewriting them.
 - Formatter output may adjust surrounding whitespace but must not rewrite comment text.
 - Line comments keep at least one space between code and `//` when they share a line.
 - Block comments keep their internal text unchanged in v0.
