@@ -1243,10 +1243,11 @@ impl Parser<'_> {
     fn parse_optional_default_expression(&mut self) -> ParseResult<Expr> {
         let left = self.parse_logical_or_expression()?;
 
-        if self.match_punctuation("??").is_some() {
+        if let Some(operator) = self.match_punctuation("??") {
             let right = self.parse_optional_default_expression()?;
             return Ok(Expr::OptionalDefault(OptionalDefaultExpr {
                 span: self.span(left.span().start, right.span().end),
+                operator_span: operator.span,
                 value: Box::new(left),
                 default: Box::new(right),
             }));
@@ -2023,15 +2024,32 @@ fn with_type_span(ty: TypeExpr, span: ByteSpan) -> TypeExpr {
 mod tests {
     use super::*;
 
-    use crate::ast::{Expr, ImplMember, Item, Stmt, TypeExpr, Visibility};
+    use crate::ast::{Expr, ImplMember, Item, JsonAstNode, Stmt, TypeExpr, Visibility};
     use crate::lexer::lex;
+    use crate::source::SourceMap;
 
     fn parse_text(text: &str) -> ParseOutput {
+        let (_, output) = parse_text_with_sources(text);
+        output
+    }
+
+    fn parse_text_with_sources(text: &str) -> (SourceMap, ParseOutput) {
         let mut sources = SourceMap::new();
         let source = sources.add_source("app.nct", None, text);
         let lexed = lex(&sources, source);
         assert!(lexed.diagnostics.is_empty(), "{:?}", lexed.diagnostics);
-        parse(&sources, source, &lexed.tokens)
+        let output = parse(&sources, source, &lexed.tokens);
+        (sources, output)
+    }
+
+    fn find_json_node<'a>(node: &'a JsonAstNode, kind: &str) -> Option<&'a JsonAstNode> {
+        if node.kind == kind {
+            return Some(node);
+        }
+
+        node.items
+            .iter()
+            .find_map(|child| find_json_node(child, kind))
     }
 
     #[test]
@@ -2255,7 +2273,12 @@ program(): i32 {
         let Stmt::Binding(binding) = &program.body.statements[0] else {
             panic!("expected binding statement");
         };
-        assert!(matches!(binding.initializer, Expr::OptionalDefault(_)));
+        let Expr::OptionalDefault(expression) = &binding.initializer else {
+            panic!("expected optional default expression");
+        };
+        assert_eq!(expression.operator_span.len(), 2);
+        assert!(expression.span.start < expression.operator_span.start);
+        assert!(expression.operator_span.end < expression.span.end);
     }
 
     #[test]
@@ -2281,6 +2304,40 @@ program(): i32 {
         assert_eq!(expression.operator_span.len(), 1);
         assert!(expression.span.start < expression.operator_span.start);
         assert_eq!(expression.span.end, expression.operator_span.end);
+    }
+
+    #[test]
+    fn ast_json_includes_expression_operator_spans() {
+        let (sources, output) = parse_text_with_sources(
+            r#"program(): i32 {
+    let value = maybe() ?? 0
+    let handled = answer() catch error {
+        return 1
+    }
+    return handled!
+}
+"#,
+        );
+
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        let json = output.ast.unwrap().to_json(&sources);
+        let optional_default = find_json_node(&json, "optional_default_expression")
+            .expect("expected optional default expression");
+        let optional_default_span = optional_default.operator_span.as_ref().unwrap();
+        assert_eq!(
+            optional_default_span.end_byte - optional_default_span.start_byte,
+            2
+        );
+
+        let catch = find_json_node(&json, "fallible_catch_expression")
+            .expect("expected fallible catch expression");
+        let catch_span = catch.operator_span.as_ref().unwrap();
+        assert_eq!(catch_span.end_byte - catch_span.start_byte, "catch".len());
+
+        let force = find_json_node(&json, "force_unwrap_expression")
+            .expect("expected force unwrap expression");
+        let force_span = force.operator_span.as_ref().unwrap();
+        assert_eq!(force_span.end_byte - force_span.start_byte, 1);
     }
 
     #[test]

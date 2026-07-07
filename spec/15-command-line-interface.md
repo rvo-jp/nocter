@@ -344,8 +344,9 @@ AST JSON rules:
 - `absolute_path` is the canonical absolute path when known, or `null`.
 - `ast` is an object when parsing succeeds and `null` when parsing fails before a useful tree exists.
 - AST node objects include `kind` and should include `span` when practical.
+- Expression nodes with source-level operators or operator-like keywords may include `operator_span`, such as unary and binary operators, postfix `?`, postfix `!`, `??`, `as`, and `catch`.
 - AST node objects may include `value` for compact leaf information such as identifiers, literals, import paths, and type names.
-- AST node spans use the public JSON span shape from [Diagnostics](12-diagnostics.md#source-and-span-model).
+- AST node `span` and `operator_span` fields use the public JSON span shape from [Diagnostics](12-diagnostics.md#source-and-span-model).
 - `diagnostics` uses the diagnostic object shape from [Diagnostics](12-diagnostics.md#machine-readable-json-diagnostics).
 - AST JSON is allowed to change while the AST is internal and unstable; AI tools should treat it as a tooling aid, not a source compatibility promise.
 
