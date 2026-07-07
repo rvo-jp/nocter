@@ -1,3 +1,4 @@
+use super::bindings::lower_i32_let_binding;
 use super::errors::{lower_make_error_message, with_trailing_newline};
 use super::expressions::{I32ExpressionContext, lower_i32_return_expression};
 use crate::ast::{FunctionDecl, Stmt, TypeExpr};
@@ -40,24 +41,38 @@ fn lower_entry_body(
     return_type: &Type,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let success_type = return_type.success_type();
+    let statements = function.body.statements.as_slice();
 
-    match function.body.statements.as_slice() {
-        [Stmt::Return(statement)] => match (success_type, &statement.expression) {
-            (Type::I32, Some(expression)) => {
-                lower_i32_return_expression(expression, &I32ExpressionContext::empty())
-            }
-            (Type::Void, None) => Ok(vec![Instruction::Return]),
-            (Type::Void, Some(_)) => Err(vec![Diagnostic::error(
-                "E8002",
-                "IR v0 cannot lower value returns from `void` entry function",
-            )]),
-            (Type::I32, None) => Err(vec![Diagnostic::error(
-                "E8002",
-                "IR v0 cannot lower bare returns from `i32` entry function",
-            )]),
-            (Type::Fallible(_), _) => unreachable!("fallible success type must be unwrapped"),
-        },
-        [Stmt::Fail(statement)] => match return_type {
+    if statements.is_empty() && *return_type == Type::Void {
+        return Ok(vec![Instruction::Return]);
+    }
+
+    let Some((last, leading)) = statements.split_last() else {
+        return Err(unsupported_entry_body_diagnostic());
+    };
+
+    let mut context = I32ExpressionContext::empty();
+    let mut instructions = lower_leading_i32_bindings(leading, &mut context)?;
+
+    match last {
+        Stmt::Return(statement) => {
+            let return_instructions = match (success_type, &statement.expression) {
+                (Type::I32, Some(expression)) => lower_i32_return_expression(expression, &context),
+                (Type::Void, None) => Ok(vec![Instruction::Return]),
+                (Type::Void, Some(_)) => Err(vec![Diagnostic::error(
+                    "E8002",
+                    "IR v0 cannot lower value returns from `void` entry function",
+                )]),
+                (Type::I32, None) => Err(vec![Diagnostic::error(
+                    "E8002",
+                    "IR v0 cannot lower bare returns from `i32` entry function",
+                )]),
+                (Type::Fallible(_), _) => unreachable!("fallible success type must be unwrapped"),
+            }?;
+            instructions.extend(return_instructions);
+            Ok(instructions)
+        }
+        Stmt::Fail(statement) if leading.is_empty() => match return_type {
             Type::Fallible(success) if success.as_ref() == &Type::I32 => {
                 let message = lower_make_error_message(&statement.expression)?;
                 Ok(vec![
@@ -78,10 +93,30 @@ fn lower_entry_body(
                 "IR v0 cannot lower `fail` from a non-fallible entry function",
             )]),
         },
-        [] if *return_type == Type::Void => Ok(vec![Instruction::Return]),
-        _ => Err(vec![Diagnostic::error(
-            "E8002",
-            "IR v0 can only lower entry function bodies containing `return <i32 literal>`, `fail make_error(...)`, or a void return",
-        )]),
+        _ => Err(unsupported_entry_body_diagnostic()),
     }
+}
+
+fn lower_leading_i32_bindings(
+    statements: &[Stmt],
+    context: &mut I32ExpressionContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut instructions = Vec::new();
+
+    for statement in statements {
+        let Stmt::Binding(statement) = statement else {
+            return Err(unsupported_entry_body_diagnostic());
+        };
+
+        instructions.extend(lower_i32_let_binding(statement, context)?);
+    }
+
+    Ok(instructions)
+}
+
+fn unsupported_entry_body_diagnostic() -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8002",
+        "IR v0 can only lower entry function bodies containing leading `let` i32 bindings followed by `return`, `fail make_error(...)`, or a void return",
+    )]
 }

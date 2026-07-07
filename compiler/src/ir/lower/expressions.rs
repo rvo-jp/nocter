@@ -5,29 +5,63 @@ use crate::ir::{I32Location, I32Value, Instruction};
 
 pub(super) struct I32ExpressionContext {
     parameters: Vec<String>,
+    locals: Vec<String>,
 }
 
 impl I32ExpressionContext {
     pub(super) fn empty() -> Self {
         Self {
             parameters: Vec::new(),
+            locals: Vec::new(),
         }
     }
 
     pub(super) fn new(parameters: Vec<String>) -> Self {
-        Self { parameters }
+        Self {
+            parameters,
+            locals: Vec::new(),
+        }
     }
 
-    fn parameter_location(&self, name: &str) -> Option<I32Location> {
-        self.parameters
+    pub(super) fn next_local_location(&self) -> Result<I32Location, Vec<Diagnostic>> {
+        if self.locals.len() >= MAX_I32_LOCALS {
+            return Err(vec![Diagnostic::error(
+                "E8008",
+                format!("IR v0 can only lower up to {MAX_I32_LOCALS} i32 local bindings"),
+            )]);
+        }
+
+        Ok(I32Location::Local(self.locals.len()))
+    }
+
+    pub(super) fn define_local(&mut self, name: String) {
+        self.locals.push(name);
+    }
+
+    fn location(&self, name: &str) -> Option<I32Location> {
+        self.locals
             .iter()
-            .position(|parameter| parameter == name)
-            .map(I32Location::Parameter)
+            .position(|local| local == name)
+            .map(I32Location::Local)
+            .or_else(|| {
+                self.parameters
+                    .iter()
+                    .position(|parameter| parameter == name)
+                    .map(I32Location::Parameter)
+            })
     }
 }
 
 pub(super) fn lower_i32_expression(
     expression: &Expr,
+    context: &I32ExpressionContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_i32_expression_to_location(expression, I32Location::Return, context)
+}
+
+pub(super) fn lower_i32_expression_to_location(
+    expression: &Expr,
+    destination: I32Location,
     context: &I32ExpressionContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
@@ -37,18 +71,16 @@ pub(super) fn lower_i32_expression(
         )]),
         Expr::Binary(binary) if binary.operator == BinaryOperator::Add => {
             Ok(vec![Instruction::AddI32 {
-                destination: I32Location::Return,
+                destination,
                 left: lower_i32_value(&binary.left, context)?,
                 right: lower_i32_value(&binary.right, context)?,
             }])
         }
-        Expr::Group(group) => lower_i32_expression(&group.expression, context),
-        _ => lower_i32_value(expression, context).map(|value| {
-            vec![Instruction::SetI32 {
-                destination: I32Location::Return,
-                value,
-            }]
-        }),
+        Expr::Group(group) => {
+            lower_i32_expression_to_location(&group.expression, destination, context)
+        }
+        _ => lower_i32_value(expression, context)
+            .map(|value| vec![Instruction::SetI32 { destination, value }]),
     }
 }
 
@@ -115,7 +147,7 @@ fn lower_i32_value(
 ) -> Result<I32Value, Vec<Diagnostic>> {
     match expression {
         Expr::Identifier(identifier) => context
-            .parameter_location(&identifier.name)
+            .location(&identifier.name)
             .map(I32Value::Location)
             .ok_or_else(unsupported_i32_expression_diagnostic),
         Expr::Group(group) => lower_i32_value(&group.expression, context),
@@ -129,3 +161,5 @@ fn unsupported_i32_expression_diagnostic() -> Vec<Diagnostic> {
         "IR v0 can only lower i32 literals, parameters, addition, and direct tail calls",
     )]
 }
+
+const MAX_I32_LOCALS: usize = 7;

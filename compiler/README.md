@@ -151,6 +151,7 @@ Currently buildable:
 - root-file `main` or `--entry <name>`
 - entry return types `i32`, `i32!`, and `void`
 - literal `i32` returns
+- immutable local `let` bindings whose initializer is lowerable as `i32`
 - `void` entry with an empty body or bare `return`
 - same-file non-generic function calls
 - up to 8 `i32` parameters for lowered functions
@@ -160,7 +161,7 @@ Currently buildable:
 
 Currently not buildable even when it may be checkable:
 
-- local bindings lowered into machine code
+- `var`, reassignment, and general local storage
 - `if`, `while`, `loop`, range `for`, and `switch`
 - imported function calls
 - `str` values beyond static failure messages

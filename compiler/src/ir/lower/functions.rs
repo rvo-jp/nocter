@@ -1,3 +1,4 @@
+use super::bindings::lower_i32_let_binding;
 use super::expressions::{I32ExpressionContext, lower_i32_return_expression};
 use crate::ast::{FunctionDecl, Parameter, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
@@ -16,8 +17,8 @@ pub(super) fn lower_function(function: &FunctionDecl) -> Result<Function, Vec<Di
 
     let parameters = lower_i32_parameters(function)?;
     let return_type = lower_function_return_type(&function.return_type, &function.name)?;
-    let context = I32ExpressionContext::new(parameters);
-    let instructions = lower_function_body(function, &return_type, &context)?;
+    let mut context = I32ExpressionContext::new(parameters);
+    let instructions = lower_function_body(function, &return_type, &mut context)?;
 
     Ok(Function {
         name: function.name.clone(),
@@ -72,37 +73,77 @@ fn lower_function_return_type(ty: &TypeExpr, name: &str) -> Result<Type, Vec<Dia
 fn lower_function_body(
     function: &FunctionDecl,
     return_type: &Type,
-    context: &I32ExpressionContext,
+    context: &mut I32ExpressionContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    match function.body.statements.as_slice() {
-        [Stmt::Return(statement)] => match (return_type, &statement.expression) {
-            (Type::I32, Some(expression)) => lower_i32_return_expression(expression, context),
-            (Type::Void, None) => Ok(vec![Instruction::Return]),
-            (Type::Void, Some(_)) => Err(vec![Diagnostic::error(
-                "E8007",
-                format!(
-                    "IR v0 cannot lower value returns from void function `{}`",
-                    function.name
-                ),
-            )]),
-            (Type::I32, None) => Err(vec![Diagnostic::error(
-                "E8007",
-                format!(
-                    "IR v0 cannot lower bare returns from i32 function `{}`",
-                    function.name
-                ),
-            )]),
-            (Type::Fallible(_), _) => unreachable!("fallible function type is not lowered in v0"),
-        },
-        [] if *return_type == Type::Void => Ok(vec![Instruction::Return]),
-        _ => Err(vec![Diagnostic::error(
-            "E8007",
-            format!(
-                "IR v0 can only lower function `{}` bodies containing a single return",
-                function.name
-            ),
-        )]),
+    let statements = function.body.statements.as_slice();
+
+    if statements.is_empty() && *return_type == Type::Void {
+        return Ok(vec![Instruction::Return]);
     }
+
+    let Some((last, leading)) = statements.split_last() else {
+        return Err(unsupported_function_body_diagnostic(&function.name));
+    };
+
+    let mut instructions = lower_leading_i32_bindings(leading, context)?;
+
+    match last {
+        Stmt::Return(statement) => {
+            let return_instructions = match (return_type, &statement.expression) {
+                (Type::I32, Some(expression)) => lower_i32_return_expression(expression, context),
+                (Type::Void, None) => Ok(vec![Instruction::Return]),
+                (Type::Void, Some(_)) => Err(vec![Diagnostic::error(
+                    "E8007",
+                    format!(
+                        "IR v0 cannot lower value returns from void function `{}`",
+                        function.name
+                    ),
+                )]),
+                (Type::I32, None) => Err(vec![Diagnostic::error(
+                    "E8007",
+                    format!(
+                        "IR v0 cannot lower bare returns from i32 function `{}`",
+                        function.name
+                    ),
+                )]),
+                (Type::Fallible(_), _) => {
+                    unreachable!("fallible function type is not lowered in v0")
+                }
+            }?;
+            instructions.extend(return_instructions);
+            Ok(instructions)
+        }
+        _ => Err(unsupported_function_body_diagnostic(&function.name)),
+    }
+}
+
+fn lower_leading_i32_bindings(
+    statements: &[Stmt],
+    context: &mut I32ExpressionContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut instructions = Vec::new();
+
+    for statement in statements {
+        let Stmt::Binding(statement) = statement else {
+            return Err(vec![Diagnostic::error(
+                "E8007",
+                "IR v0 can only lower leading `let` i32 bindings before `return`",
+            )]);
+        };
+
+        instructions.extend(lower_i32_let_binding(statement, context)?);
+    }
+
+    Ok(instructions)
+}
+
+fn unsupported_function_body_diagnostic(function_name: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8007",
+        format!(
+            "IR v0 can only lower function `{function_name}` bodies containing leading `let` i32 bindings followed by `return`"
+        ),
+    )]
 }
 
 const MAX_I32_PARAMETERS: usize = 8;

@@ -101,6 +101,13 @@ pub(crate) enum WReg {
     W5,
     W6,
     W7,
+    W9,
+    W10,
+    W11,
+    W12,
+    W13,
+    W14,
+    W15,
     W16,
 }
 
@@ -119,6 +126,19 @@ impl WReg {
         }
     }
 
+    pub(crate) fn local(index: usize) -> Option<Self> {
+        match index {
+            0 => Some(Self::W9),
+            1 => Some(Self::W10),
+            2 => Some(Self::W11),
+            3 => Some(Self::W12),
+            4 => Some(Self::W13),
+            5 => Some(Self::W14),
+            6 => Some(Self::W15),
+            _ => None,
+        }
+    }
+
     const fn bits(self) -> u32 {
         match self {
             Self::W0 => 0,
@@ -129,6 +149,13 @@ impl WReg {
             Self::W5 => 5,
             Self::W6 => 6,
             Self::W7 => 7,
+            Self::W9 => 9,
+            Self::W10 => 10,
+            Self::W11 => 11,
+            Self::W12 => 12,
+            Self::W13 => 13,
+            Self::W14 => 14,
+            Self::W15 => 15,
             Self::W16 => 16,
         }
     }

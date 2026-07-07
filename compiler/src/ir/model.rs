@@ -39,6 +39,7 @@ pub(crate) enum Instruction {
 pub(crate) enum I32Location {
     Return,
     Parameter(usize),
+    Local(usize),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

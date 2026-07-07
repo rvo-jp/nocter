@@ -1,3 +1,4 @@
+mod bindings;
 mod entry;
 mod errors;
 mod expressions;

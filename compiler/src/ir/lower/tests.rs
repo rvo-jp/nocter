@@ -28,6 +28,62 @@ fn lowers_entry_returning_i32_literal() {
 }
 
 #[test]
+fn lowers_entry_i32_let_binding_then_return() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let value = 42
+    return value
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::SetI32 {
+                    destination: I32Location::Local(0),
+                    value: i32_const(42),
+                },
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: i32_local(0),
+                },
+                Instruction::Return,
+            ],
+        }])
+    );
+}
+
+#[test]
+fn lowers_entry_i32_annotated_let_binding_then_return() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let value: i32 = 42
+    return value
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: i32_const(42),
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_configured_entry_name() {
     let ir = lower_text_with_entry(
         r#"func start(): i32 {
@@ -232,11 +288,52 @@ func add(a: i32, b: i32): i32 {
 }
 
 #[test]
+fn lowers_same_file_function_with_i32_let_binding() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    return answer()
+}
+
+func answer(): i32 {
+    let value = 7
+    return value
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                return_type: Type::I32,
+                instructions: vec![tail_call("answer", vec![])],
+            },
+            Function {
+                name: "answer".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(7),
+                    },
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ])
+    );
+}
+
+#[test]
 fn reports_unsupported_entry_body() {
     let diagnostics = lower_text_diagnostics(
         r#"func main(): i32 {
-    let value = 1
-    return value
+    use_value(1)
+    return 1
 }
 "#,
     );
@@ -291,6 +388,10 @@ fn i32_const(value: i32) -> I32Value {
 
 fn i32_param(index: usize) -> I32Value {
     I32Value::Location(I32Location::Parameter(index))
+}
+
+fn i32_local(index: usize) -> I32Value {
+    I32Value::Location(I32Location::Local(index))
 }
 
 fn lower_text_diagnostics(text: &str) -> Vec<Diagnostic> {
