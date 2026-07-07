@@ -1,8 +1,11 @@
 mod build;
 mod check;
 mod command;
+mod compile_options;
 mod doctor;
+mod fmt_options;
 mod json;
+mod json_tool_options;
 mod pipeline;
 mod run;
 
