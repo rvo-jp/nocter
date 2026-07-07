@@ -399,23 +399,34 @@ fn run_frontend_check_with_options(
         Err(diagnostics) => return diagnostics,
     };
 
-    check_compile_unit(sources, &unit)
+    analyze_compile_unit(sources, &unit).diagnostics()
 }
 
-fn check_compile_unit(sources: &SourceMap, unit: &CompileUnit) -> Vec<Diagnostic> {
-    let mut diagnostics = Vec::new();
+fn analyze_compile_unit(sources: &SourceMap, unit: &CompileUnit) -> CompileUnitAnalysis {
+    let root_source = unit.root_ast.span.source;
+    let files = unit
+        .files
+        .iter()
+        .map(|file| {
+            let is_root = file.span.source == root_source;
+            let resolved = resolve_compile_unit(sources, file, &unit.files, &unit.import_sources);
+            let mut diagnostics = resolved.diagnostics.clone();
+            if is_root {
+                diagnostics.extend(check(sources, file, &resolved));
+            } else {
+                diagnostics.extend(check_module(sources, file, &resolved));
+            }
 
-    for file in &unit.files {
-        let resolved = resolve_compile_unit(sources, file, &unit.files, &unit.import_sources);
-        diagnostics.extend(resolved.diagnostics.clone());
-        if file.span.source == unit.root_ast.span.source {
-            diagnostics.extend(check(sources, file, &resolved));
-        } else {
-            diagnostics.extend(check_module(sources, file, &resolved));
-        }
-    }
+            FileAnalysis {
+                ast: file.clone(),
+                resolved,
+                diagnostics,
+                is_root,
+            }
+        })
+        .collect();
 
-    diagnostics
+    CompileUnitAnalysis { files }
 }
 
 #[derive(Debug, Clone)]
@@ -438,6 +449,31 @@ struct CompileUnit {
     root_ast: crate::ast::AstFile,
     files: Vec<crate::ast::AstFile>,
     import_sources: ImportSourceMap,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct CompileUnitAnalysis {
+    pub(crate) files: Vec<FileAnalysis>,
+}
+
+impl CompileUnitAnalysis {
+    fn diagnostics(&self) -> Vec<Diagnostic> {
+        self.files
+            .iter()
+            .flat_map(|file| file.diagnostics.clone())
+            .collect()
+    }
+}
+
+// The CLI currently flattens diagnostics, while editor tooling will consume the
+// retained AST and resolver state for a specific file.
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
+pub(crate) struct FileAnalysis {
+    pub(crate) ast: crate::ast::AstFile,
+    pub(crate) resolved: crate::resolve::ResolveOutput,
+    pub(crate) diagnostics: Vec<Diagnostic>,
+    pub(crate) is_root: bool,
 }
 
 fn load_compile_unit(
@@ -1200,6 +1236,73 @@ mod tests {
                 target: DEFAULT_TARGET.to_string(),
             },
         )
+    }
+
+    #[test]
+    fn compile_unit_analysis_retains_per_file_results() {
+        let root = make_temp_project("compile-unit-analysis");
+        let home = make_nocter_home(&root);
+        fs::write(
+            root.join("app.nct"),
+            r#"from ./config import answer
+
+program(): i32 {
+    return answer()
+}
+"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("config.nct"),
+            r#"pub func answer(): i32 {
+    return "bad"
+}
+"#,
+        )
+        .unwrap();
+
+        let mut sources = SourceMap::new();
+        let source = sources.load_file(root.join("app.nct")).unwrap();
+        let options = FrontendOptions {
+            nocter_home: Some(home.to_path_buf()),
+            target: DEFAULT_TARGET.to_string(),
+        };
+        let unit = load_compile_unit(&mut sources, source, &options).unwrap();
+        let analysis = analyze_compile_unit(&sources, &unit);
+        fs::remove_dir_all(&root).unwrap();
+
+        assert_eq!(analysis.files.iter().filter(|file| file.is_root).count(), 1);
+        assert!(analysis.files.iter().any(|file| {
+            file.is_root && file.ast.span.source == source && file.diagnostics.is_empty()
+        }));
+
+        let config = analysis
+            .files
+            .iter()
+            .find(|file| {
+                sources
+                    .get(file.ast.span.source)
+                    .and_then(|source_file| source_file.absolute_path())
+                    .map(|path| path.ends_with("config.nct"))
+                    .unwrap_or(false)
+            })
+            .expect("expected config.nct analysis");
+        assert!(config.resolved.symbols.symbol_by_name("answer").is_some());
+        assert!(
+            config
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "E0312")
+        );
+
+        assert_eq!(
+            analysis
+                .diagnostics()
+                .iter()
+                .filter(|diagnostic| diagnostic.code == "E0312")
+                .count(),
+            1
+        );
     }
 
     #[test]
