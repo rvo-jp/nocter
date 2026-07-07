@@ -1,14 +1,13 @@
 mod manifest;
 
+use crate::analysis::{CompileUnit, analyze_compile_unit};
 use crate::ast::AstEnvelope;
 use crate::diagnostics::{Diagnostic, DiagnosticsEnvelope};
 use crate::lexer::{TokensEnvelope, lex};
 use crate::parser::parse;
-use crate::resolve::{ImportAccess, ImportSource, ImportSourceMap, resolve_compile_unit};
+use crate::resolve::{ImportAccess, ImportSource, ImportSourceMap};
 use crate::source::{ByteSpan, SourceId, SourceMap};
-use crate::typecheck::{check, check_module};
 use manifest::Manifest;
-use std::cmp::Ordering;
 use std::collections::{HashSet, VecDeque};
 use std::env;
 use std::ffi::OsString;
@@ -403,33 +402,6 @@ fn run_frontend_check_with_options(
     analyze_compile_unit(sources, &unit).diagnostics()
 }
 
-fn analyze_compile_unit(sources: &SourceMap, unit: &CompileUnit) -> CompileUnitAnalysis {
-    let root_source = unit.root_ast.span.source;
-    let files = unit
-        .files
-        .iter()
-        .map(|file| {
-            let is_root = file.span.source == root_source;
-            let resolved = resolve_compile_unit(sources, file, &unit.files, &unit.import_sources);
-            let mut diagnostics = resolved.diagnostics.clone();
-            if is_root {
-                diagnostics.extend(check(sources, file, &resolved));
-            } else {
-                diagnostics.extend(check_module(sources, file, &resolved));
-            }
-
-            FileAnalysis {
-                ast: file.clone(),
-                resolved,
-                diagnostics,
-                is_root,
-            }
-        })
-        .collect();
-
-    CompileUnitAnalysis { files }
-}
-
 #[derive(Debug, Clone)]
 struct FrontendOptions {
     nocter_home: Option<PathBuf>,
@@ -443,79 +415,6 @@ impl Default for FrontendOptions {
             target: DEFAULT_TARGET.to_string(),
         }
     }
-}
-
-#[derive(Debug, Clone)]
-struct CompileUnit {
-    root_ast: crate::ast::AstFile,
-    files: Vec<crate::ast::AstFile>,
-    import_sources: ImportSourceMap,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct CompileUnitAnalysis {
-    pub(crate) files: Vec<FileAnalysis>,
-}
-
-impl CompileUnitAnalysis {
-    fn diagnostics(&self) -> Vec<Diagnostic> {
-        let mut diagnostics = self
-            .files
-            .iter()
-            .enumerate()
-            .flat_map(|(file_index, file)| {
-                file.diagnostics
-                    .iter()
-                    .cloned()
-                    .map(move |diagnostic| (file_index, diagnostic))
-            })
-            .collect::<Vec<_>>();
-
-        diagnostics.sort_by(|(left_file, left), (right_file, right)| {
-            compare_diagnostics(*left_file, left, *right_file, right)
-        });
-
-        diagnostics
-            .into_iter()
-            .map(|(_, diagnostic)| diagnostic)
-            .collect()
-    }
-}
-
-fn compare_diagnostics(
-    left_file: usize,
-    left: &Diagnostic,
-    right_file: usize,
-    right: &Diagnostic,
-) -> Ordering {
-    left_file
-        .cmp(&right_file)
-        .then_with(|| compare_diagnostic_primary_spans(left, right))
-        .then_with(|| left.code.cmp(&right.code))
-        .then_with(|| left.message.cmp(&right.message))
-}
-
-fn compare_diagnostic_primary_spans(left: &Diagnostic, right: &Diagnostic) -> Ordering {
-    match (left.primary_span.as_deref(), right.primary_span.as_deref()) {
-        (Some(left), Some(right)) => left
-            .start_byte
-            .cmp(&right.start_byte)
-            .then_with(|| left.end_byte.cmp(&right.end_byte)),
-        (Some(_), None) => Ordering::Less,
-        (None, Some(_)) => Ordering::Greater,
-        (None, None) => Ordering::Equal,
-    }
-}
-
-// The CLI currently flattens diagnostics, while editor tooling will consume the
-// retained AST and resolver state for a specific file.
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub(crate) struct FileAnalysis {
-    pub(crate) ast: crate::ast::AstFile,
-    pub(crate) resolved: crate::resolve::ResolveOutput,
-    pub(crate) diagnostics: Vec<Diagnostic>,
-    pub(crate) is_root: bool,
 }
 
 fn load_compile_unit(
@@ -622,11 +521,7 @@ fn load_compile_unit(
         )]);
     };
 
-    Ok(CompileUnit {
-        root_ast,
-        files,
-        import_sources,
-    })
+    Ok(CompileUnit::new(root_ast, files, import_sources))
 }
 
 fn parse_source_for_check(
