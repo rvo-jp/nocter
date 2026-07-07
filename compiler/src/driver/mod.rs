@@ -1,3 +1,4 @@
+mod build;
 mod check;
 mod command;
 mod doctor;
@@ -5,6 +6,7 @@ mod json;
 mod pipeline;
 
 use crate::target::{DEFAULT_TARGET, HOST};
+use build::run_build;
 use check::run_check;
 use command::{Command, parse_command};
 use doctor::run_doctor;
@@ -41,7 +43,7 @@ where
             ExitCode::SUCCESS
         }
         Ok(Command::Doctor) => run_doctor(),
-        Ok(Command::Build(file)) => not_implemented("build", &file),
+        Ok(Command::Build(file)) => run_build(&file),
         Ok(Command::Run(file)) => not_implemented("run", &file),
         Ok(Command::Check(file)) => run_check(&file),
         Ok(Command::CheckJson(file)) => run_check_json(&file),

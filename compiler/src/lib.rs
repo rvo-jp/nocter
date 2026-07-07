@@ -1,6 +1,7 @@
 pub mod abi;
 pub mod analysis;
 pub mod ast;
+pub mod backend;
 pub mod diagnostics;
 pub mod driver;
 pub mod frontend;
