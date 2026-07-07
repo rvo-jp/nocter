@@ -5,6 +5,7 @@ mod codegen;
 use crate::analysis::CompileUnitAnalysis;
 use crate::diagnostics::Diagnostic;
 use crate::ir::lower_program;
+use crate::target::macho::{ExecutableImage, write_arm64_macos_executable};
 use codegen::generate_arm64;
 use std::path::Path;
 
@@ -22,8 +23,10 @@ pub(crate) fn build_executable(request: BuildRequest<'_>) -> Result<(), Vec<Diag
     } = request;
 
     let ir = lower_program(analysis)?;
-    let _machine_code = generate_arm64(&ir)?;
+    let machine_code = generate_arm64(&ir)?;
+    let executable_image: ExecutableImage = write_arm64_macos_executable(&machine_code.text);
     let _planned_output_path = output_path;
+    let _planned_file_size = executable_image.bytes.len();
 
     Err(vec![Diagnostic::error(
         "E9000",
