@@ -332,8 +332,6 @@ pub enum Stmt {
     Return(ReturnStmt),
     Fail(FailStmt),
     Binding(BindingStmt),
-    Try(TryStmt),
-    TryCatch(TryCatchStmt),
     If(IfStmt),
     IfIs(IfIsStmt),
     IfLet(IfLetStmt),
@@ -374,21 +372,6 @@ pub struct BindingStmt {
     pub ty: Option<TypeExpr>,
     pub initializer: Expr,
     pub else_block: Option<Block>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TryStmt {
-    pub span: ByteSpan,
-    pub expression: Expr,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TryCatchStmt {
-    pub span: ByteSpan,
-    pub expression: Expr,
-    pub error_name: String,
-    pub error_span: ByteSpan,
-    pub catch_block: Block,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -514,8 +497,9 @@ pub enum Expr {
     NoneLiteral(LiteralExpr),
     ArrayLiteral(ArrayLiteralExpr),
     StructLiteral(StructLiteralExpr),
-    Try(TryExpr),
-    TryCatch(TryCatchExpr),
+    Propagate(PropagationExpr),
+    Force(ForceExpr),
+    Catch(CatchExpr),
     Unary(UnaryExpr),
     Binary(BinaryExpr),
     TypeConversion(TypeConversionExpr),
@@ -562,13 +546,19 @@ pub struct StructLiteralField {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TryExpr {
+pub struct PropagationExpr {
     pub span: ByteSpan,
     pub expression: Box<Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TryCatchExpr {
+pub struct ForceExpr {
+    pub span: ByteSpan,
+    pub expression: Box<Expr>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CatchExpr {
     pub span: ByteSpan,
     pub expression: Box<Expr>,
     pub error_name: String,
@@ -1129,8 +1119,6 @@ impl Stmt {
             Stmt::Return(statement) => statement.span,
             Stmt::Fail(statement) => statement.span,
             Stmt::Binding(statement) => statement.span,
-            Stmt::Try(statement) => statement.span,
-            Stmt::TryCatch(statement) => statement.span,
             Stmt::If(statement) => statement.span,
             Stmt::IfIs(statement) => statement.span,
             Stmt::IfLet(statement) => statement.span,
@@ -1180,25 +1168,6 @@ impl Stmt {
                     children,
                 )
             }
-            Stmt::Try(statement) => JsonAstNode::new(
-                "try_statement",
-                json_span(sources, statement.span),
-                vec![statement.expression.to_json(sources)],
-            ),
-            Stmt::TryCatch(statement) => JsonAstNode::new(
-                "try_catch_statement",
-                json_span(sources, statement.span),
-                vec![
-                    statement.expression.to_json(sources),
-                    JsonAstNode::with_value(
-                        "catch_binding",
-                        statement.error_name.clone(),
-                        json_span(sources, statement.error_span),
-                        Vec::new(),
-                    ),
-                    statement.catch_block.to_json(sources),
-                ],
-            ),
             Stmt::If(statement) => {
                 let mut children = vec![
                     statement.condition.to_json(sources),
@@ -1399,8 +1368,9 @@ impl Expr {
             Expr::NoneLiteral(expression) => expression.span,
             Expr::ArrayLiteral(expression) => expression.span,
             Expr::StructLiteral(expression) => expression.span,
-            Expr::Try(expression) => expression.span,
-            Expr::TryCatch(expression) => expression.span,
+            Expr::Propagate(expression) => expression.span,
+            Expr::Force(expression) => expression.span,
+            Expr::Catch(expression) => expression.span,
             Expr::Unary(expression) => expression.span,
             Expr::Binary(expression) => expression.span,
             Expr::TypeConversion(expression) => expression.span,
@@ -1469,12 +1439,17 @@ impl Expr {
                     ),
                 ],
             ),
-            Expr::Try(expression) => JsonAstNode::new(
-                "fallible_propagation_expression",
+            Expr::Propagate(expression) => JsonAstNode::new(
+                "propagation_expression",
                 json_span(sources, expression.span),
                 vec![expression.expression.to_json(sources)],
             ),
-            Expr::TryCatch(expression) => JsonAstNode::new(
+            Expr::Force(expression) => JsonAstNode::new(
+                "force_unwrap_expression",
+                json_span(sources, expression.span),
+                vec![expression.expression.to_json(sources)],
+            ),
+            Expr::Catch(expression) => JsonAstNode::new(
                 "fallible_catch_expression",
                 json_span(sources, expression.span),
                 vec![

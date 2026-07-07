@@ -268,11 +268,11 @@ Required v0 diagnostic families:
 - Invalid reinitialization target after `move` or `drop`.
 - Borrow escaping the storage, temporary, or region it refers to.
 - Returning a borrow-like value whose provenance cannot outlive the function.
-- Postfix `?` used outside a fallible function.
+- Postfix `?` used on `T!` outside a fallible function.
+- Postfix `?` used on `T?` outside a function whose current return layer can carry `none`.
+- Postfix `?` or `!` used on a non-fallible and non-optional expression.
 - `catch` block that can fall through.
-- Postfix `?` used on `T?`.
 - Mixed optional/fallible type syntax requiring parentheses, such as `T?!`.
-- Optional propagation syntax such as `optional?` used in v0.
 - Optional `if let` / `if var` / `while let` / `while var` used on a non-optional expression.
 - Optional `let ... else` / `var ... else` used on a non-optional expression.
 - Optional `let ... else` / `var ... else` whose `else` block can fall through.
@@ -309,7 +309,7 @@ help: use a public safe API instead
 Fallible propagation outside a fallible function:
 
 ```text
-error[E0310]: postfix `?` can only propagate from a fallible function
+error[E0331]: postfix `?` would fail with `error`, but function `load` is not fallible
   --> app.nct:8:16
    |
 8 |     let file = File.open(path)?

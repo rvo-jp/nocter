@@ -1,7 +1,9 @@
 use super::diagnostics::{
-    fail_in_non_fallible_context_diagnostic, fail_type_mismatch_diagnostic,
-    try_error_type_mismatch_diagnostic, try_in_non_fallible_context_diagnostic,
-    try_on_non_fallible_diagnostic,
+    catch_on_non_fallible_diagnostic, fail_in_non_fallible_context_diagnostic,
+    fail_type_mismatch_diagnostic, fallible_propagation_error_type_mismatch_diagnostic,
+    fallible_propagation_in_non_fallible_context_diagnostic, force_on_non_unwrappable_diagnostic,
+    optional_propagation_in_non_optional_context_diagnostic,
+    propagation_on_non_propagatable_diagnostic,
 };
 use super::expressions::expression_type;
 use super::model::{ReturnContext, Type, TypeEnvironment, same_known_type};
@@ -43,9 +45,9 @@ pub(super) fn check_fail_statement(
     }
 }
 
-pub(super) fn check_try_propagation(
+pub(super) fn check_propagation(
     sources: &SourceMap,
-    try_span: ByteSpan,
+    operator_span: ByteSpan,
     expression: &Expr,
     context: &ReturnContext,
     resolved: &ResolveOutput,
@@ -53,47 +55,81 @@ pub(super) fn check_try_propagation(
     environment: &TypeEnvironment,
 ) {
     let attempted = expression_type(expression, resolved, environment);
-    let Type::Fallible {
-        error: attempted_error,
-        ..
-    } = attempted
-    else {
-        if !attempted.is_unknown() {
-            diagnostics.push(try_on_non_fallible_diagnostic(
-                sources, try_span, &attempted,
-            ));
+    match attempted {
+        Type::Fallible {
+            error: attempted_error,
+            ..
+        } => check_fallible_propagation(
+            sources,
+            operator_span,
+            context,
+            &attempted_error,
+            diagnostics,
+        ),
+        Type::Optional(_) => {
+            check_optional_propagation(sources, operator_span, context, diagnostics)
         }
-        return;
-    };
+        Type::Unknown | Type::Unresolved(_) => {}
+        _ => diagnostics.push(propagation_on_non_propagatable_diagnostic(
+            sources,
+            operator_span,
+            &attempted,
+        )),
+    }
+}
 
+fn check_fallible_propagation(
+    sources: &SourceMap,
+    operator_span: ByteSpan,
+    context: &ReturnContext,
+    attempted_error: &Type,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     let Type::Fallible {
         error: current_error,
         ..
     } = &context.declared_type
     else {
-        diagnostics.push(try_in_non_fallible_context_diagnostic(
+        diagnostics.push(fallible_propagation_in_non_fallible_context_diagnostic(
             sources,
-            try_span,
+            operator_span,
             context,
-            &attempted_error,
+            attempted_error,
         ));
         return;
     };
 
-    if !same_known_type(current_error, &attempted_error) {
-        diagnostics.push(try_error_type_mismatch_diagnostic(
+    if !same_known_type(current_error, attempted_error) {
+        diagnostics.push(fallible_propagation_error_type_mismatch_diagnostic(
             sources,
-            try_span,
+            operator_span,
             context,
             current_error,
-            &attempted_error,
+            attempted_error,
         ));
     }
 }
 
-pub(super) fn check_try_catch_operand(
+fn check_optional_propagation(
     sources: &SourceMap,
-    try_span: ByteSpan,
+    operator_span: ByteSpan,
+    context: &ReturnContext,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if matches!(context.success_type(), Type::Optional(_)) {
+        return;
+    }
+
+    diagnostics.push(optional_propagation_in_non_optional_context_diagnostic(
+        sources,
+        operator_span,
+        context,
+    ));
+}
+
+pub(super) fn check_catch_operand(
+    sources: &SourceMap,
+    catch_span: ByteSpan,
     expression: &Expr,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
@@ -104,7 +140,27 @@ pub(super) fn check_try_catch_operand(
         return;
     }
 
-    diagnostics.push(try_on_non_fallible_diagnostic(
-        sources, try_span, &attempted,
+    diagnostics.push(catch_on_non_fallible_diagnostic(
+        sources, catch_span, &attempted,
+    ));
+}
+
+pub(super) fn check_force_unwrap_operand(
+    sources: &SourceMap,
+    bang_span: ByteSpan,
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let attempted = expression_type(expression, resolved, environment);
+    if attempted.is_unknown_or_unresolved()
+        || matches!(attempted, Type::Fallible { .. } | Type::Optional(_))
+    {
+        return;
+    }
+
+    diagnostics.push(force_on_non_unwrappable_diagnostic(
+        sources, bang_span, &attempted,
     ));
 }

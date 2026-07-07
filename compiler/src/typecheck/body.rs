@@ -16,6 +16,7 @@ use super::environments::{
     environment_for_while_let_binding, impl_self_type,
 };
 use super::expressions::{check_error_member_expression, expression_type};
+use super::fallible::check_force_unwrap_operand;
 use super::model::{TypeEnvironment, binding_kind_is_mutable};
 use super::operations::{
     check_binary_expression, check_type_conversion_expression, check_unary_expression,
@@ -198,40 +199,6 @@ fn check_statement_expressions(
                 statement.name.clone(),
                 binding_type,
                 binding_kind_is_mutable(statement.kind),
-            );
-        }
-        Stmt::Try(statement) => {
-            check_expression_tree(
-                sources,
-                &statement.expression,
-                resolved,
-                diagnostics,
-                environment,
-                loop_depth,
-            );
-        }
-        Stmt::TryCatch(statement) => {
-            check_expression_tree(
-                sources,
-                &statement.expression,
-                resolved,
-                diagnostics,
-                environment,
-                loop_depth,
-            );
-            let mut catch_environment = environment_for_catch(
-                statement.error_name.clone(),
-                &statement.expression,
-                resolved,
-                environment,
-            );
-            check_block_expressions(
-                sources,
-                &statement.catch_block,
-                resolved,
-                diagnostics,
-                &mut catch_environment,
-                loop_depth,
             );
         }
         Stmt::If(statement) => {
@@ -490,7 +457,7 @@ fn check_expression_tree(
     loop_depth: usize,
 ) {
     match expression {
-        Expr::Try(expression) => {
+        Expr::Propagate(expression) => {
             check_expression_tree(
                 sources,
                 &expression.expression,
@@ -500,7 +467,25 @@ fn check_expression_tree(
                 loop_depth,
             );
         }
-        Expr::TryCatch(expression) => {
+        Expr::Force(expression) => {
+            check_expression_tree(
+                sources,
+                &expression.expression,
+                resolved,
+                diagnostics,
+                environment,
+                loop_depth,
+            );
+            check_force_unwrap_operand(
+                sources,
+                expression.span,
+                &expression.expression,
+                resolved,
+                environment,
+                diagnostics,
+            );
+        }
+        Expr::Catch(expression) => {
             check_expression_tree(
                 sources,
                 &expression.expression,

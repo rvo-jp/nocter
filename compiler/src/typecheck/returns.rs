@@ -11,7 +11,7 @@ use super::environments::{
     environment_for_while_let_binding, impl_member_name, impl_self_type,
 };
 use super::expressions::expression_type;
-use super::fallible::{check_fail_statement, check_try_catch_operand, check_try_propagation};
+use super::fallible::{check_catch_operand, check_fail_statement, check_propagation};
 use super::model::{CallableKind, ReturnContext, Type, TypeEnvironment, binding_kind_is_mutable};
 use super::operations::is_expression_assignable;
 use super::type_expr::{type_expr_to_type, type_expr_to_type_with_self_type};
@@ -247,57 +247,6 @@ fn check_statement_returns(
                 binding_kind_is_mutable(statement.kind),
             );
         }
-        Stmt::Try(statement) => {
-            check_try_propagation(
-                sources,
-                statement.span,
-                &statement.expression,
-                context,
-                resolved,
-                diagnostics,
-                environment,
-            );
-            check_expression_for_nested_returns(
-                sources,
-                &statement.expression,
-                context,
-                resolved,
-                diagnostics,
-                environment,
-            );
-        }
-        Stmt::TryCatch(statement) => {
-            check_try_catch_operand(
-                sources,
-                statement.span,
-                &statement.expression,
-                resolved,
-                environment,
-                diagnostics,
-            );
-            check_expression_for_nested_returns(
-                sources,
-                &statement.expression,
-                context,
-                resolved,
-                diagnostics,
-                environment,
-            );
-            let mut catch_environment = environment_for_catch(
-                statement.error_name.clone(),
-                &statement.expression,
-                resolved,
-                environment,
-            );
-            check_block_return_statements(
-                sources,
-                &statement.catch_block,
-                context,
-                resolved,
-                diagnostics,
-                &mut catch_environment,
-            );
-        }
         Stmt::If(statement) => {
             check_expression_for_nested_returns(
                 sources,
@@ -523,8 +472,8 @@ fn check_expression_for_nested_returns(
     environment: &mut TypeEnvironment,
 ) {
     match expression {
-        Expr::Try(expression) => {
-            check_try_propagation(
+        Expr::Propagate(expression) => {
+            check_propagation(
                 sources,
                 expression.span,
                 &expression.expression,
@@ -542,8 +491,8 @@ fn check_expression_for_nested_returns(
                 environment,
             );
         }
-        Expr::TryCatch(expression) => {
-            check_try_catch_operand(
+        Expr::Catch(expression) => {
+            check_catch_operand(
                 sources,
                 expression.span,
                 &expression.expression,
@@ -572,6 +521,16 @@ fn check_expression_for_nested_returns(
                 resolved,
                 diagnostics,
                 &mut catch_environment,
+            );
+        }
+        Expr::Force(expression) => {
+            check_expression_for_nested_returns(
+                sources,
+                &expression.expression,
+                context,
+                resolved,
+                diagnostics,
+                environment,
             );
         }
         Expr::Binary(expression) => {
@@ -782,8 +741,6 @@ fn statement_guarantees_return(statement: &Stmt) -> bool {
         }),
         Stmt::Loop(statement) => block_guarantees_return(&statement.body),
         Stmt::Binding(_)
-        | Stmt::Try(_)
-        | Stmt::TryCatch(_)
         | Stmt::ForRange(_)
         | Stmt::While(_)
         | Stmt::WhileLet(_)

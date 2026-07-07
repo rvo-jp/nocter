@@ -3,7 +3,7 @@ use std/prelude
 program(): i32 {
     let value = lookup()
 
-    // invalid: postfix `?` propagates T!, not T?
+    // invalid: postfix `?` on T? requires an optional return layer
     let number = value?
 
     return number

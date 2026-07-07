@@ -34,6 +34,120 @@ func maybe_answer(): i32? {
 }
 
 #[test]
+fn accepts_optional_propagation_in_optional_function() {
+    let diagnostics = check_text(
+        r#"program(): i32 {
+    return 0
+}
+
+func value(): i32? {
+    return maybe_answer()?
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_optional_propagation_in_fallible_optional_success_function() {
+    let diagnostics = check_text(
+        r#"program(): i32 {
+    return 0
+}
+
+func value(): (i32?)! {
+    return maybe_answer()?
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_optional_propagation_in_non_optional_function() {
+    let diagnostics = check_text(
+        r#"program(): i32 {
+    return maybe_answer()?
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0335");
+}
+
+#[test]
+fn diagnoses_optional_propagation_in_non_optional_fallible_function() {
+    let diagnostics = check_text(
+        r#"program(): i32 {
+    return 0
+}
+
+func value(): i32! {
+    return maybe_answer()?
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0335");
+}
+
+#[test]
+fn accepts_optional_force_unwrap() {
+    let diagnostics = check_text(
+        r#"program(): i32 {
+    return maybe_answer()!
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_catch_on_optional_expression() {
+    let diagnostics = check_text(
+        r#"program(): i32 {
+    return maybe_answer() catch error {
+        return 0
+    }
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0330");
+    assert!(diagnostics[0].message.contains("catch"));
+}
+
+#[test]
 fn accepts_optional_let_else_extraction() {
     let diagnostics = check_text(
         r#"program(): i32 {

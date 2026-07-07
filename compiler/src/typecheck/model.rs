@@ -87,10 +87,20 @@ impl Type {
         }
     }
 
-    pub(super) fn into_success_type(self) -> Type {
+    pub(super) fn into_fallible_success_type(self) -> Type {
         match self {
             Type::Fallible { success, .. } => *success,
-            _ => self,
+            Type::Unknown | Type::Unresolved(_) => Type::Unknown,
+            _ => Type::Unknown,
+        }
+    }
+
+    pub(super) fn into_propagated_type(self) -> Type {
+        match self {
+            Type::Fallible { success, .. } => *success,
+            Type::Optional(inner) => *inner,
+            Type::Unknown | Type::Unresolved(_) => Type::Unknown,
+            _ => Type::Unknown,
         }
     }
 }

@@ -2,16 +2,16 @@
 
 use crate::ast::{
     ArrayLength, ArrayLiteralExpr, ArrayType, AstFile, BinaryExpr, BinaryOperator, BindingKind,
-    BindingStmt, Block, BorrowType, BreakStmt, CallExpr, ContinueStmt, EnumDecl, EnumVariant, Expr,
-    ExpressionStmt, FailStmt, FallibleType, ForRangeStmt, FromImportItem, FunctionDecl,
-    GenericParam, GenericParamList, GenericType, GroupExpr, IdentifierExpr, IfIsStmt, IfLetStmt,
-    IfStmt, ImplDecl, ImplMember, ImportAlias, ImportItem, ImportedName, IndexExpr, Item,
-    LiteralExpr, LoopStmt, MemberExpr, MethodDecl, ModulePath, OptionalDefaultExpr, OptionalType,
-    Parameter, ParameterList, PointerType, PrimitiveDecl, ProgramDecl, ReturnStmt, Stmt,
-    StructDecl, StructField, StructLiteralExpr, StructLiteralField, SwitchArm, SwitchElseArm,
-    SwitchPayloadBinding, SwitchStmt, TraitDecl, TryCatchExpr, TryExpr, TypeAliasDecl,
-    TypeConversionExpr, TypeExpr, TypeReference, UnaryExpr, UnaryOperator, UseItem, ViewType,
-    Visibility, WhileLetStmt, WhileStmt,
+    BindingStmt, Block, BorrowType, BreakStmt, CallExpr, CatchExpr, ContinueStmt, EnumDecl,
+    EnumVariant, Expr, ExpressionStmt, FailStmt, FallibleType, ForRangeStmt, ForceExpr,
+    FromImportItem, FunctionDecl, GenericParam, GenericParamList, GenericType, GroupExpr,
+    IdentifierExpr, IfIsStmt, IfLetStmt, IfStmt, ImplDecl, ImplMember, ImportAlias, ImportItem,
+    ImportedName, IndexExpr, Item, LiteralExpr, LoopStmt, MemberExpr, MethodDecl, ModulePath,
+    OptionalDefaultExpr, OptionalType, Parameter, ParameterList, PointerType, PrimitiveDecl,
+    ProgramDecl, PropagationExpr, ReturnStmt, Stmt, StructDecl, StructField, StructLiteralExpr,
+    StructLiteralField, SwitchArm, SwitchElseArm, SwitchPayloadBinding, SwitchStmt, TraitDecl,
+    TypeAliasDecl, TypeConversionExpr, TypeExpr, TypeReference, UnaryExpr, UnaryOperator, UseItem,
+    ViewType, Visibility, WhileLetStmt, WhileStmt,
 };
 use crate::diagnostics::Diagnostic;
 use crate::lexer::{Keyword, Token, TokenKind};
@@ -1414,8 +1414,16 @@ impl Parser<'_> {
             }
 
             if let Some(question) = self.match_punctuation("?") {
-                expression = Expr::Try(TryExpr {
+                expression = Expr::Propagate(PropagationExpr {
                     span: self.span(expression.span().start, question.span.end),
+                    expression: Box::new(expression),
+                });
+                continue;
+            }
+
+            if let Some(bang) = self.match_punctuation("!") {
+                expression = Expr::Force(ForceExpr {
+                    span: self.span(expression.span().start, bang.span.end),
                     expression: Box::new(expression),
                 });
                 continue;
@@ -1425,7 +1433,7 @@ impl Parser<'_> {
                 let error = self.expect_identifier("expected catch binding name")?;
                 let catch_block = self.parse_block()?;
                 let end = catch_block.span.end;
-                expression = Expr::TryCatch(TryCatchExpr {
+                expression = Expr::Catch(CatchExpr {
                     span: self.span(expression.span().start, end),
                     expression: Box::new(expression),
                     error_name: error.value,
@@ -2245,6 +2253,26 @@ program(): i32 {
             panic!("expected binding statement");
         };
         assert!(matches!(binding.initializer, Expr::OptionalDefault(_)));
+    }
+
+    #[test]
+    fn parses_force_unwrap_expression() {
+        let output = parse_text(
+            r#"program(): i32 {
+    return answer()!
+}
+"#,
+        );
+
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        let ast = output.ast.unwrap();
+        let Item::Program(program) = &ast.items[0] else {
+            panic!("expected program item");
+        };
+        let Stmt::Return(statement) = &program.body.statements[0] else {
+            panic!("expected return statement");
+        };
+        assert!(matches!(statement.expression, Some(Expr::Force(_))));
     }
 
     #[test]

@@ -59,7 +59,7 @@ func write(file: &+File, text: str): void! {
 }
 ```
 
-Adopted: postfix `?` unwraps fallible values for propagation.
+Adopted: postfix `?` unwraps fallible and optional values for propagation.
 
 ```nct
 let file = File.open(path)?
@@ -67,7 +67,7 @@ let file = File.open(path)?
 
 For `T!`, `expr?` evaluates to the success value when `expr` succeeds. On failure, the current function fails with the same `error` payload.
 
-Postfix `?` does not apply to optional values `T?` in the initial design.
+For `T?`, `expr?` evaluates to the present value when `expr` is present. On `none`, the current function returns `none` through its optional return layer.
 
 Example:
 
@@ -82,11 +82,31 @@ Rules:
 - Postfix `?` is not an exception mechanism.
 - Postfix `?` does not perform stack unwinding.
 - Postfix `?` on `T!` can be used only inside a fallible function.
-- Postfix `?` does not apply to `T?`.
+- Postfix `?` on `T?` can be used only when the current function's return layer can carry `none`.
+- Postfix `?` does not convert `none` into `error`.
+- Postfix `?` does not convert `error` into `none`.
 - `fail` can be used only inside a function returning `T!`.
 - Scope-end cleanup and `drop` behavior still run as they would for an explicit `return` or `fail`.
 - Error conversion is not needed for propagation because every fallible value fails with `error`.
 - `throw` is not part of the language.
+
+Adopted: postfix `!` forcefully unwraps fallible and optional values.
+
+```nct
+let file = File.open(path)!
+let user = maybe_user!
+```
+
+Rules:
+
+- For `T!`, `expr!` evaluates to the success value when `expr` succeeds.
+- For `T?`, `expr!` evaluates to the present value when `expr` is present.
+- If `expr!` sees failure or `none`, execution terminates immediately through a trap-like non-recoverable path.
+- `expr!` does not return `error` or `none` to the caller.
+- `expr!` has result type `T`.
+- `expr!` is intended for tests, prototypes, and truly unrecoverable assumptions.
+- Normal code should prefer `?`, `catch`, `if let`, `let ... else`, or `??`.
+- `expr!` is not stack unwinding.
 
 ## Recoverable Failure and Non-Recoverable Termination
 
@@ -204,7 +224,7 @@ Rules:
 - `none` is the optional absent literal.
 - `return value` in a `T?` function returns the present value.
 - `return none` in a `T?` function returns absence.
-- Postfix `?` does not apply to `T?`; it is reserved for fallible propagation.
+- Postfix `?` on `T?` propagates `none` through the current optional return layer.
 - `switch` does not apply to `T?` in the initial design.
 - `if expr is Pattern` does not apply to `T?` in the initial design.
 - `some(value)` is not part of the initial language.
@@ -228,7 +248,7 @@ Rules:
 - `T?` means an optional value.
 - Prefer `(T?)!` over compact `T?!` in official style.
 - `expr?` on `(T?)!` unwraps only the fallible layer and produces `T?`.
-- Postfix `?` still does not apply to the optional layer.
+- Applying `?` again to that `T?` propagates `none` through the current optional return layer.
 - In a function returning `(T?)!`, `return value` returns success with a present `T`.
 - In a function returning `(T?)!`, `return none` returns success with absence.
 - In a function returning `(T?)!`, `fail error_value` returns failure with `error`.
@@ -271,9 +291,9 @@ if let home = process.env("HOME")? {
 
 ### Optional Propagation
 
-Adopted: optional propagation syntax is not part of v0.
+Adopted: postfix `?` propagates optional absence.
 
-Nocter does not provide propagation for optional values in v0. Returning absence remains explicit.
+When `expr` has type `T?`, `expr?` unwraps the present `T`. If `expr` is `none`, the current function returns `none` through its optional return layer.
 
 ```nct
 func require_home(): str? {
@@ -287,9 +307,9 @@ func require_home(): str? {
 
 Rules:
 
-- Postfix `?` is exclusive to fallible `T!` values.
-- `optional_value?` is invalid.
-- An optional function must use `return none` to return absence.
+- Postfix `?` on `T?` is valid when the current function's return type can carry `none`, such as `U?` or `(U?)!`.
+- In a function returning `(U?)!`, `none` is returned as successful absence, not as failure.
+- Postfix `?` on `T?` is invalid in a function whose current return layer cannot carry `none`.
 - Present / absent branching uses `if let`, `if var`, `while let`, and `while var`.
 - Early-exit extraction uses `let ... else` and `var ... else`.
 - Defaulting uses `??`.

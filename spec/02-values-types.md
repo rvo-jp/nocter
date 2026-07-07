@@ -512,7 +512,7 @@ Precedence, from highest to lowest:
    f(x), x.method(), x[i], x.field
 
 2. postfix / type conversion
-   expr?, expr as Type
+   expr?, expr!, expr as Type
 
 3. unary
    !x, -x, &x, &+x, move name

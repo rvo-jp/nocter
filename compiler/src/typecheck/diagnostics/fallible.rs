@@ -1,27 +1,45 @@
 use super::{ByteSpan, Diagnostic, ReturnContext, SourceMap, Type, add_declared_return_note};
 
-pub(in crate::typecheck) fn try_on_non_fallible_diagnostic(
+pub(in crate::typecheck) fn propagation_on_non_propagatable_diagnostic(
     sources: &SourceMap,
-    try_span: ByteSpan,
+    operator_span: ByteSpan,
     actual: &Type,
 ) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(
         "E0330",
         format!(
-            "fallible handling requires a fallible expression, but this expression has type `{}`",
+            "postfix `?` requires a fallible or optional expression, but this expression has type `{}`",
             actual.display()
         ),
     );
-    diagnostic.primary_span = sources.span_to_json(try_span).ok().map(Box::new);
+    diagnostic.primary_span = sources.span_to_json(operator_span).ok().map(Box::new);
+    diagnostic.help =
+        Some("use postfix `?` only on a value whose type is `T!` or `T?`".to_string());
+    diagnostic
+}
+
+pub(in crate::typecheck) fn catch_on_non_fallible_diagnostic(
+    sources: &SourceMap,
+    catch_span: ByteSpan,
+    actual: &Type,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0330",
+        format!(
+            "`catch` requires a fallible expression, but this expression has type `{}`",
+            actual.display()
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(catch_span).ok().map(Box::new);
     diagnostic.help = Some(
-        "remove postfix `?` or `catch`, or call a function whose return type is `T!`".to_string(),
+        "use `catch` only on `T!`; use `if let`, `let ... else`, or `??` for `T?`".to_string(),
     );
     diagnostic
 }
 
-pub(in crate::typecheck) fn try_in_non_fallible_context_diagnostic(
+pub(in crate::typecheck) fn fallible_propagation_in_non_fallible_context_diagnostic(
     sources: &SourceMap,
-    try_span: ByteSpan,
+    operator_span: ByteSpan,
     context: &ReturnContext,
     attempted_error: &Type,
 ) -> Diagnostic {
@@ -33,16 +51,52 @@ pub(in crate::typecheck) fn try_in_non_fallible_context_diagnostic(
             context.subject()
         ),
     );
-    diagnostic.primary_span = sources.span_to_json(try_span).ok().map(Box::new);
+    diagnostic.primary_span = sources.span_to_json(operator_span).ok().map(Box::new);
     add_declared_return_note(sources, &mut diagnostic, context);
     diagnostic.help =
         Some("add `catch error { ... }` or make the current callable return `T!`".to_string());
     diagnostic
 }
 
-pub(in crate::typecheck) fn try_error_type_mismatch_diagnostic(
+pub(in crate::typecheck) fn optional_propagation_in_non_optional_context_diagnostic(
     sources: &SourceMap,
-    try_span: ByteSpan,
+    operator_span: ByteSpan,
+    context: &ReturnContext,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0335",
+        format!(
+            "postfix `?` would propagate `none`, but {} does not return an optional value",
+            context.subject()
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(operator_span).ok().map(Box::new);
+    add_declared_return_note(sources, &mut diagnostic, context);
+    diagnostic.help = Some("handle `none` with `if let`, `let ... else`, or `??`".to_string());
+    diagnostic
+}
+
+pub(in crate::typecheck) fn force_on_non_unwrappable_diagnostic(
+    sources: &SourceMap,
+    operator_span: ByteSpan,
+    actual: &Type,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0336",
+        format!(
+            "postfix `!` requires a fallible or optional expression, but this expression has type `{}`",
+            actual.display()
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(operator_span).ok().map(Box::new);
+    diagnostic.help =
+        Some("use postfix `!` only on a value whose type is `T!` or `T?`".to_string());
+    diagnostic
+}
+
+pub(in crate::typecheck) fn fallible_propagation_error_type_mismatch_diagnostic(
+    sources: &SourceMap,
+    operator_span: ByteSpan,
     context: &ReturnContext,
     current_error: &Type,
     attempted_error: &Type,
@@ -56,7 +110,7 @@ pub(in crate::typecheck) fn try_error_type_mismatch_diagnostic(
             current_error.display()
         ),
     );
-    diagnostic.primary_span = sources.span_to_json(try_span).ok().map(Box::new);
+    diagnostic.primary_span = sources.span_to_json(operator_span).ok().map(Box::new);
     add_declared_return_note(sources, &mut diagnostic, context);
     diagnostic.help = Some("handle the failure with `catch`".to_string());
     diagnostic

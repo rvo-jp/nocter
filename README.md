@@ -1511,7 +1511,9 @@ func log(msg: str): void
 
 `error` は型位置で意味を持つ compiler built-in 構文です。import で解決される通常名ではなく、ユーザー定義の型名として再定義できません。一方で、値の束縛名としての `error` は通常のローカル名です。`catch error { ... }` の `error` は慣習的な束縛名であり、`catch err { ... }` のような別名も有効です。
 
-postfix `?` は fallible value の成功値を取り出す構文です。失敗した場合は現在の関数から同じ `error` で失敗します。例外やスタック巻き戻しではありません。postfix `?` は `T!` 専用で、`T?` には使いません。
+postfix `?` は fallible value または optional value を現在の関数へ伝播する構文です。`T!` に使うと成功値 `T` を取り出し、失敗時は現在の fallible 関数から同じ `error` で失敗します。`T?` に使うと present 値 `T` を取り出し、`none` 時は現在の optional return layer から `none` を返します。例外やスタック巻き戻しではありません。
+
+postfix `!` は fallible value または optional value を強制的に取り出す構文です。成功または present の場合は `T` を返します。失敗または `none` の場合は即座に復帰不能停止します。通常コードでは `?`、`catch`、`if let`、`let ... else`、`??` を優先し、`!` はテスト、プロトタイプ、復旧不能な前提に限定します。
 
 `fail`、`trap`、`abort` は別の仕組みです。
 
@@ -1535,7 +1537,7 @@ func open(path: str): File! {
 
 fallible type は `T!` と書きます。成功時は `T`、失敗時は built-in type の `error` を返します。`Error` と `ErrorCode` は標準ライブラリが提供する通常名であり、compiler はこれらの大文字名を特別扱いしません。`ErrorCode` は `str` の alias で、`Error.new(...)` などの標準ライブラリ API を通じて、built-in `error` payload の primitive code 表現へ変換されます。
 
-fallible value を伝播する場合は postfix `?` を使います。失敗側を別の `error` に置き換えて離脱したい場合は `catch error { ... }` を使います。
+fallible value を伝播する場合は postfix `?` を使います。失敗側を別の `error` に置き換えて離脱したい場合は `catch error { ... }` を使います。復旧不能な前提として強制的に成功値を取り出す場合は postfix `!` を使えます。
 
 ```nct
 func read_all(allocator: &+Allocator, path: str): String! {
@@ -1575,7 +1577,7 @@ func require_home(): str? {
 }
 ```
 
-optional と fallible は合成できます。`(T?)!` は、失敗しうる処理の成功値が optional であることを表します。postfix `?` は fallible layer だけを外すため、`process.env("HOME")?` の型は `str?` です。
+optional と fallible は合成できます。`(T?)!` は、失敗しうる処理の成功値が optional であることを表します。`process.env("HOME")?` は fallible layer だけを外すため型は `str?` です。さらに optional return layer を持つ関数内では、もう一度 `?` を使って `none` を伝播できます。
 
 ```nct
 if let home = process.env("HOME")? {
@@ -1583,7 +1585,7 @@ if let home = process.env("HOME")? {
 }
 ```
 
-v0 では optional propagation syntax を採用しません。postfix `?` は fallible value 専用で、`T?` には使いません。absence を現在の optional 関数から返す場合は `return none`、present / absent で分岐する場合は `if let` / `if var`、値がなければ現在の制御フローを抜ける場合は `let ... else` / `var ... else`、default value を選ぶ場合は `??` を使います。
+optional value の absence を伝播する場合も postfix `?` を使えます。`T?` に対する `expr?` は present なら `T` を取り出し、`none` なら現在の optional return layer から `none` を返します。現在の関数の return type が `none` を運べる場合に有効です。present / absent で分岐する場合は `if let` / `if var`、値がなければ現在の制御フローを抜ける場合は `let ... else` / `var ... else`、default value を選ぶ場合は `??` を使います。
 
 optional を値として使う前に、値がない場合だけ早期離脱したいときは `let ... else` を使います。
 
@@ -1828,7 +1830,7 @@ help: end the borrow before moving `file`
 
 v0 では、source-level compiler error に `E0000` 形式の error code を付け、primary span を1つ持たせます。関連する原因箇所がある場合は related span と `note` を出し、修正方向が明確な場合は `help` を出します。parser は最初の構文エラーで止まってよく、型チェック以降は複数の独立エラーを出せますが、cascade error は抑制します。
 
-`pub(nocter)` 違反、borrow 違反、move 後の使用、明示 `drop` 後の使用、maybe initialized binding の使用、`fail` に `error` 以外を渡した場合、fallible ではない値への postfix `?`、`catch` の fallthrough、`program` の欠落や重複などは専用診断にします。診断文は compiler 内部都合ではなく、Nocter の source-level 概念で説明します。
+`pub(nocter)` 違反、borrow 違反、move 後の使用、明示 `drop` 後の使用、maybe initialized binding の使用、`fail` に `error` 以外を渡した場合、`T!` / `T?` ではない値への postfix `?` / `!`、optional return layer のない場所での optional propagation、`catch` の fallthrough、`program` の欠落や重複などは専用診断にします。診断文は compiler 内部都合ではなく、Nocter の source-level 概念で説明します。
 
 ## エディタ連携
 

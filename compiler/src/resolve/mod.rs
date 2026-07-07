@@ -811,17 +811,6 @@ impl Resolver<'_> {
                 }
                 self.define_local_name(statement.name.clone(), statement.name_span, scope);
             }
-            Stmt::Try(statement) => self.resolve_expression(&statement.expression, scope),
-            Stmt::TryCatch(statement) => {
-                self.resolve_expression(&statement.expression, scope);
-                let mut catch_scope = scope.clone();
-                self.define_local_name(
-                    statement.error_name.clone(),
-                    statement.error_span,
-                    &mut catch_scope,
-                );
-                self.resolve_block(&statement.catch_block, &mut catch_scope);
-            }
             Stmt::If(statement) => {
                 self.resolve_expression(&statement.condition, scope);
                 let mut then_scope = scope.clone();
@@ -909,8 +898,9 @@ impl Resolver<'_> {
     fn resolve_expression(&mut self, expression: &Expr, scope: &mut Scope) {
         match expression {
             Expr::Identifier(expression) => self.resolve_identifier(expression, scope),
-            Expr::Try(expression) => self.resolve_expression(&expression.expression, scope),
-            Expr::TryCatch(expression) => {
+            Expr::Propagate(expression) => self.resolve_expression(&expression.expression, scope),
+            Expr::Force(expression) => self.resolve_expression(&expression.expression, scope),
+            Expr::Catch(expression) => {
                 self.resolve_expression(&expression.expression, scope);
                 let mut catch_scope = scope.clone();
                 self.define_local_name(

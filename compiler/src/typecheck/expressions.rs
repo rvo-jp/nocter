@@ -76,12 +76,14 @@ pub(super) fn expression_type(
         Expr::TypeConversion(expression) => {
             type_expr_to_type_in_environment(&expression.ty, resolved, environment)
         }
-        Expr::Try(expression) => {
-            expression_type(&expression.expression, resolved, environment).into_success_type()
+        Expr::Propagate(expression) => {
+            expression_type(&expression.expression, resolved, environment).into_propagated_type()
         }
-        Expr::TryCatch(expression) => {
-            expression_type(&expression.expression, resolved, environment).into_success_type()
+        Expr::Force(expression) => {
+            expression_type(&expression.expression, resolved, environment).into_propagated_type()
         }
+        Expr::Catch(expression) => expression_type(&expression.expression, resolved, environment)
+            .into_fallible_success_type(),
         Expr::Call(expression) => {
             enum_variant_call_type(expression, resolved).unwrap_or_else(|| {
                 resolved_call_signature(resolved, expression, environment)

@@ -190,6 +190,39 @@ func answer(): i32! {
 }
 
 #[test]
+fn accepts_fallible_force_unwrap() {
+    let diagnostics = check_text(
+        r#"program(): i32 {
+    return answer()!
+}
+
+func answer(): i32! {
+    return 1
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_force_unwrap_on_plain_value() {
+    let diagnostics = check_text(
+        r#"program(): i32 {
+    return answer()!
+}
+
+func answer(): i32 {
+    return 1
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0336");
+}
+
+#[test]
 fn diagnoses_propagation_in_non_fallible_function() {
     let diagnostics = check_text(
         r#"program(): i32 {
