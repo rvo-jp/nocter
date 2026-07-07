@@ -1,4 +1,15 @@
-use super::*;
+use super::diagnostics::{
+    binding_type_mismatch_diagnostic, optional_let_else_fallthrough_diagnostic,
+    optional_let_else_non_optional_diagnostic,
+};
+use super::model::{Type, TypeEnvironment};
+use super::operations::is_expression_assignable;
+use super::returns::block_guarantees_return;
+use super::type_expr::type_expr_to_type_in_environment;
+use crate::ast::BindingStmt;
+use crate::diagnostics::Diagnostic;
+use crate::resolve::ResolveOutput;
+use crate::source::SourceMap;
 
 pub(super) fn check_optional_let_else_statement(
     sources: &SourceMap,

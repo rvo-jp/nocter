@@ -1,4 +1,14 @@
-use super::*;
+use super::diagnostics::{
+    array_literal_element_type_mismatch_diagnostic, index_target_type_mismatch_diagnostic,
+    index_value_type_mismatch_diagnostic,
+};
+use super::expressions::expression_type;
+use super::model::{Type, TypeEnvironment, same_known_type};
+use super::numeric::{integer_literal_value, is_integer_type};
+use crate::ast::{ArrayLiteralExpr, Expr, IndexExpr};
+use crate::diagnostics::Diagnostic;
+use crate::resolve::ResolveOutput;
+use crate::source::SourceMap;
 
 pub(super) fn check_array_literal_elements(
     sources: &SourceMap,

@@ -1,4 +1,6 @@
-use super::*;
+use super::{
+    Diagnostic, IfIsStmt, SourceMap, SwitchArm, SwitchStmt, Type, TypeSymbol, type_symbol_kind_name,
+};
 
 pub(in crate::typecheck) fn switch_target_type_mismatch_diagnostic(
     sources: &SourceMap,

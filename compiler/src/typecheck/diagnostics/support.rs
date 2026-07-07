@@ -1,4 +1,4 @@
-use super::*;
+use super::{BindingKind, Diagnostic, DiagnosticNote, ReturnContext, SourceMap, TypeSymbolKind};
 
 pub(super) fn type_symbol_kind_name(kind: TypeSymbolKind) -> &'static str {
     match kind {

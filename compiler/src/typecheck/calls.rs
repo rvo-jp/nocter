@@ -1,4 +1,17 @@
-use super::*;
+use super::diagnostics::{
+    argument_count_mismatch_diagnostic, argument_type_mismatch_diagnostic,
+    method_readwrite_receiver_requires_var_diagnostic, method_receiver_unsupported_diagnostic,
+};
+use super::expressions::expression_type;
+use super::model::{Type, TypeEnvironment};
+use super::operations::is_expression_assignable;
+use super::type_expr::type_expr_to_type_with_self_type;
+use crate::ast::{CallExpr, Expr, MemberExpr, TypeExpr};
+use crate::diagnostics::Diagnostic;
+use crate::resolve::{
+    FunctionSignature, MethodSignature, ResolveOutput, TypeSymbol, TypeSymbolKind,
+};
+use crate::source::{ByteSpan, SourceMap};
 
 pub(super) fn check_known_function_call(
     sources: &SourceMap,

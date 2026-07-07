@@ -1,4 +1,4 @@
-use super::*;
+use super::check_text;
 
 #[test]
 fn diagnoses_binding_annotation_type_mismatch() {

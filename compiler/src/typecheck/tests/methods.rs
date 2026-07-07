@@ -1,4 +1,4 @@
-use super::*;
+use super::check_text;
 
 #[test]
 fn accepts_method_body_receiver_self_type() {

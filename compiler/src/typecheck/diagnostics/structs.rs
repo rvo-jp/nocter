@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    ByteSpan, Diagnostic, DiagnosticNote, ResolveOutput, SourceMap, StructFieldSignature,
+    StructLiteralExpr, StructLiteralField, Type, TypeSymbol, type_symbol_kind_name,
+};
 
 pub(in crate::typecheck) fn struct_literal_target_type_mismatch_diagnostic(
     sources: &SourceMap,

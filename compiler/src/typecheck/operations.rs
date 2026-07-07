@@ -1,4 +1,23 @@
-use super::*;
+use super::arrays::array_length_matches;
+use super::diagnostics::{
+    arithmetic_operand_type_mismatch_diagnostic, equality_operand_type_mismatch_diagnostic,
+    logical_not_operand_type_mismatch_diagnostic, logical_operand_type_mismatch_diagnostic,
+    negative_shift_count_diagnostic, numeric_negate_operand_type_mismatch_diagnostic,
+    ordered_comparison_operand_type_mismatch_diagnostic, shift_operand_type_mismatch_diagnostic,
+    type_conversion_not_lossless_diagnostic,
+};
+use super::expressions::expression_type;
+use super::model::{Type, TypeEnvironment, same_known_type};
+use super::numeric::{
+    integer_literal_expr_value, integer_literal_fits_type, integer_type_range,
+    is_integer_literal_expr, is_integer_type, is_negative_integer_literal_expr,
+    is_signed_integer_type, negative_integer_literal_fits_type,
+};
+use super::type_expr::type_expr_to_type_in_environment;
+use crate::ast::{BinaryExpr, BinaryOperator, Expr, TypeConversionExpr, UnaryExpr, UnaryOperator};
+use crate::diagnostics::Diagnostic;
+use crate::resolve::ResolveOutput;
+use crate::source::SourceMap;
 
 pub(super) fn check_binary_expression(
     sources: &SourceMap,

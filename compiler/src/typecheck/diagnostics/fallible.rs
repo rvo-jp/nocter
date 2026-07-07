@@ -1,4 +1,4 @@
-use super::*;
+use super::{ByteSpan, Diagnostic, ReturnContext, SourceMap, Type, add_declared_return_note};
 
 pub(in crate::typecheck) fn try_on_non_fallible_diagnostic(
     sources: &SourceMap,

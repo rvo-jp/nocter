@@ -1,5 +1,15 @@
-use super::*;
-use crate::ast::{MethodDecl, Parameter};
+use super::expressions::expression_type;
+use super::model::{Type, TypeEnvironment, binding_kind_is_mutable, same_known_type};
+use super::numeric::{is_integer_literal_expr, is_integer_type};
+use super::operations::is_expression_assignable;
+use super::type_expr::{
+    type_expr_display_lossy, type_expr_to_type, type_expr_to_type_in_environment,
+};
+use crate::ast::{
+    Expr, ForRangeStmt, IfIsStmt, IfLetStmt, ImplDecl, MethodDecl, Parameter, SwitchArm,
+    WhileLetStmt,
+};
+use crate::resolve::{ResolveOutput, TypeSymbolKind};
 
 pub(super) fn environment_for_parameters(
     parameters: &[Parameter],

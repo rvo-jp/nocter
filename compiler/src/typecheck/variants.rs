@@ -1,4 +1,21 @@
-use super::*;
+use super::diagnostics::{
+    enum_variant_payload_count_mismatch_diagnostic, enum_variant_payload_type_mismatch_diagnostic,
+    enum_variant_payloadless_call_diagnostic, enum_variant_unknown_diagnostic,
+    if_is_enum_mismatch_diagnostic, if_is_non_enum_diagnostic, if_is_payload_mismatch_diagnostic,
+    if_is_target_type_mismatch_diagnostic, if_is_unknown_enum_diagnostic,
+    if_is_unknown_variant_diagnostic, switch_arm_enum_mismatch_diagnostic,
+    switch_arm_non_enum_diagnostic, switch_arm_payload_mismatch_diagnostic,
+    switch_arm_unknown_enum_diagnostic, switch_arm_unknown_variant_diagnostic,
+    switch_target_type_mismatch_diagnostic,
+};
+use super::expressions::expression_type;
+use super::model::{Type, TypeEnvironment};
+use super::operations::is_expression_assignable;
+use super::type_expr::type_expr_to_type;
+use crate::ast::{CallExpr, Expr, IfIsStmt, MemberExpr, SwitchArm, SwitchStmt};
+use crate::diagnostics::Diagnostic;
+use crate::resolve::{EnumVariantSignature, ResolveOutput, TypeSymbol, TypeSymbolKind};
+use crate::source::SourceMap;
 
 pub(super) fn check_switch_statement(
     sources: &SourceMap,

@@ -1,4 +1,4 @@
-use super::*;
+use super::check_text;
 
 #[test]
 fn accepts_switch_over_enum() {

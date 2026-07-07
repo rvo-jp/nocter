@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    Diagnostic, DiagnosticNote, MemberExpr, MethodSignature, SourceMap, Type, TypeSymbol,
+    type_expr_display_lossy,
+};
 
 pub(in crate::typecheck) fn error_member_unknown_diagnostic(
     sources: &SourceMap,

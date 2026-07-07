@@ -1,4 +1,6 @@
-use super::*;
+use super::{
+    BindingStmt, Block, Diagnostic, IfLetStmt, SourceMap, Type, WhileLetStmt, binding_keyword,
+};
 
 pub(in crate::typecheck) fn optional_if_let_non_optional_diagnostic(
     sources: &SourceMap,

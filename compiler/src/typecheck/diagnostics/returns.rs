@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    ByteSpan, Diagnostic, Expr, FailStmt, ReturnContext, ReturnStmt, SourceMap, Type,
+    add_declared_return_note,
+};
 
 pub(in crate::typecheck) fn missing_return_value_diagnostic(
     sources: &SourceMap,

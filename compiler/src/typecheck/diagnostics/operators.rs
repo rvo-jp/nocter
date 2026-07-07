@@ -1,4 +1,4 @@
-use super::*;
+use super::{BinaryExpr, Diagnostic, SourceMap, Type, TypeConversionExpr, UnaryExpr};
 
 pub(in crate::typecheck) fn equality_operand_type_mismatch_diagnostic(
     sources: &SourceMap,

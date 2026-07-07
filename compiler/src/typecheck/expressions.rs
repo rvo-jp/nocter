@@ -1,4 +1,15 @@
-use super::*;
+use super::arrays::{array_literal_type, index_expression_type};
+use super::calls::resolved_call_signature;
+use super::diagnostics::error_member_unknown_diagnostic;
+use super::model::{Type, TypeEnvironment};
+use super::operations::{binary_expression_type, is_assignable};
+use super::structs::{struct_literal_type, struct_member_type};
+use super::type_expr::{type_expr_to_type_in_environment, type_expr_to_type_with_self_type};
+use super::variants::{enum_variant_call_type, enum_variant_member_type};
+use crate::ast::{Expr, MemberExpr, UnaryOperator};
+use crate::diagnostics::Diagnostic;
+use crate::resolve::ResolveOutput;
+use crate::source::SourceMap;
 
 fn error_member_type(
     member: &MemberExpr,

@@ -11,7 +11,8 @@ mod returns;
 mod structs;
 mod variants;
 
-use super::*;
+use super::check;
+use crate::diagnostics::Diagnostic;
 use crate::lexer::lex;
 use crate::parser::parse;
 use crate::resolve::resolve;

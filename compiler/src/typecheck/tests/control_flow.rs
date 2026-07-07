@@ -1,4 +1,4 @@
-use super::*;
+use super::check_text;
 
 #[test]
 fn accepts_if_else_return_as_terminal_statement() {

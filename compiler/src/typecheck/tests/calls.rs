@@ -1,4 +1,4 @@
-use super::*;
+use super::check_text;
 
 #[test]
 fn uses_same_file_function_call_return_type() {

@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    ByteSpan, CallExpr, Diagnostic, DiagnosticNote, EnumVariantSignature, Expr, MemberExpr,
+    SourceMap, Type, TypeSymbol,
+};
 
 pub(in crate::typecheck) fn enum_variant_unknown_diagnostic(
     sources: &SourceMap,

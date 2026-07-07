@@ -1,4 +1,4 @@
-use super::*;
+use super::check_text;
 
 #[test]
 fn displays_fixed_array_return_type() {

@@ -1,4 +1,4 @@
-use super::*;
+use super::{BindingStmt, Diagnostic, DiagnosticNote, SourceMap, Type, binding_keyword};
 
 pub(in crate::typecheck) fn binding_type_mismatch_diagnostic(
     sources: &SourceMap,

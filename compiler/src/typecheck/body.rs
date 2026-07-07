@@ -1,4 +1,34 @@
-use super::*;
+use super::arrays::{check_array_literal_elements, check_index_expression};
+use super::bindings::{check_binding_annotation, continuing_binding_type};
+use super::calls::{
+    check_known_function_call, check_method_receiver_call, method_member_for_call,
+    resolved_call_signature, resolved_method_for_call,
+};
+use super::controls::{
+    check_for_range_bounds, check_if_condition, check_if_let_initializer, check_while_condition,
+    check_while_let_initializer,
+};
+use super::diagnostics::loop_control_outside_loop_diagnostic;
+use super::environments::{
+    environment_for_catch, environment_for_for_range_binding, environment_for_if_is_binding,
+    environment_for_if_let_binding, environment_for_method, environment_for_parameters,
+    environment_for_parameters_with_self_type, environment_for_switch_arm,
+    environment_for_while_let_binding, impl_self_type,
+};
+use super::expressions::{check_error_member_expression, expression_type};
+use super::model::{TypeEnvironment, binding_kind_is_mutable};
+use super::operations::{
+    check_binary_expression, check_type_conversion_expression, check_unary_expression,
+};
+use super::structs::{check_struct_literal_expression, check_struct_member_expression};
+use super::variants::{
+    check_enum_variant_call, check_enum_variant_member, check_if_is_statement,
+    check_switch_statement, is_enum_variant_call,
+};
+use crate::ast::{AstFile, Block, Expr, ImplDecl, ImplMember, Item, Stmt};
+use crate::diagnostics::Diagnostic;
+use crate::resolve::ResolveOutput;
+use crate::source::SourceMap;
 
 pub(super) fn check_body_expressions(
     sources: &SourceMap,

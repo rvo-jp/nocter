@@ -1,4 +1,4 @@
-use super::*;
+use super::{ByteSpan, Diagnostic, DiagnosticNote, Expr, ForRangeStmt, SourceMap, Type};
 
 pub(in crate::typecheck) fn if_condition_type_mismatch_diagnostic(
     sources: &SourceMap,

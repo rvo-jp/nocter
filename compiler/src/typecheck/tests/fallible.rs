@@ -1,4 +1,4 @@
-use super::*;
+use super::check_text;
 
 #[test]
 fn checks_success_type_of_fallible_return() {

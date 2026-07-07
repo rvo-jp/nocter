@@ -18,36 +18,13 @@ mod structs;
 mod type_expr;
 mod variants;
 
-use crate::ast::{
-    ArrayLiteralExpr, AstFile, BinaryExpr, BinaryOperator, BindingStmt, Block, CallExpr, Expr,
-    FailStmt, ForRangeStmt, FunctionDecl, IfIsStmt, IfLetStmt, IfStmt, ImplDecl, ImplMember,
-    IndexExpr, Item, MemberExpr, ProgramDecl, ReturnStmt, Stmt, StructLiteralExpr,
-    StructLiteralField, SwitchArm, SwitchStmt, TypeConversionExpr, TypeExpr, UnaryExpr,
-    UnaryOperator, WhileLetStmt, WhileStmt,
-};
+use crate::ast::AstFile;
 use crate::diagnostics::Diagnostic;
-use crate::resolve::{
-    EnumVariantSignature, FunctionSignature, MethodSignature, ParameterSignature, ResolveOutput,
-    StructFieldSignature, TypeSymbol, TypeSymbolKind,
-};
-use crate::source::{ByteSpan, SourceMap};
-use arrays::*;
-use bindings::*;
+use crate::resolve::ResolveOutput;
+use crate::source::SourceMap;
 use body::*;
-use calls::*;
-use controls::*;
-use diagnostics::*;
 use entry::*;
-use environments::*;
-use expressions::*;
-use fallible::*;
-use model::*;
-use numeric::*;
-use operations::*;
 use returns::*;
-use structs::*;
-use type_expr::*;
-use variants::*;
 
 pub fn check(sources: &SourceMap, ast: &AstFile, resolved: &ResolveOutput) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();

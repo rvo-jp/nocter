@@ -1,4 +1,16 @@
-use super::*;
+use super::diagnostics::{
+    for_range_bound_type_mismatch_diagnostic, if_condition_type_mismatch_diagnostic,
+    optional_if_let_non_optional_diagnostic, optional_while_let_non_optional_diagnostic,
+    while_condition_type_mismatch_diagnostic,
+};
+use super::expressions::expression_type;
+use super::model::{Type, TypeEnvironment};
+use super::numeric::is_integer_type;
+use super::operations::{integer_operands_match, is_bool_type};
+use crate::ast::{ForRangeStmt, IfLetStmt, IfStmt, WhileLetStmt, WhileStmt};
+use crate::diagnostics::Diagnostic;
+use crate::resolve::ResolveOutput;
+use crate::source::SourceMap;
 
 pub(super) fn check_if_let_initializer(
     sources: &SourceMap,

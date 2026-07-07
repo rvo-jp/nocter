@@ -1,4 +1,15 @@
-use super::*;
+use super::diagnostics::{
+    fail_in_non_fallible_context_diagnostic, fail_type_mismatch_diagnostic,
+    try_error_type_mismatch_diagnostic, try_in_non_fallible_context_diagnostic,
+    try_on_non_fallible_diagnostic,
+};
+use super::expressions::expression_type;
+use super::model::{ReturnContext, Type, TypeEnvironment, same_known_type};
+use super::operations::is_expression_assignable;
+use crate::ast::{Expr, FailStmt};
+use crate::diagnostics::Diagnostic;
+use crate::resolve::ResolveOutput;
+use crate::source::{ByteSpan, SourceMap};
 
 pub(super) fn check_fail_statement(
     sources: &SourceMap,

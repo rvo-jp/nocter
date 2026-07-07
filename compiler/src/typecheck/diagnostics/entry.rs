@@ -1,4 +1,4 @@
-use super::*;
+use super::{ByteSpan, Diagnostic, DiagnosticNote, FunctionDecl, SourceMap};
 
 pub(in crate::typecheck) fn missing_program_diagnostic(
     sources: &SourceMap,

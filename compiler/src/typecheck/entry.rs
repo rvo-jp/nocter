@@ -1,4 +1,10 @@
-use super::*;
+use super::diagnostics::{
+    duplicate_program_diagnostic, invalid_program_return_type_diagnostic,
+    main_is_not_entry_diagnostic, missing_program_diagnostic,
+};
+use crate::ast::{AstFile, FunctionDecl, Item, ProgramDecl, TypeExpr};
+use crate::diagnostics::Diagnostic;
+use crate::source::SourceMap;
 
 pub(super) fn check_program_entry(
     sources: &SourceMap,

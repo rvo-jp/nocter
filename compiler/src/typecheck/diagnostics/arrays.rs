@@ -1,4 +1,4 @@
-use super::*;
+use super::{Diagnostic, DiagnosticNote, Expr, IndexExpr, SourceMap, Type};
 
 pub(in crate::typecheck) fn array_literal_element_type_mismatch_diagnostic(
     sources: &SourceMap,

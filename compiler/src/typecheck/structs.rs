@@ -1,4 +1,18 @@
-use super::*;
+use super::diagnostics::{
+    member_target_type_mismatch_diagnostic, struct_field_unknown_diagnostic,
+    struct_literal_duplicate_field_diagnostic, struct_literal_field_type_mismatch_diagnostic,
+    struct_literal_inaccessible_field_diagnostic,
+    struct_literal_inaccessible_missing_field_diagnostic, struct_literal_missing_field_diagnostic,
+    struct_literal_target_type_mismatch_diagnostic, struct_literal_unknown_field_diagnostic,
+};
+use super::expressions::expression_type;
+use super::model::{Type, TypeEnvironment};
+use super::operations::is_expression_assignable;
+use super::type_expr::type_expr_to_type_in_environment;
+use crate::ast::{MemberExpr, StructLiteralExpr, StructLiteralField};
+use crate::diagnostics::Diagnostic;
+use crate::resolve::{ResolveOutput, StructFieldSignature, TypeSymbol, TypeSymbolKind};
+use crate::source::SourceMap;
 use std::collections::HashMap;
 
 pub(super) fn struct_member_type(
