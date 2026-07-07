@@ -34,6 +34,10 @@ pub(crate) struct CompileUnitAnalysis {
 }
 
 impl CompileUnitAnalysis {
+    pub(crate) fn root_file(&self) -> Option<&FileAnalysis> {
+        self.files.iter().find(|file| file.is_root)
+    }
+
     pub(crate) fn diagnostics(&self) -> Vec<Diagnostic> {
         let mut diagnostics = self
             .files

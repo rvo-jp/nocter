@@ -2,6 +2,7 @@
 
 use crate::analysis::CompileUnitAnalysis;
 use crate::diagnostics::Diagnostic;
+use crate::ir::lower_program;
 use std::path::Path;
 
 pub(crate) struct BuildRequest<'a> {
@@ -17,7 +18,7 @@ pub(crate) fn build_executable(request: BuildRequest<'_>) -> Result<(), Vec<Diag
         target,
     } = request;
 
-    let _checked_file_count = analysis.files.len();
+    let _ir = lower_program(analysis)?;
     let _planned_output_path = output_path;
 
     Err(vec![Diagnostic::error(

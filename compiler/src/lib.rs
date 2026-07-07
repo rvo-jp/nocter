@@ -6,6 +6,7 @@ pub mod diagnostics;
 pub mod driver;
 pub mod frontend;
 pub mod home;
+pub mod ir;
 pub mod lexer;
 pub mod parser;
 pub mod resolve;
