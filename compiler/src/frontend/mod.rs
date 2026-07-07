@@ -1,5 +1,8 @@
 //! Front-end source loading, parsing, and compile-unit construction.
 
+#[cfg(test)]
+mod tests;
+
 use crate::analysis::CompileUnit;
 use crate::ast::{AstFile, Item, ModulePath, UseItem};
 use crate::diagnostics::Diagnostic;

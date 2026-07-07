@@ -284,6 +284,23 @@ fn validate_relative_path(label: &str, path: &Path, errors: &mut Vec<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env;
+    use std::fs;
+    use std::path::PathBuf;
+
+    fn make_temp_home(name: &str) -> PathBuf {
+        let unique = format!(
+            "nocter-{name}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+        let root = env::temp_dir().join(unique);
+        fs::create_dir_all(&root).unwrap();
+        root
+    }
 
     #[test]
     fn rejects_invalid_version_prefix() {
@@ -293,5 +310,49 @@ mod tests {
     #[test]
     fn accepts_prerelease_version() {
         assert!(is_valid_release_version("0.1.0-dev"));
+    }
+
+    #[test]
+    fn validates_nocter_home_shape() {
+        let root = make_temp_home("home-shape");
+        fs::create_dir_all(root.join("std")).unwrap();
+        fs::create_dir_all(root.join("targets/arm64-darwin/std")).unwrap();
+        fs::write(root.join("VERSION"), "0.1.0\n").unwrap();
+        fs::write(
+            root.join("MANIFEST.json"),
+            r#"{
+  "schema": "nocter.manifest",
+  "schema_version": 1,
+  "release": "0.1.0",
+  "host": "arm64-darwin",
+  "default_target": "arm64-darwin",
+  "compiler": {
+    "path": "nocter"
+  },
+  "std": {
+    "path": "std"
+  },
+  "implemented_targets": [
+    {
+      "name": "arm64-darwin",
+      "std_path": "targets/arm64-darwin/std",
+      "backend": "arm64",
+      "executable": "macho",
+      "os": "darwin"
+    }
+  ],
+  "archive": {
+    "name": "nocter-v0.1.0-arm64-darwin.tar.gz",
+    "root": ".nocter"
+  }
+}
+"#,
+        )
+        .unwrap();
+
+        let errors = validate_nocter_home(&root);
+        fs::remove_dir_all(&root).unwrap();
+
+        assert!(errors.is_empty(), "{errors:?}");
     }
 }
