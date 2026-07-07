@@ -1,3 +1,4 @@
+use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -5,34 +6,66 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const NOCTER: &str = env!("CARGO_BIN_EXE_nocter");
 
-const VALID_EXAMPLES: &[&str] = &[
-    "spec/examples/valid/hello.nct",
-    "spec/examples/valid/fallible-catch.nct",
-    "spec/examples/valid/optional-default.nct",
+const VALID_EXAMPLES: &[ValidExample] = &[
+    ValidExample::new("spec/examples/valid/hello.nct"),
+    ValidExample::new("spec/examples/valid/doc-comments.nct"),
+    ValidExample::new("spec/examples/valid/fallible-catch.nct"),
+    ValidExample::new("spec/examples/valid/fallible-force.nct"),
+    ValidExample::new("spec/examples/valid/fallible-propagation.nct"),
+    ValidExample::new("spec/examples/valid/if-let-optional.nct"),
+    ValidExample::new("spec/examples/valid/imports/app.nct"),
+    ValidExample::new("spec/examples/valid/optional-default.nct"),
+    ValidExample::new("spec/examples/valid/optional-let-else.nct"),
+    ValidExample::new("spec/examples/valid/optional-propagation.nct"),
+    ValidExample::new("spec/examples/valid/range-for.nct"),
+    ValidExample::new("spec/examples/valid/switch-enum.nct"),
+    ValidExample::with_entry("spec/examples/valid/custom-entry.nct", "start"),
 ];
 
 const INVALID_EXAMPLES: &[InvalidExample] = &[
-    InvalidExample {
-        path: "spec/examples/invalid/main-entry.nct",
-        error_code: "E0303",
-    },
-    InvalidExample {
-        path: "spec/examples/invalid/module-declaration.nct",
-        error_code: "E0200",
-    },
-    InvalidExample {
-        path: "spec/examples/invalid/optional-propagation.nct",
-        error_code: "E0335",
-    },
-    InvalidExample {
-        path: "spec/examples/invalid/return-type-mismatch.nct",
-        error_code: "E0312",
-    },
+    InvalidExample::new("spec/examples/invalid/catch-optional.nct", "E0330"),
+    InvalidExample::new("spec/examples/invalid/default-entry-missing.nct", "E0300"),
+    InvalidExample::new("spec/examples/invalid/fallible-propagation.nct", "E0331"),
+    InvalidExample::new("spec/examples/invalid/for-range-bound-type.nct", "E0360"),
+    InvalidExample::new("spec/examples/invalid/force-plain-value.nct", "E0336"),
+    InvalidExample::new("spec/examples/invalid/main-entry.nct", "E0303"),
+    InvalidExample::new("spec/examples/invalid/module-declaration.nct", "E0200"),
+    InvalidExample::new("spec/examples/invalid/optional-propagation.nct", "E0335"),
+    InvalidExample::new(
+        "spec/examples/invalid/optional-let-else-fallthrough.nct",
+        "E0341",
+    ),
+    InvalidExample::new("spec/examples/invalid/return-type-mismatch.nct", "E0312"),
+    InvalidExample::new("spec/examples/invalid/switch-non-enum.nct", "E0361"),
 ];
+
+struct ValidExample {
+    path: &'static str,
+    entry: Option<&'static str>,
+}
+
+impl ValidExample {
+    const fn new(path: &'static str) -> Self {
+        Self { path, entry: None }
+    }
+
+    const fn with_entry(path: &'static str, entry: &'static str) -> Self {
+        Self {
+            path,
+            entry: Some(entry),
+        }
+    }
+}
 
 struct InvalidExample {
     path: &'static str,
     error_code: &'static str,
+}
+
+impl InvalidExample {
+    const fn new(path: &'static str, error_code: &'static str) -> Self {
+        Self { path, error_code }
+    }
 }
 
 #[test]
@@ -40,27 +73,27 @@ fn valid_example_corpus_passes_check() {
     let project = TempProject::new("example-corpus-valid");
 
     for example in VALID_EXAMPLES {
-        let source = repo_root().join(example);
-        let output = check(&project, &source);
+        let source = repo_root().join(example.path);
+        let output = check(&project, &source, example.entry);
 
         assert_eq!(
             output.status.code(),
             Some(0),
             "valid example `{}` failed\nstdout:\n{}\nstderr:\n{}",
-            example,
+            example.path,
             text(&output.stdout),
             text(&output.stderr)
         );
         assert!(
             output.stdout.is_empty(),
             "valid example `{}` wrote stdout:\n{}",
-            example,
+            example.path,
             text(&output.stdout)
         );
         assert!(
             output.stderr.is_empty(),
             "valid example `{}` wrote stderr:\n{}",
-            example,
+            example.path,
             text(&output.stderr)
         );
     }
@@ -72,7 +105,7 @@ fn invalid_example_corpus_fails_check() {
 
     for example in INVALID_EXAMPLES {
         let source = repo_root().join(example.path);
-        let output = check(&project, &source);
+        let output = check(&project, &source, None);
 
         assert_ne!(
             output.status.code(),
@@ -100,13 +133,81 @@ fn invalid_example_corpus_fails_check() {
     }
 }
 
-fn check(project: &TempProject, source: &Path) -> Output {
-    Command::new(NOCTER)
-        .args(["check", source.to_str().unwrap()])
+#[test]
+fn doc_comment_example_emits_ast_documentation() {
+    let project = TempProject::new("example-corpus-docs");
+    let source = repo_root().join("spec/examples/valid/doc-comments.nct");
+    let output = ast_json(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "doc comment example failed AST JSON\nstdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "doc comment example wrote stderr:\n{}",
+        text(&output.stderr)
+    );
+
+    let json: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["ok"], Value::Bool(true));
+    assert!(contains_documentation(
+        &json,
+        "File-level docs for tooling.\nMore file-level docs for AST JSON and future LSP hover."
+    ));
+    assert!(contains_documentation(
+        &json,
+        "Returns the process exit code."
+    ));
+    assert!(contains_documentation(
+        &json,
+        "Local binding docs are available to tooling."
+    ));
+}
+
+fn check(project: &TempProject, source: &Path, entry: Option<&str>) -> Output {
+    let mut command = Command::new(NOCTER);
+    command.args(["check", source.to_str().unwrap()]);
+
+    if let Some(entry) = entry {
+        command.args(["--entry", entry]);
+    }
+
+    command
         .current_dir(project.root())
         .env("NOCTER_HOME", project.nocter_home())
         .output()
         .unwrap()
+}
+
+fn ast_json(project: &TempProject, source: &Path) -> Output {
+    Command::new(NOCTER)
+        .args(["ast", source.to_str().unwrap(), "--format", "json"])
+        .current_dir(project.root())
+        .env("NOCTER_HOME", project.nocter_home())
+        .output()
+        .unwrap()
+}
+
+fn contains_documentation(value: &Value, expected: &str) -> bool {
+    match value {
+        Value::Object(object) => {
+            object
+                .get("documentation")
+                .and_then(Value::as_str)
+                .is_some_and(|documentation| documentation == expected)
+                || object
+                    .values()
+                    .any(|value| contains_documentation(value, expected))
+        }
+        Value::Array(values) => values
+            .iter()
+            .any(|value| contains_documentation(value, expected)),
+        _ => false,
+    }
 }
 
 fn repo_root() -> PathBuf {

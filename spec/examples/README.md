@@ -10,6 +10,9 @@ Layout:
 spec/examples/
     valid/
         *.nct
+        imports/
+            app.nct
+            config.nct
     invalid/
         *.nct
 ```
@@ -21,4 +24,36 @@ Rules:
 - Invalid examples should explain the intended mistake in comments.
 - Examples represent user project modules and normally omit redundant `use std/prelude`.
 - Compiler integration tests check that `valid/` examples pass `nocter check` and `invalid/` examples fail it.
+- Valid examples may opt into a non-default entry function in the compiler integration test. This is used only to show `--entry`; the source name itself remains ordinary.
+- Companion files under a valid example subdirectory are imported by the checked root example and are not necessarily checked as standalone executable roots.
 - Do not use examples to introduce syntax that is not specified in `SPEC.md`.
+
+## v0 Front-End Coverage
+
+The corpus is the external stability suite for Nocter v0 front-end behavior. It should cover lexer, parser, compile-unit loading, import resolution, type checking, entry selection, and human diagnostics through the real `nocter check` command.
+
+Current valid coverage:
+
+- default `main` entry
+- explicit `--entry`
+- doc comments for future editor tooling
+- non-relative standard-library import
+- relative source import
+- fallible `T!`, postfix `?`, postfix `!`, and `catch`
+- optional `T?`, `??`, `if let`, and `let ... else`
+- enum construction and `switch`
+- range-only `for`
+
+Current invalid coverage:
+
+- missing default entry
+- invalid entry signature
+- removed `module` declaration syntax
+- return type mismatch
+- fallible propagation outside a fallible return layer
+- optional propagation outside an optional return layer
+- `catch` on `T?`
+- postfix `!` on a plain value
+- fallthrough in `let ... else`
+- non-integer range bounds
+- `switch` on a non-enum value

@@ -1,0 +1,16 @@
+// invalid: `let ... else` must leave the current control path.
+func main(): i32 {
+    let value = maybe_answer() else {
+        log_missing()
+    }
+
+    return value
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+
+func log_missing(): void {
+    return
+}

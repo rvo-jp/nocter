@@ -1,0 +1,14 @@
+// invalid: `switch` requires an enum value.
+enum AppError {
+    missing_path
+}
+
+func main(): i32 {
+    switch 1 {
+        is AppError.missing_path {
+            return 1
+        }
+    }
+
+    return 0
+}

@@ -1,0 +1,4 @@
+// invalid: without --entry, the compiler selects root-file `main`.
+func start(): i32 {
+    return 0
+}
