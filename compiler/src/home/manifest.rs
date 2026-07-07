@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Manifest {
+pub(super) struct Manifest {
     pub schema: String,
     pub schema_version: u32,
     pub release: String,
@@ -18,19 +18,19 @@ pub struct Manifest {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Compiler {
+pub(super) struct Compiler {
     pub path: PathBuf,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct StandardLibrary {
+pub(super) struct StandardLibrary {
     pub path: PathBuf,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct ImplementedTarget {
+pub(super) struct ImplementedTarget {
     pub name: String,
     pub std_path: PathBuf,
     pub backend: String,
@@ -40,12 +40,12 @@ pub struct ImplementedTarget {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Archive {
+pub(super) struct Archive {
     pub name: String,
     pub root: PathBuf,
 }
 
-pub fn load_manifest(path: &Path) -> Result<Manifest, String> {
+pub(super) fn load_manifest(path: &Path) -> Result<Manifest, String> {
     let text = fs::read_to_string(path)
         .map_err(|error| format!("failed to read `{}`: {error}", path.display()))?;
 

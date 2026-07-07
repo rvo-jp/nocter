@@ -3,13 +3,13 @@
 use crate::analysis::CompileUnit;
 use crate::ast::{AstFile, Item, ModulePath, UseItem};
 use crate::diagnostics::Diagnostic;
+use crate::home::resolve_nocter_home;
 use crate::lexer::lex;
 use crate::parser::parse;
 use crate::resolve::{ImportAccess, ImportSource, ImportSourceMap};
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::target::DEFAULT_TARGET;
 use std::collections::{HashSet, VecDeque};
-use std::env;
 use std::path::{Path, PathBuf};
 
 const STANDARD_PRELUDE_PATH: &str = "std/prelude";
@@ -434,20 +434,4 @@ fn import_source_diagnostic(
     diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
     diagnostic.help = source_error.help;
     diagnostic
-}
-
-pub(crate) fn resolve_nocter_home() -> Result<PathBuf, String> {
-    if let Some(home) = env::var_os("NOCTER_HOME") {
-        return Ok(PathBuf::from(home));
-    }
-
-    let exe = env::current_exe()
-        .map_err(|error| format!("failed to resolve running nocter executable: {error}"))?;
-    let resolved = exe
-        .canonicalize()
-        .map_err(|error| format!("failed to canonicalize running nocter executable: {error}"))?;
-    resolved
-        .parent()
-        .map(Path::to_path_buf)
-        .ok_or_else(|| "running nocter executable has no parent directory".to_string())
 }
