@@ -11,12 +11,29 @@ const VALID_EXAMPLES: &[&str] = &[
     "spec/examples/valid/optional-default.nct",
 ];
 
-const INVALID_EXAMPLES: &[&str] = &[
-    "spec/examples/invalid/main-entry.nct",
-    "spec/examples/invalid/module-declaration.nct",
-    "spec/examples/invalid/optional-propagation.nct",
-    "spec/examples/invalid/return-type-mismatch.nct",
+const INVALID_EXAMPLES: &[InvalidExample] = &[
+    InvalidExample {
+        path: "spec/examples/invalid/main-entry.nct",
+        error_code: "E0303",
+    },
+    InvalidExample {
+        path: "spec/examples/invalid/module-declaration.nct",
+        error_code: "E0200",
+    },
+    InvalidExample {
+        path: "spec/examples/invalid/optional-propagation.nct",
+        error_code: "E0335",
+    },
+    InvalidExample {
+        path: "spec/examples/invalid/return-type-mismatch.nct",
+        error_code: "E0312",
+    },
 ];
+
+struct InvalidExample {
+    path: &'static str,
+    error_code: &'static str,
+}
 
 #[test]
 fn valid_example_corpus_passes_check() {
@@ -54,28 +71,31 @@ fn invalid_example_corpus_fails_check() {
     let project = TempProject::new("example-corpus-invalid");
 
     for example in INVALID_EXAMPLES {
-        let source = repo_root().join(example);
+        let source = repo_root().join(example.path);
         let output = check(&project, &source);
 
         assert_ne!(
             output.status.code(),
             Some(0),
             "invalid example `{}` unexpectedly passed\nstdout:\n{}\nstderr:\n{}",
-            example,
+            example.path,
             text(&output.stdout),
             text(&output.stderr)
         );
         assert!(
             output.stdout.is_empty(),
             "invalid example `{}` wrote stdout:\n{}",
-            example,
+            example.path,
             text(&output.stdout)
         );
+        let stderr = text(&output.stderr);
+        let expected_error = format!("error[{}]", example.error_code);
         assert!(
-            text(&output.stderr).contains("error["),
-            "invalid example `{}` did not report a compiler diagnostic\nstderr:\n{}",
-            example,
-            text(&output.stderr)
+            stderr.contains(&expected_error),
+            "invalid example `{}` did not report expected diagnostic `{}`\nstderr:\n{}",
+            example.path,
+            expected_error,
+            stderr
         );
     }
 }
