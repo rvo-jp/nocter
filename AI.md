@@ -6,7 +6,7 @@ The normative language specification is [SPEC.md](SPEC.md). When this guide conf
 ## Goal
 
 Nocter should be readable and writable by humans first, and predictable for AI tools second.
-The language should not add alternate syntax only to satisfy AI tools. Instead, AI support comes from one canonical style, clear examples, machine-readable diagnostics, and compiler-owned structure dumps.
+The language should not add alternate syntax only to satisfy AI tools. Instead, AI support comes from one canonical style, clear examples, machine-readable diagnostics, source formatting, and compiler-owned structure dumps.
 
 ## Canonical Style
 
@@ -15,15 +15,10 @@ Use the formatter's output as the only canonical source style.
 Important spellings:
 
 ```nct
-use std/prelude
-
 from std/io import print
 
-program(): i32 {
-    try print("Hello") catch error {
-        return 1
-    }
-
+func main(): i32! {
+    print("Hello")?
     return 0
 }
 ```
@@ -32,103 +27,183 @@ Rules for generated code:
 
 - Use 4 spaces for indentation.
 - Do not write semicolons.
-- Write fallible types as `T ! E`, not `T!E`.
-- Write optional fallible types as `T? ! E`.
+- Prefer `func main(): i32!` for executable roots.
+- Treat `main` as an ordinary function name selected by the compiler's default entry setting, not as a keyword or built-in.
+- Write fallible types as `T!`.
+- Write fallible optional success values as `T?!`.
 - Use `let` for immutable bindings and `var` for mutable bindings.
 - Use `&T` for readonly borrow and `&+T` for readwrite borrow.
-- Use `try expr` and `try expr catch error { ... }` only for fallible values such as `T ! E` and `T? ! E`.
-- Use `if let value = optional { ... } else { ... }` for `T?`.
+- Use postfix `expr?` to propagate fallible failure or optional absence.
+- Use postfix `expr!` only for unrecoverable assumptions, tests, and prototypes.
+- Use `expr catch error { ... }` for local handling of `T!` failure.
+- Use `if let value = optional { ... } else { ... }` for optional branching.
+- Use `let value = optional else { ... }` for optional early-exit extraction.
 - Use `??` for optional default values.
-- Use `match` for enum values.
-- Do not use `match` to unwrap `T ! E`.
-- Do not use `try` to unwrap `T?`.
+- Use `switch` for enum pattern handling.
+- Do not use `switch` to unwrap `T!` or `T?`.
 
-## Import Rules
+## Imports
 
 Nocter does not use a `module` declaration. A file's module identity comes from its path.
 
 ```nct
-use std/prelude
-
 from std/io import print
 from ./config import Config
 ```
 
 Rules:
 
-- `use std/prelude` imports the explicit prelude.
+- User project modules receive a synthetic `use std/prelude`.
+- Do not write `use std/prelude` in ordinary generated user code unless preserving existing source style.
+- Files inside `.nocter/std/` and target standard-library overlays do not receive the synthetic prelude.
 - `from path import Name` imports selected public names.
+- `import path as name` imports a namespace alias.
 - Paths starting with `./` or `../` are resolved relative to the current file.
 - Paths such as `std/io` are resolved from the active Nocter home.
-- Do not invent aliases or wildcard imports unless the specification adds them.
+- Do not invent wildcard imports, textual includes, explicit `.nct` import suffixes, or `module` declarations.
 
-## Error And Optional Patterns
+## Errors And Optionals
 
-Fallible values use `T ! E`.
+Fallible values use `T!`. The failure payload is always the built-in `error` type.
 
 ```nct
-from std/io import IOError
 from std/io import print
 
-func announce(text: StringView): void ! IOError {
-    try print(text)
+func announce(text: str): void! {
+    print(text)?
     return
 }
 ```
 
-Handle an error locally with `catch`.
+Handle a failure locally with `catch`.
 
 ```nct
-try print("Hello") catch error {
-    return 1
+run() catch error {
+    fail Error.new("app.run_failed", error.message)
 }
 ```
+
+Rules:
+
+- `expr?` on `T!` extracts `T` on success and propagates the same `error` on failure.
+- `expr catch error { ... }` extracts `T` on success and runs the `catch` block on failure.
+- The `catch` binding name is ordinary. `error` is conventional, but `err` is valid.
+- A `catch` block must not fall through in v0.
+- `fail expr` is valid only in a function returning `T!`, and `expr` must have type `error`.
+- `try`, `throw`, `Result<T, E>`, `ok`, and `fail(...)` patterns are not part of fallible handling.
 
 Optional values use `T?`.
 
 ```nct
-from std/process import ProcessError
-from std/process import env
-
-func use_home(): void ! ProcessError {
-    if let home = try env("HOME") {
-        use(home)
-    } else {
-        use("fallback")
+func lookup(name: str): str? {
+    if missing {
+        return none
     }
 
-    return
+    return value
 }
 ```
 
-Default optional values use `??`.
+Use optional values through explicit forms:
 
 ```nct
-from std/process import ProcessError
-from std/process import env
-
-func user_name(): StringView ! ProcessError {
-    return (try env("USER")) ?? "unknown"
+if let home = lookup("HOME") {
+    use(home)
+} else {
+    use("fallback")
 }
 ```
+
+```nct
+let home = lookup("HOME") else {
+    return none
+}
+```
+
+```nct
+let user = lookup("USER") ?? "unknown"
+```
+
+Fallible optional success values use `T?!`.
+
+```nct
+from std/process import env
+
+func user_name(): str! {
+    return env("USER")? ?? "unknown"
+}
+```
+
+`env("USER")?` unwraps the fallible layer and leaves `str?`; `??` chooses a fallback when the optional success is `none`.
+
+## Enums And Switch
+
+Use `switch` and `if expr is Pattern` for enum values.
+
+```nct
+switch error {
+    is AppError.missing_path {
+        report_missing_path()
+    }
+    is AppError.open_failed(path) {
+        report_open_failed(path)
+    }
+    else {
+        report_unknown(error)
+    }
+}
+```
+
+Rules:
+
+- Use qualified variants such as `AppError.open_failed(path)`.
+- Use `else` as the fallback arm.
+- Do not write `match`; enum pattern handling uses `switch` in current Nocter.
+- Do not use enum pattern syntax for `T!` or `T?`.
+
+## Documentation Comments
+
+Use doc comments when generated APIs should be useful in future hover, LSP, and generated documentation.
+
+```nct
+//! File-level documentation.
+
+/// Opens a file.
+func open(path: str): File! {
+    ...
+}
+```
+
+Rules:
+
+- `///` and `/** ... */` document the next documentable declaration, member, field, variant, or local binding.
+- `//!` and `/*! ... */` document the source file/module.
+- Empty lines break attachment between a doc comment and the following construct.
+- `//` and `/* ... */` are normal implementation comments and must not be treated as hover text.
+- `nocter ast app.nct --format json` may expose attached doc text through AST node `documentation` fields.
 
 ## Common Mistakes
 
-Avoid these patterns:
+Avoid these obsolete or invalid patterns:
 
 ```nct
-// invalid: `try` is for T ! E, not T?
-let value = try maybe_value
+// invalid: `try` is not Nocter fallible propagation
+let file = try File.open(path)
 
-// invalid: compact fallible spelling is parsed but not canonical style
+// invalid: fallible types do not write a custom error type
 func read(): String!IOError
+
+// invalid: spaced fallible type syntax is obsolete
+func read(): String ! IOError
 
 // invalid: Nocter does not use a module declaration
 module app/main
 
-// invalid: main is not the Nocter entry point
-func main(): i32 {
-    return 0
+// invalid: enum pattern handling uses switch, not match
+match error {
+    is AppError.missing_path {
+        return 1
+    }
 }
 
 // invalid: do not treat print as a compiler builtin
@@ -138,15 +213,10 @@ print("Hello")
 Prefer:
 
 ```nct
-use std/prelude
-
 from std/io import print
 
-program(): i32 {
-    try print("Hello") catch error {
-        return 1
-    }
-
+func main(): i32! {
+    print("Hello")?
     return 0
 }
 ```
@@ -174,7 +244,13 @@ use diagnostics spans and fix hints
 repeat
 ```
 
-`tokens` and `ast` are tooling commands. They must not become a separate language definition. The compiler's parser and semantic checks remain the source of truth.
+Rules:
+
+- `fmt` is the source of canonical formatting.
+- `check --format json` is the source of semantic diagnostics.
+- `tokens --format json` is the source of lexer output.
+- `ast --format json` is the source of parser structure and attached documentation text.
+- AI tools must not maintain a separate interpretation of import resolution, type checking, ownership, borrowing, optional handling, fallible handling, or entry selection.
 
 ## Example Corpus
 
