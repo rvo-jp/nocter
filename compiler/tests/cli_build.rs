@@ -152,6 +152,29 @@ fn build_command_lowers_terminal_if_i32_inequality() {
 }
 
 #[test]
+fn build_command_lowers_terminal_if_i32_less_equal() {
+    let project = TempProject::new("cli-build-terminal-if-less-equal");
+    let source = project.write_source(
+        "terminal_if_less_equal.nct",
+        r#"func main(): i32 {
+    let value = 42
+    if value <= 42 {
+        return 0
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_reports_compile_diagnostics_without_output() {
     let project = TempProject::new("cli-build-diagnostics");
     let source = project.write_source(
@@ -327,6 +350,31 @@ fn built_executable_returns_terminal_if_inequality_value() {
         r#"func main(): i32 {
     let value = 42
     if value != 41 {
+        return value
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    let status = Command::new(&executable).status().unwrap();
+    assert_eq!(status.code(), Some(42));
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn built_executable_returns_terminal_if_greater_value() {
+    let project = TempProject::new("cli-build-run-terminal-if-greater");
+    let source = project.write_source(
+        "terminal_if_greater_exit.nct",
+        r#"func main(): i32 {
+    let value = 42
+    if value > 41 {
         return value
     } else {
         return 1

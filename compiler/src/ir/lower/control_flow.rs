@@ -44,7 +44,7 @@ fn lower_bool_condition(
         Expr::Group(group) => lower_bool_condition(&group.expression, context, diagnostic_code),
         _ => Err(vec![Diagnostic::error(
             diagnostic_code,
-            "IR v0 can only lower bool literal or i32 equality `if` conditions",
+            "IR v0 can only lower bool literal or i32 comparison `if` conditions",
         )]),
     }
 }
@@ -57,10 +57,14 @@ fn lower_i32_comparison_condition(
     let operator = match binary.operator {
         BinaryOperator::Equal => I32ComparisonOperator::Equal,
         BinaryOperator::NotEqual => I32ComparisonOperator::NotEqual,
+        BinaryOperator::Less => I32ComparisonOperator::Less,
+        BinaryOperator::LessEqual => I32ComparisonOperator::LessEqual,
+        BinaryOperator::Greater => I32ComparisonOperator::Greater,
+        BinaryOperator::GreaterEqual => I32ComparisonOperator::GreaterEqual,
         _ => {
             return Err(vec![Diagnostic::error(
                 diagnostic_code,
-                "IR v0 can only lower i32 equality `if` conditions",
+                "IR v0 can only lower i32 comparison `if` conditions",
             )]);
         }
     };

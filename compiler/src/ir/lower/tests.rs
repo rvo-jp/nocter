@@ -227,6 +227,44 @@ fn lowers_entry_terminal_if_with_i32_equality_condition() {
 }
 
 #[test]
+fn lowers_entry_terminal_if_with_i32_less_condition() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let value = 41
+    if value < 42 {
+        return 0
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::SetI32 {
+                    destination: I32Location::Local(0),
+                    value: i32_const(41),
+                },
+                Instruction::If {
+                    condition: BoolValue::I32Comparison {
+                        operator: I32ComparisonOperator::Less,
+                        left: i32_local(0),
+                        right: i32_const(42),
+                    },
+                    then_instructions: vec![set_return_i32(0), Instruction::Return],
+                    else_instructions: vec![set_return_i32(1), Instruction::Return],
+                },
+            ],
+        }])
+    );
+}
+
+#[test]
 fn lowers_configured_entry_name() {
     let ir = lower_text_with_entry(
         r#"func start(): i32 {
@@ -587,6 +625,48 @@ func differs(left: i32, right: i32): i32 {
                 instructions: vec![Instruction::If {
                     condition: BoolValue::I32Comparison {
                         operator: I32ComparisonOperator::NotEqual,
+                        left: i32_param(0),
+                        right: i32_param(1),
+                    },
+                    then_instructions: vec![set_return_i32(1), Instruction::Return],
+                    else_instructions: vec![set_return_i32(0), Instruction::Return],
+                }],
+            },
+        ])
+    );
+}
+
+#[test]
+fn lowers_same_file_function_with_i32_greater_equal_condition() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    return at_least(42, 40)
+}
+
+func at_least(left: i32, right: i32): i32 {
+    if left >= right {
+        return 1
+    } else {
+        return 0
+    }
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                return_type: Type::I32,
+                instructions: vec![tail_call("at_least", vec![i32_const(42), i32_const(40)])],
+            },
+            Function {
+                name: "at_least".to_string(),
+                return_type: Type::I32,
+                instructions: vec![Instruction::If {
+                    condition: BoolValue::I32Comparison {
+                        operator: I32ComparisonOperator::GreaterEqual,
                         left: i32_param(0),
                         right: i32_param(1),
                     },

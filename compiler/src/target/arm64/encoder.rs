@@ -175,6 +175,10 @@ impl WReg {
 pub(crate) enum BranchCondition {
     Eq,
     Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
 }
 
 impl BranchCondition {
@@ -182,6 +186,10 @@ impl BranchCondition {
         match self {
             Self::Eq => 0,
             Self::Ne => 1,
+            Self::Ge => 10,
+            Self::Lt => 11,
+            Self::Gt => 12,
+            Self::Le => 13,
         }
     }
 }
@@ -428,6 +436,24 @@ mod tests {
         encoder.emit_b_cond(BranchCondition::Ne, 8);
 
         assert_eq!(encoder.finish(), vec![0x41, 0x00, 0x00, 0x54]);
+    }
+
+    #[test]
+    fn encodes_b_lt_positive_offset() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_b_cond(BranchCondition::Lt, 8);
+
+        assert_eq!(encoder.finish(), vec![0x4b, 0x00, 0x00, 0x54]);
+    }
+
+    #[test]
+    fn encodes_b_ge_positive_offset() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_b_cond(BranchCondition::Ge, 8);
+
+        assert_eq!(encoder.finish(), vec![0x4a, 0x00, 0x00, 0x54]);
     }
 
     #[test]

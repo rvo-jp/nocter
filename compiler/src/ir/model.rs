@@ -67,6 +67,10 @@ pub(crate) enum BoolValue {
 pub(crate) enum I32ComparisonOperator {
     Equal,
     NotEqual,
+    Less,
+    LessEqual,
+    Greater,
+    GreaterEqual,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
