@@ -409,10 +409,12 @@ Rules:
 - Human-readable server logs, if any, must go to stderr or a configured log file.
 - `lsp` reuses the compiler lexer, parser, resolver, type checker, ownership checker, and diagnostics.
 - LSP v0 supports `initialize`, `shutdown`, `exit`, full-document `didOpen` / `didChange` / `didClose`, and `textDocument/publishDiagnostics`.
+- During `initialize`, LSP v0 records `workspaceFolders` when present and falls back to `rootUri` when no workspace folders are provided.
 - LSP v0 advertises UTF-16 positions and converts compiler-owned UTF-8 byte spans before publishing diagnostics.
 - LSP v0 treats `didChange` as full-document sync. If both the stored document and incoming change have versions, an incoming version older than the stored version is ignored.
 - LSP v0 uses the current text of open documents when resolving imports in a compile unit, so diagnostics can reflect unsaved imported files.
 - LSP v0 clears diagnostics for documents that were previously published but are no longer part of the latest diagnostic publish set.
+- LSP v0 records workspace roots for later project-level behavior, but compile-unit analysis is still driven by the opened root document being diagnosed.
 - LSP v0 does not yet provide hover, definition, completion, rename, semantic tokens, or incremental parsing.
 
 The editor integration direction is specified in [Tooling and Editor Integration](14-tooling-editor-integration.md).

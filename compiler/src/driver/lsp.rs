@@ -37,6 +37,7 @@ fn run_lsp_stream<R: BufRead, W: Write>(mut reader: R, mut writer: W) -> io::Res
 struct LspServer {
     documents: HashMap<String, OpenDocument>,
     published_diagnostic_uris: HashSet<String>,
+    workspace_roots: Vec<WorkspaceRoot>,
     shutdown_requested: bool,
 }
 
@@ -45,6 +46,7 @@ impl LspServer {
         Self {
             documents: HashMap::new(),
             published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
             shutdown_requested: false,
         }
     }
@@ -57,7 +59,7 @@ impl LspServer {
         let id = message.get("id").cloned();
 
         if let Some(id) = id {
-            return self.handle_request(id, method, writer);
+            return self.handle_request(id, method, message.get("params"), writer);
         }
 
         self.handle_notification(method, message.get("params"), writer)
@@ -67,10 +69,12 @@ impl LspServer {
         &mut self,
         id: Value,
         method: &str,
+        params: Option<&Value>,
         writer: &mut W,
     ) -> io::Result<bool> {
         match method {
             "initialize" => {
+                self.workspace_roots = workspace_roots_from_initialize_params(params);
                 write_message(writer, initialize_response(id))?;
                 Ok(false)
             }
@@ -166,6 +170,47 @@ impl LspServer {
 
         self.published_diagnostic_uris = current_uris;
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct WorkspaceRoot {
+    uri: String,
+    path: Option<PathBuf>,
+}
+
+fn workspace_roots_from_initialize_params(params: Option<&Value>) -> Vec<WorkspaceRoot> {
+    let Some(params) = params else {
+        return Vec::new();
+    };
+
+    if let Some(folders) = params.get("workspaceFolders").and_then(Value::as_array) {
+        let roots = folders
+            .iter()
+            .filter_map(|folder| {
+                folder
+                    .get("uri")
+                    .and_then(Value::as_str)
+                    .map(workspace_root_from_uri)
+            })
+            .collect::<Vec<_>>();
+        if !roots.is_empty() {
+            return roots;
+        }
+    }
+
+    params
+        .get("rootUri")
+        .and_then(Value::as_str)
+        .map(workspace_root_from_uri)
+        .into_iter()
+        .collect()
+}
+
+fn workspace_root_from_uri(uri: &str) -> WorkspaceRoot {
+    WorkspaceRoot {
+        uri: uri.to_string(),
+        path: file_uri_to_path(uri),
     }
 }
 
@@ -545,6 +590,78 @@ mod tests {
         let text = String::from_utf8(output).unwrap();
         assert!(text.contains("\"id\":1"));
         assert!(text.contains("\"textDocumentSync\""));
+    }
+
+    #[test]
+    fn initialize_stores_workspace_folders() {
+        let mut server = LspServer::new();
+        let mut output = Vec::new();
+
+        server
+            .handle_message(
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": {
+                        "rootUri": "file:///tmp/ignored-root",
+                        "workspaceFolders": [
+                            {
+                                "uri": "file:///tmp/nocter-workspace-a",
+                                "name": "workspace-a"
+                            },
+                            {
+                                "uri": "file:///tmp/nocter-workspace-b",
+                                "name": "workspace-b"
+                            }
+                        ]
+                    }
+                }),
+                &mut output,
+            )
+            .unwrap();
+
+        assert_eq!(
+            server.workspace_roots,
+            vec![
+                WorkspaceRoot {
+                    uri: "file:///tmp/nocter-workspace-a".to_string(),
+                    path: Some(PathBuf::from("/tmp/nocter-workspace-a")),
+                },
+                WorkspaceRoot {
+                    uri: "file:///tmp/nocter-workspace-b".to_string(),
+                    path: Some(PathBuf::from("/tmp/nocter-workspace-b")),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn initialize_falls_back_to_root_uri() {
+        let mut server = LspServer::new();
+        let mut output = Vec::new();
+
+        server
+            .handle_message(
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": {
+                        "rootUri": "file:///tmp/nocter-root"
+                    }
+                }),
+                &mut output,
+            )
+            .unwrap();
+
+        assert_eq!(
+            server.workspace_roots,
+            vec![WorkspaceRoot {
+                uri: "file:///tmp/nocter-root".to_string(),
+                path: Some(PathBuf::from("/tmp/nocter-root")),
+            }]
+        );
     }
 
     #[test]
