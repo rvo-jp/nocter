@@ -1,6 +1,8 @@
 use crate::diagnostics::Diagnostic;
-use crate::ir::{BoolValue, Function, I32Location, I32Value, Instruction, IrModule, Type};
-use crate::target::arm64::{Encoder, MoveWideShift, WReg, XReg};
+use crate::ir::{
+    BoolValue, Function, I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule, Type,
+};
+use crate::target::arm64::{BranchCondition, Encoder, MoveWideShift, WReg, XReg};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -122,10 +124,7 @@ impl EntryEmitter {
         then_instructions: &[Instruction],
         else_instructions: &[Instruction],
     ) -> Result<(), Vec<Diagnostic>> {
-        let branch_to_else = match condition {
-            BoolValue::Const(true) => None,
-            BoolValue::Const(false) => Some(self.emit_branch_placeholder()),
-        };
+        let branch_to_else = self.emit_branch_to_else_if_condition_false(condition)?;
 
         for instruction in then_instructions {
             self.emit_instruction(instruction)?;
@@ -151,6 +150,28 @@ impl EntryEmitter {
         }
 
         Ok(())
+    }
+
+    fn emit_branch_to_else_if_condition_false(
+        &mut self,
+        condition: &BoolValue,
+    ) -> Result<Option<usize>, Vec<Diagnostic>> {
+        match condition {
+            BoolValue::Const(true) => Ok(None),
+            BoolValue::Const(false) => Ok(Some(self.emit_branch_placeholder())),
+            BoolValue::I32Comparison {
+                operator,
+                left,
+                right,
+            } => {
+                self.emit_i32_value_to_w(left, WReg::W16)?;
+                self.emit_i32_value_to_w(right, WReg::W17)?;
+                self.encoder.emit_cmp_w(WReg::W16, WReg::W17);
+                self.encoder
+                    .emit_b_cond(branch_condition_for_true_comparison(*operator), 8);
+                Ok(Some(self.emit_branch_placeholder()))
+            }
+        }
     }
 
     fn emit_branch_placeholder(&mut self) -> usize {
@@ -430,6 +451,13 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
     }
 }
 
+fn branch_condition_for_true_comparison(operator: I32ComparisonOperator) -> BranchCondition {
+    match operator {
+        I32ComparisonOperator::Equal => BranchCondition::Eq,
+        I32ComparisonOperator::NotEqual => BranchCondition::Ne,
+    }
+}
+
 fn align_usize(value: usize, alignment: usize) -> usize {
     debug_assert!(alignment.is_power_of_two());
     (value + alignment - 1) & !(alignment - 1)
@@ -447,7 +475,7 @@ const DARWIN_SYSCALL_TRAP: u16 = 0x80;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{BoolValue, Function, I32Location, I32Value, Type};
+    use crate::ir::{BoolValue, Function, I32ComparisonOperator, I32Location, I32Value, Type};
 
     #[test]
     fn generates_exit_zero_for_return_i32_zero() {
@@ -717,6 +745,44 @@ mod tests {
                 0x20, 0x00, 0x80, 0x52, // movz w0, #1
                 0xc0, 0x03, 0x5f, 0xd6, // ret
                 0x40, 0x00, 0x80, 0x52, // movz w0, #2
+                0xc0, 0x03, 0x5f, 0xd6, // ret
+            ]
+        );
+    }
+
+    #[test]
+    fn generates_terminal_if_with_i32_equality_condition() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![Instruction::If {
+                condition: BoolValue::I32Comparison {
+                    operator: I32ComparisonOperator::Equal,
+                    left: i32_const(1),
+                    right: i32_const(1),
+                },
+                then_instructions: vec![set_return_i32(7), Instruction::Return],
+                else_instructions: vec![set_return_i32(9), Instruction::Return],
+            }],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert_eq!(
+            code.text,
+            vec![
+                0x04, 0x00, 0x00, 0x94, // bl main
+                0x30, 0x00, 0x80, 0x52, // movz w16, #1
+                0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
+                0x01, 0x10, 0x00, 0xd4, // svc #0x80
+                0x30, 0x00, 0x80, 0x52, // movz w16, #1
+                0x31, 0x00, 0x80, 0x52, // movz w17, #1
+                0x1f, 0x02, 0x11, 0x6b, // cmp w16, w17
+                0x40, 0x00, 0x00, 0x54, // b.eq +8
+                0x03, 0x00, 0x00, 0x14, // b else
+                0xe0, 0x00, 0x80, 0x52, // movz w0, #7
+                0xc0, 0x03, 0x5f, 0xd6, // ret
+                0x20, 0x01, 0x80, 0x52, // movz w0, #9
                 0xc0, 0x03, 0x5f, 0xd6, // ret
             ]
         );

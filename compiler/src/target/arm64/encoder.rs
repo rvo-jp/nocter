@@ -26,6 +26,10 @@ impl Encoder {
         self.emit_word(ADD_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
     }
 
+    pub(crate) fn emit_cmp_w(&mut self, rn: WReg, rm: WReg) {
+        self.emit_word(SUBS_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | WZR_BITS);
+    }
+
     pub(crate) fn emit_movz_x(&mut self, rd: XReg, imm16: u16, shift: MoveWideShift) {
         self.emit_word(MOVZ_X_BASE | move_wide_fields(rd.bits(), imm16, shift));
     }
@@ -40,6 +44,10 @@ impl Encoder {
 
     pub(crate) fn emit_b(&mut self, byte_offset: i32) {
         self.emit_word(b_word(byte_offset));
+    }
+
+    pub(crate) fn emit_b_cond(&mut self, condition: BranchCondition, byte_offset: i32) {
+        self.emit_word(b_cond_word(condition, byte_offset));
     }
 
     pub(crate) fn emit_bl(&mut self, byte_offset: i32) {
@@ -109,6 +117,7 @@ pub(crate) enum WReg {
     W14,
     W15,
     W16,
+    W17,
 }
 
 impl WReg {
@@ -157,6 +166,22 @@ impl WReg {
             Self::W14 => 14,
             Self::W15 => 15,
             Self::W16 => 16,
+            Self::W17 => 17,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BranchCondition {
+    Eq,
+    Ne,
+}
+
+impl BranchCondition {
+    const fn bits(self) -> u32 {
+        match self {
+            Self::Eq => 0,
+            Self::Ne => 1,
         }
     }
 }
@@ -205,10 +230,12 @@ const MOVZ_W_BASE: u32 = 0x5280_0000;
 const MOVK_W_BASE: u32 = 0x7280_0000;
 const ORR_W_BASE: u32 = 0x2a00_0000;
 const ADD_W_BASE: u32 = 0x0b00_0000;
+const SUBS_W_BASE: u32 = 0x6b00_0000;
 const MOVZ_X_BASE: u32 = 0xd280_0000;
 const MOVK_X_BASE: u32 = 0xf280_0000;
 const ADR_X_BASE: u32 = 0x1000_0000;
 const B_BASE: u32 = 0x1400_0000;
+const B_COND_BASE: u32 = 0x5400_0000;
 const BL_BASE: u32 = 0x9400_0000;
 const RET_X30: u32 = 0xd65f_03c0;
 const SVC_BASE: u32 = 0xd400_0001;
@@ -217,6 +244,8 @@ const ADR_MIN_BYTE_OFFSET: i32 = -(1 << 20);
 const ADR_MAX_BYTE_OFFSET: i32 = (1 << 20) - 1;
 const BL_MIN_BYTE_OFFSET: i32 = -(1 << 27);
 const BL_MAX_BYTE_OFFSET: i32 = (1 << 27) - 4;
+const B_COND_MIN_BYTE_OFFSET: i32 = -(1 << 20);
+const B_COND_MAX_BYTE_OFFSET: i32 = (1 << 20) - 4;
 const WZR_BITS: u32 = 31;
 
 const fn move_wide_fields(rd: u32, imm16: u16, shift: MoveWideShift) -> u32 {
@@ -244,6 +273,13 @@ fn b_word(byte_offset: i32) -> u32 {
     debug_assert_eq!(byte_offset % 4, 0);
 
     B_BASE | (((byte_offset / 4) as u32) & 0x03ff_ffff)
+}
+
+fn b_cond_word(condition: BranchCondition, byte_offset: i32) -> u32 {
+    debug_assert!((B_COND_MIN_BYTE_OFFSET..=B_COND_MAX_BYTE_OFFSET).contains(&byte_offset));
+    debug_assert_eq!(byte_offset % 4, 0);
+
+    B_COND_BASE | ((((byte_offset / 4) as u32) & 0x0007_ffff) << 5) | condition.bits()
 }
 
 #[cfg(test)]
@@ -293,6 +329,15 @@ mod tests {
         encoder.emit_add_w(WReg::W0, WReg::W0, WReg::W1);
 
         assert_eq!(encoder.finish(), vec![0x00, 0x00, 0x01, 0x0b]);
+    }
+
+    #[test]
+    fn encodes_cmp_w16_w17() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_cmp_w(WReg::W16, WReg::W17);
+
+        assert_eq!(encoder.finish(), vec![0x1f, 0x02, 0x11, 0x6b]);
     }
 
     #[test]
@@ -365,6 +410,24 @@ mod tests {
         encoder.emit_b(8);
 
         assert_eq!(encoder.finish(), vec![0x02, 0x00, 0x00, 0x14]);
+    }
+
+    #[test]
+    fn encodes_b_eq_positive_offset() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_b_cond(BranchCondition::Eq, 8);
+
+        assert_eq!(encoder.finish(), vec![0x40, 0x00, 0x00, 0x54]);
+    }
+
+    #[test]
+    fn encodes_b_ne_positive_offset() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_b_cond(BranchCondition::Ne, 8);
+
+        assert_eq!(encoder.finish(), vec![0x41, 0x00, 0x00, 0x54]);
     }
 
     #[test]

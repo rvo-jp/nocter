@@ -4,4 +4,6 @@ mod lower;
 mod model;
 
 pub(crate) use lower::lower_executable_with_entry;
-pub(crate) use model::{BoolValue, Function, I32Location, I32Value, Instruction, IrModule, Type};
+pub(crate) use model::{
+    BoolValue, Function, I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule, Type,
+};

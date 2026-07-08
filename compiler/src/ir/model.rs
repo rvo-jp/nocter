@@ -56,6 +56,17 @@ pub(crate) enum I32Value {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BoolValue {
     Const(bool),
+    I32Comparison {
+        operator: I32ComparisonOperator,
+        left: I32Value,
+        right: I32Value,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum I32ComparisonOperator {
+    Equal,
+    NotEqual,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -141,7 +141,7 @@ fn lower_i32_call_argument(
     Ok(value)
 }
 
-fn lower_i32_value(
+pub(super) fn lower_i32_value(
     expression: &Expr,
     context: &I32ExpressionContext,
 ) -> Result<I32Value, Vec<Diagnostic>> {
