@@ -1,0 +1,88 @@
+{
+  "name": "nocter",
+  "displayName": "Nocter",
+  "description": "Nocter language support backed by the nocter compiler and LSP server.",
+  "version": "0.1.0",
+  "publisher": "nocter",
+  "license": "UNLICENSED",
+  "private": true,
+  "engines": {
+    "vscode": "^1.92.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:nocter"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "nocter",
+        "aliases": [
+          "Nocter",
+          "nocter"
+        ],
+        "extensions": [
+          ".nct"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "nocter",
+        "scopeName": "source.nocter",
+        "path": "./syntaxes/nocter.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "nocter",
+        "path": "./snippets/nocter.code-snippets"
+      }
+    ],
+    "configuration": {
+      "title": "Nocter",
+      "properties": {
+        "nocter.server.path": {
+          "type": "string",
+          "default": "nocter",
+          "description": "Path to the nocter compiler executable used to start the language server."
+        },
+        "nocter.server.args": {
+          "type": "array",
+          "default": [
+            "lsp"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "Arguments passed to the nocter compiler when starting the language server."
+        },
+        "nocter.server.env": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Additional environment variables passed to the Nocter language server."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p .",
+    "watch": "tsc -watch -p ."
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.92.0",
+    "typescript": "^5.5.0"
+  }
+}

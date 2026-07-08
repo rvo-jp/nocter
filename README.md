@@ -96,7 +96,7 @@ tools/
         VS Code 拡張機能
         TextMate grammar
         language configuration
-        future LSP client
+        LSP client
 
 .nocter/
     nocter
