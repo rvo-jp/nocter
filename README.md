@@ -1883,7 +1883,7 @@ tools/
             extension.ts
 ```
 
-中期的には `nocter check app.nct --format json` のような machine-readable diagnostics を compiler が出し、VS Code Problems へ表示できるようにします。formatter は `nocter fmt` を正とし、VS Code 拡張機能や AI tool は独自 formatter を持たず compiler toolchain を呼び出します。JSON stdout は `schema: "nocter.diagnostics"`、`version: 1`、`ok`、`command`、`target`、`root`、`root_absolute_path`、`diagnostics` を持つ単一 object です。各 span は人間向けの `file` と、editor / LSP 用の canonical absolute path である `absolute_path` を持ちます。長期的には `nocter lsp` を提供し、VS Code 拡張機能は LSP client になります。
+`nocter check app.nct --format json` は machine-readable diagnostics を出し、VS Code Problems や AI tool が利用できます。formatter は `nocter fmt` を正とし、VS Code 拡張機能や AI tool は独自 formatter を持たず compiler toolchain を呼び出します。JSON stdout は `schema: "nocter.diagnostics"`、`version: 1`、`ok`、`command`、`target`、`root`、`root_absolute_path`、`diagnostics` を持つ単一 object です。各 span は人間向けの `file` と、editor / LSP 用の canonical absolute path である `absolute_path` を持ちます。`nocter lsp` v0 は initialize、shutdown、full-document sync、publishDiagnostics を提供します。VS Code 拡張機能はこれを LSP client として使い、hover / definition / completion は LSP 側の後続機能として追加します。
 
 compiler 内部の source span は UTF-8 byte offset を正とし、CLI 用 JSON では byte offset と UTF-8 byte column を併記します。これは LSP position ではありません。LSP server は client が要求する position encoding に合わせて変換します。VS Code 拡張機能と AI tool は Nocter の意味解析を再実装せず、`nocter check`、`nocter tokens --format json`、`nocter ast --format json`、または `nocter lsp` の結果を使います。
 

@@ -7,7 +7,7 @@ The specification entry point is [README.md](README.md).
 
 Adopted: the `nocter` command should have a small, stable CLI contract from the beginning.
 
-The CLI must support normal executable generation, lightweight trial execution, editor-oriented checking, source formatting, and a future LSP entry point without depending on external assemblers, linkers, SDK tools, or runtime libraries.
+The CLI must support normal executable generation, lightweight trial execution, editor-oriented checking, source formatting, and an LSP entry point without depending on external assemblers, linkers, SDK tools, or runtime libraries.
 
 Initial commands:
 
@@ -395,7 +395,7 @@ AST JSON rules:
 
 ## LSP
 
-`lsp` starts the future language server.
+`lsp` starts the language server.
 
 ```sh
 nocter lsp
@@ -408,6 +408,10 @@ Rules:
 - LSP protocol messages are the only data written to stdout while the server is running.
 - Human-readable server logs, if any, must go to stderr or a configured log file.
 - `lsp` reuses the compiler lexer, parser, resolver, type checker, ownership checker, and diagnostics.
+- LSP v0 supports `initialize`, `shutdown`, `exit`, full-document `didOpen` / `didChange` / `didClose`, and `textDocument/publishDiagnostics`.
+- LSP v0 advertises UTF-16 positions and converts compiler-owned UTF-8 byte spans before publishing diagnostics.
+- LSP v0 treats `didChange` as full-document sync. If both the stored document and incoming change have versions, an incoming version older than the stored version is ignored.
+- LSP v0 does not yet provide hover, definition, completion, rename, semantic tokens, or incremental parsing.
 
 The editor integration direction is specified in [Tooling and Editor Integration](14-tooling-editor-integration.md).
 

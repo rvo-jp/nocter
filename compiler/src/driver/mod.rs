@@ -7,6 +7,7 @@ mod fmt;
 mod fmt_options;
 mod json;
 mod json_tool_options;
+mod lsp;
 mod pipeline;
 mod run;
 
@@ -17,6 +18,7 @@ use command::{Command, parse_command};
 use doctor::run_doctor;
 use fmt::run_fmt;
 use json::{run_ast_json, run_check_json, run_tokens_json};
+use lsp::run_lsp;
 use run::run_file;
 use std::env;
 use std::ffi::OsString;
@@ -56,10 +58,7 @@ where
         Ok(Command::Fmt { check, file }) => run_fmt(&file, check),
         Ok(Command::Tokens(file)) => run_tokens_json(&file),
         Ok(Command::Ast(file)) => run_ast_json(&file),
-        Ok(Command::Lsp) => {
-            eprintln!("error: nocter lsp is not implemented yet");
-            ExitCode::FAILURE
-        }
+        Ok(Command::Lsp) => run_lsp(),
         Err(message) => {
             eprintln!("error: {message}");
             eprintln!();

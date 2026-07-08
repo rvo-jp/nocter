@@ -238,13 +238,13 @@ Responsibilities:
 - `target/arm64/`: ARM64 instruction selection and binary instruction encoding.
 - `target/macho/`: Mach-O headers, segments, sections, symbols, relocations if needed, and executable layout.
 - `target/primitive/`: lowering and validation for target-independent core primitives and the closed primitive set of the active target.
-- `driver/`: command-line flow for `--version`, `doctor`, `build`, `run`, `check`, `fmt`, `tokens`, `ast`, and future `lsp`, target registry lookup, active target selection, temporary executable handling for `run`, and stdout/stderr discipline.
+- `driver/`: command-line flow for `--version`, `doctor`, `build`, `run`, `check`, `fmt`, `tokens`, `ast`, and `lsp`, target registry lookup, active target selection, temporary executable handling for `run`, and stdout/stderr discipline.
 - `diagnostics/`: structured errors with source spans, display paths, canonical absolute paths, human rendering, and the `nocter.diagnostics` JSON envelope for `--format json`.
-- `lsp/`: future language-server entry point that reuses the compiler front end, resolver, type checker, ownership checker, and diagnostics instead of reimplementing language semantics for editors.
+- `driver/lsp.rs`: initial language-server entry point that reuses the compiler front end, resolver, type checker, ownership checker, and diagnostics instead of reimplementing language semantics for editors. v0 supports initialize/shutdown/exit, full-document sync, stale version rejection for older `didChange` notifications, UTF-16 diagnostic positions, and publishDiagnostics; hover, definition, completion, rename, and semantic tokens are later features.
 
 The v0 driver should not implement package manifests, project-root discovery, package registries, workspaces, separate compilation, or incremental module artifacts. `nocter build app.nct`, `nocter run app.nct`, and `nocter check app.nct` each receive one root file and operate on the whole reachable compile unit. `nocter fmt app.nct` receives one source file and formats only that file without following imports. `nocter doctor` validates the active Nocter home and must not execute user code.
 
-Editor and AI tooling should treat the compiler as the source of semantic truth. A VS Code TextMate grammar may provide syntax highlighting, and AI tools may generate code, but formatting, import resolution, type checking, borrow checking, tokenization, AST shape, and diagnostics belong in the Nocter toolchain: `nocter fmt`, `nocter check --format json`, `nocter tokens --format json`, `nocter ast --format json`, and later `nocter lsp`.
+Editor and AI tooling should treat the compiler as the source of semantic truth. A VS Code TextMate grammar may provide syntax highlighting, and AI tools may generate code, but formatting, import resolution, type checking, borrow checking, tokenization, AST shape, and diagnostics belong in the Nocter toolchain: `nocter fmt`, `nocter check --format json`, `nocter tokens --format json`, `nocter ast --format json`, and `nocter lsp`.
 
 ## Source And JSON Span Model
 
