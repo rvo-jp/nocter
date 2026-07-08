@@ -2,7 +2,7 @@ use super::*;
 use crate::analysis::{CompileUnit, analyze_compile_unit_with_entry};
 use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
-use crate::ir::{Function, I32Location, I32Value, Instruction, IrModule, Type};
+use crate::ir::{BoolValue, Function, I32Location, I32Value, Instruction, IrModule, Type};
 use crate::source::SourceMap;
 use crate::target::DEFAULT_TARGET;
 use std::fs;
@@ -114,6 +114,73 @@ fn lowers_entry_i32_local_addition_binding_then_return() {
                     value: i32_local(1),
                 },
                 Instruction::Return,
+            ],
+        }])
+    );
+}
+
+#[test]
+fn lowers_entry_terminal_if_with_bool_literal_condition() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    if false {
+        return 1
+    } else {
+        return 2
+    }
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![Instruction::If {
+                condition: BoolValue::Const(false),
+                then_instructions: vec![set_return_i32(1), Instruction::Return],
+                else_instructions: vec![set_return_i32(2), Instruction::Return],
+            }],
+        }])
+    );
+}
+
+#[test]
+fn lowers_entry_terminal_if_returning_outer_local() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let value = 42
+    if true {
+        return value
+    } else {
+        return 0
+    }
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::SetI32 {
+                    destination: I32Location::Local(0),
+                    value: i32_const(42),
+                },
+                Instruction::If {
+                    condition: BoolValue::Const(true),
+                    then_instructions: vec![
+                        Instruction::SetI32 {
+                            destination: I32Location::Return,
+                            value: i32_local(0),
+                        },
+                        Instruction::Return,
+                    ],
+                    else_instructions: vec![set_return_i32(0), Instruction::Return],
+                },
             ],
         }])
     );
@@ -406,6 +473,44 @@ func answer(): i32 {
                     },
                     Instruction::Return,
                 ],
+            },
+        ])
+    );
+}
+
+#[test]
+fn lowers_same_file_function_with_terminal_if() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    return answer()
+}
+
+func answer(): i32 {
+    if true {
+        return 7
+    } else {
+        return 9
+    }
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                return_type: Type::I32,
+                instructions: vec![tail_call("answer", vec![])],
+            },
+            Function {
+                name: "answer".to_string(),
+                return_type: Type::I32,
+                instructions: vec![Instruction::If {
+                    condition: BoolValue::Const(true),
+                    then_instructions: vec![set_return_i32(7), Instruction::Return],
+                    else_instructions: vec![set_return_i32(9), Instruction::Return],
+                }],
             },
         ])
     );

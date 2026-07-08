@@ -156,13 +156,14 @@ Currently buildable:
 - same-file non-generic function calls
 - up to 8 `i32` parameters for lowered functions
 - `i32` addition used in lowerable `i32` expressions
+- terminal `if` / `else` statements with bool literal conditions and direct `i32` returns in both branches
 - simple fallible entry success
 - simple fallible entry failure through `fail make_error("code", "message")`
 
 Currently not buildable even when it may be checkable:
 
 - `var`, reassignment, and general local storage
-- `if`, `while`, `loop`, range `for`, and `switch`
+- general `if`, `while`, `loop`, range `for`, and `switch`
 - imported function calls
 - `str` values beyond static failure messages
 - optional values

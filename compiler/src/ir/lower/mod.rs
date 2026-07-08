@@ -1,4 +1,5 @@
 mod bindings;
+mod control_flow;
 mod entry;
 mod errors;
 mod expressions;

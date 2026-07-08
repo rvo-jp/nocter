@@ -32,6 +32,11 @@ pub(crate) enum Instruction {
         function: String,
         arguments: Vec<I32Value>,
     },
+    If {
+        condition: BoolValue,
+        then_instructions: Vec<Instruction>,
+        else_instructions: Vec<Instruction>,
+    },
     Return,
 }
 
@@ -46,6 +51,11 @@ pub(crate) enum I32Location {
 pub(crate) enum I32Value {
     Const(i32),
     Location(I32Location),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum BoolValue {
+    Const(bool),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,4 +1,5 @@
 use super::bindings::lower_i32_let_binding;
+use super::control_flow::lower_terminal_i32_if_statement;
 use super::expressions::{I32ExpressionContext, lower_i32_return_expression};
 use crate::ast::{FunctionDecl, Parameter, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
@@ -111,6 +112,15 @@ fn lower_function_body(
                 }
             }?;
             instructions.extend(return_instructions);
+            Ok(instructions)
+        }
+        Stmt::If(statement) if return_type == &Type::I32 => {
+            instructions.extend(lower_terminal_i32_if_statement(
+                statement,
+                context,
+                "E8007",
+                "functions",
+            )?);
             Ok(instructions)
         }
         _ => Err(unsupported_function_body_diagnostic(&function.name)),

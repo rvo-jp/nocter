@@ -1,5 +1,5 @@
 use crate::diagnostics::Diagnostic;
-use crate::ir::{Function, I32Location, I32Value, Instruction, IrModule, Type};
+use crate::ir::{BoolValue, Function, I32Location, I32Value, Instruction, IrModule, Type};
 use crate::target::arm64::{Encoder, MoveWideShift, WReg, XReg};
 use std::collections::HashMap;
 
@@ -101,11 +101,78 @@ impl EntryEmitter {
             } => {
                 self.emit_tail_call(function, arguments)?;
             }
+            Instruction::If {
+                condition,
+                then_instructions,
+                else_instructions,
+            } => {
+                self.emit_if(condition, then_instructions, else_instructions)?;
+            }
             Instruction::Return => {
                 self.encoder.emit_ret();
             }
         }
 
+        Ok(())
+    }
+
+    fn emit_if(
+        &mut self,
+        condition: &BoolValue,
+        then_instructions: &[Instruction],
+        else_instructions: &[Instruction],
+    ) -> Result<(), Vec<Diagnostic>> {
+        let branch_to_else = match condition {
+            BoolValue::Const(true) => None,
+            BoolValue::Const(false) => Some(self.emit_branch_placeholder()),
+        };
+
+        for instruction in then_instructions {
+            self.emit_instruction(instruction)?;
+        }
+
+        let branch_to_end =
+            if else_instructions.is_empty() || instruction_list_ends_execution(then_instructions) {
+                None
+            } else {
+                Some(self.emit_branch_placeholder())
+            };
+
+        if let Some(instruction_offset) = branch_to_else {
+            self.patch_branch_to_current(instruction_offset, "if branch target")?;
+        }
+
+        for instruction in else_instructions {
+            self.emit_instruction(instruction)?;
+        }
+
+        if let Some(instruction_offset) = branch_to_end {
+            self.patch_branch_to_current(instruction_offset, "if end target")?;
+        }
+
+        Ok(())
+    }
+
+    fn emit_branch_placeholder(&mut self) -> usize {
+        let instruction_offset = self.encoder.position();
+        self.encoder.emit_b(0);
+        instruction_offset
+    }
+
+    fn patch_branch_to_current(
+        &mut self,
+        instruction_offset: usize,
+        target_description: &str,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let byte_offset = self.encoder.position() as i64 - instruction_offset as i64;
+        if !(BRANCH_MIN_BYTE_OFFSET..=BRANCH_MAX_BYTE_OFFSET).contains(&byte_offset) {
+            return Err(vec![Diagnostic::error(
+                "E9001",
+                format!("{target_description} is too far for ARM64 `b`"),
+            )]);
+        }
+
+        self.encoder.patch_b(instruction_offset, byte_offset as i32);
         Ok(())
     }
 
@@ -342,6 +409,27 @@ fn emit_darwin_write_syscall(encoder: &mut Encoder) {
     encoder.emit_svc(DARWIN_SYSCALL_TRAP);
 }
 
+fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
+    match instructions.last() {
+        Some(Instruction::Return | Instruction::TailCall { .. }) => true,
+        Some(Instruction::If {
+            then_instructions,
+            else_instructions,
+            ..
+        }) => {
+            !else_instructions.is_empty()
+                && instruction_list_ends_execution(then_instructions)
+                && instruction_list_ends_execution(else_instructions)
+        }
+        Some(
+            Instruction::WriteStaticStderr(_)
+            | Instruction::SetI32 { .. }
+            | Instruction::AddI32 { .. },
+        )
+        | None => false,
+    }
+}
+
 fn align_usize(value: usize, alignment: usize) -> usize {
     debug_assert!(alignment.is_power_of_two());
     (value + alignment - 1) & !(alignment - 1)
@@ -359,7 +447,7 @@ const DARWIN_SYSCALL_TRAP: u16 = 0x80;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Function, I32Location, I32Value, Type};
+    use crate::ir::{BoolValue, Function, I32Location, I32Value, Type};
 
     #[test]
     fn generates_exit_zero_for_return_i32_zero() {
@@ -599,6 +687,36 @@ mod tests {
                 0x4a, 0x00, 0x80, 0x52, // movz w10, #2
                 0x0a, 0x02, 0x0a, 0x0b, // add w10, w16, w10
                 0xe0, 0x03, 0x0a, 0x2a, // mov w0, w10
+                0xc0, 0x03, 0x5f, 0xd6, // ret
+            ]
+        );
+    }
+
+    #[test]
+    fn generates_terminal_if_with_false_condition() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![Instruction::If {
+                condition: BoolValue::Const(false),
+                then_instructions: vec![set_return_i32(1), Instruction::Return],
+                else_instructions: vec![set_return_i32(2), Instruction::Return],
+            }],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert_eq!(
+            code.text,
+            vec![
+                0x04, 0x00, 0x00, 0x94, // bl main
+                0x30, 0x00, 0x80, 0x52, // movz w16, #1
+                0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
+                0x01, 0x10, 0x00, 0xd4, // svc #0x80
+                0x03, 0x00, 0x00, 0x14, // b else
+                0x20, 0x00, 0x80, 0x52, // movz w0, #1
+                0xc0, 0x03, 0x5f, 0xd6, // ret
+                0x40, 0x00, 0x80, 0x52, // movz w0, #2
                 0xc0, 0x03, 0x5f, 0xd6, // ret
             ]
         );

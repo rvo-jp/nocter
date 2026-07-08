@@ -84,6 +84,28 @@ fn build_command_lowers_i32_local_addition() {
 }
 
 #[test]
+fn build_command_lowers_terminal_if() {
+    let project = TempProject::new("cli-build-terminal-if");
+    let source = project.write_source(
+        "terminal_if.nct",
+        r#"func main(): i32 {
+    if false {
+        return 1
+    } else {
+        return 2
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_reports_compile_diagnostics_without_output() {
     let project = TempProject::new("cli-build-diagnostics");
     let source = project.write_source(
@@ -189,6 +211,30 @@ fn built_executable_returns_i32_local_addition_value() {
     let base = 40
     let result = base + 2
     return result
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    let status = Command::new(&executable).status().unwrap();
+    assert_eq!(status.code(), Some(42));
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn built_executable_returns_terminal_if_else_value() {
+    let project = TempProject::new("cli-build-run-terminal-if");
+    let source = project.write_source(
+        "terminal_if_exit.nct",
+        r#"func main(): i32 {
+    if false {
+        return 1
+    } else {
+        return 42
+    }
 }
 "#,
     );

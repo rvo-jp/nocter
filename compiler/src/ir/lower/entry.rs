@@ -1,4 +1,5 @@
 use super::bindings::lower_i32_let_binding;
+use super::control_flow::lower_terminal_i32_if_statement;
 use super::errors::{lower_make_error_message, with_trailing_newline};
 use super::expressions::{I32ExpressionContext, lower_i32_return_expression};
 use crate::ast::{FunctionDecl, Stmt, TypeExpr};
@@ -70,6 +71,15 @@ fn lower_entry_body(
                 (Type::Fallible(_), _) => unreachable!("fallible success type must be unwrapped"),
             }?;
             instructions.extend(return_instructions);
+            Ok(instructions)
+        }
+        Stmt::If(statement) if success_type == &Type::I32 => {
+            instructions.extend(lower_terminal_i32_if_statement(
+                statement,
+                &context,
+                "E8002",
+                "entry functions",
+            )?);
             Ok(instructions)
         }
         Stmt::Fail(statement) if leading.is_empty() => match return_type {
