@@ -1,4 +1,4 @@
-use crate::analysis::analyze_compile_unit_with_entry;
+use crate::analysis::{CompileUnitAnalysis, FileAnalysis, analyze_compile_unit_with_entry};
 use crate::ast::{
     AstFile, BindingStmt, Block, EnumDecl, Expr, FunctionDecl, ImplMember, Item, MethodDecl,
     Parameter, PrimitiveDecl, Stmt, StructDecl, StructField, TraitDecl,
@@ -9,6 +9,7 @@ use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::lexer::{Keyword, Token, TokenKind, lex};
 use crate::parser::parse;
+use crate::resolve::{ResolveOutput, Symbol, SymbolKind, TypeSymbolKind, resolve};
 use crate::source::{ByteSpan, JsonSpan, SourceMap};
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -196,10 +197,46 @@ impl LspServer {
     }
 
     fn hover_response(&self, id: Value, params: Option<&Value>) -> Value {
-        let hover = document_uri_from_params(params)
-            .and_then(|uri| self.documents.get(&uri))
-            .and_then(|document| hover_for_document(document, params));
+        let hover = document_uri_from_params(params).and_then(|uri| {
+            self.workspace_hover_for_uri(&uri, params).or_else(|| {
+                self.documents
+                    .get(&uri)
+                    .and_then(|document| hover_for_document(document, params))
+            })
+        });
         response(id, hover.unwrap_or(Value::Null))
+    }
+
+    fn workspace_hover_for_uri(&self, uri: &str, params: Option<&Value>) -> Option<Value> {
+        let position = position_from_params(params)?;
+        let document = self.documents.get(uri)?;
+        let root_offset =
+            lsp_position_to_byte_offset(&document.text, position.line, position.character);
+        let mut open_documents = self.documents.values().collect::<Vec<_>>();
+        open_documents.sort_by(|left, right| left.uri.cmp(&right.uri));
+
+        let mut sources = SourceMap::new();
+        let mut source_by_uri = HashMap::new();
+
+        for document in open_documents {
+            let source = sources.add_source(
+                document.display_path.clone(),
+                document.absolute_path.clone(),
+                document.text.clone(),
+            );
+            source_by_uri.insert(document.uri.clone(), source);
+        }
+
+        let root = source_by_uri.get(uri).copied()?;
+        let options = frontend_options_for_document(document);
+        let unit = load_compile_unit(&mut sources, root, &options).ok()?;
+        let analysis = analyze_compile_unit_with_entry(&sources, &unit, DEFAULT_ENTRY_NAME);
+        let file = analysis
+            .files
+            .iter()
+            .find(|file| file.ast.span.source == root)?;
+
+        hover_for_file_analysis(&sources, &analysis, file, root_offset)
     }
 }
 
@@ -335,7 +372,12 @@ fn analyze_workspace(
     }
 
     let diagnostics = match source_by_uri.get(root_uri).copied() {
-        Some(root) => match load_compile_unit(&mut sources, root, &FrontendOptions::default()) {
+        Some(root) => match documents
+            .get(root_uri)
+            .map(frontend_options_for_document)
+            .map(|options| load_compile_unit(&mut sources, root, &options))
+            .unwrap_or_else(|| load_compile_unit(&mut sources, root, &FrontendOptions::default()))
+        {
             Ok(unit) => {
                 analyze_compile_unit_with_entry(&sources, &unit, DEFAULT_ENTRY_NAME).diagnostics()
             }
@@ -353,6 +395,29 @@ fn analyze_workspace(
             )
         })
         .collect()
+}
+
+fn frontend_options_for_document(document: &OpenDocument) -> FrontendOptions {
+    FrontendOptions {
+        nocter_home: document
+            .absolute_path
+            .as_deref()
+            .and_then(find_nearest_nocter_home),
+        ..FrontendOptions::default()
+    }
+}
+
+fn find_nearest_nocter_home(path: &Path) -> Option<PathBuf> {
+    let mut directory = path.parent();
+    while let Some(current) = directory {
+        let home = current.join(".nocter");
+        if home.is_dir() {
+            return Some(home);
+        }
+        directory = current.parent();
+    }
+
+    None
 }
 
 fn initialize_response(id: Value) -> Value {
@@ -648,6 +713,50 @@ fn hover_for_document(document: &OpenDocument, params: Option<&Value>) -> Option
     }))
 }
 
+fn hover_for_file_analysis(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    file: &FileAnalysis,
+    offset: usize,
+) -> Option<Value> {
+    let source_file = sources.get(file.ast.span.source)?;
+    let text = source_file.text();
+    let symbols = hover_symbols_for_ast(text, &file.ast);
+    let documentation = documentation_for_hover_symbols(file.ast.span.source, text, &symbols);
+
+    if let Some(symbol) = symbols
+        .iter()
+        .find(|symbol| symbol.name_span.start <= offset && offset < symbol.name_span.end)
+    {
+        let docs = documentation.get(symbol.name_span.start);
+        return Some(json!({
+            "contents": {
+                "kind": "markdown",
+                "value": hover_markdown(&symbol.label, docs)
+            },
+            "range": range_for_byte_span(text, symbol.name_span)
+        }));
+    }
+
+    find_resolved_hover_symbol(&file.ast, &file.resolved, offset).map(|(name_span, symbol)| {
+        let (label, docs) = resolved_symbol_hover_contents(sources, analysis, &symbol)
+            .unwrap_or_else(|| {
+                (
+                    symbol_hover_label_for_sources(sources, &symbol),
+                    None::<String>,
+                )
+            });
+
+        json!({
+            "contents": {
+                "kind": "markdown",
+                "value": hover_markdown(&label, docs.as_deref())
+            },
+            "range": range_for_byte_span(text, name_span)
+        })
+    })
+}
+
 fn documented_hover_for_document(document: &OpenDocument, offset: usize) -> Option<Value> {
     let mut sources = SourceMap::new();
     let source = sources.add_source(
@@ -661,24 +770,470 @@ fn documented_hover_for_document(document: &OpenDocument, offset: usize) -> Opti
     }
     let ast = parse(&sources, source, &lex_output.tokens).ast?;
     let symbols = hover_symbols_for_ast(&document.text, &ast);
-    let symbol = symbols
+    let documentation = documentation_for_hover_symbols(source, &document.text, &symbols);
+
+    if let Some(symbol) = symbols
         .iter()
-        .find(|symbol| symbol.name_span.start <= offset && offset < symbol.name_span.end)?;
+        .find(|symbol| symbol.name_span.start <= offset && offset < symbol.name_span.end)
+    {
+        let docs = documentation.get(symbol.name_span.start);
+        let value = hover_markdown(&symbol.label, docs);
+
+        return Some(json!({
+            "contents": {
+                "kind": "markdown",
+                "value": value
+            },
+            "range": range_for_byte_span(&document.text, symbol.name_span)
+        }));
+    }
+
+    resolved_reference_hover_for_ast(&document.text, source, &ast, offset).map(
+        |(name_span, symbol)| {
+            let referenced = symbols
+                .iter()
+                .find(|candidate| candidate.name_span == symbol.name_span);
+            let label = referenced
+                .map(|symbol| symbol.label.clone())
+                .unwrap_or_else(|| symbol_hover_label(&document.text, &symbol));
+            let docs = referenced.and_then(|symbol| documentation.get(symbol.name_span.start));
+
+            json!({
+                "contents": {
+                    "kind": "markdown",
+                    "value": hover_markdown(&label, docs)
+                },
+                "range": range_for_byte_span(&document.text, name_span)
+            })
+        },
+    )
+}
+
+fn documentation_for_hover_symbols(
+    source: crate::source::SourceId,
+    text: &str,
+    symbols: &[HoverSymbol],
+) -> crate::comments::AttachedDocumentation {
     let targets = symbols
         .iter()
         .map(|symbol| DocumentationTarget::new(symbol.attach_start, symbol.name_span.start))
         .collect::<Vec<_>>();
-    let documentation = attach_documentation(source, &document.text, &targets);
-    let docs = documentation.get(symbol.name_span.start);
-    let value = hover_markdown(&symbol.label, docs);
+    attach_documentation(source, text, &targets)
+}
 
-    Some(json!({
-        "contents": {
-            "kind": "markdown",
-            "value": value
-        },
-        "range": range_for_byte_span(&document.text, symbol.name_span)
-    }))
+fn resolved_reference_hover_for_ast(
+    text: &str,
+    source: crate::source::SourceId,
+    ast: &AstFile,
+    offset: usize,
+) -> Option<(ByteSpan, Symbol)> {
+    let resolved = resolve_single_file_for_hover(text, source, ast);
+    find_resolved_hover_symbol(ast, &resolved, offset)
+}
+
+fn resolve_single_file_for_hover(
+    text: &str,
+    source: crate::source::SourceId,
+    ast: &AstFile,
+) -> ResolveOutput {
+    let mut sources = SourceMap::new();
+    let hover_source = sources.add_source("hover.nct", None, text.to_string());
+    debug_assert_eq!(hover_source.raw(), source.raw());
+    resolve(&sources, ast)
+}
+
+fn find_resolved_hover_symbol<'a>(
+    ast: &'a AstFile,
+    resolved: &'a ResolveOutput,
+    offset: usize,
+) -> Option<(ByteSpan, Symbol)> {
+    let mut candidates = Vec::new();
+    for item in &ast.items {
+        collect_item_resolved_hover_symbols(item, resolved, offset, &mut candidates);
+    }
+    candidates.sort_by_key(|(span, _)| (span.end - span.start, span.start));
+    candidates.into_iter().next()
+}
+
+fn collect_item_resolved_hover_symbols(
+    item: &Item,
+    resolved: &ResolveOutput,
+    offset: usize,
+    candidates: &mut Vec<(ByteSpan, Symbol)>,
+) {
+    match item {
+        Item::Function(function) => {
+            collect_block_resolved_hover_symbols(&function.body, resolved, offset, candidates);
+        }
+        Item::Impl(impl_) => {
+            for member in &impl_.members {
+                match member {
+                    ImplMember::Function(function) => {
+                        collect_block_resolved_hover_symbols(
+                            &function.body,
+                            resolved,
+                            offset,
+                            candidates,
+                        );
+                    }
+                    ImplMember::Method(method) => {
+                        if let Some(body) = &method.body {
+                            collect_block_resolved_hover_symbols(
+                                body, resolved, offset, candidates,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        Item::Use(_)
+        | Item::Import(_)
+        | Item::FromImport(_)
+        | Item::Primitive(_)
+        | Item::TypeAlias(_)
+        | Item::Struct(_)
+        | Item::Enum(_)
+        | Item::Trait(_) => {}
+    }
+}
+
+fn collect_block_resolved_hover_symbols(
+    block: &Block,
+    resolved: &ResolveOutput,
+    offset: usize,
+    candidates: &mut Vec<(ByteSpan, Symbol)>,
+) {
+    for statement in &block.statements {
+        collect_statement_resolved_hover_symbols(statement, resolved, offset, candidates);
+    }
+}
+
+fn collect_statement_resolved_hover_symbols(
+    statement: &Stmt,
+    resolved: &ResolveOutput,
+    offset: usize,
+    candidates: &mut Vec<(ByteSpan, Symbol)>,
+) {
+    match statement {
+        Stmt::Return(statement) => {
+            if let Some(expression) = &statement.expression {
+                collect_expression_resolved_hover_symbols(expression, resolved, offset, candidates);
+            }
+        }
+        Stmt::Binding(statement) => {
+            collect_expression_resolved_hover_symbols(
+                &statement.initializer,
+                resolved,
+                offset,
+                candidates,
+            );
+            if let Some(block) = &statement.else_block {
+                collect_block_resolved_hover_symbols(block, resolved, offset, candidates);
+            }
+        }
+        Stmt::Assignment(statement) => {
+            collect_expression_resolved_hover_symbols(
+                &statement.target,
+                resolved,
+                offset,
+                candidates,
+            );
+            collect_expression_resolved_hover_symbols(
+                &statement.value,
+                resolved,
+                offset,
+                candidates,
+            );
+        }
+        Stmt::If(statement) => {
+            collect_expression_resolved_hover_symbols(
+                &statement.condition,
+                resolved,
+                offset,
+                candidates,
+            );
+            collect_block_resolved_hover_symbols(
+                &statement.then_block,
+                resolved,
+                offset,
+                candidates,
+            );
+            if let Some(block) = &statement.else_block {
+                collect_block_resolved_hover_symbols(block, resolved, offset, candidates);
+            }
+        }
+        Stmt::IfIs(statement) => {
+            collect_expression_resolved_hover_symbols(
+                &statement.expression,
+                resolved,
+                offset,
+                candidates,
+            );
+            collect_block_resolved_hover_symbols(
+                &statement.then_block,
+                resolved,
+                offset,
+                candidates,
+            );
+            if let Some(block) = &statement.else_block {
+                collect_block_resolved_hover_symbols(block, resolved, offset, candidates);
+            }
+        }
+        Stmt::IfLet(statement) => {
+            collect_expression_resolved_hover_symbols(
+                &statement.initializer,
+                resolved,
+                offset,
+                candidates,
+            );
+            collect_block_resolved_hover_symbols(
+                &statement.then_block,
+                resolved,
+                offset,
+                candidates,
+            );
+            if let Some(block) = &statement.else_block {
+                collect_block_resolved_hover_symbols(block, resolved, offset, candidates);
+            }
+        }
+        Stmt::Switch(statement) => {
+            collect_expression_resolved_hover_symbols(
+                &statement.expression,
+                resolved,
+                offset,
+                candidates,
+            );
+            for arm in &statement.arms {
+                collect_block_resolved_hover_symbols(&arm.body, resolved, offset, candidates);
+            }
+            if let Some(arm) = &statement.else_arm {
+                collect_block_resolved_hover_symbols(&arm.body, resolved, offset, candidates);
+            }
+        }
+        Stmt::ForRange(statement) => {
+            collect_expression_resolved_hover_symbols(
+                &statement.start,
+                resolved,
+                offset,
+                candidates,
+            );
+            collect_expression_resolved_hover_symbols(&statement.end, resolved, offset, candidates);
+            collect_block_resolved_hover_symbols(&statement.body, resolved, offset, candidates);
+        }
+        Stmt::While(statement) => {
+            collect_expression_resolved_hover_symbols(
+                &statement.condition,
+                resolved,
+                offset,
+                candidates,
+            );
+            collect_block_resolved_hover_symbols(&statement.body, resolved, offset, candidates);
+        }
+        Stmt::WhileLet(statement) => {
+            collect_expression_resolved_hover_symbols(
+                &statement.initializer,
+                resolved,
+                offset,
+                candidates,
+            );
+            collect_block_resolved_hover_symbols(&statement.body, resolved, offset, candidates);
+        }
+        Stmt::Loop(statement) => {
+            collect_block_resolved_hover_symbols(&statement.body, resolved, offset, candidates);
+        }
+        Stmt::Expression(statement) => {
+            collect_expression_resolved_hover_symbols(
+                &statement.expression,
+                resolved,
+                offset,
+                candidates,
+            );
+        }
+        Stmt::Break(_) | Stmt::Continue(_) => {}
+    }
+}
+
+fn collect_expression_resolved_hover_symbols(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    offset: usize,
+    candidates: &mut Vec<(ByteSpan, Symbol)>,
+) {
+    match expression {
+        Expr::Identifier(expression) => {
+            if span_contains(expression.span, offset)
+                && let Some(symbol) = resolved.symbol_for_identifier(expression)
+            {
+                candidates.push((expression.span, symbol.clone()));
+            }
+        }
+        Expr::Call(expression) => {
+            if let Expr::Identifier(callee) = expression.callee.as_ref()
+                && span_contains(callee.span, offset)
+                && let Some(symbol) = resolved.symbol_for_call(expression)
+            {
+                candidates.push((callee.span, symbol.clone()));
+            }
+            collect_expression_resolved_hover_symbols(
+                &expression.callee,
+                resolved,
+                offset,
+                candidates,
+            );
+            for argument in &expression.arguments {
+                collect_expression_resolved_hover_symbols(argument, resolved, offset, candidates);
+            }
+        }
+        Expr::ArrayLiteral(expression) => {
+            for element in &expression.elements {
+                collect_expression_resolved_hover_symbols(element, resolved, offset, candidates);
+            }
+        }
+        Expr::StructLiteral(expression) => {
+            for field in &expression.fields {
+                collect_expression_resolved_hover_symbols(
+                    &field.value,
+                    resolved,
+                    offset,
+                    candidates,
+                );
+            }
+        }
+        Expr::Propagate(expression) => {
+            collect_expression_resolved_hover_symbols(
+                &expression.expression,
+                resolved,
+                offset,
+                candidates,
+            );
+        }
+        Expr::Force(expression) => {
+            collect_expression_resolved_hover_symbols(
+                &expression.expression,
+                resolved,
+                offset,
+                candidates,
+            );
+        }
+        Expr::Catch(expression) => {
+            collect_expression_resolved_hover_symbols(
+                &expression.expression,
+                resolved,
+                offset,
+                candidates,
+            );
+            collect_block_resolved_hover_symbols(
+                &expression.catch_block,
+                resolved,
+                offset,
+                candidates,
+            );
+        }
+        Expr::Unary(expression) => {
+            collect_expression_resolved_hover_symbols(
+                &expression.operand,
+                resolved,
+                offset,
+                candidates,
+            );
+        }
+        Expr::Binary(expression) => {
+            collect_expression_resolved_hover_symbols(
+                &expression.left,
+                resolved,
+                offset,
+                candidates,
+            );
+            collect_expression_resolved_hover_symbols(
+                &expression.right,
+                resolved,
+                offset,
+                candidates,
+            );
+        }
+        Expr::TypeConversion(expression) => {
+            collect_expression_resolved_hover_symbols(
+                &expression.expression,
+                resolved,
+                offset,
+                candidates,
+            );
+        }
+        Expr::Member(expression) => {
+            collect_expression_resolved_hover_symbols(
+                &expression.object,
+                resolved,
+                offset,
+                candidates,
+            );
+        }
+        Expr::Index(expression) => {
+            collect_expression_resolved_hover_symbols(
+                &expression.object,
+                resolved,
+                offset,
+                candidates,
+            );
+            collect_expression_resolved_hover_symbols(
+                &expression.index,
+                resolved,
+                offset,
+                candidates,
+            );
+        }
+        Expr::Group(expression) => {
+            collect_expression_resolved_hover_symbols(
+                &expression.expression,
+                resolved,
+                offset,
+                candidates,
+            );
+        }
+        Expr::OptionalDefault(expression) => {
+            collect_expression_resolved_hover_symbols(
+                &expression.value,
+                resolved,
+                offset,
+                candidates,
+            );
+            collect_expression_resolved_hover_symbols(
+                &expression.default,
+                resolved,
+                offset,
+                candidates,
+            );
+        }
+        Expr::PatternConditional(expression) => {
+            collect_expression_resolved_hover_symbols(
+                &expression.target,
+                resolved,
+                offset,
+                candidates,
+            );
+            for arm in &expression.arms {
+                collect_expression_resolved_hover_symbols(
+                    &arm.expression,
+                    resolved,
+                    offset,
+                    candidates,
+                );
+            }
+            collect_expression_resolved_hover_symbols(
+                &expression.fallback,
+                resolved,
+                offset,
+                candidates,
+            );
+        }
+        Expr::IntegerLiteral(_)
+        | Expr::StringLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::NoneLiteral(_) => {}
+    }
+}
+
+fn span_contains(span: ByteSpan, offset: usize) -> bool {
+    span.start <= offset && offset < span.end
 }
 
 fn hover_symbols_for_ast(text: &str, ast: &AstFile) -> Vec<HoverSymbol> {
@@ -1105,6 +1660,131 @@ fn hover_markdown(label: &str, documentation: Option<&str>) -> String {
         value.push_str(documentation.trim());
     }
     value
+}
+
+fn symbol_hover_label(text: &str, symbol: &Symbol) -> String {
+    match &symbol.kind {
+        SymbolKind::Function(signature) => format!(
+            "func {}({}): {}",
+            symbol.name,
+            parameter_signatures_label(text, &signature.parameters),
+            source_fragment(text, signature.return_type.span())
+        ),
+        SymbolKind::Type(type_symbol) => match type_symbol.kind {
+            TypeSymbolKind::Alias => type_symbol
+                .alias_target
+                .as_ref()
+                .map(|target| {
+                    format!(
+                        "type {} = {}",
+                        symbol.name,
+                        source_fragment(text, target.span())
+                    )
+                })
+                .unwrap_or_else(|| format!("type {}", symbol.name)),
+            TypeSymbolKind::Struct => format!("struct {}", symbol.name),
+            TypeSymbolKind::Enum => format!("enum {}", symbol.name),
+            TypeSymbolKind::Trait => format!("trait {}", symbol.name),
+        },
+        SymbolKind::Imported(imported) => format!("import {} from {}", symbol.name, imported.path),
+    }
+}
+
+fn resolved_symbol_hover_contents(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    symbol: &Symbol,
+) -> Option<(String, Option<String>)> {
+    let file = analysis
+        .files
+        .iter()
+        .find(|file| file.ast.span.source == symbol.declaration_span.source)?;
+    let source_file = sources.get(file.ast.span.source)?;
+    let text = source_file.text();
+    let symbols = hover_symbols_for_ast(text, &file.ast);
+    let hover_symbol = symbols
+        .iter()
+        .find(|candidate| candidate.name_span == symbol.declaration_span)
+        .or_else(|| {
+            symbols
+                .iter()
+                .find(|candidate| candidate.name_span == symbol.name_span)
+        })?;
+    let documentation = documentation_for_hover_symbols(file.ast.span.source, text, &symbols);
+    let docs = documentation
+        .get(hover_symbol.name_span.start)
+        .map(str::to_string);
+
+    Some((hover_symbol.label.clone(), docs))
+}
+
+fn symbol_hover_label_for_sources(sources: &SourceMap, symbol: &Symbol) -> String {
+    match &symbol.kind {
+        SymbolKind::Function(signature) => format!(
+            "func {}({}): {}",
+            symbol.name,
+            parameter_signatures_label_for_sources(sources, &signature.parameters),
+            source_fragment_from_sources(sources, signature.return_type.span())
+        ),
+        SymbolKind::Type(type_symbol) => match type_symbol.kind {
+            TypeSymbolKind::Alias => type_symbol
+                .alias_target
+                .as_ref()
+                .map(|target| {
+                    format!(
+                        "type {} = {}",
+                        symbol.name,
+                        source_fragment_from_sources(sources, target.span())
+                    )
+                })
+                .unwrap_or_else(|| format!("type {}", symbol.name)),
+            TypeSymbolKind::Struct => format!("struct {}", symbol.name),
+            TypeSymbolKind::Enum => format!("enum {}", symbol.name),
+            TypeSymbolKind::Trait => format!("trait {}", symbol.name),
+        },
+        SymbolKind::Imported(imported) => format!("import {} from {}", symbol.name, imported.path),
+    }
+}
+
+fn parameter_signatures_label_for_sources(
+    sources: &SourceMap,
+    parameters: &[crate::resolve::ParameterSignature],
+) -> String {
+    parameters
+        .iter()
+        .map(|parameter| {
+            format!(
+                "{}: {}",
+                parameter.name,
+                source_fragment_from_sources(sources, parameter.ty.span())
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn source_fragment_from_sources(sources: &SourceMap, span: ByteSpan) -> String {
+    sources
+        .get(span.source)
+        .map(|source| source_fragment(source.text(), span).to_string())
+        .unwrap_or_default()
+}
+
+fn parameter_signatures_label(
+    text: &str,
+    parameters: &[crate::resolve::ParameterSignature],
+) -> String {
+    parameters
+        .iter()
+        .map(|parameter| {
+            format!(
+                "{}: {}",
+                parameter.name,
+                source_fragment(text, parameter.ty.span())
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn range_for_byte_span(text: &str, span: ByteSpan) -> LspRange {
@@ -1590,6 +2270,104 @@ mod tests {
     }
 
     #[test]
+    fn returns_documented_hover_for_resolved_function_reference() {
+        let uri = "file:///tmp/nocter-hover-reference-docs.nct".to_string();
+        let document = open_document(
+            uri.clone(),
+            Some(1),
+            "func main(): i32 {\n    return answer()\n}\n\n/// Computes the answer.\nfunc answer(): i32 {\n    return 42\n}\n"
+                .to_string(),
+        );
+        let server = LspServer {
+            documents: HashMap::from([(uri.clone(), document)]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.hover_response(
+            json!(6),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "position": {
+                    "line": 1,
+                    "character": 12
+                }
+            })),
+        );
+
+        assert_eq!(
+            response["result"]["contents"]["value"],
+            json!("```nocter\nfunc answer(): i32\n```\n\nComputes the answer.")
+        );
+        assert_eq!(response["result"]["range"]["start"]["line"], json!(1));
+        assert_eq!(response["result"]["range"]["start"]["character"], json!(11));
+    }
+
+    #[test]
+    fn returns_documented_hover_for_imported_function_reference() {
+        let project = TempProject::new("lsp-hover-import");
+        project.write_nocter_home();
+        let app = project.write_source(
+            "app.nct",
+            "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
+        );
+        let config = project.write_source(
+            "config.nct",
+            "/// Returns the configured answer.\npub func answer(): i32 {\n    return 42\n}\n",
+        );
+        let app_uri = file_uri(&app);
+        let config_uri = file_uri(&config);
+        let server = LspServer {
+            documents: HashMap::from([
+                (
+                    app_uri.clone(),
+                    open_document(
+                        app_uri.clone(),
+                        Some(1),
+                        "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n"
+                            .to_string(),
+                    ),
+                ),
+                (
+                    config_uri.clone(),
+                    open_document(
+                        config_uri,
+                        Some(1),
+                        "/// Returns the configured answer.\npub func answer(): i32 {\n    return 42\n}\n"
+                            .to_string(),
+                    ),
+                ),
+            ]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.hover_response(
+            json!(7),
+            Some(&json!({
+                "textDocument": {
+                    "uri": app_uri
+                },
+                "position": {
+                    "line": 3,
+                    "character": 12
+                }
+            })),
+        );
+
+        assert_eq!(
+            response["result"]["contents"]["value"],
+            json!("```nocter\nfunc answer(): i32\n```\n\nReturns the configured answer.")
+        );
+        assert_eq!(response["result"]["range"]["start"]["line"], json!(3));
+        assert_eq!(response["result"]["range"]["start"]["character"], json!(11));
+    }
+
+    #[test]
     fn initialize_stores_workspace_folders() {
         let mut server = LspServer::new();
         let mut output = Vec::new();
@@ -1815,6 +2593,13 @@ mod tests {
             let path = self.root.join(name);
             std::fs::write(&path, text).unwrap();
             path
+        }
+
+        fn write_nocter_home(&self) -> PathBuf {
+            let home = self.root.join(".nocter");
+            std::fs::create_dir_all(home.join("std")).unwrap();
+            std::fs::write(home.join("std/prelude.nct"), "pub type Int = i32\n").unwrap();
+            home
         }
     }
 
