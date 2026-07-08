@@ -8,6 +8,7 @@ use crate::ir::{
 };
 use crate::source::SourceMap;
 use crate::target::DEFAULT_TARGET;
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -909,6 +910,32 @@ func mirrors_enabled(): bool {
 }
 
 #[test]
+fn rejects_tail_call_return_type_mismatch_during_lowering() {
+    let diagnostics = lower_named_function_diagnostics_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func enabled(): i32 {
+    return 1
+}
+
+func mirrors_enabled(): i32 {
+    return enabled()
+}
+"#,
+        "mirrors_enabled",
+        context::FunctionSignatures::new(HashMap::from([("enabled".to_string(), Type::Bool)])),
+    );
+
+    assert_eq!(diagnostics[0].code, "E8006");
+    assert_eq!(
+        diagnostics[0].message,
+        "IR v0 cannot lower tail call from function `mirrors_enabled` returning `i32` to function `enabled` returning `bool`"
+    );
+}
+
+#[test]
 fn reports_unsupported_entry_body() {
     let diagnostics = lower_text_diagnostics(
         r#"func main(): i32 {
@@ -949,6 +976,19 @@ fn lower_text_with_entry(text: &str, entry_name: &str) -> IrModule {
 }
 
 fn lower_named_function(text: &str, function_name: &str) -> Function {
+    lower_named_function_with_signatures(
+        text,
+        function_name,
+        context::FunctionSignatures::new(HashMap::new()),
+    )
+    .unwrap()
+}
+
+fn lower_named_function_with_signatures(
+    text: &str,
+    function_name: &str,
+    function_signatures: context::FunctionSignatures,
+) -> Result<Function, Vec<Diagnostic>> {
     let analysis = analyze_text_with_entry(text, crate::entry::DEFAULT_ENTRY_NAME);
     let root = analysis.root_file().unwrap();
     let Some(crate::ast::Item::Function(function)) = root.ast.items.iter().find(|item| {
@@ -957,7 +997,18 @@ fn lower_named_function(text: &str, function_name: &str) -> Function {
         panic!("missing function `{function_name}`");
     };
 
-    functions::lower_function(function).unwrap()
+    functions::lower_function(function, function_signatures)
+}
+
+fn lower_named_function_diagnostics_with_signatures(
+    text: &str,
+    function_name: &str,
+    function_signatures: context::FunctionSignatures,
+) -> Vec<Diagnostic> {
+    match lower_named_function_with_signatures(text, function_name, function_signatures) {
+        Ok(_) => Vec::new(),
+        Err(diagnostics) => diagnostics,
+    }
 }
 
 fn set_return_i32(value: i32) -> Instruction {

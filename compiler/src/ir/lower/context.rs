@@ -1,24 +1,55 @@
 use crate::diagnostics::Diagnostic;
-use crate::ir::{BoolLocation, I32Location};
+use crate::ir::{BoolLocation, I32Location, Type};
+use std::collections::HashMap;
 
 pub(super) struct LoweringContext {
+    function_name: String,
+    return_type: Type,
+    function_signatures: FunctionSignatures,
     i32_parameters: Vec<String>,
     locals: Vec<LocalBinding>,
 }
 
 impl LoweringContext {
-    pub(super) fn empty() -> Self {
+    pub(super) fn empty(
+        function_name: String,
+        return_type: Type,
+        function_signatures: FunctionSignatures,
+    ) -> Self {
         Self {
+            function_name,
+            return_type,
+            function_signatures,
             i32_parameters: Vec::new(),
             locals: Vec::new(),
         }
     }
 
-    pub(super) fn new(i32_parameters: Vec<String>) -> Self {
+    pub(super) fn new(
+        function_name: String,
+        return_type: Type,
+        function_signatures: FunctionSignatures,
+        i32_parameters: Vec<String>,
+    ) -> Self {
         Self {
+            function_name,
+            return_type,
+            function_signatures,
             i32_parameters,
             locals: Vec::new(),
         }
+    }
+
+    pub(super) fn function_name(&self) -> &str {
+        &self.function_name
+    }
+
+    pub(super) fn return_type(&self) -> &Type {
+        &self.return_type
+    }
+
+    pub(super) fn function_return_type(&self, name: &str) -> Option<&Type> {
+        self.function_signatures.return_type(name)
     }
 
     pub(super) fn next_i32_local_location(&self) -> Result<I32Location, Vec<Diagnostic>> {
@@ -74,6 +105,21 @@ impl LoweringContext {
             kind,
             index: self.locals.len(),
         });
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub(super) struct FunctionSignatures {
+    return_types: HashMap<String, Type>,
+}
+
+impl FunctionSignatures {
+    pub(super) fn new(return_types: HashMap<String, Type>) -> Self {
+        Self { return_types }
+    }
+
+    fn return_type(&self, name: &str) -> Option<&Type> {
+        self.return_types.get(name)
     }
 }
 

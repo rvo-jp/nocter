@@ -4,7 +4,7 @@ use crate::ast::{BinaryExpr, BinaryOperator, CallExpr, Expr, UnaryExpr, UnaryOpe
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolLocation, BoolLogicalOperator, BoolValue, I32ComparisonOperator, I32Location, I32Value,
-    Instruction,
+    Instruction, Type,
 };
 
 pub(super) fn lower_i32_expression(
@@ -22,7 +22,7 @@ pub(super) fn lower_i32_expression_to_location(
     match expression {
         Expr::Call(_) => Err(vec![Diagnostic::error(
             "E8006",
-            "IR v0 can only lower function calls in tail return position",
+            "IR v0 can only lower direct function calls in tail return position",
         )]),
         Expr::Binary(binary) if binary.operator == BinaryOperator::Add => {
             Ok(vec![Instruction::AddI32 {
@@ -81,9 +81,11 @@ fn lower_direct_tail_call(
     let Expr::Identifier(identifier) = call.callee.as_ref() else {
         return Err(vec![Diagnostic::error(
             "E8006",
-            "IR v0 can only lower direct function calls",
+            "IR v0 can only lower direct function calls in tail return position",
         )]);
     };
+
+    validate_tail_call_return_type(&identifier.name, context)?;
 
     let mut arguments = Vec::new();
     for (index, argument) in call.arguments.iter().enumerate() {
@@ -94,6 +96,43 @@ fn lower_direct_tail_call(
         function: identifier.name.clone(),
         arguments,
     }])
+}
+
+fn validate_tail_call_return_type(
+    callee_name: &str,
+    context: &LoweringContext,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(callee_return_type) = context.function_return_type(callee_name) else {
+        return Ok(());
+    };
+
+    if callee_return_type == context.return_type() {
+        return Ok(());
+    }
+
+    Err(vec![Diagnostic::error(
+        "E8006",
+        format!(
+            "IR v0 cannot lower tail call from function `{}` returning `{}` to function `{callee_name}` returning `{}`",
+            context.function_name(),
+            describe_type(context.return_type()),
+            describe_type(callee_return_type),
+        ),
+    )])
+}
+
+fn describe_type(ty: &Type) -> &'static str {
+    match ty {
+        Type::I32 => "i32",
+        Type::Bool => "bool",
+        Type::Void => "void",
+        Type::Fallible(success) => match success.as_ref() {
+            Type::I32 => "i32!",
+            Type::Bool => "bool!",
+            Type::Void => "void!",
+            Type::Fallible(_) => "fallible",
+        },
+    }
 }
 
 fn lower_i32_call_argument(

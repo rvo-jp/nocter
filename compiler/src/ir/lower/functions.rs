@@ -1,12 +1,15 @@
 use super::bindings::lower_let_binding;
-use super::context::LoweringContext;
+use super::context::{FunctionSignatures, LoweringContext};
 use super::control_flow::lower_terminal_i32_if_statement;
 use super::expressions::{lower_bool_return_expression, lower_i32_return_expression};
 use crate::ast::{FunctionDecl, Parameter, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{Function, Instruction, Type};
 
-pub(super) fn lower_function(function: &FunctionDecl) -> Result<Function, Vec<Diagnostic>> {
+pub(super) fn lower_function(
+    function: &FunctionDecl,
+    function_signatures: FunctionSignatures,
+) -> Result<Function, Vec<Diagnostic>> {
     if !function.generics.parameters.is_empty() {
         return Err(vec![Diagnostic::error(
             "E8007",
@@ -19,7 +22,12 @@ pub(super) fn lower_function(function: &FunctionDecl) -> Result<Function, Vec<Di
 
     let parameters = lower_i32_parameters(function)?;
     let return_type = lower_function_return_type(&function.return_type, &function.name)?;
-    let mut context = LoweringContext::new(parameters);
+    let mut context = LoweringContext::new(
+        function.name.clone(),
+        return_type.clone(),
+        function_signatures,
+        parameters,
+    );
     let instructions = lower_function_body(function, &return_type, &mut context)?;
 
     Ok(Function {

@@ -1,5 +1,5 @@
 use super::bindings::lower_let_binding;
-use super::context::LoweringContext;
+use super::context::{FunctionSignatures, LoweringContext};
 use super::control_flow::lower_terminal_i32_if_statement;
 use super::errors::{lower_make_error_message, with_trailing_newline};
 use super::expressions::lower_i32_return_expression;
@@ -7,7 +7,10 @@ use crate::ast::{FunctionDecl, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{Function, I32Location, I32Value, Instruction, Type};
 
-pub(super) fn lower_entry_function(function: &FunctionDecl) -> Result<Function, Vec<Diagnostic>> {
+pub(super) fn lower_entry_function(
+    function: &FunctionDecl,
+    function_signatures: FunctionSignatures,
+) -> Result<Function, Vec<Diagnostic>> {
     if !function.generics.parameters.is_empty() || !function.parameters.parameters.is_empty() {
         return Err(vec![Diagnostic::error(
             "E8001",
@@ -16,7 +19,7 @@ pub(super) fn lower_entry_function(function: &FunctionDecl) -> Result<Function, 
     }
 
     let return_type = lower_entry_return_type(&function.return_type)?;
-    let instructions = lower_entry_body(function, &return_type)?;
+    let instructions = lower_entry_body(function, &return_type, function_signatures)?;
 
     Ok(Function {
         name: function.name.clone(),
@@ -41,6 +44,7 @@ fn lower_entry_return_type(ty: &TypeExpr) -> Result<Type, Vec<Diagnostic>> {
 fn lower_entry_body(
     function: &FunctionDecl,
     return_type: &Type,
+    function_signatures: FunctionSignatures,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let success_type = return_type.success_type();
     let statements = function.body.statements.as_slice();
@@ -53,7 +57,11 @@ fn lower_entry_body(
         return Err(unsupported_entry_body_diagnostic());
     };
 
-    let mut context = LoweringContext::empty();
+    let mut context = LoweringContext::empty(
+        function.name.clone(),
+        success_type.clone(),
+        function_signatures,
+    );
     let mut instructions = lower_leading_bindings(leading, &mut context)?;
 
     match last {

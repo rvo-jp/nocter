@@ -12,8 +12,10 @@ mod tests;
 
 use super::{Function, Instruction, IrModule};
 use crate::analysis::CompileUnitAnalysis;
-use crate::ast::{FunctionDecl, Item};
+use crate::ast::{FunctionDecl, Item, TypeExpr};
 use crate::diagnostics::Diagnostic;
+use crate::ir::Type;
+use context::FunctionSignatures;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 pub(crate) fn lower_executable_with_entry(
@@ -37,9 +39,18 @@ pub(crate) fn lower_executable_with_entry(
         )]);
     };
 
-    let mut functions = vec![entry::lower_entry_function(entry)?];
     let root_functions = collect_root_functions(&root.ast.items);
-    lower_reachable_functions(&mut functions, &root_functions, entry_name)?;
+    let function_signatures = collect_function_signatures(&root_functions);
+    let mut functions = vec![entry::lower_entry_function(
+        entry,
+        function_signatures.clone(),
+    )?];
+    lower_reachable_functions(
+        &mut functions,
+        &root_functions,
+        &function_signatures,
+        entry_name,
+    )?;
 
     Ok(IrModule::new(functions))
 }
@@ -54,9 +65,33 @@ fn collect_root_functions(items: &[Item]) -> HashMap<&str, &FunctionDecl> {
         .collect()
 }
 
+fn collect_function_signatures(functions: &HashMap<&str, &FunctionDecl>) -> FunctionSignatures {
+    FunctionSignatures::new(
+        functions
+            .values()
+            .filter_map(|function| {
+                lower_signature_return_type(&function.return_type)
+                    .map(|return_type| (function.name.clone(), return_type))
+            })
+            .collect(),
+    )
+}
+
+fn lower_signature_return_type(ty: &TypeExpr) -> Option<Type> {
+    match ty {
+        TypeExpr::Reference(reference) if reference.name == "i32" => Some(Type::I32),
+        TypeExpr::Reference(reference) if reference.name == "bool" => Some(Type::Bool),
+        TypeExpr::Reference(reference) if reference.name == "void" => Some(Type::Void),
+        TypeExpr::Fallible(fallible) => lower_signature_return_type(&fallible.success)
+            .map(|success| Type::Fallible(Box::new(success))),
+        _ => None,
+    }
+}
+
 fn lower_reachable_functions(
     lowered: &mut Vec<Function>,
     candidates: &HashMap<&str, &FunctionDecl>,
+    function_signatures: &FunctionSignatures,
     entry_name: &str,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut seen = HashSet::from([entry_name.to_string()]);
@@ -74,7 +109,7 @@ fn lower_reachable_functions(
             )]);
         };
 
-        let function = functions::lower_function(function)?;
+        let function = functions::lower_function(function, function_signatures.clone())?;
         queue.extend(call_targets(&function));
         lowered.push(function);
     }
