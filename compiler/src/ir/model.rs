@@ -59,6 +59,7 @@ pub(crate) enum I32Value {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BoolLocation {
+    Return,
     Local(usize),
 }
 
@@ -98,6 +99,7 @@ pub(crate) enum I32ComparisonOperator {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Type {
     I32,
+    Bool,
     Void,
     Fallible(Box<Type>),
 }
@@ -106,7 +108,7 @@ impl Type {
     pub(crate) fn success_type(&self) -> &Type {
         match self {
             Self::Fallible(success) => success,
-            Self::I32 | Self::Void => self,
+            Self::I32 | Self::Bool | Self::Void => self,
         }
     }
 }

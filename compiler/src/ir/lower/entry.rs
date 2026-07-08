@@ -69,6 +69,7 @@ fn lower_entry_body(
                     "E8002",
                     "IR v0 cannot lower bare returns from `i32` entry function",
                 )]),
+                (Type::Bool, _) => unreachable!("bool entry type is not lowered in v0"),
                 (Type::Fallible(_), _) => unreachable!("fallible success type must be unwrapped"),
             }?;
             instructions.extend(return_instructions);
@@ -99,7 +100,7 @@ fn lower_entry_body(
                 "E8004",
                 "IR v0 can only lower `fail make_error(...)` from `func main(): i32!`",
             )]),
-            Type::I32 | Type::Void => Err(vec![Diagnostic::error(
+            Type::I32 | Type::Bool | Type::Void => Err(vec![Diagnostic::error(
                 "E8004",
                 "IR v0 cannot lower `fail` from a non-fallible entry function",
             )]),

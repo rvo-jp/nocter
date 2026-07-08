@@ -155,6 +155,7 @@ Currently buildable:
 - `void` entry with an empty body or bare `return`
 - same-file non-generic function calls
 - up to 8 `i32` parameters for lowered functions
+- non-entry functions returning `bool`
 - `i32` addition used in lowerable `i32` expressions
 - bool `!`, `&&`, and `||` used in lowerable bool expressions
 - terminal `if` / `else` statements with bool literal, bool local, or `i32` comparison conditions and direct `i32` returns in both branches

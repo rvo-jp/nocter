@@ -835,6 +835,52 @@ func at_least(left: i32, right: i32): i32 {
 }
 
 #[test]
+fn lowers_bool_returning_function() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func enabled(): bool {
+    let ready = true
+    let blocked = false
+    return ready && !blocked
+}
+"#,
+        "enabled",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "enabled".to_string(),
+            return_type: Type::Bool,
+            instructions: vec![
+                Instruction::SetBool {
+                    destination: BoolLocation::Local(0),
+                    value: BoolValue::Const(true),
+                },
+                Instruction::SetBool {
+                    destination: BoolLocation::Local(1),
+                    value: BoolValue::Const(false),
+                },
+                Instruction::SetBool {
+                    destination: BoolLocation::Return,
+                    value: BoolValue::Logical {
+                        operator: BoolLogicalOperator::And,
+                        left: Box::new(BoolValue::Location(BoolLocation::Local(0))),
+                        right: Box::new(BoolValue::Not(Box::new(BoolValue::Location(
+                            BoolLocation::Local(1),
+                        )))),
+                    },
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn reports_unsupported_entry_body() {
     let diagnostics = lower_text_diagnostics(
         r#"func main(): i32 {
@@ -872,6 +918,18 @@ fn lower_text_with_entry(text: &str, entry_name: &str) -> IrModule {
         }
         diagnostics => panic!("unexpected diagnostics: {diagnostics:?}"),
     }
+}
+
+fn lower_named_function(text: &str, function_name: &str) -> Function {
+    let analysis = analyze_text_with_entry(text, crate::entry::DEFAULT_ENTRY_NAME);
+    let root = analysis.root_file().unwrap();
+    let Some(crate::ast::Item::Function(function)) = root.ast.items.iter().find(|item| {
+        matches!(item, crate::ast::Item::Function(function) if function.name == function_name)
+    }) else {
+        panic!("missing function `{function_name}`");
+    };
+
+    functions::lower_function(function).unwrap()
 }
 
 fn set_return_i32(value: i32) -> Instruction {

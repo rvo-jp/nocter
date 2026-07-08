@@ -3,7 +3,8 @@ use super::literals::lower_i32_literal;
 use crate::ast::{BinaryExpr, BinaryOperator, CallExpr, Expr, UnaryExpr, UnaryOperator};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolLogicalOperator, BoolValue, I32ComparisonOperator, I32Location, I32Value, Instruction,
+    BoolLocation, BoolLogicalOperator, BoolValue, I32ComparisonOperator, I32Location, I32Value,
+    Instruction,
 };
 
 pub(super) fn lower_i32_expression(
@@ -51,6 +52,20 @@ pub(super) fn lower_i32_return_expression(
             Ok(instructions)
         }
     }
+}
+
+pub(super) fn lower_bool_return_expression(
+    expression: &Expr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    Ok(vec![
+        Instruction::SetBool {
+            destination: BoolLocation::Return,
+            value: lower_bool_value(expression, context, diagnostic_code)?,
+        },
+        Instruction::Return,
+    ])
 }
 
 fn lower_i32_tail_call(

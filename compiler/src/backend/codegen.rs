@@ -468,6 +468,7 @@ impl EntryEmitter {
 
     fn bool_location_register(&self, location: BoolLocation) -> Result<WReg, Vec<Diagnostic>> {
         match location {
+            BoolLocation::Return => Ok(WReg::W0),
             BoolLocation::Local(index) => WReg::local(index).ok_or_else(|| {
                 vec![Diagnostic::error(
                     "E9003",
@@ -785,6 +786,35 @@ mod tests {
                 0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
                 0x01, 0x10, 0x00, 0xd4, // svc #0x80
                 0xe0, 0x00, 0x80, 0x52, // movz w0, #7
+                0xc0, 0x03, 0x5f, 0xd6, // ret
+            ]
+        );
+    }
+
+    #[test]
+    fn generates_exit_code_for_return_bool_true() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            return_type: Type::Bool,
+            instructions: vec![
+                Instruction::SetBool {
+                    destination: BoolLocation::Return,
+                    value: BoolValue::Const(true),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert_eq!(
+            code.text,
+            vec![
+                0x04, 0x00, 0x00, 0x94, // bl main
+                0x30, 0x00, 0x80, 0x52, // movz w16, #1
+                0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
+                0x01, 0x10, 0x00, 0xd4, // svc #0x80
+                0x20, 0x00, 0x80, 0x52, // movz w0, #1
                 0xc0, 0x03, 0x5f, 0xd6, // ret
             ]
         );

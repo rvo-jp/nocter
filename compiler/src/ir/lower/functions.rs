@@ -1,7 +1,7 @@
 use super::bindings::lower_let_binding;
 use super::context::LoweringContext;
 use super::control_flow::lower_terminal_i32_if_statement;
-use super::expressions::lower_i32_return_expression;
+use super::expressions::{lower_bool_return_expression, lower_i32_return_expression};
 use crate::ast::{FunctionDecl, Parameter, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{Function, Instruction, Type};
@@ -64,10 +64,11 @@ fn lower_i32_parameter(
 fn lower_function_return_type(ty: &TypeExpr, name: &str) -> Result<Type, Vec<Diagnostic>> {
     match ty {
         TypeExpr::Reference(reference) if reference.name == "i32" => Ok(Type::I32),
+        TypeExpr::Reference(reference) if reference.name == "bool" => Ok(Type::Bool),
         TypeExpr::Reference(reference) if reference.name == "void" => Ok(Type::Void),
         _ => Err(vec![Diagnostic::error(
             "E8007",
-            format!("IR v0 can only lower function `{name}` return type `i32` or `void`"),
+            format!("IR v0 can only lower function `{name}` return type `i32`, `bool`, or `void`"),
         )]),
     }
 }
@@ -93,6 +94,9 @@ fn lower_function_body(
         Stmt::Return(statement) => {
             let return_instructions = match (return_type, &statement.expression) {
                 (Type::I32, Some(expression)) => lower_i32_return_expression(expression, context),
+                (Type::Bool, Some(expression)) => {
+                    lower_bool_return_expression(expression, context, "E8007")
+                }
                 (Type::Void, None) => Ok(vec![Instruction::Return]),
                 (Type::Void, Some(_)) => Err(vec![Diagnostic::error(
                     "E8007",
@@ -105,6 +109,13 @@ fn lower_function_body(
                     "E8007",
                     format!(
                         "IR v0 cannot lower bare returns from i32 function `{}`",
+                        function.name
+                    ),
+                )]),
+                (Type::Bool, None) => Err(vec![Diagnostic::error(
+                    "E8007",
+                    format!(
+                        "IR v0 cannot lower bare returns from bool function `{}`",
                         function.name
                     ),
                 )]),
