@@ -172,6 +172,19 @@ Currently not buildable even when it may be checkable:
 - aggregate values, arrays, views, pointers, methods, traits, generics, ownership lowering, and drop glue
 - custom output path selection through `-o`
 
+### Backend V0 Register Convention
+
+The `arm64-darwin` backend v0 uses a deliberately small register-only convention while the IR has no stack frame, spill slots, or ABI-complete call lowering.
+
+- scalar `i32` and `bool` values are represented in 32-bit ARM64 `w` registers
+- `bool` is encoded as `0` for false and `1` for true
+- lowered function arguments are passed in `w0` through `w7`
+- lowered function return values are produced in `w0`
+- scalar local bindings use `w9` through `w15` across both `i32` and `bool`
+- `w16` and `w17` are backend scratch registers and may be clobbered by code generation
+
+Tail calls are lowered by loading the callee arguments into `w0` through `w7` and branching directly to the target function. Non-tail calls are intentionally not buildable yet. A normal call would return to the caller after clobbering argument, return, and scratch registers; with the current register-only local model, that can destroy live values in later expressions. Add stack slots, spill/reload support, and a clear caller/callee preservation rule before lowering non-tail calls.
+
 Use integration tests for user-visible CLI behavior and backend/unit tests for lower-level encoding and Mach-O layout. When extending build support, first add a small `nocter build` regression case, then expand IR lowering, code generation, and documentation together.
 
 ## Suggested Source Layout
