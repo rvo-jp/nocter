@@ -1,6 +1,6 @@
 use super::bindings::lower_let_binding;
 use super::context::{FunctionSignatures, LoweringContext};
-use super::control_flow::lower_terminal_i32_if_statement;
+use super::control_flow::{lower_terminal_bool_if_statement, lower_terminal_i32_if_statement};
 use super::expressions::{lower_bool_return_expression, lower_i32_return_expression};
 use crate::ast::{FunctionDecl, Parameter, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
@@ -136,6 +136,15 @@ fn lower_function_body(
         }
         Stmt::If(statement) if return_type == &Type::I32 => {
             instructions.extend(lower_terminal_i32_if_statement(
+                statement,
+                context,
+                "E8007",
+                "functions",
+            )?);
+            Ok(instructions)
+        }
+        Stmt::If(statement) if return_type == &Type::Bool => {
+            instructions.extend(lower_terminal_bool_if_statement(
                 statement,
                 context,
                 "E8007",

@@ -158,7 +158,7 @@ Currently buildable:
 - non-entry functions returning `bool`
 - `i32` addition used in lowerable `i32` expressions
 - bool `!`, `&&`, and `||` used in lowerable bool expressions
-- terminal `if` / `else` statements with bool literal, bool local, or `i32` comparison conditions and direct `i32` returns in both branches
+- terminal `if` / `else` statements with bool literal, bool local, or `i32` comparison conditions and direct `i32` or non-entry `bool` returns in both branches
 - simple fallible entry success
 - simple fallible entry failure through `fail make_error("code", "message")`
 

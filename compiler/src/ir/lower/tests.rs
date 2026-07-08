@@ -882,6 +882,57 @@ func enabled(): bool {
 }
 
 #[test]
+fn lowers_bool_returning_function_with_terminal_if() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func enabled(): bool {
+    let ready = true
+    if ready {
+        return true
+    } else {
+        return false
+    }
+}
+"#,
+        "enabled",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "enabled".to_string(),
+            return_type: Type::Bool,
+            instructions: vec![
+                Instruction::SetBool {
+                    destination: BoolLocation::Local(0),
+                    value: BoolValue::Const(true),
+                },
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Local(0)),
+                    then_instructions: vec![
+                        Instruction::SetBool {
+                            destination: BoolLocation::Return,
+                            value: BoolValue::Const(true),
+                        },
+                        Instruction::Return,
+                    ],
+                    else_instructions: vec![
+                        Instruction::SetBool {
+                            destination: BoolLocation::Return,
+                            value: BoolValue::Const(false),
+                        },
+                        Instruction::Return,
+                    ],
+                },
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_bool_returning_function_tail_call() {
     let function = lower_named_function(
         r#"func main(): i32 {
