@@ -66,11 +66,23 @@ pub(crate) enum BoolLocation {
 pub(crate) enum BoolValue {
     Const(bool),
     Location(BoolLocation),
+    Not(Box<BoolValue>),
+    Logical {
+        operator: BoolLogicalOperator,
+        left: Box<BoolValue>,
+        right: Box<BoolValue>,
+    },
     I32Comparison {
         operator: I32ComparisonOperator,
         left: I32Value,
         right: I32Value,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BoolLogicalOperator {
+    And,
+    Or,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

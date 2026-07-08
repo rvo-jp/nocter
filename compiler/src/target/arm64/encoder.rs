@@ -30,6 +30,10 @@ impl Encoder {
         self.emit_word(SUBS_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | WZR_BITS);
     }
 
+    pub(crate) fn emit_cmp_w_zero(&mut self, rn: WReg) {
+        self.emit_word(SUBS_W_BASE | (WZR_BITS << 16) | (rn.bits() << 5) | WZR_BITS);
+    }
+
     pub(crate) fn emit_movz_x(&mut self, rd: XReg, imm16: u16, shift: MoveWideShift) {
         self.emit_word(MOVZ_X_BASE | move_wide_fields(rd.bits(), imm16, shift));
     }
@@ -87,6 +91,19 @@ impl Encoder {
         debug_assert!(instruction_offset + 4 <= self.bytes.len());
 
         let word = b_word(byte_offset);
+        self.bytes[instruction_offset..instruction_offset + 4].copy_from_slice(&word.to_le_bytes());
+    }
+
+    pub(crate) fn patch_b_cond(
+        &mut self,
+        instruction_offset: usize,
+        condition: BranchCondition,
+        byte_offset: i32,
+    ) {
+        debug_assert_eq!(instruction_offset % 4, 0);
+        debug_assert!(instruction_offset + 4 <= self.bytes.len());
+
+        let word = b_cond_word(condition, byte_offset);
         self.bytes[instruction_offset..instruction_offset + 4].copy_from_slice(&word.to_le_bytes());
     }
 
@@ -349,6 +366,15 @@ mod tests {
     }
 
     #[test]
+    fn encodes_cmp_w16_zero() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_cmp_w_zero(WReg::W16);
+
+        assert_eq!(encoder.finish(), vec![0x1f, 0x02, 0x1f, 0x6b]);
+    }
+
+    #[test]
     fn encodes_movz_x0_imm16() {
         let mut encoder = Encoder::new();
 
@@ -469,6 +495,24 @@ mod tests {
             encoder.finish(),
             vec![
                 0x01, 0x00, 0x00, 0x14, // b +4
+                0xc0, 0x03, 0x5f, 0xd6, // ret
+            ]
+        );
+    }
+
+    #[test]
+    fn patches_b_cond_offset() {
+        let mut encoder = Encoder::new();
+        let branch_offset = encoder.position();
+        encoder.emit_b_cond(BranchCondition::Eq, 0);
+        encoder.emit_ret();
+
+        encoder.patch_b_cond(branch_offset, BranchCondition::Ne, 4);
+
+        assert_eq!(
+            encoder.finish(),
+            vec![
+                0x21, 0x00, 0x00, 0x54, // b.ne +4
                 0xc0, 0x03, 0x5f, 0xd6, // ret
             ]
         );

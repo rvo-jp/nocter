@@ -1,8 +1,10 @@
 use super::context::LoweringContext;
 use super::literals::lower_i32_literal;
-use crate::ast::{BinaryExpr, BinaryOperator, CallExpr, Expr};
+use crate::ast::{BinaryExpr, BinaryOperator, CallExpr, Expr, UnaryExpr, UnaryOperator};
 use crate::diagnostics::Diagnostic;
-use crate::ir::{BoolValue, I32ComparisonOperator, I32Location, I32Value, Instruction};
+use crate::ir::{
+    BoolLogicalOperator, BoolValue, I32ComparisonOperator, I32Location, I32Value, Instruction,
+};
 
 pub(super) fn lower_i32_expression(
     expression: &Expr,
@@ -122,7 +124,8 @@ pub(super) fn lower_bool_value(
             .bool_location(&identifier.name)
             .map(BoolValue::Location)
             .ok_or_else(|| unsupported_bool_expression_diagnostic(diagnostic_code)),
-        Expr::Binary(binary) => lower_i32_comparison_condition(binary, context, diagnostic_code),
+        Expr::Unary(unary) => lower_bool_unary_value(unary, context, diagnostic_code),
+        Expr::Binary(binary) => lower_bool_binary_value(binary, context, diagnostic_code),
         Expr::Group(group) => lower_bool_value(&group.expression, context, diagnostic_code),
         _ => Err(unsupported_bool_expression_diagnostic(diagnostic_code)),
     }
@@ -135,10 +138,65 @@ pub(super) fn expression_is_lowerable_bool_binding(
     match expression {
         Expr::BoolLiteral(_) => true,
         Expr::Identifier(identifier) => context.bool_location(&identifier.name).is_some(),
-        Expr::Binary(binary) => is_i32_comparison_operator(binary.operator),
+        Expr::Unary(unary) => {
+            unary.operator == UnaryOperator::LogicalNot
+                && expression_is_lowerable_bool_binding(&unary.operand, context)
+        }
+        Expr::Binary(binary) => {
+            is_i32_comparison_operator(binary.operator)
+                || (is_bool_logical_operator(binary.operator)
+                    && expression_is_lowerable_bool_binding(&binary.left, context)
+                    && expression_is_lowerable_bool_binding(&binary.right, context))
+        }
         Expr::Group(group) => expression_is_lowerable_bool_binding(&group.expression, context),
         _ => false,
     }
+}
+
+fn lower_bool_unary_value(
+    unary: &UnaryExpr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<BoolValue, Vec<Diagnostic>> {
+    match unary.operator {
+        UnaryOperator::LogicalNot => Ok(BoolValue::Not(Box::new(lower_bool_value(
+            &unary.operand,
+            context,
+            diagnostic_code,
+        )?))),
+        UnaryOperator::Negate => Err(unsupported_bool_expression_diagnostic(diagnostic_code)),
+    }
+}
+
+fn lower_bool_binary_value(
+    binary: &BinaryExpr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<BoolValue, Vec<Diagnostic>> {
+    match binary.operator {
+        BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr => {
+            lower_bool_logical_value(binary, context, diagnostic_code)
+        }
+        _ => lower_i32_comparison_condition(binary, context, diagnostic_code),
+    }
+}
+
+fn lower_bool_logical_value(
+    binary: &BinaryExpr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<BoolValue, Vec<Diagnostic>> {
+    let operator = match binary.operator {
+        BinaryOperator::LogicalAnd => BoolLogicalOperator::And,
+        BinaryOperator::LogicalOr => BoolLogicalOperator::Or,
+        _ => return Err(unsupported_bool_expression_diagnostic(diagnostic_code)),
+    };
+
+    Ok(BoolValue::Logical {
+        operator,
+        left: Box::new(lower_bool_value(&binary.left, context, diagnostic_code)?),
+        right: Box::new(lower_bool_value(&binary.right, context, diagnostic_code)?),
+    })
 }
 
 fn lower_i32_comparison_condition(
@@ -175,6 +233,13 @@ fn is_i32_comparison_operator(operator: BinaryOperator) -> bool {
     )
 }
 
+fn is_bool_logical_operator(operator: BinaryOperator) -> bool {
+    matches!(
+        operator,
+        BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
+    )
+}
+
 fn unsupported_i32_expression_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8006",
@@ -185,6 +250,6 @@ fn unsupported_i32_expression_diagnostic() -> Vec<Diagnostic> {
 fn unsupported_bool_expression_diagnostic(diagnostic_code: &'static str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         diagnostic_code,
-        "IR v0 can only lower bool literals, bool locals, and i32 comparisons",
+        "IR v0 can only lower bool literals, bool locals, bool operators, and i32 comparisons",
     )]
 }

@@ -129,6 +129,30 @@ fn build_command_lowers_terminal_if_bool_local() {
 }
 
 #[test]
+fn build_command_lowers_terminal_if_bool_logical() {
+    let project = TempProject::new("cli-build-terminal-if-bool-logical");
+    let source = project.write_source(
+        "terminal_if_bool_logical.nct",
+        r#"func main(): i32 {
+    let ready = true
+    let blocked = false
+    if ready && !blocked {
+        return 0
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_terminal_if_i32_equality() {
     let project = TempProject::new("cli-build-terminal-if-equality");
     let source = project.write_source(
@@ -423,6 +447,34 @@ fn built_executable_returns_terminal_if_bool_local_value() {
         r#"func main(): i32 {
     let value = 42
     let enabled = true
+    if enabled {
+        return value
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    let status = Command::new(&executable).status().unwrap();
+    assert_eq!(status.code(), Some(42));
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn built_executable_returns_terminal_if_bool_or_binding_value() {
+    let project = TempProject::new("cli-build-run-terminal-if-bool-or");
+    let source = project.write_source(
+        "terminal_if_bool_or_exit.nct",
+        r#"func main(): i32 {
+    let value = 42
+    let ready = false
+    let fallback = true
+    let enabled = ready || fallback
     if enabled {
         return value
     } else {

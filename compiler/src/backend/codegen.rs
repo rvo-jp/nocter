@@ -1,7 +1,7 @@
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolLocation, BoolValue, Function, I32ComparisonOperator, I32Location, I32Value, Instruction,
-    IrModule, Type,
+    BoolLocation, BoolLogicalOperator, BoolValue, Function, I32ComparisonOperator, I32Location,
+    I32Value, Instruction, IrModule, Type,
 };
 use crate::target::arm64::{BranchCondition, Encoder, MoveWideShift, WReg, XReg};
 use std::collections::HashMap;
@@ -128,7 +128,7 @@ impl EntryEmitter {
         then_instructions: &[Instruction],
         else_instructions: &[Instruction],
     ) -> Result<(), Vec<Diagnostic>> {
-        let branch_to_else = self.emit_branch_to_else_if_condition_false(condition)?;
+        let branches_to_else = self.emit_bool_false_branch_placeholders(condition)?;
 
         for instruction in then_instructions {
             self.emit_instruction(instruction)?;
@@ -141,34 +141,30 @@ impl EntryEmitter {
                 Some(self.emit_branch_placeholder())
             };
 
-        if let Some(instruction_offset) = branch_to_else {
-            self.patch_branch_to_current(instruction_offset, "if branch target")?;
-        }
+        self.patch_branch_placeholders_to_current(branches_to_else, "if branch target")?;
 
         for instruction in else_instructions {
             self.emit_instruction(instruction)?;
         }
 
-        if let Some(instruction_offset) = branch_to_end {
-            self.patch_branch_to_current(instruction_offset, "if end target")?;
+        if let Some(branch) = branch_to_end {
+            self.patch_branch_placeholder_to_current(branch, "if end target")?;
         }
 
         Ok(())
     }
 
-    fn emit_branch_to_else_if_condition_false(
+    fn emit_bool_false_branch_placeholders(
         &mut self,
-        condition: &BoolValue,
-    ) -> Result<Option<usize>, Vec<Diagnostic>> {
-        match condition {
-            BoolValue::Const(true) => Ok(None),
-            BoolValue::Const(false) => Ok(Some(self.emit_branch_placeholder())),
+        value: &BoolValue,
+    ) -> Result<Vec<BranchPatch>, Vec<Diagnostic>> {
+        match value {
+            BoolValue::Const(true) => Ok(Vec::new()),
+            BoolValue::Const(false) => Ok(vec![self.emit_branch_placeholder()]),
             BoolValue::Location(_) => {
-                self.emit_bool_value_to_w(condition, WReg::W16)?;
-                emit_mov_i32_to_w(&mut self.encoder, WReg::W17, 0);
-                self.encoder.emit_cmp_w(WReg::W16, WReg::W17);
-                self.encoder.emit_b_cond(BranchCondition::Ne, 8);
-                Ok(Some(self.emit_branch_placeholder()))
+                self.emit_bool_value_to_w(value, WReg::W16)?;
+                self.encoder.emit_cmp_w_zero(WReg::W16);
+                Ok(vec![self.emit_cond_branch_placeholder(BranchCondition::Eq)])
             }
             BoolValue::I32Comparison {
                 operator,
@@ -178,17 +174,125 @@ impl EntryEmitter {
                 self.emit_i32_value_to_w(left, WReg::W16)?;
                 self.emit_i32_value_to_w(right, WReg::W17)?;
                 self.encoder.emit_cmp_w(WReg::W16, WReg::W17);
-                self.encoder
-                    .emit_b_cond(branch_condition_for_true_comparison(*operator), 8);
-                Ok(Some(self.emit_branch_placeholder()))
+                Ok(vec![self.emit_cond_branch_placeholder(
+                    branch_condition_for_false_comparison(*operator),
+                )])
             }
+            BoolValue::Not(inner) => self.emit_bool_true_branch_placeholders(inner),
+            BoolValue::Logical {
+                operator,
+                left,
+                right,
+            } => match operator {
+                BoolLogicalOperator::And => {
+                    let mut branches = self.emit_bool_false_branch_placeholders(left)?;
+                    branches.extend(self.emit_bool_false_branch_placeholders(right)?);
+                    Ok(branches)
+                }
+                BoolLogicalOperator::Or => {
+                    let left_true_branches = self.emit_bool_true_branch_placeholders(left)?;
+                    let right_false_branches = self.emit_bool_false_branch_placeholders(right)?;
+                    self.patch_branch_placeholders_to_current(
+                        left_true_branches,
+                        "bool OR true target",
+                    )?;
+                    Ok(right_false_branches)
+                }
+            },
         }
     }
 
-    fn emit_branch_placeholder(&mut self) -> usize {
+    fn emit_bool_true_branch_placeholders(
+        &mut self,
+        value: &BoolValue,
+    ) -> Result<Vec<BranchPatch>, Vec<Diagnostic>> {
+        match value {
+            BoolValue::Const(true) => Ok(vec![self.emit_branch_placeholder()]),
+            BoolValue::Const(false) => Ok(Vec::new()),
+            BoolValue::Location(_) => {
+                self.emit_bool_value_to_w(value, WReg::W16)?;
+                self.encoder.emit_cmp_w_zero(WReg::W16);
+                Ok(vec![self.emit_cond_branch_placeholder(BranchCondition::Ne)])
+            }
+            BoolValue::I32Comparison {
+                operator,
+                left,
+                right,
+            } => {
+                self.emit_i32_value_to_w(left, WReg::W16)?;
+                self.emit_i32_value_to_w(right, WReg::W17)?;
+                self.encoder.emit_cmp_w(WReg::W16, WReg::W17);
+                Ok(vec![self.emit_cond_branch_placeholder(
+                    branch_condition_for_true_comparison(*operator),
+                )])
+            }
+            BoolValue::Not(inner) => self.emit_bool_false_branch_placeholders(inner),
+            BoolValue::Logical {
+                operator,
+                left,
+                right,
+            } => match operator {
+                BoolLogicalOperator::And => {
+                    let left_false_branches = self.emit_bool_false_branch_placeholders(left)?;
+                    let right_true_branches = self.emit_bool_true_branch_placeholders(right)?;
+                    self.patch_branch_placeholders_to_current(
+                        left_false_branches,
+                        "bool AND false target",
+                    )?;
+                    Ok(right_true_branches)
+                }
+                BoolLogicalOperator::Or => {
+                    let mut branches = self.emit_bool_true_branch_placeholders(left)?;
+                    branches.extend(self.emit_bool_true_branch_placeholders(right)?);
+                    Ok(branches)
+                }
+            },
+        }
+    }
+
+    fn emit_branch_placeholder(&mut self) -> BranchPatch {
         let instruction_offset = self.encoder.position();
         self.encoder.emit_b(0);
-        instruction_offset
+        BranchPatch::Unconditional { instruction_offset }
+    }
+
+    fn emit_cond_branch_placeholder(&mut self, condition: BranchCondition) -> BranchPatch {
+        let instruction_offset = self.encoder.position();
+        self.encoder.emit_b_cond(condition, 0);
+        BranchPatch::Conditional {
+            instruction_offset,
+            condition,
+        }
+    }
+
+    fn patch_branch_placeholders_to_current(
+        &mut self,
+        branches: Vec<BranchPatch>,
+        target_description: &str,
+    ) -> Result<(), Vec<Diagnostic>> {
+        for branch in branches {
+            self.patch_branch_placeholder_to_current(branch, target_description)?;
+        }
+
+        Ok(())
+    }
+
+    fn patch_branch_placeholder_to_current(
+        &mut self,
+        branch: BranchPatch,
+        target_description: &str,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match branch {
+            BranchPatch::Unconditional { instruction_offset } => {
+                self.patch_branch_to_current(instruction_offset, target_description)
+            }
+            BranchPatch::Conditional {
+                instruction_offset,
+                condition,
+            } => {
+                self.patch_cond_branch_to_current(instruction_offset, condition, target_description)
+            }
+        }
     }
 
     fn patch_branch_to_current(
@@ -205,6 +309,25 @@ impl EntryEmitter {
         }
 
         self.encoder.patch_b(instruction_offset, byte_offset as i32);
+        Ok(())
+    }
+
+    fn patch_cond_branch_to_current(
+        &mut self,
+        instruction_offset: usize,
+        condition: BranchCondition,
+        target_description: &str,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let byte_offset = self.encoder.position() as i64 - instruction_offset as i64;
+        if !(COND_BRANCH_MIN_BYTE_OFFSET..=COND_BRANCH_MAX_BYTE_OFFSET).contains(&byte_offset) {
+            return Err(vec![Diagnostic::error(
+                "E9001",
+                format!("{target_description} is too far for ARM64 `b.cond`"),
+            )]);
+        }
+
+        self.encoder
+            .patch_b_cond(instruction_offset, condition, byte_offset as i32);
         Ok(())
     }
 
@@ -306,19 +429,19 @@ impl EntryEmitter {
                     self.encoder.emit_mov_w(destination, source);
                 }
             }
-            BoolValue::I32Comparison {
-                operator,
-                left,
-                right,
-            } => {
-                emit_mov_i32_to_w(&mut self.encoder, destination, 0);
-                self.emit_i32_value_to_w(left, WReg::W16)?;
-                self.emit_i32_value_to_w(right, WReg::W17)?;
-                self.encoder.emit_cmp_w(WReg::W16, WReg::W17);
-                self.encoder
-                    .emit_b_cond(branch_condition_for_true_comparison(*operator), 8);
-                self.encoder.emit_b(8);
+            BoolValue::Not(_) | BoolValue::Logical { .. } | BoolValue::I32Comparison { .. } => {
+                let branches_to_false = self.emit_bool_false_branch_placeholders(value)?;
                 emit_mov_i32_to_w(&mut self.encoder, destination, 1);
+                let branch_to_end = self.emit_branch_placeholder();
+                self.patch_branch_placeholders_to_current(
+                    branches_to_false,
+                    "bool false materialization target",
+                )?;
+                emit_mov_i32_to_w(&mut self.encoder, destination, 0);
+                self.patch_branch_placeholder_to_current(
+                    branch_to_end,
+                    "bool materialization end target",
+                )?;
             }
         }
 
@@ -453,6 +576,17 @@ struct FunctionCallPatch {
     function: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BranchPatch {
+    Unconditional {
+        instruction_offset: usize,
+    },
+    Conditional {
+        instruction_offset: usize,
+        condition: BranchCondition,
+    },
+}
+
 fn emit_mov_i32_to_w0(encoder: &mut Encoder, value: i32) {
     emit_mov_i32_to_w(encoder, WReg::W0, value);
 }
@@ -528,6 +662,17 @@ fn branch_condition_for_true_comparison(operator: I32ComparisonOperator) -> Bran
     }
 }
 
+fn branch_condition_for_false_comparison(operator: I32ComparisonOperator) -> BranchCondition {
+    match operator {
+        I32ComparisonOperator::Equal => BranchCondition::Ne,
+        I32ComparisonOperator::NotEqual => BranchCondition::Eq,
+        I32ComparisonOperator::Less => BranchCondition::Ge,
+        I32ComparisonOperator::LessEqual => BranchCondition::Gt,
+        I32ComparisonOperator::Greater => BranchCondition::Le,
+        I32ComparisonOperator::GreaterEqual => BranchCondition::Lt,
+    }
+}
+
 fn align_usize(value: usize, alignment: usize) -> usize {
     debug_assert!(alignment.is_power_of_two());
     (value + alignment - 1) & !(alignment - 1)
@@ -536,6 +681,8 @@ fn align_usize(value: usize, alignment: usize) -> usize {
 const STDERR_FILENO: u64 = 2;
 const ADR_MIN_BYTE_OFFSET: i64 = -(1 << 20);
 const ADR_MAX_BYTE_OFFSET: i64 = (1 << 20) - 1;
+const COND_BRANCH_MIN_BYTE_OFFSET: i64 = -(1 << 20);
+const COND_BRANCH_MAX_BYTE_OFFSET: i64 = (1 << 20) - 4;
 const BRANCH_MIN_BYTE_OFFSET: i64 = -(1 << 27);
 const BRANCH_MAX_BYTE_OFFSET: i64 = (1 << 27) - 4;
 const DARWIN_WRITE_SYSCALL: u32 = 0x0200_0004;
@@ -851,10 +998,8 @@ mod tests {
                 0x01, 0x10, 0x00, 0xd4, // svc #0x80
                 0x29, 0x00, 0x80, 0x52, // movz w9, #1
                 0xf0, 0x03, 0x09, 0x2a, // mov w16, w9
-                0x11, 0x00, 0x80, 0x52, // movz w17, #0
-                0x1f, 0x02, 0x11, 0x6b, // cmp w16, w17
-                0x41, 0x00, 0x00, 0x54, // b.ne +8
-                0x03, 0x00, 0x00, 0x14, // b else
+                0x1f, 0x02, 0x1f, 0x6b, // cmp w16, #0
+                0x60, 0x00, 0x00, 0x54, // b.eq else
                 0xe0, 0x00, 0x80, 0x52, // movz w0, #7
                 0xc0, 0x03, 0x5f, 0xd6, // ret
                 0x20, 0x01, 0x80, 0x52, // movz w0, #9
@@ -891,8 +1036,7 @@ mod tests {
                 0x30, 0x00, 0x80, 0x52, // movz w16, #1
                 0x31, 0x00, 0x80, 0x52, // movz w17, #1
                 0x1f, 0x02, 0x11, 0x6b, // cmp w16, w17
-                0x40, 0x00, 0x00, 0x54, // b.eq +8
-                0x03, 0x00, 0x00, 0x14, // b else
+                0x61, 0x00, 0x00, 0x54, // b.ne else
                 0xe0, 0x00, 0x80, 0x52, // movz w0, #7
                 0xc0, 0x03, 0x5f, 0xd6, // ret
                 0x20, 0x01, 0x80, 0x52, // movz w0, #9
@@ -929,8 +1073,7 @@ mod tests {
                 0x30, 0x00, 0x80, 0x52, // movz w16, #1
                 0x51, 0x00, 0x80, 0x52, // movz w17, #2
                 0x1f, 0x02, 0x11, 0x6b, // cmp w16, w17
-                0x4b, 0x00, 0x00, 0x54, // b.lt +8
-                0x03, 0x00, 0x00, 0x14, // b else
+                0x6a, 0x00, 0x00, 0x54, // b.ge else
                 0xe0, 0x00, 0x80, 0x52, // movz w0, #7
                 0xc0, 0x03, 0x5f, 0xd6, // ret
                 0x20, 0x01, 0x80, 0x52, // movz w0, #9

@@ -3,8 +3,8 @@ use crate::analysis::{CompileUnit, analyze_compile_unit_with_entry};
 use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::ir::{
-    BoolLocation, BoolValue, Function, I32ComparisonOperator, I32Location, I32Value, Instruction,
-    IrModule, Type,
+    BoolLocation, BoolLogicalOperator, BoolValue, Function, I32ComparisonOperator, I32Location,
+    I32Value, Instruction, IrModule, Type,
 };
 use crate::source::SourceMap;
 use crate::target::DEFAULT_TARGET;
@@ -225,6 +225,82 @@ fn lowers_entry_terminal_if_with_mixed_i32_and_bool_locals() {
                 },
             ],
         }])
+    );
+}
+
+#[test]
+fn lowers_entry_bool_not_binding() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let blocked = false
+    let enabled = !blocked
+    if enabled {
+        return 0
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            Instruction::SetBool {
+                destination: BoolLocation::Local(0),
+                value: BoolValue::Const(false),
+            },
+            Instruction::SetBool {
+                destination: BoolLocation::Local(1),
+                value: BoolValue::Not(Box::new(BoolValue::Location(BoolLocation::Local(0)))),
+            },
+            Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Local(1)),
+                then_instructions: vec![set_return_i32(0), Instruction::Return],
+                else_instructions: vec![set_return_i32(1), Instruction::Return],
+            },
+        ]
+    );
+}
+
+#[test]
+fn lowers_entry_terminal_if_with_bool_and_condition() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let ready = true
+    let blocked = false
+    if ready && !blocked {
+        return 0
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            Instruction::SetBool {
+                destination: BoolLocation::Local(0),
+                value: BoolValue::Const(true),
+            },
+            Instruction::SetBool {
+                destination: BoolLocation::Local(1),
+                value: BoolValue::Const(false),
+            },
+            Instruction::If {
+                condition: BoolValue::Logical {
+                    operator: BoolLogicalOperator::And,
+                    left: Box::new(BoolValue::Location(BoolLocation::Local(0))),
+                    right: Box::new(BoolValue::Not(Box::new(BoolValue::Location(
+                        BoolLocation::Local(1),
+                    )))),
+                },
+                then_instructions: vec![set_return_i32(0), Instruction::Return],
+                else_instructions: vec![set_return_i32(1), Instruction::Return],
+            },
+        ]
     );
 }
 
