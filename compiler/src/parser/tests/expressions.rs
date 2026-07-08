@@ -33,6 +33,50 @@ func main(): i32 {
 }
 
 #[test]
+fn parses_pattern_conditional_expression() {
+    let output = parse_text(
+        r#"enum AppError {
+    missing_path
+    open_failed(path: str)
+}
+
+func code(error: AppError): i32 {
+    return error ?{
+        AppError.missing_path : 1
+        AppError.open_failed(path) : path.len()
+        : 0
+    }
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[1] else {
+        panic!("expected function item");
+    };
+    let Stmt::Return(statement) = &function.body.statements[0] else {
+        panic!("expected return statement");
+    };
+    let Some(Expr::PatternConditional(expression)) = &statement.expression else {
+        panic!("expected pattern conditional expression");
+    };
+    assert_eq!(expression.arms.len(), 2);
+    assert_eq!(expression.arms[0].enum_name, "AppError");
+    assert_eq!(expression.arms[0].variant_name, "missing_path");
+    assert!(expression.arms[0].payload.is_none());
+    assert_eq!(expression.arms[1].variant_name, "open_failed");
+    assert_eq!(
+        expression.arms[1]
+            .payload
+            .as_ref()
+            .map(|payload| payload.name.as_str()),
+        Some("path")
+    );
+    assert_eq!(expression.question_span.len(), 1);
+}
+
+#[test]
 fn parses_force_unwrap_expression() {
     let output = parse_text(
         r#"func main(): i32 {

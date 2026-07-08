@@ -1,7 +1,7 @@
 # Control Flow
 
 This file is part of the Nocter language specification.
-The specification entry point is [../SPEC.md](../SPEC.md).
+The specification entry point is [README.md](README.md).
 
 ## Functions
 
@@ -21,10 +21,10 @@ Return checking:
 
 - A `void` function may use bare `return` or reach the end of the function body.
 - A non-fallible, non-optional function returning a non-`void` type must return a value on every reachable normal path, unless the path terminates with `never`.
-- A fallible function `T!` must return a success value, `fail` with an `error`, or terminate with `never` on every reachable path.
+- A fallible function `T!` must return a success value, return an `error` failure value, or terminate with `never` on every reachable path.
 - An optional function `T?` must return a present value, `return none`, or terminate with `never` on every reachable path.
-- A fallible optional function `T?!` must return a present success value, `return none` as success absence, `fail` with an `error`, or terminate with `never` on every reachable path.
-- `func main(): i32!` follows the same source-level return checking rules as a function returning `i32!`; success returns `i32`, and failure uses `fail error`.
+- A fallible optional function `T?!` must return a present success value, `return none` as success absence, return an `error` failure value, or terminate with `never` on every reachable path.
+- `func main(): i32!` follows the same source-level return checking rules as a function returning `i32!`; success returns `i32`, and failure returns an `error` value.
 - `func main(): void` and `func main(): i32` follow the same return checking rules as functions with those return types.
 
 Return value ownership, move, borrow, and view rules are specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#return-values).
@@ -138,11 +138,30 @@ Example:
 let label = count == 0 ? "empty" : "ready"
 ```
 
+Adopted: enum pattern value selection uses the pattern conditional expression.
+
+```nct
+return error ?{
+    AppError.missing_path : missing_code()
+    AppError.open_failed(path) : code_for(path)
+    : unknown_code()
+}
+```
+
+Rules:
+
+- `enum_expr ?{ ... }` is an expression.
+- Arms use `Pattern : expression`.
+- The fallback arm is written as `: expression` and is required in v0.
+- Only the selected arm expression is evaluated.
+- Payload bindings are visible only in their arm expression.
+- `?{}` is for enum pattern selection; it is not the optional propagation postfix `?` and not the optional default operator `??`.
+
 ## Statements and Expressions
 
 Adopted: the initial language is statement-centered.
 
-`if`, `switch`, and block bodies do not produce values in the initial design. Functions return values with explicit `return`. Fallible functions fail with explicit `fail`. Optional functions return absence with explicit `return none`.
+`if`, `match`, and block bodies do not produce values in the initial design. Functions return values with explicit `return`. Fallible functions fail by returning an `error` value. Optional functions return absence with explicit `return none`. Enum pattern value selection uses `?{}` instead of expression-valued `match`.
 
 ```nct
 func max(a: i32, b: i32): i32 {
@@ -163,14 +182,15 @@ Rules:
 - `let name = optional_expr else { ... }` is a declaration statement.
 - `var name = optional_expr else { ... }` is a declaration statement.
 - `if enum_expr is Pattern { ... }` is a statement.
-- `switch enum_expr { ... }` and `switch enum_expr { ... else { ... } }` are statements.
+- `match enum_expr { ... }` and `match enum_expr { ... else { ... } }` are statements.
 - `for name in start..<end { ... }` is a statement.
 - Blocks `{ ... }` do not return trailing expression values.
 - `return value` is required to return a value from a function.
-- `fail error` is required to return a failure from a fallible function.
+- `return error_value` is required to return a failure from a fallible function.
 - `return none` is required to return absence from an optional function, or success absence from a fallible optional function.
 - Optional `let ... else` and `var ... else` declarations must use an `else` block that terminates the current control path.
-- Expression-valued `if`, `switch`, and block forms are deferred.
+- Expression-valued `if`, `match`, and block forms are deferred.
+- Use `enum_expr ?{ ... }` when an enum pattern dispatch must produce a value.
 
 Invalid in the initial design:
 
@@ -181,16 +201,25 @@ let value = if condition {
     b
 }
 
-return switch error {
-    is AppError.open_failed(path) { 1 }
+return match error {
+    AppError.open_failed(path) { 1 }
     else { 0 }
 }
 ```
 
-Use the ternary conditional operator for simple value selection.
+Use the ternary conditional operator for boolean value selection.
 
 ```nct
 let value = condition ? a : b
+```
+
+Use `?{}` for enum pattern value selection.
+
+```nct
+return error ?{
+    AppError.open_failed(path) : 1
+    : 0
+}
 ```
 
 Statement separation:
@@ -217,10 +246,10 @@ Rules:
 - When an operand or branch is evaluated, its subexpressions still follow the normal left-to-right rule.
 - Temporaries are dropped at the end of the current statement in reverse creation order unless ownership is moved into a longer-lived owner.
 - Longer-lived owners include local bindings, owned parameters, constructed aggregate values, assigned target places, and returned values.
-- Blocks, `if` bodies, `switch` arms, and loop bodies create scopes.
+- Blocks, `if` bodies, `match` arms, and loop bodies create scopes.
 - Initialized local values are dropped at scope end in reverse declaration order.
 - Maybe initialized local values use compiler-generated conditional drop at scope end.
-- Postfix `?`, `return`, `fail`, `break`, and `continue` first drop temporaries already created by the current statement, then run the required normal or conditional drops for scopes they leave.
+- Postfix `?`, `return`, `break`, and `continue` first drop temporaries already created by the current statement, then run the required normal or conditional drops for scopes they leave.
 - Borrows and borrow-like views derived from temporaries cannot escape the statement.
 - Temporary lifetime extension is not part of the initial design.
 
@@ -321,7 +350,7 @@ Rules:
 - For copy `T`, the contained value may be copied according to normal copy rules.
 - Borrowed optional projections such as `while let name = &place` and `while var name = &+place` are not part of v0.
 - Optional borrow values such as `(&T)?` are allowed. For example, `while let item = iter.next()` is valid when `next()` returns `(&T)?`.
-- `loop { ... }` is an infinite loop unless exited by `break`, `return`, `fail`, or another terminating control flow.
+- `loop { ... }` is an infinite loop unless exited by `break`, `return`, or another terminating control flow.
 - `for name in start..<end { ... }` loops over a half-open integer range.
 - `in` is a reserved keyword used by the `for` header.
 - `..<` is the half-open range token in the initial `for` header syntax.
@@ -407,13 +436,13 @@ Rules:
 - `return` and `return value` are not valid in a `never` function.
 - Falling off the end of a `never` function is a compile error.
 - A call whose type is `never` terminates the current control path.
-- Code after `return`, `fail`, `break`, `continue`, or a `never` call in the same block is unreachable.
+- Code after `return`, `break`, `continue`, or a `never` call in the same block is unreachable.
 - Unreachable code is a compile-time error in the initial design.
 - A `never`-typed expression can appear where another expression type is required because it produces no value.
 - `never` cannot be constructed, stored in a variable, used as a field type, or used as an array element type in the initial design.
 - Calling a `never` function does not imply stack unwinding, statement-end temporary drops, or caller-scope `drop` execution.
-- If cleanup is required before a terminating API such as `exit` or `abort`, the program must perform that cleanup before the `never` call or use a normal `return`, `fail`, `break`, or `continue` path.
-- `fail` is recoverable failure and is valid only through fallible type `T!`.
+- If cleanup is required before a terminating API such as `exit` or `abort`, the program must perform that cleanup before the `never` call or use a normal `return`, `break`, or `continue` path.
+- Fallible failure is recoverable failure and is valid only through fallible type `T!`.
 - `trap` is non-recoverable failure caused by a program defect, violated compiler check, or impossible execution path.
 - `abort` is immediate process termination and does not run Nocter cleanup.
 - `panic` and stack unwinding are not part of v0.

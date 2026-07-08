@@ -1,7 +1,7 @@
 # Strings, Arrays, Views, and Pointers
 
 This file is part of the Nocter language specification.
-The specification entry point is [../SPEC.md](../SPEC.md).
+The specification entry point is [README.md](README.md).
 
 ## Raw Pointers and Address API
 

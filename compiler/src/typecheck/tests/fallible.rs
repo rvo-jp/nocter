@@ -17,14 +17,14 @@ func run(): void! {
 }
 
 #[test]
-fn accepts_fail_in_fallible_function() {
+fn accepts_error_return_in_fallible_function() {
     let diagnostics = check_text(
         r#"func main(): i32 {
     return 0
 }
 
 func run(error: error): i32! {
-    fail error
+    return error
 }
 "#,
     );
@@ -97,62 +97,82 @@ func error_code(error: error): str {
 }
 
 #[test]
-fn diagnoses_non_error_fail_value() {
+fn diagnoses_non_success_return_value() {
     let diagnostics = check_text(
         r#"func main(): i32 {
     return 0
 }
 
 func run(): i32! {
-    fail 1
+    return "wrong"
 }
 "#,
     );
 
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E0334");
+    assert_eq!(diagnostics[0].code, "E0312");
+    assert!(diagnostics[0].message.contains("str"));
     assert!(diagnostics[0].message.contains("i32"));
-    assert!(diagnostics[0].message.contains("error"));
 }
 
 #[test]
-fn diagnoses_fail_in_non_fallible_function() {
+fn diagnoses_error_return_in_non_fallible_function() {
     let diagnostics = check_text(
         r#"func main(): i32 {
     return 0
 }
 
-func run(error: u64): i32 {
-    fail error
+func run(error: error): i32 {
+    return error
 }
 "#,
     );
 
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E0333");
+    assert_eq!(diagnostics[0].code, "E0312");
 }
 
 #[test]
-fn diagnoses_fail_type_mismatch() {
+fn diagnoses_error_success_type_in_fallible_function() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func run(): error! {
+    return make_error()
+}
+
+primitive make_error(): error
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0334");
+    assert!(diagnostics[0].message.contains("error!"));
+}
+
+#[test]
+fn diagnoses_error_type_mismatch_in_fallible_function() {
     let diagnostics = check_text(
         r#"func main(): i32 {
     return 0
 }
 
 func run(error: str): i32! {
-    fail error
+    return error
 }
 "#,
     );
 
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E0334");
+    assert_eq!(diagnostics[0].code, "E0312");
     assert!(diagnostics[0].message.contains("str"));
-    assert!(diagnostics[0].message.contains("error"));
+    assert!(diagnostics[0].message.contains("i32"));
 }
 
 #[test]
-fn accepts_fail_as_terminal_branch() {
+fn accepts_error_return_as_terminal_branch() {
     let diagnostics = check_text(
         r#"func main(): i32 {
     return 0
@@ -160,7 +180,7 @@ fn accepts_fail_as_terminal_branch() {
 
 func run(error: error): i32! {
     if true {
-        fail error
+        return error
     } else {
         return 0
     }

@@ -1,7 +1,7 @@
 # Nocter AI Guide
 
 This file is a compact guide for AI tools that read, write, review, or repair Nocter code.
-The normative language specification is [SPEC.md](SPEC.md). When this guide conflicts with the specification, the specification wins.
+The normative language specification starts at [../README.md](../README.md). When this guide conflicts with the specification, the specification wins.
 
 ## Goal
 
@@ -39,8 +39,8 @@ Rules for generated code:
 - Use `if let value = optional { ... } else { ... }` for optional branching.
 - Use `let value = optional else { ... }` for optional early-exit extraction.
 - Use `??` for optional default values.
-- Use `switch` for enum pattern handling.
-- Do not use `switch` to unwrap `T!` or `T?`.
+- Use `match` for enum pattern handling.
+- Do not use `match` to unwrap `T!` or `T?`.
 
 ## Imports
 
@@ -79,7 +79,7 @@ Handle a failure locally with `catch`.
 
 ```nct
 run() catch error {
-    fail Error.new("app.run_failed", error.message)
+    return Error.new("app.run_failed", error.message)
 }
 ```
 
@@ -89,8 +89,8 @@ Rules:
 - `expr catch error { ... }` extracts `T` on success and runs the `catch` block on failure.
 - The `catch` binding name is ordinary. `error` is conventional, but `err` is valid.
 - A `catch` block must not fall through in v0.
-- `fail expr` is valid only in a function returning `T!`, and `expr` must have type `error`.
-- `try`, `throw`, `Result<T, E>`, `ok`, and `fail(...)` patterns are not part of fallible handling.
+- In a function returning `T!`, `return expr` is a failure return when `expr` has type `error`.
+- `try`, `throw`, `Result<T, E>`, `ok`, and failure patterns are not part of fallible handling.
 
 Optional values use `T?`.
 
@@ -136,16 +136,16 @@ func user_name(): str! {
 
 `env("USER")?` unwraps the fallible layer and leaves `str?`; `??` chooses a fallback when the optional success is `none`.
 
-## Enums And Switch
+## Enums And Match
 
-Use `switch` and `if expr is Pattern` for enum values.
+Use `match`, `if expr is Pattern`, and `?{}` for enum values.
 
 ```nct
-switch error {
-    is AppError.missing_path {
+match error {
+    AppError.missing_path {
         report_missing_path()
     }
-    is AppError.open_failed(path) {
+    AppError.open_failed(path) {
         report_open_failed(path)
     }
     else {
@@ -154,11 +154,23 @@ switch error {
 }
 ```
 
+Use `?{}` when enum pattern handling must produce a value.
+
+```nct
+return error ?{
+    AppError.missing_path : missing_code()
+    AppError.open_failed(path) : code_for(path)
+    : unknown_code()
+}
+```
+
 Rules:
 
 - Use qualified variants such as `AppError.open_failed(path)`.
 - Use `else` as the fallback arm.
-- Do not write `match`; enum pattern handling uses `switch` in current Nocter.
+- Use `?{}` instead of `return match ...` when the branches produce values.
+- Write the `?{}` fallback arm as `: expression`.
+- Do not write `switch`; enum pattern handling uses `match` in current Nocter.
 - Do not use enum pattern syntax for `T!` or `T?`.
 
 ## Documentation Comments
@@ -199,9 +211,9 @@ func read(): String ! IOError
 // invalid: Nocter does not use a module declaration
 module app/main
 
-// invalid: enum pattern handling uses switch, not match
+// invalid: enum pattern handling uses match, not match
 match error {
-    is AppError.missing_path {
+    AppError.missing_path {
         return 1
     }
 }

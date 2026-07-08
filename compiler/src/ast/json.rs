@@ -486,11 +486,6 @@ impl Stmt {
                     .map(|expression| expression.to_json(sources))
                     .collect(),
             ),
-            Stmt::Fail(statement) => JsonAstNode::new(
-                "fail_statement",
-                json_span(sources, statement.span),
-                vec![statement.expression.to_json(sources)],
-            ),
             Stmt::Binding(statement) => {
                 let mut children = Vec::new();
                 if let Some(ty) = &statement.ty {
@@ -587,7 +582,7 @@ impl Stmt {
                     children.push(else_arm.to_json(sources));
                 }
                 JsonAstNode::new(
-                    "switch_statement",
+                    "match_statement",
                     json_span(sources, statement.span),
                     children,
                 )
@@ -662,7 +657,7 @@ impl SwitchArm {
     fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         let mut children = vec![
             JsonAstNode::with_value(
-                "switch_pattern",
+                "match_pattern",
                 format!("{}.{}", self.enum_name, self.variant_name),
                 json_span(sources, self.span),
                 Vec::new(),
@@ -673,7 +668,7 @@ impl SwitchArm {
             children.insert(
                 1,
                 JsonAstNode::with_value(
-                    "switch_payload_binding",
+                    "match_payload_binding",
                     payload.name.clone(),
                     json_span(sources, payload.span),
                     Vec::new(),
@@ -682,7 +677,7 @@ impl SwitchArm {
         }
 
         JsonAstNode::with_value(
-            "switch_arm",
+            "match_arm",
             format!("{}.{}", self.enum_name, self.variant_name),
             json_span(sources, self.span),
             children,
@@ -693,7 +688,7 @@ impl SwitchArm {
 impl SwitchElseArm {
     fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         JsonAstNode::new(
-            "switch_else_arm",
+            "match_else_arm",
             json_span(sources, self.span),
             vec![self.body.to_json_with_kind(sources, "body")],
         )
@@ -855,6 +850,66 @@ impl Expr {
                 ],
             )
             .with_operator_span(json_span(sources, expression.operator_span)),
+            Expr::PatternConditional(expression) => JsonAstNode::new(
+                "pattern_conditional_expression",
+                json_span(sources, expression.span),
+                vec![
+                    expression.target.to_json(sources),
+                    JsonAstNode::new(
+                        "pattern_conditional_arm_list",
+                        json_span(sources, expression.span),
+                        expression
+                            .arms
+                            .iter()
+                            .map(|arm| {
+                                JsonAstNode::new(
+                                    "pattern_conditional_arm",
+                                    json_span(sources, arm.span),
+                                    vec![
+                                        JsonAstNode::with_value(
+                                            "match_pattern",
+                                            format!("{}.{}", arm.enum_name, arm.variant_name),
+                                            json_span(
+                                                sources,
+                                                ByteSpan::new(
+                                                    arm.enum_name_span.source,
+                                                    arm.enum_name_span.start,
+                                                    arm.variant_name_span.end,
+                                                ),
+                                            ),
+                                            arm.payload
+                                                .as_ref()
+                                                .map(|payload| {
+                                                    vec![JsonAstNode::with_value(
+                                                        "match_payload_binding",
+                                                        payload.name.clone(),
+                                                        json_span(sources, payload.span),
+                                                        Vec::new(),
+                                                    )]
+                                                })
+                                                .unwrap_or_default(),
+                                        ),
+                                        arm.expression.to_json(sources),
+                                    ],
+                                )
+                            })
+                            .collect(),
+                    ),
+                    JsonAstNode::new(
+                        "pattern_conditional_fallback_arm",
+                        json_span(
+                            sources,
+                            ByteSpan::new(
+                                expression.fallback_colon_span.source,
+                                expression.fallback_colon_span.start,
+                                expression.fallback.span().end,
+                            ),
+                        ),
+                        vec![expression.fallback.to_json(sources)],
+                    ),
+                ],
+            )
+            .with_operator_span(json_span(sources, expression.question_span)),
         }
     }
 }

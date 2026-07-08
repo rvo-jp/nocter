@@ -1,7 +1,7 @@
 # Tooling and Editor Integration
 
 This file is part of the Nocter language specification.
-The specification entry point is [../SPEC.md](../SPEC.md).
+The specification entry point is [README.md](README.md).
 
 ## Direction
 
@@ -114,7 +114,7 @@ Rules:
 - The JSON shapes are versioned and may evolve while the parser and AST are still unstable.
 - AI tools should prefer `nocter fmt`, `nocter check --format json`, `nocter tokens --format json`, and `nocter ast --format json` over reimplementing syntax and semantics.
 
-The compact AI-facing guide is [../AI.md](../AI.md). The example corpus is [examples/](examples/).
+The compact AI-facing guide is [guides/ai.md](guides/ai.md). The example corpus is [examples/](examples/).
 
 ## LSP Stage
 

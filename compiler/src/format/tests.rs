@@ -73,7 +73,7 @@ fn formats_control_flow_and_postfix_expressions() {
         r#"func main():i32!{
 var file=File.open(path) catch error {return 1}
 for i in 0..<10{file.write("x")?}
-switch error{is AppError.missing_path{return 1}else{return file.size() as i32}}
+match error{AppError.missing_path{return 1}else{return file.size() as i32}}
 }
 "#,
         concat!(
@@ -84,13 +84,38 @@ switch error{is AppError.missing_path{return 1}else{return file.size() as i32}}
             "    for i in 0..<10 {\n",
             "        file.write(\"x\")?\n",
             "    }\n",
-            "    switch error {\n",
-            "        is AppError.missing_path {\n",
+            "    match error {\n",
+            "        AppError.missing_path {\n",
             "            return 1\n",
             "        }\n",
             "        else {\n",
             "            return file.size() as i32\n",
             "        }\n",
+            "    }\n",
+            "}\n",
+        ),
+    );
+}
+
+#[test]
+fn formats_pattern_conditional_expression() {
+    assert_formats_stably(
+        r#"enum AppError{missing_path,open_failed(path:str)}
+func code(error:AppError):i32{return error ?{AppError.missing_path:1
+AppError.open_failed(path):2
+:0}}
+"#,
+        concat!(
+            "enum AppError {\n",
+            "    missing_path,\n",
+            "    open_failed(path: str),\n",
+            "}\n",
+            "\n",
+            "func code(error: AppError): i32 {\n",
+            "    return error ?{\n",
+            "        AppError.missing_path : 1\n",
+            "        AppError.open_failed(path) : 2\n",
+            "        : 0\n",
             "    }\n",
             "}\n",
         ),

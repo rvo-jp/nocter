@@ -13,12 +13,12 @@ func main(): i32 {
 }
 
 func describe(error: AppError): str {
-    switch error {
-        is AppError.missing_path {
+    match error {
+        AppError.missing_path {
             return "missing"
         }
 
-        is AppError.open_failed(path) {
+        AppError.open_failed(path) {
             return path
         }
     }
@@ -44,12 +44,12 @@ func main(): i32 {
 }
 
 func describe(error: AppError): str {
-    switch error {
-        is AppError.missing_path {
+    match error {
+        AppError.missing_path {
             return "missing"
         }
 
-        is AppError.open_failed(path) {
+        AppError.open_failed(path) {
             return path
         }
 
@@ -89,6 +89,75 @@ func describe(error: AppError): str {
     );
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_pattern_conditional_over_enum() {
+    let diagnostics = check_text(
+        r#"enum AppError {
+    missing_path
+    open_failed(path: str)
+}
+
+func main(): i32 {
+    return 0
+}
+
+func describe(error: AppError): str {
+    return error ?{
+        AppError.missing_path : "missing"
+        AppError.open_failed(path) : path
+        : "unknown"
+    }
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_pattern_conditional_non_enum_target() {
+    let diagnostics = check_text(
+        r#"enum AppError {
+    missing_path
+}
+
+func main(): i32 {
+    return 1 ?{
+        AppError.missing_path : 1
+        : 0
+    }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0361");
+}
+
+#[test]
+fn diagnoses_pattern_conditional_arm_type_mismatch() {
+    let diagnostics = check_text(
+        r#"enum AppError {
+    missing_path
+}
+
+func main(): i32 {
+    return 0
+}
+
+func code(error: AppError): i32 {
+    return error ?{
+        AppError.missing_path : "missing"
+        : 0
+    }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0366");
 }
 
 #[test]
@@ -203,8 +272,8 @@ func main(): i32 {
 }
 
 func describe(error: AppError): str {
-    switch error {
-        is AppError.missing_path {
+    match error {
+        AppError.missing_path {
             let message = "missing"
         }
 
@@ -261,7 +330,7 @@ func make(path: str): AppError {
 }
 
 #[test]
-fn diagnoses_enum_variant_construction_in_fail() {
+fn diagnoses_enum_variant_construction_as_fallible_failure() {
     let diagnostics = check_text(
         r#"enum AppError {
     open_failed(path: str)
@@ -272,13 +341,13 @@ func main(): i32 {
 }
 
 func run(path: str): void! {
-    fail AppError.open_failed(path)
+    return AppError.open_failed(path)
 }
 "#,
     );
 
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E0334");
+    assert_eq!(diagnostics[0].code, "E0311");
 }
 
 #[test]
@@ -375,8 +444,8 @@ fn diagnoses_switch_non_enum_target() {
 }
 
 func main(): i32 {
-    switch 1 {
-        is AppError.missing_path {
+    match 1 {
+        AppError.missing_path {
             return 1
         }
     }
@@ -406,8 +475,8 @@ func main(): i32 {
 }
 
 func code(error: AppError): i32 {
-    switch error {
-        is OtherError.missing_path {
+    match error {
+        OtherError.missing_path {
             return 1
         }
     }
@@ -433,8 +502,8 @@ func main(): i32 {
 }
 
 func code(error: AppError): i32 {
-    switch error {
-        is AppError.open_failed {
+    match error {
+        AppError.open_failed {
             return 1
         }
     }
@@ -460,8 +529,8 @@ func main(): i32 {
 }
 
 func code(error: AppError): i32 {
-    switch error {
-        is AppError.open_failed {
+    match error {
+        AppError.open_failed {
             return 1
         }
     }
@@ -487,8 +556,8 @@ func main(): i32 {
 }
 
 func code(error: AppError): i32 {
-    switch error {
-        is AppError.missing_path {
+    match error {
+        AppError.missing_path {
             return 1
         }
     }

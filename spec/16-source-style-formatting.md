@@ -1,7 +1,7 @@
 # Source Style and Formatting
 
 This file is part of the Nocter language specification.
-The specification entry point is [../SPEC.md](../SPEC.md).
+The specification entry point is [README.md](README.md).
 
 ## Direction
 
@@ -13,7 +13,7 @@ Rules:
 - Style violations are not compile errors in v0.
 - The parser accepts valid whitespace variations where tokenization remains unambiguous.
 - The formatter emits the official source style.
-- Specification examples, `README.md` examples, `AI.md`, `example.nct`, and `spec/examples/valid/` should use formatter output as the canonical presentation.
+- Specification examples, `README.md` examples, `spec/guides/ai.md`, `example.nct`, and `spec/examples/valid/` should use formatter output as the canonical presentation.
 - The formatter belongs in the compiler toolchain, not in editor extensions.
 
 This keeps the language pleasant to write by hand while avoiding multiple competing styles in documentation, generated examples, diagnostics, AI-generated code, and future editor tooling.
@@ -59,7 +59,7 @@ Examples:
 
 ```nct
 if path.len() == 0 {
-    fail AppError.missing_path
+    return Error.new("app.missing_path", "missing path")
 } else {
     use(path)
 }
@@ -131,6 +131,7 @@ Rules:
 - Binary operators use spaces around the operator.
 - The optional default operator is formatted as `value ?? fallback`.
 - The conditional operator is formatted as `condition ? then_value : else_value`.
+- Pattern conditional expressions use `target ?{` on the first line, one arm per line, and `Pattern : expression` arm spacing.
 - Unary operators are attached to their operand.
 - Function calls have no space between callee and `(`.
 - Method calls have no space around `.`.
@@ -154,27 +155,35 @@ Rules:
 - Control-flow keywords are followed by one space before their condition or pattern.
 - `catch` after a fallible expression is separated from the expression by one space.
 - Single-pattern enum checks use `if expr is Pattern { ... }`.
-- `switch` arms use `is Pattern { ... }`.
-- `switch` fallback arms use `else { ... }` and must be written last.
+- `match` arms use `Pattern { ... }`.
+- `match` fallback arms use `else { ... }` and must be written last.
+- Pattern conditional arms use `Pattern : expression`.
+- Pattern conditional fallback arms use `: expression` and must be written last.
 - Range `for` syntax is formatted as `for i in start..<end { ... }`.
 
 Examples:
 
 ```nct
 let file = File.open(path) catch error {
-    fail Error.new("std.io.open_failed", error.message)
+    return Error.new("std.io.open_failed", error.message)
 }
 
-switch error {
-    is AppError.missing_path {
+match error {
+    AppError.missing_path {
         ...
     }
-    is AppError.open_failed(path) {
+    AppError.open_failed(path) {
         ...
     }
     else {
         ...
     }
+}
+
+return error ?{
+    AppError.missing_path : missing_code()
+    AppError.open_failed(path) : code_for(path)
+    : unknown_code()
 }
 
 for i in 0..<bytes.len() {

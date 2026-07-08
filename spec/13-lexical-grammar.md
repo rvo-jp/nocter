@@ -1,7 +1,7 @@
 # Lexical Grammar
 
 This file is part of the Nocter language specification.
-The specification entry point is [../SPEC.md](../SPEC.md).
+The specification entry point is [README.md](README.md).
 
 ## Source Text
 
@@ -176,6 +176,7 @@ Rules:
 
 - `&+` is one token. It is used for readwrite borrow syntax.
 - `??` is one token. It is used for optional default expressions.
+- `?{` is not one token. Pattern conditional expressions are parsed from `?` followed by `{`.
 - `..<` is one token. It is used only in the initial `for name in start..<end` range syntax.
 - `@` is reserved for possible future attribute-like syntax and is invalid in v0 outside string literals, byte literals, and comments.
 - Unary `+expr` is not part of the language even though `+` is a valid additive operator token.

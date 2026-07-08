@@ -1,49 +1,15 @@
 use super::diagnostics::{
-    catch_on_non_fallible_diagnostic, fail_in_non_fallible_context_diagnostic,
-    fail_type_mismatch_diagnostic, fallible_propagation_error_type_mismatch_diagnostic,
+    catch_on_non_fallible_diagnostic, fallible_propagation_error_type_mismatch_diagnostic,
     fallible_propagation_in_non_fallible_context_diagnostic, force_on_non_unwrappable_diagnostic,
     optional_propagation_in_non_optional_context_diagnostic,
     propagation_on_non_propagatable_diagnostic,
 };
 use super::expressions::expression_type;
 use super::model::{ReturnContext, Type, TypeEnvironment, same_known_type};
-use super::operations::is_expression_assignable;
-use crate::ast::{Expr, FailStmt};
+use crate::ast::Expr;
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
 use crate::source::{ByteSpan, SourceMap};
-
-pub(super) fn check_fail_statement(
-    sources: &SourceMap,
-    statement: &FailStmt,
-    context: &ReturnContext,
-    resolved: &ResolveOutput,
-    diagnostics: &mut Vec<Diagnostic>,
-    environment: &TypeEnvironment,
-) {
-    let Type::Fallible {
-        error: expected, ..
-    } = &context.declared_type
-    else {
-        if !context.declared_type.is_unknown_or_unresolved() {
-            diagnostics.push(fail_in_non_fallible_context_diagnostic(
-                sources, statement, context,
-            ));
-        }
-        return;
-    };
-
-    let actual = expression_type(&statement.expression, resolved, environment);
-    if actual.is_unknown_or_unresolved() || expected.is_unknown_or_unresolved() {
-        return;
-    }
-
-    if !is_expression_assignable(expected, &statement.expression, resolved, environment) {
-        diagnostics.push(fail_type_mismatch_diagnostic(
-            sources, statement, expected, &actual, context,
-        ));
-    }
-}
 
 pub(super) fn check_propagation(
     sources: &SourceMap,

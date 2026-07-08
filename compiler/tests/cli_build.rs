@@ -501,7 +501,7 @@ fn built_fallible_entry_failure_reports_stderr() {
         r#"primitive make_error(code: str, message: str): error
 
 func main(): i32! {
-    fail make_error("app.failed", "failed")
+    return make_error("app.failed", "failed")
 }
 "#,
     );

@@ -1,7 +1,7 @@
 # Command Line Interface
 
 This file is part of the Nocter language specification.
-The specification entry point is [../SPEC.md](../SPEC.md).
+The specification entry point is [README.md](README.md).
 
 ## Direction
 

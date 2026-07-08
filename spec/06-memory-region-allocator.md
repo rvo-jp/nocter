@@ -1,7 +1,7 @@
 # Memory, Regions, and Allocators
 
 This file is part of the Nocter language specification.
-The specification entry point is [../SPEC.md](../SPEC.md).
+The specification entry point is [README.md](README.md).
 
 ## Memory Management
 
@@ -158,7 +158,7 @@ Rules:
 - Storing a region-derived view into an outer variable is a compile error.
 - Assigning a region-owned value into a place that outlives the region is a compile error.
 - At normal region exit, local owned values still live inside the region body are dropped in reverse declaration order before the region releases its backing memory.
-- `return`, `fail`, `break`, and `continue` that leave a region run the same region cleanup before transferring control.
+- `return`, `break`, and `continue` that leave a region run the same region cleanup before transferring control.
 - Calling a `never` function inside a region does not imply stack unwinding or region cleanup. Cleanup must be explicit before such a call if it matters.
 - The exact allocator implementation may be arena-like, bump-like, or another standard-library strategy. The language feature is the scoped region and escape check, not a specific allocator algorithm.
 

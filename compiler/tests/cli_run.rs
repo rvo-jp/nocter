@@ -114,7 +114,7 @@ fn run_command_reports_fallible_entry_failure() {
         r#"primitive make_error(code: str, message: str): error
 
 func main(): i32! {
-    fail make_error("app.failed", "failed")
+    return make_error("app.failed", "failed")
 }
 "#,
     );

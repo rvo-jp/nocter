@@ -239,14 +239,14 @@ fn parses_loop_statement() {
 }
 
 #[test]
-fn parses_fail_statement() {
+fn parses_error_return_statement() {
     let output = parse_text(
         r#"func main(): i32 {
     return 0
 }
 
 func run(error: error): i32! {
-    fail error
+    return error
 }
 "#,
     );
@@ -256,7 +256,7 @@ func run(error: error): i32! {
     let Item::Function(function) = &ast.items[1] else {
         panic!("expected function item");
     };
-    assert!(matches!(function.body.statements[0], Stmt::Fail(_)));
+    assert!(matches!(function.body.statements[0], Stmt::Return(_)));
 }
 
 #[test]
@@ -272,12 +272,12 @@ func main(): i32 {
 }
 
 func code(error: AppError): i32 {
-    switch error {
-        is AppError.missing_path {
+    match error {
+        AppError.missing_path {
             return 1
         }
 
-        is AppError.open_failed(path) {
+        AppError.open_failed(path) {
             return 2
         }
     }
@@ -293,7 +293,7 @@ func code(error: AppError): i32 {
         panic!("expected function item");
     };
     let Stmt::Switch(statement) = &function.body.statements[0] else {
-        panic!("expected switch statement");
+        panic!("expected match statement");
     };
 
     assert_eq!(statement.arms.len(), 2);
@@ -320,8 +320,8 @@ func main(): i32 {
 }
 
 func code(error: AppError): i32 {
-    switch error {
-        is AppError.missing_path {
+    match error {
+        AppError.missing_path {
             return 1
         }
 
@@ -339,7 +339,7 @@ func code(error: AppError): i32 {
         panic!("expected function item");
     };
     let Stmt::Switch(statement) = &function.body.statements[0] else {
-        panic!("expected switch statement");
+        panic!("expected match statement");
     };
 
     assert_eq!(statement.arms.len(), 1);
@@ -406,12 +406,12 @@ func main(): i32 {
 }
 
 func code(error: AppError): i32 {
-    switch error {
+    match error {
         else {
             return 0
         }
 
-        is AppError.missing_path {
+        AppError.missing_path {
             return 1
         }
     }
@@ -435,7 +435,7 @@ func main(): i32 {
 }
 
 func code(error: AppError): i32 {
-    switch error {
+    match error {
         else {
             return 0
         }

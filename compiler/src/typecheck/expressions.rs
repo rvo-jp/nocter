@@ -1,6 +1,7 @@
 use super::arrays::{array_literal_type, index_expression_type};
 use super::calls::resolved_call_signature;
 use super::diagnostics::error_member_unknown_diagnostic;
+use super::environments::environment_for_pattern_conditional_arm;
 use super::model::{Type, TypeEnvironment};
 use super::operations::{binary_expression_type, is_assignable};
 use super::structs::{struct_literal_type, struct_member_type};
@@ -103,6 +104,23 @@ pub(super) fn expression_type(
             let value_type = expression_type(&expression.value, resolved, environment);
             let default_type = expression_type(&expression.default, resolved, environment);
             optional_default_type(value_type, default_type)
+        }
+        Expr::PatternConditional(expression) => {
+            let fallback_type = expression_type(&expression.fallback, resolved, environment);
+            if !fallback_type.is_unknown_or_unresolved() {
+                return fallback_type;
+            }
+
+            expression
+                .arms
+                .iter()
+                .map(|arm| {
+                    let arm_environment =
+                        environment_for_pattern_conditional_arm(arm, resolved, environment);
+                    expression_type(&arm.expression, resolved, &arm_environment)
+                })
+                .find(|ty| !ty.is_unknown_or_unresolved())
+                .unwrap_or(fallback_type)
         }
         Expr::Identifier(expression) => environment
             .get(&expression.name)

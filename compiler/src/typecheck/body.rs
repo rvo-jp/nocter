@@ -12,8 +12,8 @@ use super::diagnostics::loop_control_outside_loop_diagnostic;
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_if_is_binding,
     environment_for_if_let_binding, environment_for_method, environment_for_parameters,
-    environment_for_parameters_with_self_type, environment_for_switch_arm,
-    environment_for_while_let_binding, impl_self_type,
+    environment_for_parameters_with_self_type, environment_for_pattern_conditional_arm,
+    environment_for_switch_arm, environment_for_while_let_binding, impl_self_type,
 };
 use super::expressions::{check_error_member_expression, expression_type};
 use super::fallible::check_force_unwrap_operand;
@@ -24,7 +24,7 @@ use super::operations::{
 use super::structs::{check_struct_literal_expression, check_struct_member_expression};
 use super::variants::{
     check_enum_variant_call, check_enum_variant_member, check_if_is_statement,
-    check_switch_statement, is_enum_variant_call,
+    check_pattern_conditional_expression, check_switch_statement, is_enum_variant_call,
 };
 use crate::ast::{AstFile, Block, Expr, ImplDecl, ImplMember, Item, Stmt};
 use crate::diagnostics::Diagnostic;
@@ -142,16 +142,6 @@ fn check_statement_expressions(
                     loop_depth,
                 );
             }
-        }
-        Stmt::Fail(statement) => {
-            check_expression_tree(
-                sources,
-                &statement.expression,
-                resolved,
-                diagnostics,
-                environment,
-                loop_depth,
-            );
         }
         Stmt::Binding(statement) => {
             check_expression_tree(
@@ -681,6 +671,43 @@ fn check_expression_tree(
                 diagnostics,
                 environment,
                 loop_depth,
+            );
+        }
+        Expr::PatternConditional(expression) => {
+            check_expression_tree(
+                sources,
+                &expression.target,
+                resolved,
+                diagnostics,
+                environment,
+                loop_depth,
+            );
+            for arm in &expression.arms {
+                let mut arm_environment =
+                    environment_for_pattern_conditional_arm(arm, resolved, environment);
+                check_expression_tree(
+                    sources,
+                    &arm.expression,
+                    resolved,
+                    diagnostics,
+                    &mut arm_environment,
+                    loop_depth,
+                );
+            }
+            check_expression_tree(
+                sources,
+                &expression.fallback,
+                resolved,
+                diagnostics,
+                environment,
+                loop_depth,
+            );
+            check_pattern_conditional_expression(
+                sources,
+                expression,
+                resolved,
+                diagnostics,
+                environment,
             );
         }
         Expr::Identifier(_)

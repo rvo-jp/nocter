@@ -192,6 +192,13 @@ impl Parser<'_> {
         matches!(self.current().kind, TokenKind::Punctuation(actual) if actual == punctuation)
     }
 
+    pub(super) fn next_is_punctuation(&self, punctuation: &str) -> bool {
+        matches!(
+            self.tokens.get(self.index + 1).map(|token| token.kind),
+            Some(TokenKind::Punctuation(actual)) if actual == punctuation
+        )
+    }
+
     pub(super) fn looks_like_struct_literal_body(&self) -> bool {
         if !self.at_punctuation("{") {
             return false;

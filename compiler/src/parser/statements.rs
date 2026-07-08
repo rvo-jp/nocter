@@ -1,9 +1,9 @@
 use super::support::ParsedEnumPattern;
 use super::{ParseResult, Parser};
 use crate::ast::{
-    BindingKind, BindingStmt, Block, BreakStmt, ContinueStmt, Expr, ExpressionStmt, FailStmt,
-    ForRangeStmt, IfIsStmt, IfLetStmt, IfStmt, LoopStmt, ReturnStmt, Stmt, SwitchArm,
-    SwitchElseArm, SwitchPayloadBinding, SwitchStmt, WhileLetStmt, WhileStmt,
+    BindingKind, BindingStmt, Block, BreakStmt, ContinueStmt, Expr, ExpressionStmt, ForRangeStmt,
+    IfIsStmt, IfLetStmt, IfStmt, LoopStmt, ReturnStmt, Stmt, SwitchArm, SwitchElseArm,
+    SwitchPayloadBinding, SwitchStmt, WhileLetStmt, WhileStmt,
 };
 use crate::lexer::{Keyword, TokenKind};
 
@@ -37,15 +37,11 @@ impl Parser<'_> {
             return self.parse_return_statement();
         }
 
-        if self.at_keyword(Keyword::Fail) {
-            return self.parse_fail_statement();
-        }
-
         if self.at_keyword(Keyword::If) {
             return self.parse_if_statement();
         }
 
-        if self.at_keyword(Keyword::Switch) {
+        if self.at_keyword(Keyword::Match) {
             return self.parse_switch_statement();
         }
 
@@ -90,16 +86,6 @@ impl Parser<'_> {
         Ok(Stmt::Return(ReturnStmt {
             span: self.span(start.span.start, end),
             expression: Some(expression),
-        }))
-    }
-
-    pub(super) fn parse_fail_statement(&mut self) -> ParseResult<Stmt> {
-        let start = self.expect_keyword(Keyword::Fail, "`fail`")?;
-        let expression = self.parse_expression()?;
-        let end = expression.span().end;
-        Ok(Stmt::Fail(FailStmt {
-            span: self.span(start.span.start, end),
-            expression,
         }))
     }
 
@@ -235,7 +221,7 @@ impl Parser<'_> {
     }
 
     pub(super) fn parse_switch_statement(&mut self) -> ParseResult<Stmt> {
-        let start = self.expect_keyword(Keyword::Switch, "`switch`")?;
+        let start = self.expect_keyword(Keyword::Match, "`match`")?;
         let expression = self.parse_expression()?;
         let open = self.expect_punctuation("{", "`{`")?;
         let mut arms = Vec::new();
@@ -244,13 +230,13 @@ impl Parser<'_> {
 
         while !self.at_punctuation("}") {
             if self.at_eof() {
-                self.error_at(open.span, "expected `}` to close switch statement");
+                self.error_at(open.span, "expected `}` to close match statement");
                 return Err(());
             }
 
             if self.at_keyword(Keyword::Else) {
                 if else_arm.is_some() {
-                    self.error_current("`switch` can have only one `else` arm");
+                    self.error_current("`match` can have only one `else` arm");
                     return Err(());
                 }
 
@@ -260,7 +246,7 @@ impl Parser<'_> {
             }
 
             if else_arm.is_some() {
-                self.error_current("`else` arm must be the last switch arm");
+                self.error_current("`else` arm must be the last match arm");
                 return Err(());
             }
 
@@ -278,13 +264,12 @@ impl Parser<'_> {
     }
 
     pub(super) fn parse_switch_arm(&mut self) -> ParseResult<SwitchArm> {
-        let start = self.expect_keyword(Keyword::Is, "`is`")?;
-        let pattern = self.parse_enum_pattern_after_is(start.span.start)?;
+        let pattern = self.parse_enum_pattern("expected enum name in match arm")?;
         let body = self.parse_block()?;
         let end = body.span.end;
 
         Ok(SwitchArm {
-            span: self.span(start.span.start, end),
+            span: self.span(pattern.span.start, end),
             enum_name: pattern.enum_name,
             enum_name_span: pattern.enum_name_span,
             variant_name: pattern.variant_name,
@@ -298,7 +283,23 @@ impl Parser<'_> {
         &mut self,
         start: usize,
     ) -> ParseResult<ParsedEnumPattern> {
-        let enum_name = self.expect_identifier("expected enum name after `is`")?;
+        self.parse_enum_pattern_with_start(start, "expected enum name after `is`")
+    }
+
+    pub(super) fn parse_enum_pattern(
+        &mut self,
+        enum_name_message: &str,
+    ) -> ParseResult<ParsedEnumPattern> {
+        let start = self.current().span.start;
+        self.parse_enum_pattern_with_start(start, enum_name_message)
+    }
+
+    fn parse_enum_pattern_with_start(
+        &mut self,
+        start: usize,
+        enum_name_message: &str,
+    ) -> ParseResult<ParsedEnumPattern> {
+        let enum_name = self.expect_identifier(enum_name_message)?;
         self.expect_punctuation(".", "`.`")?;
         let variant_name = self.expect_identifier("expected enum variant name after `.`")?;
         let mut end = variant_name.span.end;

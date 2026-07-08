@@ -3,16 +3,26 @@ use super::diagnostics::{
     enum_variant_payloadless_call_diagnostic, enum_variant_unknown_diagnostic,
     if_is_enum_mismatch_diagnostic, if_is_non_enum_diagnostic, if_is_payload_mismatch_diagnostic,
     if_is_target_type_mismatch_diagnostic, if_is_unknown_enum_diagnostic,
-    if_is_unknown_variant_diagnostic, switch_arm_enum_mismatch_diagnostic,
+    if_is_unknown_variant_diagnostic, pattern_conditional_arm_enum_mismatch_diagnostic,
+    pattern_conditional_arm_non_enum_diagnostic,
+    pattern_conditional_arm_payload_mismatch_diagnostic,
+    pattern_conditional_arm_type_mismatch_diagnostic,
+    pattern_conditional_arm_unknown_enum_diagnostic,
+    pattern_conditional_arm_unknown_variant_diagnostic,
+    pattern_conditional_target_type_mismatch_diagnostic, switch_arm_enum_mismatch_diagnostic,
     switch_arm_non_enum_diagnostic, switch_arm_payload_mismatch_diagnostic,
     switch_arm_unknown_enum_diagnostic, switch_arm_unknown_variant_diagnostic,
     switch_target_type_mismatch_diagnostic,
 };
+use super::environments::environment_for_pattern_conditional_arm;
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment};
 use super::operations::is_expression_assignable;
 use super::type_expr::type_expr_to_type;
-use crate::ast::{CallExpr, Expr, IfIsStmt, MemberExpr, SwitchArm, SwitchStmt};
+use crate::ast::{
+    CallExpr, Expr, IfIsStmt, MemberExpr, PatternConditionalArm, PatternConditionalExpr, SwitchArm,
+    SwitchStmt,
+};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{EnumVariantSignature, ResolveOutput, TypeSymbol, TypeSymbolKind};
 use crate::source::SourceMap;
@@ -67,6 +77,48 @@ pub(super) fn check_if_is_statement(
     check_if_is_pattern(sources, statement, target_symbol, resolved, diagnostics);
 }
 
+pub(super) fn check_pattern_conditional_expression(
+    sources: &SourceMap,
+    expression: &PatternConditionalExpr,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+    environment: &TypeEnvironment,
+) {
+    let target_type = expression_type(&expression.target, resolved, environment);
+    let target_symbol = if target_type.is_unknown_or_unresolved() {
+        None
+    } else {
+        let target_symbol = enum_type_symbol_for_type(&target_type, resolved);
+        if target_symbol.is_none() {
+            diagnostics.push(pattern_conditional_target_type_mismatch_diagnostic(
+                sources,
+                expression,
+                &target_type,
+            ));
+        }
+        target_symbol
+    };
+
+    for arm in &expression.arms {
+        check_pattern_conditional_arm_pattern(sources, arm, target_symbol, resolved, diagnostics);
+    }
+
+    let expected = expression_type(&expression.fallback, resolved, environment);
+    if expected.is_unknown_or_unresolved() {
+        return;
+    }
+
+    for arm in &expression.arms {
+        let arm_environment = environment_for_pattern_conditional_arm(arm, resolved, environment);
+        if !is_expression_assignable(&expected, &arm.expression, resolved, &arm_environment) {
+            let actual = expression_type(&arm.expression, resolved, &arm_environment);
+            diagnostics.push(pattern_conditional_arm_type_mismatch_diagnostic(
+                sources, arm, &expected, &actual,
+            ));
+        }
+    }
+}
+
 fn check_if_is_pattern(
     sources: &SourceMap,
     statement: &IfIsStmt,
@@ -118,6 +170,66 @@ fn check_if_is_pattern(
         diagnostics.push(if_is_payload_mismatch_diagnostic(
             sources,
             statement,
+            pattern_symbol,
+            variant.payload.len(),
+            provided_payload_count,
+        ));
+    }
+}
+
+fn check_pattern_conditional_arm_pattern(
+    sources: &SourceMap,
+    arm: &PatternConditionalArm,
+    target_symbol: Option<&TypeSymbol>,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(pattern_symbol) = resolved.type_symbol_by_name(&arm.enum_name) else {
+        diagnostics.push(pattern_conditional_arm_unknown_enum_diagnostic(
+            sources, arm,
+        ));
+        return;
+    };
+
+    if pattern_symbol.kind != TypeSymbolKind::Enum {
+        diagnostics.push(pattern_conditional_arm_non_enum_diagnostic(
+            sources,
+            arm,
+            pattern_symbol,
+        ));
+        return;
+    }
+
+    if let Some(target_symbol) = target_symbol
+        && target_symbol.canonical_name != pattern_symbol.canonical_name
+    {
+        diagnostics.push(pattern_conditional_arm_enum_mismatch_diagnostic(
+            sources,
+            arm,
+            target_symbol,
+            pattern_symbol,
+        ));
+        return;
+    }
+
+    let Some(variant) = pattern_symbol
+        .variants
+        .iter()
+        .find(|variant| variant.name == arm.variant_name)
+    else {
+        diagnostics.push(pattern_conditional_arm_unknown_variant_diagnostic(
+            sources,
+            arm,
+            pattern_symbol,
+        ));
+        return;
+    };
+
+    let provided_payload_count = usize::from(arm.payload.is_some());
+    if variant.payload.len() != provided_payload_count {
+        diagnostics.push(pattern_conditional_arm_payload_mismatch_diagnostic(
+            sources,
+            arm,
             pattern_symbol,
             variant.payload.len(),
             provided_payload_count,

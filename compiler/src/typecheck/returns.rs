@@ -1,16 +1,17 @@
 use super::bindings::{check_optional_let_else_statement, continuing_binding_type};
 use super::diagnostics::{
-    missing_return_diagnostic, missing_return_value_diagnostic, return_type_mismatch_diagnostic,
-    unexpected_return_value_diagnostic,
+    fallible_success_error_diagnostic, missing_return_diagnostic, missing_return_value_diagnostic,
+    return_type_mismatch_diagnostic, unexpected_return_value_diagnostic,
 };
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_if_is_binding,
     environment_for_if_let_binding, environment_for_method, environment_for_parameters,
-    environment_for_parameters_with_self_type, environment_for_switch_arm,
-    environment_for_while_let_binding, impl_member_name, impl_self_type,
+    environment_for_parameters_with_self_type, environment_for_pattern_conditional_arm,
+    environment_for_switch_arm, environment_for_while_let_binding, impl_member_name,
+    impl_self_type,
 };
 use super::expressions::expression_type;
-use super::fallible::{check_catch_operand, check_fail_statement, check_propagation};
+use super::fallible::{check_catch_operand, check_propagation};
 use super::model::{CallableKind, ReturnContext, Type, TypeEnvironment, binding_kind_is_mutable};
 use super::operations::is_expression_assignable;
 use super::type_expr::{type_expr_to_type, type_expr_to_type_with_self_type};
@@ -35,6 +36,7 @@ pub(super) fn check_return_types(
                 );
                 let mut environment =
                     environment_for_parameters(&function.parameters.parameters, resolved);
+                check_fallible_success_type(sources, &context, diagnostics);
                 check_block_returns(
                     sources,
                     &function.body,
@@ -77,6 +79,7 @@ fn check_impl_member_return_types(
                     resolved,
                     self_type.clone(),
                 );
+                check_fallible_success_type(sources, &context, diagnostics);
                 check_block_returns(
                     sources,
                     &function.body,
@@ -100,6 +103,7 @@ fn check_impl_member_return_types(
                     method.return_type.span(),
                 );
                 let mut environment = environment_for_method(method, resolved, self_type.clone());
+                check_fallible_success_type(sources, &context, diagnostics);
                 check_block_returns(
                     sources,
                     body,
@@ -110,6 +114,20 @@ fn check_impl_member_return_types(
                 );
             }
         }
+    }
+}
+
+fn check_fallible_success_type(
+    sources: &SourceMap,
+    context: &ReturnContext,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Type::Fallible { success, .. } = &context.declared_type else {
+        return;
+    };
+
+    if success.as_ref() == &Type::Error {
+        diagnostics.push(fallible_success_error_diagnostic(sources, context));
     }
 }
 
@@ -169,24 +187,6 @@ fn check_statement_returns(
                 );
             }
             check_return_statement(
-                sources,
-                statement,
-                context,
-                resolved,
-                diagnostics,
-                environment,
-            );
-        }
-        Stmt::Fail(statement) => {
-            check_expression_for_nested_returns(
-                sources,
-                &statement.expression,
-                context,
-                resolved,
-                diagnostics,
-                environment,
-            );
-            check_fail_statement(
                 sources,
                 statement,
                 context,
@@ -654,6 +654,36 @@ fn check_expression_for_nested_returns(
                 environment,
             );
         }
+        Expr::PatternConditional(expression) => {
+            check_expression_for_nested_returns(
+                sources,
+                &expression.target,
+                context,
+                resolved,
+                diagnostics,
+                environment,
+            );
+            for arm in &expression.arms {
+                let mut arm_environment =
+                    environment_for_pattern_conditional_arm(arm, resolved, environment);
+                check_expression_for_nested_returns(
+                    sources,
+                    &arm.expression,
+                    context,
+                    resolved,
+                    diagnostics,
+                    &mut arm_environment,
+                );
+            }
+            check_expression_for_nested_returns(
+                sources,
+                &expression.fallback,
+                context,
+                resolved,
+                diagnostics,
+                environment,
+            );
+        }
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
         | Expr::StringLiteral(_)
@@ -687,6 +717,16 @@ fn check_return_statement(
                 return;
             }
 
+            if return_expression_is_fallible_failure(
+                expression,
+                &actual,
+                context,
+                resolved,
+                environment,
+            ) {
+                return;
+            }
+
             if !is_expression_assignable(expected, expression, resolved, environment) {
                 diagnostics.push(return_type_mismatch_diagnostic(
                     sources, expression, expected, &actual, context,
@@ -694,6 +734,22 @@ fn check_return_statement(
             }
         }
     }
+}
+
+fn return_expression_is_fallible_failure(
+    expression: &Expr,
+    actual: &Type,
+    context: &ReturnContext,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    let Type::Fallible { error, .. } = &context.declared_type else {
+        return false;
+    };
+
+    !error.is_unknown_or_unresolved()
+        && (is_expression_assignable(error, expression, resolved, environment)
+            || super::operations::is_assignable(error, actual))
 }
 
 pub(super) fn block_guarantees_return(block: &Block) -> bool {
@@ -705,7 +761,7 @@ pub(super) fn block_guarantees_return(block: &Block) -> bool {
 
 fn statement_guarantees_return(statement: &Stmt) -> bool {
     match statement {
-        Stmt::Return(_) | Stmt::Fail(_) => true,
+        Stmt::Return(_) => true,
         Stmt::If(statement) => statement.else_block.as_ref().is_some_and(|else_block| {
             block_guarantees_return(&statement.then_block) && block_guarantees_return(else_block)
         }),

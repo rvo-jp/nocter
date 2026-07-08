@@ -391,7 +391,7 @@ func add(a: i32, b: i32): i32 {
             r#"primitive make_error(code: str, message: str): error
 
 func main(): i32! {
-    fail make_error("app.failed", "failed")
+    return make_error("app.failed", "failed")
 }
 "#,
         )

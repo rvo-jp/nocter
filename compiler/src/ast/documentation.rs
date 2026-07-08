@@ -87,7 +87,6 @@ fn collect_statement_targets(text: &str, statement: &Stmt, targets: &mut Vec<Doc
                 collect_expression_targets(text, expression, targets);
             }
         }
-        Stmt::Fail(statement) => collect_expression_targets(text, &statement.expression, targets),
         Stmt::Binding(statement) => {
             push_target(text, statement.span, targets);
             collect_expression_targets(text, &statement.initializer, targets);
@@ -202,6 +201,13 @@ fn collect_expression_targets(
         Expr::OptionalDefault(expression) => {
             collect_expression_targets(text, &expression.value, targets);
             collect_expression_targets(text, &expression.default, targets);
+        }
+        Expr::PatternConditional(expression) => {
+            collect_expression_targets(text, &expression.target, targets);
+            for arm in &expression.arms {
+                collect_expression_targets(text, &arm.expression, targets);
+            }
+            collect_expression_targets(text, &expression.fallback, targets);
         }
     }
 }

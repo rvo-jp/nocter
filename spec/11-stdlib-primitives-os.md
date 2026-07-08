@@ -1,7 +1,7 @@
 # Standard Library, Primitives, and OS
 
 This file is part of the Nocter language specification.
-The specification entry point is [../SPEC.md](../SPEC.md).
+The specification entry point is [README.md](README.md).
 
 ## OS Error Model
 
@@ -475,10 +475,9 @@ while
 loop
 break
 continue
-switch
+match
 is
 catch
-fail
 none
 move
 drop

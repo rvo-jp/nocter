@@ -36,7 +36,7 @@ fn is_make_error_call(call: &CallExpr) -> bool {
 fn unsupported_fail_payload_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8004",
-        "IR v0 can only lower `fail make_error(<string code>, <string message>)`",
+        "IR v0 can only lower `return make_error(<string code>, <string message>)` as fallible failure",
     )]
 }
 

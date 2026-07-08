@@ -6,8 +6,8 @@ use super::type_expr::{
     type_expr_display_lossy, type_expr_to_type, type_expr_to_type_in_environment,
 };
 use crate::ast::{
-    Expr, ForRangeStmt, IfIsStmt, IfLetStmt, ImplDecl, MethodDecl, Parameter, SwitchArm,
-    WhileLetStmt,
+    Expr, ForRangeStmt, IfIsStmt, IfLetStmt, ImplDecl, MethodDecl, Parameter,
+    PatternConditionalArm, SwitchArm, WhileLetStmt,
 };
 use crate::resolve::{ResolveOutput, TypeSymbolKind};
 
@@ -158,14 +158,27 @@ pub(super) fn environment_for_switch_arm(
     if let Some(payload) = &arm.payload {
         arm_environment.define(
             payload.name.clone(),
-            switch_arm_payload_type(arm, resolved).unwrap_or(Type::Unknown),
+            enum_pattern_payload_type(&arm.enum_name, &arm.variant_name, resolved)
+                .unwrap_or(Type::Unknown),
         );
     }
     arm_environment
 }
 
-fn switch_arm_payload_type(arm: &SwitchArm, resolved: &ResolveOutput) -> Option<Type> {
-    enum_pattern_payload_type(&arm.enum_name, &arm.variant_name, resolved)
+pub(super) fn environment_for_pattern_conditional_arm(
+    arm: &PatternConditionalArm,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> TypeEnvironment {
+    let mut arm_environment = environment.clone();
+    if let Some(payload) = &arm.payload {
+        arm_environment.define(
+            payload.name.clone(),
+            enum_pattern_payload_type(&arm.enum_name, &arm.variant_name, resolved)
+                .unwrap_or(Type::Unknown),
+        );
+    }
+    arm_environment
 }
 
 fn enum_pattern_payload_type(

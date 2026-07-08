@@ -12,7 +12,7 @@ Nocter は、人間が読みやすく、AI も読み書きしやすい静的型�
 
 言語名は Nocter、ソースファイルの拡張子は `.nct` です。
 
-文法と意味論の詳細は [SPEC.md](SPEC.md) を入口として、[`spec/`](spec/) 配下に章別で記録します。仕様上の採用事項は README の概要より SPEC を優先します。
+文法と意味論の詳細は [`spec/`](spec/README.md) に章別で記録します。仕様上の採用事項は README の概要より `spec/` を優先します。
 
 最重要方針は、外部ツールやランタイムへの依存をなくすことです。最終的には、ホスト環境ごとの `nocter-v<version>-<host>.tar.gz` を配布し、展開された `.nocter/` ディレクトリを `~/.nocter/` として配置すれば利用できる状態を目指します。
 
@@ -45,14 +45,11 @@ Rust を採用する理由は、所有権、pattern matching、バイナリデ�
 README.md
     ユーザー向けの全容
 
-AI.md
-    AI が Nocter を読み書きするための短縮ガイド
-
-SPEC.md
-    ユーザー向けの言語仕様書の入口
-
 spec/
     ユーザー向けの言語仕様書
+    README.md
+    guides/
+        ai.md
     00-overview.md
     01-modules-imports.md
     02-values-types.md
@@ -76,7 +73,14 @@ spec/
 
 compiler/
     README.md
-        コンパイラ開発者向けの実装設計書
+        コンパイラ開発者向けの入口
+    TODO.md
+        コンパイラ作業の短期 handoff
+    docs/
+        architecture.md
+        implementation-status.md
+        backend-v0.md
+        roadmap.md
     Cargo.toml
         Rust 製コンパイラ実装の crate manifest
         開発時のみ使用し、利用者向け配布物には含めない
@@ -121,7 +125,7 @@ tools/
             std/
 ```
 
-`README.md` は Nocter の目的、対象環境、配布形態、設計思想を説明する入口です。`SPEC.md` は Nocter を書く人向けの言語仕様書の目次であり、詳細な仕様は `spec/` に章別で置きます。`compiler/README.md` はコンパイラ開発者向けの内部設計書であり、ユーザー向け文書には実装内部の詳細を入れすぎない方針とします。
+`README.md` は Nocter の目的、対象環境、配布形態、設計思想を説明する入口です。`spec/README.md` は Nocter を書く人向けの言語仕様書の目次であり、詳細な仕様は `spec/` に章別で置きます。`compiler/README.md` はコンパイラ開発者向けの入口であり、実装状況や内部設計は `compiler/docs/` に置きます。
 
 `compiler/` は Rust 製 bootstrap compiler の開発用ソースツリーです。`.nocter/` は現在の開発環境向けの完成品配置先であり、コンパイラ本体と標準ライブラリを含みます。このディレクトリは生成物・配布物なので git 管理しません。
 
@@ -496,7 +500,7 @@ trait Writer {
 
 `impl Trait for Type` は、trait を定義した module または実装対象の nominal type を定義した module でだけ書けます。外部 trait を外部 type へ実装することはできません。同じ trait と type の組み合わせに対する実装は、読み込まれた program 全体で1つだけです。
 
-`enum` は有限個の variant を持つ型です。variant の分岐には `switch` を使い、各 arm は `is Pattern { ... }` で書きます。fallback には最後の arm として `else { ... }` を使います。v0 では網羅性チェックを延期するため、`else` がない `switch` は終端文として扱いません。
+`enum` は有限個の variant を持つ型です。statement として variant を分岐する場合は `match` を使い、各 arm は `Pattern { ... }` で書きます。fallback には最後の arm として `else { ... }` を使います。v0 では網羅性チェックを延期するため、`else` がない `match` は終端文として扱いません。値を返す enum pattern 分岐には `?{}` を使います。
 
 payload を持たない variant は `Enum.variant`、payload を持つ variant は `Enum.variant(args...)` で作ります。variant constructor は enum 宣言から生まれる構文上の値生成手段であり、通常の関数名や特別な識別子ではありません。unqualified variant constructor は v0 では採用しません。
 
@@ -506,16 +510,24 @@ let error = AppError.open_failed(path)
 ```
 
 ```nct
-switch error {
-    is AppError.missing_path {
+match error {
+    AppError.missing_path {
         ...
     }
-    is AppError.open_failed(path) {
+    AppError.open_failed(path) {
         ...
     }
     else {
         ...
     }
+}
+```
+
+```nct
+return error ?{
+    AppError.missing_path : missing_code()
+    AppError.open_failed(path) : code_for(path)
+    : unknown_code()
 }
 ```
 
@@ -941,9 +953,9 @@ Nocter のメモリ管理方針は、GC なし、所有権あり、静的検査�
 - `??` と三項条件演算子は必要な側だけ評価する
 - 一時値は原則として文末で生成の逆順に `drop` する
 - 一時値の所有権が local binding、owned parameter、構築中の aggregate、代入先、return value に移った場合、その一時値自体は caller 側の文末では `drop` しない
-- block、`if` body、`switch` arm、loop body は scope を作る
+- block、`if` body、`match` arm、loop body は scope を作る
 - scope 終了時は local 変数を宣言の逆順で `drop` する
-- postfix `?` / `return` / `fail` / `break` / `continue` で途中離脱する場合は、現在の statement で生成済みの一時値を先に `drop` し、その後に離脱で抜ける scope の `drop` を実行する
+- postfix `?` / `return` / `break` / `continue` で途中離脱する場合は、現在の statement で生成済みの一時値を先に `drop` し、その後に離脱で抜ける scope の `drop` を実行する
 - 一時値から作った borrow や view を文の外へ逃がせない
 - local owned value、temporary owned value、owned parameter から作った borrow / view は返せない
 - 初期仕様では一時値の lifetime extension を採用しない
@@ -1179,7 +1191,7 @@ region scratch using allocator {
 
 `scratch.allocator()` は region allocator を取り出す標準ライブラリ API の例です。コンパイラは `allocator` という名前を特別扱いするのではなく、region から派生した allocator value の provenance を追跡します。
 
-`region` を抜けると、まず block 内の所有値を通常通り逆順に `drop` し、その後で region allocator が残りの region 確保をまとめて解放します。`return`、`fail`、`break`、`continue` で region block を抜ける場合も同じ cleanup を行います。`never` 呼び出しは stack unwinding ではないため、呼び出し元 region の cleanup を暗黙には保証しません。
+`region` を抜けると、まず block 内の所有値を通常通り逆順に `drop` し、その後で region allocator が残りの region 確保をまとめて解放します。`return`、`break`、`continue` で region block を抜ける場合も同じ cleanup を行います。`never` 呼び出しは stack unwinding ではないため、呼び出し元 region の cleanup を暗黙には保証しません。
 
 コンパイラは、region 内で確保した所有値、region 由来の borrow、`str` / `[T]` などの view が region の外へ漏れないことを検査します。copy 値でも、region 由来の参照や backing storage を含む場合は外へ持ち出せません。純粋な `i32` や統計値のように region へ依存しない copy 値だけを外へ持ち出せます。
 
@@ -1500,9 +1512,9 @@ let truncated = u8.truncate(big) // u8
 - `String == String` や `String == str` は std 側の演算子定義が必要になるため v0 では保留する
 - `==` を struct に自動生成しない
 - payload を持たない enum の比較は許可する
-- payload を持つ enum の比較は初期仕様では採用せず、`switch` / `if expr is Pattern` を使う
+- payload を持つ enum の値全体の比較は初期仕様では採用せず、statement 分岐には `match` / `if expr is Pattern`、値選択には `?{}` を使う
 
-演算子の優先順位は、call / method / index / field を最も高くし、`??` と三項条件演算子を低くします。`&&`、`||`、`??`、三項条件演算子は必要な側だけ評価します。
+演算子の優先順位は、call / method / index / field を最も高くし、`??`、三項条件演算子、`?{}` を低くします。`&&`、`||`、`??`、三項条件演算子、`?{}` は必要な側だけ評価します。
 
 ```nct
 if count > 0 && state == ScanState.inside_word {
@@ -1518,7 +1530,7 @@ func log(msg: str): void
 
 戻り値を持たない関数は `void` を返します。失敗を表す値には、例外ではなく fallible type `T!` を使います。
 
-`T!` は成功時に `T`、失敗時に built-in `error` を返す型です。fallible 関数内では `return value` が成功、`fail error_value` が失敗を表します。
+`T!` は成功時に `T`、失敗時に built-in `error` を返す型です。fallible 関数内では `return value` が成功を表します。ただし `return error_value` のように返す値が `error` 型の場合は失敗を表します。曖昧さを避けるため、`error!` は関数 return type として使えません。
 
 `error` は型位置で意味を持つ compiler built-in 構文です。import で解決される通常名ではなく、ユーザー定義の型名として再定義できません。一方で、値の束縛名としての `error` は通常のローカル名です。`catch error { ... }` の `error` は慣習的な束縛名であり、`catch err { ... }` のような別名も有効です。
 
@@ -1526,20 +1538,20 @@ postfix `?` は fallible value または optional value を現在の関数へ伝
 
 postfix `!` は fallible value または optional value を強制的に取り出す構文です。成功または present の場合は `T` を返します。失敗または `none` の場合は即座に復帰不能停止します。通常コードでは `?`、`catch`、`if let`、`let ... else`、`??` を優先し、`!` はテスト、プロトタイプ、復旧不能な前提に限定します。
 
-`fail`、`trap`、`abort` は別の仕組みです。
+fallible failure return、`trap`、`abort` は別の仕組みです。
 
 ```text
-fail  = T! を通る回復可能エラー
-trap  = プログラムバグ、契約違反、compiler check 失敗による復帰不能停止
-abort = cleanup なしの即時 process termination
+return error_value = T! を通る回復可能エラー
+trap               = プログラムバグ、契約違反、compiler check 失敗による復帰不能停止
+abort              = cleanup なしの即時 process termination
 ```
 
-`fail` は `return` と同じく、離脱する scope の通常 cleanup を実行します。`trap` と `abort` は `never` を返し、stack unwinding を行いません。`panic` と unwind は v0 では採用しません。
+fallible failure return は通常の `return` と同じく、離脱する scope の通常 cleanup を実行します。`trap` と `abort` は `never` を返し、stack unwinding を行いません。`panic` と unwind は v0 では採用しません。
 
 ```nct
 func open(path: str): File! {
     if failed {
-        fail Error.new("std.io.not_found", "file not found")
+        return Error.new("std.io.not_found", "file not found")
     }
 
     return file
@@ -1553,20 +1565,20 @@ fallible value を伝播する場合は postfix `?` を使います。失敗側�
 ```nct
 func read_all(allocator: &+Allocator, path: str): String! {
     var file = File.open(path) catch error {
-        fail Error.new("std.io.open_failed", error.message)
+        return Error.new("std.io.open_failed", error.message)
     }
 
     var text = file.read_to_string(allocator) catch error {
-        fail Error.new("std.io.read_failed", error.message)
+        return Error.new("std.io.read_failed", error.message)
     }
 
     return move text
 }
 ```
 
-`catch` は例外処理ではありません。`expr catch error { ... }` は `expr` が失敗した場合だけ `catch` block を実行します。初期仕様では `catch` block は `fail`、`return`、`break`、`continue`、`never` を返す関数呼び出しなどで現在の制御フローを離脱し、通常の末尾到達はできません。`catch` は `T!` 専用で、`T?` には使いません。
+`catch` は例外処理ではありません。`expr catch error { ... }` は `expr` が失敗した場合だけ `catch` block を実行します。初期仕様では `catch` block は `return`、`break`、`continue`、`never` を返す関数呼び出しなどで現在の制御フローを離脱し、通常の末尾到達はできません。`catch` は `T!` 専用で、`T?` には使いません。
 
-fallible value は `switch` で分解しません。`switch` は enum 専用に戻し、`ok` / `fail` pattern は採用しません。fallible value は postfix `?` または `catch` で扱います。
+fallible value は `match` で分解しません。`match` は enum 専用に戻し、success / failure pattern は採用しません。fallible value は postfix `?` または `catch` で扱います。
 
 値が存在しない可能性は `T?` で表します。`Option<T>` という名前付き型を特別扱いしません。optional 関数では `return value` が present、`return none` が absent を表します。
 
@@ -1610,13 +1622,13 @@ use(home)
 
 ```nct
 let config = find_config(path) else {
-    fail AppError.missing_config(path)
+    return Error.new("app.config.missing", path)
 }
 
 load(config)
 ```
 
-`let name = expr else { ... }` は `expr: T?` が present の場合に `name: T` を束縛し、その後の文へ進みます。`none` の場合は `else` block を実行します。`else` block は `return`、`return none`、`fail`、`break`、`continue`、`never` を返す関数呼び出し、停止しない `loop` などで現在の制御フローを必ず離脱し、通常の末尾到達はできません。つまり `else` block は `never` 型です。
+`let name = expr else { ... }` は `expr: T?` が present の場合に `name: T` を束縛し、その後の文へ進みます。`none` の場合は `else` block を実行します。`else` block は `return`、`return none`、`break`、`continue`、`never` を返す関数呼び出し、停止しない `loop` などで現在の制御フローを必ず離脱し、通常の末尾到達はできません。つまり `else` block は `never` 型です。
 
 `var name = expr else { ... }` も使えます。present の値を mutable binding として取り出します。`let ... else` / `var ... else` は declaration statement であり、式ではありません。`else` block で代替値を返す用途には使いません。absence を値で補う場合は `??` を使います。
 
@@ -1646,7 +1658,7 @@ optional value には default operator `??` を使えます。右結合で、必
 let port = env_int("PORT") ?? config.default_port ?? 8080
 ```
 
-`T?` も `switch` では分解しません。local に present / absent を分岐したい場合は `if let` / `if var` を使います。optional を繰り返し取り出す場合は `while let` / `while var` を使います。
+`T?` も `match` では分解しません。local に present / absent を分岐したい場合は `if let` / `if var` を使います。optional を繰り返し取り出す場合は `while let` / `while var` を使います。
 
 ```nct
 if let home = env("HOME") {
@@ -1701,7 +1713,16 @@ bool 条件の値選択には三項条件演算子 `a ? b : c` を使えます�
 let label = count == 0 ? "empty" : "ready"
 ```
 
-初期仕様では statement 中心にします。`if`、`switch`、block `{ ... }` は値を返しません。関数の成功終了は `return`、fallible の失敗は `fail`、optional の absent は `return none` で明示します。
+enum pattern の値選択には `?{}` を使います。これは `match` expression ではなく、fallback arm を必須にした enum 専用の式です。
+
+```nct
+return error ?{
+    AppError.open_failed(path) : code_for(path)
+    : unknown_code()
+}
+```
+
+初期仕様では statement 中心にします。`if`、`match`、block `{ ... }` は値を返しません。関数の成功終了は `return`、fallible の失敗は `return error_value`、optional の absent は `return none` で明示します。
 
 ```nct
 func max(a: i32, b: i32): i32 {
@@ -1780,7 +1801,7 @@ func require_path(path: str?): str {
 }
 ```
 
-`never` を返す関数を呼んだ後の同一 block 内の文は到達不能です。Nocter は初期仕様で到達不能コードをコンパイルエラーにします。`never` は値を生成しないため、三項条件演算子や `catch` の分岐で必要な型に収まりますが、変数に格納する値としては存在しません。`void` 以外の関数はすべての到達可能経路で値を返すか、`fail` / `return none` / `never` などで経路を終端する必要があります。`never` 呼び出しは例外や stack unwinding ではないため、statement-end temporary drop や caller scope の `drop` 実行を暗黙に保証しません。
+`never` を返す関数を呼んだ後の同一 block 内の文は到達不能です。Nocter は初期仕様で到達不能コードをコンパイルエラーにします。`never` は値を生成しないため、三項条件演算子や `catch` の分岐で必要な型に収まりますが、変数に格納する値としては存在しません。`void` 以外の関数はすべての到達可能経路で値を返すか、`return none` / `never` などで経路を終端する必要があります。`never` 呼び出しは例外や stack unwinding ではないため、statement-end temporary drop や caller scope の `drop` 実行を暗黙に保証しません。
 
 ジェネリクスは `<T>` を使います。制約は v0 では `T: Trait` だけです。複数制約 `T: A + B`、`where` clause、default type parameter は採用しません。
 
@@ -1841,7 +1862,7 @@ help: end the borrow before moving `file`
 
 v0 では、source-level compiler error に `E0000` 形式の error code を付け、primary span を1つ持たせます。関連する原因箇所がある場合は related span と `note` を出し、修正方向が明確な場合は `help` を出します。parser は最初の構文エラーで止まってよく、型チェック以降は複数の独立エラーを出せますが、cascade error は抑制します。
 
-`pub(nocter)` 違反、borrow 違反、move 後の使用、明示 `drop` 後の使用、maybe initialized binding の使用、`fail` に `error` 以外を渡した場合、`T!` / `T?` ではない値への postfix `?` / `!`、optional return layer のない場所での optional propagation、`catch` の fallthrough、selected entry function の欠落や不正な signature などは専用診断にします。診断文は compiler 内部都合ではなく、Nocter の source-level 概念で説明します。
+`pub(nocter)` 違反、borrow 違反、move 後の使用、明示 `drop` 後の使用、maybe initialized binding の使用、`return` 値の success/failure 不一致、`T!` / `T?` ではない値への postfix `?` / `!`、optional return layer のない場所での optional propagation、`catch` の fallthrough、selected entry function の欠落や不正な signature などは専用診断にします。診断文は compiler 内部都合ではなく、Nocter の source-level 概念で説明します。
 
 ## エディタ連携
 
@@ -1884,7 +1905,7 @@ compiler 内部の source span は UTF-8 byte offset を正とし、CLI 用 JSON
 12. `print`
 13. `import`
 14. `struct`
-15. `if` / `switch`
+15. `if` / `match` / `?{}`
 16. `while` / `loop` / range `for` / `break` / `continue`
 17. 所有型のコピー禁止
 18. `move`

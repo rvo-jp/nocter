@@ -1,5 +1,8 @@
 use super::Formatter;
-use crate::ast::{BinaryOperator, Expr, StructLiteralExpr, StructLiteralField, UnaryOperator};
+use crate::ast::{
+    BinaryOperator, Expr, PatternConditionalArm, PatternConditionalExpr, StructLiteralExpr,
+    StructLiteralField, SwitchPayloadBinding, UnaryOperator,
+};
 
 const PREC_OPTIONAL_DEFAULT: u8 = 1;
 const PREC_LOGICAL_OR: u8 = 2;
@@ -97,6 +100,9 @@ impl Formatter {
                 self.write(" ?? ");
                 self.format_expr(&expression.default, PREC_OPTIONAL_DEFAULT);
             }
+            Expr::PatternConditional(expression) => {
+                self.format_pattern_conditional(expression);
+            }
         }
 
         if needs_group {
@@ -120,11 +126,47 @@ impl Formatter {
         self.write(": ");
         self.format_expr(&field.value, 0);
     }
+
+    fn format_pattern_conditional(&mut self, expression: &PatternConditionalExpr) {
+        self.format_expr(&expression.target, PREC_OPTIONAL_DEFAULT + 1);
+        self.write(" ?{");
+        self.indented(|formatter| {
+            for arm in &expression.arms {
+                formatter.newline();
+                formatter.write_indent();
+                formatter.format_pattern_conditional_arm(arm);
+            }
+            formatter.newline();
+            formatter.write_indent();
+            formatter.write(": ");
+            formatter.format_expr(&expression.fallback, 0);
+        });
+        self.newline();
+        self.write_indent();
+        self.write("}");
+    }
+
+    fn format_pattern_conditional_arm(&mut self, arm: &PatternConditionalArm) {
+        self.write(&arm.enum_name);
+        self.write(".");
+        self.write(&arm.variant_name);
+        if let Some(payload) = &arm.payload {
+            self.format_payload_binding(payload);
+        }
+        self.write(" : ");
+        self.format_expr(&arm.expression, 0);
+    }
+
+    fn format_payload_binding(&mut self, payload: &SwitchPayloadBinding) {
+        self.write("(");
+        self.write(&payload.name);
+        self.write(")");
+    }
 }
 
 fn expression_precedence(expression: &Expr) -> u8 {
     match expression {
-        Expr::OptionalDefault(_) => PREC_OPTIONAL_DEFAULT,
+        Expr::OptionalDefault(_) | Expr::PatternConditional(_) => PREC_OPTIONAL_DEFAULT,
         Expr::Binary(expression) => binary_precedence(expression.operator),
         Expr::Unary(_) => PREC_PREFIX,
         Expr::Propagate(_)

@@ -18,7 +18,7 @@ const VALID_EXAMPLES: &[ValidExample] = &[
     ValidExample::new("spec/examples/valid/optional-let-else.nct"),
     ValidExample::new("spec/examples/valid/optional-propagation.nct"),
     ValidExample::new("spec/examples/valid/range-for.nct"),
-    ValidExample::new("spec/examples/valid/switch-enum.nct"),
+    ValidExample::new("spec/examples/valid/match-enum.nct"),
     ValidExample::with_entry("spec/examples/valid/custom-entry.nct", "start"),
 ];
 
@@ -36,7 +36,7 @@ const INVALID_EXAMPLES: &[InvalidExample] = &[
         "E0341",
     ),
     InvalidExample::new("spec/examples/invalid/return-type-mismatch.nct", "E0312"),
-    InvalidExample::new("spec/examples/invalid/switch-non-enum.nct", "E0361"),
+    InvalidExample::new("spec/examples/invalid/match-non-enum.nct", "E0361"),
 ];
 
 struct ValidExample {

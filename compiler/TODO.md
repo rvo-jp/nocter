@@ -1,6 +1,6 @@
 # Nocter Continuation TODO
 
-This file is the handoff point for the next session. If the user says "TODO.mdを参照して続きの作業を行なって", start here.
+This file is the compiler handoff point for the next session. If the user says "compiler/TODO.mdを参照して続きの作業を行なって", start here.
 
 ## Current Repository State
 
@@ -49,7 +49,7 @@ This still fails only because of the unrelated `example.nct:168: new blank line 
 ## First Action In Next Session
 
 1. Run `git status --short`.
-2. Confirm only the known unrelated local changes are present, plus this `TODO.md` if it has not been committed or removed.
+2. Confirm only the known unrelated local changes are present, plus this `compiler/TODO.md` if it has not been committed or removed.
 3. Do not touch `assets/logo.svg` or `example.nct` unless the user explicitly asks.
 4. Continue backend v0 with the next small guard or buildable feature below.
 
@@ -72,7 +72,7 @@ After that:
 
 3. Consider the next user-visible build feature only after the guard above.
    - Good candidates are still small terminal control-flow cases.
-   - Avoid broad `if`, `while`, `loop`, `switch`, `var`, reassignment, imports, and aggregate lowering until the backend has storage and ABI rules for them.
+   - Avoid broad `if`, `while`, `loop`, `match`, `var`, reassignment, imports, and aggregate lowering until the backend has storage and ABI rules for them.
 
 ## Design Constraints To Preserve
 

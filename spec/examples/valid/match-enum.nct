@@ -8,12 +8,12 @@ func main(): i32 {
 }
 
 func describe(error: AppError): i32 {
-    switch error {
-        is AppError.missing_path {
+    match error {
+        AppError.missing_path {
             return 0
         }
 
-        is AppError.open_failed(path) {
+        AppError.open_failed(path) {
             use_path(path)
             return 1
         }

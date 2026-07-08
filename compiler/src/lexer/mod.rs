@@ -62,10 +62,9 @@ pub enum Keyword {
     Loop,
     Break,
     Continue,
-    Switch,
+    Match,
     Is,
     Catch,
-    Fail,
     None,
     True,
     False,
@@ -706,10 +705,9 @@ fn keyword(text: &str) -> Option<Keyword> {
         "loop" => Keyword::Loop,
         "break" => Keyword::Break,
         "continue" => Keyword::Continue,
-        "switch" => Keyword::Switch,
+        "match" => Keyword::Match,
         "is" => Keyword::Is,
         "catch" => Keyword::Catch,
-        "fail" => Keyword::Fail,
         "none" => Keyword::None,
         "true" => Keyword::True,
         "false" => Keyword::False,
@@ -813,23 +811,23 @@ mod tests {
     }
 
     #[test]
-    fn lexes_switch_keyword_and_match_identifier() {
+    fn lexes_match_keyword_and_switch_identifier() {
         let mut sources = SourceMap::new();
         let id = sources.add_source(
             "app.nct",
             None,
-            "switch value {}\nlet match = 1\nlet try = 2",
+            "match value {}\nlet switch = 1\nlet try = 2",
         );
         let output = lex(&sources, id);
 
         assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
-        assert_eq!(output.tokens[0].kind, TokenKind::Keyword(Keyword::Switch));
+        assert_eq!(output.tokens[0].kind, TokenKind::Keyword(Keyword::Match));
         assert!(output.tokens.iter().any(|token| {
             token.kind == TokenKind::Identifier
                 && sources
                     .get(token.span.source)
                     .and_then(|file| file.text().get(token.span.start..token.span.end))
-                    == Some("match")
+                    == Some("switch")
         }));
         assert!(output.tokens.iter().any(|token| {
             token.kind == TokenKind::Identifier

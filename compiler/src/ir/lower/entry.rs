@@ -3,7 +3,7 @@ use super::context::{FunctionSignatures, LoweringContext};
 use super::control_flow::lower_terminal_i32_if_statement;
 use super::errors::{lower_make_error_message, with_trailing_newline};
 use super::expressions::lower_i32_return_expression;
-use crate::ast::{FunctionDecl, Stmt, TypeExpr};
+use crate::ast::{Expr, FunctionDecl, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{Function, I32Location, I32Value, Instruction, Type};
 
@@ -66,6 +66,14 @@ fn lower_entry_body(
 
     match last {
         Stmt::Return(statement) => {
+            if leading.is_empty()
+                && let Some(expression) = &statement.expression
+                && return_type_is_lowerable_i32_fallible(return_type)
+                && expression_is_make_error_call(expression)
+            {
+                return lower_i32_fallible_failure(expression);
+            }
+
             let return_instructions = match (success_type, &statement.expression) {
                 (Type::I32, Some(expression)) => lower_i32_return_expression(expression, &context),
                 (Type::Void, None) => Ok(vec![Instruction::Return]),
@@ -92,29 +100,31 @@ fn lower_entry_body(
             )?);
             Ok(instructions)
         }
-        Stmt::Fail(statement) if leading.is_empty() => match return_type {
-            Type::Fallible(success) if success.as_ref() == &Type::I32 => {
-                let message = lower_make_error_message(&statement.expression)?;
-                Ok(vec![
-                    Instruction::WriteStaticStderr(with_trailing_newline(message)),
-                    Instruction::SetI32 {
-                        destination: I32Location::Return,
-                        value: I32Value::Const(1),
-                    },
-                    Instruction::Return,
-                ])
-            }
-            Type::Fallible(_) => Err(vec![Diagnostic::error(
-                "E8004",
-                "IR v0 can only lower `fail make_error(...)` from `func main(): i32!`",
-            )]),
-            Type::I32 | Type::Bool | Type::Void => Err(vec![Diagnostic::error(
-                "E8004",
-                "IR v0 cannot lower `fail` from a non-fallible entry function",
-            )]),
-        },
         _ => Err(unsupported_entry_body_diagnostic()),
     }
+}
+
+fn return_type_is_lowerable_i32_fallible(return_type: &Type) -> bool {
+    matches!(return_type, Type::Fallible(success) if success.as_ref() == &Type::I32)
+}
+
+fn expression_is_make_error_call(expression: &Expr) -> bool {
+    let Expr::Call(call) = expression else {
+        return false;
+    };
+    matches!(call.callee.as_ref(), Expr::Identifier(identifier) if identifier.name == "make_error")
+}
+
+fn lower_i32_fallible_failure(expression: &Expr) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let message = lower_make_error_message(expression)?;
+    Ok(vec![
+        Instruction::WriteStaticStderr(with_trailing_newline(message)),
+        Instruction::SetI32 {
+            destination: I32Location::Return,
+            value: I32Value::Const(1),
+        },
+        Instruction::Return,
+    ])
 }
 
 fn lower_leading_bindings(
@@ -137,6 +147,6 @@ fn lower_leading_bindings(
 fn unsupported_entry_body_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8002",
-        "IR v0 can only lower entry function bodies containing leading scalar `let` bindings followed by `return`, `fail make_error(...)`, or a void return",
+        "IR v0 can only lower entry function bodies containing leading scalar `let` bindings followed by `return`, `return make_error(...)`, or a void return",
     )]
 }

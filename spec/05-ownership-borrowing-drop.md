@@ -1,7 +1,7 @@
 # Ownership, Borrowing, and Drop
 
 This file is part of the Nocter language specification.
-The specification entry point is [../SPEC.md](../SPEC.md).
+The specification entry point is [README.md](README.md).
 
 ## Borrowing
 
@@ -256,14 +256,14 @@ Rules:
 - `drop` cannot be called as a normal associated function or method.
 - `file.drop()` is invalid.
 - `File.drop(&+file)` is invalid.
-- `drop` cannot use `fail` to report cleanup failure.
+- `drop` cannot report cleanup failure through fallible return.
 - If an operation inside `drop` can fail, the `drop` body must ignore that failure, record it in already-owned state before destruction, or terminate with `trap` / `abort`.
 - Terminating with `trap` or `abort` from inside `drop` does not unwind remaining caller scopes.
 - Owned values are automatically dropped at scope end.
 - Initialized owned values are dropped in reverse declaration order.
 - Maybe initialized owned values use compiler-generated conditional drop.
 - Uninitialized bindings are not dropped.
-- `return`, `fail`, and postfix `?` propagation run the same scope-end drop behavior, including conditional drop.
+- `return` and postfix `?` propagation run the same scope-end drop behavior, including conditional drop.
 - A moved value is not dropped through the original binding.
 
 ### Explicit Drop Statements

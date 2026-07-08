@@ -73,7 +73,6 @@ impl Resolver<'_> {
                     self.resolve_expression(expression, scope);
                 }
             }
-            Stmt::Fail(statement) => self.resolve_expression(&statement.expression, scope),
             Stmt::Binding(statement) => {
                 self.resolve_expression(&statement.initializer, scope);
                 if let Some(else_block) = &statement.else_block {
@@ -219,6 +218,17 @@ impl Resolver<'_> {
             Expr::OptionalDefault(expression) => {
                 self.resolve_expression(&expression.value, scope);
                 self.resolve_expression(&expression.default, scope);
+            }
+            Expr::PatternConditional(expression) => {
+                self.resolve_expression(&expression.target, scope);
+                for arm in &expression.arms {
+                    let mut arm_scope = scope.clone();
+                    if let Some(payload) = &arm.payload {
+                        self.define_local_name(payload.name.clone(), payload.span, &mut arm_scope);
+                    }
+                    self.resolve_expression(&arm.expression, &mut arm_scope);
+                }
+                self.resolve_expression(&expression.fallback, scope);
             }
             Expr::IntegerLiteral(_)
             | Expr::StringLiteral(_)

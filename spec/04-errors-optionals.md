@@ -1,7 +1,7 @@
 # Errors and Optionals
 
 This file is part of the Nocter language specification.
-The specification entry point is [../SPEC.md](../SPEC.md).
+The specification entry point is [README.md](README.md).
 
 ## Fallible Types
 
@@ -10,7 +10,7 @@ Adopted: failure is represented with fallible types, not exceptions.
 ```nct
 func open(path: str): File! {
     if failed {
-        fail Error.new("std.io.not_found", "file not found")
+        return Error.new("std.io.not_found", "file not found")
     }
 
     return file
@@ -46,13 +46,14 @@ Rules:
 - Domain detail is represented in the `error` payload and standard-library helper APIs, especially through classification code and `message`, not by writing a different failure type in the signature.
 - `error.code` and `error.message` are the initial direct user-facing fields for reporting.
 - `error.code` is an open dotted string code such as `"std.io.not_found"` or `"app.config.missing_key"`.
+- `error!` is not a valid function return type. In a fallible function, `return error_value` means failure, so `error` cannot be used as the success type without ambiguity.
 
-Inside a function returning `T!`, `return value` returns the success value and `fail error_value` returns the failure value.
+Inside a function returning `T!`, `return value` returns the success value unless the value has type `error`. `return error_value` returns the failure value.
 
 ```nct
 func write(file: &+File, text: str): void! {
     if failed {
-        fail Error.new("std.io.broken_pipe", "broken pipe")
+        return Error.new("std.io.broken_pipe", "broken pipe")
     }
 
     return
@@ -75,7 +76,7 @@ Example:
 let file = File.open(path)?
 ```
 
-This binds `file` to the successful `File` value. If `File.open(path)` fails, the current function fails with that `error` as if `fail error_value` had been executed.
+This binds `file` to the successful `File` value. If `File.open(path)` fails, the current function fails with that `error` as if `return error_value` had been executed.
 
 Rules:
 
@@ -85,8 +86,7 @@ Rules:
 - Postfix `?` on `T?` can be used only when the current function's return layer can carry `none`.
 - Postfix `?` does not convert `none` into `error`.
 - Postfix `?` does not convert `error` into `none`.
-- `fail` can be used only inside a function returning `T!`.
-- Scope-end cleanup and `drop` behavior still run as they would for an explicit `return` or `fail`.
+- Scope-end cleanup and `drop` behavior still run as they would for an explicit `return`.
 - Error conversion is not needed for propagation because every fallible value fails with `error`.
 - `throw` is not part of the language.
 
@@ -110,19 +110,20 @@ Rules:
 
 ## Recoverable Failure and Non-Recoverable Termination
 
-Adopted: `fail`, `trap`, and `abort` are distinct mechanisms.
+Adopted: fallible `return`, `trap`, and `abort` are distinct mechanisms.
 
 ```text
-fail  = recoverable failure through T!
-trap  = non-recoverable program defect or violated runtime check
-abort = immediate process termination
+return error_value = recoverable failure through T!
+trap               = non-recoverable program defect or violated runtime check
+abort              = immediate process termination
 ```
 
 Rules:
 
-- `fail expr` is valid only inside a function returning `T!`.
-- `expr` must have type `error`.
-- `fail` follows normal `return`-like cleanup for scopes it leaves.
+- In a function returning `T!`, `return expr` is a failure return when `expr` has type `error`.
+- In a function returning `T!`, `return expr` is a success return when `expr` is assignable to `T`.
+- `T` must not be `error`.
+- Fallible failure return follows normal `return` cleanup for scopes it leaves.
 - `trap` has type `never`.
 - `trap` is used for program defects, compiler-inserted safety checks, and impossible paths.
 - Out-of-bounds indexing, integer overflow in normal arithmetic, division by zero, invalid live `bool` values, invalid enum tags, and explicit unreachable execution all trap.
@@ -137,7 +138,7 @@ Adopted: `catch` handles the failure side of a fallible expression.
 
 ```nct
 let file = File.open(path) catch error {
-    fail Error.new("std.io.open_failed", error.message)
+    return Error.new("std.io.open_failed", error.message)
 }
 ```
 
@@ -155,7 +156,7 @@ Rules:
 - The binding name after `catch` is an ordinary local name. `catch error` is conventional, but `catch err` is also valid.
 - The catch block is evaluated only on failure.
 - The catch block must not fall through in the initial design.
-- The catch block must leave the current control path with `fail`, `return`, `break`, `continue`, a call returning `never`, or another terminating construct.
+- The catch block must leave the current control path with `return`, `break`, `continue`, a call returning `never`, or another terminating construct.
 - The catch block has no trailing expression result.
 - `catch` is not exception handling.
 - `catch` does not perform stack unwinding.
@@ -173,11 +174,11 @@ func read_all(
     path: str,
 ): String! {
     var file = File.open(path) catch error {
-        fail Error.new("std.io.open_failed", error.message)
+        return Error.new("std.io.open_failed", error.message)
     }
 
     var text = file.read_to_string(allocator) catch error {
-        fail Error.new("std.io.read_failed", error.message)
+        return Error.new("std.io.read_failed", error.message)
     }
 
     return move text
@@ -190,9 +191,9 @@ Fallible values are not pattern matched in the initial design.
 
 Rules:
 
-- `switch` does not apply to `T!`.
+- `match` does not apply to `T!`.
 - `if expr is Pattern` does not apply to `T!`.
-- `is ok(...)` and `is fail(...)` patterns are not part of the language.
+- `is ok(...)` and failure patterns are not part of the language.
 - `ok` is not a reserved keyword.
 - Fallible values are handled with postfix `?` and `catch`.
 
@@ -225,7 +226,7 @@ Rules:
 - `return value` in a `T?` function returns the present value.
 - `return none` in a `T?` function returns absence.
 - Postfix `?` on `T?` propagates `none` through the current optional return layer.
-- `switch` does not apply to `T?` in the initial design.
+- `match` does not apply to `T?` in the initial design.
 - `if expr is Pattern` does not apply to `T?` in the initial design.
 - `some(value)` is not part of the initial language.
 - `some` is not a reserved keyword.
@@ -251,7 +252,7 @@ Rules:
 - Applying `?` again to that `T?` propagates `none` through the current optional return layer.
 - In a function returning `T?!`, `return value` returns success with a present `T`.
 - In a function returning `T?!`, `return none` returns success with absence.
-- In a function returning `T?!`, `fail error_value` returns failure with `error`.
+- In a function returning `T?!`, `return error_value` returns failure with `error`.
 - Other mixed forms must use parentheses in v0.
 - `(T!)?` means an optional fallible value.
 
@@ -264,7 +265,7 @@ func env(name: str): str?! {
     }
 
     if invalid_utf8 {
-        fail Error.new("std.process.invalid_encoding", "environment value is not UTF-8")
+        return Error.new("std.process.invalid_encoding", "environment value is not UTF-8")
     }
 
     return value
@@ -329,7 +330,7 @@ use(home)
 
 ```nct
 let config = find_config(path) else {
-    fail AppError.missing_config(path)
+    return Error.new("app.config.missing", path)
 }
 
 load(config)
@@ -342,7 +343,7 @@ Rules:
 - If `expr` is present, the contained `T` value is bound to `name` and execution continues after the declaration.
 - If `expr` is `none`, the `else` block runs.
 - The `else` block must have type `never`.
-- The `else` block must leave the current control path with `return`, `return none`, `fail`, `break`, `continue`, a call returning `never`, a non-breaking infinite `loop`, or an equivalent terminating construct.
+- The `else` block must leave the current control path with `return`, `return none`, `break`, `continue`, a call returning `never`, a non-breaking infinite `loop`, or an equivalent terminating construct.
 - The `else` block must not fall through.
 - The binding exists after the declaration and is not available inside the `else` block.
 - `let ... else` and `var ... else` are declaration statements, not expressions.

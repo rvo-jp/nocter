@@ -33,10 +33,6 @@ impl Formatter {
                     self.format_expression(expression);
                 }
             }
-            Stmt::Fail(statement) => {
-                self.write("fail ");
-                self.format_expression(&statement.expression);
-            }
             Stmt::Binding(statement) => self.format_binding_statement(statement),
             Stmt::If(statement) => self.format_if_statement(statement),
             Stmt::IfIs(statement) => {
@@ -128,7 +124,7 @@ impl Formatter {
     }
 
     fn format_switch_statement(&mut self, statement: &SwitchStmt) {
-        self.write("switch ");
+        self.write("match ");
         self.format_expression(&statement.expression);
         self.write(" ");
 
@@ -142,7 +138,6 @@ impl Formatter {
         self.indented(|formatter| {
             for arm in &statement.arms {
                 formatter.write_indent();
-                formatter.write("is ");
                 formatter.format_enum_pattern(
                     &arm.enum_name,
                     &arm.variant_name,

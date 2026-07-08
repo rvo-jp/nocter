@@ -27,7 +27,7 @@ Rules:
 - The same examples are checked through `nocter check --format json` to keep the diagnostics envelope stable for future editor and LSP tooling.
 - Valid examples may opt into a non-default entry function in the compiler integration test. This is used only to show `--entry`; the source name itself remains ordinary.
 - Companion files under a valid example subdirectory are imported by the checked root example and are not necessarily checked as standalone executable roots.
-- Do not use examples to introduce syntax that is not specified in `SPEC.md`.
+- Do not use examples to introduce syntax that is not specified in `spec/README.md`.
 
 ## v0 Front-End Coverage
 
@@ -42,7 +42,7 @@ Current valid coverage:
 - relative source import
 - fallible `T!`, postfix `?`, postfix `!`, and `catch`
 - optional `T?`, `??`, `if let`, and `let ... else`
-- enum construction and `switch`
+- enum construction and `match`
 - range-only `for`
 
 Current invalid coverage:
@@ -57,4 +57,4 @@ Current invalid coverage:
 - postfix `!` on a plain value
 - fallthrough in `let ... else`
 - non-integer range bounds
-- `switch` on a non-enum value
+- `match` on a non-enum value

@@ -1,5 +1,5 @@
 use super::{
-    ByteSpan, Diagnostic, Expr, FailStmt, ReturnContext, ReturnStmt, SourceMap, Type,
+    ByteSpan, Diagnostic, Expr, ReturnContext, ReturnStmt, SourceMap, Type,
     add_declared_return_note,
 };
 
@@ -63,49 +63,25 @@ pub(in crate::typecheck) fn return_type_mismatch_diagnostic(
     diagnostic
 }
 
-pub(in crate::typecheck) fn fail_in_non_fallible_context_diagnostic(
+pub(in crate::typecheck) fn fallible_success_error_diagnostic(
     sources: &SourceMap,
-    statement: &FailStmt,
-    context: &ReturnContext,
-) -> Diagnostic {
-    let mut diagnostic = Diagnostic::error(
-        "E0333",
-        format!(
-            "`fail` is used in {}, but its return type is not fallible",
-            context.subject()
-        ),
-    );
-    diagnostic.primary_span = sources.span_to_json(statement.span).ok().map(Box::new);
-    add_declared_return_note(sources, &mut diagnostic, context);
-    diagnostic.help = Some("use `fail` only inside a function returning `T!`".to_string());
-    diagnostic
-}
-
-pub(in crate::typecheck) fn fail_type_mismatch_diagnostic(
-    sources: &SourceMap,
-    statement: &FailStmt,
-    expected: &Type,
-    actual: &Type,
     context: &ReturnContext,
 ) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(
         "E0334",
         format!(
-            "`fail` value has type `{}`, but {} fails with `{}`",
-            actual.display(),
-            context.subject(),
-            expected.display()
+            "{} returns `error!`, but a fallible success type cannot be `error`",
+            context.subject()
         ),
     );
     diagnostic.primary_span = sources
-        .span_to_json(statement.expression.span())
+        .span_to_json(context.return_type_span)
         .ok()
         .map(Box::new);
-    add_declared_return_note(sources, &mut diagnostic, context);
-    diagnostic.help = Some(format!(
-        "fail with a value of type `{}`",
-        expected.display()
-    ));
+    diagnostic.help = Some(
+        "`return error_value` means failure in a fallible function; wrap the error in another type if it must be a success value"
+            .to_string(),
+    );
     diagnostic
 }
 

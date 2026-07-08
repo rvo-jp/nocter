@@ -477,12 +477,12 @@ fn lowers_fallible_entry_returning_i32_literal() {
 }
 
 #[test]
-fn lowers_fallible_entry_fail_make_error() {
+fn lowers_fallible_entry_return_make_error() {
     let ir = lower_text(
         r#"primitive make_error(code: str, message: str): error
 
 func main(): i32! {
-    fail make_error("app.failed", "failed")
+    return make_error("app.failed", "failed")
 }
 "#,
     );
@@ -502,12 +502,12 @@ func main(): i32! {
 }
 
 #[test]
-fn lowers_fallible_entry_fail_message_without_duplicate_newline() {
+fn lowers_fallible_entry_return_error_message_without_duplicate_newline() {
     let ir = lower_text(
         r#"primitive make_error(code: str, message: str): error
 
 func main(): i32! {
-    fail make_error("app.failed", "failed\n")
+    return make_error("app.failed", "failed\n")
 }
 "#,
     );
@@ -528,7 +528,7 @@ fn reports_unsupported_fail_payload() {
         r#"primitive make_error(code: str, message: str): error
 
 func main(): i32! {
-    fail make_error("app.failed", dynamic())
+    return make_error("app.failed", dynamic())
 }
 
 func dynamic(): str {

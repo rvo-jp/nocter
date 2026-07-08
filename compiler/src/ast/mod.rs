@@ -291,7 +291,6 @@ pub struct Block {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Stmt {
     Return(ReturnStmt),
-    Fail(FailStmt),
     Binding(BindingStmt),
     If(IfStmt),
     IfIs(IfIsStmt),
@@ -310,12 +309,6 @@ pub enum Stmt {
 pub struct ReturnStmt {
     pub span: ByteSpan,
     pub expression: Option<Expr>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FailStmt {
-    pub span: ByteSpan,
-    pub expression: Expr,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -469,6 +462,7 @@ pub enum Expr {
     Index(IndexExpr),
     Group(GroupExpr),
     OptionalDefault(OptionalDefaultExpr),
+    PatternConditional(PatternConditionalExpr),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -618,6 +612,28 @@ pub struct OptionalDefaultExpr {
     pub default: Box<Expr>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PatternConditionalExpr {
+    pub span: ByteSpan,
+    pub question_span: ByteSpan,
+    pub target: Box<Expr>,
+    pub arms: Vec<PatternConditionalArm>,
+    pub fallback_colon_span: ByteSpan,
+    pub fallback: Box<Expr>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PatternConditionalArm {
+    pub span: ByteSpan,
+    pub enum_name: String,
+    pub enum_name_span: ByteSpan,
+    pub variant_name: String,
+    pub variant_name_span: ByteSpan,
+    pub payload: Option<SwitchPayloadBinding>,
+    pub colon_span: ByteSpan,
+    pub expression: Expr,
+}
+
 impl Item {
     pub fn span(&self) -> ByteSpan {
         match self {
@@ -679,7 +695,6 @@ impl Stmt {
     pub fn span(&self) -> ByteSpan {
         match self {
             Stmt::Return(statement) => statement.span,
-            Stmt::Fail(statement) => statement.span,
             Stmt::Binding(statement) => statement.span,
             Stmt::If(statement) => statement.span,
             Stmt::IfIs(statement) => statement.span,
@@ -717,6 +732,7 @@ impl Expr {
             Expr::Index(expression) => expression.span,
             Expr::Group(expression) => expression.span,
             Expr::OptionalDefault(expression) => expression.span,
+            Expr::PatternConditional(expression) => expression.span,
         }
     }
 }
