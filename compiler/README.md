@@ -153,8 +153,8 @@ Currently buildable:
 - literal `i32` returns
 - immutable local `let` bindings whose initializer is lowerable as `i32` or `bool`
 - `void` entry with an empty body or bare `return`
-- same-file non-generic function calls
-- up to 8 `i32` parameters for lowered functions
+- same-file non-generic tail calls returning `i32` or `bool`
+- up to 8 `i32` parameters for lowered functions and tail calls
 - non-entry functions returning `bool`
 - `i32` addition used in lowerable `i32` expressions
 - bool `!`, `&&`, and `||` used in lowerable bool expressions

@@ -881,6 +881,34 @@ func enabled(): bool {
 }
 
 #[test]
+fn lowers_bool_returning_function_tail_call() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func enabled(): bool {
+    return true
+}
+
+func mirrors_enabled(): bool {
+    return enabled()
+}
+"#,
+        "mirrors_enabled",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "mirrors_enabled".to_string(),
+            return_type: Type::Bool,
+            instructions: vec![tail_call("enabled", vec![])],
+        }
+    );
+}
+
+#[test]
 fn reports_unsupported_entry_body() {
     let diagnostics = lower_text_diagnostics(
         r#"func main(): i32 {

@@ -44,7 +44,7 @@ pub(super) fn lower_i32_return_expression(
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
-        Expr::Call(call) => lower_i32_tail_call(call, context),
+        Expr::Call(call) => lower_direct_tail_call(call, context),
         Expr::Group(group) => lower_i32_return_expression(&group.expression, context),
         _ => {
             let mut instructions = lower_i32_expression(expression, context)?;
@@ -59,16 +59,22 @@ pub(super) fn lower_bool_return_expression(
     context: &LoweringContext,
     diagnostic_code: &'static str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    Ok(vec![
-        Instruction::SetBool {
-            destination: BoolLocation::Return,
-            value: lower_bool_value(expression, context, diagnostic_code)?,
-        },
-        Instruction::Return,
-    ])
+    match expression {
+        Expr::Call(call) => lower_direct_tail_call(call, context),
+        Expr::Group(group) => {
+            lower_bool_return_expression(&group.expression, context, diagnostic_code)
+        }
+        _ => Ok(vec![
+            Instruction::SetBool {
+                destination: BoolLocation::Return,
+                value: lower_bool_value(expression, context, diagnostic_code)?,
+            },
+            Instruction::Return,
+        ]),
+    }
 }
 
-fn lower_i32_tail_call(
+fn lower_direct_tail_call(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
