@@ -230,6 +230,24 @@ fn check_statement_returns(
                 binding_kind_is_mutable(statement.kind),
             );
         }
+        Stmt::Assignment(statement) => {
+            check_expression_for_nested_returns(
+                sources,
+                &statement.target,
+                context,
+                resolved,
+                diagnostics,
+                environment,
+            );
+            check_expression_for_nested_returns(
+                sources,
+                &statement.value,
+                context,
+                resolved,
+                diagnostics,
+                environment,
+            );
+        }
         Stmt::If(statement) => {
             check_expression_for_nested_returns(
                 sources,
@@ -780,6 +798,7 @@ fn statement_guarantees_return(statement: &Stmt) -> bool {
         }),
         Stmt::Loop(statement) => block_guarantees_return(&statement.body),
         Stmt::Binding(_)
+        | Stmt::Assignment(_)
         | Stmt::ForRange(_)
         | Stmt::While(_)
         | Stmt::WhileLet(_)

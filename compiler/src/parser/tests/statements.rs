@@ -1,5 +1,5 @@
 use super::support::parse_text;
-use crate::ast::{BindingKind, Expr, Item, Stmt};
+use crate::ast::{AssignmentOperator, BindingKind, Expr, Item, Stmt};
 
 #[test]
 fn parses_optional_let_else_binding() {
@@ -52,6 +52,64 @@ fn parses_optional_var_else_binding() {
 
     assert_eq!(binding.kind, BindingKind::Var);
     assert!(binding.else_block.is_some());
+}
+
+#[test]
+fn parses_assignment_and_compound_assignment_statements() {
+    let output = parse_text(
+        r#"func main(): i32 {
+    var count = 0
+    count = 1
+    count += 2
+    stats.lines += 1
+    return count
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
+    };
+
+    let Stmt::Assignment(assign) = &function.body.statements[1] else {
+        panic!("expected assignment statement");
+    };
+    assert_eq!(assign.operator, AssignmentOperator::Assign);
+    assert!(matches!(assign.target, Expr::Identifier(_)));
+    assert!(matches!(assign.value, Expr::IntegerLiteral(_)));
+
+    let Stmt::Assignment(add_assign) = &function.body.statements[2] else {
+        panic!("expected compound assignment statement");
+    };
+    assert_eq!(add_assign.operator, AssignmentOperator::AddAssign);
+    assert!(matches!(add_assign.target, Expr::Identifier(_)));
+
+    let Stmt::Assignment(field_assign) = &function.body.statements[3] else {
+        panic!("expected field compound assignment statement");
+    };
+    assert_eq!(field_assign.operator, AssignmentOperator::AddAssign);
+    assert!(matches!(field_assign.target, Expr::Member(_)));
+}
+
+#[test]
+fn rejects_non_place_assignment_target() {
+    let output = parse_text(
+        r#"func main(): i32 {
+    a + b = c
+    return 0
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert!(
+        output
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message == "expected assignment target")
+    );
 }
 
 #[test]

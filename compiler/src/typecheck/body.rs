@@ -180,6 +180,24 @@ fn check_statement_expressions(
                 binding_kind_is_mutable(statement.kind),
             );
         }
+        Stmt::Assignment(statement) => {
+            check_expression_tree(
+                sources,
+                &statement.target,
+                resolved,
+                diagnostics,
+                environment,
+                loop_depth,
+            );
+            check_expression_tree(
+                sources,
+                &statement.value,
+                resolved,
+                diagnostics,
+                environment,
+                loop_depth,
+            );
+        }
         Stmt::If(statement) => {
             check_expression_tree(
                 sources,

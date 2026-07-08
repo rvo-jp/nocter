@@ -1,0 +1,32 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "compile extension",
+      "type": "shell",
+      "command": "npm run compile",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": "$tsc"
+    },
+    {
+      "label": "build compiler",
+      "type": "shell",
+      "command": "cargo build",
+      "options": {
+        "cwd": "${workspaceFolder}/../../compiler"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "prepare extension host",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "build compiler",
+        "compile extension"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}

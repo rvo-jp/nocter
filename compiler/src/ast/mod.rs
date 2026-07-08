@@ -292,6 +292,7 @@ pub struct Block {
 pub enum Stmt {
     Return(ReturnStmt),
     Binding(BindingStmt),
+    Assignment(AssignmentStmt),
     If(IfStmt),
     IfIs(IfIsStmt),
     IfLet(IfLetStmt),
@@ -326,6 +327,25 @@ pub struct BindingStmt {
     pub ty: Option<TypeExpr>,
     pub initializer: Expr,
     pub else_block: Option<Block>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssignmentOperator {
+    Assign,
+    AddAssign,
+    SubtractAssign,
+    MultiplyAssign,
+    DivideAssign,
+    RemainderAssign,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssignmentStmt {
+    pub span: ByteSpan,
+    pub target: Expr,
+    pub operator: AssignmentOperator,
+    pub operator_span: ByteSpan,
+    pub value: Expr,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -696,6 +716,7 @@ impl Stmt {
         match self {
             Stmt::Return(statement) => statement.span,
             Stmt::Binding(statement) => statement.span,
+            Stmt::Assignment(statement) => statement.span,
             Stmt::If(statement) => statement.span,
             Stmt::IfIs(statement) => statement.span,
             Stmt::IfLet(statement) => statement.span,

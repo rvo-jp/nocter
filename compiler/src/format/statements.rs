@@ -1,7 +1,7 @@
 use super::Formatter;
 use crate::ast::{
-    BindingKind, BindingStmt, Block, Expr, IfLetStmt, IfStmt, Stmt, SwitchPayloadBinding,
-    SwitchStmt,
+    AssignmentOperator, BindingKind, BindingStmt, Block, Expr, IfLetStmt, IfStmt, Stmt,
+    SwitchPayloadBinding, SwitchStmt,
 };
 
 impl Formatter {
@@ -34,6 +34,13 @@ impl Formatter {
                 }
             }
             Stmt::Binding(statement) => self.format_binding_statement(statement),
+            Stmt::Assignment(statement) => {
+                self.format_expression(&statement.target);
+                self.write(" ");
+                self.write(assignment_operator_text(statement.operator));
+                self.write(" ");
+                self.format_expression(&statement.value);
+            }
             Stmt::If(statement) => self.format_if_statement(statement),
             Stmt::IfIs(statement) => {
                 self.write("if ");
@@ -216,6 +223,17 @@ impl Formatter {
             BindingKind::Let => self.write("let"),
             BindingKind::Var => self.write("var"),
         }
+    }
+}
+
+fn assignment_operator_text(operator: AssignmentOperator) -> &'static str {
+    match operator {
+        AssignmentOperator::Assign => "=",
+        AssignmentOperator::AddAssign => "+=",
+        AssignmentOperator::SubtractAssign => "-=",
+        AssignmentOperator::MultiplyAssign => "*=",
+        AssignmentOperator::DivideAssign => "/=",
+        AssignmentOperator::RemainderAssign => "%=",
     }
 }
 

@@ -505,6 +505,15 @@ impl Stmt {
                     children,
                 )
             }
+            Stmt::Assignment(statement) => JsonAstNode::with_value(
+                "assignment_statement",
+                assignment_operator_name(statement.operator).to_string(),
+                json_span(sources, statement.span),
+                vec![
+                    statement.target.to_json(sources),
+                    statement.value.to_json(sources),
+                ],
+            ),
             Stmt::If(statement) => {
                 let mut children = vec![
                     statement.condition.to_json(sources),
@@ -650,6 +659,17 @@ impl Stmt {
                 vec![statement.expression.to_json(sources)],
             ),
         }
+    }
+}
+
+fn assignment_operator_name(operator: crate::ast::AssignmentOperator) -> &'static str {
+    match operator {
+        crate::ast::AssignmentOperator::Assign => "=",
+        crate::ast::AssignmentOperator::AddAssign => "+=",
+        crate::ast::AssignmentOperator::SubtractAssign => "-=",
+        crate::ast::AssignmentOperator::MultiplyAssign => "*=",
+        crate::ast::AssignmentOperator::DivideAssign => "/=",
+        crate::ast::AssignmentOperator::RemainderAssign => "%=",
     }
 }
 

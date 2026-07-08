@@ -94,6 +94,10 @@ fn collect_statement_targets(text: &str, statement: &Stmt, targets: &mut Vec<Doc
                 collect_block_targets(text, block, targets);
             }
         }
+        Stmt::Assignment(statement) => {
+            collect_expression_targets(text, &statement.target, targets);
+            collect_expression_targets(text, &statement.value, targets);
+        }
         Stmt::If(statement) => {
             collect_expression_targets(text, &statement.condition, targets);
             collect_block_targets(text, &statement.then_block, targets);

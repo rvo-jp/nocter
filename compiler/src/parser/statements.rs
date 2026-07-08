@@ -1,9 +1,9 @@
 use super::support::ParsedEnumPattern;
 use super::{ParseResult, Parser};
 use crate::ast::{
-    BindingKind, BindingStmt, Block, BreakStmt, ContinueStmt, Expr, ExpressionStmt, ForRangeStmt,
-    IfIsStmt, IfLetStmt, IfStmt, LoopStmt, ReturnStmt, Stmt, SwitchArm, SwitchElseArm,
-    SwitchPayloadBinding, SwitchStmt, WhileLetStmt, WhileStmt,
+    AssignmentOperator, AssignmentStmt, BindingKind, BindingStmt, Block, BreakStmt, ContinueStmt,
+    Expr, ExpressionStmt, ForRangeStmt, IfIsStmt, IfLetStmt, IfStmt, LoopStmt, ReturnStmt, Stmt,
+    SwitchArm, SwitchElseArm, SwitchPayloadBinding, SwitchStmt, WhileLetStmt, WhileStmt,
 };
 use crate::lexer::{Keyword, TokenKind};
 
@@ -426,7 +426,46 @@ impl Parser<'_> {
 
     pub(super) fn parse_expression_statement(&mut self) -> ParseResult<Stmt> {
         let expression = self.parse_expression()?;
+        if let Some((operator, operator_span)) = self.match_assignment_operator() {
+            if !is_assignment_target(&expression) {
+                self.error_at(expression.span(), "expected assignment target");
+                return Err(());
+            }
+            let value = self.parse_expression()?;
+            let span = self.span(expression.span().start, value.span().end);
+            return Ok(Stmt::Assignment(AssignmentStmt {
+                span,
+                target: expression,
+                operator,
+                operator_span,
+                value,
+            }));
+        }
         let span = expression.span();
         Ok(Stmt::Expression(ExpressionStmt { span, expression }))
+    }
+
+    fn match_assignment_operator(
+        &mut self,
+    ) -> Option<(AssignmentOperator, crate::source::ByteSpan)> {
+        let operator = match self.current().kind {
+            TokenKind::Punctuation("=") => AssignmentOperator::Assign,
+            TokenKind::Punctuation("+=") => AssignmentOperator::AddAssign,
+            TokenKind::Punctuation("-=") => AssignmentOperator::SubtractAssign,
+            TokenKind::Punctuation("*=") => AssignmentOperator::MultiplyAssign,
+            TokenKind::Punctuation("/=") => AssignmentOperator::DivideAssign,
+            TokenKind::Punctuation("%=") => AssignmentOperator::RemainderAssign,
+            _ => return None,
+        };
+        let token = self.bump();
+        Some((operator, token.span))
+    }
+}
+
+fn is_assignment_target(expression: &Expr) -> bool {
+    match expression {
+        Expr::Identifier(_) => true,
+        Expr::Member(member) => is_assignment_target(&member.object),
+        _ => false,
     }
 }

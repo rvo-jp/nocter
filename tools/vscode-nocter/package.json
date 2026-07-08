@@ -43,13 +43,18 @@
         "path": "./snippets/nocter.code-snippets"
       }
     ],
+    "configurationDefaults": {
+      "[nocter]": {
+        "editor.semanticHighlighting.enabled": true
+      }
+    },
     "configuration": {
       "title": "Nocter",
       "properties": {
         "nocter.server.path": {
           "type": "string",
-          "default": "nocter",
-          "description": "Path to the nocter compiler executable used to start the language server."
+          "default": "",
+          "description": "Path to the nocter compiler executable used to start the language server. If empty, the extension tries the repository development compiler and then PATH."
         },
         "nocter.server.args": {
           "type": "array",

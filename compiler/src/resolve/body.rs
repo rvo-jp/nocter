@@ -81,6 +81,10 @@ impl Resolver<'_> {
                 }
                 self.define_local_name(statement.name.clone(), statement.name_span, scope);
             }
+            Stmt::Assignment(statement) => {
+                self.resolve_expression(&statement.target, scope);
+                self.resolve_expression(&statement.value, scope);
+            }
             Stmt::If(statement) => {
                 self.resolve_expression(&statement.condition, scope);
                 let mut then_scope = scope.clone();

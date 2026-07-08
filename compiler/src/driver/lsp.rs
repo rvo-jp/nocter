@@ -2,6 +2,7 @@ use crate::analysis::analyze_compile_unit_with_entry;
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::frontend::{FrontendOptions, load_compile_unit};
+use crate::lexer::{Keyword, Token, TokenKind, lex};
 use crate::source::{JsonSpan, SourceMap};
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -76,6 +77,14 @@ impl LspServer {
             "initialize" => {
                 self.workspace_roots = workspace_roots_from_initialize_params(params);
                 write_message(writer, initialize_response(id))?;
+                Ok(false)
+            }
+            "textDocument/semanticTokens/full" => {
+                write_message(writer, self.semantic_tokens_response(id, params))?;
+                Ok(false)
+            }
+            "textDocument/hover" => {
+                write_message(writer, self.hover_response(id, params))?;
                 Ok(false)
             }
             "shutdown" => {
@@ -170,6 +179,21 @@ impl LspServer {
 
         self.published_diagnostic_uris = current_uris;
         Ok(())
+    }
+
+    fn semantic_tokens_response(&self, id: Value, params: Option<&Value>) -> Value {
+        let data = document_uri_from_params(params)
+            .and_then(|uri| self.documents.get(&uri))
+            .map(semantic_tokens_for_document)
+            .unwrap_or_default();
+        response(id, json!({ "data": data }))
+    }
+
+    fn hover_response(&self, id: Value, params: Option<&Value>) -> Value {
+        let hover = document_uri_from_params(params)
+            .and_then(|uri| self.documents.get(&uri))
+            .and_then(|document| hover_for_document(document, params));
+        response(id, hover.unwrap_or(Value::Null))
     }
 }
 
@@ -334,7 +358,15 @@ fn initialize_response(id: Value) -> Value {
                 "textDocumentSync": {
                     "openClose": true,
                     "change": 1
-                }
+                },
+                "semanticTokensProvider": {
+                    "legend": {
+                        "tokenTypes": SEMANTIC_TOKEN_TYPES,
+                        "tokenModifiers": SEMANTIC_TOKEN_MODIFIERS
+                    },
+                    "full": true
+                },
+                "hoverProvider": true
             },
             "serverInfo": {
                 "name": "nocter",
@@ -342,6 +374,306 @@ fn initialize_response(id: Value) -> Value {
             }
         }),
     )
+}
+
+const SEMANTIC_TOKEN_TYPES: [&str; 5] = ["function", "variable", "parameter", "type", "property"];
+const SEMANTIC_TOKEN_MODIFIERS: [&str; 1] = ["declaration"];
+const SEMANTIC_DECLARATION_MODIFIER: u32 = 1 << 0;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SemanticTokenKind {
+    Function,
+    Variable,
+    Parameter,
+    Type,
+    Property,
+}
+
+impl SemanticTokenKind {
+    const fn index(self) -> u32 {
+        match self {
+            SemanticTokenKind::Function => 0,
+            SemanticTokenKind::Variable => 1,
+            SemanticTokenKind::Parameter => 2,
+            SemanticTokenKind::Type => 3,
+            SemanticTokenKind::Property => 4,
+        }
+    }
+
+    const fn hover_label(self) -> &'static str {
+        match self {
+            SemanticTokenKind::Function => "function",
+            SemanticTokenKind::Variable => "variable",
+            SemanticTokenKind::Parameter => "parameter",
+            SemanticTokenKind::Type => "type",
+            SemanticTokenKind::Property => "property",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SemanticToken {
+    start: LspPosition,
+    length: usize,
+    kind: SemanticTokenKind,
+    modifiers: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ClassifiedIdentifier {
+    start_byte: usize,
+    end_byte: usize,
+    kind: SemanticTokenKind,
+    modifiers: u32,
+}
+
+fn semantic_tokens_for_document(document: &OpenDocument) -> Vec<usize> {
+    let semantic_tokens = classified_identifiers(document)
+        .into_iter()
+        .filter_map(|identifier| {
+            let length = utf16_len(&document.text, identifier.start_byte, identifier.end_byte);
+            (length > 0).then(|| SemanticToken {
+                start: byte_offset_to_lsp_position(&document.text, identifier.start_byte),
+                length,
+                kind: identifier.kind,
+                modifiers: identifier.modifiers,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    encode_semantic_tokens(semantic_tokens)
+}
+
+fn classified_identifiers(document: &OpenDocument) -> Vec<ClassifiedIdentifier> {
+    let mut sources = SourceMap::new();
+    let source = sources.add_source(
+        document.display_path.clone(),
+        document.absolute_path.clone(),
+        document.text.clone(),
+    );
+    let lex_output = lex(&sources, source);
+    let tokens = lex_output
+        .tokens
+        .iter()
+        .filter(|token| !matches!(token.kind, TokenKind::Newline | TokenKind::Eof))
+        .collect::<Vec<_>>();
+
+    let mut identifiers = Vec::new();
+    let mut pending_declaration = None;
+
+    for (index, token) in tokens.iter().enumerate() {
+        let previous = index
+            .checked_sub(1)
+            .and_then(|index| tokens.get(index))
+            .copied();
+        let next = tokens.get(index + 1).copied();
+
+        match token.kind {
+            TokenKind::Keyword(keyword) => {
+                pending_declaration = pending_declaration_for_keyword(keyword);
+            }
+            TokenKind::Identifier => {
+                let modifiers = if pending_declaration.is_some() {
+                    SEMANTIC_DECLARATION_MODIFIER
+                } else {
+                    0
+                };
+                let kind = pending_declaration
+                    .take()
+                    .unwrap_or_else(|| classify_identifier(&document.text, token, previous, next));
+                if token.span.start < token.span.end {
+                    identifiers.push(ClassifiedIdentifier {
+                        start_byte: token.span.start,
+                        end_byte: token.span.end,
+                        kind,
+                        modifiers,
+                    });
+                }
+            }
+            _ => {
+                if !matches!(
+                    token.kind,
+                    TokenKind::Punctuation("<")
+                        | TokenKind::Punctuation(">")
+                        | TokenKind::Punctuation(",")
+                ) {
+                    pending_declaration = None;
+                }
+            }
+        }
+    }
+
+    identifiers.sort_by(|left, right| {
+        left.start_byte
+            .cmp(&right.start_byte)
+            .then(left.end_byte.cmp(&right.end_byte))
+    });
+    identifiers
+}
+
+fn pending_declaration_for_keyword(keyword: Keyword) -> Option<SemanticTokenKind> {
+    match keyword {
+        Keyword::Func | Keyword::Method => Some(SemanticTokenKind::Function),
+        Keyword::Type | Keyword::Struct | Keyword::Enum | Keyword::Trait | Keyword::Primitive => {
+            Some(SemanticTokenKind::Type)
+        }
+        Keyword::Let | Keyword::Var => Some(SemanticTokenKind::Variable),
+        _ => None,
+    }
+}
+
+fn classify_identifier(
+    text: &str,
+    token: &Token,
+    previous: Option<&Token>,
+    next: Option<&Token>,
+) -> SemanticTokenKind {
+    if matches!(
+        previous.map(|token| token.kind),
+        Some(TokenKind::Punctuation("."))
+    ) {
+        return SemanticTokenKind::Property;
+    }
+
+    if matches!(
+        next.map(|token| token.kind),
+        Some(TokenKind::Punctuation("("))
+    ) {
+        return SemanticTokenKind::Function;
+    }
+
+    if matches!(
+        next.map(|token| token.kind),
+        Some(TokenKind::Punctuation(":"))
+    ) {
+        return SemanticTokenKind::Parameter;
+    }
+
+    let lexeme = text
+        .get(token.span.start..token.span.end)
+        .unwrap_or_default();
+    if lexeme
+        .chars()
+        .next()
+        .is_some_and(|first| first.is_ascii_uppercase())
+    {
+        return SemanticTokenKind::Type;
+    }
+
+    SemanticTokenKind::Variable
+}
+
+fn encode_semantic_tokens(tokens: Vec<SemanticToken>) -> Vec<usize> {
+    let mut tokens = tokens;
+    tokens.sort_by(|left, right| {
+        left.start
+            .line
+            .cmp(&right.start.line)
+            .then(left.start.character.cmp(&right.start.character))
+    });
+
+    let mut data = Vec::with_capacity(tokens.len() * 5);
+    let mut previous_line = 0;
+    let mut previous_character = 0;
+
+    for token in tokens {
+        let delta_line = token.start.line - previous_line;
+        let delta_character = if delta_line == 0 {
+            token.start.character - previous_character
+        } else {
+            token.start.character
+        };
+
+        data.push(delta_line);
+        data.push(delta_character);
+        data.push(token.length);
+        data.push(token.kind.index() as usize);
+        data.push(token.modifiers as usize);
+
+        previous_line = token.start.line;
+        previous_character = token.start.character;
+    }
+
+    data
+}
+
+fn utf16_len(text: &str, start: usize, end: usize) -> usize {
+    text.get(start.min(text.len())..end.min(text.len()))
+        .map(|text| text.encode_utf16().count())
+        .unwrap_or(0)
+}
+
+fn hover_for_document(document: &OpenDocument, params: Option<&Value>) -> Option<Value> {
+    let position = position_from_params(params)?;
+    let offset = lsp_position_to_byte_offset(&document.text, position.line, position.character);
+    let identifier = classified_identifiers(document)
+        .into_iter()
+        .find(|identifier| identifier.start_byte <= offset && offset < identifier.end_byte)?;
+    let lexeme = document
+        .text
+        .get(identifier.start_byte..identifier.end_byte)?;
+    let range = LspRange {
+        start: byte_offset_to_lsp_position(&document.text, identifier.start_byte),
+        end: byte_offset_to_lsp_position(&document.text, identifier.end_byte),
+    };
+    let declaration = if identifier.modifiers & SEMANTIC_DECLARATION_MODIFIER != 0 {
+        " declaration"
+    } else {
+        ""
+    };
+
+    Some(json!({
+        "contents": {
+            "kind": "markdown",
+            "value": format!("```nocter\n{}{} {}\n```", identifier.kind.hover_label(), declaration, lexeme)
+        },
+        "range": range
+    }))
+}
+
+fn position_from_params(params: Option<&Value>) -> Option<LspPosition> {
+    let position = params?.get("position")?;
+    Some(LspPosition {
+        line: position.get("line")?.as_u64()? as usize,
+        character: position.get("character")?.as_u64()? as usize,
+    })
+}
+
+fn lsp_position_to_byte_offset(text: &str, line: usize, character: usize) -> usize {
+    let mut current_line = 0;
+    let mut line_start = 0;
+
+    for (index, byte) in text.bytes().enumerate() {
+        if current_line == line {
+            break;
+        }
+        if byte == b'\n' {
+            current_line += 1;
+            line_start = index + 1;
+        }
+    }
+
+    if current_line != line {
+        return text.len();
+    }
+
+    let line_end = text[line_start..]
+        .find('\n')
+        .map(|offset| line_start + offset)
+        .unwrap_or(text.len());
+    let mut utf16_character = 0;
+
+    for (offset, char) in text[line_start..line_end].char_indices() {
+        if utf16_character >= character {
+            return line_start + offset;
+        }
+        utf16_character += char.len_utf16();
+        if utf16_character > character {
+            return line_start + offset;
+        }
+    }
+
+    line_end
 }
 
 fn response(id: Value, result: Value) -> Value {
@@ -590,6 +922,101 @@ mod tests {
         let text = String::from_utf8(output).unwrap();
         assert!(text.contains("\"id\":1"));
         assert!(text.contains("\"textDocumentSync\""));
+        assert!(text.contains("\"semanticTokensProvider\""));
+        assert!(text.contains("\"hoverProvider\""));
+    }
+
+    #[test]
+    fn initializes_with_semantic_token_legend() {
+        let response = initialize_response(json!(1));
+        let legend = response["result"]["capabilities"]["semanticTokensProvider"]["legend"]
+            .as_object()
+            .expect("expected semantic token legend");
+
+        assert_eq!(
+            legend["tokenTypes"],
+            json!(["function", "variable", "parameter", "type", "property"])
+        );
+        assert_eq!(legend["tokenModifiers"], json!(["declaration"]));
+    }
+
+    #[test]
+    fn converts_utf16_positions_to_byte_offsets() {
+        let text = "a\néx\n";
+        assert_eq!(lsp_position_to_byte_offset(text, 0, 0), 0);
+        assert_eq!(lsp_position_to_byte_offset(text, 1, 0), 2);
+        assert_eq!(lsp_position_to_byte_offset(text, 1, 1), 4);
+        assert_eq!(lsp_position_to_byte_offset(text, 1, 2), 5);
+    }
+
+    #[test]
+    fn returns_semantic_tokens_for_open_document() {
+        let uri = "file:///tmp/nocter-semantic.nct".to_string();
+        let document = open_document(
+            uri.clone(),
+            Some(1),
+            "func main(path: AppError): i32 {\n    let code = AppError.open_failed(path)\n    return code\n}\n"
+                .to_string(),
+        );
+        let server = LspServer {
+            documents: HashMap::from([(uri.clone(), document)]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.semantic_tokens_response(
+            json!(2),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                }
+            })),
+        );
+        let data = response["result"]["data"]
+            .as_array()
+            .expect("expected semantic token data");
+
+        assert!(!data.is_empty());
+        assert_eq!(data.len() % 5, 0);
+        assert_eq!(data[3], json!(SemanticTokenKind::Function.index()));
+        assert_eq!(data[4], json!(SEMANTIC_DECLARATION_MODIFIER));
+    }
+
+    #[test]
+    fn returns_hover_for_identifier() {
+        let uri = "file:///tmp/nocter-hover.nct".to_string();
+        let document = open_document(
+            uri.clone(),
+            Some(1),
+            "func main(): i32 {\n    let answer = compute()\n    return answer\n}\n".to_string(),
+        );
+        let server = LspServer {
+            documents: HashMap::from([(uri.clone(), document)]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.hover_response(
+            json!(3),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "position": {
+                    "line": 1,
+                    "character": 9
+                }
+            })),
+        );
+
+        assert_eq!(
+            response["result"]["contents"]["value"],
+            json!("```nocter\nvariable declaration answer\n```")
+        );
+        assert_eq!(response["result"]["range"]["start"]["line"], json!(1));
+        assert_eq!(response["result"]["range"]["start"]["character"], json!(8));
     }
 
     #[test]
