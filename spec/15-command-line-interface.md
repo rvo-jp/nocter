@@ -412,6 +412,7 @@ Rules:
 - LSP v0 advertises UTF-16 positions and converts compiler-owned UTF-8 byte spans before publishing diagnostics.
 - LSP v0 treats `didChange` as full-document sync. If both the stored document and incoming change have versions, an incoming version older than the stored version is ignored.
 - LSP v0 uses the current text of open documents when resolving imports in a compile unit, so diagnostics can reflect unsaved imported files.
+- LSP v0 clears diagnostics for documents that were previously published but are no longer part of the latest diagnostic publish set.
 - LSP v0 does not yet provide hover, definition, completion, rename, semantic tokens, or incremental parsing.
 
 The editor integration direction is specified in [Tooling and Editor Integration](14-tooling-editor-integration.md).

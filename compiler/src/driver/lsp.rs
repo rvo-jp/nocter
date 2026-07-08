@@ -5,7 +5,7 @@ use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::source::{JsonSpan, SourceMap};
 use serde::Serialize;
 use serde_json::{Value, json};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -36,6 +36,7 @@ fn run_lsp_stream<R: BufRead, W: Write>(mut reader: R, mut writer: W) -> io::Res
 
 struct LspServer {
     documents: HashMap<String, OpenDocument>,
+    published_diagnostic_uris: HashSet<String>,
     shutdown_requested: bool,
 }
 
@@ -43,6 +44,7 @@ impl LspServer {
     fn new() -> Self {
         Self {
             documents: HashMap::new(),
+            published_diagnostic_uris: HashSet::new(),
             shutdown_requested: false,
         }
     }
@@ -128,6 +130,7 @@ impl LspServer {
             "textDocument/didClose" => {
                 if let Some(uri) = document_uri_from_params(params) {
                     self.documents.remove(&uri);
+                    self.published_diagnostic_uris.remove(&uri);
                     write_message(writer, publish_diagnostics(&uri, Vec::new()))?;
                 }
             }
@@ -138,13 +141,30 @@ impl LspServer {
     }
 
     fn publish_workspace_diagnostics<W: Write>(
-        &self,
+        &mut self,
         root_uri: &str,
         writer: &mut W,
     ) -> io::Result<()> {
-        for (uri, diagnostics) in analyze_workspace(root_uri, &self.documents) {
+        let diagnostics_by_uri = analyze_workspace(root_uri, &self.documents);
+        let current_uris = diagnostics_by_uri
+            .iter()
+            .map(|(uri, _)| uri.clone())
+            .collect::<HashSet<_>>();
+
+        for uri in self
+            .published_diagnostic_uris
+            .difference(&current_uris)
+            .cloned()
+            .collect::<Vec<_>>()
+        {
+            write_message(writer, publish_diagnostics(&uri, Vec::new()))?;
+        }
+
+        for (uri, diagnostics) in diagnostics_by_uri {
             write_message(writer, publish_diagnostics(&uri, diagnostics))?;
         }
+
+        self.published_diagnostic_uris = current_uris;
         Ok(())
     }
 }
@@ -629,6 +649,23 @@ mod tests {
                 .iter()
                 .any(|diagnostic| diagnostic.code == "E0200")
         );
+    }
+
+    #[test]
+    fn clears_diagnostics_for_uris_missing_from_next_publish() {
+        let mut server = LspServer::new();
+        let mut output = Vec::new();
+        let uri = "file:///tmp/nocter-cleared.nct".to_string();
+        server.published_diagnostic_uris.insert(uri.clone());
+
+        server
+            .publish_workspace_diagnostics("file:///tmp/missing-root.nct", &mut output)
+            .unwrap();
+
+        let text = String::from_utf8(output).unwrap();
+        assert!(text.contains(&uri));
+        assert!(text.contains("\"diagnostics\":[]"));
+        assert!(server.published_diagnostic_uris.is_empty());
     }
 
     fn frame(message: &Value) -> Vec<u8> {
