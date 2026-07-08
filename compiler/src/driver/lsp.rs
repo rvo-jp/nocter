@@ -94,6 +94,10 @@ impl LspServer {
                 write_message(writer, self.hover_response(id, params))?;
                 Ok(false)
             }
+            "textDocument/definition" => {
+                write_message(writer, self.definition_response(id, params))?;
+                Ok(false)
+            }
             "shutdown" => {
                 self.shutdown_requested = true;
                 write_message(writer, response(id, Value::Null))?;
@@ -207,6 +211,17 @@ impl LspServer {
         response(id, hover.unwrap_or(Value::Null))
     }
 
+    fn definition_response(&self, id: Value, params: Option<&Value>) -> Value {
+        let definition = document_uri_from_params(params).and_then(|uri| {
+            self.workspace_definition_for_uri(&uri, params).or_else(|| {
+                self.documents
+                    .get(&uri)
+                    .and_then(|document| definition_for_document(document, params))
+            })
+        });
+        response(id, definition.unwrap_or(Value::Null))
+    }
+
     fn workspace_hover_for_uri(&self, uri: &str, params: Option<&Value>) -> Option<Value> {
         let position = position_from_params(params)?;
         let document = self.documents.get(uri)?;
@@ -237,6 +252,38 @@ impl LspServer {
             .find(|file| file.ast.span.source == root)?;
 
         hover_for_file_analysis(&sources, &analysis, file, root_offset)
+    }
+
+    fn workspace_definition_for_uri(&self, uri: &str, params: Option<&Value>) -> Option<Value> {
+        let position = position_from_params(params)?;
+        let document = self.documents.get(uri)?;
+        let root_offset =
+            lsp_position_to_byte_offset(&document.text, position.line, position.character);
+        let mut open_documents = self.documents.values().collect::<Vec<_>>();
+        open_documents.sort_by(|left, right| left.uri.cmp(&right.uri));
+
+        let mut sources = SourceMap::new();
+        let mut source_by_uri = HashMap::new();
+
+        for document in open_documents {
+            let source = sources.add_source(
+                document.display_path.clone(),
+                document.absolute_path.clone(),
+                document.text.clone(),
+            );
+            source_by_uri.insert(document.uri.clone(), source);
+        }
+
+        let root = source_by_uri.get(uri).copied()?;
+        let options = frontend_options_for_document(document);
+        let unit = load_compile_unit(&mut sources, root, &options).ok()?;
+        let analysis = analyze_compile_unit_with_entry(&sources, &unit, DEFAULT_ENTRY_NAME);
+        let file = analysis
+            .files
+            .iter()
+            .find(|file| file.ast.span.source == root)?;
+
+        definition_for_file_analysis(&sources, file, root_offset)
     }
 }
 
@@ -437,7 +484,8 @@ fn initialize_response(id: Value) -> Value {
                     },
                     "full": true
                 },
-                "hoverProvider": true
+                "hoverProvider": true,
+                "definitionProvider": true
             },
             "serverInfo": {
                 "name": "nocter",
@@ -713,6 +761,25 @@ fn hover_for_document(document: &OpenDocument, params: Option<&Value>) -> Option
     }))
 }
 
+fn definition_for_document(document: &OpenDocument, params: Option<&Value>) -> Option<Value> {
+    let position = position_from_params(params)?;
+    let offset = lsp_position_to_byte_offset(&document.text, position.line, position.character);
+    let mut sources = SourceMap::new();
+    let source = sources.add_source(
+        document.display_path.clone(),
+        document.absolute_path.clone(),
+        document.text.clone(),
+    );
+    let lex_output = lex(&sources, source);
+    if !lex_output.diagnostics.is_empty() {
+        return None;
+    }
+    let ast = parse(&sources, source, &lex_output.tokens).ast?;
+    let resolved = resolve_single_file_for_hover(&document.text, source, &ast);
+    definition_span_for_ast(&document.text, &ast, &resolved, offset)
+        .and_then(|span| location_for_byte_span(&sources, span))
+}
+
 fn hover_for_file_analysis(
     sources: &SourceMap,
     analysis: &CompileUnitAnalysis,
@@ -755,6 +822,61 @@ fn hover_for_file_analysis(
             "range": range_for_byte_span(text, name_span)
         })
     })
+}
+
+fn definition_for_file_analysis(
+    sources: &SourceMap,
+    file: &FileAnalysis,
+    offset: usize,
+) -> Option<Value> {
+    let text = sources.get(file.ast.span.source)?.text();
+    definition_span_for_ast(text, &file.ast, &file.resolved, offset)
+        .and_then(|span| location_for_byte_span(sources, span))
+}
+
+fn definition_span_for_ast(
+    text: &str,
+    ast: &AstFile,
+    resolved: &ResolveOutput,
+    offset: usize,
+) -> Option<ByteSpan> {
+    let symbols = hover_symbols_for_ast(text, ast);
+    if let Some(symbol) = symbols
+        .iter()
+        .find(|symbol| symbol.name_span.start <= offset && offset < symbol.name_span.end)
+    {
+        return Some(symbol.name_span);
+    }
+
+    find_resolved_hover_symbol(ast, resolved, offset).map(|(_, symbol)| symbol.declaration_span)
+}
+
+fn location_for_byte_span(sources: &SourceMap, span: ByteSpan) -> Option<Value> {
+    let source = sources.get(span.source)?;
+    Some(json!({
+        "uri": uri_for_source_file(source),
+        "range": range_for_byte_span(source.text(), span)
+    }))
+}
+
+fn uri_for_source_file(source: &crate::source::SourceFile) -> String {
+    source
+        .absolute_path()
+        .map(|path| format!("file://{}", percent_encode_path(&path.to_string_lossy())))
+        .unwrap_or_else(|| source.display_path().to_string())
+}
+
+fn percent_encode_path(path: &str) -> String {
+    let mut encoded = String::with_capacity(path.len());
+    for byte in path.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'/' | b'-' | b'_' | b'.' | b'~' => {
+                encoded.push(byte as char)
+            }
+            _ => encoded.push_str(&format!("%{byte:02X}")),
+        }
+    }
+    encoded
 }
 
 fn documented_hover_for_document(document: &OpenDocument, offset: usize) -> Option<Value> {
@@ -2102,6 +2224,7 @@ mod tests {
         assert!(text.contains("\"textDocumentSync\""));
         assert!(text.contains("\"semanticTokensProvider\""));
         assert!(text.contains("\"hoverProvider\""));
+        assert!(text.contains("\"definitionProvider\""));
     }
 
     #[test]
@@ -2365,6 +2488,99 @@ mod tests {
         );
         assert_eq!(response["result"]["range"]["start"]["line"], json!(3));
         assert_eq!(response["result"]["range"]["start"]["character"], json!(11));
+    }
+
+    #[test]
+    fn returns_definition_for_resolved_function_reference() {
+        let uri = "file:///tmp/nocter-definition-reference.nct".to_string();
+        let document = open_document(
+            uri.clone(),
+            Some(1),
+            "func main(): i32 {\n    return answer()\n}\n\nfunc answer(): i32 {\n    return 42\n}\n"
+                .to_string(),
+        );
+        let server = LspServer {
+            documents: HashMap::from([(uri.clone(), document)]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.definition_response(
+            json!(8),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "position": {
+                    "line": 1,
+                    "character": 12
+                }
+            })),
+        );
+
+        assert_eq!(response["result"]["range"]["start"]["line"], json!(4));
+        assert_eq!(response["result"]["range"]["start"]["character"], json!(5));
+        assert_eq!(response["result"]["range"]["end"]["character"], json!(11));
+    }
+
+    #[test]
+    fn returns_definition_for_imported_function_reference() {
+        let project = TempProject::new("lsp-definition-import");
+        project.write_nocter_home();
+        let app = project.write_source(
+            "app.nct",
+            "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
+        );
+        let config =
+            project.write_source("config.nct", "pub func answer(): i32 {\n    return 42\n}\n");
+        let app_uri = file_uri(&app);
+        let config_uri = file_uri(&config);
+        let server = LspServer {
+            documents: HashMap::from([
+                (
+                    app_uri.clone(),
+                    open_document(
+                        app_uri.clone(),
+                        Some(1),
+                        "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n"
+                            .to_string(),
+                    ),
+                ),
+                (
+                    config_uri.clone(),
+                    open_document(
+                        config_uri.clone(),
+                        Some(1),
+                        "pub func answer(): i32 {\n    return 42\n}\n".to_string(),
+                    ),
+                ),
+            ]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.definition_response(
+            json!(9),
+            Some(&json!({
+                "textDocument": {
+                    "uri": app_uri
+                },
+                "position": {
+                    "line": 3,
+                    "character": 12
+                }
+            })),
+        );
+
+        assert_eq!(
+            response["result"]["uri"],
+            json!(file_uri(&config.canonicalize().unwrap()))
+        );
+        assert_eq!(response["result"]["range"]["start"]["line"], json!(0));
+        assert_eq!(response["result"]["range"]["start"]["character"], json!(9));
+        assert_eq!(response["result"]["range"]["end"]["character"], json!(15));
     }
 
     #[test]
