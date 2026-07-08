@@ -1,60 +1,12 @@
+use super::context::LoweringContext;
 use super::literals::lower_i32_literal;
-use crate::ast::{BinaryOperator, CallExpr, Expr};
+use crate::ast::{BinaryExpr, BinaryOperator, CallExpr, Expr};
 use crate::diagnostics::Diagnostic;
-use crate::ir::{I32Location, I32Value, Instruction};
-
-pub(super) struct I32ExpressionContext {
-    parameters: Vec<String>,
-    locals: Vec<String>,
-}
-
-impl I32ExpressionContext {
-    pub(super) fn empty() -> Self {
-        Self {
-            parameters: Vec::new(),
-            locals: Vec::new(),
-        }
-    }
-
-    pub(super) fn new(parameters: Vec<String>) -> Self {
-        Self {
-            parameters,
-            locals: Vec::new(),
-        }
-    }
-
-    pub(super) fn next_local_location(&self) -> Result<I32Location, Vec<Diagnostic>> {
-        if self.locals.len() >= MAX_I32_LOCALS {
-            return Err(vec![Diagnostic::error(
-                "E8008",
-                format!("IR v0 can only lower up to {MAX_I32_LOCALS} i32 local bindings"),
-            )]);
-        }
-
-        Ok(I32Location::Local(self.locals.len()))
-    }
-
-    pub(super) fn define_local(&mut self, name: String) {
-        self.locals.push(name);
-    }
-
-    fn location(&self, name: &str) -> Option<I32Location> {
-        self.locals
-            .iter()
-            .position(|local| local == name)
-            .map(I32Location::Local)
-            .or_else(|| {
-                self.parameters
-                    .iter()
-                    .position(|parameter| parameter == name)
-                    .map(I32Location::Parameter)
-            })
-    }
-}
+use crate::ir::{BoolValue, I32ComparisonOperator, I32Location, I32Value, Instruction};
 
 pub(super) fn lower_i32_expression(
     expression: &Expr,
-    context: &I32ExpressionContext,
+    context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     lower_i32_expression_to_location(expression, I32Location::Return, context)
 }
@@ -62,7 +14,7 @@ pub(super) fn lower_i32_expression(
 pub(super) fn lower_i32_expression_to_location(
     expression: &Expr,
     destination: I32Location,
-    context: &I32ExpressionContext,
+    context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
         Expr::Call(_) => Err(vec![Diagnostic::error(
@@ -86,7 +38,7 @@ pub(super) fn lower_i32_expression_to_location(
 
 pub(super) fn lower_i32_return_expression(
     expression: &Expr,
-    context: &I32ExpressionContext,
+    context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => lower_i32_tail_call(call, context),
@@ -101,7 +53,7 @@ pub(super) fn lower_i32_return_expression(
 
 fn lower_i32_tail_call(
     call: &CallExpr,
-    context: &I32ExpressionContext,
+    context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Expr::Identifier(identifier) = call.callee.as_ref() else {
         return Err(vec![Diagnostic::error(
@@ -124,7 +76,7 @@ fn lower_i32_tail_call(
 fn lower_i32_call_argument(
     expression: &Expr,
     index: usize,
-    context: &I32ExpressionContext,
+    context: &LoweringContext,
 ) -> Result<I32Value, Vec<Diagnostic>> {
     let value = lower_i32_value(expression, context)?;
 
@@ -143,16 +95,84 @@ fn lower_i32_call_argument(
 
 pub(super) fn lower_i32_value(
     expression: &Expr,
-    context: &I32ExpressionContext,
+    context: &LoweringContext,
 ) -> Result<I32Value, Vec<Diagnostic>> {
     match expression {
         Expr::Identifier(identifier) => context
-            .location(&identifier.name)
+            .i32_location(&identifier.name)
             .map(I32Value::Location)
             .ok_or_else(unsupported_i32_expression_diagnostic),
         Expr::Group(group) => lower_i32_value(&group.expression, context),
         _ => lower_i32_literal(expression).map(I32Value::Const),
     }
+}
+
+pub(super) fn lower_bool_value(
+    expression: &Expr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<BoolValue, Vec<Diagnostic>> {
+    match expression {
+        Expr::BoolLiteral(literal) => match literal.value.as_str() {
+            "true" => Ok(BoolValue::Const(true)),
+            "false" => Ok(BoolValue::Const(false)),
+            _ => Err(unsupported_bool_expression_diagnostic(diagnostic_code)),
+        },
+        Expr::Identifier(identifier) => context
+            .bool_location(&identifier.name)
+            .map(BoolValue::Location)
+            .ok_or_else(|| unsupported_bool_expression_diagnostic(diagnostic_code)),
+        Expr::Binary(binary) => lower_i32_comparison_condition(binary, context, diagnostic_code),
+        Expr::Group(group) => lower_bool_value(&group.expression, context, diagnostic_code),
+        _ => Err(unsupported_bool_expression_diagnostic(diagnostic_code)),
+    }
+}
+
+pub(super) fn expression_is_lowerable_bool_binding(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    match expression {
+        Expr::BoolLiteral(_) => true,
+        Expr::Identifier(identifier) => context.bool_location(&identifier.name).is_some(),
+        Expr::Binary(binary) => is_i32_comparison_operator(binary.operator),
+        Expr::Group(group) => expression_is_lowerable_bool_binding(&group.expression, context),
+        _ => false,
+    }
+}
+
+fn lower_i32_comparison_condition(
+    binary: &BinaryExpr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<BoolValue, Vec<Diagnostic>> {
+    let operator = match binary.operator {
+        BinaryOperator::Equal => I32ComparisonOperator::Equal,
+        BinaryOperator::NotEqual => I32ComparisonOperator::NotEqual,
+        BinaryOperator::Less => I32ComparisonOperator::Less,
+        BinaryOperator::LessEqual => I32ComparisonOperator::LessEqual,
+        BinaryOperator::Greater => I32ComparisonOperator::Greater,
+        BinaryOperator::GreaterEqual => I32ComparisonOperator::GreaterEqual,
+        _ => return Err(unsupported_bool_expression_diagnostic(diagnostic_code)),
+    };
+
+    Ok(BoolValue::I32Comparison {
+        operator,
+        left: lower_i32_value(&binary.left, context)?,
+        right: lower_i32_value(&binary.right, context)?,
+    })
+}
+
+fn is_i32_comparison_operator(operator: BinaryOperator) -> bool {
+    matches!(
+        operator,
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterEqual
+    )
 }
 
 fn unsupported_i32_expression_diagnostic() -> Vec<Diagnostic> {
@@ -162,4 +182,9 @@ fn unsupported_i32_expression_diagnostic() -> Vec<Diagnostic> {
     )]
 }
 
-const MAX_I32_LOCALS: usize = 7;
+fn unsupported_bool_expression_diagnostic(diagnostic_code: &'static str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        diagnostic_code,
+        "IR v0 can only lower bool literals, bool locals, and i32 comparisons",
+    )]
+}

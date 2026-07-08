@@ -3,7 +3,8 @@ use crate::analysis::{CompileUnit, analyze_compile_unit_with_entry};
 use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::ir::{
-    BoolValue, Function, I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule, Type,
+    BoolLocation, BoolValue, Function, I32ComparisonOperator, I32Location, I32Value, Instruction,
+    IrModule, Type,
 };
 use crate::source::SourceMap;
 use crate::target::DEFAULT_TARGET;
@@ -144,6 +145,85 @@ fn lowers_entry_terminal_if_with_bool_literal_condition() {
                 then_instructions: vec![set_return_i32(1), Instruction::Return],
                 else_instructions: vec![set_return_i32(2), Instruction::Return],
             }],
+        }])
+    );
+}
+
+#[test]
+fn lowers_entry_terminal_if_with_bool_local_condition() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let enabled = true
+    if enabled {
+        return 0
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::SetBool {
+                    destination: BoolLocation::Local(0),
+                    value: BoolValue::Const(true),
+                },
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Local(0)),
+                    then_instructions: vec![set_return_i32(0), Instruction::Return],
+                    else_instructions: vec![set_return_i32(1), Instruction::Return],
+                },
+            ],
+        }])
+    );
+}
+
+#[test]
+fn lowers_entry_terminal_if_with_mixed_i32_and_bool_locals() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let value = 42
+    let enabled = true
+    if enabled {
+        return value
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::SetI32 {
+                    destination: I32Location::Local(0),
+                    value: i32_const(42),
+                },
+                Instruction::SetBool {
+                    destination: BoolLocation::Local(1),
+                    value: BoolValue::Const(true),
+                },
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Local(1)),
+                    then_instructions: vec![
+                        Instruction::SetI32 {
+                            destination: I32Location::Return,
+                            value: i32_local(0),
+                        },
+                        Instruction::Return,
+                    ],
+                    else_instructions: vec![set_return_i32(1), Instruction::Return],
+                },
+            ],
         }])
     );
 }

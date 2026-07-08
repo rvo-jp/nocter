@@ -151,12 +151,12 @@ Currently buildable:
 - root-file `main` or `--entry <name>`
 - entry return types `i32`, `i32!`, and `void`
 - literal `i32` returns
-- immutable local `let` bindings whose initializer is lowerable as `i32`
+- immutable local `let` bindings whose initializer is lowerable as `i32` or `bool`
 - `void` entry with an empty body or bare `return`
 - same-file non-generic function calls
 - up to 8 `i32` parameters for lowered functions
 - `i32` addition used in lowerable `i32` expressions
-- terminal `if` / `else` statements with bool literal or `i32` comparison conditions and direct `i32` returns in both branches
+- terminal `if` / `else` statements with bool literal, bool local, or `i32` comparison conditions and direct `i32` returns in both branches
 - simple fallible entry success
 - simple fallible entry failure through `fail make_error("code", "message")`
 

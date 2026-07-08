@@ -1,7 +1,8 @@
-use super::bindings::lower_i32_let_binding;
+use super::bindings::lower_let_binding;
+use super::context::LoweringContext;
 use super::control_flow::lower_terminal_i32_if_statement;
 use super::errors::{lower_make_error_message, with_trailing_newline};
-use super::expressions::{I32ExpressionContext, lower_i32_return_expression};
+use super::expressions::lower_i32_return_expression;
 use crate::ast::{FunctionDecl, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{Function, I32Location, I32Value, Instruction, Type};
@@ -52,8 +53,8 @@ fn lower_entry_body(
         return Err(unsupported_entry_body_diagnostic());
     };
 
-    let mut context = I32ExpressionContext::empty();
-    let mut instructions = lower_leading_i32_bindings(leading, &mut context)?;
+    let mut context = LoweringContext::empty();
+    let mut instructions = lower_leading_bindings(leading, &mut context)?;
 
     match last {
         Stmt::Return(statement) => {
@@ -107,9 +108,9 @@ fn lower_entry_body(
     }
 }
 
-fn lower_leading_i32_bindings(
+fn lower_leading_bindings(
     statements: &[Stmt],
-    context: &mut I32ExpressionContext,
+    context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut instructions = Vec::new();
 
@@ -118,7 +119,7 @@ fn lower_leading_i32_bindings(
             return Err(unsupported_entry_body_diagnostic());
         };
 
-        instructions.extend(lower_i32_let_binding(statement, context)?);
+        instructions.extend(lower_let_binding(statement, context)?);
     }
 
     Ok(instructions)
@@ -127,6 +128,6 @@ fn lower_leading_i32_bindings(
 fn unsupported_entry_body_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8002",
-        "IR v0 can only lower entry function bodies containing leading `let` i32 bindings followed by `return`, `fail make_error(...)`, or a void return",
+        "IR v0 can only lower entry function bodies containing leading scalar `let` bindings followed by `return`, `fail make_error(...)`, or a void return",
     )]
 }

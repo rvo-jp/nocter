@@ -1,6 +1,7 @@
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolValue, Function, I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule, Type,
+    BoolLocation, BoolValue, Function, I32ComparisonOperator, I32Location, I32Value, Instruction,
+    IrModule, Type,
 };
 use crate::target::arm64::{BranchCondition, Encoder, MoveWideShift, WReg, XReg};
 use std::collections::HashMap;
@@ -90,6 +91,9 @@ impl EntryEmitter {
             Instruction::SetI32 { destination, value } => {
                 self.emit_set_i32(*destination, value)?;
             }
+            Instruction::SetBool { destination, value } => {
+                self.emit_set_bool(*destination, value)?;
+            }
             Instruction::AddI32 {
                 destination,
                 left,
@@ -159,6 +163,13 @@ impl EntryEmitter {
         match condition {
             BoolValue::Const(true) => Ok(None),
             BoolValue::Const(false) => Ok(Some(self.emit_branch_placeholder())),
+            BoolValue::Location(_) => {
+                self.emit_bool_value_to_w(condition, WReg::W16)?;
+                emit_mov_i32_to_w(&mut self.encoder, WReg::W17, 0);
+                self.encoder.emit_cmp_w(WReg::W16, WReg::W17);
+                self.encoder.emit_b_cond(BranchCondition::Ne, 8);
+                Ok(Some(self.emit_branch_placeholder()))
+            }
             BoolValue::I32Comparison {
                 operator,
                 left,
@@ -240,6 +251,15 @@ impl EntryEmitter {
         self.emit_i32_value_to_w(value, destination)
     }
 
+    fn emit_set_bool(
+        &mut self,
+        destination: BoolLocation,
+        value: &BoolValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let destination = self.bool_location_register(destination)?;
+        self.emit_bool_value_to_w(value, destination)
+    }
+
     fn emit_add_i32(
         &mut self,
         destination: I32Location,
@@ -271,6 +291,40 @@ impl EntryEmitter {
         Ok(())
     }
 
+    fn emit_bool_value_to_w(
+        &mut self,
+        value: &BoolValue,
+        destination: WReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match value {
+            BoolValue::Const(value) => {
+                emit_mov_i32_to_w(&mut self.encoder, destination, i32::from(*value));
+            }
+            BoolValue::Location(location) => {
+                let source = self.bool_location_register(*location)?;
+                if source != destination {
+                    self.encoder.emit_mov_w(destination, source);
+                }
+            }
+            BoolValue::I32Comparison {
+                operator,
+                left,
+                right,
+            } => {
+                emit_mov_i32_to_w(&mut self.encoder, destination, 0);
+                self.emit_i32_value_to_w(left, WReg::W16)?;
+                self.emit_i32_value_to_w(right, WReg::W17)?;
+                self.encoder.emit_cmp_w(WReg::W16, WReg::W17);
+                self.encoder
+                    .emit_b_cond(branch_condition_for_true_comparison(*operator), 8);
+                self.encoder.emit_b(8);
+                emit_mov_i32_to_w(&mut self.encoder, destination, 1);
+            }
+        }
+
+        Ok(())
+    }
+
     fn i32_location_register(&self, location: I32Location) -> Result<WReg, Vec<Diagnostic>> {
         match location {
             I32Location::Return => Ok(WReg::W0),
@@ -284,6 +338,17 @@ impl EntryEmitter {
                 vec![Diagnostic::error(
                     "E9004",
                     format!("codegen supports at most 7 i32 locals, got local {index}"),
+                )]
+            }),
+        }
+    }
+
+    fn bool_location_register(&self, location: BoolLocation) -> Result<WReg, Vec<Diagnostic>> {
+        match location {
+            BoolLocation::Local(index) => WReg::local(index).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "E9003",
+                    format!("codegen supports at most 7 local scalar bindings, got local {index}"),
                 )]
             }),
         }
@@ -445,6 +510,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
         Some(
             Instruction::WriteStaticStderr(_)
             | Instruction::SetI32 { .. }
+            | Instruction::SetBool { .. }
             | Instruction::AddI32 { .. },
         )
         | None => false,
@@ -479,7 +545,9 @@ const DARWIN_SYSCALL_TRAP: u16 = 0x80;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{BoolValue, Function, I32ComparisonOperator, I32Location, I32Value, Type};
+    use crate::ir::{
+        BoolLocation, BoolValue, Function, I32ComparisonOperator, I32Location, I32Value, Type,
+    };
 
     #[test]
     fn generates_exit_zero_for_return_i32_zero() {
@@ -749,6 +817,47 @@ mod tests {
                 0x20, 0x00, 0x80, 0x52, // movz w0, #1
                 0xc0, 0x03, 0x5f, 0xd6, // ret
                 0x40, 0x00, 0x80, 0x52, // movz w0, #2
+                0xc0, 0x03, 0x5f, 0xd6, // ret
+            ]
+        );
+    }
+
+    #[test]
+    fn generates_terminal_if_with_bool_local_condition() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::SetBool {
+                    destination: BoolLocation::Local(0),
+                    value: BoolValue::Const(true),
+                },
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Local(0)),
+                    then_instructions: vec![set_return_i32(7), Instruction::Return],
+                    else_instructions: vec![set_return_i32(9), Instruction::Return],
+                },
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert_eq!(
+            code.text,
+            vec![
+                0x04, 0x00, 0x00, 0x94, // bl main
+                0x30, 0x00, 0x80, 0x52, // movz w16, #1
+                0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
+                0x01, 0x10, 0x00, 0xd4, // svc #0x80
+                0x29, 0x00, 0x80, 0x52, // movz w9, #1
+                0xf0, 0x03, 0x09, 0x2a, // mov w16, w9
+                0x11, 0x00, 0x80, 0x52, // movz w17, #0
+                0x1f, 0x02, 0x11, 0x6b, // cmp w16, w17
+                0x41, 0x00, 0x00, 0x54, // b.ne +8
+                0x03, 0x00, 0x00, 0x14, // b else
+                0xe0, 0x00, 0x80, 0x52, // movz w0, #7
+                0xc0, 0x03, 0x5f, 0xd6, // ret
+                0x20, 0x01, 0x80, 0x52, // movz w0, #9
                 0xc0, 0x03, 0x5f, 0xd6, // ret
             ]
         );

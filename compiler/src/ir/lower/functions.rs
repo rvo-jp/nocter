@@ -1,6 +1,7 @@
-use super::bindings::lower_i32_let_binding;
+use super::bindings::lower_let_binding;
+use super::context::LoweringContext;
 use super::control_flow::lower_terminal_i32_if_statement;
-use super::expressions::{I32ExpressionContext, lower_i32_return_expression};
+use super::expressions::lower_i32_return_expression;
 use crate::ast::{FunctionDecl, Parameter, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{Function, Instruction, Type};
@@ -18,7 +19,7 @@ pub(super) fn lower_function(function: &FunctionDecl) -> Result<Function, Vec<Di
 
     let parameters = lower_i32_parameters(function)?;
     let return_type = lower_function_return_type(&function.return_type, &function.name)?;
-    let mut context = I32ExpressionContext::new(parameters);
+    let mut context = LoweringContext::new(parameters);
     let instructions = lower_function_body(function, &return_type, &mut context)?;
 
     Ok(Function {
@@ -74,7 +75,7 @@ fn lower_function_return_type(ty: &TypeExpr, name: &str) -> Result<Type, Vec<Dia
 fn lower_function_body(
     function: &FunctionDecl,
     return_type: &Type,
-    context: &mut I32ExpressionContext,
+    context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let statements = function.body.statements.as_slice();
 
@@ -86,7 +87,7 @@ fn lower_function_body(
         return Err(unsupported_function_body_diagnostic(&function.name));
     };
 
-    let mut instructions = lower_leading_i32_bindings(leading, context)?;
+    let mut instructions = lower_leading_bindings(leading, context)?;
 
     match last {
         Stmt::Return(statement) => {
@@ -127,9 +128,9 @@ fn lower_function_body(
     }
 }
 
-fn lower_leading_i32_bindings(
+fn lower_leading_bindings(
     statements: &[Stmt],
-    context: &mut I32ExpressionContext,
+    context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut instructions = Vec::new();
 
@@ -137,11 +138,11 @@ fn lower_leading_i32_bindings(
         let Stmt::Binding(statement) = statement else {
             return Err(vec![Diagnostic::error(
                 "E8007",
-                "IR v0 can only lower leading `let` i32 bindings before `return`",
+                "IR v0 can only lower leading scalar `let` bindings before `return`",
             )]);
         };
 
-        instructions.extend(lower_i32_let_binding(statement, context)?);
+        instructions.extend(lower_let_binding(statement, context)?);
     }
 
     Ok(instructions)
@@ -151,7 +152,7 @@ fn unsupported_function_body_diagnostic(function_name: &str) -> Vec<Diagnostic> 
     vec![Diagnostic::error(
         "E8007",
         format!(
-            "IR v0 can only lower function `{function_name}` bodies containing leading `let` i32 bindings followed by `return`"
+            "IR v0 can only lower function `{function_name}` bodies containing leading scalar `let` bindings followed by `return`"
         ),
     )]
 }

@@ -23,6 +23,10 @@ pub(crate) enum Instruction {
         destination: I32Location,
         value: I32Value,
     },
+    SetBool {
+        destination: BoolLocation,
+        value: BoolValue,
+    },
     AddI32 {
         destination: I32Location,
         left: I32Value,
@@ -53,9 +57,15 @@ pub(crate) enum I32Value {
     Location(I32Location),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BoolLocation {
+    Local(usize),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BoolValue {
     Const(bool),
+    Location(BoolLocation),
     I32Comparison {
         operator: I32ComparisonOperator,
         left: I32Value,
