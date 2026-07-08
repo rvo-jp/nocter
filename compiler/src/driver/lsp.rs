@@ -105,8 +105,9 @@ impl LspServer {
             "exit" => return Ok(true),
             "textDocument/didOpen" => {
                 if let Some(document) = open_document_from_params(params) {
-                    self.publish_document_diagnostics(&document, writer)?;
-                    self.documents.insert(document.uri.clone(), document);
+                    let uri = document.uri.clone();
+                    self.documents.insert(uri.clone(), document);
+                    self.publish_workspace_diagnostics(&uri, writer)?;
                 }
             }
             "textDocument/didChange" => {
@@ -120,8 +121,8 @@ impl LspServer {
 
                     document.version = version;
                     document.text = text;
-                    self.publish_document_diagnostics(&document, writer)?;
-                    self.documents.insert(uri, document);
+                    self.documents.insert(uri.clone(), document);
+                    self.publish_workspace_diagnostics(&uri, writer)?;
                 }
             }
             "textDocument/didClose" => {
@@ -136,16 +137,15 @@ impl LspServer {
         Ok(false)
     }
 
-    fn publish_document_diagnostics<W: Write>(
+    fn publish_workspace_diagnostics<W: Write>(
         &self,
-        document: &OpenDocument,
+        root_uri: &str,
         writer: &mut W,
     ) -> io::Result<()> {
-        let diagnostics = analyze_document(document);
-        write_message(
-            writer,
-            publish_diagnostics(&document.uri, diagnostics_for_lsp(document, diagnostics)),
-        )
+        for (uri, diagnostics) in analyze_workspace(root_uri, &self.documents) {
+            write_message(writer, publish_diagnostics(&uri, diagnostics))?;
+        }
+        Ok(())
     }
 }
 
@@ -220,19 +220,44 @@ fn open_document(uri: String, version: Option<i64>, text: String) -> OpenDocumen
     }
 }
 
-fn analyze_document(document: &OpenDocument) -> Vec<Diagnostic> {
+fn analyze_workspace(
+    root_uri: &str,
+    documents: &HashMap<String, OpenDocument>,
+) -> Vec<(String, Vec<LspDiagnostic>)> {
+    let mut open_documents = documents.values().collect::<Vec<_>>();
+    open_documents.sort_by(|left, right| left.uri.cmp(&right.uri));
+
     let mut sources = SourceMap::new();
-    let source = sources.add_source(
-        document.display_path.clone(),
-        document.absolute_path.clone(),
-        document.text.clone(),
-    );
-    let unit = match load_compile_unit(&mut sources, source, &FrontendOptions::default()) {
-        Ok(unit) => unit,
-        Err(diagnostics) => return diagnostics,
+    let mut source_by_uri = HashMap::new();
+
+    for document in &open_documents {
+        let source = sources.add_source(
+            document.display_path.clone(),
+            document.absolute_path.clone(),
+            document.text.clone(),
+        );
+        source_by_uri.insert(document.uri.clone(), source);
+    }
+
+    let diagnostics = match source_by_uri.get(root_uri).copied() {
+        Some(root) => match load_compile_unit(&mut sources, root, &FrontendOptions::default()) {
+            Ok(unit) => {
+                analyze_compile_unit_with_entry(&sources, &unit, DEFAULT_ENTRY_NAME).diagnostics()
+            }
+            Err(diagnostics) => diagnostics,
+        },
+        None => Vec::new(),
     };
-    let analysis = analyze_compile_unit_with_entry(&sources, &unit, DEFAULT_ENTRY_NAME);
-    analysis.diagnostics()
+
+    open_documents
+        .into_iter()
+        .map(|document| {
+            (
+                document.uri.clone(),
+                diagnostics_for_lsp(document, diagnostics.clone()),
+            )
+        })
+        .collect()
 }
 
 fn initialize_response(id: Value) -> Value {
@@ -561,10 +586,90 @@ mod tests {
         assert!(!text.contains("E0200"));
     }
 
+    #[test]
+    fn publishes_diagnostics_for_open_imported_document_text() {
+        let project = TempProject::new("lsp-open-import");
+        let app = project.write_source(
+            "app.nct",
+            "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
+        );
+        let config =
+            project.write_source("config.nct", "pub func answer(): i32 {\n    return 0\n}\n");
+        let app_uri = file_uri(&app);
+        let config_uri = file_uri(&config);
+        let documents = HashMap::from([
+            (
+                app_uri.clone(),
+                open_document(
+                    app_uri.clone(),
+                    Some(1),
+                    "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n"
+                        .to_string(),
+                ),
+            ),
+            (
+                config_uri.clone(),
+                open_document(
+                    config_uri.clone(),
+                    Some(1),
+                    "pub func answer(: i32 {\n".to_string(),
+                ),
+            ),
+        ]);
+
+        let diagnostics = analyze_workspace(&app_uri, &documents);
+
+        let config_diagnostics = diagnostics
+            .iter()
+            .find(|(uri, _)| uri == &config_uri)
+            .map(|(_, diagnostics)| diagnostics)
+            .expect("expected config diagnostics");
+        assert!(
+            config_diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "E0200")
+        );
+    }
+
     fn frame(message: &Value) -> Vec<u8> {
         let body = serde_json::to_vec(message).unwrap();
         let mut framed = format!("Content-Length: {}\r\n\r\n", body.len()).into_bytes();
         framed.extend(body);
         framed
+    }
+
+    fn file_uri(path: &Path) -> String {
+        format!("file://{}", path.to_string_lossy())
+    }
+
+    struct TempProject {
+        root: PathBuf,
+    }
+
+    impl TempProject {
+        fn new(name: &str) -> Self {
+            let root = std::env::temp_dir().join(format!(
+                "nocter-{name}-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            std::fs::create_dir_all(&root).unwrap();
+            Self { root }
+        }
+
+        fn write_source(&self, name: &str, text: &str) -> PathBuf {
+            let path = self.root.join(name);
+            std::fs::write(&path, text).unwrap();
+            path
+        }
+    }
+
+    impl Drop for TempProject {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
     }
 }

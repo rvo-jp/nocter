@@ -50,12 +50,8 @@ pub(crate) fn load_compile_unit(
     let mut root_ast = None;
     let mut files = Vec::new();
 
-    if let Some(path) = sources
-        .get(root)
-        .and_then(|file| file.absolute_path())
-        .cloned()
-    {
-        loaded_sources_by_path.insert(path, root);
+    for (path, source) in sources.sources_with_absolute_paths() {
+        loaded_sources_by_path.insert(path.to_path_buf(), source);
     }
 
     while let Some(source) = queue.pop_front() {

@@ -138,6 +138,12 @@ impl SourceMap {
         self.files.get(id.raw() as usize)
     }
 
+    pub(crate) fn sources_with_absolute_paths(&self) -> impl Iterator<Item = (&Path, SourceId)> {
+        self.files
+            .iter()
+            .filter_map(|file| file.absolute_path.as_deref().map(|path| (path, file.id)))
+    }
+
     pub fn load_file(&mut self, display_path: impl AsRef<Path>) -> Result<SourceId, Diagnostic> {
         let display_path = display_path.as_ref();
         let display = display_path.to_string_lossy().into_owned();

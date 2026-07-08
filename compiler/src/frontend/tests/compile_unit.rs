@@ -76,6 +76,62 @@ func main(): i32 {
 }
 
 #[test]
+fn compile_unit_reuses_preloaded_import_source() {
+    let root = make_temp_project("compile-unit-preloaded-import");
+    let home = make_nocter_home(&root);
+    fs::write(
+        root.join("app.nct"),
+        r#"from ./config import answer
+
+func main(): i32 {
+    return answer()
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("config.nct"),
+        r#"pub func answer(): i32 {
+    return 0
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let root_source = sources.load_file(root.join("app.nct")).unwrap();
+    let config_path = root.join("config.nct").canonicalize().unwrap();
+    let config_display = config_path.to_string_lossy().into_owned();
+    let config_source = sources.add_source(
+        config_display,
+        Some(config_path),
+        r#"pub func answer(): i32 {
+    return "bad"
+}
+"#,
+    );
+    let options = FrontendOptions {
+        nocter_home: Some(home.to_path_buf()),
+        target: DEFAULT_TARGET.to_string(),
+    };
+    let unit = load_compile_unit(&mut sources, root_source, &options).unwrap();
+    let analysis = analyze_compile_unit_with_entry(&sources, &unit, DEFAULT_ENTRY_NAME);
+    fs::remove_dir_all(&root).unwrap();
+
+    let config = analysis
+        .files
+        .iter()
+        .find(|file| file.ast.span.source == config_source)
+        .expect("expected preloaded config source in compile unit");
+    assert!(
+        config
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E0312")
+    );
+}
+
+#[test]
 fn check_orders_diagnostics_by_source_position() {
     let root = make_temp_project("diagnostic-order");
     let home = make_nocter_home(&root);
