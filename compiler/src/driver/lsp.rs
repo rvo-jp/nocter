@@ -98,6 +98,10 @@ impl LspServer {
                 write_message(writer, self.definition_response(id, params))?;
                 Ok(false)
             }
+            "textDocument/documentSymbol" => {
+                write_message(writer, self.document_symbol_response(id, params))?;
+                Ok(false)
+            }
             "shutdown" => {
                 self.shutdown_requested = true;
                 write_message(writer, response(id, Value::Null))?;
@@ -220,6 +224,14 @@ impl LspServer {
             })
         });
         response(id, definition.unwrap_or(Value::Null))
+    }
+
+    fn document_symbol_response(&self, id: Value, params: Option<&Value>) -> Value {
+        let symbols = document_uri_from_params(params)
+            .and_then(|uri| self.documents.get(&uri))
+            .and_then(document_symbols_for_document)
+            .unwrap_or_default();
+        response(id, Value::Array(symbols))
     }
 
     fn workspace_hover_for_uri(&self, uri: &str, params: Option<&Value>) -> Option<Value> {
@@ -485,7 +497,8 @@ fn initialize_response(id: Value) -> Value {
                     "full": true
                 },
                 "hoverProvider": true,
-                "definitionProvider": true
+                "definitionProvider": true,
+                "documentSymbolProvider": true
             },
             "serverInfo": {
                 "name": "nocter",
@@ -778,6 +791,181 @@ fn definition_for_document(document: &OpenDocument, params: Option<&Value>) -> O
     let resolved = resolve_single_file_for_hover(&document.text, source, &ast);
     definition_span_for_ast(&document.text, &ast, &resolved, offset)
         .and_then(|span| location_for_byte_span(&sources, span))
+}
+
+const LSP_SYMBOL_KIND_CLASS: u8 = 5;
+const LSP_SYMBOL_KIND_METHOD: u8 = 6;
+const LSP_SYMBOL_KIND_FIELD: u8 = 8;
+const LSP_SYMBOL_KIND_ENUM: u8 = 10;
+const LSP_SYMBOL_KIND_INTERFACE: u8 = 11;
+const LSP_SYMBOL_KIND_FUNCTION: u8 = 12;
+const LSP_SYMBOL_KIND_ENUM_MEMBER: u8 = 22;
+const LSP_SYMBOL_KIND_STRUCT: u8 = 23;
+
+fn document_symbols_for_document(document: &OpenDocument) -> Option<Vec<Value>> {
+    let mut sources = SourceMap::new();
+    let source = sources.add_source(
+        document.display_path.clone(),
+        document.absolute_path.clone(),
+        document.text.clone(),
+    );
+    let lex_output = lex(&sources, source);
+    if !lex_output.diagnostics.is_empty() {
+        return None;
+    }
+    let ast = parse(&sources, source, &lex_output.tokens).ast?;
+
+    Some(
+        ast.items
+            .iter()
+            .filter_map(|item| item_document_symbol(&document.text, item))
+            .collect(),
+    )
+}
+
+fn item_document_symbol(text: &str, item: &Item) -> Option<Value> {
+    match item {
+        Item::Use(_) | Item::Import(_) | Item::FromImport(_) => None,
+        Item::Function(function) => Some(document_symbol(
+            text,
+            &function.name,
+            LSP_SYMBOL_KIND_FUNCTION,
+            function.span,
+            function.name_span,
+            Vec::new(),
+        )),
+        Item::Primitive(primitive) => Some(document_symbol(
+            text,
+            &primitive.name,
+            LSP_SYMBOL_KIND_FUNCTION,
+            primitive.span,
+            primitive.name_span,
+            Vec::new(),
+        )),
+        Item::TypeAlias(alias) => Some(document_symbol(
+            text,
+            &alias.name,
+            LSP_SYMBOL_KIND_CLASS,
+            alias.span,
+            alias.name_span,
+            Vec::new(),
+        )),
+        Item::Struct(struct_) => Some(document_symbol(
+            text,
+            &struct_.name,
+            LSP_SYMBOL_KIND_STRUCT,
+            struct_.span,
+            struct_.name_span,
+            struct_
+                .fields
+                .iter()
+                .map(|field| {
+                    document_symbol(
+                        text,
+                        &field.name,
+                        LSP_SYMBOL_KIND_FIELD,
+                        field.span,
+                        field.name_span,
+                        Vec::new(),
+                    )
+                })
+                .collect(),
+        )),
+        Item::Enum(enum_) => Some(document_symbol(
+            text,
+            &enum_.name,
+            LSP_SYMBOL_KIND_ENUM,
+            enum_.span,
+            enum_.name_span,
+            enum_
+                .variants
+                .iter()
+                .map(|variant| {
+                    document_symbol(
+                        text,
+                        &variant.name,
+                        LSP_SYMBOL_KIND_ENUM_MEMBER,
+                        variant.span,
+                        variant.name_span,
+                        Vec::new(),
+                    )
+                })
+                .collect(),
+        )),
+        Item::Trait(trait_) => Some(document_symbol(
+            text,
+            &trait_.name,
+            LSP_SYMBOL_KIND_INTERFACE,
+            trait_.span,
+            trait_.name_span,
+            trait_
+                .methods
+                .iter()
+                .map(|method| method_document_symbol(text, method))
+                .collect(),
+        )),
+        Item::Impl(impl_) => Some(document_symbol(
+            text,
+            &format!("impl {}", source_fragment(text, impl_.target_ty.span())),
+            LSP_SYMBOL_KIND_CLASS,
+            impl_.span,
+            impl_.target_ty.span(),
+            impl_
+                .members
+                .iter()
+                .map(|member| impl_member_document_symbol(text, member))
+                .collect(),
+        )),
+    }
+}
+
+fn impl_member_document_symbol(text: &str, member: &ImplMember) -> Value {
+    match member {
+        ImplMember::Function(function) => document_symbol(
+            text,
+            &function.name,
+            LSP_SYMBOL_KIND_FUNCTION,
+            function.span,
+            function.name_span,
+            Vec::new(),
+        ),
+        ImplMember::Method(method) => method_document_symbol(text, method),
+    }
+}
+
+fn method_document_symbol(text: &str, method: &MethodDecl) -> Value {
+    document_symbol(
+        text,
+        &method.name,
+        LSP_SYMBOL_KIND_METHOD,
+        method.span,
+        method.name_span,
+        Vec::new(),
+    )
+}
+
+fn document_symbol(
+    text: &str,
+    name: &str,
+    kind: u8,
+    range_span: ByteSpan,
+    selection_span: ByteSpan,
+    children: Vec<Value>,
+) -> Value {
+    let mut symbol = json!({
+        "name": name,
+        "kind": kind,
+        "range": range_for_byte_span(text, range_span),
+        "selectionRange": range_for_byte_span(text, selection_span)
+    });
+
+    if !children.is_empty()
+        && let Some(object) = symbol.as_object_mut()
+    {
+        object.insert("children".to_string(), Value::Array(children));
+    }
+
+    symbol
 }
 
 fn hover_for_file_analysis(
@@ -2225,6 +2413,7 @@ mod tests {
         assert!(text.contains("\"semanticTokensProvider\""));
         assert!(text.contains("\"hoverProvider\""));
         assert!(text.contains("\"definitionProvider\""));
+        assert!(text.contains("\"documentSymbolProvider\""));
     }
 
     #[test]
@@ -2581,6 +2770,51 @@ mod tests {
         assert_eq!(response["result"]["range"]["start"]["line"], json!(0));
         assert_eq!(response["result"]["range"]["start"]["character"], json!(9));
         assert_eq!(response["result"]["range"]["end"]["character"], json!(15));
+    }
+
+    #[test]
+    fn returns_document_symbols_for_top_level_declarations() {
+        let uri = "file:///tmp/nocter-document-symbols.nct".to_string();
+        let document = open_document(
+            uri.clone(),
+            Some(1),
+            "struct Config {\n    path: str\n}\n\nenum Mode {\n    fast\n    slow\n}\n\nfunc main(): i32 {\n    return 0\n}\n"
+                .to_string(),
+        );
+        let server = LspServer {
+            documents: HashMap::from([(uri.clone(), document)]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.document_symbol_response(
+            json!(10),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                }
+            })),
+        );
+        let symbols = response["result"]
+            .as_array()
+            .expect("expected document symbols");
+
+        assert_eq!(symbols.len(), 3);
+        assert_eq!(symbols[0]["name"], json!("Config"));
+        assert_eq!(symbols[0]["kind"], json!(LSP_SYMBOL_KIND_STRUCT));
+        assert_eq!(symbols[0]["children"][0]["name"], json!("path"));
+        assert_eq!(
+            symbols[0]["children"][0]["kind"],
+            json!(LSP_SYMBOL_KIND_FIELD)
+        );
+        assert_eq!(symbols[1]["name"], json!("Mode"));
+        assert_eq!(
+            symbols[1]["children"][0]["kind"],
+            json!(LSP_SYMBOL_KIND_ENUM_MEMBER)
+        );
+        assert_eq!(symbols[2]["name"], json!("main"));
+        assert_eq!(symbols[2]["kind"], json!(LSP_SYMBOL_KIND_FUNCTION));
     }
 
     #[test]
