@@ -1,9 +1,15 @@
 use crate::analysis::analyze_compile_unit_with_entry;
+use crate::ast::{
+    AstFile, BindingStmt, Block, EnumDecl, Expr, FunctionDecl, ImplMember, Item, MethodDecl,
+    Parameter, PrimitiveDecl, Stmt, StructDecl, StructField, TraitDecl,
+};
+use crate::comments::{DocumentationTarget, attach_documentation};
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::lexer::{Keyword, Token, TokenKind, lex};
-use crate::source::{JsonSpan, SourceMap};
+use crate::parser::parse;
+use crate::source::{ByteSpan, JsonSpan, SourceMap};
 use serde::Serialize;
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
@@ -427,6 +433,13 @@ struct ClassifiedIdentifier {
     modifiers: u32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct HoverSymbol {
+    name_span: ByteSpan,
+    attach_start: usize,
+    label: String,
+}
+
 fn semantic_tokens_for_document(document: &OpenDocument) -> Vec<usize> {
     let semantic_tokens = classified_identifiers(document)
         .into_iter()
@@ -606,6 +619,10 @@ fn utf16_len(text: &str, start: usize, end: usize) -> usize {
 fn hover_for_document(document: &OpenDocument, params: Option<&Value>) -> Option<Value> {
     let position = position_from_params(params)?;
     let offset = lsp_position_to_byte_offset(&document.text, position.line, position.character);
+    if let Some(hover) = documented_hover_for_document(document, offset) {
+        return Some(hover);
+    }
+
     let identifier = classified_identifiers(document)
         .into_iter()
         .find(|identifier| identifier.start_byte <= offset && offset < identifier.end_byte)?;
@@ -629,6 +646,487 @@ fn hover_for_document(document: &OpenDocument, params: Option<&Value>) -> Option
         },
         "range": range
     }))
+}
+
+fn documented_hover_for_document(document: &OpenDocument, offset: usize) -> Option<Value> {
+    let mut sources = SourceMap::new();
+    let source = sources.add_source(
+        document.display_path.clone(),
+        document.absolute_path.clone(),
+        document.text.clone(),
+    );
+    let lex_output = lex(&sources, source);
+    if !lex_output.diagnostics.is_empty() {
+        return None;
+    }
+    let ast = parse(&sources, source, &lex_output.tokens).ast?;
+    let symbols = hover_symbols_for_ast(&document.text, &ast);
+    let symbol = symbols
+        .iter()
+        .find(|symbol| symbol.name_span.start <= offset && offset < symbol.name_span.end)?;
+    let targets = symbols
+        .iter()
+        .map(|symbol| DocumentationTarget::new(symbol.attach_start, symbol.name_span.start))
+        .collect::<Vec<_>>();
+    let documentation = attach_documentation(source, &document.text, &targets);
+    let docs = documentation.get(symbol.name_span.start);
+    let value = hover_markdown(&symbol.label, docs);
+
+    Some(json!({
+        "contents": {
+            "kind": "markdown",
+            "value": value
+        },
+        "range": range_for_byte_span(&document.text, symbol.name_span)
+    }))
+}
+
+fn hover_symbols_for_ast(text: &str, ast: &AstFile) -> Vec<HoverSymbol> {
+    let mut symbols = Vec::new();
+    for item in &ast.items {
+        collect_item_hover_symbols(text, item, &mut symbols);
+    }
+    symbols
+}
+
+fn collect_item_hover_symbols(text: &str, item: &Item, symbols: &mut Vec<HoverSymbol>) {
+    match item {
+        Item::Use(_) | Item::Import(_) | Item::FromImport(_) => {}
+        Item::Function(function) => {
+            push_function_hover_symbol(text, function, symbols);
+            collect_parameter_hover_symbols(text, &function.parameters.parameters, symbols);
+            collect_block_hover_symbols(text, &function.body, symbols);
+        }
+        Item::Primitive(primitive) => {
+            push_primitive_hover_symbol(text, primitive, symbols);
+            collect_parameter_hover_symbols(text, &primitive.parameters.parameters, symbols);
+        }
+        Item::TypeAlias(alias) => push_hover_symbol(
+            text,
+            alias.name_span,
+            alias.span.start,
+            format!(
+                "type {} = {}",
+                alias.name,
+                source_fragment(text, alias.target.span())
+            ),
+            symbols,
+        ),
+        Item::Struct(struct_) => collect_struct_hover_symbols(text, struct_, symbols),
+        Item::Enum(enum_) => collect_enum_hover_symbols(text, enum_, symbols),
+        Item::Trait(trait_) => collect_trait_hover_symbols(text, trait_, symbols),
+        Item::Impl(impl_) => {
+            for member in &impl_.members {
+                match member {
+                    ImplMember::Function(function) => {
+                        push_function_hover_symbol(text, function, symbols);
+                        collect_parameter_hover_symbols(
+                            text,
+                            &function.parameters.parameters,
+                            symbols,
+                        );
+                        collect_block_hover_symbols(text, &function.body, symbols);
+                    }
+                    ImplMember::Method(method) => {
+                        collect_method_hover_symbols(text, method, symbols)
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn collect_struct_hover_symbols(text: &str, struct_: &StructDecl, symbols: &mut Vec<HoverSymbol>) {
+    let copy_prefix = if struct_.is_copy { "copy " } else { "" };
+    push_hover_symbol(
+        text,
+        struct_.name_span,
+        struct_.span.start,
+        format!("{copy_prefix}struct {}", struct_.name),
+        symbols,
+    );
+    for field in &struct_.fields {
+        push_struct_field_hover_symbol(text, field, symbols);
+    }
+}
+
+fn collect_enum_hover_symbols(text: &str, enum_: &EnumDecl, symbols: &mut Vec<HoverSymbol>) {
+    push_hover_symbol(
+        text,
+        enum_.name_span,
+        enum_.span.start,
+        format!("enum {}", enum_.name),
+        symbols,
+    );
+    for variant in &enum_.variants {
+        let payload = if variant.payload.is_empty() {
+            String::new()
+        } else {
+            format!("({})", parameters_label(text, &variant.payload))
+        };
+        push_hover_symbol(
+            text,
+            variant.name_span,
+            variant.span.start,
+            format!("variant {}{}", variant.name, payload),
+            symbols,
+        );
+        collect_parameter_hover_symbols(text, &variant.payload, symbols);
+    }
+}
+
+fn collect_trait_hover_symbols(text: &str, trait_: &TraitDecl, symbols: &mut Vec<HoverSymbol>) {
+    push_hover_symbol(
+        text,
+        trait_.name_span,
+        trait_.span.start,
+        format!("trait {}", trait_.name),
+        symbols,
+    );
+    for method in &trait_.methods {
+        collect_method_hover_symbols(text, method, symbols);
+    }
+}
+
+fn collect_method_hover_symbols(text: &str, method: &MethodDecl, symbols: &mut Vec<HoverSymbol>) {
+    push_hover_symbol(
+        text,
+        method.name_span,
+        method.span.start,
+        function_like_header(
+            text,
+            method.span,
+            method.body.as_ref().map(|body| body.span.start),
+        ),
+        symbols,
+    );
+    collect_parameter_hover_symbols(text, std::slice::from_ref(&method.receiver), symbols);
+    collect_parameter_hover_symbols(text, &method.parameters.parameters, symbols);
+    if let Some(body) = &method.body {
+        collect_block_hover_symbols(text, body, symbols);
+    }
+}
+
+fn push_function_hover_symbol(text: &str, function: &FunctionDecl, symbols: &mut Vec<HoverSymbol>) {
+    push_hover_symbol(
+        text,
+        function.name_span,
+        function.span.start,
+        function_like_header(text, function.span, Some(function.body.span.start)),
+        symbols,
+    );
+}
+
+fn push_primitive_hover_symbol(
+    text: &str,
+    primitive: &PrimitiveDecl,
+    symbols: &mut Vec<HoverSymbol>,
+) {
+    push_hover_symbol(
+        text,
+        primitive.name_span,
+        primitive.span.start,
+        function_like_header(text, primitive.span, None),
+        symbols,
+    );
+}
+
+fn push_struct_field_hover_symbol(text: &str, field: &StructField, symbols: &mut Vec<HoverSymbol>) {
+    push_hover_symbol(
+        text,
+        field.name_span,
+        field.span.start,
+        format!(
+            "field {}: {}",
+            field.name,
+            source_fragment(text, field.ty.span())
+        ),
+        symbols,
+    );
+}
+
+fn collect_parameter_hover_symbols(
+    text: &str,
+    parameters: &[Parameter],
+    symbols: &mut Vec<HoverSymbol>,
+) {
+    for parameter in parameters {
+        push_hover_symbol(
+            text,
+            parameter.name_span,
+            parameter.span.start,
+            format!(
+                "parameter {}: {}",
+                parameter.name,
+                source_fragment(text, parameter.ty.span())
+            ),
+            symbols,
+        );
+    }
+}
+
+fn collect_block_hover_symbols(text: &str, block: &Block, symbols: &mut Vec<HoverSymbol>) {
+    for statement in &block.statements {
+        collect_statement_hover_symbols(text, statement, symbols);
+    }
+}
+
+fn collect_statement_hover_symbols(text: &str, statement: &Stmt, symbols: &mut Vec<HoverSymbol>) {
+    match statement {
+        Stmt::Return(statement) => {
+            if let Some(expression) = &statement.expression {
+                collect_expression_hover_symbols(text, expression, symbols);
+            }
+        }
+        Stmt::Binding(statement) => {
+            push_binding_hover_symbol(text, statement, symbols);
+            collect_expression_hover_symbols(text, &statement.initializer, symbols);
+            if let Some(block) = &statement.else_block {
+                collect_block_hover_symbols(text, block, symbols);
+            }
+        }
+        Stmt::Assignment(statement) => {
+            collect_expression_hover_symbols(text, &statement.target, symbols);
+            collect_expression_hover_symbols(text, &statement.value, symbols);
+        }
+        Stmt::If(statement) => {
+            collect_expression_hover_symbols(text, &statement.condition, symbols);
+            collect_block_hover_symbols(text, &statement.then_block, symbols);
+            if let Some(block) = &statement.else_block {
+                collect_block_hover_symbols(text, block, symbols);
+            }
+        }
+        Stmt::IfIs(statement) => {
+            collect_block_hover_symbols(text, &statement.then_block, symbols);
+            if let Some(block) = &statement.else_block {
+                collect_block_hover_symbols(text, block, symbols);
+            }
+        }
+        Stmt::IfLet(statement) => {
+            push_hover_symbol(
+                text,
+                statement.name_span,
+                statement.span.start,
+                format!("{} {}", binding_kind_label(statement.kind), statement.name),
+                symbols,
+            );
+            collect_expression_hover_symbols(text, &statement.initializer, symbols);
+            collect_block_hover_symbols(text, &statement.then_block, symbols);
+            if let Some(block) = &statement.else_block {
+                collect_block_hover_symbols(text, block, symbols);
+            }
+        }
+        Stmt::Switch(statement) => {
+            collect_expression_hover_symbols(text, &statement.expression, symbols);
+            for arm in &statement.arms {
+                collect_block_hover_symbols(text, &arm.body, symbols);
+            }
+            if let Some(arm) = &statement.else_arm {
+                collect_block_hover_symbols(text, &arm.body, symbols);
+            }
+        }
+        Stmt::ForRange(statement) => {
+            push_hover_symbol(
+                text,
+                statement.name_span,
+                statement.span.start,
+                format!("let {}", statement.name),
+                symbols,
+            );
+            collect_expression_hover_symbols(text, &statement.start, symbols);
+            collect_expression_hover_symbols(text, &statement.end, symbols);
+            collect_block_hover_symbols(text, &statement.body, symbols);
+        }
+        Stmt::While(statement) => {
+            collect_expression_hover_symbols(text, &statement.condition, symbols);
+            collect_block_hover_symbols(text, &statement.body, symbols);
+        }
+        Stmt::WhileLet(statement) => {
+            push_hover_symbol(
+                text,
+                statement.name_span,
+                statement.span.start,
+                format!("{} {}", binding_kind_label(statement.kind), statement.name),
+                symbols,
+            );
+            collect_expression_hover_symbols(text, &statement.initializer, symbols);
+            collect_block_hover_symbols(text, &statement.body, symbols);
+        }
+        Stmt::Loop(statement) => collect_block_hover_symbols(text, &statement.body, symbols),
+        Stmt::Expression(statement) => {
+            collect_expression_hover_symbols(text, &statement.expression, symbols);
+        }
+        Stmt::Break(_) | Stmt::Continue(_) => {}
+    }
+}
+
+fn push_binding_hover_symbol(text: &str, statement: &BindingStmt, symbols: &mut Vec<HoverSymbol>) {
+    let ty = statement
+        .ty
+        .as_ref()
+        .map(|ty| format!(": {}", source_fragment(text, ty.span())))
+        .unwrap_or_default();
+    push_hover_symbol(
+        text,
+        statement.name_span,
+        statement.span.start,
+        format!(
+            "{} {}{}",
+            binding_kind_label(statement.kind),
+            statement.name,
+            ty
+        ),
+        symbols,
+    );
+}
+
+fn collect_expression_hover_symbols(text: &str, expression: &Expr, symbols: &mut Vec<HoverSymbol>) {
+    match expression {
+        Expr::ArrayLiteral(expression) => {
+            for element in &expression.elements {
+                collect_expression_hover_symbols(text, element, symbols);
+            }
+        }
+        Expr::StructLiteral(expression) => {
+            for field in &expression.fields {
+                collect_expression_hover_symbols(text, &field.value, symbols);
+            }
+        }
+        Expr::Propagate(expression) => {
+            collect_expression_hover_symbols(text, &expression.expression, symbols);
+        }
+        Expr::Force(expression) => {
+            collect_expression_hover_symbols(text, &expression.expression, symbols);
+        }
+        Expr::Catch(expression) => {
+            collect_expression_hover_symbols(text, &expression.expression, symbols);
+            collect_block_hover_symbols(text, &expression.catch_block, symbols);
+        }
+        Expr::Unary(expression) => {
+            collect_expression_hover_symbols(text, &expression.operand, symbols)
+        }
+        Expr::Binary(expression) => {
+            collect_expression_hover_symbols(text, &expression.left, symbols);
+            collect_expression_hover_symbols(text, &expression.right, symbols);
+        }
+        Expr::TypeConversion(expression) => {
+            collect_expression_hover_symbols(text, &expression.expression, symbols);
+        }
+        Expr::Call(expression) => {
+            collect_expression_hover_symbols(text, &expression.callee, symbols);
+            for argument in &expression.arguments {
+                collect_expression_hover_symbols(text, argument, symbols);
+            }
+        }
+        Expr::Member(expression) => {
+            collect_expression_hover_symbols(text, &expression.object, symbols)
+        }
+        Expr::Index(expression) => {
+            collect_expression_hover_symbols(text, &expression.object, symbols);
+            collect_expression_hover_symbols(text, &expression.index, symbols);
+        }
+        Expr::Group(expression) => {
+            collect_expression_hover_symbols(text, &expression.expression, symbols);
+        }
+        Expr::OptionalDefault(expression) => {
+            collect_expression_hover_symbols(text, &expression.value, symbols);
+            collect_expression_hover_symbols(text, &expression.default, symbols);
+        }
+        Expr::PatternConditional(expression) => {
+            collect_expression_hover_symbols(text, &expression.target, symbols);
+            for arm in &expression.arms {
+                collect_expression_hover_symbols(text, &arm.expression, symbols);
+            }
+            collect_expression_hover_symbols(text, &expression.fallback, symbols);
+        }
+        Expr::Identifier(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::StringLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::NoneLiteral(_) => {}
+    }
+}
+
+fn push_hover_symbol(
+    text: &str,
+    name_span: ByteSpan,
+    declaration_start: usize,
+    label: String,
+    symbols: &mut Vec<HoverSymbol>,
+) {
+    symbols.push(HoverSymbol {
+        name_span,
+        attach_start: declaration_line_start(text, declaration_start),
+        label,
+    });
+}
+
+fn function_like_header(text: &str, span: ByteSpan, body_start: Option<usize>) -> String {
+    let end = body_start.unwrap_or(span.end).min(span.end);
+    source_fragment(text, ByteSpan::new(span.source, span.start, end))
+        .trim_end_matches('{')
+        .trim()
+        .to_string()
+}
+
+fn parameters_label(text: &str, parameters: &[Parameter]) -> String {
+    parameters
+        .iter()
+        .map(|parameter| {
+            format!(
+                "{}: {}",
+                parameter.name,
+                source_fragment(text, parameter.ty.span())
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn binding_kind_label(kind: crate::ast::BindingKind) -> &'static str {
+    match kind {
+        crate::ast::BindingKind::Let => "let",
+        crate::ast::BindingKind::Var => "var",
+    }
+}
+
+fn source_fragment(text: &str, span: ByteSpan) -> &str {
+    text.get(span.start.min(text.len())..span.end.min(text.len()))
+        .unwrap_or_default()
+        .trim()
+}
+
+fn hover_markdown(label: &str, documentation: Option<&str>) -> String {
+    let mut value = format!("```nocter\n{label}\n```");
+    if let Some(documentation) = documentation
+        && !documentation.trim().is_empty()
+    {
+        value.push_str("\n\n");
+        value.push_str(documentation.trim());
+    }
+    value
+}
+
+fn range_for_byte_span(text: &str, span: ByteSpan) -> LspRange {
+    LspRange {
+        start: byte_offset_to_lsp_position(text, span.start),
+        end: byte_offset_to_lsp_position(text, span.end),
+    }
+}
+
+fn declaration_line_start(text: &str, node_start: usize) -> usize {
+    let bytes = text.as_bytes();
+    let mut line_start = node_start.min(bytes.len());
+    while line_start > 0 && bytes[line_start - 1] != b'\n' {
+        line_start -= 1;
+    }
+
+    let mut start = line_start;
+    while start < node_start && matches!(bytes[start], b' ' | b'\t') {
+        start += 1;
+    }
+
+    start
 }
 
 fn position_from_params(params: Option<&Value>) -> Option<LspPosition> {
@@ -1013,10 +1511,82 @@ mod tests {
 
         assert_eq!(
             response["result"]["contents"]["value"],
-            json!("```nocter\nvariable declaration answer\n```")
+            json!("```nocter\nlet answer\n```")
         );
         assert_eq!(response["result"]["range"]["start"]["line"], json!(1));
         assert_eq!(response["result"]["range"]["start"]["character"], json!(8));
+    }
+
+    #[test]
+    fn returns_documented_hover_for_function_declaration() {
+        let uri = "file:///tmp/nocter-hover-docs.nct".to_string();
+        let document = open_document(
+            uri.clone(),
+            Some(1),
+            "/// Computes the answer.\nfunc answer(path: str): i32 {\n    return 0\n}\n"
+                .to_string(),
+        );
+        let server = LspServer {
+            documents: HashMap::from([(uri.clone(), document)]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.hover_response(
+            json!(4),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "position": {
+                    "line": 1,
+                    "character": 6
+                }
+            })),
+        );
+
+        assert_eq!(
+            response["result"]["contents"]["value"],
+            json!("```nocter\nfunc answer(path: str): i32\n```\n\nComputes the answer.")
+        );
+        assert_eq!(response["result"]["range"]["start"]["line"], json!(1));
+        assert_eq!(response["result"]["range"]["start"]["character"], json!(5));
+    }
+
+    #[test]
+    fn returns_documented_hover_for_local_binding_declaration() {
+        let uri = "file:///tmp/nocter-hover-local-docs.nct".to_string();
+        let document = open_document(
+            uri.clone(),
+            Some(1),
+            "func main(): i32 {\n    /// Exit code.\n    let code: i32 = 0\n    return code\n}\n"
+                .to_string(),
+        );
+        let server = LspServer {
+            documents: HashMap::from([(uri.clone(), document)]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.hover_response(
+            json!(5),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "position": {
+                    "line": 2,
+                    "character": 9
+                }
+            })),
+        );
+
+        assert_eq!(
+            response["result"]["contents"]["value"],
+            json!("```nocter\nlet code: i32\n```\n\nExit code.")
+        );
     }
 
     #[test]
