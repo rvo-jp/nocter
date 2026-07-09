@@ -77,3 +77,9 @@ Always report:
 - what was verified
 - what remains uncommitted
 - which unrelated files were intentionally left alone
+
+## Commit Checkpoints
+
+When a coherent chunk of work is complete, verified, and no user-owned unrelated changes are mixed into the staged set, create a git commit before continuing to the next chunk.
+Do this especially after changes that update multiple compiler phases, add a new module, or change user-visible behavior.
+Keep the commit scoped to the completed chunk; leave unrelated local changes unstaged.

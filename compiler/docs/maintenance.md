@@ -85,6 +85,10 @@ Record only durable facts: implemented capability, remaining gap, design decisio
 
 Keep unrelated user changes out of commits.
 
+Create a commit whenever a coherent chunk of work is complete and verified before moving on to the next chunk.
+This applies especially when a change touches multiple compiler phases, adds a new module, or changes user-visible behavior.
+Do not wait for a large session to accumulate many independent changes before committing.
+
 Prefer these commit shapes:
 
 - one behavior change plus tests and docs
