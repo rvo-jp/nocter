@@ -139,7 +139,7 @@ pub(super) fn resolve_single_file_for_hover(
     resolve(&sources, ast)
 }
 
-pub(super) fn source_fragment(text: &str, span: ByteSpan) -> &str {
+fn source_fragment(text: &str, span: ByteSpan) -> &str {
     text.get(span.start.min(text.len())..span.end.min(text.len()))
         .unwrap_or_default()
         .trim()

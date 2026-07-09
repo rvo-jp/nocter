@@ -40,13 +40,13 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- `compiler/src/driver/lsp/completion.rs` now owns keyword completions, resolved symbol completion items, completion item kind mapping, and single-file fallback completion lookup.
-- `compiler/src/driver/lsp/mod.rs` routes completion requests to `completion.rs`.
-- `compiler/docs/architecture.md`, `compiler/docs/roadmap.md`, and this file were updated to reflect the completion extraction.
+- `compiler/src/driver/lsp/symbols.rs` now owns document symbol response construction, symbol kind mapping, and AST item-to-symbol conversion.
+- `compiler/src/driver/lsp/mod.rs` routes document symbol requests to `symbols.rs`.
+- `compiler/docs/architecture.md`, `compiler/docs/roadmap.md`, and this file were updated to reflect the document symbols extraction.
 
 ## Verification Already Run
 
-After the completion extraction, from `compiler/`:
+After the document symbols extraction, from `compiler/`:
 
 ```sh
 cargo fmt
@@ -63,12 +63,12 @@ From repository root:
 git diff --check
 ```
 
-Passed after the completion extraction.
+Passed after the document symbols extraction.
 
 ## First Action In Next Session
 
 1. Run `git status --short`.
-2. Review the uncommitted completion extraction.
+2. Review the uncommitted document symbols extraction.
 3. If the user asks for a commit, stage only compiler files unless there are unrelated local changes.
 
 ## Next Implementation Direction
@@ -76,13 +76,13 @@ Passed after the completion extraction.
 Recommended next small task:
 
 1. Continue the LSP maintainability pass.
-2. Extract document symbols from `driver/lsp/mod.rs` into `driver/lsp/symbols.rs`.
+2. Extract the repeated open-document compile-unit analysis setup from `driver/lsp/mod.rs` into a small LSP analysis bridge only if the resulting API stays narrower than the current helper duplication.
 3. Keep the extraction behavior-preserving.
 4. Run `cargo fmt`, `cargo test --quiet`, and `cargo clippy --all-targets --quiet -- -D warnings`.
 
 After that:
 
-1. Consider extracting an LSP analysis bridge only if workspace analysis construction is still duplicated after the feature modules are split.
+1. End the current LSP maintainability pass.
 2. Keep compiler semantics in resolver, analysis, and typecheck modules; LSP modules should present those results.
 3. Move back to compiler core work after the LSP server structure is thin enough for future editor features.
 
