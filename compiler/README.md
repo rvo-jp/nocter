@@ -27,12 +27,14 @@ Nocter users should be able to install a released `.nocter/` archive without ins
 - [Implementation Status](docs/implementation-status.md): what is specified, parsed, checked, buildable, and backed by runtime behavior.
 - [Backend V0](docs/backend-v0.md): current ARM64 Darwin backend boundary and register-only convention.
 - [Roadmap](docs/roadmap.md): implementation order and near-term constraints.
+- [Maintenance Policy](docs/maintenance.md): long-term module boundaries, refactoring rules, and session handoff rules.
 - [TODO](TODO.md): short-term handoff notes for the next compiler work session.
 
 ## Main Layout
 
 ```text
 compiler/
+    AGENTS.md
     README.md
     TODO.md
     Cargo.toml

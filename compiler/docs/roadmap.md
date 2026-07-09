@@ -5,16 +5,17 @@ Short-lived handoff notes belong in `../TODO.md`.
 
 ## Current Priority
 
-Keep backend v0 narrow while adding guards that prevent malformed IR from reaching code generation.
+Finish the first LSP maintainability pass before adding more editor features.
 
 Recommended next small task:
 
-1. Extend IR lowering's same-file function signature data from return type only to a small signature struct.
-2. Include callee return type and lowered parameter count.
-3. Keep it deliberately v0-shaped: only same-file, non-generic, `i32` parameters.
-4. Reject tail calls whose argument count cannot match the callee before backend codegen sees them.
+1. Keep `driver/lsp/` split by stable responsibilities.
+2. Extract diagnostics publishing from `driver/lsp/mod.rs`.
+3. Extract semantic tokens, hover, definition, completion, and document symbols only when the new module has a smaller API than the copied context.
+4. Reuse resolver and analysis data for editor semantics instead of adding LSP-only semantic logic.
 
-The frontend already catches normal source mismatches, but IR lowering should not silently construct malformed `Instruction::TailCall`.
+The current LSP feature set is useful enough to exercise in VS Code, but `driver/lsp/mod.rs` is still too large.
+Reduce that coupling before adding rename, references, formatting, or richer type hovers.
 
 ## Near-Term Constraints
 
@@ -22,6 +23,7 @@ The frontend already catches normal source mismatches, but IR lowering should no
 - Do not lower calls inside conditions such as `if enabled() { ... }`.
 - Avoid broad `if`, `while`, `loop`, `match`, `var`, reassignment, imports, and aggregate lowering until backend storage and ABI rules are ready.
 - Prefer small user-visible build features with integration tests.
+- Prefer behavior-preserving LSP refactors before adding new LSP capabilities.
 
 ## Design Constraints
 
@@ -29,3 +31,4 @@ The frontend already catches normal source mismatches, but IR lowering should no
 - Keep the compiler self-contained.
 - Prefer maintainable module boundaries over adding more logic to already busy files.
 - Backend v0 currently has no stack frame, no spill slots, and no ABI-complete non-tail call lowering.
+- Session handoff and maintenance rules live in `../AGENTS.md` and `maintenance.md`.

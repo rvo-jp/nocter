@@ -1,41 +1,46 @@
 # Nocter Continuation TODO
 
-This file is the compiler handoff point for the next session. If the user says "compiler/TODO.mdを参照して続きの作業を行なって", start here.
+This file is the compiler handoff point for the next session.
+Long-lived maintenance rules live in `AGENTS.md` and `docs/maintenance.md`.
 
 ## Current Repository State
 
 Recent committed work:
 
-- `9122a58 Test bool terminal if codegen`
-  - added backend codegen coverage for `Instruction::If` whose branches return `bool`
-- `6f5613d Lower bool terminal if returns`
-  - lowered terminal `if` / `else` returning `bool` from non-entry functions
-  - updated `compiler/README.md` buildable subset
-- `d8fc6b8 Validate tail call return types`
-  - added same-file function return signature data to IR lowering
-  - rejects direct tail calls whose callee return type is incompatible with the caller return type
-- `2056e0b Lower bool tail return calls`
-  - allowed direct tail calls from `bool` return positions
+- `2c73726 Track local symbols in resolver`
+  - records local symbols and local identifier targets in resolver output
+  - uses local symbols for LSP hover and go-to-definition
+- `b318f0d Add basic LSP completions`
+  - adds keyword and resolved symbol completions
+- `16a13bb Add LSP document symbols`
+  - adds document symbol support
+- `2dc5785 Add LSP go to definition`
+  - adds go-to-definition for resolved symbols
 
 Known unrelated local user changes:
 
 - `assets/logo.svg`
-- `example.nct`
 
-Do not stage, revert, or modify those unrelated files unless the user explicitly asks.
-At handoff time, `git diff --check` still reports `example.nct:168: new blank line at EOF`; treat that as an unrelated user change unless the user asks to clean it up.
+Do not stage, revert, or modify unrelated files unless the user explicitly asks.
+
+Current uncommitted compiler work:
+
+- `compiler/src/driver/lsp.rs` was moved to `compiler/src/driver/lsp/mod.rs`
+- `compiler/src/driver/lsp/protocol.rs` now owns JSON-RPC framing and LSP position/range helpers
+- `compiler/src/driver/lsp/documents.rs` now owns open document state and URI/path handling
+- `compiler/AGENTS.md` and `compiler/docs/maintenance.md` define multi-session maintenance rules
 
 ## Verification Already Run
 
-From `compiler/`:
+After the LSP split, from `compiler/`:
 
 ```sh
-cargo fmt --check
+cargo fmt
 cargo test --quiet
-cargo clippy --quiet -- -D warnings
+cargo clippy --all-targets --quiet -- -D warnings
 ```
 
-All passed after `9122a58`.
+All passed.
 The shell printed `/bin/ps: Operation not permitted` from Homebrew shellenv, but the commands exited successfully.
 
 From repository root:
@@ -44,44 +49,34 @@ From repository root:
 git diff --check
 ```
 
-This still fails only because of the unrelated `example.nct:168: new blank line at EOF`.
+Passed after the LSP split.
 
 ## First Action In Next Session
 
 1. Run `git status --short`.
-2. Confirm only the known unrelated local changes are present, plus this `compiler/TODO.md` if it has not been committed or removed.
-3. Do not touch `assets/logo.svg` or `example.nct` unless the user explicitly asks.
-4. Continue backend v0 with the next small guard or buildable feature below.
+2. Keep `assets/logo.svg` separate unless the user explicitly asks to include it.
+3. Review the uncommitted LSP split and maintenance docs.
+4. If the user asks for a commit, stage only compiler files and exclude unrelated assets.
 
 ## Next Implementation Direction
 
 Recommended next small task:
 
-1. Extend IR lowering's same-file function signature data from return type only to a small signature struct.
-   - Include callee return type and lowered parameter count.
-   - Keep it deliberately v0-shaped: only same-file, non-generic, `i32` parameters.
-   - Use it to reject tail calls whose argument count cannot match the callee before backend codegen sees them.
-   - The frontend already catches normal source mismatches, but IR lowering should not silently construct malformed `Instruction::TailCall`.
+1. Continue the LSP maintainability pass.
+2. Extract diagnostics publishing from `driver/lsp/mod.rs` into `driver/lsp/diagnostics.rs`.
+3. Keep the extraction behavior-preserving.
+4. Run `cargo fmt`, `cargo test --quiet`, and `cargo clippy --all-targets --quiet -- -D warnings`.
 
 After that:
 
-2. Keep non-tail calls unsupported.
-   - Do not lower calls inside conditions such as `if enabled() { ... }`.
-   - A normal call can clobber live locals under the current register-only convention.
-   - Add stack slots, spill/reload, and caller/callee preservation rules before non-tail calls.
-
-3. Consider the next user-visible build feature only after the guard above.
-   - Good candidates are still small terminal control-flow cases.
-   - Avoid broad `if`, `while`, `loop`, `match`, `var`, reassignment, imports, and aggregate lowering until the backend has storage and ABI rules for them.
+1. Extract semantic tokens, hover, definition, completion, and document symbols one responsibility at a time.
+2. Keep compiler semantics in resolver, analysis, and typecheck modules; LSP modules should present those results.
+3. Add new editor capabilities only after the existing LSP server structure is easier to maintain.
 
 ## Design Constraints To Preserve
 
 - No LLVM, `clang`, `as`, `ld`, Xcode Command Line Tools, or external linker backend.
 - Keep the compiler self-contained.
 - Prefer maintainable module boundaries over adding more logic to already busy files.
-- Backend v0 currently has no stack frame, no spill slots, and no ABI-complete non-tail call lowering.
-- Scalar v0 convention:
-  - arguments: `w0` through `w7`
-  - return: `w0`
-  - local scalar bindings: `w9` through `w15`
-  - scratch: `w16`, `w17`
+- Keep behavior changes and pure refactors in separate commits when practical.
+- Update `TODO.md`, `docs/implementation-status.md`, `docs/roadmap.md`, or `docs/architecture.md` when their durable facts change.

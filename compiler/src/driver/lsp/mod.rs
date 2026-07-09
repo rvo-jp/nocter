@@ -20,6 +20,20 @@ use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+mod documents;
+mod protocol;
+
+use documents::{
+    OpenDocument, WorkspaceRoot, changed_document_from_params, document_uri_from_params,
+    open_document_from_params, workspace_roots_from_initialize_params,
+};
+#[cfg(test)]
+use documents::{file_uri_to_path, open_document};
+use protocol::{
+    LspPosition, LspRange, byte_offset_to_lsp_position, lsp_position_to_byte_offset,
+    position_from_params, range_for_byte_span, read_message, response, write_message,
+};
+
 pub(super) fn run_lsp() -> ExitCode {
     let stdin = io::stdin();
     let stdout = io::stdout();
@@ -350,118 +364,6 @@ impl LspServer {
             .find(|file| file.ast.span.source == root)?;
 
         Some(completion_items_for_file_analysis(file))
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct WorkspaceRoot {
-    uri: String,
-    path: Option<PathBuf>,
-}
-
-fn workspace_roots_from_initialize_params(params: Option<&Value>) -> Vec<WorkspaceRoot> {
-    let Some(params) = params else {
-        return Vec::new();
-    };
-
-    if let Some(folders) = params.get("workspaceFolders").and_then(Value::as_array) {
-        let roots = folders
-            .iter()
-            .filter_map(|folder| {
-                folder
-                    .get("uri")
-                    .and_then(Value::as_str)
-                    .map(workspace_root_from_uri)
-            })
-            .collect::<Vec<_>>();
-        if !roots.is_empty() {
-            return roots;
-        }
-    }
-
-    params
-        .get("rootUri")
-        .and_then(Value::as_str)
-        .map(workspace_root_from_uri)
-        .into_iter()
-        .collect()
-}
-
-fn workspace_root_from_uri(uri: &str) -> WorkspaceRoot {
-    WorkspaceRoot {
-        uri: uri.to_string(),
-        path: file_uri_to_path(uri),
-    }
-}
-
-#[derive(Debug, Clone)]
-struct OpenDocument {
-    uri: String,
-    version: Option<i64>,
-    display_path: String,
-    absolute_path: Option<PathBuf>,
-    text: String,
-}
-
-impl OpenDocument {
-    fn change_is_stale(&self, version: Option<i64>) -> bool {
-        matches!((self.version, version), (Some(current), Some(next)) if next < current)
-    }
-}
-
-fn open_document_from_params(params: Option<&Value>) -> Option<OpenDocument> {
-    let text_document = params?.get("textDocument")?;
-    let uri = text_document.get("uri")?.as_str()?.to_string();
-    let version = text_document.get("version").and_then(Value::as_i64);
-    let text = text_document.get("text")?.as_str()?.to_string();
-    Some(open_document(uri, version, text))
-}
-
-fn changed_document_from_params(params: Option<&Value>) -> Option<(String, Option<i64>, String)> {
-    let params = params?;
-    let uri = params
-        .get("textDocument")?
-        .get("uri")?
-        .as_str()?
-        .to_string();
-    let version = params
-        .get("textDocument")?
-        .get("version")
-        .and_then(Value::as_i64);
-    let text = params
-        .get("contentChanges")?
-        .as_array()?
-        .last()?
-        .get("text")?
-        .as_str()?
-        .to_string();
-    Some((uri, version, text))
-}
-
-fn document_uri_from_params(params: Option<&Value>) -> Option<String> {
-    params?
-        .get("textDocument")?
-        .get("uri")?
-        .as_str()
-        .map(str::to_string)
-}
-
-fn open_document(uri: String, version: Option<i64>, text: String) -> OpenDocument {
-    let path = file_uri_to_path(&uri);
-    let display_path = path
-        .as_ref()
-        .map(|path| path.to_string_lossy().into_owned())
-        .unwrap_or_else(|| uri.clone());
-    let absolute_path = path
-        .as_ref()
-        .map(|path| path.canonicalize().unwrap_or_else(|_| path.to_path_buf()));
-
-    OpenDocument {
-        uri,
-        version,
-        display_path,
-        absolute_path,
-        text,
     }
 }
 
@@ -2336,13 +2238,6 @@ fn parameter_signatures_label(
         .join(", ")
 }
 
-fn range_for_byte_span(text: &str, span: ByteSpan) -> LspRange {
-    LspRange {
-        start: byte_offset_to_lsp_position(text, span.start),
-        end: byte_offset_to_lsp_position(text, span.end),
-    }
-}
-
 fn declaration_line_start(text: &str, node_start: usize) -> usize {
     let bytes = text.as_bytes();
     let mut line_start = node_start.min(bytes.len());
@@ -2356,59 +2251,6 @@ fn declaration_line_start(text: &str, node_start: usize) -> usize {
     }
 
     start
-}
-
-fn position_from_params(params: Option<&Value>) -> Option<LspPosition> {
-    let position = params?.get("position")?;
-    Some(LspPosition {
-        line: position.get("line")?.as_u64()? as usize,
-        character: position.get("character")?.as_u64()? as usize,
-    })
-}
-
-fn lsp_position_to_byte_offset(text: &str, line: usize, character: usize) -> usize {
-    let mut current_line = 0;
-    let mut line_start = 0;
-
-    for (index, byte) in text.bytes().enumerate() {
-        if current_line == line {
-            break;
-        }
-        if byte == b'\n' {
-            current_line += 1;
-            line_start = index + 1;
-        }
-    }
-
-    if current_line != line {
-        return text.len();
-    }
-
-    let line_end = text[line_start..]
-        .find('\n')
-        .map(|offset| line_start + offset)
-        .unwrap_or(text.len());
-    let mut utf16_character = 0;
-
-    for (offset, char) in text[line_start..line_end].char_indices() {
-        if utf16_character >= character {
-            return line_start + offset;
-        }
-        utf16_character += char.len_utf16();
-        if utf16_character > character {
-            return line_start + offset;
-        }
-    }
-
-    line_end
-}
-
-fn response(id: Value, result: Value) -> Value {
-    json!({
-        "jsonrpc": "2.0",
-        "id": id,
-        "result": result
-    })
 }
 
 fn publish_diagnostics(uri: &str, diagnostics: Vec<LspDiagnostic>) -> Value {
@@ -2429,18 +2271,6 @@ struct LspDiagnostic {
     code: String,
     source: &'static str,
     message: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct LspRange {
-    start: LspPosition,
-    end: LspPosition,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-struct LspPosition {
-    line: usize,
-    character: usize,
 }
 
 fn diagnostics_for_lsp(
@@ -2496,107 +2326,6 @@ fn range_for_span(text: &str, span: &JsonSpan) -> LspRange {
         start: byte_offset_to_lsp_position(text, span.start_byte),
         end: byte_offset_to_lsp_position(text, span.end_byte),
     }
-}
-
-fn byte_offset_to_lsp_position(text: &str, offset: usize) -> LspPosition {
-    let offset = offset.min(text.len());
-    let mut line = 0;
-    let mut line_start = 0;
-
-    for (index, byte) in text.bytes().enumerate() {
-        if index >= offset {
-            break;
-        }
-        if byte == b'\n' {
-            line += 1;
-            line_start = index + 1;
-        }
-    }
-
-    let character = text
-        .get(line_start..offset)
-        .map(|line_text| line_text.encode_utf16().count())
-        .unwrap_or(0);
-
-    LspPosition { line, character }
-}
-
-fn file_uri_to_path(uri: &str) -> Option<PathBuf> {
-    let rest = uri.strip_prefix("file://")?;
-    Some(PathBuf::from(percent_decode(rest)))
-}
-
-fn percent_decode(value: &str) -> String {
-    let bytes = value.as_bytes();
-    let mut output = Vec::with_capacity(bytes.len());
-    let mut index = 0;
-
-    while index < bytes.len() {
-        if bytes[index] == b'%'
-            && index + 2 < bytes.len()
-            && let Ok(hex) = std::str::from_utf8(&bytes[index + 1..index + 3])
-            && let Ok(byte) = u8::from_str_radix(hex, 16)
-        {
-            output.push(byte);
-            index += 3;
-            continue;
-        }
-        output.push(bytes[index]);
-        index += 1;
-    }
-
-    String::from_utf8_lossy(&output).into_owned()
-}
-
-fn read_message<R: BufRead>(reader: &mut R) -> io::Result<Option<Value>> {
-    let mut content_length = None;
-    let mut line = String::new();
-
-    loop {
-        line.clear();
-        let bytes = reader.read_line(&mut line)?;
-        if bytes == 0 {
-            return Ok(None);
-        }
-
-        let trimmed = line.trim_end_matches(['\r', '\n']);
-        if trimmed.is_empty() {
-            break;
-        }
-
-        if let Some(value) = trimmed.strip_prefix("Content-Length:") {
-            content_length = value.trim().parse::<usize>().ok();
-        }
-    }
-
-    let Some(content_length) = content_length else {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "LSP message missing Content-Length header",
-        ));
-    };
-
-    let mut body = vec![0; content_length];
-    reader.read_exact(&mut body)?;
-    serde_json::from_slice(&body).map(Some).map_err(|error| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("invalid LSP JSON message: {error}"),
-        )
-    })
-}
-
-fn write_message<W: Write>(writer: &mut W, message: Value) -> io::Result<()> {
-    let body = serde_json::to_vec(&message).map_err(|error| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("failed to serialize LSP message: {error}"),
-        )
-    })?;
-
-    write!(writer, "Content-Length: {}\r\n\r\n", body.len())?;
-    writer.write_all(&body)?;
-    writer.flush()
 }
 
 #[cfg(test)]
