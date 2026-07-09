@@ -1,11 +1,11 @@
 use super::context::LoweringContext;
 use super::expressions::{
     expression_is_lowerable_bool_binding, expression_is_unsupported_bool_comparison_binding,
-    lower_bool_value, lower_i32_expression_to_location,
+    lower_bool_expression_to_location, lower_i32_expression_to_location,
 };
-use crate::ast::{BindingKind, BindingStmt, TypeExpr};
+use crate::ast::{BindingKind, BindingStmt, Expr, TypeExpr};
 use crate::diagnostics::Diagnostic;
-use crate::ir::Instruction;
+use crate::ir::{Instruction, Type};
 
 pub(super) fn lower_let_binding(
     statement: &BindingStmt,
@@ -45,9 +45,10 @@ fn lower_bool_let_binding(
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let destination = context.next_bool_local_location()?;
-    let value = lower_bool_value(&statement.initializer, context, "E8008")?;
+    let instructions =
+        lower_bool_expression_to_location(&statement.initializer, destination, context)?;
     context.define_bool_local(statement.name.clone());
-    Ok(vec![Instruction::SetBool { destination, value }])
+    Ok(instructions)
 }
 
 fn scalar_binding_kind(
@@ -63,6 +64,9 @@ fn scalar_binding_kind(
         None if expression_is_lowerable_bool_binding(&statement.initializer, context) => {
             Ok(ScalarBindingKind::Bool)
         }
+        None if expression_is_bool_returning_call(&statement.initializer, context) => {
+            Ok(ScalarBindingKind::Bool)
+        }
         None if expression_is_unsupported_bool_comparison_binding(
             &statement.initializer,
             context,
@@ -71,6 +75,19 @@ fn scalar_binding_kind(
             Ok(ScalarBindingKind::Bool)
         }
         None => Ok(ScalarBindingKind::I32),
+    }
+}
+
+fn expression_is_bool_returning_call(expression: &Expr, context: &LoweringContext) -> bool {
+    match expression {
+        Expr::Call(call) => {
+            let Expr::Identifier(identifier) = call.callee.as_ref() else {
+                return false;
+            };
+            context.function_return_type(&identifier.name) == Some(&Type::Bool)
+        }
+        Expr::Group(group) => expression_is_bool_returning_call(&group.expression, context),
+        _ => false,
     }
 }
 

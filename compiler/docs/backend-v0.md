@@ -30,7 +30,7 @@ The backend v0 uses a deliberately small register-only convention while the IR h
 - `w16` and `w17` are backend scratch registers and may be clobbered by code generation
 
 Tail calls are lowered by staging callee arguments, loading `w0` through `w7`, and branching directly to the target function.
-Normal calls are buildable only for the narrow same-file `i32` subset described below.
+Normal calls are buildable only for the narrow same-file scalar subset described below.
 A normal call returns to the caller after clobbering argument, return, and scratch registers, so v0 framed functions conservatively spill and reload scalar locals around each normal call.
 
 ## Normal Call Lowering Design
@@ -44,8 +44,9 @@ The current register-only local model also keeps scalar locals in caller-clobber
 The first implementation should keep the user-visible subset small:
 
 - same-file, non-generic calls only
-- `i32` arguments and `i32` return values only
-- calls used in lowerable `i32` expressions and `let` initializers
+- `i32` arguments only
+- `i32` return values in lowerable `i32` expressions and `let` initializers
+- `bool` return values in `let` initializers
 - up to 8 arguments, passed in `w0` through `w7`
 - no imported calls, aggregate arguments, aggregate returns, strings, optionals, ownership/drop lowering, or calls in general control-flow conditions
 
@@ -155,14 +156,20 @@ CallI32 {
     function: String,
     arguments: Vec<I32Value>,
 }
+
+CallBool {
+    destination: BoolLocation,
+    function: String,
+    arguments: Vec<I32Value>,
+}
 ```
 
 This covers `let x = callee()` and `return callee() + 1` after the expression lowerer has a destination for intermediate results.
 The source expression lowerer stages normal-call results in temporary scalar locals for `i32` additions.
 Multiple normal calls in an addition are evaluated left to right and receive distinct temporary locals.
 Nested normal-call arguments are also evaluated left to right before the parent `CallI32`.
-
-Bool-returning normal calls should wait until the i32 path is stable.
+Bool-returning normal calls are buildable only in `let` initializers, so `let ready = enabled()` can feed a later lowerable bool condition.
+Calls directly inside conditions such as `if enabled() { ... }` remain disabled.
 Imported calls should also wait because they need symbol/linkage policy, not just call sequence support.
 
 ### Encoder Work Required First
@@ -193,6 +200,7 @@ Implement normal calls in this order:
 8. Done: add multiple temporary allocation and left-to-right evaluation for `i32` additions with multiple normal calls.
 9. Done: lower nested `i32` normal-call arguments by staging child call results before the parent `CallI32`.
 10. Done: stage tail-call arguments through frame argument slots and allow reordered `i32` tail-call arguments.
+11. Done: lower same-file bool-returning normal calls in `let` initializers through `CallBool`.
 
 ### Non-Goals For This Phase
 

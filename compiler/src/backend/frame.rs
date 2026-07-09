@@ -165,7 +165,7 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         } => {
             function_requires_frame(then_instructions) || function_requires_frame(else_instructions)
         }
-        Instruction::CallI32 { .. } => true,
+        Instruction::CallI32 { .. } | Instruction::CallBool { .. } => true,
         Instruction::TailCall { arguments, .. } => !arguments.is_empty(),
         Instruction::WriteStaticStderr(_)
         | Instruction::SetI32 { .. }
@@ -191,9 +191,9 @@ fn max_call_argument_count(instructions: &[Instruction]) -> usize {
 
 fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
     match instruction {
-        Instruction::CallI32 { arguments, .. } | Instruction::TailCall { arguments, .. } => {
-            arguments.len()
-        }
+        Instruction::CallI32 { arguments, .. }
+        | Instruction::CallBool { arguments, .. }
+        | Instruction::TailCall { arguments, .. } => arguments.len(),
         Instruction::If {
             then_instructions,
             else_instructions,
@@ -246,6 +246,16 @@ fn record_instruction_scalar_locals(
             ..
         } => {
             record_i32_location(*destination, highest_local_index);
+            for argument in arguments {
+                record_i32_value(argument, highest_local_index);
+            }
+        }
+        Instruction::CallBool {
+            destination,
+            arguments,
+            ..
+        } => {
+            record_bool_location(*destination, highest_local_index);
             for argument in arguments {
                 record_i32_value(argument, highest_local_index);
             }
@@ -436,6 +446,26 @@ mod tests {
             instructions: vec![Instruction::CallI32 {
                 destination: I32Location::Local(2),
                 function: "answer".to_string(),
+                arguments: vec![I32Value::Location(I32Location::Local(1))],
+            }],
+        };
+
+        let frame = plan_function_frame(&function).unwrap();
+
+        assert_eq!(
+            frame,
+            FunctionFrame::Framed(FrameLayout::for_slot_counts(3, 1).unwrap())
+        );
+    }
+
+    #[test]
+    fn call_bool_requires_frame_and_counts_destination_and_argument_locals() {
+        let function = Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![Instruction::CallBool {
+                destination: BoolLocation::Local(2),
+                function: "ready".to_string(),
                 arguments: vec![I32Value::Location(I32Location::Local(1))],
             }],
         };

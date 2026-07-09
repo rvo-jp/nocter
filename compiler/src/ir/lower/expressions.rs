@@ -171,6 +171,26 @@ pub(super) fn lower_bool_return_expression(
     }
 }
 
+pub(super) fn lower_bool_expression_to_location(
+    expression: &Expr,
+    destination: BoolLocation,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(call) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            lower_bool_normal_call(call, destination, context, &mut temporaries)
+        }
+        Expr::Group(group) => {
+            lower_bool_expression_to_location(&group.expression, destination, context)
+        }
+        _ => Ok(vec![Instruction::SetBool {
+            destination,
+            value: lower_bool_value(expression, context, "E8008")?,
+        }]),
+    }
+}
+
 fn lower_i32_normal_call(
     call: &CallExpr,
     destination: I32Location,
@@ -192,6 +212,34 @@ fn lower_i32_normal_call(
     }
 
     instructions.push(Instruction::CallI32 {
+        destination,
+        function: identifier.name.clone(),
+        arguments,
+    });
+    Ok(instructions)
+}
+
+fn lower_bool_normal_call(
+    call: &CallExpr,
+    destination: BoolLocation,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Err(unsupported_non_tail_call_diagnostic());
+    };
+
+    validate_bool_normal_call_return_type(&identifier.name, context)?;
+
+    let mut instructions = Vec::new();
+    let mut arguments = Vec::new();
+    for argument in &call.arguments {
+        let argument = lower_i32_expression_to_value(argument, context, temporaries)?;
+        instructions.extend(argument.instructions);
+        arguments.push(argument.value);
+    }
+
+    instructions.push(Instruction::CallBool {
         destination,
         function: identifier.name.clone(),
         arguments,
@@ -239,6 +287,27 @@ fn validate_normal_call_return_type(
         "E8006",
         format!(
             "IR v0 can only lower normal calls returning `i32`, got function `{callee_name}` returning `{}`",
+            describe_type(callee_return_type),
+        ),
+    )])
+}
+
+fn validate_bool_normal_call_return_type(
+    callee_name: &str,
+    context: &LoweringContext,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(callee_return_type) = context.function_return_type(callee_name) else {
+        return Ok(());
+    };
+
+    if callee_return_type == &Type::Bool {
+        return Ok(());
+    }
+
+    Err(vec![Diagnostic::error(
+        "E8006",
+        format!(
+            "IR v0 can only lower normal calls returning `bool`, got function `{callee_name}` returning `{}`",
             describe_type(callee_return_type),
         ),
     )])

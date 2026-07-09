@@ -129,6 +129,13 @@ impl EntryEmitter {
             } => {
                 self.emit_call_i32(*destination, function, arguments, frame)?;
             }
+            Instruction::CallBool {
+                destination,
+                function,
+                arguments,
+            } => {
+                self.emit_call_bool(*destination, function, arguments, frame)?;
+            }
             Instruction::TailCall {
                 function,
                 arguments,
@@ -464,6 +471,28 @@ impl EntryEmitter {
         self.emit_call_result_to_i32_location(destination)
     }
 
+    fn emit_call_bool(
+        &mut self,
+        destination: BoolLocation,
+        function: &str,
+        arguments: &[I32Value],
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "normal bool call emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_staged_i32_arguments(arguments, frame)?;
+
+        self.emit_call(function);
+        self.emit_scalar_reloads(frame)?;
+        self.emit_call_result_to_bool_location(destination)
+    }
+
     fn emit_staged_i32_arguments(
         &mut self,
         arguments: &[I32Value],
@@ -536,6 +565,18 @@ impl EntryEmitter {
         destination: I32Location,
     ) -> Result<(), Vec<Diagnostic>> {
         let destination = self.i32_location_register(destination)?;
+        if destination != WReg::W0 {
+            self.encoder.emit_mov_w(destination, WReg::W0);
+        }
+
+        Ok(())
+    }
+
+    fn emit_call_result_to_bool_location(
+        &mut self,
+        destination: BoolLocation,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let destination = self.bool_location_register(destination)?;
         if destination != WReg::W0 {
             self.encoder.emit_mov_w(destination, WReg::W0);
         }
@@ -828,7 +869,8 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::SetI32 { .. }
             | Instruction::SetBool { .. }
             | Instruction::AddI32 { .. }
-            | Instruction::CallI32 { .. },
+            | Instruction::CallI32 { .. }
+            | Instruction::CallBool { .. },
         )
         | None => false,
     }
@@ -1201,6 +1243,41 @@ mod tests {
         let _ = std::fs::remove_file(executable);
 
         assert_eq!(output.status.code(), Some(5));
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
+    fn generated_bool_normal_call_preserves_local_condition() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_bool(BoolLocation::Local(0), "ready", vec![]),
+                    Instruction::If {
+                        condition: BoolValue::Location(BoolLocation::Local(0)),
+                        then_instructions: vec![set_return_i32(7), Instruction::Return],
+                        else_instructions: vec![set_return_i32(9), Instruction::Return],
+                    },
+                ],
+            },
+            Function {
+                name: "ready".to_string(),
+                return_type: Type::Bool,
+                instructions: vec![set_return_bool(true), Instruction::Return],
+            },
+        ]);
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let image = crate::target::macho::write_arm64_macos_executable_with_data(
+            &code.text,
+            &code.read_only_data,
+        );
+        let executable = write_temp_executable("codegen-bool-normal-call-runs", &image.bytes);
+
+        let output = std::process::Command::new(&executable).output().unwrap();
+        let _ = std::fs::remove_file(executable);
+
+        assert_eq!(output.status.code(), Some(7));
     }
 
     #[test]
@@ -1717,6 +1794,18 @@ mod tests {
 
     fn call_i32(destination: I32Location, function: &str, arguments: Vec<I32Value>) -> Instruction {
         Instruction::CallI32 {
+            destination,
+            function: function.to_string(),
+            arguments,
+        }
+    }
+
+    fn call_bool(
+        destination: BoolLocation,
+        function: &str,
+        arguments: Vec<I32Value>,
+    ) -> Instruction {
+        Instruction::CallBool {
             destination,
             function: function.to_string(),
             arguments,

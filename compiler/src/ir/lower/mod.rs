@@ -122,9 +122,9 @@ fn call_targets(function: &Function) -> VecDeque<String> {
         .instructions
         .iter()
         .filter_map(|instruction| match instruction {
-            Instruction::CallI32 { function, .. } | Instruction::TailCall { function, .. } => {
-                Some(function.clone())
-            }
+            Instruction::CallI32 { function, .. }
+            | Instruction::CallBool { function, .. }
+            | Instruction::TailCall { function, .. } => Some(function.clone()),
             _ => None,
         })
         .collect()

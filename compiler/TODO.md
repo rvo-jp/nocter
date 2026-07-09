@@ -7,7 +7,14 @@ Long-lived maintenance rules live in `AGENTS.md` and `docs/maintenance.md`.
 
 Recent committed work:
 
-- Current checkpoint: `Stage tail-call arguments`
+- Current checkpoint: `Lower bool normal calls`
+  - adds `Instruction::CallBool` for bool-returning same-file normal calls
+  - lowers `let value = ready()` when `ready` returns `bool`
+  - emits bool normal calls with the existing framed normal-call sequence, scalar spill/reload, and `i32` argument staging
+  - keeps calls directly inside conditions such as `if ready()` reporting `E8006`
+  - keeps bool non-tail calls inside compound bool expressions such as `ready() && true` reporting `E8006`
+  - adds IR lowering, frame planning, codegen, and CLI run coverage for bool-returning normal-call `let` initializers
+- `19c4b92 Stage tail-call arguments`
   - lowers reordered `i32` tail-call arguments such as `return second(b, a)`
   - uses the existing frame argument staging slots for tail calls with arguments, then restores the frame before branching
   - keeps no-argument tail calls frameless
@@ -262,6 +269,24 @@ git diff --check
 
 All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew shellenv, but the commands exited successfully.
 
+For the bool-returning normal-call work, from `compiler/`:
+
+```sh
+cargo fmt
+cargo check --quiet
+cargo test --quiet --no-run
+cargo clippy --all-targets --quiet -- -D warnings
+```
+
+From repository root:
+
+```sh
+git diff --check
+```
+
+All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew shellenv, but the commands exited successfully.
+Running test binaries in this sandbox currently hangs before `--list` or `running ...` output, so `cargo test --quiet` and targeted runtime tests could not complete in this environment after the change. An escalation attempt for the targeted lowering test was rejected by the automatic approval reviewer.
+
 ## First Action In Next Session
 
 1. Run `git status --short`.
@@ -279,7 +304,7 @@ The current LSP maintainability pass has reached its planned stopping point:
 Recommended next small task for the next session:
 
 1. Continue compiler core backend work, not LSP-only behavior.
-2. Consider bool-returning normal calls next, starting with same-file non-generic calls in `let` initializers and direct return expressions while keeping condition calls disabled.
+2. Consider lowerable bool expression placement next, such as bool-returning normal calls in simple bool return expressions, while keeping condition calls disabled.
 3. Keep imported calls, aggregates, ownership/drop lowering, nested tail-call arguments, and general condition calls disabled until their lowering rules are designed.
 4. Add CLI build/run coverage for any newly buildable source subset.
 

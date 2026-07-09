@@ -38,6 +38,12 @@ pub(crate) enum Instruction {
         function: String,
         arguments: Vec<I32Value>,
     },
+    #[allow(dead_code)]
+    CallBool {
+        destination: BoolLocation,
+        function: String,
+        arguments: Vec<I32Value>,
+    },
     TailCall {
         function: String,
         arguments: Vec<I32Value>,

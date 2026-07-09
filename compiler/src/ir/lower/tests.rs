@@ -1746,8 +1746,8 @@ func wrapper(a: i32, b: i32): i32 {
 }
 
 #[test]
-fn reports_unsupported_bool_returning_normal_call() {
-    let diagnostics = lower_text_diagnostics(
+fn lowers_entry_bool_let_initializer_normal_call() {
+    let ir = lower_text(
         r#"func main(): i32 {
     let value = ready()
     if value {
@@ -1763,10 +1763,33 @@ func ready(): bool {
 "#,
     );
 
-    assert_eq!(diagnostics[0].code, "E8006");
     assert_eq!(
-        diagnostics[0].message,
-        "IR v0 can only lower normal calls returning `i32`, got function `ready` returning `bool`"
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_bool(BoolLocation::Local(0), "ready", vec![]),
+                    Instruction::If {
+                        condition: BoolValue::Location(BoolLocation::Local(0)),
+                        then_instructions: vec![set_return_i32(0), Instruction::Return],
+                        else_instructions: vec![set_return_i32(1), Instruction::Return],
+                    },
+                ],
+            },
+            Function {
+                name: "ready".to_string(),
+                return_type: Type::Bool,
+                instructions: vec![
+                    Instruction::SetBool {
+                        destination: BoolLocation::Return,
+                        value: BoolValue::Const(true),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ])
     );
 }
 
@@ -1912,6 +1935,14 @@ fn tail_call(function: &str, arguments: Vec<I32Value>) -> Instruction {
 
 fn call_i32(destination: I32Location, function: &str, arguments: Vec<I32Value>) -> Instruction {
     Instruction::CallI32 {
+        destination,
+        function: function.to_string(),
+        arguments,
+    }
+}
+
+fn call_bool(destination: BoolLocation, function: &str, arguments: Vec<I32Value>) -> Instruction {
+    Instruction::CallBool {
         destination,
         function: function.to_string(),
         arguments,
