@@ -133,16 +133,14 @@ Reject or avoid lowering `outer(inner())` until call result staging and argument
 ### Argument Movement
 
 Tail calls currently reject reordered parameter arguments because sequential moves into `w0` through `w7` can clobber later source parameters.
-Normal calls should initially preserve the same conservative restriction unless a small argument-staging plan is implemented at the same time.
-
-The safer next step is to add argument staging slots:
+Normal calls use argument staging slots:
 
 - evaluate each lowerable `i32` argument into a stack slot or scratch register
 - after all arguments are staged, load `w0` through `w7` from those staged values
 - issue `bl`
 
-This staging is required before imported calls or richer expression calls.
-Without it, calls such as `swap(b, a)` are easy to miscompile when `a` and `b` already live in argument registers.
+This makes source normal calls such as `swap(b, a)` safe when `a` and `b` already live in argument registers.
+The same relaxation does not apply to tail calls yet; tail calls still use direct sequential argument moves and must continue rejecting reordered parameter arguments until they also gain staging or parallel move support.
 
 ### IR Shape
 
@@ -188,7 +186,8 @@ Implement normal calls in this order:
 3. Done: emit framed-function prologue/epilogue and route `Return` and `TailCall` emission through frame-aware helpers so framed functions restore `x30` and deallocate their frame before exiting.
 4. Done: add the IR normal-call instruction without lowering source calls to it yet; add codegen unit tests for hand-built IR functions that perform normal calls.
 5. Done: lower the smallest source subset: same-file `i32` normal call in a `let` initializer or simple i32 return addition, with CLI build/run coverage.
-6. Expand expression placement only after argument staging and call result staging are explicit.
+6. Done: add normal-call argument staging slots and allow reordered parameter arguments for source normal calls.
+7. Expand expression placement only after broader call result staging is explicit.
 
 ### Non-Goals For This Phase
 

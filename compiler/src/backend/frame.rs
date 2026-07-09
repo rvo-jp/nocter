@@ -12,6 +12,7 @@ pub(super) struct FrameLayout {
     frame_size: u32,
     saved_x30_offset: u32,
     scalar_spill_slots: Vec<ScalarSpillSlot>,
+    argument_staging_slots: Vec<ArgumentStagingSlot>,
 }
 
 impl FrameLayout {
@@ -27,11 +28,28 @@ impl FrameLayout {
         &self.scalar_spill_slots
     }
 
-    pub(super) fn for_scalar_spill_slot_count(count: usize) -> Result<Self, Vec<Diagnostic>> {
-        let scalar_spill_bytes = count.checked_mul(SCALAR_SPILL_SLOT_SIZE).ok_or_else(|| {
-            frame_too_large_diagnostic("scalar spill slot count overflows host usize")
-        })?;
-        let unaligned_frame_size = scalar_spill_bytes
+    pub(super) fn argument_staging_slots(&self) -> &[ArgumentStagingSlot] {
+        &self.argument_staging_slots
+    }
+
+    pub(super) fn for_slot_counts(
+        scalar_spill_count: usize,
+        argument_staging_count: usize,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let scalar_spill_bytes = scalar_spill_count
+            .checked_mul(SCALAR_SLOT_SIZE)
+            .ok_or_else(|| {
+                frame_too_large_diagnostic("scalar spill slot count overflows host usize")
+            })?;
+        let argument_staging_bytes = argument_staging_count
+            .checked_mul(SCALAR_SLOT_SIZE)
+            .ok_or_else(|| {
+                frame_too_large_diagnostic("argument staging slot count overflows host usize")
+            })?;
+        let scalar_slot_bytes = scalar_spill_bytes
+            .checked_add(argument_staging_bytes)
+            .ok_or_else(|| frame_too_large_diagnostic("scalar slot bytes overflow host usize"))?;
+        let unaligned_frame_size = scalar_slot_bytes
             .checked_add(SAVED_X30_SLOT_SIZE)
             .ok_or_else(|| frame_too_large_diagnostic("frame size overflows host usize"))?;
         let frame_size = align_usize(unaligned_frame_size, STACK_ALIGNMENT);
@@ -49,9 +67,9 @@ impl FrameLayout {
             ));
         }
 
-        let mut scalar_spill_slots = Vec::with_capacity(count);
-        for local_index in 0..count {
-            let offset = local_index * SCALAR_SPILL_SLOT_SIZE;
+        let mut scalar_spill_slots = Vec::with_capacity(scalar_spill_count);
+        for local_index in 0..scalar_spill_count {
+            let offset = local_index * SCALAR_SLOT_SIZE;
             if offset > LDR_STR_W_SP_MAX_BYTE_OFFSET as usize {
                 return Err(frame_too_large_diagnostic(
                     "scalar spill slot exceeds ARM64 w-register load/store immediate range",
@@ -63,10 +81,29 @@ impl FrameLayout {
             });
         }
 
+        let mut argument_staging_slots = Vec::with_capacity(argument_staging_count);
+        for argument_index in 0..argument_staging_count {
+            let offset = scalar_spill_bytes
+                .checked_add(argument_index * SCALAR_SLOT_SIZE)
+                .ok_or_else(|| {
+                    frame_too_large_diagnostic("argument staging slot offset overflows host usize")
+                })?;
+            if offset > LDR_STR_W_SP_MAX_BYTE_OFFSET as usize {
+                return Err(frame_too_large_diagnostic(
+                    "argument staging slot exceeds ARM64 w-register load/store immediate range",
+                ));
+            }
+            argument_staging_slots.push(ArgumentStagingSlot {
+                argument_index,
+                offset: offset as u32,
+            });
+        }
+
         Ok(Self {
             frame_size: frame_size as u32,
             saved_x30_offset: saved_x30_offset as u32,
             scalar_spill_slots,
+            argument_staging_slots,
         })
     }
 }
@@ -87,13 +124,32 @@ impl ScalarSpillSlot {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct ArgumentStagingSlot {
+    argument_index: usize,
+    offset: u32,
+}
+
+impl ArgumentStagingSlot {
+    pub(super) fn argument_index(self) -> usize {
+        self.argument_index
+    }
+
+    pub(super) fn offset(self) -> u32 {
+        self.offset
+    }
+}
+
 pub(super) fn plan_function_frame(function: &Function) -> Result<FunctionFrame, Vec<Diagnostic>> {
     if !function_requires_frame(&function.instructions) {
         return Ok(FunctionFrame::Frameless);
     }
 
-    FrameLayout::for_scalar_spill_slot_count(scalar_spill_slot_count(&function.instructions))
-        .map(FunctionFrame::Framed)
+    FrameLayout::for_slot_counts(
+        scalar_spill_slot_count(&function.instructions),
+        max_call_argument_count(&function.instructions),
+    )
+    .map(FunctionFrame::Framed)
 }
 
 fn function_requires_frame(instructions: &[Instruction]) -> bool {
@@ -123,6 +179,32 @@ fn scalar_spill_slot_count(instructions: &[Instruction]) -> usize {
     let mut highest_local_index = None;
     record_instruction_list_scalar_locals(instructions, &mut highest_local_index);
     highest_local_index.map_or(0, |index| index + 1)
+}
+
+fn max_call_argument_count(instructions: &[Instruction]) -> usize {
+    instructions
+        .iter()
+        .map(instruction_max_call_argument_count)
+        .max()
+        .unwrap_or(0)
+}
+
+fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
+    match instruction {
+        Instruction::CallI32 { arguments, .. } => arguments.len(),
+        Instruction::If {
+            then_instructions,
+            else_instructions,
+            ..
+        } => max_call_argument_count(then_instructions)
+            .max(max_call_argument_count(else_instructions)),
+        Instruction::WriteStaticStderr(_)
+        | Instruction::SetI32 { .. }
+        | Instruction::SetBool { .. }
+        | Instruction::AddI32 { .. }
+        | Instruction::TailCall { .. }
+        | Instruction::Return => 0,
+    }
 }
 
 fn record_instruction_list_scalar_locals(
@@ -235,7 +317,7 @@ fn frame_too_large_diagnostic(reason: &str) -> Vec<Diagnostic> {
 }
 
 const STACK_ALIGNMENT: usize = 16;
-const SCALAR_SPILL_SLOT_SIZE: usize = 4;
+const SCALAR_SLOT_SIZE: usize = 4;
 const SAVED_X30_SLOT_SIZE: usize = 8;
 const ADD_SUB_SP_IMM_MAX: u32 = 0x00ff_f000;
 const LDR_STR_W_SP_MAX_BYTE_OFFSET: u32 = 0x0fff * 4;
@@ -271,16 +353,17 @@ mod tests {
 
     #[test]
     fn computes_aligned_frame_with_saved_x30_only() {
-        let layout = FrameLayout::for_scalar_spill_slot_count(0).unwrap();
+        let layout = FrameLayout::for_slot_counts(0, 0).unwrap();
 
         assert_eq!(layout.frame_size(), 16);
         assert_eq!(layout.saved_x30_offset(), 8);
         assert!(layout.scalar_spill_slots().is_empty());
+        assert!(layout.argument_staging_slots().is_empty());
     }
 
     #[test]
     fn computes_scalar_spill_slots_below_saved_x30() {
-        let layout = FrameLayout::for_scalar_spill_slot_count(3).unwrap();
+        let layout = FrameLayout::for_slot_counts(3, 0).unwrap();
 
         assert_eq!(layout.frame_size(), 32);
         assert_eq!(layout.saved_x30_offset(), 24);
@@ -298,6 +381,31 @@ mod tests {
                 ScalarSpillSlot {
                     local_index: 2,
                     offset: 8
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn computes_argument_staging_slots_above_scalar_spills() {
+        let layout = FrameLayout::for_slot_counts(2, 3).unwrap();
+
+        assert_eq!(layout.frame_size(), 32);
+        assert_eq!(layout.saved_x30_offset(), 24);
+        assert_eq!(
+            layout.argument_staging_slots(),
+            &[
+                ArgumentStagingSlot {
+                    argument_index: 0,
+                    offset: 8
+                },
+                ArgumentStagingSlot {
+                    argument_index: 1,
+                    offset: 12
+                },
+                ArgumentStagingSlot {
+                    argument_index: 2,
+                    offset: 16
                 },
             ]
         );
@@ -341,13 +449,13 @@ mod tests {
 
         assert_eq!(
             frame,
-            FunctionFrame::Framed(FrameLayout::for_scalar_spill_slot_count(3).unwrap())
+            FunctionFrame::Framed(FrameLayout::for_slot_counts(3, 1).unwrap())
         );
     }
 
     #[test]
     fn rejects_frame_when_w_spill_offset_is_not_encodable() {
-        let error = FrameLayout::for_scalar_spill_slot_count(4097).unwrap_err();
+        let error = FrameLayout::for_slot_counts(4097, 0).unwrap_err();
 
         assert_eq!(error[0].code, "E9005");
     }

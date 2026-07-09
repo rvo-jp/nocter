@@ -458,13 +458,28 @@ impl EntryEmitter {
 
         self.emit_scalar_spills(frame)?;
         for (index, argument) in arguments.iter().enumerate() {
-            let Some(register) = WReg::argument(index) else {
+            let Some(slot) = frame.argument_staging_slots().get(index) else {
                 return Err(vec![Diagnostic::error(
                     "E9003",
                     format!("codegen supports at most 8 i32 arguments, got argument {index}"),
                 )]);
             };
-            self.emit_i32_value_to_w(argument, register)?;
+            debug_assert_eq!(slot.argument_index(), index);
+            self.emit_i32_value_to_w(argument, WReg::W16)?;
+            self.encoder.emit_str_w_sp(WReg::W16, slot.offset());
+        }
+
+        for slot in frame.argument_staging_slots().iter().take(arguments.len()) {
+            let Some(register) = WReg::argument(slot.argument_index()) else {
+                return Err(vec![Diagnostic::error(
+                    "E9003",
+                    format!(
+                        "codegen supports at most 8 i32 arguments, got argument {}",
+                        slot.argument_index()
+                    ),
+                )]);
+            };
+            self.encoder.emit_ldr_w_sp(register, slot.offset());
         }
 
         self.emit_call(function);
@@ -969,7 +984,7 @@ mod tests {
             return_type: Type::I32,
             instructions: vec![set_return_i32(7), Instruction::Return],
         };
-        let frame = FunctionFrame::Framed(FrameLayout::for_scalar_spill_slot_count(0).unwrap());
+        let frame = FunctionFrame::Framed(FrameLayout::for_slot_counts(0, 0).unwrap());
         let mut emitter = EntryEmitter::new();
 
         emitter.emit_function_with_frame(&function, &frame).unwrap();
@@ -999,7 +1014,7 @@ mod tests {
             return_type: Type::I32,
             instructions: vec![set_return_i32(7), Instruction::Return],
         };
-        let frame = FunctionFrame::Framed(FrameLayout::for_scalar_spill_slot_count(0).unwrap());
+        let frame = FunctionFrame::Framed(FrameLayout::for_slot_counts(0, 0).unwrap());
         let mut emitter = EntryEmitter::new();
 
         emitter.emit_function_with_frame(&main, &frame).unwrap();
@@ -1102,12 +1117,14 @@ mod tests {
                 0x30, 0x00, 0x80, 0x52, // movz w16, #1
                 0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
                 0x01, 0x10, 0x00, 0xd4, // svc #0x80
-                0xff, 0x43, 0x00, 0xd1, // sub sp, sp, #16
-                0xfe, 0x07, 0x00, 0xf9, // str x30, [sp, #8]
+                0xff, 0x83, 0x00, 0xd1, // sub sp, sp, #32
+                0xfe, 0x0f, 0x00, 0xf9, // str x30, [sp, #24]
                 0x09, 0x05, 0x80, 0x52, // movz w9, #40
                 0xe9, 0x03, 0x00, 0xb9, // str w9, [sp, #0]
                 0xea, 0x07, 0x00, 0xb9, // str w10, [sp, #4]
-                0xe0, 0x03, 0x09, 0x2a, // mov w0, w9
+                0xf0, 0x03, 0x09, 0x2a, // mov w16, w9
+                0xf0, 0x0b, 0x00, 0xb9, // str w16, [sp, #8]
+                0xe0, 0x0b, 0x40, 0xb9, // ldr w0, [sp, #8]
                 0x0a, 0x00, 0x00, 0x94, // bl add_two
                 0xe9, 0x03, 0x40, 0xb9, // ldr w9, [sp, #0]
                 0xea, 0x07, 0x40, 0xb9, // ldr w10, [sp, #4]
@@ -1115,8 +1132,8 @@ mod tests {
                 0xf0, 0x03, 0x09, 0x2a, // mov w16, w9
                 0xe0, 0x03, 0x0a, 0x2a, // mov w0, w10
                 0x00, 0x02, 0x00, 0x0b, // add w0, w16, w0
-                0xfe, 0x07, 0x40, 0xf9, // ldr x30, [sp, #8]
-                0xff, 0x43, 0x00, 0x91, // add sp, sp, #16
+                0xfe, 0x0f, 0x40, 0xf9, // ldr x30, [sp, #24]
+                0xff, 0x83, 0x00, 0x91, // add sp, sp, #32
                 0xc0, 0x03, 0x5f, 0xd6, // ret
                 0xf0, 0x03, 0x00, 0x2a, // mov w16, w0
                 0x40, 0x00, 0x80, 0x52, // movz w0, #2
@@ -1124,6 +1141,56 @@ mod tests {
                 0xc0, 0x03, 0x5f, 0xd6, // ret
             ]
         );
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
+    fn generated_i32_normal_call_stages_reordered_arguments() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                return_type: Type::I32,
+                instructions: vec![tail_call("wrapper", vec![i32_const(5), i32_const(42)])],
+            },
+            Function {
+                name: "wrapper".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_i32(
+                        I32Location::Local(0),
+                        "second",
+                        vec![i32_param(1), i32_param(0)],
+                    ),
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "second".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_param(1),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let image = crate::target::macho::write_arm64_macos_executable_with_data(
+            &code.text,
+            &code.read_only_data,
+        );
+        let executable = write_temp_executable("codegen-reordered-normal-call-runs", &image.bytes);
+
+        let output = std::process::Command::new(&executable).output().unwrap();
+        let _ = std::fs::remove_file(executable);
+
+        assert_eq!(output.status.code(), Some(5));
     }
 
     #[test]

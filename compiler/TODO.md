@@ -57,10 +57,16 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
+- Added normal-call argument staging:
+  - extends v0 frame layouts with stack-backed argument staging slots sized to the maximum `CallI32` argument count in a function
+  - emits normal-call arguments by evaluating each `i32` argument into a staging slot, then loading `w0` through `w7` from those slots before `bl`
+  - allows reordered parameter arguments for source-level normal calls such as `let value = second(b, a)`
+  - keeps tail-call reordered parameter arguments rejected because tail calls still use direct sequential argument moves
+  - adds frame, codegen, source IR, and CLI run coverage that detects the old sequential-move miscompile
 - Enabled the first source-level normal-call subset:
   - lowers direct same-file `i32` normal calls to `CallI32` in `let` initializers
   - lowers simple `i32` return additions with one direct normal call by staging the call result in a temporary scalar local
-  - reuses the existing conservative argument rule, so reordered parameter arguments and nested call arguments still report `E8006`
+  - keeps nested call arguments reporting `E8006`
   - keeps imported calls, aggregate args/returns, bool-returning normal calls, ownership/drop lowering, nested call arguments, and general condition calls disabled
   - adds IR lowering coverage plus CLI build/run coverage for the new subset
 
@@ -184,12 +190,17 @@ cargo test --quiet ir::lower::tests::lowers_entry_i32_let_initializer_normal_cal
 cargo test --quiet ir::lower::tests::lowers_i32_let_initializer_normal_call_with_non_reordered_parameter_arguments
 cargo test --quiet ir::lower::tests::lowers_entry_i32_return_expression_normal_call
 cargo test --quiet ir::lower::tests::reports_unsupported_nested_i32_call_argument
-cargo test --quiet ir::lower::tests::reports_unsupported_reordered_normal_call_arguments
+cargo test --quiet ir::lower::tests::lowers_reordered_normal_call_arguments
+cargo test --quiet ir::lower::tests::reports_unsupported_reordered_tail_call_arguments
 cargo test --quiet ir::lower::tests::reports_unsupported_bool_returning_normal_call
 cargo test --quiet ir::lower::tests::reports_unsupported_call_in_condition
 cargo test --quiet --test cli_build build_command_lowers_i32_normal_call_let_initializer
 cargo test --quiet --test cli_build build_command_reports_unsupported_non_tail_call
 cargo test --quiet --test cli_run run_command_returns_i32_normal_call_exit_code
+cargo test --quiet --test cli_run run_command_returns_reordered_i32_normal_call_exit_code
+cargo test --quiet backend::frame
+cargo test --quiet backend::codegen::tests::normal_i32_call_spills_and_reloads_scalar_locals
+cargo test --quiet backend::codegen::tests::generated_i32_normal_call_stages_reordered_arguments
 cargo test --quiet
 cargo clippy --all-targets --quiet -- -D warnings
 ```

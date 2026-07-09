@@ -114,8 +114,8 @@ fn lower_i32_normal_call(
     validate_normal_call_return_type(&identifier.name, context)?;
 
     let mut arguments = Vec::new();
-    for (index, argument) in call.arguments.iter().enumerate() {
-        arguments.push(lower_i32_call_argument(argument, index, context)?);
+    for argument in &call.arguments {
+        arguments.push(lower_i32_value(argument, context)?);
     }
 
     Ok(vec![Instruction::CallI32 {

@@ -1290,19 +1290,60 @@ func add(a: i32, b: i32): i32 {
 }
 
 #[test]
-fn reports_unsupported_reordered_normal_call_arguments() {
+fn lowers_reordered_normal_call_arguments() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func first(a: i32, b: i32): i32 {
+    return a
+}
+
+func wrapper(a: i32, b: i32): i32 {
+    let value = first(b, a)
+    return value
+}
+"#,
+        "wrapper",
+        context::FunctionSignatures::new(HashMap::from([("first".to_string(), Type::I32)])),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "wrapper".to_string(),
+            return_type: Type::I32,
+            instructions: vec![
+                call_i32(
+                    I32Location::Local(0),
+                    "first",
+                    vec![i32_param(1), i32_param(0)]
+                ),
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: i32_local(0),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn reports_unsupported_reordered_tail_call_arguments() {
     let diagnostics = lower_named_function_diagnostics_with_signatures(
         r#"func main(): i32 {
     return 0
 }
 
-func swap(a: i32, b: i32): i32 {
+func first(a: i32, b: i32): i32 {
     return a
 }
 
 func wrapper(a: i32, b: i32): i32 {
-    let value = swap(b, a)
-    return value
+    return first(b, a)
 }
 "#,
         "wrapper",

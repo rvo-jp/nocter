@@ -54,7 +54,8 @@ Currently buildable:
 - same-file non-generic tail calls returning `i32` or `bool`
 - same-file non-generic normal calls returning `i32` in `let` initializers
 - same-file non-generic normal calls returning `i32` in simple return additions such as `return answer() + 1`
-- up to 8 `i32` parameters for lowered functions and calls, while reordered parameter arguments remain unsupported
+- up to 8 `i32` parameters for lowered functions and calls
+- reordered parameter arguments are supported for normal calls through argument staging; tail calls still reject reordered parameter arguments
 - non-entry functions returning `bool`
 - `i32` addition used in lowerable `i32` expressions
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` comparisons used in lowerable bool expressions
