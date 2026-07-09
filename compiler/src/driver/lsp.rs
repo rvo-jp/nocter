@@ -102,6 +102,10 @@ impl LspServer {
                 write_message(writer, self.document_symbol_response(id, params))?;
                 Ok(false)
             }
+            "textDocument/completion" => {
+                write_message(writer, self.completion_response(id, params))?;
+                Ok(false)
+            }
             "shutdown" => {
                 self.shutdown_requested = true;
                 write_message(writer, response(id, Value::Null))?;
@@ -234,6 +238,25 @@ impl LspServer {
         response(id, Value::Array(symbols))
     }
 
+    fn completion_response(&self, id: Value, params: Option<&Value>) -> Value {
+        let items = document_uri_from_params(params)
+            .and_then(|uri| {
+                self.workspace_completion_for_uri(&uri).or_else(|| {
+                    self.documents
+                        .get(&uri)
+                        .and_then(completion_items_for_document)
+                })
+            })
+            .unwrap_or_else(keyword_completion_items);
+        response(
+            id,
+            json!({
+                "isIncomplete": false,
+                "items": items
+            }),
+        )
+    }
+
     fn workspace_hover_for_uri(&self, uri: &str, params: Option<&Value>) -> Option<Value> {
         let position = position_from_params(params)?;
         let document = self.documents.get(uri)?;
@@ -296,6 +319,35 @@ impl LspServer {
             .find(|file| file.ast.span.source == root)?;
 
         definition_for_file_analysis(&sources, file, root_offset)
+    }
+
+    fn workspace_completion_for_uri(&self, uri: &str) -> Option<Vec<Value>> {
+        let document = self.documents.get(uri)?;
+        let mut open_documents = self.documents.values().collect::<Vec<_>>();
+        open_documents.sort_by(|left, right| left.uri.cmp(&right.uri));
+
+        let mut sources = SourceMap::new();
+        let mut source_by_uri = HashMap::new();
+
+        for document in open_documents {
+            let source = sources.add_source(
+                document.display_path.clone(),
+                document.absolute_path.clone(),
+                document.text.clone(),
+            );
+            source_by_uri.insert(document.uri.clone(), source);
+        }
+
+        let root = source_by_uri.get(uri).copied()?;
+        let options = frontend_options_for_document(document);
+        let unit = load_compile_unit(&mut sources, root, &options).ok()?;
+        let analysis = analyze_compile_unit_with_entry(&sources, &unit, DEFAULT_ENTRY_NAME);
+        let file = analysis
+            .files
+            .iter()
+            .find(|file| file.ast.span.source == root)?;
+
+        Some(completion_items_for_file_analysis(file))
     }
 }
 
@@ -498,7 +550,11 @@ fn initialize_response(id: Value) -> Value {
                 },
                 "hoverProvider": true,
                 "definitionProvider": true,
-                "documentSymbolProvider": true
+                "documentSymbolProvider": true,
+                "completionProvider": {
+                    "resolveProvider": false,
+                    "triggerCharacters": [".", ":"]
+                }
             },
             "serverInfo": {
                 "name": "nocter",
@@ -801,6 +857,117 @@ const LSP_SYMBOL_KIND_INTERFACE: u8 = 11;
 const LSP_SYMBOL_KIND_FUNCTION: u8 = 12;
 const LSP_SYMBOL_KIND_ENUM_MEMBER: u8 = 22;
 const LSP_SYMBOL_KIND_STRUCT: u8 = 23;
+
+const LSP_COMPLETION_ITEM_KIND_FUNCTION: u8 = 3;
+const LSP_COMPLETION_ITEM_KIND_CLASS: u8 = 7;
+const LSP_COMPLETION_ITEM_KIND_INTERFACE: u8 = 8;
+const LSP_COMPLETION_ITEM_KIND_MODULE: u8 = 9;
+const LSP_COMPLETION_ITEM_KIND_ENUM: u8 = 13;
+const LSP_COMPLETION_ITEM_KIND_KEYWORD: u8 = 14;
+const LSP_COMPLETION_ITEM_KIND_STRUCT: u8 = 22;
+
+const KEYWORD_COMPLETIONS: [&str; 22] = [
+    "from", "import", "use", "func", "pub", "type", "copy", "struct", "enum", "trait", "impl",
+    "method", "let", "var", "return", "if", "else", "for", "in", "while", "match", "catch",
+];
+
+fn completion_items_for_file_analysis(file: &FileAnalysis) -> Vec<Value> {
+    completion_items_for_resolved_symbols(&file.resolved)
+}
+
+fn completion_items_for_document(document: &OpenDocument) -> Option<Vec<Value>> {
+    let mut sources = SourceMap::new();
+    let source = sources.add_source(
+        document.display_path.clone(),
+        document.absolute_path.clone(),
+        document.text.clone(),
+    );
+    let lex_output = lex(&sources, source);
+    if !lex_output.diagnostics.is_empty() {
+        return None;
+    }
+    let ast = parse(&sources, source, &lex_output.tokens).ast?;
+    let resolved = resolve_single_file_for_hover(&document.text, source, &ast);
+    Some(completion_items_for_resolved_symbols(&resolved))
+}
+
+fn completion_items_for_resolved_symbols(resolved: &ResolveOutput) -> Vec<Value> {
+    let mut items = keyword_completion_items();
+    let mut seen = KEYWORD_COMPLETIONS
+        .iter()
+        .map(|keyword| (*keyword).to_string())
+        .collect::<HashSet<_>>();
+
+    let mut symbols = resolved.symbols.symbols().collect::<Vec<_>>();
+    symbols.sort_by(|left, right| left.name.cmp(&right.name));
+
+    for symbol in symbols {
+        if !seen.insert(symbol.name.clone()) {
+            continue;
+        }
+        items.push(completion_item(
+            &symbol.name,
+            completion_kind_for_symbol(symbol),
+            Some(symbol_detail(symbol)),
+        ));
+    }
+
+    items
+}
+
+fn keyword_completion_items() -> Vec<Value> {
+    KEYWORD_COMPLETIONS
+        .iter()
+        .map(|keyword| {
+            completion_item(
+                keyword,
+                LSP_COMPLETION_ITEM_KIND_KEYWORD,
+                Some("keyword".to_string()),
+            )
+        })
+        .collect()
+}
+
+fn completion_kind_for_symbol(symbol: &Symbol) -> u8 {
+    match &symbol.kind {
+        SymbolKind::Function(_) => LSP_COMPLETION_ITEM_KIND_FUNCTION,
+        SymbolKind::Type(type_symbol) => match type_symbol.kind {
+            TypeSymbolKind::Alias => LSP_COMPLETION_ITEM_KIND_CLASS,
+            TypeSymbolKind::Struct => LSP_COMPLETION_ITEM_KIND_STRUCT,
+            TypeSymbolKind::Enum => LSP_COMPLETION_ITEM_KIND_ENUM,
+            TypeSymbolKind::Trait => LSP_COMPLETION_ITEM_KIND_INTERFACE,
+        },
+        SymbolKind::Imported(_) => LSP_COMPLETION_ITEM_KIND_MODULE,
+    }
+}
+
+fn symbol_detail(symbol: &Symbol) -> String {
+    match &symbol.kind {
+        SymbolKind::Function(_) => "function".to_string(),
+        SymbolKind::Type(type_symbol) => match type_symbol.kind {
+            TypeSymbolKind::Alias => "type".to_string(),
+            TypeSymbolKind::Struct => "struct".to_string(),
+            TypeSymbolKind::Enum => "enum".to_string(),
+            TypeSymbolKind::Trait => "trait".to_string(),
+        },
+        SymbolKind::Imported(imported) => format!("imported from {}", imported.path),
+    }
+}
+
+fn completion_item(label: &str, kind: u8, detail: Option<String>) -> Value {
+    let mut item = json!({
+        "label": label,
+        "kind": kind,
+    });
+
+    if let Some(detail) = detail
+        && let Some(object) = item.as_object_mut()
+    {
+        object.insert("detail".to_string(), Value::String(detail));
+    }
+
+    item
+}
 
 fn document_symbols_for_document(document: &OpenDocument) -> Option<Vec<Value>> {
     let mut sources = SourceMap::new();
@@ -2414,6 +2581,7 @@ mod tests {
         assert!(text.contains("\"hoverProvider\""));
         assert!(text.contains("\"definitionProvider\""));
         assert!(text.contains("\"documentSymbolProvider\""));
+        assert!(text.contains("\"completionProvider\""));
     }
 
     #[test]
@@ -2818,6 +2986,108 @@ mod tests {
     }
 
     #[test]
+    fn returns_completion_items_for_keywords_and_top_level_symbols() {
+        let uri = "file:///tmp/nocter-completion.nct".to_string();
+        let document = open_document(
+            uri.clone(),
+            Some(1),
+            "struct Config {\n    path: str\n}\n\nfunc answer(): i32 {\n    return 42\n}\n"
+                .to_string(),
+        );
+        let server = LspServer {
+            documents: HashMap::from([(uri.clone(), document)]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.completion_response(
+            json!(11),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "position": {
+                    "line": 5,
+                    "character": 4
+                }
+            })),
+        );
+        let items = response["result"]["items"]
+            .as_array()
+            .expect("expected completion items");
+
+        assert!(completion_item_with_label(items, "return").is_some());
+        assert_eq!(
+            completion_item_with_label(items, "answer").and_then(|item| item["kind"].as_u64()),
+            Some(LSP_COMPLETION_ITEM_KIND_FUNCTION as u64)
+        );
+        assert_eq!(
+            completion_item_with_label(items, "Config").and_then(|item| item["kind"].as_u64()),
+            Some(LSP_COMPLETION_ITEM_KIND_STRUCT as u64)
+        );
+    }
+
+    #[test]
+    fn returns_completion_items_for_imported_symbols() {
+        let project = TempProject::new("lsp-completion-import");
+        project.write_nocter_home();
+        let app = project.write_source(
+            "app.nct",
+            "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
+        );
+        let config =
+            project.write_source("config.nct", "pub func answer(): i32 {\n    return 42\n}\n");
+        let app_uri = file_uri(&app);
+        let config_uri = file_uri(&config);
+        let server = LspServer {
+            documents: HashMap::from([
+                (
+                    app_uri.clone(),
+                    open_document(
+                        app_uri.clone(),
+                        Some(1),
+                        "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n"
+                            .to_string(),
+                    ),
+                ),
+                (
+                    config_uri.clone(),
+                    open_document(
+                        config_uri,
+                        Some(1),
+                        "pub func answer(): i32 {\n    return 42\n}\n".to_string(),
+                    ),
+                ),
+            ]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.completion_response(
+            json!(12),
+            Some(&json!({
+                "textDocument": {
+                    "uri": app_uri
+                },
+                "position": {
+                    "line": 3,
+                    "character": 4
+                }
+            })),
+        );
+        let items = response["result"]["items"]
+            .as_array()
+            .expect("expected completion items");
+
+        assert_eq!(
+            completion_item_with_label(items, "answer").and_then(|item| item["kind"].as_u64()),
+            Some(LSP_COMPLETION_ITEM_KIND_FUNCTION as u64)
+        );
+    }
+
+    #[test]
     fn initialize_stores_workspace_folders() {
         let mut server = LspServer::new();
         let mut output = Vec::new();
@@ -3019,6 +3289,12 @@ mod tests {
 
     fn file_uri(path: &Path) -> String {
         format!("file://{}", path.to_string_lossy())
+    }
+
+    fn completion_item_with_label<'a>(items: &'a [Value], label: &str) -> Option<&'a Value> {
+        items
+            .iter()
+            .find(|item| item.get("label").and_then(Value::as_str) == Some(label))
     }
 
     struct TempProject {

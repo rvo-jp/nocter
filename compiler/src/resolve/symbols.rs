@@ -143,6 +143,10 @@ impl SymbolTable {
         self.by_name.get(name).and_then(|id| self.get(*id))
     }
 
+    pub fn symbols(&self) -> impl Iterator<Item = &Symbol> {
+        self.symbols.iter()
+    }
+
     pub(super) fn define(
         &mut self,
         name: String,
