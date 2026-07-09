@@ -1,4 +1,4 @@
-use crate::ast::{CallExpr, Expr, IdentifierExpr, TypeExpr, Visibility};
+use crate::ast::{BindingKind, CallExpr, Expr, IdentifierExpr, TypeExpr, Visibility};
 use crate::diagnostics::Diagnostic;
 use crate::source::{ByteSpan, SourceId};
 use std::collections::HashMap;
@@ -18,6 +18,8 @@ pub struct ResolveOutput {
     pub diagnostics: Vec<Diagnostic>,
     pub(super) identifier_targets: HashMap<ByteSpan, SymbolId>,
     pub(super) call_targets: HashMap<ByteSpan, SymbolId>,
+    pub(super) local_symbols: Vec<LocalSymbol>,
+    pub(super) local_identifier_targets: HashMap<ByteSpan, LocalSymbolId>,
 }
 
 impl ResolveOutput {
@@ -31,6 +33,20 @@ impl ResolveOutput {
         self.call_targets
             .get(&call.span)
             .and_then(|id| self.symbols.get(*id))
+    }
+
+    pub fn local_symbol_for_identifier(&self, identifier: &IdentifierExpr) -> Option<&LocalSymbol> {
+        self.local_identifier_targets
+            .get(&identifier.span)
+            .and_then(|id| self.local_symbol(*id))
+    }
+
+    pub fn local_symbol(&self, id: LocalSymbolId) -> Option<&LocalSymbol> {
+        self.local_symbols.get(id.raw() as usize)
+    }
+
+    pub fn local_symbols(&self) -> impl Iterator<Item = &LocalSymbol> {
+        self.local_symbols.iter()
     }
 
     pub fn function_signature_for_call(&self, call: &CallExpr) -> Option<&FunctionSignature> {
@@ -117,8 +133,52 @@ impl ResolveOutput {
             diagnostics: Vec::new(),
             identifier_targets: HashMap::new(),
             call_targets: HashMap::new(),
+            local_symbols: Vec::new(),
+            local_identifier_targets: HashMap::new(),
         }
     }
+
+    pub(super) fn define_local_symbol(
+        &mut self,
+        name: String,
+        name_span: ByteSpan,
+        kind: LocalSymbolKind,
+    ) -> LocalSymbolId {
+        let id = LocalSymbolId(self.local_symbols.len() as u32);
+        self.local_symbols.push(LocalSymbol {
+            id,
+            name,
+            name_span,
+            kind,
+        });
+        id
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct LocalSymbolId(u32);
+
+impl LocalSymbolId {
+    pub const fn raw(self) -> u32 {
+        self.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalSymbol {
+    pub id: LocalSymbolId,
+    pub name: String,
+    pub name_span: ByteSpan,
+    pub kind: LocalSymbolKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LocalSymbolKind {
+    Parameter,
+    Binding(BindingKind),
+    PatternPayload,
+    CatchError,
+    ForRange,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

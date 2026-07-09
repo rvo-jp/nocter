@@ -14,9 +14,9 @@ mod tests;
 
 pub use symbols::{
     AssociatedFunctionSignature, EnumVariantSignature, FunctionSignature, ImportAccess,
-    ImportSource, ImportSourceMap, ImportedSymbol, MethodSignature, ParameterSignature,
-    ResolveOutput, StructFieldSignature, Symbol, SymbolId, SymbolKind, SymbolTable, TypeSymbol,
-    TypeSymbolKind,
+    ImportSource, ImportSourceMap, ImportedSymbol, LocalSymbol, LocalSymbolId, LocalSymbolKind,
+    MethodSignature, ParameterSignature, ResolveOutput, StructFieldSignature, Symbol, SymbolId,
+    SymbolKind, SymbolTable, TypeSymbol, TypeSymbolKind,
 };
 
 use module_index::ModuleIndex;

@@ -1,6 +1,6 @@
 use super::builtins::is_builtin_type_name;
 use super::diagnostics::{builtin_name_reuse_diagnostic, duplicate_visible_name_diagnostic};
-use super::{Resolver, SymbolId};
+use super::{LocalSymbolId, LocalSymbolKind, Resolver, SymbolId};
 use crate::ast::{
     AstFile, Block, Expr, IdentifierExpr, ImplDecl, ImplMember, Item, Parameter, Stmt,
 };
@@ -45,6 +45,7 @@ impl Resolver<'_> {
                     self.define_local_name(
                         method.receiver.name.clone(),
                         method.receiver.name_span,
+                        LocalSymbolKind::Parameter,
                         &mut scope,
                     );
                     self.define_parameters(&method.parameters.parameters, &mut scope);
@@ -56,7 +57,12 @@ impl Resolver<'_> {
 
     fn define_parameters(&mut self, parameters: &[Parameter], scope: &mut Scope) {
         for parameter in parameters {
-            self.define_local_name(parameter.name.clone(), parameter.name_span, scope);
+            self.define_local_name(
+                parameter.name.clone(),
+                parameter.name_span,
+                LocalSymbolKind::Parameter,
+                scope,
+            );
         }
     }
 
@@ -79,7 +85,12 @@ impl Resolver<'_> {
                     let mut else_scope = scope.clone();
                     self.resolve_block(else_block, &mut else_scope);
                 }
-                self.define_local_name(statement.name.clone(), statement.name_span, scope);
+                self.define_local_name(
+                    statement.name.clone(),
+                    statement.name_span,
+                    LocalSymbolKind::Binding(statement.kind),
+                    scope,
+                );
             }
             Stmt::Assignment(statement) => {
                 self.resolve_expression(&statement.target, scope);
@@ -98,7 +109,12 @@ impl Resolver<'_> {
                 self.resolve_expression(&statement.expression, scope);
                 let mut then_scope = scope.clone();
                 if let Some(payload) = &statement.payload {
-                    self.define_local_name(payload.name.clone(), payload.span, &mut then_scope);
+                    self.define_local_name(
+                        payload.name.clone(),
+                        payload.span,
+                        LocalSymbolKind::PatternPayload,
+                        &mut then_scope,
+                    );
                 }
                 self.resolve_block(&statement.then_block, &mut then_scope);
                 if let Some(else_block) = &statement.else_block {
@@ -112,6 +128,7 @@ impl Resolver<'_> {
                 self.define_local_name(
                     statement.name.clone(),
                     statement.name_span,
+                    LocalSymbolKind::Binding(statement.kind),
                     &mut then_scope,
                 );
                 self.resolve_block(&statement.then_block, &mut then_scope);
@@ -125,7 +142,12 @@ impl Resolver<'_> {
                 for arm in &statement.arms {
                     let mut arm_scope = scope.clone();
                     if let Some(payload) = &arm.payload {
-                        self.define_local_name(payload.name.clone(), payload.span, &mut arm_scope);
+                        self.define_local_name(
+                            payload.name.clone(),
+                            payload.span,
+                            LocalSymbolKind::PatternPayload,
+                            &mut arm_scope,
+                        );
                     }
                     self.resolve_block(&arm.body, &mut arm_scope);
                 }
@@ -145,6 +167,7 @@ impl Resolver<'_> {
                 self.define_local_name(
                     statement.name.clone(),
                     statement.name_span,
+                    LocalSymbolKind::Binding(statement.kind),
                     &mut body_scope,
                 );
                 self.resolve_block(&statement.body, &mut body_scope);
@@ -156,6 +179,7 @@ impl Resolver<'_> {
                 self.define_local_name(
                     statement.name.clone(),
                     statement.name_span,
+                    LocalSymbolKind::ForRange,
                     &mut body_scope,
                 );
                 self.resolve_block(&statement.body, &mut body_scope);
@@ -180,6 +204,7 @@ impl Resolver<'_> {
                 self.define_local_name(
                     expression.error_name.clone(),
                     expression.error_span,
+                    LocalSymbolKind::CatchError,
                     &mut catch_scope,
                 );
                 self.resolve_block(&expression.catch_block, &mut catch_scope);
@@ -228,7 +253,12 @@ impl Resolver<'_> {
                 for arm in &expression.arms {
                     let mut arm_scope = scope.clone();
                     if let Some(payload) = &arm.payload {
-                        self.define_local_name(payload.name.clone(), payload.span, &mut arm_scope);
+                        self.define_local_name(
+                            payload.name.clone(),
+                            payload.span,
+                            LocalSymbolKind::PatternPayload,
+                            &mut arm_scope,
+                        );
                     }
                     self.resolve_expression(&arm.expression, &mut arm_scope);
                 }
@@ -242,6 +272,13 @@ impl Resolver<'_> {
     }
 
     fn resolve_identifier(&mut self, identifier: &IdentifierExpr, scope: &Scope) {
+        if let Some(local_id) = scope.resolve(&identifier.name) {
+            self.output
+                .local_identifier_targets
+                .insert(identifier.span, local_id);
+            return;
+        }
+
         if let Some(symbol_id) = self.resolve_top_level_name(identifier, scope) {
             self.output
                 .identifier_targets
@@ -254,7 +291,7 @@ impl Resolver<'_> {
         identifier: &IdentifierExpr,
         scope: &Scope,
     ) -> Option<SymbolId> {
-        if scope.contains(&identifier.name) {
+        if scope.resolve(&identifier.name).is_some() {
             return None;
         }
 
@@ -264,7 +301,13 @@ impl Resolver<'_> {
             .map(|symbol| symbol.id)
     }
 
-    fn define_local_name(&mut self, name: String, span: ByteSpan, scope: &mut Scope) {
+    fn define_local_name(
+        &mut self,
+        name: String,
+        span: ByteSpan,
+        kind: LocalSymbolKind,
+        scope: &mut Scope,
+    ) {
         if is_builtin_type_name(&name) {
             self.output
                 .diagnostics
@@ -289,13 +332,20 @@ impl Resolver<'_> {
                 ));
         }
 
-        scope.define(name, span);
+        let id = self.output.define_local_symbol(name.clone(), span, kind);
+        scope.define(name, span, id);
     }
 }
 
 #[derive(Debug, Clone, Default)]
 struct Scope {
-    locals: HashMap<String, ByteSpan>,
+    locals: HashMap<String, LocalBinding>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct LocalBinding {
+    span: ByteSpan,
+    id: LocalSymbolId,
 }
 
 impl Scope {
@@ -303,15 +353,15 @@ impl Scope {
         Self::default()
     }
 
-    fn contains(&self, name: &str) -> bool {
-        self.locals.contains_key(name)
-    }
-
     fn get(&self, name: &str) -> Option<ByteSpan> {
-        self.locals.get(name).copied()
+        self.locals.get(name).map(|local| local.span)
     }
 
-    fn define(&mut self, name: String, span: ByteSpan) {
-        self.locals.entry(name).or_insert(span);
+    fn resolve(&self, name: &str) -> Option<LocalSymbolId> {
+        self.locals.get(name).map(|local| local.id)
+    }
+
+    fn define(&mut self, name: String, span: ByteSpan, id: LocalSymbolId) {
+        self.locals.entry(name).or_insert(LocalBinding { span, id });
     }
 }

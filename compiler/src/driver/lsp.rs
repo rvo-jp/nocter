@@ -9,7 +9,9 @@ use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::lexer::{Keyword, Token, TokenKind, lex};
 use crate::parser::parse;
-use crate::resolve::{ResolveOutput, Symbol, SymbolKind, TypeSymbolKind, resolve};
+use crate::resolve::{
+    LocalSymbol, LocalSymbolKind, ResolveOutput, Symbol, SymbolKind, TypeSymbolKind, resolve,
+};
 use crate::source::{ByteSpan, JsonSpan, SourceMap};
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -622,6 +624,21 @@ struct HoverSymbol {
     label: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ResolvedReference {
+    TopLevel(Box<Symbol>),
+    Local(LocalSymbol),
+}
+
+impl ResolvedReference {
+    fn declaration_span(&self) -> ByteSpan {
+        match self {
+            ResolvedReference::TopLevel(symbol) => symbol.declaration_span,
+            ResolvedReference::Local(symbol) => symbol.name_span,
+        }
+    }
+}
+
 fn semantic_tokens_for_document(document: &OpenDocument) -> Vec<usize> {
     let semantic_tokens = classified_identifiers(document)
         .into_iter()
@@ -1160,14 +1177,8 @@ fn hover_for_file_analysis(
         }));
     }
 
-    find_resolved_hover_symbol(&file.ast, &file.resolved, offset).map(|(name_span, symbol)| {
-        let (label, docs) = resolved_symbol_hover_contents(sources, analysis, &symbol)
-            .unwrap_or_else(|| {
-                (
-                    symbol_hover_label_for_sources(sources, &symbol),
-                    None::<String>,
-                )
-            });
+    find_resolved_hover_symbol(&file.ast, &file.resolved, offset).map(|(name_span, reference)| {
+        let (label, docs) = resolved_reference_hover_contents(sources, analysis, &reference);
 
         json!({
             "contents": {
@@ -1203,7 +1214,8 @@ fn definition_span_for_ast(
         return Some(symbol.name_span);
     }
 
-    find_resolved_hover_symbol(ast, resolved, offset).map(|(_, symbol)| symbol.declaration_span)
+    find_resolved_hover_symbol(ast, resolved, offset)
+        .map(|(_, reference)| reference.declaration_span())
 }
 
 fn location_for_byte_span(sources: &SourceMap, span: ByteSpan) -> Option<Value> {
@@ -1266,19 +1278,18 @@ fn documented_hover_for_document(document: &OpenDocument, offset: usize) -> Opti
     }
 
     resolved_reference_hover_for_ast(&document.text, source, &ast, offset).map(
-        |(name_span, symbol)| {
-            let referenced = symbols
-                .iter()
-                .find(|candidate| candidate.name_span == symbol.name_span);
-            let label = referenced
-                .map(|symbol| symbol.label.clone())
-                .unwrap_or_else(|| symbol_hover_label(&document.text, &symbol));
-            let docs = referenced.and_then(|symbol| documentation.get(symbol.name_span.start));
+        |(name_span, reference)| {
+            let (label, docs) = single_file_resolved_reference_hover_contents(
+                &document.text,
+                &symbols,
+                &documentation,
+                &reference,
+            );
 
             json!({
                 "contents": {
                     "kind": "markdown",
-                    "value": hover_markdown(&label, docs)
+                    "value": hover_markdown(&label, docs.as_deref())
                 },
                 "range": range_for_byte_span(&document.text, name_span)
             })
@@ -1303,7 +1314,7 @@ fn resolved_reference_hover_for_ast(
     source: crate::source::SourceId,
     ast: &AstFile,
     offset: usize,
-) -> Option<(ByteSpan, Symbol)> {
+) -> Option<(ByteSpan, ResolvedReference)> {
     let resolved = resolve_single_file_for_hover(text, source, ast);
     find_resolved_hover_symbol(ast, &resolved, offset)
 }
@@ -1323,7 +1334,7 @@ fn find_resolved_hover_symbol<'a>(
     ast: &'a AstFile,
     resolved: &'a ResolveOutput,
     offset: usize,
-) -> Option<(ByteSpan, Symbol)> {
+) -> Option<(ByteSpan, ResolvedReference)> {
     let mut candidates = Vec::new();
     for item in &ast.items {
         collect_item_resolved_hover_symbols(item, resolved, offset, &mut candidates);
@@ -1336,7 +1347,7 @@ fn collect_item_resolved_hover_symbols(
     item: &Item,
     resolved: &ResolveOutput,
     offset: usize,
-    candidates: &mut Vec<(ByteSpan, Symbol)>,
+    candidates: &mut Vec<(ByteSpan, ResolvedReference)>,
 ) {
     match item {
         Item::Function(function) => {
@@ -1378,7 +1389,7 @@ fn collect_block_resolved_hover_symbols(
     block: &Block,
     resolved: &ResolveOutput,
     offset: usize,
-    candidates: &mut Vec<(ByteSpan, Symbol)>,
+    candidates: &mut Vec<(ByteSpan, ResolvedReference)>,
 ) {
     for statement in &block.statements {
         collect_statement_resolved_hover_symbols(statement, resolved, offset, candidates);
@@ -1389,7 +1400,7 @@ fn collect_statement_resolved_hover_symbols(
     statement: &Stmt,
     resolved: &ResolveOutput,
     offset: usize,
-    candidates: &mut Vec<(ByteSpan, Symbol)>,
+    candidates: &mut Vec<(ByteSpan, ResolvedReference)>,
 ) {
     match statement {
         Stmt::Return(statement) => {
@@ -1534,14 +1545,19 @@ fn collect_expression_resolved_hover_symbols(
     expression: &Expr,
     resolved: &ResolveOutput,
     offset: usize,
-    candidates: &mut Vec<(ByteSpan, Symbol)>,
+    candidates: &mut Vec<(ByteSpan, ResolvedReference)>,
 ) {
     match expression {
         Expr::Identifier(expression) => {
-            if span_contains(expression.span, offset)
-                && let Some(symbol) = resolved.symbol_for_identifier(expression)
-            {
-                candidates.push((expression.span, symbol.clone()));
+            if span_contains(expression.span, offset) {
+                if let Some(symbol) = resolved.local_symbol_for_identifier(expression) {
+                    candidates.push((expression.span, ResolvedReference::Local(symbol.clone())));
+                } else if let Some(symbol) = resolved.symbol_for_identifier(expression) {
+                    candidates.push((
+                        expression.span,
+                        ResolvedReference::TopLevel(Box::new(symbol.clone())),
+                    ));
+                }
             }
         }
         Expr::Call(expression) => {
@@ -1549,7 +1565,10 @@ fn collect_expression_resolved_hover_symbols(
                 && span_contains(callee.span, offset)
                 && let Some(symbol) = resolved.symbol_for_call(expression)
             {
-                candidates.push((callee.span, symbol.clone()));
+                candidates.push((
+                    callee.span,
+                    ResolvedReference::TopLevel(Box::new(symbol.clone())),
+                ));
             }
             collect_expression_resolved_hover_symbols(
                 &expression.callee,
@@ -2167,6 +2186,59 @@ fn symbol_hover_label(text: &str, symbol: &Symbol) -> String {
     }
 }
 
+fn single_file_resolved_reference_hover_contents(
+    text: &str,
+    symbols: &[HoverSymbol],
+    documentation: &crate::comments::AttachedDocumentation,
+    reference: &ResolvedReference,
+) -> (String, Option<String>) {
+    match reference {
+        ResolvedReference::TopLevel(symbol) => {
+            let referenced = symbols
+                .iter()
+                .find(|candidate| candidate.name_span == symbol.name_span);
+            let label = referenced
+                .map(|symbol| symbol.label.clone())
+                .unwrap_or_else(|| symbol_hover_label(text, symbol));
+            let docs = referenced
+                .and_then(|symbol| documentation.get(symbol.name_span.start))
+                .map(str::to_string);
+            (label, docs)
+        }
+        ResolvedReference::Local(symbol) => (local_symbol_hover_label(symbol), None),
+    }
+}
+
+fn resolved_reference_hover_contents(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    reference: &ResolvedReference,
+) -> (String, Option<String>) {
+    match reference {
+        ResolvedReference::TopLevel(symbol) => {
+            resolved_symbol_hover_contents(sources, analysis, symbol).unwrap_or_else(|| {
+                (
+                    symbol_hover_label_for_sources(sources, symbol),
+                    None::<String>,
+                )
+            })
+        }
+        ResolvedReference::Local(symbol) => (local_symbol_hover_label(symbol), None),
+    }
+}
+
+fn local_symbol_hover_label(symbol: &LocalSymbol) -> String {
+    match symbol.kind {
+        LocalSymbolKind::Parameter => format!("parameter {}", symbol.name),
+        LocalSymbolKind::Binding(kind) => {
+            format!("{} {}", binding_kind_label(kind), symbol.name)
+        }
+        LocalSymbolKind::PatternPayload => format!("payload {}", symbol.name),
+        LocalSymbolKind::CatchError => format!("catch {}", symbol.name),
+        LocalSymbolKind::ForRange => format!("for {}", symbol.name),
+    }
+}
+
 fn resolved_symbol_hover_contents(
     sources: &SourceMap,
     analysis: &CompileUnitAnalysis,
@@ -2678,6 +2750,42 @@ mod tests {
     }
 
     #[test]
+    fn returns_hover_for_local_reference() {
+        let uri = "file:///tmp/nocter-hover-local-reference.nct".to_string();
+        let document = open_document(
+            uri.clone(),
+            Some(1),
+            "func main(path: str): i32 {\n    let code = 0\n    return code\n}\n".to_string(),
+        );
+        let server = LspServer {
+            documents: HashMap::from([(uri.clone(), document)]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.hover_response(
+            json!(4),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "position": {
+                    "line": 2,
+                    "character": 12
+                }
+            })),
+        );
+
+        assert_eq!(
+            response["result"]["contents"]["value"],
+            json!("```nocter\nlet code\n```")
+        );
+        assert_eq!(response["result"]["range"]["start"]["line"], json!(2));
+        assert_eq!(response["result"]["range"]["start"]["character"], json!(11));
+    }
+
+    #[test]
     fn returns_documented_hover_for_function_declaration() {
         let uri = "file:///tmp/nocter-hover-docs.nct".to_string();
         let document = open_document(
@@ -2879,6 +2987,39 @@ mod tests {
         assert_eq!(response["result"]["range"]["start"]["line"], json!(4));
         assert_eq!(response["result"]["range"]["start"]["character"], json!(5));
         assert_eq!(response["result"]["range"]["end"]["character"], json!(11));
+    }
+
+    #[test]
+    fn returns_definition_for_local_reference() {
+        let uri = "file:///tmp/nocter-definition-local.nct".to_string();
+        let document = open_document(
+            uri.clone(),
+            Some(1),
+            "func main(path: str): i32 {\n    let code = 0\n    return code\n}\n".to_string(),
+        );
+        let server = LspServer {
+            documents: HashMap::from([(uri.clone(), document)]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.definition_response(
+            json!(9),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "position": {
+                    "line": 2,
+                    "character": 12
+                }
+            })),
+        );
+
+        assert_eq!(response["result"]["range"]["start"]["line"], json!(1));
+        assert_eq!(response["result"]["range"]["start"]["character"], json!(8));
+        assert_eq!(response["result"]["range"]["end"]["character"], json!(12));
     }
 
     #[test]
