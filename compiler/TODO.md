@@ -7,11 +7,30 @@ Long-lived maintenance rules live in `AGENTS.md` and `docs/maintenance.md`.
 
 Recent committed work:
 
+- Current checkpoint: `Stage tail-call arguments`
+  - lowers reordered `i32` tail-call arguments such as `return second(b, a)`
+  - uses the existing frame argument staging slots for tail calls with arguments, then restores the frame before branching
+  - keeps no-argument tail calls frameless
+  - keeps nested tail-call arguments such as `return outer(inner())` reporting `E8006`
+  - adds IR lowering, frame planning, codegen, and CLI run coverage for reordered tail-call arguments
+- `ca2eef1 Lower nested i32 normal-call arguments`
+  - lowers normal-call arguments through the same expression-to-value staging path used by additions
+  - supports `let value = outer(inner())`, `let value = add(left(), right())`, and `return outer(inner()) + 1`
+  - evaluates nested normal-call arguments left to right before the parent `CallI32`
+  - keeps nested tail-call arguments such as `return outer(inner())` reporting `E8006`
+  - adds IR lowering coverage plus CLI run coverage for nested normal-call arguments
+- `9931bf9 Support multiple i32 normal-call result staging`
+  - changes expression-to-value lowering to use a shared temporary allocator for each lowered expression
+  - evaluates addition operands left to right and stages each normal-call result in a distinct temporary local
+  - supports `return left() + right()`, `let value = left() + right()`, and nested additions such as `return (left() + right()) + base`
+  - adds IR lowering coverage for temporary/local collision avoidance and CLI run coverage for multi-call additions
+- `210d489 Generalize one-call i32 result staging`
+  - generalizes one-call `i32` result staging for lowerable additions and grouped forms
 - `00c3282 Add normal-call argument staging`
   - extends v0 frame layouts with stack-backed argument staging slots sized to the maximum `CallI32` argument count in a function
   - emits normal-call arguments by evaluating each `i32` argument into a staging slot, then loading `w0` through `w7` from those slots before `bl`
   - allows reordered parameter arguments for source-level normal calls such as `let value = second(b, a)`
-  - keeps tail-call reordered parameter arguments rejected because tail calls still use direct sequential argument moves
+  - kept tail-call reordered parameter arguments rejected at that checkpoint
 - `6aca787 Lower source i32 normal-call subset`
   - lowers direct same-file `i32` normal calls to `CallI32` in `let` initializers
   - lowers simple `i32` return additions with one direct normal call by staging the call result in a temporary scalar local
@@ -66,17 +85,7 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- Added nested `i32` normal-call argument lowering:
-  - lowers normal-call arguments through the same expression-to-value staging path used by additions
-  - supports `let value = outer(inner())`, `let value = add(left(), right())`, and `return outer(inner()) + 1`
-  - evaluates nested normal-call arguments left to right before the parent `CallI32`
-  - keeps nested tail-call arguments such as `return outer(inner())` reporting `E8006`
-  - adds IR lowering coverage plus CLI run coverage for nested normal-call arguments
-- Added multiple normal-call result staging for `i32` additions:
-  - changes expression-to-value lowering to use a shared temporary allocator for each lowered expression
-  - evaluates addition operands left to right and stages each normal-call result in a distinct temporary local
-  - supports `return left() + right()`, `let value = left() + right()`, and nested additions such as `return (left() + right()) + base`
-  - adds IR lowering coverage for temporary/local collision avoidance and CLI run coverage for multi-call additions
+- None after the current checkpoint.
 
 ## Verification Already Run
 
@@ -233,6 +242,26 @@ git diff --check
 
 All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew shellenv, but the commands exited successfully.
 
+For the tail-call argument staging work, from `compiler/`:
+
+```sh
+cargo fmt
+cargo test --quiet backend::frame
+cargo test --quiet ir::lower::tests::lowers_reordered_tail_call_arguments
+cargo test --quiet backend::codegen::tests::generates_i32_tail_call_with_arguments_and_add
+cargo test --quiet --test cli_run run_command_returns_reordered_i32_tail_call_exit_code
+cargo test --quiet
+cargo clippy --all-targets --quiet -- -D warnings
+```
+
+From repository root:
+
+```sh
+git diff --check
+```
+
+All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew shellenv, but the commands exited successfully.
+
 ## First Action In Next Session
 
 1. Run `git status --short`.
@@ -250,7 +279,7 @@ The current LSP maintainability pass has reached its planned stopping point:
 Recommended next small task for the next session:
 
 1. Continue compiler core backend work, not LSP-only behavior.
-2. Choose the next backend boundary deliberately: tail-call argument staging or bool-returning normal calls are the nearest useful options.
+2. Consider bool-returning normal calls next, starting with same-file non-generic calls in `let` initializers and direct return expressions while keeping condition calls disabled.
 3. Keep imported calls, aggregates, ownership/drop lowering, nested tail-call arguments, and general condition calls disabled until their lowering rules are designed.
 4. Add CLI build/run coverage for any newly buildable source subset.
 

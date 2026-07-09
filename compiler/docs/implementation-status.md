@@ -56,7 +56,7 @@ Currently buildable:
 - same-file non-generic normal calls returning `i32` in `i32` additions, evaluated left to right with distinct temporary locals
 - nested `i32` normal-call arguments such as `let value = outer(inner())`
 - up to 8 `i32` parameters for lowered functions and calls
-- reordered parameter arguments are supported for normal calls through argument staging; tail calls still reject reordered parameter arguments
+- reordered parameter arguments are supported for normal calls and tail calls through argument staging
 - non-entry functions returning `bool`
 - `i32` addition used in lowerable `i32` expressions
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` comparisons used in lowerable bool expressions

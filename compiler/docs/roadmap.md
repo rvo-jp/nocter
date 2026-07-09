@@ -13,12 +13,12 @@ The current LSP feature modules should present compiler analysis results, not gr
 Recommended next small task:
 
 1. Keep expanding from the narrow source-level `i32` normal-call subset already enabled.
-2. Decide whether to add tail-call argument staging or bool-returning normal calls next.
+2. Consider bool-returning normal calls next, starting with same-file non-generic calls in `let` initializers and direct return expressions while keeping condition calls disabled.
 3. Keep imported calls, aggregate values, nested tail-call arguments, and general condition calls disabled until their lowering rules are designed.
 
 ## Near-Term Constraints
 
-- Keep tail-call argument lowering conservative until tail calls gain staging or parallel move support.
+- Keep nested tail-call argument lowering conservative until tail calls can consume staged child call results.
 - Do not lower calls inside conditions such as `if enabled() { ... }`.
 - Avoid broad `if`, `while`, `loop`, `match`, `var`, reassignment, imports, and aggregate lowering until backend storage and ABI rules are ready.
 - Prefer small user-visible build features with integration tests.
@@ -29,5 +29,5 @@ Recommended next small task:
 - No LLVM, `clang`, `as`, `ld`, Xcode Command Line Tools, or external linker backend.
 - Keep the compiler self-contained.
 - Prefer maintainable module boundaries over adding more logic to already busy files.
-- Backend v0 has frame layout planning, framed prologue/epilogue emission, normal-call codegen with conservative scalar spill/reload and argument staging, and source lowering for same-file `i32` normal calls in `let` initializers, additions, and nested normal-call arguments.
+- Backend v0 has frame layout planning, framed prologue/epilogue emission, normal-call codegen with conservative scalar spill/reload and argument staging, tail-call argument staging, and source lowering for same-file `i32` normal calls in `let` initializers, additions, and nested normal-call arguments.
 - Session handoff and maintenance rules live in `../AGENTS.md` and `maintenance.md`.

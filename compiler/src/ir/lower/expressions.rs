@@ -213,8 +213,8 @@ fn lower_direct_tail_call(
     validate_tail_call_return_type(&identifier.name, context)?;
 
     let mut arguments = Vec::new();
-    for (index, argument) in call.arguments.iter().enumerate() {
-        arguments.push(lower_i32_call_argument(argument, index, context)?);
+    for argument in &call.arguments {
+        arguments.push(lower_i32_call_argument(argument, context)?);
     }
 
     Ok(vec![Instruction::TailCall {
@@ -283,22 +283,9 @@ fn describe_type(ty: &Type) -> &'static str {
 
 fn lower_i32_call_argument(
     expression: &Expr,
-    index: usize,
     context: &LoweringContext,
 ) -> Result<I32Value, Vec<Diagnostic>> {
-    let value = lower_i32_value(expression, context)?;
-
-    if matches!(
-        value,
-        I32Value::Location(I32Location::Parameter(parameter)) if parameter != index
-    ) {
-        return Err(vec![Diagnostic::error(
-            "E8006",
-            "IR v0 cannot lower reordered parameter call arguments",
-        )]);
-    }
-
-    Ok(value)
+    lower_i32_value(expression, context)
 }
 
 pub(super) fn lower_i32_value(

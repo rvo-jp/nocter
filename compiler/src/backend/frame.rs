@@ -166,11 +166,11 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
             function_requires_frame(then_instructions) || function_requires_frame(else_instructions)
         }
         Instruction::CallI32 { .. } => true,
+        Instruction::TailCall { arguments, .. } => !arguments.is_empty(),
         Instruction::WriteStaticStderr(_)
         | Instruction::SetI32 { .. }
         | Instruction::SetBool { .. }
         | Instruction::AddI32 { .. }
-        | Instruction::TailCall { .. }
         | Instruction::Return => false,
     }
 }
@@ -191,7 +191,9 @@ fn max_call_argument_count(instructions: &[Instruction]) -> usize {
 
 fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
     match instruction {
-        Instruction::CallI32 { arguments, .. } => arguments.len(),
+        Instruction::CallI32 { arguments, .. } | Instruction::TailCall { arguments, .. } => {
+            arguments.len()
+        }
         Instruction::If {
             then_instructions,
             else_instructions,
@@ -202,7 +204,6 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::SetI32 { .. }
         | Instruction::SetBool { .. }
         | Instruction::AddI32 { .. }
-        | Instruction::TailCall { .. }
         | Instruction::Return => 0,
     }
 }
@@ -333,16 +334,10 @@ mod tests {
         let function = Function {
             name: "main".to_string(),
             return_type: Type::I32,
-            instructions: vec![
-                Instruction::SetI32 {
-                    destination: I32Location::Local(0),
-                    value: I32Value::Const(40),
-                },
-                Instruction::TailCall {
-                    function: "answer".to_string(),
-                    arguments: vec![I32Value::Location(I32Location::Local(0))],
-                },
-            ],
+            instructions: vec![Instruction::TailCall {
+                function: "answer".to_string(),
+                arguments: vec![],
+            }],
         };
 
         assert_eq!(
@@ -450,6 +445,25 @@ mod tests {
         assert_eq!(
             frame,
             FunctionFrame::Framed(FrameLayout::for_slot_counts(3, 1).unwrap())
+        );
+    }
+
+    #[test]
+    fn tail_call_with_arguments_requires_frame_and_argument_staging_slots() {
+        let function = Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![Instruction::TailCall {
+                function: "answer".to_string(),
+                arguments: vec![I32Value::Const(40), I32Value::Const(2)],
+            }],
+        };
+
+        let frame = plan_function_frame(&function).unwrap();
+
+        assert_eq!(
+            frame,
+            FunctionFrame::Framed(FrameLayout::for_slot_counts(0, 2).unwrap())
         );
     }
 

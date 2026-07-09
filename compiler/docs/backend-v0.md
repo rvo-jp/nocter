@@ -29,11 +29,9 @@ The backend v0 uses a deliberately small register-only convention while the IR h
 - scalar local bindings use `w9` through `w15` across both `i32` and `bool`
 - `w16` and `w17` are backend scratch registers and may be clobbered by code generation
 
-Tail calls are lowered by loading the callee arguments into `w0` through `w7` and branching directly to the target function.
-Non-tail calls are intentionally not buildable yet.
-A normal call would return to the caller after clobbering argument, return, and scratch registers; with the current register-only local model, that can destroy live values in later expressions.
-
-Before adding non-tail calls, add stack slots, spill/reload support, and a clear caller/callee preservation rule.
+Tail calls are lowered by staging callee arguments, loading `w0` through `w7`, and branching directly to the target function.
+Normal calls are buildable only for the narrow same-file `i32` subset described below.
+A normal call returns to the caller after clobbering argument, return, and scratch registers, so v0 framed functions conservatively spill and reload scalar locals around each normal call.
 
 ## Normal Call Lowering Design
 
@@ -133,15 +131,16 @@ Tail calls still reject nested call arguments because their argument lowering do
 
 ### Argument Movement
 
-Tail calls currently reject reordered parameter arguments because sequential moves into `w0` through `w7` can clobber later source parameters.
-Normal calls use argument staging slots:
+Normal calls and tail calls with arguments use argument staging slots:
 
 - evaluate each lowerable `i32` argument into a stack slot or scratch register
 - after all arguments are staged, load `w0` through `w7` from those staged values
-- issue `bl`
+- issue `bl` for normal calls or restore the frame and branch with `b` for tail calls
 
-This makes source normal calls such as `swap(b, a)` safe when `a` and `b` already live in argument registers.
-The same relaxation does not apply to tail calls yet; tail calls still use direct sequential argument moves and must continue rejecting reordered parameter arguments until they also gain staging or parallel move support.
+This makes source calls such as `swap(b, a)` safe when `a` and `b` already live in argument registers.
+Tail calls with arguments require a frame for staging even when the function has no normal calls.
+Tail calls without arguments can remain frameless.
+Nested tail-call arguments remain disabled until tail-call lowering can consume staged child call results.
 
 ### IR Shape
 
@@ -193,6 +192,7 @@ Implement normal calls in this order:
 7. Done: make one-call `i32` addition result staging explicit, including `let` initializers and nested additions that contain a single normal call.
 8. Done: add multiple temporary allocation and left-to-right evaluation for `i32` additions with multiple normal calls.
 9. Done: lower nested `i32` normal-call arguments by staging child call results before the parent `CallI32`.
+10. Done: stage tail-call arguments through frame argument slots and allow reordered `i32` tail-call arguments.
 
 ### Non-Goals For This Phase
 

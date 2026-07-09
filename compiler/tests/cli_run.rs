@@ -144,6 +144,37 @@ func second(a: i32, b: i32): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_reordered_i32_tail_call_exit_code() {
+    let project = TempProject::new("cli-run-reordered-tail-call");
+    let source = project.write_source(
+        "reordered_tail_call.nct",
+        r#"func main(): i32 {
+    return wrapper(5, 42)
+}
+
+func wrapper(a: i32, b: i32): i32 {
+    return second(b, a)
+}
+
+func second(a: i32, b: i32): i32 {
+    return b
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(5),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_preserves_local_across_i32_normal_call_addition() {
     let project = TempProject::new("cli-run-normal-call-local-add");
     let source = project.write_source(

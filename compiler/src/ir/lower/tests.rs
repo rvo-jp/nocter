@@ -1716,8 +1716,8 @@ func wrapper(a: i32, b: i32): i32 {
 }
 
 #[test]
-fn reports_unsupported_reordered_tail_call_arguments() {
-    let diagnostics = lower_named_function_diagnostics_with_signatures(
+fn lowers_reordered_tail_call_arguments() {
+    let function = lower_named_function_with_signatures(
         r#"func main(): i32 {
     return 0
 }
@@ -1732,12 +1732,16 @@ func wrapper(a: i32, b: i32): i32 {
 "#,
         "wrapper",
         context::FunctionSignatures::new(HashMap::new()),
-    );
+    )
+    .unwrap();
 
-    assert_eq!(diagnostics[0].code, "E8006");
     assert_eq!(
-        diagnostics[0].message,
-        "IR v0 cannot lower reordered parameter call arguments"
+        function,
+        Function {
+            name: "wrapper".to_string(),
+            return_type: Type::I32,
+            instructions: vec![tail_call("first", vec![i32_param(1), i32_param(0)])],
+        }
     );
 }
 

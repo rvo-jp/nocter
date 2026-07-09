@@ -418,14 +418,14 @@ impl EntryEmitter {
         arguments: &[I32Value],
         frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
-        for (index, argument) in arguments.iter().enumerate() {
-            let Some(register) = WReg::argument(index) else {
+        if !arguments.is_empty() {
+            let Some(frame) = frame else {
                 return Err(vec![Diagnostic::error(
-                    "E9003",
-                    format!("codegen supports at most 8 i32 arguments, got argument {index}"),
+                    "E9005",
+                    "tail call argument staging requires a stack frame",
                 )]);
             };
-            self.emit_i32_value_to_w(argument, register)?;
+            self.emit_staged_i32_arguments(arguments, frame)?;
         }
 
         if let Some(frame) = frame {
@@ -457,6 +457,18 @@ impl EntryEmitter {
         };
 
         self.emit_scalar_spills(frame)?;
+        self.emit_staged_i32_arguments(arguments, frame)?;
+
+        self.emit_call(function);
+        self.emit_scalar_reloads(frame)?;
+        self.emit_call_result_to_i32_location(destination)
+    }
+
+    fn emit_staged_i32_arguments(
+        &mut self,
+        arguments: &[I32Value],
+        frame: &FrameLayout,
+    ) -> Result<(), Vec<Diagnostic>> {
         for (index, argument) in arguments.iter().enumerate() {
             let Some(slot) = frame.argument_staging_slots().get(index) else {
                 return Err(vec![Diagnostic::error(
@@ -482,9 +494,7 @@ impl EntryEmitter {
             self.encoder.emit_ldr_w_sp(register, slot.offset());
         }
 
-        self.emit_call(function);
-        self.emit_scalar_reloads(frame)?;
-        self.emit_call_result_to_i32_location(destination)
+        Ok(())
     }
 
     fn emit_scalar_spills(&mut self, frame: &FrameLayout) -> Result<(), Vec<Diagnostic>> {
@@ -1284,8 +1294,16 @@ mod tests {
                 0x30, 0x00, 0x80, 0x52, // movz w16, #1
                 0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
                 0x01, 0x10, 0x00, 0xd4, // svc #0x80
-                0x80, 0x02, 0x80, 0x52, // movz w0, #20
-                0xc1, 0x02, 0x80, 0x52, // movz w1, #22
+                0xff, 0x43, 0x00, 0xd1, // sub sp, sp, #16
+                0xfe, 0x07, 0x00, 0xf9, // str x30, [sp, #8]
+                0x90, 0x02, 0x80, 0x52, // movz w16, #20
+                0xf0, 0x03, 0x00, 0xb9, // str w16, [sp, #0]
+                0xd0, 0x02, 0x80, 0x52, // movz w16, #22
+                0xf0, 0x07, 0x00, 0xb9, // str w16, [sp, #4]
+                0xe0, 0x03, 0x40, 0xb9, // ldr w0, [sp, #0]
+                0xe1, 0x07, 0x40, 0xb9, // ldr w1, [sp, #4]
+                0xfe, 0x07, 0x40, 0xf9, // ldr x30, [sp, #8]
+                0xff, 0x43, 0x00, 0x91, // add sp, sp, #16
                 0x01, 0x00, 0x00, 0x14, // b add
                 0xf0, 0x03, 0x00, 0x2a, // mov w16, w0
                 0xe0, 0x03, 0x01, 0x2a, // mov w0, w1
