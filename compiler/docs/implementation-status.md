@@ -53,7 +53,7 @@ Currently buildable:
 - `void` entry with an empty body or bare `return`
 - same-file non-generic tail calls returning `i32` or `bool`
 - same-file non-generic normal calls returning `i32` in `let` initializers
-- same-file non-generic normal calls returning `i32` in simple return additions such as `return answer() + 1`
+- same-file non-generic normal calls returning `i32` in `i32` additions that contain one normal call, such as `let value = answer() + 1` or `return base + answer()`
 - up to 8 `i32` parameters for lowered functions and calls
 - reordered parameter arguments are supported for normal calls through argument staging; tail calls still reject reordered parameter arguments
 - non-entry functions returning `bool`
@@ -69,6 +69,7 @@ Currently not buildable even when it may be checkable:
 - general `if`, `while`, `loop`, range `for`, `match`, and pattern conditional `?{}`
 - imported function calls
 - nested call arguments such as `outer(inner())`
+- `i32` expressions containing two or more normal calls such as `left() + right()`
 - normal calls returning `bool`
 - `str` values beyond static failure messages
 - optional values

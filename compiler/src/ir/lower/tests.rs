@@ -229,6 +229,135 @@ func answer(): i32 {
 }
 
 #[test]
+fn lowers_entry_i32_let_initializer_normal_call_addition() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let value = answer() + 1
+    return value
+}
+
+func answer(): i32 {
+    return 41
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_i32(I32Location::Local(0), "answer", vec![]),
+                    Instruction::AddI32 {
+                        destination: I32Location::Local(0),
+                        left: i32_local(0),
+                        right: i32_const(1),
+                    },
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "answer".to_string(),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(41), Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
+fn lowers_entry_i32_return_expression_local_plus_normal_call() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let base = 5
+    return base + answer()
+}
+
+func answer(): i32 {
+    return 37
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(5),
+                    },
+                    call_i32(I32Location::Local(1), "answer", vec![]),
+                    Instruction::AddI32 {
+                        destination: I32Location::Return,
+                        left: i32_local(0),
+                        right: i32_local(1),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "answer".to_string(),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(37), Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
+fn lowers_entry_i32_nested_return_addition_with_one_normal_call() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    return (answer() + 1) + 2
+}
+
+func answer(): i32 {
+    return 39
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_i32(I32Location::Local(0), "answer", vec![]),
+                    Instruction::AddI32 {
+                        destination: I32Location::Local(0),
+                        left: i32_local(0),
+                        right: i32_const(1),
+                    },
+                    Instruction::AddI32 {
+                        destination: I32Location::Return,
+                        left: i32_local(0),
+                        right: i32_const(2),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "answer".to_string(),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(39), Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
 fn lowers_entry_i32_annotated_let_binding_then_return() {
     let ir = lower_text(
         r#"func main(): i32 {
@@ -1278,6 +1407,30 @@ func answer(): i32 {
 
 func add(a: i32, b: i32): i32 {
     return a + b
+}
+"#,
+    );
+
+    assert_eq!(diagnostics[0].code, "E8006");
+    assert_eq!(
+        diagnostics[0].message,
+        "IR v0 can only lower function calls in direct tail return position"
+    );
+}
+
+#[test]
+fn reports_unsupported_multiple_i32_normal_calls_in_addition() {
+    let diagnostics = lower_text_diagnostics(
+        r#"func main(): i32 {
+    return left() + right()
+}
+
+func left(): i32 {
+    return 20
+}
+
+func right(): i32 {
+    return 22
 }
 "#,
     );

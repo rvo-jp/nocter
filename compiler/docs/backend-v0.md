@@ -128,7 +128,7 @@ For example, `let x = callee()` can reload locals and then write `w0` into `x` i
 For `callee() + local`, preserve the call result in a scratch or spill slot before reloading locals, then perform the addition.
 
 The first implementation should not try to support nested call arguments.
-Reject or avoid lowering `outer(inner())` until call result staging and argument evaluation order are explicitly modeled.
+Reject or avoid lowering `outer(inner())` until multi-call result staging and argument evaluation order are explicitly modeled.
 
 ### Argument Movement
 
@@ -158,7 +158,8 @@ CallI32 {
 ```
 
 This covers `let x = callee()` and `return callee() + 1` after the expression lowerer has a destination for intermediate results.
-If expression lowering needs a temporary separate from source locals, add an explicit temporary location or a backend-only call result staging step.
+The first source expression lowerer stages one normal-call result in a temporary scalar local for `i32` additions.
+Expressions with two or more normal calls still need multiple temporaries and a fixed evaluation-order model.
 
 Bool-returning normal calls should wait until the i32 path is stable.
 Imported calls should also wait because they need symbol/linkage policy, not just call sequence support.
@@ -187,7 +188,8 @@ Implement normal calls in this order:
 4. Done: add the IR normal-call instruction without lowering source calls to it yet; add codegen unit tests for hand-built IR functions that perform normal calls.
 5. Done: lower the smallest source subset: same-file `i32` normal call in a `let` initializer or simple i32 return addition, with CLI build/run coverage.
 6. Done: add normal-call argument staging slots and allow reordered parameter arguments for source normal calls.
-7. Expand expression placement only after broader call result staging is explicit.
+7. Done: make one-call `i32` addition result staging explicit, including `let` initializers and nested additions that contain a single normal call.
+8. Expand to expressions with multiple normal calls only after multiple temporary allocation and evaluation order are explicit.
 
 ### Non-Goals For This Phase
 

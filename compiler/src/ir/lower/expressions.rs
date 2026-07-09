@@ -37,34 +37,65 @@ fn lower_i32_add_expression_to_location(
     destination: I32Location,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    match (binary.left.as_ref(), binary.right.as_ref()) {
-        (Expr::Call(_), Expr::Call(_)) => Err(unsupported_non_tail_call_diagnostic()),
-        (Expr::Call(call), right) => {
-            let temporary = context.next_i32_temporary_location()?;
-            let mut instructions = lower_i32_normal_call(call, temporary, context)?;
-            instructions.push(Instruction::AddI32 {
-                destination,
-                left: I32Value::Location(temporary),
-                right: lower_i32_value(right, context)?,
-            });
-            Ok(instructions)
-        }
-        (left, Expr::Call(call)) => {
-            let temporary = context.next_i32_temporary_location()?;
-            let mut instructions = lower_i32_normal_call(call, temporary, context)?;
-            instructions.push(Instruction::AddI32 {
-                destination,
-                left: lower_i32_value(left, context)?,
-                right: I32Value::Location(temporary),
-            });
-            Ok(instructions)
-        }
-        (left, right) => Ok(vec![Instruction::AddI32 {
-            destination,
-            left: lower_i32_value(left, context)?,
-            right: lower_i32_value(right, context)?,
-        }]),
+    let call_count = normal_call_count(&binary.left) + normal_call_count(&binary.right);
+    if call_count > 1 {
+        return Err(unsupported_non_tail_call_diagnostic());
     }
+
+    let left = lower_i32_expression_to_value(&binary.left, context)?;
+    let right = lower_i32_expression_to_value(&binary.right, context)?;
+    let mut instructions = left.instructions;
+    instructions.extend(right.instructions);
+    instructions.push(Instruction::AddI32 {
+        destination,
+        left: left.value,
+        right: right.value,
+    });
+    Ok(instructions)
+}
+
+fn lower_i32_expression_to_value(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Result<LoweredI32Value, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(call) => {
+            let temporary = context.next_i32_temporary_location()?;
+            Ok(LoweredI32Value {
+                instructions: lower_i32_normal_call(call, temporary, context)?,
+                value: I32Value::Location(temporary),
+            })
+        }
+        Expr::Binary(binary) if binary.operator == BinaryOperator::Add => {
+            if normal_call_count(&binary.left) + normal_call_count(&binary.right) != 1 {
+                return Err(unsupported_i32_expression_diagnostic());
+            }
+            let temporary = context.next_i32_temporary_location()?;
+            Ok(LoweredI32Value {
+                instructions: lower_i32_add_expression_to_location(binary, temporary, context)?,
+                value: I32Value::Location(temporary),
+            })
+        }
+        Expr::Group(group) => lower_i32_expression_to_value(&group.expression, context),
+        _ => Ok(LoweredI32Value {
+            instructions: Vec::new(),
+            value: lower_i32_value(expression, context)?,
+        }),
+    }
+}
+
+fn normal_call_count(expression: &Expr) -> usize {
+    match expression {
+        Expr::Call(_) => 1,
+        Expr::Binary(binary) => normal_call_count(&binary.left) + normal_call_count(&binary.right),
+        Expr::Group(group) => normal_call_count(&group.expression),
+        _ => 0,
+    }
+}
+
+struct LoweredI32Value {
+    instructions: Vec<Instruction>,
+    value: I32Value,
 }
 
 pub(super) fn lower_i32_return_expression(

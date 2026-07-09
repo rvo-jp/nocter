@@ -13,12 +13,12 @@ The current LSP feature modules should present compiler analysis results, not gr
 Recommended next small task:
 
 1. Keep expanding from the narrow source-level `i32` normal-call subset already enabled.
-2. Generalize call result staging before broadening expression placement beyond the current simple return addition.
+2. Add multiple temporary allocation and evaluation-order rules before allowing expressions with two or more normal calls.
 3. Keep imported calls, bool-returning normal calls, aggregate values, nested call arguments, and general condition calls disabled until their lowering rules are designed.
 
 ## Near-Term Constraints
 
-- Keep normal-call source lowering narrow until broader call result staging is explicit.
+- Keep normal-call source lowering narrow until multiple-result staging and evaluation order are explicit.
 - Do not lower calls inside conditions such as `if enabled() { ... }`.
 - Avoid broad `if`, `while`, `loop`, `match`, `var`, reassignment, imports, and aggregate lowering until backend storage and ABI rules are ready.
 - Prefer small user-visible build features with integration tests.
