@@ -202,8 +202,12 @@ pub(super) fn lower_bool_expression_to_location(
         }
         Expr::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
             let mut temporaries = TemporaryAllocator::new(context)?;
-            let operand =
-                lower_bool_expression_to_value(&unary.operand, context, &mut temporaries)?;
+            let operand = lower_bool_expression_to_value_with_temporaries(
+                &unary.operand,
+                context,
+                diagnostic_code,
+                &mut temporaries,
+            )?;
             let mut instructions = operand.instructions;
             instructions.push(Instruction::SetBool {
                 destination,
@@ -224,9 +228,29 @@ pub(super) fn lower_bool_expression_to_location(
     }
 }
 
-fn lower_bool_expression_to_value(
+pub(super) struct LoweredBoolValue {
+    pub(super) instructions: Vec<Instruction>,
+    pub(super) value: BoolValue,
+}
+
+pub(super) fn lower_bool_expression_to_value(
     expression: &Expr,
     context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    lower_bool_expression_to_value_with_temporaries(
+        expression,
+        context,
+        diagnostic_code,
+        &mut temporaries,
+    )
+}
+
+fn lower_bool_expression_to_value_with_temporaries(
+    expression: &Expr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
     match expression {
@@ -237,19 +261,29 @@ fn lower_bool_expression_to_value(
                 value: BoolValue::Location(temporary),
             })
         }
-        Expr::Group(group) => {
-            lower_bool_expression_to_value(&group.expression, context, temporaries)
+        Expr::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+            let operand = lower_bool_expression_to_value_with_temporaries(
+                &unary.operand,
+                context,
+                diagnostic_code,
+                temporaries,
+            )?;
+            Ok(LoweredBoolValue {
+                instructions: operand.instructions,
+                value: BoolValue::Not(Box::new(operand.value)),
+            })
         }
+        Expr::Group(group) => lower_bool_expression_to_value_with_temporaries(
+            &group.expression,
+            context,
+            diagnostic_code,
+            temporaries,
+        ),
         _ => Ok(LoweredBoolValue {
             instructions: Vec::new(),
-            value: lower_bool_value(expression, context, "E8008")?,
+            value: lower_bool_value(expression, context, diagnostic_code)?,
         }),
     }
-}
-
-struct LoweredBoolValue {
-    instructions: Vec<Instruction>,
-    value: BoolValue,
 }
 
 fn lower_i32_normal_call(

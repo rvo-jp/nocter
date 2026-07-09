@@ -1864,10 +1864,121 @@ func ready(): bool {
 }
 
 #[test]
-fn reports_unsupported_call_in_condition() {
-    let diagnostics = lower_text_diagnostics(
+fn lowers_entry_i32_if_condition_normal_call() {
+    let ir = lower_text(
         r#"func main(): i32 {
     if ready() {
+        return 42
+    } else {
+        return 7
+    }
+}
+
+func ready(): bool {
+    return true
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            call_bool(BoolLocation::Local(0), "ready", vec![]),
+            Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Local(0)),
+                then_instructions: vec![set_return_i32(42), Instruction::Return],
+                else_instructions: vec![set_return_i32(7), Instruction::Return],
+            },
+        ]
+    );
+}
+
+#[test]
+fn lowers_entry_i32_if_condition_not_normal_call() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    if !ready() {
+        return 42
+    } else {
+        return 7
+    }
+}
+
+func ready(): bool {
+    return false
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            call_bool(BoolLocation::Local(0), "ready", vec![]),
+            Instruction::If {
+                condition: BoolValue::Not(Box::new(BoolValue::Location(BoolLocation::Local(0)))),
+                then_instructions: vec![set_return_i32(42), Instruction::Return],
+                else_instructions: vec![set_return_i32(7), Instruction::Return],
+            },
+        ]
+    );
+}
+
+#[test]
+fn lowers_bool_if_condition_normal_call() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func ready(): bool {
+    return true
+}
+
+func choose(): bool {
+    if ready() {
+        return false
+    } else {
+        return true
+    }
+}
+"#,
+        "choose",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "choose".to_string(),
+            return_type: Type::Bool,
+            instructions: vec![
+                call_bool(BoolLocation::Local(0), "ready", vec![]),
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Local(0)),
+                    then_instructions: vec![
+                        Instruction::SetBool {
+                            destination: BoolLocation::Return,
+                            value: BoolValue::Const(false),
+                        },
+                        Instruction::Return,
+                    ],
+                    else_instructions: vec![
+                        Instruction::SetBool {
+                            destination: BoolLocation::Return,
+                            value: BoolValue::Const(true),
+                        },
+                        Instruction::Return,
+                    ],
+                },
+            ],
+        }
+    );
+}
+
+#[test]
+fn reports_unsupported_short_circuit_call_in_condition() {
+    let diagnostics = lower_text_diagnostics(
+        r#"func main(): i32 {
+    if ready() && other() {
         return 0
     } else {
         return 1
@@ -1875,6 +1986,10 @@ fn reports_unsupported_call_in_condition() {
 }
 
 func ready(): bool {
+    return true
+}
+
+func other(): bool {
     return true
 }
 "#,

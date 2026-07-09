@@ -7,11 +7,16 @@ Long-lived maintenance rules live in `AGENTS.md` and `docs/maintenance.md`.
 
 Recent committed work:
 
-- Current uncommitted work: `Lower unary bool normal-call expressions`
+- Current checkpoint: `Lower bool condition calls`
+  - lowers direct same-file bool-returning normal calls in terminal `if` conditions
+  - supports `if ready() { ... } else { ... }` and `if !ready() { ... } else { ... }`
+  - stages the bool call result in a temporary scalar local before `Instruction::If`
+  - keeps short-circuit bool expressions with calls, such as `ready() && other()`, disabled until staging can preserve short-circuit evaluation
+  - adds IR lowering and CLI run coverage for direct bool normal-call conditions
+- `b017d59 Lower unary bool normal-call expressions`
   - lowers bool-returning normal calls under unary `!`
   - supports `let disabled = !ready()` and `return !ready()`
   - stages the bool call result in a temporary scalar local before materializing `BoolValue::Not`
-  - keeps calls directly inside conditions such as `if ready()` reporting `E8006`
   - keeps short-circuit bool expressions with calls, such as `ready() && other()`, disabled until staging can preserve short-circuit evaluation
   - adds IR lowering and CLI run coverage for unary bool normal-call expressions
 - `b26f8b7 Lower bool normal calls`
@@ -93,13 +98,13 @@ Recent committed work:
 
 Known unrelated local user changes:
 
-- None observed by `git status --short` at the start of this session.
+- `test.nct` is untracked in the repository root and appears to be the user's local runtime test file.
 
 Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- `Lower unary bool normal-call expressions` is pending commit.
+- None expected after committing `Lower bool condition calls`.
 
 ## Verification Already Run
 
@@ -312,6 +317,28 @@ git diff --check
 All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew shellenv, but the commands exited successfully.
 Runtime test execution remains blocked by the same sandbox test-binary hang described above.
 
+For the bool condition call work, from `compiler/`:
+
+```sh
+cargo fmt
+cargo test --quiet ir::lower::tests::lowers_entry_i32_if_condition_normal_call
+cargo test --quiet ir::lower::tests::lowers_entry_i32_if_condition_not_normal_call
+cargo test --quiet ir::lower::tests::lowers_bool_if_condition_normal_call
+cargo test --quiet ir::lower::tests::reports_unsupported_short_circuit_call_in_condition
+cargo test --quiet --test cli_run run_command_returns_bool_condition_call_exit_code
+cargo test --quiet --test cli_run run_command_returns_not_bool_condition_call_exit_code
+cargo test --quiet
+cargo clippy --all-targets --quiet -- -D warnings
+```
+
+From repository root:
+
+```sh
+git diff --check
+```
+
+All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew shellenv, but the commands exited successfully.
+
 ## First Action In Next Session
 
 1. Run `git status --short`.
@@ -329,8 +356,8 @@ The current LSP maintainability pass has reached its planned stopping point:
 Recommended next small task for the next session:
 
 1. Continue compiler core backend work, not LSP-only behavior.
-2. Consider the next bool-call placement only if it preserves evaluation order; short-circuit expressions with calls need explicit staging semantics.
-3. Keep imported calls, aggregates, ownership/drop lowering, nested tail-call arguments, and general condition calls disabled until their lowering rules are designed.
+2. Design short-circuit bool-call lowering before enabling calls inside `&&` or `||`.
+3. Keep imported calls, aggregates, ownership/drop lowering, nested tail-call arguments, and broader condition calls disabled until their lowering rules are designed.
 4. Add CLI build/run coverage for any newly buildable source subset.
 
 ## Design Constraints To Preserve

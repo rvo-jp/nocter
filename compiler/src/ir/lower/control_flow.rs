@@ -1,6 +1,6 @@
 use super::context::LoweringContext;
 use super::expressions::{
-    lower_bool_return_expression, lower_bool_value, lower_i32_return_expression,
+    lower_bool_expression_to_value, lower_bool_return_expression, lower_i32_return_expression,
 };
 use crate::ast::{Block, IfStmt, Stmt};
 use crate::diagnostics::Diagnostic;
@@ -12,7 +12,7 @@ pub(super) fn lower_terminal_i32_if_statement(
     diagnostic_code: &'static str,
     subject: &str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let condition = lower_bool_value(&statement.condition, context, diagnostic_code)?;
+    let condition = lower_bool_condition(&statement.condition, context, diagnostic_code)?;
     let Some(else_block) = &statement.else_block else {
         return Err(unsupported_terminal_if_diagnostic(
             diagnostic_code,
@@ -21,8 +21,9 @@ pub(super) fn lower_terminal_i32_if_statement(
         ));
     };
 
-    Ok(vec![Instruction::If {
-        condition,
+    let mut instructions = condition.instructions;
+    instructions.push(Instruction::If {
+        condition: condition.value,
         then_instructions: lower_i32_return_block(
             &statement.then_block,
             context,
@@ -30,7 +31,8 @@ pub(super) fn lower_terminal_i32_if_statement(
             subject,
         )?,
         else_instructions: lower_i32_return_block(else_block, context, diagnostic_code, subject)?,
-    }])
+    });
+    Ok(instructions)
 }
 
 pub(super) fn lower_terminal_bool_if_statement(
@@ -39,7 +41,7 @@ pub(super) fn lower_terminal_bool_if_statement(
     diagnostic_code: &'static str,
     subject: &str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let condition = lower_bool_value(&statement.condition, context, diagnostic_code)?;
+    let condition = lower_bool_condition(&statement.condition, context, diagnostic_code)?;
     let Some(else_block) = &statement.else_block else {
         return Err(unsupported_terminal_if_diagnostic(
             diagnostic_code,
@@ -48,8 +50,9 @@ pub(super) fn lower_terminal_bool_if_statement(
         ));
     };
 
-    Ok(vec![Instruction::If {
-        condition,
+    let mut instructions = condition.instructions;
+    instructions.push(Instruction::If {
+        condition: condition.value,
         then_instructions: lower_bool_return_block(
             &statement.then_block,
             context,
@@ -57,7 +60,16 @@ pub(super) fn lower_terminal_bool_if_statement(
             subject,
         )?,
         else_instructions: lower_bool_return_block(else_block, context, diagnostic_code, subject)?,
-    }])
+    });
+    Ok(instructions)
+}
+
+fn lower_bool_condition(
+    condition: &crate::ast::Expr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<super::expressions::LoweredBoolValue, Vec<Diagnostic>> {
+    lower_bool_expression_to_value(condition, context, diagnostic_code)
 }
 
 fn lower_i32_return_block(
