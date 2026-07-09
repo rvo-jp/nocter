@@ -2,9 +2,9 @@
     <path
     d="
     m8.5 9
-    h11
+    h12
     a2.5 2.5 0 1 1 0 5
-    h7
+    h6
     a5 5 0 1 1 0 10
     h-1
     a2 2 0 1 1 0 4
@@ -25,7 +25,7 @@
     "
     fill="#e3e365"
     stroke="#e3e365"
-    stroke-width="2"
+    stroke-width="1.8"
     stroke-linejoin="round"
   />
 
@@ -35,7 +35,7 @@
     a2.5 2.5 0 1 1 0 -5
     h8
     a2.5 2.5 0 1 1 0 5
-    h4
+    h5
     a3.5 3.5 0 1 1 0 7
     h-9
     a3.5 3.5 0 1 1 0 -7
