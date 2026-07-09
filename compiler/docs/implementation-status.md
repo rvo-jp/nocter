@@ -57,6 +57,7 @@ Currently buildable:
 - same-file non-generic normal calls returning `bool` in `let` initializers
 - same-file non-generic normal calls returning `bool` under unary `!` in `let` initializers and bool return expressions
 - same-file non-generic normal calls returning `bool` directly in terminal `if` conditions, including unary `!`
+- same-file non-generic normal calls returning `bool` in terminal `if` short-circuit conditions such as `ready() && other()` and `ready() || other()`
 - nested `i32` normal-call arguments such as `let value = outer(inner())`
 - up to 8 `i32` parameters for lowered functions and calls
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
@@ -73,7 +74,7 @@ Currently not buildable even when it may be checkable:
 - general `if`, `while`, `loop`, range `for`, `match`, and pattern conditional `?{}`
 - imported function calls
 - nested tail-call arguments such as `return outer(inner())`
-- normal calls returning `bool` inside short-circuit bool expressions such as `ready() && other()`
+- normal calls returning `bool` inside short-circuit value expressions such as `let value = ready() && other()` or `return ready() && other()`
 - `str` values beyond static failure messages
 - optional values
 - aggregate values, arrays, views, pointers, methods, traits, generics, ownership lowering, and drop glue

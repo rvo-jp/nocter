@@ -1975,13 +1975,13 @@ func choose(): bool {
 }
 
 #[test]
-fn reports_unsupported_short_circuit_call_in_condition() {
-    let diagnostics = lower_text_diagnostics(
+fn lowers_entry_i32_if_condition_and_normal_calls() {
+    let ir = lower_text(
         r#"func main(): i32 {
     if ready() && other() {
-        return 0
+        return 42
     } else {
-        return 1
+        return 7
     }
 }
 
@@ -1995,10 +1995,116 @@ func other(): bool {
 "#,
     );
 
-    assert_eq!(diagnostics[0].code, "E8006");
     assert_eq!(
-        diagnostics[0].message,
-        "IR v0 can only lower function calls in direct tail return position"
+        ir.functions[0].instructions,
+        vec![
+            call_bool(BoolLocation::Local(0), "ready", vec![]),
+            Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Local(0)),
+                then_instructions: vec![
+                    call_bool(BoolLocation::Local(0), "other", vec![]),
+                    Instruction::If {
+                        condition: BoolValue::Location(BoolLocation::Local(0)),
+                        then_instructions: vec![set_return_i32(42), Instruction::Return],
+                        else_instructions: vec![set_return_i32(7), Instruction::Return],
+                    },
+                ],
+                else_instructions: vec![set_return_i32(7), Instruction::Return],
+            },
+        ]
+    );
+}
+
+#[test]
+fn lowers_entry_i32_if_condition_or_normal_calls() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    if ready() || other() {
+        return 42
+    } else {
+        return 7
+    }
+}
+
+func ready(): bool {
+    return false
+}
+
+func other(): bool {
+    return true
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            call_bool(BoolLocation::Local(0), "ready", vec![]),
+            Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Local(0)),
+                then_instructions: vec![set_return_i32(42), Instruction::Return],
+                else_instructions: vec![
+                    call_bool(BoolLocation::Local(0), "other", vec![]),
+                    Instruction::If {
+                        condition: BoolValue::Location(BoolLocation::Local(0)),
+                        then_instructions: vec![set_return_i32(42), Instruction::Return],
+                        else_instructions: vec![set_return_i32(7), Instruction::Return],
+                    },
+                ],
+            },
+        ]
+    );
+}
+
+#[test]
+fn lowers_entry_i32_if_condition_left_nested_and_normal_calls() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    if ready() && other() && done() {
+        return 42
+    } else {
+        return 7
+    }
+}
+
+func ready(): bool {
+    return true
+}
+
+func other(): bool {
+    return true
+}
+
+func done(): bool {
+    return true
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            call_bool(BoolLocation::Local(0), "ready", vec![]),
+            Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Local(0)),
+                then_instructions: vec![
+                    call_bool(BoolLocation::Local(0), "other", vec![]),
+                    Instruction::If {
+                        condition: BoolValue::Location(BoolLocation::Local(0)),
+                        then_instructions: vec![
+                            call_bool(BoolLocation::Local(0), "done", vec![]),
+                            Instruction::If {
+                                condition: BoolValue::Location(BoolLocation::Local(0)),
+                                then_instructions: vec![set_return_i32(42), Instruction::Return],
+                                else_instructions: vec![set_return_i32(7), Instruction::Return],
+                            },
+                        ],
+                        else_instructions: vec![set_return_i32(7), Instruction::Return],
+                    },
+                ],
+                else_instructions: vec![set_return_i32(7), Instruction::Return],
+            },
+        ]
     );
 }
 

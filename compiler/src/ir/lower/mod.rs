@@ -118,14 +118,30 @@ fn lower_reachable_functions(
 }
 
 fn call_targets(function: &Function) -> VecDeque<String> {
-    function
-        .instructions
-        .iter()
-        .filter_map(|instruction| match instruction {
+    let mut targets = VecDeque::new();
+    collect_call_targets(&function.instructions, &mut targets);
+    targets
+}
+
+fn collect_call_targets(instructions: &[Instruction], targets: &mut VecDeque<String>) {
+    for instruction in instructions {
+        match instruction {
             Instruction::CallI32 { function, .. }
             | Instruction::CallBool { function, .. }
-            | Instruction::TailCall { function, .. } => Some(function.clone()),
-            _ => None,
-        })
-        .collect()
+            | Instruction::TailCall { function, .. } => targets.push_back(function.clone()),
+            Instruction::If {
+                then_instructions,
+                else_instructions,
+                ..
+            } => {
+                collect_call_targets(then_instructions, targets);
+                collect_call_targets(else_instructions, targets);
+            }
+            Instruction::WriteStaticStderr(_)
+            | Instruction::SetI32 { .. }
+            | Instruction::SetBool { .. }
+            | Instruction::AddI32 { .. }
+            | Instruction::Return => {}
+        }
+    }
 }

@@ -7,11 +7,17 @@ Long-lived maintenance rules live in `AGENTS.md` and `docs/maintenance.md`.
 
 Recent committed work:
 
-- Current checkpoint: `Lower bool condition calls`
+- Current checkpoint: `Lower short-circuit bool condition calls`
+  - lowers same-file bool-returning normal calls in terminal `if` `&&` and `||` conditions
+  - expands short-circuit conditions to nested `Instruction::If` nodes so the right-hand call is only emitted in the branch where it should execute
+  - updates reachable call-target collection to scan nested `Instruction::If` bodies
+  - keeps short-circuit value expressions with calls, such as `let value = ready() && other()` and `return ready() && other()`, disabled
+  - adds IR lowering and CLI run coverage for `&&` and `||` condition calls
+- `c8bffa3 Lower bool condition calls`
   - lowers direct same-file bool-returning normal calls in terminal `if` conditions
   - supports `if ready() { ... } else { ... }` and `if !ready() { ... } else { ... }`
   - stages the bool call result in a temporary scalar local before `Instruction::If`
-  - keeps short-circuit bool expressions with calls, such as `ready() && other()`, disabled until staging can preserve short-circuit evaluation
+  - kept short-circuit bool expressions with calls, such as `ready() && other()`, disabled until staging can preserve short-circuit evaluation
   - adds IR lowering and CLI run coverage for direct bool normal-call conditions
 - `b017d59 Lower unary bool normal-call expressions`
   - lowers bool-returning normal calls under unary `!`
@@ -104,7 +110,7 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Lower bool condition calls`.
+- None expected after committing `Lower short-circuit bool condition calls`.
 
 ## Verification Already Run
 
@@ -324,9 +330,30 @@ cargo fmt
 cargo test --quiet ir::lower::tests::lowers_entry_i32_if_condition_normal_call
 cargo test --quiet ir::lower::tests::lowers_entry_i32_if_condition_not_normal_call
 cargo test --quiet ir::lower::tests::lowers_bool_if_condition_normal_call
-cargo test --quiet ir::lower::tests::reports_unsupported_short_circuit_call_in_condition
 cargo test --quiet --test cli_run run_command_returns_bool_condition_call_exit_code
 cargo test --quiet --test cli_run run_command_returns_not_bool_condition_call_exit_code
+cargo test --quiet
+cargo clippy --all-targets --quiet -- -D warnings
+```
+
+From repository root:
+
+```sh
+git diff --check
+```
+
+All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew shellenv, but the commands exited successfully.
+
+For the short-circuit bool condition call work, from `compiler/`:
+
+```sh
+cargo fmt
+cargo check --quiet
+cargo test --quiet ir::lower::tests::lowers_entry_i32_if_condition_and_normal_calls
+cargo test --quiet ir::lower::tests::lowers_entry_i32_if_condition_or_normal_calls
+cargo test --quiet ir::lower::tests::lowers_entry_i32_if_condition_left_nested_and_normal_calls
+cargo test --quiet --test cli_run run_command_returns_and_bool_condition_call_exit_code
+cargo test --quiet --test cli_run run_command_returns_or_bool_condition_call_exit_code
 cargo test --quiet
 cargo clippy --all-targets --quiet -- -D warnings
 ```
@@ -356,8 +383,8 @@ The current LSP maintainability pass has reached its planned stopping point:
 Recommended next small task for the next session:
 
 1. Continue compiler core backend work, not LSP-only behavior.
-2. Design short-circuit bool-call lowering before enabling calls inside `&&` or `||`.
-3. Keep imported calls, aggregates, ownership/drop lowering, nested tail-call arguments, and broader condition calls disabled until their lowering rules are designed.
+2. Consider short-circuit bool-call value expressions only after expression-result staging can preserve short-circuit evaluation.
+3. Keep imported calls, aggregates, ownership/drop lowering, nested tail-call arguments, and broader control-flow disabled until their lowering rules are designed.
 4. Add CLI build/run coverage for any newly buildable source subset.
 
 ## Design Constraints To Preserve

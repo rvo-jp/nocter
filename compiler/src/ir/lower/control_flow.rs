@@ -2,7 +2,7 @@ use super::context::LoweringContext;
 use super::expressions::{
     lower_bool_expression_to_value, lower_bool_return_expression, lower_i32_return_expression,
 };
-use crate::ast::{Block, IfStmt, Stmt};
+use crate::ast::{BinaryExpr, BinaryOperator, Block, Expr, IfStmt, Stmt};
 use crate::diagnostics::Diagnostic;
 use crate::ir::Instruction;
 
@@ -12,7 +12,6 @@ pub(super) fn lower_terminal_i32_if_statement(
     diagnostic_code: &'static str,
     subject: &str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let condition = lower_bool_condition(&statement.condition, context, diagnostic_code)?;
     let Some(else_block) = &statement.else_block else {
         return Err(unsupported_terminal_if_diagnostic(
             diagnostic_code,
@@ -21,18 +20,13 @@ pub(super) fn lower_terminal_i32_if_statement(
         ));
     };
 
-    let mut instructions = condition.instructions;
-    instructions.push(Instruction::If {
-        condition: condition.value,
-        then_instructions: lower_i32_return_block(
-            &statement.then_block,
-            context,
-            diagnostic_code,
-            subject,
-        )?,
-        else_instructions: lower_i32_return_block(else_block, context, diagnostic_code, subject)?,
-    });
-    Ok(instructions)
+    lower_terminal_condition(
+        &statement.condition,
+        lower_i32_return_block(&statement.then_block, context, diagnostic_code, subject)?,
+        lower_i32_return_block(else_block, context, diagnostic_code, subject)?,
+        context,
+        diagnostic_code,
+    )
 }
 
 pub(super) fn lower_terminal_bool_if_statement(
@@ -41,7 +35,6 @@ pub(super) fn lower_terminal_bool_if_statement(
     diagnostic_code: &'static str,
     subject: &str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let condition = lower_bool_condition(&statement.condition, context, diagnostic_code)?;
     let Some(else_block) = &statement.else_block else {
         return Err(unsupported_terminal_if_diagnostic(
             diagnostic_code,
@@ -50,26 +43,139 @@ pub(super) fn lower_terminal_bool_if_statement(
         ));
     };
 
+    lower_terminal_condition(
+        &statement.condition,
+        lower_bool_return_block(&statement.then_block, context, diagnostic_code, subject)?,
+        lower_bool_return_block(else_block, context, diagnostic_code, subject)?,
+        context,
+        diagnostic_code,
+    )
+}
+
+fn lower_terminal_condition(
+    condition: &Expr,
+    then_instructions: Vec<Instruction>,
+    else_instructions: Vec<Instruction>,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(binary) = short_circuit_condition_with_call(condition) {
+        return lower_short_circuit_terminal_condition(
+            binary,
+            then_instructions,
+            else_instructions,
+            context,
+            diagnostic_code,
+        );
+    }
+
+    let condition = lower_bool_expression_to_value(condition, context, diagnostic_code)?;
     let mut instructions = condition.instructions;
     instructions.push(Instruction::If {
         condition: condition.value,
-        then_instructions: lower_bool_return_block(
-            &statement.then_block,
-            context,
-            diagnostic_code,
-            subject,
-        )?,
-        else_instructions: lower_bool_return_block(else_block, context, diagnostic_code, subject)?,
+        then_instructions,
+        else_instructions,
     });
     Ok(instructions)
 }
 
-fn lower_bool_condition(
-    condition: &crate::ast::Expr,
+fn lower_short_circuit_terminal_condition(
+    binary: &BinaryExpr,
+    then_instructions: Vec<Instruction>,
+    else_instructions: Vec<Instruction>,
     context: &LoweringContext,
     diagnostic_code: &'static str,
-) -> Result<super::expressions::LoweredBoolValue, Vec<Diagnostic>> {
-    lower_bool_expression_to_value(condition, context, diagnostic_code)
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match binary.operator {
+        BinaryOperator::LogicalAnd => lower_terminal_condition(
+            &binary.left,
+            lower_terminal_condition(
+                &binary.right,
+                then_instructions,
+                else_instructions.clone(),
+                context,
+                diagnostic_code,
+            )?,
+            else_instructions,
+            context,
+            diagnostic_code,
+        ),
+        BinaryOperator::LogicalOr => lower_terminal_condition(
+            &binary.left,
+            then_instructions.clone(),
+            lower_terminal_condition(
+                &binary.right,
+                then_instructions,
+                else_instructions,
+                context,
+                diagnostic_code,
+            )?,
+            context,
+            diagnostic_code,
+        ),
+        _ => unreachable!("short-circuit condition must be && or ||"),
+    }
+}
+
+fn short_circuit_condition_with_call(condition: &Expr) -> Option<&BinaryExpr> {
+    let condition = unwrap_group(condition);
+    let Expr::Binary(binary) = condition else {
+        return None;
+    };
+
+    match binary.operator {
+        BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
+            if expression_contains_call(&binary.left)
+                || expression_contains_call(&binary.right) =>
+        {
+            Some(binary)
+        }
+        _ => None,
+    }
+}
+
+fn unwrap_group(expression: &Expr) -> &Expr {
+    match expression {
+        Expr::Group(group) => unwrap_group(&group.expression),
+        _ => expression,
+    }
+}
+
+fn expression_contains_call(expression: &Expr) -> bool {
+    match expression {
+        Expr::Call(_) => true,
+        Expr::Unary(unary) => expression_contains_call(&unary.operand),
+        Expr::Binary(binary) => {
+            expression_contains_call(&binary.left) || expression_contains_call(&binary.right)
+        }
+        Expr::Group(group) => expression_contains_call(&group.expression),
+        Expr::TypeConversion(conversion) => expression_contains_call(&conversion.expression),
+        Expr::Propagate(propagation) => expression_contains_call(&propagation.expression),
+        Expr::Force(force) => expression_contains_call(&force.expression),
+        Expr::Catch(catch) => expression_contains_call(&catch.expression),
+        Expr::Member(member) => expression_contains_call(&member.object),
+        Expr::Index(index) => {
+            expression_contains_call(&index.object) || expression_contains_call(&index.index)
+        }
+        Expr::ArrayLiteral(array) => array.elements.iter().any(expression_contains_call),
+        Expr::StructLiteral(struct_literal) => struct_literal
+            .fields
+            .iter()
+            .any(|field| expression_contains_call(&field.value)),
+        Expr::OptionalDefault(optional_default) => {
+            expression_contains_call(&optional_default.value)
+                || expression_contains_call(&optional_default.default)
+        }
+        Expr::PatternConditional(pattern_conditional) => {
+            expression_contains_call(&pattern_conditional.target)
+                || pattern_conditional
+                    .arms
+                    .iter()
+                    .any(|arm| expression_contains_call(&arm.expression))
+                || expression_contains_call(&pattern_conditional.fallback)
+        }
+        _ => false,
+    }
 }
 
 fn lower_i32_return_block(

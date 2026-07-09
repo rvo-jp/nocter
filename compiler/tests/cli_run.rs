@@ -301,6 +301,76 @@ func ready(): bool {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_and_bool_condition_call_exit_code() {
+    let project = TempProject::new("cli-run-and-bool-condition-call");
+    let source = project.write_source(
+        "and_bool_condition_call.nct",
+        r#"func main(): i32 {
+    if ready() && enabled() {
+        return 42
+    } else {
+        return 7
+    }
+}
+
+func ready(): bool {
+    return true
+}
+
+func enabled(): bool {
+    return true
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_or_bool_condition_call_exit_code() {
+    let project = TempProject::new("cli-run-or-bool-condition-call");
+    let source = project.write_source(
+        "or_bool_condition_call.nct",
+        r#"func main(): i32 {
+    if ready() || enabled() {
+        return 42
+    } else {
+        return 7
+    }
+}
+
+func ready(): bool {
+    return false
+}
+
+func enabled(): bool {
+    return true
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_preserves_local_across_i32_normal_call_addition() {
     let project = TempProject::new("cli-run-normal-call-local-add");
     let source = project.write_source(
