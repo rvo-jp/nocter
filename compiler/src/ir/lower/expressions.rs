@@ -204,6 +204,21 @@ pub(super) fn lower_bool_expression_to_location(
                 diagnostic_code,
             )
         }
+        Expr::Binary(binary) if bool_comparison_contains_call(binary) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let comparison = lower_bool_comparison_to_value_with_temporaries(
+                binary,
+                context,
+                diagnostic_code,
+                &mut temporaries,
+            )?;
+            let mut instructions = comparison.instructions;
+            instructions.push(Instruction::SetBool {
+                destination,
+                value: comparison.value,
+            });
+            Ok(instructions)
+        }
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             lower_bool_normal_call(call, destination, context, &mut temporaries)
@@ -401,6 +416,14 @@ fn lower_bool_expression_to_value_with_temporaries(
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
     match expression {
+        Expr::Binary(binary) if bool_comparison_contains_call(binary) => {
+            lower_bool_comparison_to_value_with_temporaries(
+                binary,
+                context,
+                diagnostic_code,
+                temporaries,
+            )
+        }
         Expr::Call(call) => {
             let temporary = temporaries.next_bool()?;
             Ok(LoweredBoolValue {
@@ -431,6 +454,80 @@ fn lower_bool_expression_to_value_with_temporaries(
             value: lower_bool_value(expression, context, diagnostic_code)?,
         }),
     }
+}
+
+fn lower_bool_comparison_to_value_with_temporaries(
+    binary: &BinaryExpr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
+    let operator = match binary.operator {
+        BinaryOperator::Equal => BoolComparisonOperator::Equal,
+        BinaryOperator::NotEqual => BoolComparisonOperator::NotEqual,
+        _ => return Err(unsupported_bool_expression_diagnostic(diagnostic_code)),
+    };
+
+    let left = lower_bool_comparison_operand_to_value_with_temporaries(
+        &binary.left,
+        context,
+        diagnostic_code,
+        temporaries,
+    )?;
+    let right = lower_bool_comparison_operand_to_value_with_temporaries(
+        &binary.right,
+        context,
+        diagnostic_code,
+        temporaries,
+    )?;
+
+    let mut instructions = left.instructions;
+    instructions.extend(right.instructions);
+    Ok(LoweredBoolValue {
+        instructions,
+        value: BoolValue::BoolComparison {
+            operator,
+            left: Box::new(left.value),
+            right: Box::new(right.value),
+        },
+    })
+}
+
+fn lower_bool_comparison_operand_to_value_with_temporaries(
+    expression: &Expr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(call) => {
+            let temporary = temporaries.next_bool()?;
+            Ok(LoweredBoolValue {
+                instructions: lower_bool_normal_call(call, temporary, context, temporaries)?,
+                value: BoolValue::Location(temporary),
+            })
+        }
+        Expr::BoolLiteral(_) | Expr::Identifier(_) => Ok(LoweredBoolValue {
+            instructions: Vec::new(),
+            value: lower_bool_comparison_operand(expression, context, diagnostic_code)?,
+        }),
+        Expr::Group(group) => lower_bool_comparison_operand_to_value_with_temporaries(
+            &group.expression,
+            context,
+            diagnostic_code,
+            temporaries,
+        ),
+        _ => Err(unsupported_bool_comparison_operand_diagnostic(
+            diagnostic_code,
+        )),
+    }
+}
+
+fn bool_comparison_contains_call(binary: &BinaryExpr) -> bool {
+    matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) && (expression_contains_call(&binary.left) || expression_contains_call(&binary.right))
 }
 
 fn lower_i32_normal_call(
@@ -837,7 +934,12 @@ fn expression_is_lowerable_comparison_binding(
     matches!(
         binary.operator,
         BinaryOperator::Equal | BinaryOperator::NotEqual
-    ) && expressions_are_lowerable_bool_comparison_operands(&binary.left, &binary.right, context)
+    ) && (expressions_are_lowerable_bool_comparison_operands(&binary.left, &binary.right, context)
+        || expressions_are_lowerable_bool_comparison_operands_with_calls(
+            &binary.left,
+            &binary.right,
+            context,
+        ))
 }
 
 fn expressions_are_lowerable_i32_values(
@@ -885,6 +987,37 @@ fn expression_is_lowerable_bool_comparison_operand(
         Expr::Group(group) => {
             expression_is_lowerable_bool_comparison_operand(&group.expression, context)
         }
+        _ => false,
+    }
+}
+
+fn expressions_are_lowerable_bool_comparison_operands_with_calls(
+    left: &Expr,
+    right: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    expression_is_lowerable_bool_comparison_operand_or_call(left, context)
+        && expression_is_lowerable_bool_comparison_operand_or_call(right, context)
+        && (expression_contains_call(left) || expression_contains_call(right))
+}
+
+fn expression_is_lowerable_bool_comparison_operand_or_call(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    expression_is_lowerable_bool_comparison_operand(expression, context)
+        || expression_is_direct_bool_returning_call(expression, context)
+}
+
+fn expression_is_direct_bool_returning_call(expression: &Expr, context: &LoweringContext) -> bool {
+    match expression {
+        Expr::Call(call) => {
+            let Expr::Identifier(identifier) = call.callee.as_ref() else {
+                return false;
+            };
+            context.function_return_type(&identifier.name) == Some(&Type::Bool)
+        }
+        Expr::Group(group) => expression_is_direct_bool_returning_call(&group.expression, context),
         _ => false,
     }
 }

@@ -1976,6 +1976,128 @@ func enabled(): bool {
 }
 
 #[test]
+fn lowers_bool_let_initializer_normal_call_comparison() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let value = ready() == true
+    if value {
+        return 42
+    } else {
+        return 7
+    }
+}
+
+func ready(): bool {
+    return true
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            call_bool(BoolLocation::Local(0), "ready", vec![]),
+            Instruction::SetBool {
+                destination: BoolLocation::Local(0),
+                value: BoolValue::BoolComparison {
+                    operator: BoolComparisonOperator::Equal,
+                    left: Box::new(BoolValue::Location(BoolLocation::Local(0))),
+                    right: Box::new(BoolValue::Const(true)),
+                },
+            },
+            Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Local(0)),
+                then_instructions: vec![set_return_i32(42), Instruction::Return],
+                else_instructions: vec![set_return_i32(7), Instruction::Return],
+            },
+        ]
+    );
+}
+
+#[test]
+fn lowers_bool_return_normal_call_comparison() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func left(): bool {
+    return true
+}
+
+func right(): bool {
+    return false
+}
+
+func differs(): bool {
+    return left() != right()
+}
+"#,
+        "differs",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "differs".to_string(),
+            return_type: Type::Bool,
+            instructions: vec![
+                call_bool(BoolLocation::Local(0), "left", vec![]),
+                call_bool(BoolLocation::Local(1), "right", vec![]),
+                Instruction::SetBool {
+                    destination: BoolLocation::Return,
+                    value: BoolValue::BoolComparison {
+                        operator: BoolComparisonOperator::NotEqual,
+                        left: Box::new(BoolValue::Location(BoolLocation::Local(0))),
+                        right: Box::new(BoolValue::Location(BoolLocation::Local(1))),
+                    },
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_entry_i32_if_condition_normal_call_comparison() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    if left() == right() {
+        return 42
+    } else {
+        return 7
+    }
+}
+
+func left(): bool {
+    return true
+}
+
+func right(): bool {
+    return true
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            call_bool(BoolLocation::Local(0), "left", vec![]),
+            call_bool(BoolLocation::Local(1), "right", vec![]),
+            Instruction::If {
+                condition: BoolValue::BoolComparison {
+                    operator: BoolComparisonOperator::Equal,
+                    left: Box::new(BoolValue::Location(BoolLocation::Local(0))),
+                    right: Box::new(BoolValue::Location(BoolLocation::Local(1))),
+                },
+                then_instructions: vec![set_return_i32(42), Instruction::Return],
+                else_instructions: vec![set_return_i32(7), Instruction::Return],
+            },
+        ]
+    );
+}
+
+#[test]
 fn lowers_entry_i32_if_condition_normal_call() {
     let ir = lower_text(
         r#"func main(): i32 {
@@ -2221,7 +2343,7 @@ func done(): bool {
 }
 
 #[test]
-fn reports_unsupported_bool_non_tail_call() {
+fn reports_unsupported_compound_bool_call_comparison_operand() {
     let diagnostics = lower_named_function_diagnostics_with_signatures(
         r#"func main(): i32 {
     return 0
@@ -2231,18 +2353,22 @@ func ready(): bool {
     return true
 }
 
+func other(): bool {
+    return true
+}
+
 func enabled(): bool {
-    return ready() == true
+    return (ready() && other()) == true
 }
 "#,
         "enabled",
         context::FunctionSignatures::new(HashMap::new()),
     );
 
-    assert_eq!(diagnostics[0].code, "E8006");
+    assert_eq!(diagnostics[0].code, "E8007");
     assert_eq!(
         diagnostics[0].message,
-        "IR v0 can only lower function calls in direct tail return position"
+        "IR v0 can only lower bool equality/inequality operands that are bool literals or bool locals"
     );
 }
 

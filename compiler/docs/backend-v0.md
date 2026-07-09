@@ -46,7 +46,7 @@ The first implementation should keep the user-visible subset small:
 - same-file, non-generic calls only
 - `i32` arguments only
 - `i32` return values in lowerable `i32` expressions and `let` initializers
-- `bool` return values in `let` initializers, unary-not bool expressions, short-circuit bool value expressions, direct terminal-if conditions, and terminal-if short-circuit conditions
+- `bool` return values in `let` initializers, unary-not bool expressions, bool equality/inequality operands, short-circuit bool value expressions, direct terminal-if conditions, and terminal-if short-circuit conditions
 - up to 8 arguments, passed in `w0` through `w7`
 - no imported calls, aggregate arguments, aggregate returns, strings, optionals, ownership/drop lowering, or calls in broader control-flow
 
@@ -168,8 +168,10 @@ This covers `let x = callee()` and `return callee() + 1` after the expression lo
 The source expression lowerer stages normal-call results in temporary scalar locals for `i32` additions.
 Multiple normal calls in an addition are evaluated left to right and receive distinct temporary locals.
 Nested normal-call arguments are also evaluated left to right before the parent `CallI32`.
-Bool-returning normal calls are buildable in `let` initializers, unary-not bool expressions, short-circuit bool value expressions, direct terminal-if conditions, and terminal-if short-circuit conditions.
+Bool-returning normal calls are buildable in `let` initializers, unary-not bool expressions, bool equality/inequality operands, short-circuit bool value expressions, direct terminal-if conditions, and terminal-if short-circuit conditions.
 For example, `let ready = enabled()`, `let disabled = !enabled()`, `if enabled() { ... }`, and `if !enabled() { ... }` lower by staging the bool call result in a temporary scalar local before the surrounding bool expression consumes it.
+Bool equality/inequality such as `let same = left() == right()` and `return ready() != false` evaluates call operands left to right, stages each result in a temporary scalar local, and then builds a `BoolValue::BoolComparison`.
+Compound bool comparison operands such as `(left() && right()) == true` remain disabled.
 Terminal-if conditions such as `if enabled() && other() { ... }` lower to nested `Instruction::If` nodes so `other()` is only evaluated when `enabled()` is true.
 `if enabled() || other() { ... }` uses the same nested form with `other()` evaluated only when `enabled()` is false.
 Bool short-circuit value expressions with calls, such as `let ready = enabled() && other()` or `return enabled() && other()`, lower to nested `Instruction::If` nodes that materialize `true` or `false` into the destination bool location.
@@ -208,6 +210,7 @@ Implement normal calls in this order:
 13. Done: lower direct same-file bool-returning normal calls in terminal-if conditions, including unary `!`, while keeping short-circuit call conditions disabled.
 14. Done: lower same-file bool-returning normal calls in terminal-if `&&` and `||` conditions by expanding to nested `Instruction::If` and preserving short-circuit evaluation.
 15. Done: lower same-file bool-returning normal calls in short-circuit bool value expressions by expanding to nested `Instruction::If` and materializing the bool result.
+16. Done: lower same-file bool-returning normal calls as atomic bool equality/inequality operands by staging call results left to right before `BoolValue::BoolComparison`.
 
 ### Non-Goals For This Phase
 

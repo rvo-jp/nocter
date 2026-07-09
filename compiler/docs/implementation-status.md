@@ -56,6 +56,7 @@ Currently buildable:
 - same-file non-generic normal calls returning `i32` in `i32` additions, evaluated left to right with distinct temporary locals
 - same-file non-generic normal calls returning `bool` in `let` initializers
 - same-file non-generic normal calls returning `bool` under unary `!` in `let` initializers and bool return expressions
+- same-file non-generic normal calls returning `bool` as atomic bool equality/inequality operands such as `ready() == true` and `left() != right()`
 - same-file non-generic normal calls returning `bool` in short-circuit bool value expressions such as `let value = ready() && other()` and `return ready() || other()`
 - same-file non-generic normal calls returning `bool` directly in terminal `if` conditions, including unary `!`
 - same-file non-generic normal calls returning `bool` in terminal `if` short-circuit conditions such as `ready() && other()` and `ready() || other()`
@@ -75,6 +76,7 @@ Currently not buildable even when it may be checkable:
 - general `if`, `while`, `loop`, range `for`, `match`, and pattern conditional `?{}`
 - imported function calls
 - nested tail-call arguments such as `return outer(inner())`
+- compound bool equality operands with calls such as `(ready() && other()) == true`
 - `str` values beyond static failure messages
 - optional values
 - aggregate values, arrays, views, pointers, methods, traits, generics, ownership lowering, and drop glue

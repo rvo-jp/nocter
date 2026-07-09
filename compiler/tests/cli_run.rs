@@ -446,6 +446,77 @@ func fallback(): bool {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_bool_call_comparison_let_exit_code() {
+    let project = TempProject::new("cli-run-bool-call-comparison-let");
+    let source = project.write_source(
+        "bool_call_comparison_let.nct",
+        r#"func main(): i32 {
+    let value = ready() == true
+    if value {
+        return 42
+    } else {
+        return 7
+    }
+}
+
+func ready(): bool {
+    return true
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_bool_call_comparison_return_exit_code() {
+    let project = TempProject::new("cli-run-bool-call-comparison-return");
+    let source = project.write_source(
+        "bool_call_comparison_return.nct",
+        r#"func main(): i32 {
+    if differs() {
+        return 42
+    } else {
+        return 7
+    }
+}
+
+func differs(): bool {
+    return left() != right()
+}
+
+func left(): bool {
+    return true
+}
+
+func right(): bool {
+    return false
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_preserves_local_across_i32_normal_call_addition() {
     let project = TempProject::new("cli-run-normal-call-local-add");
     let source = project.write_source(

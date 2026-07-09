@@ -7,7 +7,13 @@ Long-lived maintenance rules live in `AGENTS.md` and `docs/maintenance.md`.
 
 Recent committed work:
 
-- Current checkpoint: `Lower short-circuit bool value calls`
+- Current checkpoint: `Lower bool call comparisons`
+  - lowers same-file bool-returning normal calls as atomic bool equality/inequality operands
+  - supports `let value = ready() == true`, `return left() != right()`, and `if left() == right()`
+  - stages bool call operands left to right before building `BoolValue::BoolComparison`
+  - keeps compound bool comparison operands with calls, such as `(ready() && other()) == true`, disabled
+  - adds IR lowering and CLI run coverage for bool call comparisons
+- `8af4c6b Lower short-circuit bool value calls`
   - lowers same-file bool-returning normal calls in short-circuit bool value expressions
   - supports `let value = ready() && other()` and `return ready() || other()`
   - expands `&&` and `||` to nested `Instruction::If` nodes and materializes `true` or `false` into the destination bool location
@@ -116,7 +122,7 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Lower short-circuit bool value calls`.
+- None expected after committing `Lower bool call comparisons`.
 
 ## Verification Already Run
 
@@ -381,6 +387,29 @@ cargo test --quiet ir::lower::tests::lowers_bool_let_initializer_and_normal_call
 cargo test --quiet ir::lower::tests::lowers_bool_return_or_normal_calls
 cargo test --quiet --test cli_run run_command_returns_and_bool_value_call_exit_code
 cargo test --quiet --test cli_run run_command_returns_or_bool_return_call_exit_code
+cargo test --quiet
+cargo clippy --all-targets --quiet -- -D warnings
+```
+
+From repository root:
+
+```sh
+git diff --check
+```
+
+All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew shellenv, but the commands exited successfully.
+
+For the bool call comparison work, from `compiler/`:
+
+```sh
+cargo fmt
+cargo check --quiet
+cargo test --quiet ir::lower::tests::lowers_bool_let_initializer_normal_call_comparison
+cargo test --quiet ir::lower::tests::lowers_bool_return_normal_call_comparison
+cargo test --quiet ir::lower::tests::lowers_entry_i32_if_condition_normal_call_comparison
+cargo test --quiet ir::lower::tests::reports_unsupported_compound_bool_call_comparison_operand
+cargo test --quiet --test cli_run run_command_returns_bool_call_comparison_let_exit_code
+cargo test --quiet --test cli_run run_command_returns_bool_call_comparison_return_exit_code
 cargo test --quiet
 cargo clippy --all-targets --quiet -- -D warnings
 ```
