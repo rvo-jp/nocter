@@ -3,8 +3,8 @@ use super::literals::lower_i32_literal;
 use crate::ast::{BinaryExpr, BinaryOperator, CallExpr, Expr, UnaryExpr, UnaryOperator};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolLocation, BoolLogicalOperator, BoolValue, I32ComparisonOperator, I32Location, I32Value,
-    Instruction, Type,
+    BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, I32ComparisonOperator,
+    I32Location, I32Value, Instruction, Type,
 };
 
 pub(super) fn lower_i32_expression(
@@ -203,12 +203,33 @@ pub(super) fn expression_is_lowerable_bool_binding(
                 && expression_is_lowerable_bool_binding(&unary.operand, context)
         }
         Expr::Binary(binary) => {
-            is_i32_comparison_operator(binary.operator)
+            expression_is_lowerable_comparison_binding(binary, context)
                 || (is_bool_logical_operator(binary.operator)
                     && expression_is_lowerable_bool_binding(&binary.left, context)
                     && expression_is_lowerable_bool_binding(&binary.right, context))
         }
         Expr::Group(group) => expression_is_lowerable_bool_binding(&group.expression, context),
+        _ => false,
+    }
+}
+
+pub(super) fn expression_is_unsupported_bool_comparison_binding(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    match expression {
+        Expr::Binary(binary) => {
+            is_bool_equality_operator(binary.operator)
+                && expressions_are_lowerable_bool_values(&binary.left, &binary.right, context)
+                && !expressions_are_lowerable_bool_comparison_operands(
+                    &binary.left,
+                    &binary.right,
+                    context,
+                )
+        }
+        Expr::Group(group) => {
+            expression_is_unsupported_bool_comparison_binding(&group.expression, context)
+        }
         _ => false,
     }
 }
@@ -237,6 +258,22 @@ fn lower_bool_binary_value(
         BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr => {
             lower_bool_logical_value(binary, context, diagnostic_code)
         }
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+            if expressions_are_lowerable_bool_comparison_operands(
+                &binary.left,
+                &binary.right,
+                context,
+            ) =>
+        {
+            lower_bool_comparison_condition(binary, context, diagnostic_code)
+        }
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+            if expressions_are_lowerable_bool_values(&binary.left, &binary.right, context) =>
+        {
+            Err(unsupported_bool_comparison_operand_diagnostic(
+                diagnostic_code,
+            ))
+        }
         _ => lower_i32_comparison_condition(binary, context, diagnostic_code),
     }
 }
@@ -257,6 +294,54 @@ fn lower_bool_logical_value(
         left: Box::new(lower_bool_value(&binary.left, context, diagnostic_code)?),
         right: Box::new(lower_bool_value(&binary.right, context, diagnostic_code)?),
     })
+}
+
+fn lower_bool_comparison_condition(
+    binary: &BinaryExpr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<BoolValue, Vec<Diagnostic>> {
+    let operator = match binary.operator {
+        BinaryOperator::Equal => BoolComparisonOperator::Equal,
+        BinaryOperator::NotEqual => BoolComparisonOperator::NotEqual,
+        _ => return Err(unsupported_bool_expression_diagnostic(diagnostic_code)),
+    };
+
+    Ok(BoolValue::BoolComparison {
+        operator,
+        left: Box::new(lower_bool_comparison_operand(
+            &binary.left,
+            context,
+            diagnostic_code,
+        )?),
+        right: Box::new(lower_bool_comparison_operand(
+            &binary.right,
+            context,
+            diagnostic_code,
+        )?),
+    })
+}
+
+fn lower_bool_comparison_operand(
+    expression: &Expr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<BoolValue, Vec<Diagnostic>> {
+    match expression {
+        Expr::BoolLiteral(literal) => match literal.value.as_str() {
+            "true" => Ok(BoolValue::Const(true)),
+            "false" => Ok(BoolValue::Const(false)),
+            _ => Err(unsupported_bool_expression_diagnostic(diagnostic_code)),
+        },
+        Expr::Identifier(identifier) => context
+            .bool_location(&identifier.name)
+            .map(BoolValue::Location)
+            .ok_or_else(|| unsupported_bool_expression_diagnostic(diagnostic_code)),
+        Expr::Group(group) => {
+            lower_bool_comparison_operand(&group.expression, context, diagnostic_code)
+        }
+        _ => Err(unsupported_bool_expression_diagnostic(diagnostic_code)),
+    }
 }
 
 fn lower_i32_comparison_condition(
@@ -293,11 +378,80 @@ fn is_i32_comparison_operator(operator: BinaryOperator) -> bool {
     )
 }
 
+fn expression_is_lowerable_comparison_binding(
+    binary: &BinaryExpr,
+    context: &LoweringContext,
+) -> bool {
+    if is_i32_comparison_operator(binary.operator)
+        && expressions_are_lowerable_i32_values(&binary.left, &binary.right, context)
+    {
+        return true;
+    }
+
+    matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) && expressions_are_lowerable_bool_comparison_operands(&binary.left, &binary.right, context)
+}
+
+fn expressions_are_lowerable_i32_values(
+    left: &Expr,
+    right: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    expression_is_lowerable_i32_value(left, context)
+        && expression_is_lowerable_i32_value(right, context)
+}
+
+fn expression_is_lowerable_i32_value(expression: &Expr, context: &LoweringContext) -> bool {
+    match expression {
+        Expr::Identifier(identifier) => context.i32_location(&identifier.name).is_some(),
+        Expr::Group(group) => expression_is_lowerable_i32_value(&group.expression, context),
+        _ => lower_i32_literal(expression).is_ok(),
+    }
+}
+
+fn expressions_are_lowerable_bool_comparison_operands(
+    left: &Expr,
+    right: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    expression_is_lowerable_bool_comparison_operand(left, context)
+        && expression_is_lowerable_bool_comparison_operand(right, context)
+}
+
+fn expressions_are_lowerable_bool_values(
+    left: &Expr,
+    right: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    expression_is_lowerable_bool_binding(left, context)
+        && expression_is_lowerable_bool_binding(right, context)
+}
+
+fn expression_is_lowerable_bool_comparison_operand(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    match expression {
+        Expr::BoolLiteral(_) => true,
+        Expr::Identifier(identifier) => context.bool_location(&identifier.name).is_some(),
+        Expr::Group(group) => {
+            expression_is_lowerable_bool_comparison_operand(&group.expression, context)
+        }
+        _ => false,
+    }
+}
+
 fn is_bool_logical_operator(operator: BinaryOperator) -> bool {
     matches!(
         operator,
         BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
     )
+}
+
+fn is_bool_equality_operator(operator: BinaryOperator) -> bool {
+    matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual)
 }
 
 fn unsupported_i32_expression_diagnostic() -> Vec<Diagnostic> {
@@ -307,9 +461,18 @@ fn unsupported_i32_expression_diagnostic() -> Vec<Diagnostic> {
     )]
 }
 
+fn unsupported_bool_comparison_operand_diagnostic(
+    diagnostic_code: &'static str,
+) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        diagnostic_code,
+        "IR v0 can only lower bool equality/inequality operands that are bool literals or bool locals",
+    )]
+}
+
 fn unsupported_bool_expression_diagnostic(diagnostic_code: &'static str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         diagnostic_code,
-        "IR v0 can only lower bool literals, bool locals, bool operators, and i32 comparisons",
+        "IR v0 can only lower bool literals, bool locals, bool operators, i32 comparisons, and bool equality/inequality over bool literals or bool locals",
     )]
 }

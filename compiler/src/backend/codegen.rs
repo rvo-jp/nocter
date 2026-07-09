@@ -1,7 +1,7 @@
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolLocation, BoolLogicalOperator, BoolValue, Function, I32ComparisonOperator, I32Location,
-    I32Value, Instruction, IrModule, Type,
+    BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, Function,
+    I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule, Type,
 };
 use crate::target::arm64::{BranchCondition, Encoder, MoveWideShift, WReg, XReg};
 use std::collections::HashMap;
@@ -178,6 +178,18 @@ impl EntryEmitter {
                     branch_condition_for_false_comparison(*operator),
                 )])
             }
+            BoolValue::BoolComparison {
+                operator,
+                left,
+                right,
+            } => {
+                self.emit_bool_value_to_w(left, WReg::W16)?;
+                self.emit_bool_value_to_w(right, WReg::W17)?;
+                self.encoder.emit_cmp_w(WReg::W16, WReg::W17);
+                Ok(vec![self.emit_cond_branch_placeholder(
+                    branch_condition_for_false_bool_comparison(*operator),
+                )])
+            }
             BoolValue::Not(inner) => self.emit_bool_true_branch_placeholders(inner),
             BoolValue::Logical {
                 operator,
@@ -224,6 +236,18 @@ impl EntryEmitter {
                 self.encoder.emit_cmp_w(WReg::W16, WReg::W17);
                 Ok(vec![self.emit_cond_branch_placeholder(
                     branch_condition_for_true_comparison(*operator),
+                )])
+            }
+            BoolValue::BoolComparison {
+                operator,
+                left,
+                right,
+            } => {
+                self.emit_bool_value_to_w(left, WReg::W16)?;
+                self.emit_bool_value_to_w(right, WReg::W17)?;
+                self.encoder.emit_cmp_w(WReg::W16, WReg::W17);
+                Ok(vec![self.emit_cond_branch_placeholder(
+                    branch_condition_for_true_bool_comparison(*operator),
                 )])
             }
             BoolValue::Not(inner) => self.emit_bool_false_branch_placeholders(inner),
@@ -429,7 +453,10 @@ impl EntryEmitter {
                     self.encoder.emit_mov_w(destination, source);
                 }
             }
-            BoolValue::Not(_) | BoolValue::Logical { .. } | BoolValue::I32Comparison { .. } => {
+            BoolValue::Not(_)
+            | BoolValue::Logical { .. }
+            | BoolValue::I32Comparison { .. }
+            | BoolValue::BoolComparison { .. } => {
                 let branches_to_false = self.emit_bool_false_branch_placeholders(value)?;
                 emit_mov_i32_to_w(&mut self.encoder, destination, 1);
                 let branch_to_end = self.emit_branch_placeholder();
@@ -671,6 +698,20 @@ fn branch_condition_for_false_comparison(operator: I32ComparisonOperator) -> Bra
         I32ComparisonOperator::LessEqual => BranchCondition::Gt,
         I32ComparisonOperator::Greater => BranchCondition::Le,
         I32ComparisonOperator::GreaterEqual => BranchCondition::Lt,
+    }
+}
+
+fn branch_condition_for_true_bool_comparison(operator: BoolComparisonOperator) -> BranchCondition {
+    match operator {
+        BoolComparisonOperator::Equal => BranchCondition::Eq,
+        BoolComparisonOperator::NotEqual => BranchCondition::Ne,
+    }
+}
+
+fn branch_condition_for_false_bool_comparison(operator: BoolComparisonOperator) -> BranchCondition {
+    match operator {
+        BoolComparisonOperator::Equal => BranchCondition::Ne,
+        BoolComparisonOperator::NotEqual => BranchCondition::Eq,
     }
 }
 

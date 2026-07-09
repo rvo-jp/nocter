@@ -153,6 +153,70 @@ fn build_command_lowers_terminal_if_bool_logical() {
 }
 
 #[test]
+fn build_command_lowers_bool_equality() {
+    let project = TempProject::new("cli-build-bool-equality");
+    let source = project.write_source(
+        "bool_equality.nct",
+        r#"func main(): i32 {
+    let ready = true
+    let blocked = false
+    let same = ready == blocked
+    if same {
+        return 1
+    } else {
+        return 0
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_reports_unsupported_compound_bool_equality() {
+    let project = TempProject::new("cli-build-compound-bool-equality");
+    let source = project.write_source(
+        "compound_bool_equality.nct",
+        r#"func main(): i32 {
+    let ready = true
+    let blocked = false
+    let same = !ready == blocked
+    if same {
+        return 1
+    } else {
+        return 0
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E8008]"),
+        "expected IR lowering diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains(
+            "IR v0 can only lower bool equality/inequality operands that are bool literals or bool locals"
+        ),
+        "expected bool equality/inequality operand diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after compile diagnostics"
+    );
+}
+
+#[test]
 fn build_command_lowers_terminal_if_i32_equality() {
     let project = TempProject::new("cli-build-terminal-if-equality");
     let source = project.write_source(

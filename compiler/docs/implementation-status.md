@@ -19,7 +19,7 @@ This file describes implementation state only.
 | Root `main` / `--entry` selection | yes | yes | yes | yes | yes | Entry function must be in the root file. |
 | `i32` return values | yes | yes | yes | yes | yes | Literal returns and lowerable expressions are supported. |
 | `void` entry | yes | yes | yes | yes | yes | Empty body and bare `return` are buildable. |
-| `bool` expressions | yes | yes | yes | partial | yes | Build supports literals, locals, `!`, `&&`, `||`, and `i32` comparisons in lowerable positions. |
+| `bool` expressions | yes | yes | yes | partial | yes | Build supports literals, locals, `!`, `&&`, `||`, `i32` comparisons, and bool equality/inequality over literal/local operands in lowerable positions. |
 | Immutable `let` bindings | yes | yes | yes | partial | yes | Build supports lowerable `i32` and `bool` initializers. |
 | `var` and reassignment | yes | yes | partial | no | no | Backend has no general local storage yet. |
 | Same-file function calls | yes | yes | yes | partial | partial | Build supports non-generic `i32` tail calls with up to 8 `i32` arguments and `bool` tail returns. |
@@ -55,8 +55,8 @@ Currently buildable:
 - up to 8 `i32` parameters for lowered functions and tail calls
 - non-entry functions returning `bool`
 - `i32` addition used in lowerable `i32` expressions
-- bool `!`, `&&`, and `||` used in lowerable bool expressions
-- terminal `if` / `else` statements with bool literal, bool local, or `i32` comparison conditions and direct `i32` or non-entry `bool` returns in both branches
+- bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` comparisons used in lowerable bool expressions
+- terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over literal/local operands, or `i32` comparison conditions and direct `i32` or non-entry `bool` returns in both branches
 - simple fallible entry success
 - simple fallible entry failure through `return make_error("code", "message")`
 

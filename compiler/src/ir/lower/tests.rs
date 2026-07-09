@@ -3,8 +3,8 @@ use crate::analysis::{CompileUnit, analyze_compile_unit_with_entry};
 use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::ir::{
-    BoolLocation, BoolLogicalOperator, BoolValue, Function, I32ComparisonOperator, I32Location,
-    I32Value, Instruction, IrModule, Type,
+    BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, Function,
+    I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule, Type,
 };
 use crate::source::SourceMap;
 use crate::target::DEFAULT_TARGET;
@@ -302,6 +302,96 @@ fn lowers_entry_terminal_if_with_bool_and_condition() {
                 else_instructions: vec![set_return_i32(1), Instruction::Return],
             },
         ]
+    );
+}
+
+#[test]
+fn lowers_entry_bool_equality_binding() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let ready = true
+    let blocked = false
+    let same = ready == blocked
+    if same {
+        return 1
+    } else {
+        return 0
+    }
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            Instruction::SetBool {
+                destination: BoolLocation::Local(0),
+                value: BoolValue::Const(true),
+            },
+            Instruction::SetBool {
+                destination: BoolLocation::Local(1),
+                value: BoolValue::Const(false),
+            },
+            Instruction::SetBool {
+                destination: BoolLocation::Local(2),
+                value: BoolValue::BoolComparison {
+                    operator: BoolComparisonOperator::Equal,
+                    left: Box::new(BoolValue::Location(BoolLocation::Local(0))),
+                    right: Box::new(BoolValue::Location(BoolLocation::Local(1))),
+                },
+            },
+            Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Local(2)),
+                then_instructions: vec![set_return_i32(1), Instruction::Return],
+                else_instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+        ]
+    );
+}
+
+#[test]
+fn reports_unsupported_bool_equality_over_unary_operand() {
+    let diagnostics = lower_text_diagnostics(
+        r#"func main(): i32 {
+    let ready = true
+    let blocked = false
+    let same = !ready == blocked
+    if same {
+        return 1
+    } else {
+        return 0
+    }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics[0].code, "E8008");
+    assert_eq!(
+        diagnostics[0].message,
+        "IR v0 can only lower bool equality/inequality operands that are bool literals or bool locals"
+    );
+}
+
+#[test]
+fn reports_unsupported_bool_equality_over_logical_operand() {
+    let diagnostics = lower_text_diagnostics(
+        r#"func main(): i32 {
+    let ready = true
+    let blocked = false
+    let same = (ready && !blocked) == ready
+    if same {
+        return 1
+    } else {
+        return 0
+    }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics[0].code, "E8008");
+    assert_eq!(
+        diagnostics[0].message,
+        "IR v0 can only lower bool equality/inequality operands that are bool literals or bool locals"
     );
 }
 

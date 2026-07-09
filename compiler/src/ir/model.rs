@@ -78,6 +78,11 @@ pub(crate) enum BoolValue {
         left: I32Value,
         right: I32Value,
     },
+    BoolComparison {
+        operator: BoolComparisonOperator,
+        left: Box<BoolValue>,
+        right: Box<BoolValue>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,6 +99,12 @@ pub(crate) enum I32ComparisonOperator {
     LessEqual,
     Greater,
     GreaterEqual,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BoolComparisonOperator {
+    Equal,
+    NotEqual,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

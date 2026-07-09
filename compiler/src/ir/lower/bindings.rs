@@ -1,6 +1,7 @@
 use super::context::LoweringContext;
 use super::expressions::{
-    expression_is_lowerable_bool_binding, lower_bool_value, lower_i32_expression_to_location,
+    expression_is_lowerable_bool_binding, expression_is_unsupported_bool_comparison_binding,
+    lower_bool_value, lower_i32_expression_to_location,
 };
 use crate::ast::{BindingKind, BindingStmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
@@ -60,6 +61,13 @@ fn scalar_binding_kind(
             "IR v0 can only lower local bindings annotated as `i32` or `bool`",
         )),
         None if expression_is_lowerable_bool_binding(&statement.initializer, context) => {
+            Ok(ScalarBindingKind::Bool)
+        }
+        None if expression_is_unsupported_bool_comparison_binding(
+            &statement.initializer,
+            context,
+        ) =>
+        {
             Ok(ScalarBindingKind::Bool)
         }
         None => Ok(ScalarBindingKind::I32),

@@ -47,13 +47,16 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- `compiler/src/driver/lsp/analysis.rs` now owns open-document workspace analysis construction, Nocter home discovery for LSP documents, and workspace diagnostic analysis setup.
-- `compiler/src/driver/lsp/mod.rs` now delegates hover, definition, completion, and diagnostics analysis setup to `analysis.rs`.
-- `compiler/docs/architecture.md`, `compiler/docs/roadmap.md`, and this file were updated to mark the current LSP maintainability pass as complete.
+- IR now represents lowerable bool equality/inequality as `BoolValue::BoolComparison`.
+- IR lowering now accepts bool equality/inequality when both operands are bool literals, bool locals, or grouped forms of those atoms.
+- IR lowering now reports a dedicated `E8008` diagnostic when bool equality/inequality uses lowerable but non-atomic bool operands such as `!ready` or `ready && !blocked`.
+- ARM64 Darwin codegen materializes and branches on `BoolComparison` using the existing bool register representation and `cmp`/conditional branches.
+- CLI build/run and IR lowering tests cover bool equality/inequality through the native backend path, plus unsupported compound bool equality diagnostics.
+- `docs/implementation-status.md` and `docs/architecture.md` now list bool equality/inequality over literal/local operands in the buildable bool subset.
 
 ## Verification Already Run
 
-After the LSP analysis bridge extraction, from `compiler/`:
+After the bool equality/inequality lowering work, from `compiler/`:
 
 ```sh
 cargo fmt
@@ -70,12 +73,12 @@ From repository root:
 git diff --check
 ```
 
-Passed after the LSP analysis bridge extraction.
+Passed after the bool equality/inequality lowering work.
 
 ## First Action In Next Session
 
 1. Run `git status --short`.
-2. Review the uncommitted LSP analysis bridge extraction.
+2. Review the uncommitted bool equality/inequality lowering work.
 3. If the user asks for a commit, stage only compiler files unless there are unrelated local changes.
 
 ## Next Implementation Direction
@@ -88,9 +91,9 @@ The current LSP maintainability pass has reached its planned stopping point:
 
 Recommended next small task for the next session:
 
-1. Move back to compiler core work.
-2. Review `docs/implementation-status.md`, parser tests, resolver tests, and analysis APIs.
-3. Pick a narrow core task that improves shared compiler semantics instead of adding LSP-only logic.
+1. Continue compiler core work, not LSP-only behavior.
+2. Choose a narrow buildable-subset improvement that does not require stack slots, spill/reload, non-tail calls, imports, aggregates, or ownership/drop lowering.
+3. Keep documenting exact buildable limits whenever a type-checkable feature remains intentionally unsupported by IR/backend v0.
 
 ## Design Constraints To Preserve
 
