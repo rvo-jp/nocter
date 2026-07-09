@@ -4,7 +4,6 @@ use crate::ast::{
     Parameter, PrimitiveDecl, Stmt, StructDecl, StructField, TraitDecl,
 };
 use crate::comments::{DocumentationTarget, attach_documentation};
-use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::lexer::{Keyword, Token, TokenKind, lex};
@@ -12,17 +11,18 @@ use crate::parser::parse;
 use crate::resolve::{
     LocalSymbol, LocalSymbolKind, ResolveOutput, Symbol, SymbolKind, TypeSymbolKind, resolve,
 };
-use crate::source::{ByteSpan, JsonSpan, SourceMap};
-use serde::Serialize;
+use crate::source::{ByteSpan, SourceMap};
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+mod diagnostics;
 mod documents;
 mod protocol;
 
+use diagnostics::{LspDiagnostic, diagnostics_for_lsp, publish_diagnostics};
 use documents::{
     OpenDocument, WorkspaceRoot, changed_document_from_params, document_uri_from_params,
     open_document_from_params, workspace_roots_from_initialize_params,
@@ -2251,81 +2251,6 @@ fn declaration_line_start(text: &str, node_start: usize) -> usize {
     }
 
     start
-}
-
-fn publish_diagnostics(uri: &str, diagnostics: Vec<LspDiagnostic>) -> Value {
-    json!({
-        "jsonrpc": "2.0",
-        "method": "textDocument/publishDiagnostics",
-        "params": {
-            "uri": uri,
-            "diagnostics": diagnostics
-        }
-    })
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct LspDiagnostic {
-    range: LspRange,
-    severity: u8,
-    code: String,
-    source: &'static str,
-    message: String,
-}
-
-fn diagnostics_for_lsp(
-    document: &OpenDocument,
-    diagnostics: Vec<Diagnostic>,
-) -> Vec<LspDiagnostic> {
-    diagnostics
-        .into_iter()
-        .filter_map(|diagnostic| diagnostic_for_lsp(document, diagnostic))
-        .collect()
-}
-
-fn diagnostic_for_lsp(document: &OpenDocument, diagnostic: Diagnostic) -> Option<LspDiagnostic> {
-    let span = diagnostic.primary_span.as_deref();
-    if let Some(span) = span
-        && !span_belongs_to_document(document, span)
-    {
-        return None;
-    }
-
-    let range = span
-        .map(|span| range_for_span(&document.text, span))
-        .unwrap_or_else(|| LspRange {
-            start: LspPosition {
-                line: 0,
-                character: 0,
-            },
-            end: LspPosition {
-                line: 0,
-                character: 0,
-            },
-        });
-
-    Some(LspDiagnostic {
-        range,
-        severity: 1,
-        code: diagnostic.code,
-        source: "nocter",
-        message: diagnostic.message,
-    })
-}
-
-fn span_belongs_to_document(document: &OpenDocument, span: &JsonSpan) -> bool {
-    if let (Some(document_path), Some(span_path)) = (&document.absolute_path, &span.absolute_path) {
-        return Path::new(span_path) == document_path;
-    }
-
-    span.file == document.display_path || span.file == document.uri
-}
-
-fn range_for_span(text: &str, span: &JsonSpan) -> LspRange {
-    LspRange {
-        start: byte_offset_to_lsp_position(text, span.start_byte),
-        end: byte_offset_to_lsp_position(text, span.end_byte),
-    }
 }
 
 #[cfg(test)]
