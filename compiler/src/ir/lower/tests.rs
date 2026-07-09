@@ -1099,6 +1099,52 @@ func mirrors_enabled(): i32 {
 }
 
 #[test]
+fn reports_unsupported_i32_non_tail_call() {
+    let diagnostics = lower_text_diagnostics(
+        r#"func main(): i32 {
+    return answer() + 1
+}
+
+func answer(): i32 {
+    return 41
+}
+"#,
+    );
+
+    assert_eq!(diagnostics[0].code, "E8006");
+    assert_eq!(
+        diagnostics[0].message,
+        "IR v0 can only lower function calls in direct tail return position"
+    );
+}
+
+#[test]
+fn reports_unsupported_bool_non_tail_call() {
+    let diagnostics = lower_named_function_diagnostics_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func ready(): bool {
+    return true
+}
+
+func enabled(): bool {
+    return ready() && true
+}
+"#,
+        "enabled",
+        context::FunctionSignatures::new(HashMap::new()),
+    );
+
+    assert_eq!(diagnostics[0].code, "E8006");
+    assert_eq!(
+        diagnostics[0].message,
+        "IR v0 can only lower function calls in direct tail return position"
+    );
+}
+
+#[test]
 fn reports_unsupported_entry_body() {
     let diagnostics = lower_text_diagnostics(
         r#"func main(): i32 {

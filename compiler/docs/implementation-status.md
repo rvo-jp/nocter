@@ -24,7 +24,7 @@ This file describes implementation state only.
 | `var` and reassignment | yes | yes | partial | no | no | Backend has no general local storage yet. |
 | Same-file function calls | yes | yes | yes | partial | partial | Build supports non-generic `i32` tail calls with up to 8 `i32` arguments and `bool` tail returns. |
 | Imported function calls | yes | yes | yes | no | no | Import resolution exists; backend call lowering does not cover imported calls. |
-| General non-tail calls | yes | yes | yes | no | no | Needs stack slots, spill/reload, and caller/callee preservation rules. |
+| General non-tail calls | yes | yes | yes | no | no | Backend has internal framed normal-call codegen coverage for hand-built IR, but source lowering remains disabled. Build reports a dedicated `E8006` when a call appears outside direct tail return position. |
 | Terminal `if` / `else` | yes | yes | yes | partial | yes | Build supports terminal branches returning direct `i32` or non-entry `bool`. |
 | General `if`, `while`, `loop`, `for`, `match`, `?{}` | yes | yes | partial | no | no | Several forms are checkable; backend lowering remains intentionally narrow. |
 | Fallible entry success/failure | yes | yes | partial | partial | partial | Build supports simple success and `return make_error("code", "message")` failure. |

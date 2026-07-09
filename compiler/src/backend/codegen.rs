@@ -1,3 +1,4 @@
+use crate::backend::frame::{FrameLayout, FunctionFrame, plan_function_frame};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, Function,
@@ -75,15 +76,35 @@ impl EntryEmitter {
     fn emit_function(&mut self, function: &Function) -> Result<(), Vec<Diagnostic>> {
         self.function_offsets
             .insert(function.name.clone(), self.encoder.position());
+        let frame = plan_function_frame(function)?;
+        self.emit_function_with_frame(function, &frame)
+    }
+
+    fn emit_function_with_frame(
+        &mut self,
+        function: &Function,
+        frame: &FunctionFrame,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let frame = match frame {
+            FunctionFrame::Frameless => None,
+            FunctionFrame::Framed(layout) => {
+                self.emit_prologue(layout);
+                Some(layout)
+            }
+        };
 
         for instruction in &function.instructions {
-            self.emit_instruction(instruction)?;
+            self.emit_instruction(instruction, frame)?;
         }
 
         Ok(())
     }
 
-    fn emit_instruction(&mut self, instruction: &Instruction) -> Result<(), Vec<Diagnostic>> {
+    fn emit_instruction(
+        &mut self,
+        instruction: &Instruction,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
         match instruction {
             Instruction::WriteStaticStderr(bytes) => {
                 self.emit_write_static_stderr(bytes);
@@ -101,25 +122,51 @@ impl EntryEmitter {
             } => {
                 self.emit_add_i32(*destination, left, right)?;
             }
+            Instruction::CallI32 {
+                destination,
+                function,
+                arguments,
+            } => {
+                self.emit_call_i32(*destination, function, arguments, frame)?;
+            }
             Instruction::TailCall {
                 function,
                 arguments,
             } => {
-                self.emit_tail_call(function, arguments)?;
+                self.emit_tail_call(function, arguments, frame)?;
             }
             Instruction::If {
                 condition,
                 then_instructions,
                 else_instructions,
             } => {
-                self.emit_if(condition, then_instructions, else_instructions)?;
+                self.emit_if(condition, then_instructions, else_instructions, frame)?;
             }
             Instruction::Return => {
-                self.encoder.emit_ret();
+                self.emit_return(frame);
             }
         }
 
         Ok(())
+    }
+
+    fn emit_prologue(&mut self, frame: &FrameLayout) {
+        self.encoder.emit_sub_sp_imm(frame.frame_size());
+        self.encoder
+            .emit_str_x_sp(XReg::X30, frame.saved_x30_offset());
+    }
+
+    fn emit_epilogue(&mut self, frame: &FrameLayout) {
+        self.encoder
+            .emit_ldr_x_sp(XReg::X30, frame.saved_x30_offset());
+        self.encoder.emit_add_sp_imm(frame.frame_size());
+    }
+
+    fn emit_return(&mut self, frame: Option<&FrameLayout>) {
+        if let Some(frame) = frame {
+            self.emit_epilogue(frame);
+        }
+        self.encoder.emit_ret();
     }
 
     fn emit_if(
@@ -127,11 +174,12 @@ impl EntryEmitter {
         condition: &BoolValue,
         then_instructions: &[Instruction],
         else_instructions: &[Instruction],
+        frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
         let branches_to_else = self.emit_bool_false_branch_placeholders(condition)?;
 
         for instruction in then_instructions {
-            self.emit_instruction(instruction)?;
+            self.emit_instruction(instruction, frame)?;
         }
 
         let branch_to_end =
@@ -144,7 +192,7 @@ impl EntryEmitter {
         self.patch_branch_placeholders_to_current(branches_to_else, "if branch target")?;
 
         for instruction in else_instructions {
-            self.emit_instruction(instruction)?;
+            self.emit_instruction(instruction, frame)?;
         }
 
         if let Some(branch) = branch_to_end {
@@ -368,6 +416,7 @@ impl EntryEmitter {
         &mut self,
         function: &str,
         arguments: &[I32Value],
+        frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
         for (index, argument) in arguments.iter().enumerate() {
             let Some(register) = WReg::argument(index) else {
@@ -379,12 +428,92 @@ impl EntryEmitter {
             self.emit_i32_value_to_w(argument, register)?;
         }
 
+        if let Some(frame) = frame {
+            self.emit_epilogue(frame);
+        }
+
         let instruction_offset = self.encoder.position();
         self.encoder.emit_b(0);
         self.tail_call_patches.push(FunctionCallPatch {
             instruction_offset,
             function: function.to_string(),
         });
+
+        Ok(())
+    }
+
+    fn emit_call_i32(
+        &mut self,
+        destination: I32Location,
+        function: &str,
+        arguments: &[I32Value],
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "normal i32 call emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        for (index, argument) in arguments.iter().enumerate() {
+            let Some(register) = WReg::argument(index) else {
+                return Err(vec![Diagnostic::error(
+                    "E9003",
+                    format!("codegen supports at most 8 i32 arguments, got argument {index}"),
+                )]);
+            };
+            self.emit_i32_value_to_w(argument, register)?;
+        }
+
+        self.emit_call(function);
+        self.emit_scalar_reloads(frame)?;
+        self.emit_call_result_to_i32_location(destination)
+    }
+
+    fn emit_scalar_spills(&mut self, frame: &FrameLayout) -> Result<(), Vec<Diagnostic>> {
+        for slot in frame.scalar_spill_slots() {
+            let register = WReg::local(slot.local_index()).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "E9004",
+                    format!(
+                        "codegen supports at most 7 local scalar bindings, got local {}",
+                        slot.local_index()
+                    ),
+                )]
+            })?;
+            self.encoder.emit_str_w_sp(register, slot.offset());
+        }
+
+        Ok(())
+    }
+
+    fn emit_scalar_reloads(&mut self, frame: &FrameLayout) -> Result<(), Vec<Diagnostic>> {
+        for slot in frame.scalar_spill_slots() {
+            let register = WReg::local(slot.local_index()).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "E9004",
+                    format!(
+                        "codegen supports at most 7 local scalar bindings, got local {}",
+                        slot.local_index()
+                    ),
+                )]
+            })?;
+            self.encoder.emit_ldr_w_sp(register, slot.offset());
+        }
+
+        Ok(())
+    }
+
+    fn emit_call_result_to_i32_location(
+        &mut self,
+        destination: I32Location,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let destination = self.i32_location_register(destination)?;
+        if destination != WReg::W0 {
+            self.encoder.emit_mov_w(destination, WReg::W0);
+        }
 
         Ok(())
     }
@@ -673,7 +802,8 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             Instruction::WriteStaticStderr(_)
             | Instruction::SetI32 { .. }
             | Instruction::SetBool { .. }
-            | Instruction::AddI32 { .. },
+            | Instruction::AddI32 { .. }
+            | Instruction::CallI32 { .. },
         )
         | None => false,
     }
@@ -827,6 +957,170 @@ mod tests {
                 0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
                 0x01, 0x10, 0x00, 0xd4, // svc #0x80
                 0xe0, 0x00, 0x80, 0x52, // movz w0, #7
+                0xc0, 0x03, 0x5f, 0xd6, // ret
+            ]
+        );
+    }
+
+    #[test]
+    fn emits_framed_function_prologue_and_return_epilogue() {
+        let function = Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![set_return_i32(7), Instruction::Return],
+        };
+        let frame = FunctionFrame::Framed(FrameLayout::for_scalar_spill_slot_count(0).unwrap());
+        let mut emitter = EntryEmitter::new();
+
+        emitter.emit_function_with_frame(&function, &frame).unwrap();
+
+        assert_eq!(
+            emitter.encoder.finish(),
+            vec![
+                0xff, 0x43, 0x00, 0xd1, // sub sp, sp, #16
+                0xfe, 0x07, 0x00, 0xf9, // str x30, [sp, #8]
+                0xe0, 0x00, 0x80, 0x52, // movz w0, #7
+                0xfe, 0x07, 0x40, 0xf9, // ldr x30, [sp, #8]
+                0xff, 0x43, 0x00, 0x91, // add sp, sp, #16
+                0xc0, 0x03, 0x5f, 0xd6, // ret
+            ]
+        );
+    }
+
+    #[test]
+    fn emits_framed_tail_call_epilogue_before_branch() {
+        let main = Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![tail_call("answer", vec![])],
+        };
+        let answer = Function {
+            name: "answer".to_string(),
+            return_type: Type::I32,
+            instructions: vec![set_return_i32(7), Instruction::Return],
+        };
+        let frame = FunctionFrame::Framed(FrameLayout::for_scalar_spill_slot_count(0).unwrap());
+        let mut emitter = EntryEmitter::new();
+
+        emitter.emit_function_with_frame(&main, &frame).unwrap();
+        emitter.emit_function(&answer).unwrap();
+        let code = emitter.finish().unwrap();
+
+        assert_eq!(
+            code.text,
+            vec![
+                0xff, 0x43, 0x00, 0xd1, // sub sp, sp, #16
+                0xfe, 0x07, 0x00, 0xf9, // str x30, [sp, #8]
+                0xfe, 0x07, 0x40, 0xf9, // ldr x30, [sp, #8]
+                0xff, 0x43, 0x00, 0x91, // add sp, sp, #16
+                0x01, 0x00, 0x00, 0x14, // b answer
+                0xe0, 0x00, 0x80, 0x52, // movz w0, #7
+                0xc0, 0x03, 0x5f, 0xd6, // ret
+            ]
+        );
+    }
+
+    #[test]
+    fn generates_framed_i32_normal_call_from_hand_built_ir() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_i32(I32Location::Return, "answer", vec![]),
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "answer".to_string(),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(7), Instruction::Return],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert_eq!(
+            code.text,
+            vec![
+                0x04, 0x00, 0x00, 0x94, // bl main
+                0x30, 0x00, 0x80, 0x52, // movz w16, #1
+                0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
+                0x01, 0x10, 0x00, 0xd4, // svc #0x80
+                0xff, 0x43, 0x00, 0xd1, // sub sp, sp, #16
+                0xfe, 0x07, 0x00, 0xf9, // str x30, [sp, #8]
+                0x04, 0x00, 0x00, 0x94, // bl answer
+                0xfe, 0x07, 0x40, 0xf9, // ldr x30, [sp, #8]
+                0xff, 0x43, 0x00, 0x91, // add sp, sp, #16
+                0xc0, 0x03, 0x5f, 0xd6, // ret
+                0xe0, 0x00, 0x80, 0x52, // movz w0, #7
+                0xc0, 0x03, 0x5f, 0xd6, // ret
+            ]
+        );
+    }
+
+    #[test]
+    fn normal_i32_call_spills_and_reloads_scalar_locals() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(40),
+                    },
+                    call_i32(I32Location::Local(1), "add_two", vec![i32_local(0)]),
+                    Instruction::AddI32 {
+                        destination: I32Location::Return,
+                        left: i32_local(0),
+                        right: i32_local(1),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "add_two".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::AddI32 {
+                        destination: I32Location::Return,
+                        left: i32_param(0),
+                        right: i32_const(2),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert_eq!(
+            code.text,
+            vec![
+                0x04, 0x00, 0x00, 0x94, // bl main
+                0x30, 0x00, 0x80, 0x52, // movz w16, #1
+                0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
+                0x01, 0x10, 0x00, 0xd4, // svc #0x80
+                0xff, 0x43, 0x00, 0xd1, // sub sp, sp, #16
+                0xfe, 0x07, 0x00, 0xf9, // str x30, [sp, #8]
+                0x09, 0x05, 0x80, 0x52, // movz w9, #40
+                0xe9, 0x03, 0x00, 0xb9, // str w9, [sp, #0]
+                0xea, 0x07, 0x00, 0xb9, // str w10, [sp, #4]
+                0xe0, 0x03, 0x09, 0x2a, // mov w0, w9
+                0x0a, 0x00, 0x00, 0x94, // bl add_two
+                0xe9, 0x03, 0x40, 0xb9, // ldr w9, [sp, #0]
+                0xea, 0x07, 0x40, 0xb9, // ldr w10, [sp, #4]
+                0xea, 0x03, 0x00, 0x2a, // mov w10, w0
+                0xf0, 0x03, 0x09, 0x2a, // mov w16, w9
+                0xe0, 0x03, 0x0a, 0x2a, // mov w0, w10
+                0x00, 0x02, 0x00, 0x0b, // add w0, w16, w0
+                0xfe, 0x07, 0x40, 0xf9, // ldr x30, [sp, #8]
+                0xff, 0x43, 0x00, 0x91, // add sp, sp, #16
+                0xc0, 0x03, 0x5f, 0xd6, // ret
+                0xf0, 0x03, 0x00, 0x2a, // mov w16, w0
+                0x40, 0x00, 0x80, 0x52, // movz w0, #2
+                0x00, 0x02, 0x00, 0x0b, // add w0, w16, w0
                 0xc0, 0x03, 0x5f, 0xd6, // ret
             ]
         );
@@ -1331,6 +1625,14 @@ mod tests {
 
     fn tail_call(function: &str, arguments: Vec<I32Value>) -> Instruction {
         Instruction::TailCall {
+            function: function.to_string(),
+            arguments,
+        }
+    }
+
+    fn call_i32(destination: I32Location, function: &str, arguments: Vec<I32Value>) -> Instruction {
+        Instruction::CallI32 {
+            destination,
             function: function.to_string(),
             arguments,
         }

@@ -1,6 +1,7 @@
 //! Native backend entry points.
 
 mod codegen;
+mod frame;
 mod output;
 
 use crate::analysis::CompileUnitAnalysis;

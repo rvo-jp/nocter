@@ -160,6 +160,7 @@ pub(super) fn lower_i32_value(
     context: &LoweringContext,
 ) -> Result<I32Value, Vec<Diagnostic>> {
     match expression {
+        Expr::Call(_) => Err(unsupported_non_tail_call_diagnostic()),
         Expr::Identifier(identifier) => context
             .i32_location(&identifier.name)
             .map(I32Value::Location)
@@ -175,6 +176,7 @@ pub(super) fn lower_bool_value(
     diagnostic_code: &'static str,
 ) -> Result<BoolValue, Vec<Diagnostic>> {
     match expression {
+        Expr::Call(_) => Err(unsupported_non_tail_call_diagnostic()),
         Expr::BoolLiteral(literal) => match literal.value.as_str() {
             "true" => Ok(BoolValue::Const(true)),
             "false" => Ok(BoolValue::Const(false)),
@@ -458,6 +460,13 @@ fn unsupported_i32_expression_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8006",
         "IR v0 can only lower i32 literals, parameters, addition, and direct tail calls",
+    )]
+}
+
+fn unsupported_non_tail_call_diagnostic() -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8006",
+        "IR v0 can only lower function calls in direct tail return position",
     )]
 }
 

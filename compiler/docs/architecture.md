@@ -185,7 +185,11 @@ The `arm64-darwin` backend v0 uses a deliberately small register-only convention
 - scalar local bindings use `w9` through `w15` across both `i32` and `bool`
 - `w16` and `w17` are backend scratch registers and may be clobbered by code generation
 
-Tail calls are lowered by loading the callee arguments into `w0` through `w7` and branching directly to the target function. Non-tail calls are intentionally not buildable yet. A normal call would return to the caller after clobbering argument, return, and scratch registers; with the current register-only local model, that can destroy live values in later expressions. Add stack slots, spill/reload support, and a clear caller/callee preservation rule before lowering non-tail calls.
+Tail calls are lowered by loading the callee arguments into `w0` through `w7` and branching directly to the target function.
+Non-tail calls are intentionally not buildable yet because `bl` clobbers `x30` and callees may overwrite caller-live scalar registers.
+The frame, spill/reload, and normal-call implementation order is tracked in `backend-v0.md`.
+`backend/frame.rs` owns the fixed v0 frame layout planner: frame size, saved `x30` offset, and scalar spill-slot offsets.
+Codegen can emit framed prologue/epilogue sequences and hand-built IR normal calls with conservative scalar spill/reload for internal tests, but source-level non-tail calls remain unsupported until source lowering is deliberately enabled for a narrow subset.
 
 Use integration tests for user-visible CLI behavior and backend/unit tests for lower-level encoding and Mach-O layout. When extending build support, first add a small `nocter build` regression case, then expand IR lowering, code generation, and documentation together.
 

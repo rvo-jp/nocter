@@ -26,6 +26,16 @@ impl Encoder {
         self.emit_word(ADD_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
     }
 
+    #[allow(dead_code)]
+    pub(crate) fn emit_sub_sp_imm(&mut self, byte_count: u32) {
+        self.emit_word(add_sub_sp_imm_word(SUB_SP_IMM_BASE, byte_count));
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn emit_add_sp_imm(&mut self, byte_count: u32) {
+        self.emit_word(add_sub_sp_imm_word(ADD_SP_IMM_BASE, byte_count));
+    }
+
     pub(crate) fn emit_cmp_w(&mut self, rn: WReg, rm: WReg) {
         self.emit_word(SUBS_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | WZR_BITS);
     }
@@ -44,6 +54,46 @@ impl Encoder {
 
     pub(crate) fn emit_adr_x(&mut self, rd: XReg, byte_offset: i32) {
         self.emit_word(adr_x_word(rd, byte_offset));
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn emit_str_x_sp(&mut self, rt: XReg, byte_offset: u32) {
+        self.emit_word(load_store_sp_word(
+            STR_X_SP_UNSIGNED_BASE,
+            rt.bits(),
+            byte_offset,
+            8,
+        ));
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn emit_ldr_x_sp(&mut self, rt: XReg, byte_offset: u32) {
+        self.emit_word(load_store_sp_word(
+            LDR_X_SP_UNSIGNED_BASE,
+            rt.bits(),
+            byte_offset,
+            8,
+        ));
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn emit_str_w_sp(&mut self, rt: WReg, byte_offset: u32) {
+        self.emit_word(load_store_sp_word(
+            STR_W_SP_UNSIGNED_BASE,
+            rt.bits(),
+            byte_offset,
+            4,
+        ));
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn emit_ldr_w_sp(&mut self, rt: WReg, byte_offset: u32) {
+        self.emit_word(load_store_sp_word(
+            LDR_W_SP_UNSIGNED_BASE,
+            rt.bits(),
+            byte_offset,
+            4,
+        ));
     }
 
     pub(crate) fn emit_b(&mut self, byte_offset: i32) {
@@ -216,6 +266,8 @@ pub(crate) enum XReg {
     X0,
     X1,
     X2,
+    #[allow(dead_code)]
+    X30,
 }
 
 impl XReg {
@@ -224,6 +276,7 @@ impl XReg {
             Self::X0 => 0,
             Self::X1 => 1,
             Self::X2 => 2,
+            Self::X30 => 30,
         }
     }
 }
@@ -255,10 +308,22 @@ const MOVZ_W_BASE: u32 = 0x5280_0000;
 const MOVK_W_BASE: u32 = 0x7280_0000;
 const ORR_W_BASE: u32 = 0x2a00_0000;
 const ADD_W_BASE: u32 = 0x0b00_0000;
+#[allow(dead_code)]
+const ADD_SP_IMM_BASE: u32 = 0x9100_0000;
+#[allow(dead_code)]
+const SUB_SP_IMM_BASE: u32 = 0xd100_0000;
 const SUBS_W_BASE: u32 = 0x6b00_0000;
 const MOVZ_X_BASE: u32 = 0xd280_0000;
 const MOVK_X_BASE: u32 = 0xf280_0000;
 const ADR_X_BASE: u32 = 0x1000_0000;
+#[allow(dead_code)]
+const STR_W_SP_UNSIGNED_BASE: u32 = 0xb900_0000;
+#[allow(dead_code)]
+const LDR_W_SP_UNSIGNED_BASE: u32 = 0xb940_0000;
+#[allow(dead_code)]
+const STR_X_SP_UNSIGNED_BASE: u32 = 0xf900_0000;
+#[allow(dead_code)]
+const LDR_X_SP_UNSIGNED_BASE: u32 = 0xf940_0000;
 const B_BASE: u32 = 0x1400_0000;
 const B_COND_BASE: u32 = 0x5400_0000;
 const BL_BASE: u32 = 0x9400_0000;
@@ -271,6 +336,8 @@ const BL_MIN_BYTE_OFFSET: i32 = -(1 << 27);
 const BL_MAX_BYTE_OFFSET: i32 = (1 << 27) - 4;
 const B_COND_MIN_BYTE_OFFSET: i32 = -(1 << 20);
 const B_COND_MAX_BYTE_OFFSET: i32 = (1 << 20) - 4;
+#[allow(dead_code)]
+const SP_BITS: u32 = 31;
 const WZR_BITS: u32 = 31;
 
 const fn move_wide_fields(rd: u32, imm16: u16, shift: MoveWideShift) -> u32 {
@@ -284,6 +351,28 @@ fn adr_x_word(rd: XReg, byte_offset: i32) -> u32 {
     let immlo = encoded & 0x3;
     let immhi = (encoded >> 2) & 0x7ffff;
     ADR_X_BASE | (immlo << 29) | (immhi << 5) | rd.bits()
+}
+
+#[allow(dead_code)]
+fn add_sub_sp_imm_word(base: u32, byte_count: u32) -> u32 {
+    let (shift, imm12) = if byte_count <= 0x0fff {
+        (0, byte_count)
+    } else {
+        debug_assert_eq!(byte_count % 4096, 0);
+        (1, byte_count / 4096)
+    };
+    debug_assert!(imm12 <= 0x0fff);
+
+    base | (shift << 22) | (imm12 << 10) | (SP_BITS << 5) | SP_BITS
+}
+
+#[allow(dead_code)]
+fn load_store_sp_word(base: u32, rt: u32, byte_offset: u32, access_size: u32) -> u32 {
+    debug_assert_eq!(byte_offset % access_size, 0);
+    let scaled_offset = byte_offset / access_size;
+    debug_assert!(scaled_offset <= 0x0fff);
+
+    base | (scaled_offset << 10) | (SP_BITS << 5) | rt
 }
 
 fn bl_word(byte_offset: i32) -> u32 {
@@ -357,6 +446,33 @@ mod tests {
     }
 
     #[test]
+    fn encodes_sub_sp_sp_imm() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_sub_sp_imm(32);
+
+        assert_eq!(encoder.finish(), vec![0xff, 0x83, 0x00, 0xd1]);
+    }
+
+    #[test]
+    fn encodes_add_sp_sp_imm() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_add_sp_imm(32);
+
+        assert_eq!(encoder.finish(), vec![0xff, 0x83, 0x00, 0x91]);
+    }
+
+    #[test]
+    fn encodes_sub_sp_sp_shifted_imm() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_sub_sp_imm(4096);
+
+        assert_eq!(encoder.finish(), vec![0xff, 0x07, 0x40, 0xd1]);
+    }
+
+    #[test]
     fn encodes_cmp_w16_w17() {
         let mut encoder = Encoder::new();
 
@@ -408,6 +524,42 @@ mod tests {
         encoder.emit_adr_x(XReg::X1, -4);
 
         assert_eq!(encoder.finish(), vec![0xe1, 0xff, 0xff, 0x10]);
+    }
+
+    #[test]
+    fn encodes_str_x30_sp_offset() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_str_x_sp(XReg::X30, 24);
+
+        assert_eq!(encoder.finish(), vec![0xfe, 0x0f, 0x00, 0xf9]);
+    }
+
+    #[test]
+    fn encodes_ldr_x30_sp_offset() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_ldr_x_sp(XReg::X30, 24);
+
+        assert_eq!(encoder.finish(), vec![0xfe, 0x0f, 0x40, 0xf9]);
+    }
+
+    #[test]
+    fn encodes_str_w_local_sp_offset() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_str_w_sp(WReg::W9, 12);
+
+        assert_eq!(encoder.finish(), vec![0xe9, 0x0f, 0x00, 0xb9]);
+    }
+
+    #[test]
+    fn encodes_ldr_w_local_sp_offset() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_ldr_w_sp(WReg::W15, 28);
+
+        assert_eq!(encoder.finish(), vec![0xef, 0x1f, 0x40, 0xb9]);
     }
 
     #[test]
