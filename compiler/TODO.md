@@ -66,6 +66,12 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
+- Added nested `i32` normal-call argument lowering:
+  - lowers normal-call arguments through the same expression-to-value staging path used by additions
+  - supports `let value = outer(inner())`, `let value = add(left(), right())`, and `return outer(inner()) + 1`
+  - evaluates nested normal-call arguments left to right before the parent `CallI32`
+  - keeps nested tail-call arguments such as `return outer(inner())` reporting `E8006`
+  - adds IR lowering coverage plus CLI run coverage for nested normal-call arguments
 - Added multiple normal-call result staging for `i32` additions:
   - changes expression-to-value lowering to use a shared temporary allocator for each lowered expression
   - evaluates addition operands left to right and stages each normal-call result in a distinct temporary local
@@ -197,7 +203,10 @@ cargo test --quiet ir::lower::tests::lowers_entry_i32_nested_return_addition_wit
 cargo test --quiet ir::lower::tests::lowers_entry_i32_return_expression_with_multiple_normal_calls
 cargo test --quiet ir::lower::tests::lowers_entry_i32_let_initializer_with_multiple_normal_calls
 cargo test --quiet ir::lower::tests::lowers_entry_i32_multiple_normal_calls_without_colliding_with_local
-cargo test --quiet ir::lower::tests::reports_unsupported_nested_i32_call_argument
+cargo test --quiet ir::lower::tests::reports_unsupported_nested_i32_tail_call_argument
+cargo test --quiet ir::lower::tests::lowers_entry_i32_let_initializer_nested_normal_call_argument
+cargo test --quiet ir::lower::tests::lowers_entry_i32_let_initializer_multiple_nested_normal_call_arguments
+cargo test --quiet ir::lower::tests::lowers_entry_i32_return_addition_with_nested_normal_call_argument
 cargo test --quiet ir::lower::tests::lowers_reordered_normal_call_arguments
 cargo test --quiet ir::lower::tests::reports_unsupported_reordered_tail_call_arguments
 cargo test --quiet ir::lower::tests::reports_unsupported_bool_returning_normal_call
@@ -208,6 +217,7 @@ cargo test --quiet --test cli_run run_command_returns_i32_normal_call_exit_code
 cargo test --quiet --test cli_run run_command_returns_reordered_i32_normal_call_exit_code
 cargo test --quiet --test cli_run run_command_preserves_local_across_i32_normal_call_addition
 cargo test --quiet --test cli_run run_command_returns_multiple_i32_normal_call_addition_exit_code
+cargo test --quiet --test cli_run run_command_returns_nested_i32_normal_call_argument_exit_code
 cargo test --quiet backend::frame
 cargo test --quiet backend::codegen::tests::normal_i32_call_spills_and_reloads_scalar_locals
 cargo test --quiet backend::codegen::tests::generated_i32_normal_call_stages_reordered_arguments
@@ -240,10 +250,9 @@ The current LSP maintainability pass has reached its planned stopping point:
 Recommended next small task for the next session:
 
 1. Continue compiler core backend work, not LSP-only behavior.
-2. Start from `docs/backend-v0.md` normal-call design.
-3. Lower the smallest source subset for same-file `i32` normal calls, preferably no-argument or otherwise non-reordered argument cases first.
-4. Add CLI build/run coverage for that source subset.
-5. Keep imported calls, aggregates, ownership/drop lowering, nested call arguments, and general condition calls disabled.
+2. Choose the next backend boundary deliberately: tail-call argument staging or bool-returning normal calls are the nearest useful options.
+3. Keep imported calls, aggregates, ownership/drop lowering, nested tail-call arguments, and general condition calls disabled until their lowering rules are designed.
+4. Add CLI build/run coverage for any newly buildable source subset.
 
 ## Design Constraints To Preserve
 

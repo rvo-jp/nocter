@@ -54,6 +54,7 @@ Currently buildable:
 - same-file non-generic tail calls returning `i32` or `bool`
 - same-file non-generic normal calls returning `i32` in `let` initializers
 - same-file non-generic normal calls returning `i32` in `i32` additions, evaluated left to right with distinct temporary locals
+- nested `i32` normal-call arguments such as `let value = outer(inner())`
 - up to 8 `i32` parameters for lowered functions and calls
 - reordered parameter arguments are supported for normal calls through argument staging; tail calls still reject reordered parameter arguments
 - non-entry functions returning `bool`
@@ -68,7 +69,7 @@ Currently not buildable even when it may be checkable:
 - `var`, reassignment, and general local storage
 - general `if`, `while`, `loop`, range `for`, `match`, and pattern conditional `?{}`
 - imported function calls
-- nested call arguments such as `outer(inner())`
+- nested tail-call arguments such as `return outer(inner())`
 - normal calls returning `bool`
 - `str` values beyond static failure messages
 - optional values

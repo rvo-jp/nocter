@@ -20,7 +20,10 @@ pub(super) fn lower_i32_expression_to_location(
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
-        Expr::Call(call) => lower_i32_normal_call(call, destination, context),
+        Expr::Call(call) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            lower_i32_normal_call(call, destination, context, &mut temporaries)
+        }
         Expr::Binary(binary) if binary.operator == BinaryOperator::Add => {
             lower_i32_add_expression_to_location(binary, destination, context)
         }
@@ -73,7 +76,7 @@ fn lower_i32_expression_to_value(
         Expr::Call(call) => {
             let temporary = temporaries.next_i32()?;
             Ok(LoweredI32Value {
-                instructions: lower_i32_normal_call(call, temporary, context)?,
+                instructions: lower_i32_normal_call(call, temporary, context, temporaries)?,
                 value: I32Value::Location(temporary),
             })
         }
@@ -172,6 +175,7 @@ fn lower_i32_normal_call(
     call: &CallExpr,
     destination: I32Location,
     context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Expr::Identifier(identifier) = call.callee.as_ref() else {
         return Err(unsupported_non_tail_call_diagnostic());
@@ -179,16 +183,20 @@ fn lower_i32_normal_call(
 
     validate_normal_call_return_type(&identifier.name, context)?;
 
+    let mut instructions = Vec::new();
     let mut arguments = Vec::new();
     for argument in &call.arguments {
-        arguments.push(lower_i32_value(argument, context)?);
+        let argument = lower_i32_expression_to_value(argument, context, temporaries)?;
+        instructions.extend(argument.instructions);
+        arguments.push(argument.value);
     }
 
-    Ok(vec![Instruction::CallI32 {
+    instructions.push(Instruction::CallI32 {
         destination,
         function: identifier.name.clone(),
         arguments,
-    }])
+    });
+    Ok(instructions)
 }
 
 fn lower_direct_tail_call(

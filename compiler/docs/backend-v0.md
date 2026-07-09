@@ -127,8 +127,9 @@ Use a temporary result register when the call result is not written directly to 
 For example, `let x = callee()` can reload locals and then write `w0` into `x` if the destination local was not among the spilled pre-call locals.
 For `callee() + local`, preserve the call result in a scratch or spill slot before reloading locals, then perform the addition.
 
-The first implementation should not try to support nested call arguments.
-Reject or avoid lowering `outer(inner())` until call arguments can consume staged call results.
+Normal calls can stage nested `i32` call arguments.
+For example, `let value = outer(inner())` lowers `inner()` into a temporary local, then passes that local to `outer`.
+Tail calls still reject nested call arguments because their argument lowering does not consume staged call results.
 
 ### Argument Movement
 
@@ -160,6 +161,7 @@ CallI32 {
 This covers `let x = callee()` and `return callee() + 1` after the expression lowerer has a destination for intermediate results.
 The source expression lowerer stages normal-call results in temporary scalar locals for `i32` additions.
 Multiple normal calls in an addition are evaluated left to right and receive distinct temporary locals.
+Nested normal-call arguments are also evaluated left to right before the parent `CallI32`.
 
 Bool-returning normal calls should wait until the i32 path is stable.
 Imported calls should also wait because they need symbol/linkage policy, not just call sequence support.
@@ -190,7 +192,7 @@ Implement normal calls in this order:
 6. Done: add normal-call argument staging slots and allow reordered parameter arguments for source normal calls.
 7. Done: make one-call `i32` addition result staging explicit, including `let` initializers and nested additions that contain a single normal call.
 8. Done: add multiple temporary allocation and left-to-right evaluation for `i32` additions with multiple normal calls.
-9. Expand to nested call arguments only after call arguments can consume staged call results.
+9. Done: lower nested `i32` normal-call arguments by staging child call results before the parent `CallI32`.
 
 ### Non-Goals For This Phase
 

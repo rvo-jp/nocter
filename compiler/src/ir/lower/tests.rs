@@ -1395,7 +1395,7 @@ func mirrors_enabled(): i32 {
 }
 
 #[test]
-fn reports_unsupported_nested_i32_call_argument() {
+fn reports_unsupported_nested_i32_tail_call_argument() {
     let diagnostics = lower_text_diagnostics(
         r#"func main(): i32 {
     return add(answer(), 1)
@@ -1415,6 +1415,134 @@ func add(a: i32, b: i32): i32 {
     assert_eq!(
         diagnostics[0].message,
         "IR v0 can only lower function calls in direct tail return position"
+    );
+}
+
+#[test]
+fn lowers_entry_i32_let_initializer_nested_normal_call_argument() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let value = outer(inner())
+    return value
+}
+
+func inner(): i32 {
+    return 41
+}
+
+func outer(value: i32): i32 {
+    return value + 1
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_i32(I32Location::Local(0), "inner", vec![]),
+                    call_i32(I32Location::Local(0), "outer", vec![i32_local(0)]),
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "inner".to_string(),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(41), Instruction::Return],
+            },
+            Function {
+                name: "outer".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::AddI32 {
+                        destination: I32Location::Return,
+                        left: i32_param(0),
+                        right: i32_const(1),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ])
+    );
+}
+
+#[test]
+fn lowers_entry_i32_let_initializer_multiple_nested_normal_call_arguments() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let value = add(left(), right())
+    return value
+}
+
+func left(): i32 {
+    return 20
+}
+
+func right(): i32 {
+    return 22
+}
+
+func add(a: i32, b: i32): i32 {
+    return a + b
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            call_i32(I32Location::Local(0), "left", vec![]),
+            call_i32(I32Location::Local(1), "right", vec![]),
+            call_i32(
+                I32Location::Local(0),
+                "add",
+                vec![i32_local(0), i32_local(1)]
+            ),
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
+fn lowers_entry_i32_return_addition_with_nested_normal_call_argument() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    return outer(inner()) + 1
+}
+
+func inner(): i32 {
+    return 40
+}
+
+func outer(value: i32): i32 {
+    return value + 1
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            call_i32(I32Location::Local(1), "inner", vec![]),
+            call_i32(I32Location::Local(0), "outer", vec![i32_local(1)]),
+            Instruction::AddI32 {
+                destination: I32Location::Return,
+                left: i32_local(0),
+                right: i32_const(1),
+            },
+            Instruction::Return,
+        ]
     );
 }
 
