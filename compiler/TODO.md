@@ -40,13 +40,13 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- `compiler/src/driver/lsp/definition.rs` now owns definition response construction, single-file fallback definition lookup, LSP Location conversion, and file URI percent encoding.
-- `compiler/src/driver/lsp/mod.rs` routes definition requests to `definition.rs`.
-- `compiler/docs/architecture.md`, `compiler/docs/roadmap.md`, and this file were updated to reflect the definition extraction.
+- `compiler/src/driver/lsp/completion.rs` now owns keyword completions, resolved symbol completion items, completion item kind mapping, and single-file fallback completion lookup.
+- `compiler/src/driver/lsp/mod.rs` routes completion requests to `completion.rs`.
+- `compiler/docs/architecture.md`, `compiler/docs/roadmap.md`, and this file were updated to reflect the completion extraction.
 
 ## Verification Already Run
 
-After the definition extraction, from `compiler/`:
+After the completion extraction, from `compiler/`:
 
 ```sh
 cargo fmt
@@ -63,12 +63,12 @@ From repository root:
 git diff --check
 ```
 
-Passed after the definition extraction.
+Passed after the completion extraction.
 
 ## First Action In Next Session
 
 1. Run `git status --short`.
-2. Review the uncommitted definition extraction.
+2. Review the uncommitted completion extraction.
 3. If the user asks for a commit, stage only compiler files unless there are unrelated local changes.
 
 ## Next Implementation Direction
@@ -76,15 +76,15 @@ Passed after the definition extraction.
 Recommended next small task:
 
 1. Continue the LSP maintainability pass.
-2. Extract completion support from `driver/lsp/mod.rs` into `driver/lsp/completion.rs`.
-3. Keep the extraction behavior-preserving and reuse resolver/analysis data rather than adding LSP-only semantic lookup.
+2. Extract document symbols from `driver/lsp/mod.rs` into `driver/lsp/symbols.rs`.
+3. Keep the extraction behavior-preserving.
 4. Run `cargo fmt`, `cargo test --quiet`, and `cargo clippy --all-targets --quiet -- -D warnings`.
 
 After that:
 
-1. Extract document symbols into `driver/lsp/symbols.rs`.
+1. Consider extracting an LSP analysis bridge only if workspace analysis construction is still duplicated after the feature modules are split.
 2. Keep compiler semantics in resolver, analysis, and typecheck modules; LSP modules should present those results.
-3. Add new editor capabilities only after the existing LSP server structure is easier to maintain.
+3. Move back to compiler core work after the LSP server structure is thin enough for future editor features.
 
 ## Design Constraints To Preserve
 
