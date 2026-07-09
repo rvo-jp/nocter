@@ -37,13 +37,23 @@ fn lower_i32_add_expression_to_location(
     destination: I32Location,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let call_count = normal_call_count(&binary.left) + normal_call_count(&binary.right);
-    if call_count > 1 {
-        return Err(unsupported_non_tail_call_diagnostic());
-    }
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    lower_i32_add_expression_to_location_with_temporaries(
+        binary,
+        destination,
+        context,
+        &mut temporaries,
+    )
+}
 
-    let left = lower_i32_expression_to_value(&binary.left, context)?;
-    let right = lower_i32_expression_to_value(&binary.right, context)?;
+fn lower_i32_add_expression_to_location_with_temporaries(
+    binary: &BinaryExpr,
+    destination: I32Location,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let left = lower_i32_expression_to_value(&binary.left, context, temporaries)?;
+    let right = lower_i32_expression_to_value(&binary.right, context, temporaries)?;
     let mut instructions = left.instructions;
     instructions.extend(right.instructions);
     instructions.push(Instruction::AddI32 {
@@ -57,26 +67,31 @@ fn lower_i32_add_expression_to_location(
 fn lower_i32_expression_to_value(
     expression: &Expr,
     context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredI32Value, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => {
-            let temporary = context.next_i32_temporary_location()?;
+            let temporary = temporaries.next_i32()?;
             Ok(LoweredI32Value {
                 instructions: lower_i32_normal_call(call, temporary, context)?,
                 value: I32Value::Location(temporary),
             })
         }
         Expr::Binary(binary) if binary.operator == BinaryOperator::Add => {
-            if normal_call_count(&binary.left) + normal_call_count(&binary.right) != 1 {
-                return Err(unsupported_i32_expression_diagnostic());
-            }
-            let temporary = context.next_i32_temporary_location()?;
+            let temporary = temporaries.next_i32()?;
             Ok(LoweredI32Value {
-                instructions: lower_i32_add_expression_to_location(binary, temporary, context)?,
+                instructions: lower_i32_add_expression_to_location_with_temporaries(
+                    binary,
+                    temporary,
+                    context,
+                    temporaries,
+                )?,
                 value: I32Value::Location(temporary),
             })
         }
-        Expr::Group(group) => lower_i32_expression_to_value(&group.expression, context),
+        Expr::Group(group) => {
+            lower_i32_expression_to_value(&group.expression, context, temporaries)
+        }
         _ => Ok(LoweredI32Value {
             instructions: Vec::new(),
             value: lower_i32_value(expression, context)?,
@@ -84,19 +99,39 @@ fn lower_i32_expression_to_value(
     }
 }
 
-fn normal_call_count(expression: &Expr) -> usize {
-    match expression {
-        Expr::Call(_) => 1,
-        Expr::Binary(binary) => normal_call_count(&binary.left) + normal_call_count(&binary.right),
-        Expr::Group(group) => normal_call_count(&group.expression),
-        _ => 0,
-    }
-}
-
 struct LoweredI32Value {
     instructions: Vec<Instruction>,
     value: I32Value,
 }
+
+struct TemporaryAllocator {
+    next_index: usize,
+}
+
+impl TemporaryAllocator {
+    fn new(context: &LoweringContext) -> Result<Self, Vec<Diagnostic>> {
+        Ok(Self {
+            next_index: context.first_temporary_local_index()?,
+        })
+    }
+
+    fn next_i32(&mut self) -> Result<I32Location, Vec<Diagnostic>> {
+        if self.next_index >= MAX_TEMPORARY_SCALAR_LOCALS {
+            return Err(vec![Diagnostic::error(
+                "E8008",
+                format!(
+                    "IR v0 can only lower up to {MAX_TEMPORARY_SCALAR_LOCALS} local scalar bindings"
+                ),
+            )]);
+        }
+
+        let location = I32Location::Local(self.next_index);
+        self.next_index += 1;
+        Ok(location)
+    }
+}
+
+const MAX_TEMPORARY_SCALAR_LOCALS: usize = 7;
 
 pub(super) fn lower_i32_return_expression(
     expression: &Expr,

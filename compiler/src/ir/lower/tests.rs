@@ -334,10 +334,10 @@ func answer(): i32 {
                 name: "main".to_string(),
                 return_type: Type::I32,
                 instructions: vec![
-                    call_i32(I32Location::Local(0), "answer", vec![]),
+                    call_i32(I32Location::Local(1), "answer", vec![]),
                     Instruction::AddI32 {
                         destination: I32Location::Local(0),
-                        left: i32_local(0),
+                        left: i32_local(1),
                         right: i32_const(1),
                     },
                     Instruction::AddI32 {
@@ -1419,8 +1419,8 @@ func add(a: i32, b: i32): i32 {
 }
 
 #[test]
-fn reports_unsupported_multiple_i32_normal_calls_in_addition() {
-    let diagnostics = lower_text_diagnostics(
+fn lowers_entry_i32_return_expression_with_multiple_normal_calls() {
+    let ir = lower_text(
         r#"func main(): i32 {
     return left() + right()
 }
@@ -1435,10 +1435,113 @@ func right(): i32 {
 "#,
     );
 
-    assert_eq!(diagnostics[0].code, "E8006");
     assert_eq!(
-        diagnostics[0].message,
-        "IR v0 can only lower function calls in direct tail return position"
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_i32(I32Location::Local(0), "left", vec![]),
+                    call_i32(I32Location::Local(1), "right", vec![]),
+                    Instruction::AddI32 {
+                        destination: I32Location::Return,
+                        left: i32_local(0),
+                        right: i32_local(1),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "left".to_string(),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(20), Instruction::Return],
+            },
+            Function {
+                name: "right".to_string(),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(22), Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
+fn lowers_entry_i32_let_initializer_with_multiple_normal_calls() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let value = left() + right()
+    return value
+}
+
+func left(): i32 {
+    return 20
+}
+
+func right(): i32 {
+    return 22
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            call_i32(I32Location::Local(0), "left", vec![]),
+            call_i32(I32Location::Local(1), "right", vec![]),
+            Instruction::AddI32 {
+                destination: I32Location::Local(0),
+                left: i32_local(0),
+                right: i32_local(1),
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
+fn lowers_entry_i32_multiple_normal_calls_without_colliding_with_local() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let base = 1
+    return (left() + right()) + base
+}
+
+func left(): i32 {
+    return 20
+}
+
+func right(): i32 {
+    return 21
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: i32_const(1),
+            },
+            call_i32(I32Location::Local(2), "left", vec![]),
+            call_i32(I32Location::Local(3), "right", vec![]),
+            Instruction::AddI32 {
+                destination: I32Location::Local(1),
+                left: i32_local(2),
+                right: i32_local(3),
+            },
+            Instruction::AddI32 {
+                destination: I32Location::Return,
+                left: i32_local(1),
+                right: i32_local(0),
+            },
+            Instruction::Return,
+        ]
     );
 }
 

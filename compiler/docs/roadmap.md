@@ -13,12 +13,12 @@ The current LSP feature modules should present compiler analysis results, not gr
 Recommended next small task:
 
 1. Keep expanding from the narrow source-level `i32` normal-call subset already enabled.
-2. Add multiple temporary allocation and evaluation-order rules before allowing expressions with two or more normal calls.
+2. Add staged call-result support for nested call arguments such as `outer(inner())`.
 3. Keep imported calls, bool-returning normal calls, aggregate values, nested call arguments, and general condition calls disabled until their lowering rules are designed.
 
 ## Near-Term Constraints
 
-- Keep normal-call source lowering narrow until multiple-result staging and evaluation order are explicit.
+- Keep normal-call source lowering narrow until call arguments can consume staged call results.
 - Do not lower calls inside conditions such as `if enabled() { ... }`.
 - Avoid broad `if`, `while`, `loop`, `match`, `var`, reassignment, imports, and aggregate lowering until backend storage and ABI rules are ready.
 - Prefer small user-visible build features with integration tests.
@@ -29,5 +29,5 @@ Recommended next small task:
 - No LLVM, `clang`, `as`, `ld`, Xcode Command Line Tools, or external linker backend.
 - Keep the compiler self-contained.
 - Prefer maintainable module boundaries over adding more logic to already busy files.
-- Backend v0 has frame layout planning, framed prologue/epilogue emission, normal-call codegen with conservative scalar spill/reload and argument staging, and source lowering for a narrow same-file `i32` normal-call subset.
+- Backend v0 has frame layout planning, framed prologue/epilogue emission, normal-call codegen with conservative scalar spill/reload and argument staging, and source lowering for same-file `i32` normal calls in `let` initializers and additions.
 - Session handoff and maintenance rules live in `../AGENTS.md` and `maintenance.md`.

@@ -66,11 +66,11 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- Made one-call `i32` addition result staging explicit:
-  - introduces an internal expression-to-value lowering path that returns both staging instructions and an `I32Value`
-  - supports `let value = answer() + 1`, `return base + answer()`, and nested additions such as `return (answer() + 1) + 2`
-  - keeps expressions with two or more normal calls, such as `left() + right()`, reporting `E8006`
-  - adds IR lowering and CLI run coverage for staged call results and local preservation across the call
+- Added multiple normal-call result staging for `i32` additions:
+  - changes expression-to-value lowering to use a shared temporary allocator for each lowered expression
+  - evaluates addition operands left to right and stages each normal-call result in a distinct temporary local
+  - supports `return left() + right()`, `let value = left() + right()`, and nested additions such as `return (left() + right()) + base`
+  - adds IR lowering coverage for temporary/local collision avoidance and CLI run coverage for multi-call additions
 
 ## Verification Already Run
 
@@ -194,8 +194,10 @@ cargo test --quiet ir::lower::tests::lowers_entry_i32_return_expression_normal_c
 cargo test --quiet ir::lower::tests::lowers_entry_i32_let_initializer_normal_call_addition
 cargo test --quiet ir::lower::tests::lowers_entry_i32_return_expression_local_plus_normal_call
 cargo test --quiet ir::lower::tests::lowers_entry_i32_nested_return_addition_with_one_normal_call
+cargo test --quiet ir::lower::tests::lowers_entry_i32_return_expression_with_multiple_normal_calls
+cargo test --quiet ir::lower::tests::lowers_entry_i32_let_initializer_with_multiple_normal_calls
+cargo test --quiet ir::lower::tests::lowers_entry_i32_multiple_normal_calls_without_colliding_with_local
 cargo test --quiet ir::lower::tests::reports_unsupported_nested_i32_call_argument
-cargo test --quiet ir::lower::tests::reports_unsupported_multiple_i32_normal_calls_in_addition
 cargo test --quiet ir::lower::tests::lowers_reordered_normal_call_arguments
 cargo test --quiet ir::lower::tests::reports_unsupported_reordered_tail_call_arguments
 cargo test --quiet ir::lower::tests::reports_unsupported_bool_returning_normal_call
@@ -205,6 +207,7 @@ cargo test --quiet --test cli_build build_command_reports_unsupported_non_tail_c
 cargo test --quiet --test cli_run run_command_returns_i32_normal_call_exit_code
 cargo test --quiet --test cli_run run_command_returns_reordered_i32_normal_call_exit_code
 cargo test --quiet --test cli_run run_command_preserves_local_across_i32_normal_call_addition
+cargo test --quiet --test cli_run run_command_returns_multiple_i32_normal_call_addition_exit_code
 cargo test --quiet backend::frame
 cargo test --quiet backend::codegen::tests::normal_i32_call_spills_and_reloads_scalar_locals
 cargo test --quiet backend::codegen::tests::generated_i32_normal_call_stages_reordered_arguments
