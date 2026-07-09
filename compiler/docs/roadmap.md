@@ -10,8 +10,8 @@ Finish the first LSP maintainability pass before adding more editor features.
 Recommended next small task:
 
 1. Keep `driver/lsp/` split by stable responsibilities.
-2. Extract definition support from `driver/lsp/mod.rs`.
-3. Then extract completion and document symbols only when the new module has a smaller API than the copied context.
+2. Extract completion support from `driver/lsp/mod.rs`.
+3. Then extract document symbols only when the new module has a smaller API than the copied context.
 4. Reuse resolver and analysis data for editor semantics instead of adding LSP-only semantic logic.
 
 The current LSP feature set is useful enough to exercise in VS Code, but `driver/lsp/mod.rs` is still too large.

@@ -12,12 +12,14 @@ use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+mod definition;
 mod diagnostics;
 mod documents;
 mod hover;
 mod protocol;
 mod semantic;
 
+use definition::{definition_for_document, definition_for_file_analysis};
 use diagnostics::{LspDiagnostic, diagnostics_for_lsp, publish_diagnostics};
 use documents::{
     OpenDocument, WorkspaceRoot, changed_document_from_params, document_uri_from_params,
@@ -26,8 +28,7 @@ use documents::{
 #[cfg(test)]
 use documents::{file_uri_to_path, open_document};
 use hover::{
-    definition_span_for_ast, hover_for_document, hover_for_file_analysis,
-    resolve_single_file_for_hover, source_fragment,
+    hover_for_document, hover_for_file_analysis, resolve_single_file_for_hover, source_fragment,
 };
 #[cfg(test)]
 use protocol::LspPosition;
@@ -477,25 +478,6 @@ fn initialize_response(id: Value) -> Value {
     )
 }
 
-fn definition_for_document(document: &OpenDocument, params: Option<&Value>) -> Option<Value> {
-    let position = position_from_params(params)?;
-    let offset = lsp_position_to_byte_offset(&document.text, position.line, position.character);
-    let mut sources = SourceMap::new();
-    let source = sources.add_source(
-        document.display_path.clone(),
-        document.absolute_path.clone(),
-        document.text.clone(),
-    );
-    let lex_output = lex(&sources, source);
-    if !lex_output.diagnostics.is_empty() {
-        return None;
-    }
-    let ast = parse(&sources, source, &lex_output.tokens).ast?;
-    let resolved = resolve_single_file_for_hover(&document.text, source, &ast);
-    definition_span_for_ast(&document.text, &ast, &resolved, offset)
-        .and_then(|span| location_for_byte_span(&sources, span))
-}
-
 const LSP_SYMBOL_KIND_CLASS: u8 = 5;
 const LSP_SYMBOL_KIND_METHOD: u8 = 6;
 const LSP_SYMBOL_KIND_FIELD: u8 = 8;
@@ -780,44 +762,6 @@ fn document_symbol(
     }
 
     symbol
-}
-
-fn definition_for_file_analysis(
-    sources: &SourceMap,
-    file: &FileAnalysis,
-    offset: usize,
-) -> Option<Value> {
-    let text = sources.get(file.ast.span.source)?.text();
-    definition_span_for_ast(text, &file.ast, &file.resolved, offset)
-        .and_then(|span| location_for_byte_span(sources, span))
-}
-
-fn location_for_byte_span(sources: &SourceMap, span: ByteSpan) -> Option<Value> {
-    let source = sources.get(span.source)?;
-    Some(json!({
-        "uri": uri_for_source_file(source),
-        "range": range_for_byte_span(source.text(), span)
-    }))
-}
-
-fn uri_for_source_file(source: &crate::source::SourceFile) -> String {
-    source
-        .absolute_path()
-        .map(|path| format!("file://{}", percent_encode_path(&path.to_string_lossy())))
-        .unwrap_or_else(|| source.display_path().to_string())
-}
-
-fn percent_encode_path(path: &str) -> String {
-    let mut encoded = String::with_capacity(path.len());
-    for byte in path.bytes() {
-        match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'/' | b'-' | b'_' | b'.' | b'~' => {
-                encoded.push(byte as char)
-            }
-            _ => encoded.push_str(&format!("%{byte:02X}")),
-        }
-    }
-    encoded
 }
 
 #[cfg(test)]
