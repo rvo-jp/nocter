@@ -7,7 +7,14 @@ Long-lived maintenance rules live in `AGENTS.md` and `docs/maintenance.md`.
 
 Recent committed work:
 
-- Current checkpoint: `Lower nested tail-call arguments`
+- Current checkpoint: `Lower i32 call comparisons`
+  - lowers same-file `i32` normal calls as `i32` comparison operands
+  - supports `if answer() == 42`, `let matched = left() <= right()`, and `return left() < right()`
+  - evaluates comparison operands left to right through the existing `i32` expression staging path
+  - keeps imported calls, aggregate arguments/returns, ownership/drop lowering, `var`/reassignment, and broader control-flow disabled
+  - keeps unsupported `i32` call expressions such as `return answer() * 2` reporting an IR lowering diagnostic
+  - adds IR lowering and CLI run coverage for `i32` call comparisons
+- `3ebddf6 Lower nested tail-call arguments`
   - lowers nested same-file `i32` tail-call arguments such as `return outer(inner())`
   - evaluates nested tail-call arguments left to right through the existing `i32` expression staging path
   - emits child calls before the final `TailCall`, then uses tail-call argument staging for the final branch
@@ -123,13 +130,13 @@ Recent committed work:
 
 Known unrelated local user changes:
 
-- `test.nct` is untracked in the repository root and appears to be the user's local runtime test file.
+- None currently reported by `git status --short`.
 
 Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Lower nested tail-call arguments`.
+- None expected after committing `Lower i32 call comparisons`.
 
 ## Verification Already Run
 
@@ -437,6 +444,29 @@ cargo test --quiet ir::lower::tests::lowers_entry_i32_nested_tail_call_argument
 cargo test --quiet ir::lower::tests::lowers_entry_i32_multiple_nested_tail_call_arguments
 cargo test --quiet backend::frame::tests::tail_call_with_local_argument_counts_argument_local
 cargo test --quiet --test cli_run run_command_returns_nested_i32_tail_call_argument_exit_code
+cargo test --quiet
+cargo clippy --all-targets --quiet -- -D warnings
+```
+
+From repository root:
+
+```sh
+git diff --check
+```
+
+All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew shellenv, but the commands exited successfully.
+
+For the i32 call comparison work, from `compiler/`:
+
+```sh
+cargo fmt
+cargo check --quiet
+cargo test --quiet ir::lower::tests::lowers_entry_i32_if_condition_i32_normal_call_comparison
+cargo test --quiet ir::lower::tests::lowers_bool_let_initializer_i32_normal_call_comparison
+cargo test --quiet ir::lower::tests::lowers_bool_return_i32_normal_call_comparison
+cargo test --quiet --test cli_build build_command_reports_unsupported_i32_call_expression
+cargo test --quiet --test cli_run run_command_returns_i32_call_comparison_condition_exit_code
+cargo test --quiet --test cli_run run_command_returns_i32_call_comparison_return_exit_code
 cargo test --quiet
 cargo clippy --all-targets --quiet -- -D warnings
 ```

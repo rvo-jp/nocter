@@ -517,6 +517,76 @@ func right(): bool {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_i32_call_comparison_condition_exit_code() {
+    let project = TempProject::new("cli-run-i32-call-comparison-condition");
+    let source = project.write_source(
+        "i32_call_comparison_condition.nct",
+        r#"func main(): i32 {
+    if answer() == 42 {
+        return 42
+    } else {
+        return 7
+    }
+}
+
+func answer(): i32 {
+    return 42
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_i32_call_comparison_return_exit_code() {
+    let project = TempProject::new("cli-run-i32-call-comparison-return");
+    let source = project.write_source(
+        "i32_call_comparison_return.nct",
+        r#"func main(): i32 {
+    if less() {
+        return 42
+    } else {
+        return 7
+    }
+}
+
+func less(): bool {
+    return left() < right()
+}
+
+func left(): i32 {
+    return 40
+}
+
+func right(): i32 {
+    return 42
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_preserves_local_across_i32_normal_call_addition() {
     let project = TempProject::new("cli-run-normal-call-local-add");
     let source = project.write_source(

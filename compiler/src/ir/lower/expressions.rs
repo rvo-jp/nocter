@@ -219,6 +219,21 @@ pub(super) fn lower_bool_expression_to_location(
             });
             Ok(instructions)
         }
+        Expr::Binary(binary) if i32_comparison_contains_call(binary, context) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let comparison = lower_i32_comparison_to_value_with_temporaries(
+                binary,
+                context,
+                diagnostic_code,
+                &mut temporaries,
+            )?;
+            let mut instructions = comparison.instructions;
+            instructions.push(Instruction::SetBool {
+                destination,
+                value: comparison.value,
+            });
+            Ok(instructions)
+        }
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             lower_bool_normal_call(call, destination, context, &mut temporaries)
@@ -424,6 +439,14 @@ fn lower_bool_expression_to_value_with_temporaries(
                 temporaries,
             )
         }
+        Expr::Binary(binary) if i32_comparison_contains_call(binary, context) => {
+            lower_i32_comparison_to_value_with_temporaries(
+                binary,
+                context,
+                diagnostic_code,
+                temporaries,
+            )
+        }
         Expr::Call(call) => {
             let temporary = temporaries.next_bool()?;
             Ok(LoweredBoolValue {
@@ -532,6 +555,33 @@ fn bool_comparison_contains_call(binary: &BinaryExpr, context: &LoweringContext)
         &binary.right,
         context,
     )
+}
+
+fn lower_i32_comparison_to_value_with_temporaries(
+    binary: &BinaryExpr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
+    let operator = i32_comparison_operator(binary.operator, diagnostic_code)?;
+    let left = lower_i32_expression_to_value(&binary.left, context, temporaries)?;
+    let right = lower_i32_expression_to_value(&binary.right, context, temporaries)?;
+
+    let mut instructions = left.instructions;
+    instructions.extend(right.instructions);
+    Ok(LoweredBoolValue {
+        instructions,
+        value: BoolValue::I32Comparison {
+            operator,
+            left: left.value,
+            right: right.value,
+        },
+    })
+}
+
+fn i32_comparison_contains_call(binary: &BinaryExpr, context: &LoweringContext) -> bool {
+    is_i32_comparison_operator(binary.operator)
+        && expressions_are_lowerable_i32_values_with_calls(&binary.left, &binary.right, context)
 }
 
 fn lower_i32_normal_call(
@@ -894,21 +944,28 @@ fn lower_i32_comparison_condition(
     context: &LoweringContext,
     diagnostic_code: &'static str,
 ) -> Result<BoolValue, Vec<Diagnostic>> {
-    let operator = match binary.operator {
-        BinaryOperator::Equal => I32ComparisonOperator::Equal,
-        BinaryOperator::NotEqual => I32ComparisonOperator::NotEqual,
-        BinaryOperator::Less => I32ComparisonOperator::Less,
-        BinaryOperator::LessEqual => I32ComparisonOperator::LessEqual,
-        BinaryOperator::Greater => I32ComparisonOperator::Greater,
-        BinaryOperator::GreaterEqual => I32ComparisonOperator::GreaterEqual,
-        _ => return Err(unsupported_bool_expression_diagnostic(diagnostic_code)),
-    };
+    let operator = i32_comparison_operator(binary.operator, diagnostic_code)?;
 
     Ok(BoolValue::I32Comparison {
         operator,
         left: lower_i32_value(&binary.left, context)?,
         right: lower_i32_value(&binary.right, context)?,
     })
+}
+
+fn i32_comparison_operator(
+    operator: BinaryOperator,
+    diagnostic_code: &'static str,
+) -> Result<I32ComparisonOperator, Vec<Diagnostic>> {
+    match operator {
+        BinaryOperator::Equal => Ok(I32ComparisonOperator::Equal),
+        BinaryOperator::NotEqual => Ok(I32ComparisonOperator::NotEqual),
+        BinaryOperator::Less => Ok(I32ComparisonOperator::Less),
+        BinaryOperator::LessEqual => Ok(I32ComparisonOperator::LessEqual),
+        BinaryOperator::Greater => Ok(I32ComparisonOperator::Greater),
+        BinaryOperator::GreaterEqual => Ok(I32ComparisonOperator::GreaterEqual),
+        _ => Err(unsupported_bool_expression_diagnostic(diagnostic_code)),
+    }
 }
 
 fn is_i32_comparison_operator(operator: BinaryOperator) -> bool {
@@ -928,7 +985,12 @@ fn expression_is_lowerable_comparison_binding(
     context: &LoweringContext,
 ) -> bool {
     if is_i32_comparison_operator(binary.operator)
-        && expressions_are_lowerable_i32_values(&binary.left, &binary.right, context)
+        && (expressions_are_lowerable_i32_values(&binary.left, &binary.right, context)
+            || expressions_are_lowerable_i32_values_with_calls(
+                &binary.left,
+                &binary.right,
+                context,
+            ))
     {
         return true;
     }
@@ -951,6 +1013,38 @@ fn expressions_are_lowerable_i32_values(
 ) -> bool {
     expression_is_lowerable_i32_value(left, context)
         && expression_is_lowerable_i32_value(right, context)
+}
+
+fn expressions_are_lowerable_i32_values_with_calls(
+    left: &Expr,
+    right: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    expression_is_lowerable_i32_expression_with_calls(left, context)
+        && expression_is_lowerable_i32_expression_with_calls(right, context)
+        && (expression_contains_call(left) || expression_contains_call(right))
+}
+
+fn expression_is_lowerable_i32_expression_with_calls(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    match expression {
+        Expr::Call(call) => {
+            let Expr::Identifier(identifier) = call.callee.as_ref() else {
+                return false;
+            };
+            context.function_return_type(&identifier.name) == Some(&Type::I32)
+        }
+        Expr::Binary(binary) if binary.operator == BinaryOperator::Add => {
+            expression_is_lowerable_i32_expression_with_calls(&binary.left, context)
+                && expression_is_lowerable_i32_expression_with_calls(&binary.right, context)
+        }
+        Expr::Group(group) => {
+            expression_is_lowerable_i32_expression_with_calls(&group.expression, context)
+        }
+        _ => expression_is_lowerable_i32_value(expression, context),
+    }
 }
 
 fn expression_is_lowerable_i32_value(expression: &Expr, context: &LoweringContext) -> bool {

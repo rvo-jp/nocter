@@ -278,20 +278,16 @@ fn build_command_reports_unsupported_compound_bool_equality_condition() {
 }
 
 #[test]
-fn build_command_reports_unsupported_non_tail_call() {
-    let project = TempProject::new("cli-build-non-tail-call");
+fn build_command_reports_unsupported_i32_call_expression() {
+    let project = TempProject::new("cli-build-unsupported-i32-call-expression");
     let source = project.write_source(
-        "non_tail_call.nct",
+        "unsupported_i32_call_expression.nct",
         r#"func main(): i32 {
-    if answer() == 1 {
-        return 0
-    } else {
-        return 1
-    }
+    return answer() * 2
 }
 
 func answer(): i32 {
-    return 41
+    return 21
 }
 "#,
     );
@@ -302,12 +298,12 @@ func answer(): i32 {
     assert_eq!(output.status.code(), Some(1));
     let stderr = text(&output.stderr);
     assert!(
-        stderr.contains("error[E8006]"),
-        "expected call lowering diagnostic, got:\n{stderr}"
+        stderr.contains("error[E8003]"),
+        "expected unsupported i32 expression diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("IR v0 can only lower function calls in direct tail return position"),
-        "expected non-tail call diagnostic, got:\n{stderr}"
+        stderr.contains("IR v0 can only lower integer literal returns"),
+        "expected unsupported i32 expression diagnostic, got:\n{stderr}"
     );
     assert!(
         !executable.exists(),

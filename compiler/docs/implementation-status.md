@@ -22,9 +22,9 @@ This file describes implementation state only.
 | `bool` expressions | yes | yes | yes | partial | yes | Build supports literals, locals, `!`, `&&`, `||`, `i32` comparisons, and bool equality/inequality over literal/local operands in lowerable positions. |
 | Immutable `let` bindings | yes | yes | yes | partial | yes | Build supports lowerable `i32` and `bool` initializers. |
 | `var` and reassignment | yes | yes | partial | no | no | Backend has no general local storage yet. |
-| Same-file function calls | yes | yes | yes | partial | partial | Build supports non-generic `i32` tail calls with up to 8 `i32` arguments, `bool` tail returns, and a narrow same-file `i32` normal-call subset. |
+| Same-file function calls | yes | yes | yes | partial | partial | Build supports non-generic `i32` tail calls with up to 8 `i32` arguments, `bool` tail returns, and a narrow same-file scalar normal-call subset. |
 | Imported function calls | yes | yes | yes | no | no | Import resolution exists; backend call lowering does not cover imported calls. |
-| General non-tail calls | yes | yes | yes | partial | partial | Build supports same-file non-generic `i32` normal calls in `let` initializers and simple `i32` return additions. Unsupported shapes still report `E8006`. |
+| General non-tail calls | yes | yes | yes | partial | partial | Build supports same-file non-generic scalar normal calls in selected expression positions. Unsupported shapes still report IR lowering diagnostics. |
 | Terminal `if` / `else` | yes | yes | yes | partial | yes | Build supports terminal branches returning direct `i32` or non-entry `bool`. |
 | General `if`, `while`, `loop`, `for`, `match`, `?{}` | yes | yes | partial | no | no | Several forms are checkable; backend lowering remains intentionally narrow. |
 | Fallible entry success/failure | yes | yes | partial | partial | partial | Build supports simple success and `return make_error("code", "message")` failure. |
@@ -54,6 +54,7 @@ Currently buildable:
 - same-file non-generic tail calls returning `i32` or `bool`
 - same-file non-generic normal calls returning `i32` in `let` initializers
 - same-file non-generic normal calls returning `i32` in `i32` additions, evaluated left to right with distinct temporary locals
+- same-file non-generic normal calls returning `i32` as `i32` comparison operands such as `if answer() == 42`, `let matched = left() <= right()`, and `return left() < right()`
 - same-file non-generic normal calls returning `bool` in `let` initializers
 - same-file non-generic normal calls returning `bool` under unary `!` in `let` initializers and bool return expressions
 - same-file non-generic normal calls returning `bool` as atomic bool equality/inequality operands such as `ready() == true` and `left() != right()`

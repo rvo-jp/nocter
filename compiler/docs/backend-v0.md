@@ -45,7 +45,7 @@ The first implementation should keep the user-visible subset small:
 
 - same-file, non-generic calls only
 - `i32` arguments only
-- `i32` return values in lowerable `i32` expressions and `let` initializers
+- `i32` return values in lowerable `i32` expressions, `let` initializers, and `i32` comparison operands
 - `bool` return values in `let` initializers, unary-not bool expressions, bool equality/inequality operands, short-circuit bool value expressions, direct terminal-if conditions, and terminal-if short-circuit conditions
 - up to 8 arguments, passed in `w0` through `w7`
 - no imported calls, aggregate arguments, aggregate returns, strings, optionals, ownership/drop lowering, or calls in broader control-flow
@@ -169,6 +169,7 @@ This covers `let x = callee()` and `return callee() + 1` after the expression lo
 The source expression lowerer stages normal-call results in temporary scalar locals for `i32` additions.
 Multiple normal calls in an addition are evaluated left to right and receive distinct temporary locals.
 Nested normal-call arguments are also evaluated left to right before the parent `CallI32`.
+`i32` comparisons such as `if answer() == 42 { ... }`, `let matched = left() <= right()`, and `return left() < right()` evaluate lowerable call operands left to right, stage each call result in a temporary scalar local, and then build a `BoolValue::I32Comparison`.
 Bool-returning normal calls are buildable in `let` initializers, unary-not bool expressions, bool equality/inequality operands, short-circuit bool value expressions, direct terminal-if conditions, and terminal-if short-circuit conditions.
 For example, `let ready = enabled()`, `let disabled = !enabled()`, `if enabled() { ... }`, and `if !enabled() { ... }` lower by staging the bool call result in a temporary scalar local before the surrounding bool expression consumes it.
 Bool equality/inequality such as `let same = left() == right()` and `return ready() != false` evaluates call operands left to right, stages each result in a temporary scalar local, and then builds a `BoolValue::BoolComparison`.
@@ -213,6 +214,7 @@ Implement normal calls in this order:
 15. Done: lower same-file bool-returning normal calls in short-circuit bool value expressions by expanding to nested `Instruction::If` and materializing the bool result.
 16. Done: lower same-file bool-returning normal calls as atomic bool equality/inequality operands by staging call results left to right before `BoolValue::BoolComparison`.
 17. Done: lower nested `i32` tail-call arguments by staging child normal-call results before the final `TailCall`.
+18. Done: lower same-file `i32` normal calls as `i32` comparison operands by staging call results left to right before `BoolValue::I32Comparison`.
 
 ### Non-Goals For This Phase
 
