@@ -128,7 +128,8 @@ For `callee() + local`, preserve the call result in a scratch or spill slot befo
 
 Normal calls can stage nested `i32` call arguments.
 For example, `let value = outer(inner())` lowers `inner()` into a temporary local, then passes that local to `outer`.
-Tail calls still reject nested call arguments because their argument lowering does not consume staged call results.
+Tail calls can also stage nested `i32` call arguments before the final tail branch.
+For example, `return outer(inner())` lowers `inner()` into a temporary local, then uses that local as the staged argument for `outer`.
 
 ### Argument Movement
 
@@ -141,7 +142,7 @@ Normal calls and tail calls with arguments use argument staging slots:
 This makes source calls such as `swap(b, a)` safe when `a` and `b` already live in argument registers.
 Tail calls with arguments require a frame for staging even when the function has no normal calls.
 Tail calls without arguments can remain frameless.
-Nested tail-call arguments remain disabled until tail-call lowering can consume staged child call results.
+Nested `i32` tail-call arguments use the same source-level expression staging as normal-call arguments before the final frame restore and branch.
 
 ### IR Shape
 
@@ -211,6 +212,7 @@ Implement normal calls in this order:
 14. Done: lower same-file bool-returning normal calls in terminal-if `&&` and `||` conditions by expanding to nested `Instruction::If` and preserving short-circuit evaluation.
 15. Done: lower same-file bool-returning normal calls in short-circuit bool value expressions by expanding to nested `Instruction::If` and materializing the bool result.
 16. Done: lower same-file bool-returning normal calls as atomic bool equality/inequality operands by staging call results left to right before `BoolValue::BoolComparison`.
+17. Done: lower nested `i32` tail-call arguments by staging child normal-call results before the final `TailCall`.
 
 ### Non-Goals For This Phase
 

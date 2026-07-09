@@ -283,15 +283,15 @@ fn build_command_reports_unsupported_non_tail_call() {
     let source = project.write_source(
         "non_tail_call.nct",
         r#"func main(): i32 {
-    return add(answer(), 1)
+    if answer() == 1 {
+        return 0
+    } else {
+        return 1
+    }
 }
 
 func answer(): i32 {
     return 41
-}
-
-func add(a: i32, b: i32): i32 {
-    return a + b
 }
 "#,
     );

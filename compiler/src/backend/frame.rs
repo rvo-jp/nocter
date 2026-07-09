@@ -222,7 +222,12 @@ fn record_instruction_scalar_locals(
     highest_local_index: &mut Option<usize>,
 ) {
     match instruction {
-        Instruction::WriteStaticStderr(_) | Instruction::TailCall { .. } | Instruction::Return => {}
+        Instruction::WriteStaticStderr(_) | Instruction::Return => {}
+        Instruction::TailCall { arguments, .. } => {
+            for argument in arguments {
+                record_i32_value(argument, highest_local_index);
+            }
+        }
         Instruction::SetI32 { destination, value } => {
             record_i32_location(*destination, highest_local_index);
             record_i32_value(value, highest_local_index);
@@ -494,6 +499,25 @@ mod tests {
         assert_eq!(
             frame,
             FunctionFrame::Framed(FrameLayout::for_slot_counts(0, 2).unwrap())
+        );
+    }
+
+    #[test]
+    fn tail_call_with_local_argument_counts_argument_local() {
+        let function = Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![Instruction::TailCall {
+                function: "answer".to_string(),
+                arguments: vec![I32Value::Location(I32Location::Local(2))],
+            }],
+        };
+
+        let frame = plan_function_frame(&function).unwrap();
+
+        assert_eq!(
+            frame,
+            FunctionFrame::Framed(FrameLayout::for_slot_counts(3, 1).unwrap())
         );
     }
 

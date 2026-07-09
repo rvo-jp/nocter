@@ -204,7 +204,7 @@ pub(super) fn lower_bool_expression_to_location(
                 diagnostic_code,
             )
         }
-        Expr::Binary(binary) if bool_comparison_contains_call(binary) => {
+        Expr::Binary(binary) if bool_comparison_contains_call(binary, context) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             let comparison = lower_bool_comparison_to_value_with_temporaries(
                 binary,
@@ -416,7 +416,7 @@ fn lower_bool_expression_to_value_with_temporaries(
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
     match expression {
-        Expr::Binary(binary) if bool_comparison_contains_call(binary) => {
+        Expr::Binary(binary) if bool_comparison_contains_call(binary, context) => {
             lower_bool_comparison_to_value_with_temporaries(
                 binary,
                 context,
@@ -523,11 +523,15 @@ fn lower_bool_comparison_operand_to_value_with_temporaries(
     }
 }
 
-fn bool_comparison_contains_call(binary: &BinaryExpr) -> bool {
+fn bool_comparison_contains_call(binary: &BinaryExpr, context: &LoweringContext) -> bool {
     matches!(
         binary.operator,
         BinaryOperator::Equal | BinaryOperator::NotEqual
-    ) && (expression_contains_call(&binary.left) || expression_contains_call(&binary.right))
+    ) && expressions_are_lowerable_bool_comparison_operands_with_calls(
+        &binary.left,
+        &binary.right,
+        context,
+    )
 }
 
 fn lower_i32_normal_call(
@@ -599,15 +603,20 @@ fn lower_direct_tail_call(
 
     validate_tail_call_return_type(&identifier.name, context)?;
 
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let mut instructions = Vec::new();
     let mut arguments = Vec::new();
     for argument in &call.arguments {
-        arguments.push(lower_i32_call_argument(argument, context)?);
+        let argument = lower_i32_expression_to_value(argument, context, &mut temporaries)?;
+        instructions.extend(argument.instructions);
+        arguments.push(argument.value);
     }
 
-    Ok(vec![Instruction::TailCall {
+    instructions.push(Instruction::TailCall {
         function: identifier.name.clone(),
         arguments,
-    }])
+    });
+    Ok(instructions)
 }
 
 fn validate_normal_call_return_type(
@@ -687,13 +696,6 @@ fn describe_type(ty: &Type) -> &'static str {
             Type::Fallible(_) => "fallible",
         },
     }
-}
-
-fn lower_i32_call_argument(
-    expression: &Expr,
-    context: &LoweringContext,
-) -> Result<I32Value, Vec<Diagnostic>> {
-    lower_i32_value(expression, context)
 }
 
 pub(super) fn lower_i32_value(

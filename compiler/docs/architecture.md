@@ -156,10 +156,12 @@ Currently buildable:
 - immutable local `let` bindings whose initializer is lowerable as `i32` or `bool`
 - `void` entry with an empty body or bare `return`
 - same-file non-generic tail calls returning `i32` or `bool`
-- same-file non-generic normal calls returning `i32` in `let` initializers and `i32` additions
+- same-file non-generic normal calls returning `i32` in `let` initializers, `i32` additions, and nested `i32` call arguments
+- same-file non-generic normal calls returning `bool` in `let` initializers, unary-not expressions, bool equality/inequality operands, short-circuit bool value expressions, and terminal `if` conditions
 - nested `i32` normal-call arguments such as `let value = outer(inner())`
+- nested `i32` tail-call arguments such as `return outer(inner())`
 - up to 8 `i32` parameters for lowered functions and calls
-- reordered parameter arguments are supported for normal calls through argument staging; tail calls still reject reordered parameter arguments
+- reordered parameter arguments are supported for normal calls and tail calls through argument staging
 - non-entry functions returning `bool`
 - `i32` addition used in lowerable `i32` expressions
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` comparisons used in lowerable bool expressions
@@ -172,8 +174,6 @@ Currently not buildable even when it may be checkable:
 - `var`, reassignment, and general local storage
 - general `if`, `while`, `loop`, range `for`, and `match`
 - imported function calls
-- nested tail-call arguments such as `return outer(inner())`
-- normal calls returning `bool`
 - `str` values beyond static failure messages
 - optional values
 - aggregate values, arrays, views, pointers, methods, traits, generics, ownership lowering, and drop glue
@@ -191,11 +191,11 @@ The `arm64-darwin` backend v0 uses a deliberately small register-only convention
 - `w16` and `w17` are backend scratch registers and may be clobbered by code generation
 
 Tail calls are lowered by loading the callee arguments into `w0` through `w7` and branching directly to the target function.
-The first source-level normal-call subset lowers same-file non-generic `i32` calls in `let` initializers, `i32` additions, and nested normal-call arguments, evaluating staged calls left to right into distinct temporary locals.
+The source-level scalar call subset lowers same-file non-generic `i32` calls in `let` initializers, `i32` additions, nested normal-call arguments, and nested tail-call arguments, evaluating staged calls left to right into distinct temporary locals.
 The frame, spill/reload, and normal-call implementation order is tracked in `backend-v0.md`.
 `backend/frame.rs` owns the fixed v0 frame layout planner: frame size, saved `x30` offset, and scalar spill-slot offsets.
 Codegen emits framed prologue/epilogue sequences and normal calls with conservative scalar spill/reload plus stack-backed argument staging.
-Imported calls, bool-returning normal calls, nested tail-call arguments, aggregate values, ownership/drop lowering, and general control-flow call placement remain outside the buildable subset.
+Imported calls, aggregate values, ownership/drop lowering, and general control-flow call placement remain outside the buildable subset.
 
 Use integration tests for user-visible CLI behavior and backend/unit tests for lower-level encoding and Mach-O layout. When extending build support, first add a small `nocter build` regression case, then expand IR lowering, code generation, and documentation together.
 

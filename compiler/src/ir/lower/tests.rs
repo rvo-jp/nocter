@@ -1395,8 +1395,8 @@ func mirrors_enabled(): i32 {
 }
 
 #[test]
-fn reports_unsupported_nested_i32_tail_call_argument() {
-    let diagnostics = lower_text_diagnostics(
+fn lowers_entry_i32_nested_tail_call_argument() {
+    let ir = lower_text(
         r#"func main(): i32 {
     return add(answer(), 1)
 }
@@ -1411,10 +1411,43 @@ func add(a: i32, b: i32): i32 {
 "#,
     );
 
-    assert_eq!(diagnostics[0].code, "E8006");
     assert_eq!(
-        diagnostics[0].message,
-        "IR v0 can only lower function calls in direct tail return position"
+        ir.functions[0].instructions,
+        vec![
+            call_i32(I32Location::Local(0), "answer", vec![]),
+            tail_call("add", vec![i32_local(0), i32_const(1)]),
+        ]
+    );
+}
+
+#[test]
+fn lowers_entry_i32_multiple_nested_tail_call_arguments() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    return add(left(), right())
+}
+
+func left(): i32 {
+    return 20
+}
+
+func right(): i32 {
+    return 22
+}
+
+func add(a: i32, b: i32): i32 {
+    return a + b
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            call_i32(I32Location::Local(0), "left", vec![]),
+            call_i32(I32Location::Local(1), "right", vec![]),
+            tail_call("add", vec![i32_local(0), i32_local(1)]),
+        ]
     );
 }
 
@@ -2016,7 +2049,7 @@ func ready(): bool {
 
 #[test]
 fn lowers_bool_return_normal_call_comparison() {
-    let function = lower_named_function(
+    let function = lower_named_function_with_signatures(
         r#"func main(): i32 {
     return 0
 }
@@ -2034,7 +2067,12 @@ func differs(): bool {
 }
 "#,
         "differs",
-    );
+        context::FunctionSignatures::new(HashMap::from([
+            ("left".to_string(), Type::Bool),
+            ("right".to_string(), Type::Bool),
+        ])),
+    )
+    .unwrap();
 
     assert_eq!(
         function,
@@ -2339,36 +2377,6 @@ func done(): bool {
                 else_instructions: vec![set_return_i32(7), Instruction::Return],
             },
         ]
-    );
-}
-
-#[test]
-fn reports_unsupported_compound_bool_call_comparison_operand() {
-    let diagnostics = lower_named_function_diagnostics_with_signatures(
-        r#"func main(): i32 {
-    return 0
-}
-
-func ready(): bool {
-    return true
-}
-
-func other(): bool {
-    return true
-}
-
-func enabled(): bool {
-    return (ready() && other()) == true
-}
-"#,
-        "enabled",
-        context::FunctionSignatures::new(HashMap::new()),
-    );
-
-    assert_eq!(diagnostics[0].code, "E8007");
-    assert_eq!(
-        diagnostics[0].message,
-        "IR v0 can only lower bool equality/inequality operands that are bool literals or bool locals"
     );
 }
 

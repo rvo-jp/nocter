@@ -61,6 +61,7 @@ Currently buildable:
 - same-file non-generic normal calls returning `bool` directly in terminal `if` conditions, including unary `!`
 - same-file non-generic normal calls returning `bool` in terminal `if` short-circuit conditions such as `ready() && other()` and `ready() || other()`
 - nested `i32` normal-call arguments such as `let value = outer(inner())`
+- nested `i32` tail-call arguments such as `return outer(inner())`
 - up to 8 `i32` parameters for lowered functions and calls
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
 - non-entry functions returning `bool`
@@ -75,7 +76,6 @@ Currently not buildable even when it may be checkable:
 - `var`, reassignment, and general local storage
 - general `if`, `while`, `loop`, range `for`, `match`, and pattern conditional `?{}`
 - imported function calls
-- nested tail-call arguments such as `return outer(inner())`
 - compound bool equality operands with calls such as `(ready() && other()) == true`
 - `str` values beyond static failure messages
 - optional values

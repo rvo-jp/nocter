@@ -7,7 +7,14 @@ Long-lived maintenance rules live in `AGENTS.md` and `docs/maintenance.md`.
 
 Recent committed work:
 
-- Current checkpoint: `Lower bool call comparisons`
+- Current checkpoint: `Lower nested tail-call arguments`
+  - lowers nested same-file `i32` tail-call arguments such as `return outer(inner())`
+  - evaluates nested tail-call arguments left to right through the existing `i32` expression staging path
+  - emits child calls before the final `TailCall`, then uses tail-call argument staging for the final branch
+  - updates frame planning so `TailCall` argument locals are counted
+  - keeps imported calls, bool/aggregate tail-call arguments, ownership/drop lowering, and broader control-flow disabled
+  - adds IR lowering, frame planning, and CLI run coverage for nested tail-call arguments
+- `1c8a66a Lower bool call comparisons`
   - lowers same-file bool-returning normal calls as atomic bool equality/inequality operands
   - supports `let value = ready() == true`, `return left() != right()`, and `if left() == right()`
   - stages bool call operands left to right before building `BoolValue::BoolComparison`
@@ -122,7 +129,7 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Lower bool call comparisons`.
+- None expected after committing `Lower nested tail-call arguments`.
 
 ## Verification Already Run
 
@@ -407,9 +414,29 @@ cargo check --quiet
 cargo test --quiet ir::lower::tests::lowers_bool_let_initializer_normal_call_comparison
 cargo test --quiet ir::lower::tests::lowers_bool_return_normal_call_comparison
 cargo test --quiet ir::lower::tests::lowers_entry_i32_if_condition_normal_call_comparison
-cargo test --quiet ir::lower::tests::reports_unsupported_compound_bool_call_comparison_operand
 cargo test --quiet --test cli_run run_command_returns_bool_call_comparison_let_exit_code
 cargo test --quiet --test cli_run run_command_returns_bool_call_comparison_return_exit_code
+cargo test --quiet
+cargo clippy --all-targets --quiet -- -D warnings
+```
+
+From repository root:
+
+```sh
+git diff --check
+```
+
+All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew shellenv, but the commands exited successfully.
+
+For the nested tail-call argument work, from `compiler/`:
+
+```sh
+cargo fmt
+cargo check --quiet
+cargo test --quiet ir::lower::tests::lowers_entry_i32_nested_tail_call_argument
+cargo test --quiet ir::lower::tests::lowers_entry_i32_multiple_nested_tail_call_arguments
+cargo test --quiet backend::frame::tests::tail_call_with_local_argument_counts_argument_local
+cargo test --quiet --test cli_run run_command_returns_nested_i32_tail_call_argument_exit_code
 cargo test --quiet
 cargo clippy --all-targets --quiet -- -D warnings
 ```
@@ -439,7 +466,7 @@ The current LSP maintainability pass has reached its planned stopping point:
 Recommended next small task for the next session:
 
 1. Continue compiler core backend work, not LSP-only behavior.
-2. Consider broader terminal control-flow or nested tail-call arguments only after their lowering rules are designed.
+2. Consider broader terminal control-flow only after its lowering rules are designed.
 3. Keep imported calls, aggregates, ownership/drop lowering, general mutable storage, and broader control-flow disabled until their ABI, storage, and join rules are designed.
 4. Add CLI build/run coverage for any newly buildable source subset.
 
