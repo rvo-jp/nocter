@@ -5,17 +5,16 @@ Short-lived handoff notes belong in `../TODO.md`.
 
 ## Current Priority
 
-Finish the first LSP maintainability pass before adding more editor features.
+The first LSP maintainability pass is complete enough to stop here.
+
+Do not add rename, references, formatting integration, richer type hovers, or more editor-only behavior before returning to compiler core work.
+The current LSP feature modules should present compiler analysis results, not grow their own language semantics.
 
 Recommended next small task:
 
-1. Keep `driver/lsp/` split by stable responsibilities.
-2. Extract the repeated open-document compile-unit analysis setup into a small LSP analysis bridge only if the resulting API stays narrower than the current helper duplication.
-3. End this LSP maintainability pass once request routing is thin and feature modules own presentation.
-4. Reuse resolver and analysis data for editor semantics instead of adding LSP-only semantic logic.
-
-The current LSP feature set is useful enough to exercise in VS Code, but `driver/lsp/mod.rs` is still too large.
-Reduce that coupling before adding rename, references, formatting, or richer type hovers.
+1. Move back to compiler core work in a fresh session.
+2. Review `implementation-status.md`, parser tests, resolver tests, and `analysis/` APIs.
+3. Choose a narrow task that improves shared compiler semantics for CLI and LSP together.
 
 ## Near-Term Constraints
 

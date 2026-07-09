@@ -1,13 +1,9 @@
-use crate::analysis::analyze_compile_unit_with_entry;
-use crate::entry::DEFAULT_ENTRY_NAME;
-use crate::frontend::{FrontendOptions, load_compile_unit};
-use crate::source::SourceMap;
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 use std::io::{self, BufRead, Write};
-use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+mod analysis;
 mod completion;
 mod definition;
 mod diagnostics;
@@ -17,13 +13,14 @@ mod protocol;
 mod semantic;
 mod symbols;
 
+use analysis::{diagnostics_for_workspace, workspace_analysis_for_uri};
 #[cfg(test)]
 use completion::{LSP_COMPLETION_ITEM_KIND_FUNCTION, LSP_COMPLETION_ITEM_KIND_STRUCT};
 use completion::{
     completion_items_for_document, completion_items_for_file_analysis, keyword_completion_items,
 };
 use definition::{definition_for_document, definition_for_file_analysis};
-use diagnostics::{LspDiagnostic, diagnostics_for_lsp, publish_diagnostics};
+use diagnostics::publish_diagnostics;
 use documents::{
     OpenDocument, WorkspaceRoot, changed_document_from_params, document_uri_from_params,
     open_document_from_params, workspace_roots_from_initialize_params,
@@ -209,7 +206,7 @@ impl LspServer {
         root_uri: &str,
         writer: &mut W,
     ) -> io::Result<()> {
-        let diagnostics_by_uri = analyze_workspace(root_uri, &self.documents);
+        let diagnostics_by_uri = diagnostics_for_workspace(root_uri, &self.documents);
         let current_uris = diagnostics_by_uri
             .iter()
             .map(|(uri, _)| uri.clone())
@@ -294,31 +291,10 @@ impl LspServer {
         let document = self.documents.get(uri)?;
         let root_offset =
             lsp_position_to_byte_offset(&document.text, position.line, position.character);
-        let mut open_documents = self.documents.values().collect::<Vec<_>>();
-        open_documents.sort_by(|left, right| left.uri.cmp(&right.uri));
+        let workspace = workspace_analysis_for_uri(uri, &self.documents)?;
+        let file = workspace.root_file()?;
 
-        let mut sources = SourceMap::new();
-        let mut source_by_uri = HashMap::new();
-
-        for document in open_documents {
-            let source = sources.add_source(
-                document.display_path.clone(),
-                document.absolute_path.clone(),
-                document.text.clone(),
-            );
-            source_by_uri.insert(document.uri.clone(), source);
-        }
-
-        let root = source_by_uri.get(uri).copied()?;
-        let options = frontend_options_for_document(document);
-        let unit = load_compile_unit(&mut sources, root, &options).ok()?;
-        let analysis = analyze_compile_unit_with_entry(&sources, &unit, DEFAULT_ENTRY_NAME);
-        let file = analysis
-            .files
-            .iter()
-            .find(|file| file.ast.span.source == root)?;
-
-        hover_for_file_analysis(&sources, &analysis, file, root_offset)
+        hover_for_file_analysis(&workspace.sources, &workspace.analysis, file, root_offset)
     }
 
     fn workspace_definition_for_uri(&self, uri: &str, params: Option<&Value>) -> Option<Value> {
@@ -326,129 +302,18 @@ impl LspServer {
         let document = self.documents.get(uri)?;
         let root_offset =
             lsp_position_to_byte_offset(&document.text, position.line, position.character);
-        let mut open_documents = self.documents.values().collect::<Vec<_>>();
-        open_documents.sort_by(|left, right| left.uri.cmp(&right.uri));
+        let workspace = workspace_analysis_for_uri(uri, &self.documents)?;
+        let file = workspace.root_file()?;
 
-        let mut sources = SourceMap::new();
-        let mut source_by_uri = HashMap::new();
-
-        for document in open_documents {
-            let source = sources.add_source(
-                document.display_path.clone(),
-                document.absolute_path.clone(),
-                document.text.clone(),
-            );
-            source_by_uri.insert(document.uri.clone(), source);
-        }
-
-        let root = source_by_uri.get(uri).copied()?;
-        let options = frontend_options_for_document(document);
-        let unit = load_compile_unit(&mut sources, root, &options).ok()?;
-        let analysis = analyze_compile_unit_with_entry(&sources, &unit, DEFAULT_ENTRY_NAME);
-        let file = analysis
-            .files
-            .iter()
-            .find(|file| file.ast.span.source == root)?;
-
-        definition_for_file_analysis(&sources, file, root_offset)
+        definition_for_file_analysis(&workspace.sources, file, root_offset)
     }
 
     fn workspace_completion_for_uri(&self, uri: &str) -> Option<Vec<Value>> {
-        let document = self.documents.get(uri)?;
-        let mut open_documents = self.documents.values().collect::<Vec<_>>();
-        open_documents.sort_by(|left, right| left.uri.cmp(&right.uri));
-
-        let mut sources = SourceMap::new();
-        let mut source_by_uri = HashMap::new();
-
-        for document in open_documents {
-            let source = sources.add_source(
-                document.display_path.clone(),
-                document.absolute_path.clone(),
-                document.text.clone(),
-            );
-            source_by_uri.insert(document.uri.clone(), source);
-        }
-
-        let root = source_by_uri.get(uri).copied()?;
-        let options = frontend_options_for_document(document);
-        let unit = load_compile_unit(&mut sources, root, &options).ok()?;
-        let analysis = analyze_compile_unit_with_entry(&sources, &unit, DEFAULT_ENTRY_NAME);
-        let file = analysis
-            .files
-            .iter()
-            .find(|file| file.ast.span.source == root)?;
+        let workspace = workspace_analysis_for_uri(uri, &self.documents)?;
+        let file = workspace.root_file()?;
 
         Some(completion_items_for_file_analysis(file))
     }
-}
-
-fn analyze_workspace(
-    root_uri: &str,
-    documents: &HashMap<String, OpenDocument>,
-) -> Vec<(String, Vec<LspDiagnostic>)> {
-    let mut open_documents = documents.values().collect::<Vec<_>>();
-    open_documents.sort_by(|left, right| left.uri.cmp(&right.uri));
-
-    let mut sources = SourceMap::new();
-    let mut source_by_uri = HashMap::new();
-
-    for document in &open_documents {
-        let source = sources.add_source(
-            document.display_path.clone(),
-            document.absolute_path.clone(),
-            document.text.clone(),
-        );
-        source_by_uri.insert(document.uri.clone(), source);
-    }
-
-    let diagnostics = match source_by_uri.get(root_uri).copied() {
-        Some(root) => match documents
-            .get(root_uri)
-            .map(frontend_options_for_document)
-            .map(|options| load_compile_unit(&mut sources, root, &options))
-            .unwrap_or_else(|| load_compile_unit(&mut sources, root, &FrontendOptions::default()))
-        {
-            Ok(unit) => {
-                analyze_compile_unit_with_entry(&sources, &unit, DEFAULT_ENTRY_NAME).diagnostics()
-            }
-            Err(diagnostics) => diagnostics,
-        },
-        None => Vec::new(),
-    };
-
-    open_documents
-        .into_iter()
-        .map(|document| {
-            (
-                document.uri.clone(),
-                diagnostics_for_lsp(document, diagnostics.clone()),
-            )
-        })
-        .collect()
-}
-
-fn frontend_options_for_document(document: &OpenDocument) -> FrontendOptions {
-    FrontendOptions {
-        nocter_home: document
-            .absolute_path
-            .as_deref()
-            .and_then(find_nearest_nocter_home),
-        ..FrontendOptions::default()
-    }
-}
-
-fn find_nearest_nocter_home(path: &Path) -> Option<PathBuf> {
-    let mut directory = path.parent();
-    while let Some(current) = directory {
-        let home = current.join(".nocter");
-        if home.is_dir() {
-            return Some(home);
-        }
-        directory = current.parent();
-    }
-
-    None
 }
 
 fn initialize_response(id: Value) -> Value {
@@ -488,6 +353,7 @@ fn initialize_response(id: Value) -> Value {
 mod tests {
     use super::*;
     use std::io::Cursor;
+    use std::path::{Path, PathBuf};
 
     #[test]
     fn decodes_file_uri_percent_encoding() {
@@ -1275,7 +1141,7 @@ mod tests {
             ),
         ]);
 
-        let diagnostics = analyze_workspace(&app_uri, &documents);
+        let diagnostics = diagnostics_for_workspace(&app_uri, &documents);
 
         let config_diagnostics = diagnostics
             .iter()

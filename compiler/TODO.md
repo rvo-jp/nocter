@@ -7,6 +7,13 @@ Long-lived maintenance rules live in `AGENTS.md` and `docs/maintenance.md`.
 
 Recent committed work:
 
+- `d5b1a89 Extract LSP document symbols module`
+  - added `driver/lsp/symbols.rs`
+  - moved document symbol construction out of `driver/lsp/mod.rs`
+  - updated LSP architecture and roadmap notes for the symbols extraction
+- `b666f99 Extract LSP completion module`
+  - added `driver/lsp/completion.rs`
+  - moved keyword and resolved symbol completion item construction out of `driver/lsp/mod.rs`
 - `b505f4f Extract LSP hover module`
   - added `driver/lsp/hover.rs`
   - moved hover contents, hover symbol collection, documentation attachment, and resolved-reference hover labels out of `driver/lsp/mod.rs`
@@ -40,13 +47,13 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- `compiler/src/driver/lsp/symbols.rs` now owns document symbol response construction, symbol kind mapping, and AST item-to-symbol conversion.
-- `compiler/src/driver/lsp/mod.rs` routes document symbol requests to `symbols.rs`.
-- `compiler/docs/architecture.md`, `compiler/docs/roadmap.md`, and this file were updated to reflect the document symbols extraction.
+- `compiler/src/driver/lsp/analysis.rs` now owns open-document workspace analysis construction, Nocter home discovery for LSP documents, and workspace diagnostic analysis setup.
+- `compiler/src/driver/lsp/mod.rs` now delegates hover, definition, completion, and diagnostics analysis setup to `analysis.rs`.
+- `compiler/docs/architecture.md`, `compiler/docs/roadmap.md`, and this file were updated to mark the current LSP maintainability pass as complete.
 
 ## Verification Already Run
 
-After the document symbols extraction, from `compiler/`:
+After the LSP analysis bridge extraction, from `compiler/`:
 
 ```sh
 cargo fmt
@@ -63,28 +70,27 @@ From repository root:
 git diff --check
 ```
 
-Passed after the document symbols extraction.
+Passed after the LSP analysis bridge extraction.
 
 ## First Action In Next Session
 
 1. Run `git status --short`.
-2. Review the uncommitted document symbols extraction.
+2. Review the uncommitted LSP analysis bridge extraction.
 3. If the user asks for a commit, stage only compiler files unless there are unrelated local changes.
 
 ## Next Implementation Direction
 
-Recommended next small task:
+The current LSP maintainability pass has reached its planned stopping point:
 
-1. Continue the LSP maintainability pass.
-2. Extract the repeated open-document compile-unit analysis setup from `driver/lsp/mod.rs` into a small LSP analysis bridge only if the resulting API stays narrower than the current helper duplication.
-3. Keep the extraction behavior-preserving.
-4. Run `cargo fmt`, `cargo test --quiet`, and `cargo clippy --all-targets --quiet -- -D warnings`.
+- `driver/lsp/mod.rs` owns request routing, notification handling, and feature orchestration.
+- LSP presentation responsibilities are split across `diagnostics.rs`, `semantic.rs`, `hover.rs`, `definition.rs`, `completion.rs`, `symbols.rs`, and `analysis.rs`.
+- Do not add rename, references, formatting integration, or richer type hovers before returning to compiler core work.
 
-After that:
+Recommended next small task for the next session:
 
-1. End the current LSP maintainability pass.
-2. Keep compiler semantics in resolver, analysis, and typecheck modules; LSP modules should present those results.
-3. Move back to compiler core work after the LSP server structure is thin enough for future editor features.
+1. Move back to compiler core work.
+2. Review `docs/implementation-status.md`, parser tests, resolver tests, and analysis APIs.
+3. Pick a narrow core task that improves shared compiler semantics instead of adding LSP-only logic.
 
 ## Design Constraints To Preserve
 
