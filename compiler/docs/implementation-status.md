@@ -22,9 +22,9 @@ This file describes implementation state only.
 | `bool` expressions | yes | yes | yes | partial | yes | Build supports literals, locals, `!`, `&&`, `||`, `i32` comparisons, and bool equality/inequality over literal/local operands in lowerable positions. |
 | Immutable `let` bindings | yes | yes | yes | partial | yes | Build supports lowerable `i32` and `bool` initializers. |
 | `var` and reassignment | yes | yes | partial | no | no | Backend has no general local storage yet. |
-| Same-file function calls | yes | yes | yes | partial | partial | Build supports non-generic `i32` tail calls with up to 8 `i32` arguments and `bool` tail returns. |
+| Same-file function calls | yes | yes | yes | partial | partial | Build supports non-generic `i32` tail calls with up to 8 `i32` arguments, `bool` tail returns, and a narrow same-file `i32` normal-call subset. |
 | Imported function calls | yes | yes | yes | no | no | Import resolution exists; backend call lowering does not cover imported calls. |
-| General non-tail calls | yes | yes | yes | no | no | Backend has internal framed normal-call codegen coverage for hand-built IR, but source lowering remains disabled. Build reports a dedicated `E8006` when a call appears outside direct tail return position. |
+| General non-tail calls | yes | yes | yes | partial | partial | Build supports same-file non-generic `i32` normal calls in `let` initializers and simple `i32` return additions. Unsupported shapes still report `E8006`. |
 | Terminal `if` / `else` | yes | yes | yes | partial | yes | Build supports terminal branches returning direct `i32` or non-entry `bool`. |
 | General `if`, `while`, `loop`, `for`, `match`, `?{}` | yes | yes | partial | no | no | Several forms are checkable; backend lowering remains intentionally narrow. |
 | Fallible entry success/failure | yes | yes | partial | partial | partial | Build supports simple success and `return make_error("code", "message")` failure. |
@@ -52,7 +52,9 @@ Currently buildable:
 - immutable local `let` bindings whose initializer is lowerable as `i32` or `bool`
 - `void` entry with an empty body or bare `return`
 - same-file non-generic tail calls returning `i32` or `bool`
-- up to 8 `i32` parameters for lowered functions and tail calls
+- same-file non-generic normal calls returning `i32` in `let` initializers
+- same-file non-generic normal calls returning `i32` in simple return additions such as `return answer() + 1`
+- up to 8 `i32` parameters for lowered functions and calls, while reordered parameter arguments remain unsupported
 - non-entry functions returning `bool`
 - `i32` addition used in lowerable `i32` expressions
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` comparisons used in lowerable bool expressions
@@ -65,6 +67,8 @@ Currently not buildable even when it may be checkable:
 - `var`, reassignment, and general local storage
 - general `if`, `while`, `loop`, range `for`, `match`, and pattern conditional `?{}`
 - imported function calls
+- nested call arguments such as `outer(inner())`
+- normal calls returning `bool`
 - `str` values beyond static failure messages
 - optional values
 - aggregate values, arrays, views, pointers, methods, traits, generics, ownership lowering, and drop glue

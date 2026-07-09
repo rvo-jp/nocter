@@ -187,7 +187,7 @@ Implement normal calls in this order:
 2. Done: add a backend frame planner that computes fixed frame size, saved `x30` offset, and scalar spill slot offsets.
 3. Done: emit framed-function prologue/epilogue and route `Return` and `TailCall` emission through frame-aware helpers so framed functions restore `x30` and deallocate their frame before exiting.
 4. Done: add the IR normal-call instruction without lowering source calls to it yet; add codegen unit tests for hand-built IR functions that perform normal calls.
-5. Lower the smallest source subset: same-file `i32` normal call in a `let` initializer or simple i32 expression, with CLI build/run coverage.
+5. Done: lower the smallest source subset: same-file `i32` normal call in a `let` initializer or simple i32 return addition, with CLI build/run coverage.
 6. Expand expression placement only after argument staging and call result staging are explicit.
 
 ### Non-Goals For This Phase

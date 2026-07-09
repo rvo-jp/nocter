@@ -20,22 +20,50 @@ pub(super) fn lower_i32_expression_to_location(
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
-        Expr::Call(_) => Err(vec![Diagnostic::error(
-            "E8006",
-            "IR v0 can only lower direct function calls in tail return position",
-        )]),
+        Expr::Call(call) => lower_i32_normal_call(call, destination, context),
         Expr::Binary(binary) if binary.operator == BinaryOperator::Add => {
-            Ok(vec![Instruction::AddI32 {
-                destination,
-                left: lower_i32_value(&binary.left, context)?,
-                right: lower_i32_value(&binary.right, context)?,
-            }])
+            lower_i32_add_expression_to_location(binary, destination, context)
         }
         Expr::Group(group) => {
             lower_i32_expression_to_location(&group.expression, destination, context)
         }
         _ => lower_i32_value(expression, context)
             .map(|value| vec![Instruction::SetI32 { destination, value }]),
+    }
+}
+
+fn lower_i32_add_expression_to_location(
+    binary: &BinaryExpr,
+    destination: I32Location,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match (binary.left.as_ref(), binary.right.as_ref()) {
+        (Expr::Call(_), Expr::Call(_)) => Err(unsupported_non_tail_call_diagnostic()),
+        (Expr::Call(call), right) => {
+            let temporary = context.next_i32_temporary_location()?;
+            let mut instructions = lower_i32_normal_call(call, temporary, context)?;
+            instructions.push(Instruction::AddI32 {
+                destination,
+                left: I32Value::Location(temporary),
+                right: lower_i32_value(right, context)?,
+            });
+            Ok(instructions)
+        }
+        (left, Expr::Call(call)) => {
+            let temporary = context.next_i32_temporary_location()?;
+            let mut instructions = lower_i32_normal_call(call, temporary, context)?;
+            instructions.push(Instruction::AddI32 {
+                destination,
+                left: lower_i32_value(left, context)?,
+                right: I32Value::Location(temporary),
+            });
+            Ok(instructions)
+        }
+        (left, right) => Ok(vec![Instruction::AddI32 {
+            destination,
+            left: lower_i32_value(left, context)?,
+            right: lower_i32_value(right, context)?,
+        }]),
     }
 }
 
@@ -74,6 +102,29 @@ pub(super) fn lower_bool_return_expression(
     }
 }
 
+fn lower_i32_normal_call(
+    call: &CallExpr,
+    destination: I32Location,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Err(unsupported_non_tail_call_diagnostic());
+    };
+
+    validate_normal_call_return_type(&identifier.name, context)?;
+
+    let mut arguments = Vec::new();
+    for (index, argument) in call.arguments.iter().enumerate() {
+        arguments.push(lower_i32_call_argument(argument, index, context)?);
+    }
+
+    Ok(vec![Instruction::CallI32 {
+        destination,
+        function: identifier.name.clone(),
+        arguments,
+    }])
+}
+
 fn lower_direct_tail_call(
     call: &CallExpr,
     context: &LoweringContext,
@@ -96,6 +147,27 @@ fn lower_direct_tail_call(
         function: identifier.name.clone(),
         arguments,
     }])
+}
+
+fn validate_normal_call_return_type(
+    callee_name: &str,
+    context: &LoweringContext,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(callee_return_type) = context.function_return_type(callee_name) else {
+        return Ok(());
+    };
+
+    if callee_return_type == &Type::I32 {
+        return Ok(());
+    }
+
+    Err(vec![Diagnostic::error(
+        "E8006",
+        format!(
+            "IR v0 can only lower normal calls returning `i32`, got function `{callee_name}` returning `{}`",
+            describe_type(callee_return_type),
+        ),
+    )])
 }
 
 fn validate_tail_call_return_type(

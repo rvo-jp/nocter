@@ -56,6 +56,10 @@ impl LoweringContext {
         self.next_local_index().map(I32Location::Local)
     }
 
+    pub(super) fn next_i32_temporary_location(&self) -> Result<I32Location, Vec<Diagnostic>> {
+        self.next_local_index().map(I32Location::Local)
+    }
+
     pub(super) fn next_bool_local_location(&self) -> Result<BoolLocation, Vec<Diagnostic>> {
         self.next_local_index().map(BoolLocation::Local)
     }

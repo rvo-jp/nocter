@@ -12,13 +12,13 @@ The current LSP feature modules should present compiler analysis results, not gr
 
 Recommended next small task:
 
-1. Start the normal-call foundation from `backend-v0.md`, not from source-level call lowering.
-2. Lower the smallest source subset for same-file `i32` normal calls.
-3. Keep call arguments narrow until argument staging is implemented; start with no-argument or non-reordered argument cases.
+1. Keep expanding from the narrow source-level `i32` normal-call subset already enabled.
+2. Add explicit argument staging before allowing reordered parameter arguments such as `swap(b, a)`.
+3. Keep imported calls, bool-returning normal calls, aggregate values, nested call arguments, and general condition calls disabled until their lowering rules are designed.
 
 ## Near-Term Constraints
 
-- Keep source-level non-tail calls unsupported until the `backend-v0.md` frame, spill/reload, and caller/callee preservation plan is implemented.
+- Keep normal-call source lowering narrow until argument staging and broader call result staging are explicit.
 - Do not lower calls inside conditions such as `if enabled() { ... }`.
 - Avoid broad `if`, `while`, `loop`, `match`, `var`, reassignment, imports, and aggregate lowering until backend storage and ABI rules are ready.
 - Prefer small user-visible build features with integration tests.
@@ -29,5 +29,5 @@ Recommended next small task:
 - No LLVM, `clang`, `as`, `ld`, Xcode Command Line Tools, or external linker backend.
 - Keep the compiler self-contained.
 - Prefer maintainable module boundaries over adding more logic to already busy files.
-- Backend v0 has frame layout planning, internal framed prologue/epilogue emission, and hand-built IR normal-call codegen with conservative scalar spill/reload, but source-level non-tail call lowering remains disabled.
+- Backend v0 has frame layout planning, framed prologue/epilogue emission, normal-call codegen with conservative scalar spill/reload, and source lowering for a narrow same-file `i32` normal-call subset.
 - Session handoff and maintenance rules live in `../AGENTS.md` and `maintenance.md`.

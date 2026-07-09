@@ -7,6 +7,9 @@ Long-lived maintenance rules live in `AGENTS.md` and `docs/maintenance.md`.
 
 Recent committed work:
 
+- `07c80e9 Add backend normal-call foundation`
+  - adds the backend v0 normal-call design, ARM64 frame/spill encoder helpers, fixed frame planning, framed prologue/epilogue emission, and hand-built IR `CallI32` codegen coverage
+  - keeps source-level normal-call lowering disabled at that checkpoint
 - `4fdbe41 Add build lowering for bool equality`
   - represents lowerable bool equality/inequality as `BoolValue::BoolComparison`
   - lowers bool equality/inequality when both operands are bool literals, bool locals, or grouped forms of those atoms
@@ -54,36 +57,12 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- Improved build lowering diagnostics for unsupported non-tail calls without expanding backend capabilities:
-  - reports a dedicated `E8006` when a function call appears as an i32/bool value instead of in direct tail return position
-  - adds IR lowering coverage for i32 and bool non-tail call expressions
-  - adds CLI build coverage that verifies the diagnostic and absence of a stale executable
-  - updates implementation status to document the dedicated non-tail call diagnostic
-- Added the backend v0 normal-call design before implementing stack frames:
-  - documents why `bl` requires saving/restoring `x30`
-  - specifies the first framed-function shape, fixed spill slots, conservative local spill/reload, argument staging, and IR shape
-  - lists the ARM64 encoder instructions required before call lowering
-  - updates architecture and roadmap notes to point at `docs/backend-v0.md`
-- Added ARM64 encoder support for the first fixed-frame and spill-slot instructions without enabling source-level non-tail call lowering:
-  - encodes `sub sp, sp, #imm` and `add sp, sp, #imm`
-  - encodes `str`/`ldr x30, [sp, #imm]`
-  - encodes `str`/`ldr wN, [sp, #imm]` for scalar local spill/reload slots
-  - adds byte-level unit tests for each new instruction family
-- Added a backend frame planner without enabling source-level non-tail call lowering:
-  - computes fixed 16-byte-aligned frame size
-  - reserves the saved `x30` slot at the high end of the frame
-  - computes scalar local spill slots below saved `x30`
-  - connects the planner to codegen while all current IR functions still plan as frameless
-- Added framed-function exit emission without enabling source-level non-tail call lowering:
-  - emits `sub sp, sp, #frame_size` and `str x30, [sp, #saved_x30_offset]` in framed prologues
-  - emits `ldr x30`, `add sp`, and `ret` for framed returns
-  - emits `ldr x30` and `add sp` before framed tail-call branches
-  - adds codegen unit tests using an explicit framed layout because current source-lowered IR still has no normal-call instruction
-- Added the IR `CallI32` instruction and hand-built IR normal-call codegen coverage without enabling source-level non-tail call lowering:
-  - treats `CallI32` as requiring a frame
-  - emits conservative scalar local spill/reload around normal calls
-  - moves arguments into `w0` through `w7`, emits `bl`, reloads locals, then moves the call result to the destination
-  - adds codegen tests for a framed no-argument normal call and a scalar local spill/reload normal call
+- Enabled the first source-level normal-call subset:
+  - lowers direct same-file `i32` normal calls to `CallI32` in `let` initializers
+  - lowers simple `i32` return additions with one direct normal call by staging the call result in a temporary scalar local
+  - reuses the existing conservative argument rule, so reordered parameter arguments and nested call arguments still report `E8006`
+  - keeps imported calls, aggregate args/returns, bool-returning normal calls, ownership/drop lowering, nested call arguments, and general condition calls disabled
+  - adds IR lowering coverage plus CLI build/run coverage for the new subset
 
 ## Verification Already Run
 
@@ -184,6 +163,33 @@ cargo fmt
 cargo test --quiet backend::codegen::tests::generates_framed_i32_normal_call_from_hand_built_ir
 cargo test --quiet backend::codegen::tests::normal_i32_call_spills_and_reloads_scalar_locals
 cargo test --quiet backend::frame
+cargo test --quiet
+cargo clippy --all-targets --quiet -- -D warnings
+```
+
+From repository root:
+
+```sh
+git diff --check
+```
+
+All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew shellenv, but the commands exited successfully.
+
+For the source-level normal-call subset work, from `compiler/`:
+
+```sh
+cargo fmt
+cargo test --quiet ir::lower::tests::lowers_entry_i32_let_initializer_normal_call
+cargo test --quiet ir::lower::tests::lowers_entry_i32_let_initializer_normal_call_with_arguments
+cargo test --quiet ir::lower::tests::lowers_i32_let_initializer_normal_call_with_non_reordered_parameter_arguments
+cargo test --quiet ir::lower::tests::lowers_entry_i32_return_expression_normal_call
+cargo test --quiet ir::lower::tests::reports_unsupported_nested_i32_call_argument
+cargo test --quiet ir::lower::tests::reports_unsupported_reordered_normal_call_arguments
+cargo test --quiet ir::lower::tests::reports_unsupported_bool_returning_normal_call
+cargo test --quiet ir::lower::tests::reports_unsupported_call_in_condition
+cargo test --quiet --test cli_build build_command_lowers_i32_normal_call_let_initializer
+cargo test --quiet --test cli_build build_command_reports_unsupported_non_tail_call
+cargo test --quiet --test cli_run run_command_returns_i32_normal_call_exit_code
 cargo test --quiet
 cargo clippy --all-targets --quiet -- -D warnings
 ```

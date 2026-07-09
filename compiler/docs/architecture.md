@@ -156,7 +156,8 @@ Currently buildable:
 - immutable local `let` bindings whose initializer is lowerable as `i32` or `bool`
 - `void` entry with an empty body or bare `return`
 - same-file non-generic tail calls returning `i32` or `bool`
-- up to 8 `i32` parameters for lowered functions and tail calls
+- same-file non-generic normal calls returning `i32` in `let` initializers and simple return additions
+- up to 8 `i32` parameters for lowered functions and calls, while reordered parameter arguments remain unsupported
 - non-entry functions returning `bool`
 - `i32` addition used in lowerable `i32` expressions
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` comparisons used in lowerable bool expressions
@@ -169,6 +170,8 @@ Currently not buildable even when it may be checkable:
 - `var`, reassignment, and general local storage
 - general `if`, `while`, `loop`, range `for`, and `match`
 - imported function calls
+- nested call arguments such as `outer(inner())`
+- normal calls returning `bool`
 - `str` values beyond static failure messages
 - optional values
 - aggregate values, arrays, views, pointers, methods, traits, generics, ownership lowering, and drop glue
@@ -186,10 +189,11 @@ The `arm64-darwin` backend v0 uses a deliberately small register-only convention
 - `w16` and `w17` are backend scratch registers and may be clobbered by code generation
 
 Tail calls are lowered by loading the callee arguments into `w0` through `w7` and branching directly to the target function.
-Non-tail calls are intentionally not buildable yet because `bl` clobbers `x30` and callees may overwrite caller-live scalar registers.
+The first source-level normal-call subset lowers same-file non-generic `i32` calls in `let` initializers and simple return additions.
 The frame, spill/reload, and normal-call implementation order is tracked in `backend-v0.md`.
 `backend/frame.rs` owns the fixed v0 frame layout planner: frame size, saved `x30` offset, and scalar spill-slot offsets.
-Codegen can emit framed prologue/epilogue sequences and hand-built IR normal calls with conservative scalar spill/reload for internal tests, but source-level non-tail calls remain unsupported until source lowering is deliberately enabled for a narrow subset.
+Codegen emits framed prologue/epilogue sequences and normal calls with conservative scalar spill/reload.
+Imported calls, bool-returning normal calls, nested call arguments, aggregate values, ownership/drop lowering, and general control-flow call placement remain outside the buildable subset.
 
 Use integration tests for user-visible CLI behavior and backend/unit tests for lower-level encoding and Mach-O layout. When extending build support, first add a small `nocter build` regression case, then expand IR lowering, code generation, and documentation together.
 

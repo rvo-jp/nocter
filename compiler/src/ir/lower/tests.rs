@@ -62,6 +62,173 @@ fn lowers_entry_i32_let_binding_then_return() {
 }
 
 #[test]
+fn lowers_entry_i32_let_initializer_normal_call() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let value = answer()
+    return value
+}
+
+func answer(): i32 {
+    return 42
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_i32(I32Location::Local(0), "answer", vec![]),
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "answer".to_string(),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(42), Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
+fn lowers_entry_i32_let_initializer_normal_call_with_arguments() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let value = add(20, 22)
+    return value
+}
+
+func add(a: i32, b: i32): i32 {
+    return a + b
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_i32(
+                        I32Location::Local(0),
+                        "add",
+                        vec![i32_const(20), i32_const(22)]
+                    ),
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "add".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::AddI32 {
+                        destination: I32Location::Return,
+                        left: i32_param(0),
+                        right: i32_param(1),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ])
+    );
+}
+
+#[test]
+fn lowers_i32_let_initializer_normal_call_with_non_reordered_parameter_arguments() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func add(a: i32, b: i32): i32 {
+    return a + b
+}
+
+func wrapper(a: i32, b: i32): i32 {
+    let value = add(a, b)
+    return value
+}
+"#,
+        "wrapper",
+        context::FunctionSignatures::new(HashMap::from([("add".to_string(), Type::I32)])),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "wrapper".to_string(),
+            return_type: Type::I32,
+            instructions: vec![
+                call_i32(
+                    I32Location::Local(0),
+                    "add",
+                    vec![i32_param(0), i32_param(1)]
+                ),
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: i32_local(0),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_entry_i32_return_expression_normal_call() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    return answer() + 1
+}
+
+func answer(): i32 {
+    return 41
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_i32(I32Location::Local(0), "answer", vec![]),
+                    Instruction::AddI32 {
+                        destination: I32Location::Return,
+                        left: i32_local(0),
+                        right: i32_const(1),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "answer".to_string(),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(41), Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
 fn lowers_entry_i32_annotated_let_binding_then_return() {
     let ir = lower_text(
         r#"func main(): i32 {
@@ -1099,14 +1266,94 @@ func mirrors_enabled(): i32 {
 }
 
 #[test]
-fn reports_unsupported_i32_non_tail_call() {
+fn reports_unsupported_nested_i32_call_argument() {
     let diagnostics = lower_text_diagnostics(
         r#"func main(): i32 {
-    return answer() + 1
+    return add(answer(), 1)
 }
 
 func answer(): i32 {
     return 41
+}
+
+func add(a: i32, b: i32): i32 {
+    return a + b
+}
+"#,
+    );
+
+    assert_eq!(diagnostics[0].code, "E8006");
+    assert_eq!(
+        diagnostics[0].message,
+        "IR v0 can only lower function calls in direct tail return position"
+    );
+}
+
+#[test]
+fn reports_unsupported_reordered_normal_call_arguments() {
+    let diagnostics = lower_named_function_diagnostics_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func swap(a: i32, b: i32): i32 {
+    return a
+}
+
+func wrapper(a: i32, b: i32): i32 {
+    let value = swap(b, a)
+    return value
+}
+"#,
+        "wrapper",
+        context::FunctionSignatures::new(HashMap::new()),
+    );
+
+    assert_eq!(diagnostics[0].code, "E8006");
+    assert_eq!(
+        diagnostics[0].message,
+        "IR v0 cannot lower reordered parameter call arguments"
+    );
+}
+
+#[test]
+fn reports_unsupported_bool_returning_normal_call() {
+    let diagnostics = lower_text_diagnostics(
+        r#"func main(): i32 {
+    let value = ready()
+    if value {
+        return 0
+    } else {
+        return 1
+    }
+}
+
+func ready(): bool {
+    return true
+}
+"#,
+    );
+
+    assert_eq!(diagnostics[0].code, "E8006");
+    assert_eq!(
+        diagnostics[0].message,
+        "IR v0 can only lower normal calls returning `i32`, got function `ready` returning `bool`"
+    );
+}
+
+#[test]
+fn reports_unsupported_call_in_condition() {
+    let diagnostics = lower_text_diagnostics(
+        r#"func main(): i32 {
+    if ready() {
+        return 0
+    } else {
+        return 1
+    }
+}
+
+func ready(): bool {
+    return true
 }
 "#,
     );
@@ -1229,6 +1476,14 @@ fn set_return_i32(value: i32) -> Instruction {
 
 fn tail_call(function: &str, arguments: Vec<I32Value>) -> Instruction {
     Instruction::TailCall {
+        function: function.to_string(),
+        arguments,
+    }
+}
+
+fn call_i32(destination: I32Location, function: &str, arguments: Vec<I32Value>) -> Instruction {
+    Instruction::CallI32 {
+        destination,
         function: function.to_string(),
         arguments,
     }

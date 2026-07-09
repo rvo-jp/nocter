@@ -84,6 +84,29 @@ fn build_command_lowers_i32_local_addition() {
 }
 
 #[test]
+fn build_command_lowers_i32_normal_call_let_initializer() {
+    let project = TempProject::new("cli-build-normal-call-let");
+    let source = project.write_source(
+        "normal_call_let.nct",
+        r#"func main(): i32 {
+    let value = answer()
+    return value
+}
+
+func answer(): i32 {
+    return 42
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_terminal_if() {
     let project = TempProject::new("cli-build-terminal-if");
     let source = project.write_source(
@@ -260,11 +283,15 @@ fn build_command_reports_unsupported_non_tail_call() {
     let source = project.write_source(
         "non_tail_call.nct",
         r#"func main(): i32 {
-    return answer() + 1
+    return add(answer(), 1)
 }
 
 func answer(): i32 {
     return 41
+}
+
+func add(a: i32, b: i32): i32 {
+    return a + b
 }
 "#,
     );

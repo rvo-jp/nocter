@@ -84,6 +84,34 @@ func add(a: i32, b: i32): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_i32_normal_call_exit_code() {
+    let project = TempProject::new("cli-run-normal-call");
+    let source = project.write_source(
+        "normal_call.nct",
+        r#"func main(): i32 {
+    let value = answer()
+    return value + 5
+}
+
+func answer(): i32 {
+    return 37
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_bool_inequality_exit_code() {
     let project = TempProject::new("cli-run-bool-inequality");
     let source = project.write_source(
