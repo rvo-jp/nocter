@@ -7,6 +7,9 @@ Long-lived maintenance rules live in `AGENTS.md` and `docs/maintenance.md`.
 
 Recent committed work:
 
+- `b2643a7 Extract LSP diagnostics module`
+  - added `driver/lsp/diagnostics.rs`
+  - moved publishDiagnostics payload construction and diagnostic span conversion out of `driver/lsp/mod.rs`
 - `deda50e Split LSP foundations and document maintenance policy`
   - moved the LSP server to `driver/lsp/mod.rs`
   - added `driver/lsp/protocol.rs` and `driver/lsp/documents.rs`
@@ -29,13 +32,13 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- `compiler/src/driver/lsp/diagnostics.rs` now owns publishDiagnostics payload construction and diagnostic span conversion
-- `compiler/src/driver/lsp/mod.rs` now imports `publish_diagnostics`, `diagnostics_for_lsp`, and `LspDiagnostic` from that module
-- `compiler/docs/architecture.md` and `compiler/docs/roadmap.md` were updated to reflect the diagnostics extraction
+- `compiler/src/driver/lsp/semantic.rs` now owns semantic token classification and encoding
+- `compiler/src/driver/lsp/mod.rs` now imports semantic token constants, classification helpers, and semantic token encoding from that module
+- `compiler/docs/architecture.md` and `compiler/docs/roadmap.md` were updated to reflect the semantic extraction
 
 ## Verification Already Run
 
-After the diagnostics extraction, from `compiler/`:
+After the semantic extraction, from `compiler/`:
 
 ```sh
 cargo fmt
@@ -52,27 +55,26 @@ From repository root:
 git diff --check
 ```
 
-Passed after the LSP split.
+Passed after the semantic extraction.
 
 ## First Action In Next Session
 
 1. Run `git status --short`.
-2. Keep `assets/logo.svg` separate unless the user explicitly asks to include it.
-3. Review the uncommitted diagnostics extraction.
-4. If the user asks for a commit, stage only compiler files and exclude unrelated assets.
+2. Review the uncommitted semantic extraction.
+3. If the user asks for a commit, stage only compiler files unless there are unrelated local changes.
 
 ## Next Implementation Direction
 
 Recommended next small task:
 
 1. Continue the LSP maintainability pass.
-2. Extract semantic token classification from `driver/lsp/mod.rs` into `driver/lsp/semantic.rs`.
+2. Extract hover support from `driver/lsp/mod.rs` into `driver/lsp/hover.rs`.
 3. Keep the extraction behavior-preserving.
 4. Run `cargo fmt`, `cargo test --quiet`, and `cargo clippy --all-targets --quiet -- -D warnings`.
 
 After that:
 
-1. Extract hover, definition, completion, and document symbols one responsibility at a time.
+1. Extract definition, completion, and document symbols one responsibility at a time.
 2. Keep compiler semantics in resolver, analysis, and typecheck modules; LSP modules should present those results.
 3. Add new editor capabilities only after the existing LSP server structure is easier to maintain.
 
