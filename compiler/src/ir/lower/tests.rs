@@ -396,6 +396,28 @@ fn reports_unsupported_bool_equality_over_logical_operand() {
 }
 
 #[test]
+fn reports_unsupported_bool_equality_in_terminal_if_condition() {
+    let diagnostics = lower_text_diagnostics(
+        r#"func main(): i32 {
+    let ready = true
+    let blocked = false
+    if !ready == blocked {
+        return 1
+    } else {
+        return 0
+    }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics[0].code, "E8002");
+    assert_eq!(
+        diagnostics[0].message,
+        "IR v0 can only lower bool equality/inequality operands that are bool literals or bool locals"
+    );
+}
+
+#[test]
 fn lowers_entry_terminal_if_returning_outer_local() {
     let ir = lower_text(
         r#"func main(): i32 {

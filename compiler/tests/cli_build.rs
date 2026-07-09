@@ -217,6 +217,44 @@ fn build_command_reports_unsupported_compound_bool_equality() {
 }
 
 #[test]
+fn build_command_reports_unsupported_compound_bool_equality_condition() {
+    let project = TempProject::new("cli-build-compound-bool-equality-condition");
+    let source = project.write_source(
+        "compound_bool_equality_condition.nct",
+        r#"func main(): i32 {
+    let ready = true
+    let blocked = false
+    if !ready == blocked {
+        return 1
+    } else {
+        return 0
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E8002]"),
+        "expected entry lowering diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains(
+            "IR v0 can only lower bool equality/inequality operands that are bool literals or bool locals"
+        ),
+        "expected bool equality/inequality operand diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after compile diagnostics"
+    );
+}
+
+#[test]
 fn build_command_lowers_terminal_if_i32_equality() {
     let project = TempProject::new("cli-build-terminal-if-equality");
     let source = project.write_source(

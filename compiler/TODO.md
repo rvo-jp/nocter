@@ -7,6 +7,13 @@ Long-lived maintenance rules live in `AGENTS.md` and `docs/maintenance.md`.
 
 Recent committed work:
 
+- `4fdbe41 Add build lowering for bool equality`
+  - represents lowerable bool equality/inequality as `BoolValue::BoolComparison`
+  - lowers bool equality/inequality when both operands are bool literals, bool locals, or grouped forms of those atoms
+  - reports a dedicated `E8008` diagnostic when bool equality/inequality uses lowerable but non-atomic bool operands such as `!ready` or `ready && !blocked`
+  - adds ARM64 Darwin codegen for `BoolComparison` using the existing bool register representation and `cmp`/conditional branches
+  - adds CLI build/run and IR lowering tests for bool equality/inequality through the native backend path, plus unsupported compound bool equality diagnostics
+  - updates implementation status and architecture docs to list bool equality/inequality over literal/local operands in the buildable bool subset
 - `d5b1a89 Extract LSP document symbols module`
   - added `driver/lsp/symbols.rs`
   - moved document symbol construction out of `driver/lsp/mod.rs`
@@ -47,12 +54,7 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- IR now represents lowerable bool equality/inequality as `BoolValue::BoolComparison`.
-- IR lowering now accepts bool equality/inequality when both operands are bool literals, bool locals, or grouped forms of those atoms.
-- IR lowering now reports a dedicated `E8008` diagnostic when bool equality/inequality uses lowerable but non-atomic bool operands such as `!ready` or `ready && !blocked`.
-- ARM64 Darwin codegen materializes and branches on `BoolComparison` using the existing bool register representation and `cmp`/conditional branches.
-- CLI build/run and IR lowering tests cover bool equality/inequality through the native backend path, plus unsupported compound bool equality diagnostics.
-- `docs/implementation-status.md` and `docs/architecture.md` now list bool equality/inequality over literal/local operands in the buildable bool subset.
+- Added regression coverage for unsupported compound bool equality/inequality in terminal `if` conditions, covering both IR lowering diagnostics and CLI build diagnostics.
 
 ## Verification Already Run
 
@@ -78,7 +80,7 @@ Passed after the bool equality/inequality lowering work.
 ## First Action In Next Session
 
 1. Run `git status --short`.
-2. Review the uncommitted bool equality/inequality lowering work.
+2. Review any uncommitted changes before editing.
 3. If the user asks for a commit, stage only compiler files unless there are unrelated local changes.
 
 ## Next Implementation Direction
