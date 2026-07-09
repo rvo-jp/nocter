@@ -7,6 +7,10 @@ Long-lived maintenance rules live in `AGENTS.md` and `docs/maintenance.md`.
 
 Recent committed work:
 
+- `6dde4a1 Extract LSP semantic tokens module`
+  - added `driver/lsp/semantic.rs`
+  - moved semantic token classification and encoding out of `driver/lsp/mod.rs`
+  - updated LSP architecture and roadmap notes for the semantic extraction
 - `b2643a7 Extract LSP diagnostics module`
   - added `driver/lsp/diagnostics.rs`
   - moved publishDiagnostics payload construction and diagnostic span conversion out of `driver/lsp/mod.rs`
@@ -26,19 +30,19 @@ Recent committed work:
 
 Known unrelated local user changes:
 
-- `assets/logo.svg`
+- None observed by `git status --short` at the start of this session.
 
 Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- `compiler/src/driver/lsp/semantic.rs` now owns semantic token classification and encoding
-- `compiler/src/driver/lsp/mod.rs` now imports semantic token constants, classification helpers, and semantic token encoding from that module
-- `compiler/docs/architecture.md` and `compiler/docs/roadmap.md` were updated to reflect the semantic extraction
+- `compiler/src/driver/lsp/hover.rs` now owns hover contents, hover symbol collection, hover documentation attachment, and resolved-reference hover label generation.
+- `compiler/src/driver/lsp/mod.rs` routes hover requests to `hover.rs` and reuses hover lookup helpers for definition/completion fallback parsing where needed.
+- `compiler/docs/architecture.md`, `compiler/docs/roadmap.md`, and this file were updated to reflect the hover extraction.
 
 ## Verification Already Run
 
-After the semantic extraction, from `compiler/`:
+After the hover extraction, from `compiler/`:
 
 ```sh
 cargo fmt
@@ -55,12 +59,12 @@ From repository root:
 git diff --check
 ```
 
-Passed after the semantic extraction.
+Passed after the hover extraction.
 
 ## First Action In Next Session
 
 1. Run `git status --short`.
-2. Review the uncommitted semantic extraction.
+2. Review the uncommitted hover extraction.
 3. If the user asks for a commit, stage only compiler files unless there are unrelated local changes.
 
 ## Next Implementation Direction
@@ -68,13 +72,13 @@ Passed after the semantic extraction.
 Recommended next small task:
 
 1. Continue the LSP maintainability pass.
-2. Extract hover support from `driver/lsp/mod.rs` into `driver/lsp/hover.rs`.
-3. Keep the extraction behavior-preserving.
+2. Extract definition support from `driver/lsp/mod.rs` into `driver/lsp/definition.rs`.
+3. Keep the extraction behavior-preserving and reuse `hover.rs` only for shared symbol/span lookup where that remains the smallest API.
 4. Run `cargo fmt`, `cargo test --quiet`, and `cargo clippy --all-targets --quiet -- -D warnings`.
 
 After that:
 
-1. Extract definition, completion, and document symbols one responsibility at a time.
+1. Extract completion and document symbols one responsibility at a time.
 2. Keep compiler semantics in resolver, analysis, and typecheck modules; LSP modules should present those results.
 3. Add new editor capabilities only after the existing LSP server structure is easier to maintain.
 
