@@ -196,6 +196,14 @@ pub(super) fn lower_bool_expression_to_location(
     diagnostic_code: &'static str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
+        Expr::Binary(binary) if short_circuit_bool_expression_contains_call(binary) => {
+            lower_short_circuit_bool_expression_to_location(
+                binary,
+                destination,
+                context,
+                diagnostic_code,
+            )
+        }
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             lower_bool_normal_call(call, destination, context, &mut temporaries)
@@ -225,6 +233,145 @@ pub(super) fn lower_bool_expression_to_location(
             destination,
             value: lower_bool_value(expression, context, diagnostic_code)?,
         }]),
+    }
+}
+
+fn lower_short_circuit_bool_expression_to_location(
+    binary: &BinaryExpr,
+    destination: BoolLocation,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_bool_expression_to_branch(
+        &Expr::Binary(binary.clone()),
+        vec![Instruction::SetBool {
+            destination,
+            value: BoolValue::Const(true),
+        }],
+        vec![Instruction::SetBool {
+            destination,
+            value: BoolValue::Const(false),
+        }],
+        context,
+        diagnostic_code,
+    )
+}
+
+fn lower_bool_expression_to_branch(
+    expression: &Expr,
+    then_instructions: Vec<Instruction>,
+    else_instructions: Vec<Instruction>,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Expr::Binary(binary) = unwrap_group(expression)
+        && short_circuit_bool_expression_contains_call(binary)
+    {
+        return lower_short_circuit_bool_expression_to_branch(
+            binary,
+            then_instructions,
+            else_instructions,
+            context,
+            diagnostic_code,
+        );
+    }
+
+    let condition = lower_bool_expression_to_value(expression, context, diagnostic_code)?;
+    let mut instructions = condition.instructions;
+    instructions.push(Instruction::If {
+        condition: condition.value,
+        then_instructions,
+        else_instructions,
+    });
+    Ok(instructions)
+}
+
+fn lower_short_circuit_bool_expression_to_branch(
+    binary: &BinaryExpr,
+    then_instructions: Vec<Instruction>,
+    else_instructions: Vec<Instruction>,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match binary.operator {
+        BinaryOperator::LogicalAnd => lower_bool_expression_to_branch(
+            &binary.left,
+            lower_bool_expression_to_branch(
+                &binary.right,
+                then_instructions,
+                else_instructions.clone(),
+                context,
+                diagnostic_code,
+            )?,
+            else_instructions,
+            context,
+            diagnostic_code,
+        ),
+        BinaryOperator::LogicalOr => lower_bool_expression_to_branch(
+            &binary.left,
+            then_instructions.clone(),
+            lower_bool_expression_to_branch(
+                &binary.right,
+                then_instructions,
+                else_instructions,
+                context,
+                diagnostic_code,
+            )?,
+            context,
+            diagnostic_code,
+        ),
+        _ => unreachable!("short-circuit bool expression must be && or ||"),
+    }
+}
+
+fn short_circuit_bool_expression_contains_call(binary: &BinaryExpr) -> bool {
+    matches!(
+        binary.operator,
+        BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
+    ) && (expression_contains_call(&binary.left) || expression_contains_call(&binary.right))
+}
+
+fn unwrap_group(expression: &Expr) -> &Expr {
+    match expression {
+        Expr::Group(group) => unwrap_group(&group.expression),
+        _ => expression,
+    }
+}
+
+pub(super) fn expression_contains_call(expression: &Expr) -> bool {
+    match expression {
+        Expr::Call(_) => true,
+        Expr::Unary(unary) => expression_contains_call(&unary.operand),
+        Expr::Binary(binary) => {
+            expression_contains_call(&binary.left) || expression_contains_call(&binary.right)
+        }
+        Expr::Group(group) => expression_contains_call(&group.expression),
+        Expr::TypeConversion(conversion) => expression_contains_call(&conversion.expression),
+        Expr::Propagate(propagation) => expression_contains_call(&propagation.expression),
+        Expr::Force(force) => expression_contains_call(&force.expression),
+        Expr::Catch(catch) => expression_contains_call(&catch.expression),
+        Expr::Member(member) => expression_contains_call(&member.object),
+        Expr::Index(index) => {
+            expression_contains_call(&index.object) || expression_contains_call(&index.index)
+        }
+        Expr::ArrayLiteral(array) => array.elements.iter().any(expression_contains_call),
+        Expr::StructLiteral(struct_literal) => struct_literal
+            .fields
+            .iter()
+            .any(|field| expression_contains_call(&field.value)),
+        Expr::OptionalDefault(optional_default) => {
+            expression_contains_call(&optional_default.value)
+                || expression_contains_call(&optional_default.default)
+        }
+        Expr::PatternConditional(pattern_conditional) => {
+            expression_contains_call(&pattern_conditional.target)
+                || pattern_conditional
+                    .arms
+                    .iter()
+                    .any(|arm| expression_contains_call(&arm.expression))
+                || expression_contains_call(&pattern_conditional.fallback)
+        }
+        _ => false,
     }
 }
 

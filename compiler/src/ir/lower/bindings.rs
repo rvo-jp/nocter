@@ -3,7 +3,7 @@ use super::expressions::{
     expression_is_lowerable_bool_binding, expression_is_unsupported_bool_comparison_binding,
     lower_bool_expression_to_location, lower_i32_expression_to_location,
 };
-use crate::ast::{BindingKind, BindingStmt, Expr, TypeExpr, UnaryOperator};
+use crate::ast::{BinaryOperator, BindingKind, BindingStmt, Expr, TypeExpr, UnaryOperator};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{Instruction, Type};
 
@@ -89,6 +89,19 @@ fn expression_is_bool_returning_call(expression: &Expr, context: &LoweringContex
         Expr::Unary(unary) => {
             unary.operator == UnaryOperator::LogicalNot
                 && expression_is_bool_returning_call(&unary.operand, context)
+        }
+        Expr::Binary(binary)
+            if matches!(
+                binary.operator,
+                BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
+            ) =>
+        {
+            expression_is_bool_returning_call(&binary.left, context)
+                && expression_is_bool_returning_call(&binary.right, context)
+                || expression_is_lowerable_bool_binding(&binary.left, context)
+                    && expression_is_bool_returning_call(&binary.right, context)
+                || expression_is_bool_returning_call(&binary.left, context)
+                    && expression_is_lowerable_bool_binding(&binary.right, context)
         }
         Expr::Group(group) => expression_is_bool_returning_call(&group.expression, context),
         _ => false,

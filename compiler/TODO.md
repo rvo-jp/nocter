@@ -7,11 +7,17 @@ Long-lived maintenance rules live in `AGENTS.md` and `docs/maintenance.md`.
 
 Recent committed work:
 
-- Current checkpoint: `Lower short-circuit bool condition calls`
+- Current checkpoint: `Lower short-circuit bool value calls`
+  - lowers same-file bool-returning normal calls in short-circuit bool value expressions
+  - supports `let value = ready() && other()` and `return ready() || other()`
+  - expands `&&` and `||` to nested `Instruction::If` nodes and materializes `true` or `false` into the destination bool location
+  - keeps imported calls, broader control-flow, `var`/reassignment, ownership/drop lowering, and aggregates disabled
+  - adds IR lowering and CLI run coverage for short-circuit bool value calls
+- `803e63b Lower short-circuit bool condition calls`
   - lowers same-file bool-returning normal calls in terminal `if` `&&` and `||` conditions
   - expands short-circuit conditions to nested `Instruction::If` nodes so the right-hand call is only emitted in the branch where it should execute
   - updates reachable call-target collection to scan nested `Instruction::If` bodies
-  - keeps short-circuit value expressions with calls, such as `let value = ready() && other()` and `return ready() && other()`, disabled
+  - kept short-circuit value expressions with calls, such as `let value = ready() && other()` and `return ready() && other()`, disabled
   - adds IR lowering and CLI run coverage for `&&` and `||` condition calls
 - `c8bffa3 Lower bool condition calls`
   - lowers direct same-file bool-returning normal calls in terminal `if` conditions
@@ -110,7 +116,7 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Lower short-circuit bool condition calls`.
+- None expected after committing `Lower short-circuit bool value calls`.
 
 ## Verification Already Run
 
@@ -366,6 +372,27 @@ git diff --check
 
 All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew shellenv, but the commands exited successfully.
 
+For the short-circuit bool value call work, from `compiler/`:
+
+```sh
+cargo fmt
+cargo check --quiet
+cargo test --quiet ir::lower::tests::lowers_bool_let_initializer_and_normal_calls
+cargo test --quiet ir::lower::tests::lowers_bool_return_or_normal_calls
+cargo test --quiet --test cli_run run_command_returns_and_bool_value_call_exit_code
+cargo test --quiet --test cli_run run_command_returns_or_bool_return_call_exit_code
+cargo test --quiet
+cargo clippy --all-targets --quiet -- -D warnings
+```
+
+From repository root:
+
+```sh
+git diff --check
+```
+
+All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew shellenv, but the commands exited successfully.
+
 ## First Action In Next Session
 
 1. Run `git status --short`.
@@ -383,8 +410,8 @@ The current LSP maintainability pass has reached its planned stopping point:
 Recommended next small task for the next session:
 
 1. Continue compiler core backend work, not LSP-only behavior.
-2. Consider short-circuit bool-call value expressions only after expression-result staging can preserve short-circuit evaluation.
-3. Keep imported calls, aggregates, ownership/drop lowering, nested tail-call arguments, and broader control-flow disabled until their lowering rules are designed.
+2. Consider broader terminal control-flow or nested tail-call arguments only after their lowering rules are designed.
+3. Keep imported calls, aggregates, ownership/drop lowering, general mutable storage, and broader control-flow disabled until their ABI, storage, and join rules are designed.
 4. Add CLI build/run coverage for any newly buildable source subset.
 
 ## Design Constraints To Preserve

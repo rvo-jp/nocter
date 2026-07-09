@@ -1,6 +1,7 @@
 use super::context::LoweringContext;
 use super::expressions::{
-    lower_bool_expression_to_value, lower_bool_return_expression, lower_i32_return_expression,
+    expression_contains_call, lower_bool_expression_to_value, lower_bool_return_expression,
+    lower_i32_return_expression,
 };
 use crate::ast::{BinaryExpr, BinaryOperator, Block, Expr, IfStmt, Stmt};
 use crate::diagnostics::Diagnostic;
@@ -138,43 +139,6 @@ fn unwrap_group(expression: &Expr) -> &Expr {
     match expression {
         Expr::Group(group) => unwrap_group(&group.expression),
         _ => expression,
-    }
-}
-
-fn expression_contains_call(expression: &Expr) -> bool {
-    match expression {
-        Expr::Call(_) => true,
-        Expr::Unary(unary) => expression_contains_call(&unary.operand),
-        Expr::Binary(binary) => {
-            expression_contains_call(&binary.left) || expression_contains_call(&binary.right)
-        }
-        Expr::Group(group) => expression_contains_call(&group.expression),
-        Expr::TypeConversion(conversion) => expression_contains_call(&conversion.expression),
-        Expr::Propagate(propagation) => expression_contains_call(&propagation.expression),
-        Expr::Force(force) => expression_contains_call(&force.expression),
-        Expr::Catch(catch) => expression_contains_call(&catch.expression),
-        Expr::Member(member) => expression_contains_call(&member.object),
-        Expr::Index(index) => {
-            expression_contains_call(&index.object) || expression_contains_call(&index.index)
-        }
-        Expr::ArrayLiteral(array) => array.elements.iter().any(expression_contains_call),
-        Expr::StructLiteral(struct_literal) => struct_literal
-            .fields
-            .iter()
-            .any(|field| expression_contains_call(&field.value)),
-        Expr::OptionalDefault(optional_default) => {
-            expression_contains_call(&optional_default.value)
-                || expression_contains_call(&optional_default.default)
-        }
-        Expr::PatternConditional(pattern_conditional) => {
-            expression_contains_call(&pattern_conditional.target)
-                || pattern_conditional
-                    .arms
-                    .iter()
-                    .any(|arm| expression_contains_call(&arm.expression))
-                || expression_contains_call(&pattern_conditional.fallback)
-        }
-        _ => false,
     }
 }
 
