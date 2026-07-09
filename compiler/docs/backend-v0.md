@@ -46,7 +46,7 @@ The first implementation should keep the user-visible subset small:
 - same-file, non-generic calls only
 - `i32` arguments only
 - `i32` return values in lowerable `i32` expressions and `let` initializers
-- `bool` return values in `let` initializers
+- `bool` return values in `let` initializers and unary-not bool expressions
 - up to 8 arguments, passed in `w0` through `w7`
 - no imported calls, aggregate arguments, aggregate returns, strings, optionals, ownership/drop lowering, or calls in general control-flow conditions
 
@@ -168,8 +168,9 @@ This covers `let x = callee()` and `return callee() + 1` after the expression lo
 The source expression lowerer stages normal-call results in temporary scalar locals for `i32` additions.
 Multiple normal calls in an addition are evaluated left to right and receive distinct temporary locals.
 Nested normal-call arguments are also evaluated left to right before the parent `CallI32`.
-Bool-returning normal calls are buildable only in `let` initializers, so `let ready = enabled()` can feed a later lowerable bool condition.
+Bool-returning normal calls are buildable in `let` initializers and unary-not bool expressions, so `let ready = enabled()` and `let disabled = !enabled()` can feed a later lowerable bool condition.
 Calls directly inside conditions such as `if enabled() { ... }` remain disabled.
+Bool short-circuit expressions with calls, such as `enabled() && other()`, remain disabled until call staging preserves short-circuit evaluation.
 Imported calls should also wait because they need symbol/linkage policy, not just call sequence support.
 
 ### Encoder Work Required First
@@ -201,6 +202,7 @@ Implement normal calls in this order:
 9. Done: lower nested `i32` normal-call arguments by staging child call results before the parent `CallI32`.
 10. Done: stage tail-call arguments through frame argument slots and allow reordered `i32` tail-call arguments.
 11. Done: lower same-file bool-returning normal calls in `let` initializers through `CallBool`.
+12. Done: lower bool-returning normal calls under unary `!` in `let` initializers and bool return expressions.
 
 ### Non-Goals For This Phase
 

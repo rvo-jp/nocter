@@ -7,7 +7,14 @@ Long-lived maintenance rules live in `AGENTS.md` and `docs/maintenance.md`.
 
 Recent committed work:
 
-- Current checkpoint: `Lower bool normal calls`
+- Current uncommitted work: `Lower unary bool normal-call expressions`
+  - lowers bool-returning normal calls under unary `!`
+  - supports `let disabled = !ready()` and `return !ready()`
+  - stages the bool call result in a temporary scalar local before materializing `BoolValue::Not`
+  - keeps calls directly inside conditions such as `if ready()` reporting `E8006`
+  - keeps short-circuit bool expressions with calls, such as `ready() && other()`, disabled until staging can preserve short-circuit evaluation
+  - adds IR lowering and CLI run coverage for unary bool normal-call expressions
+- `b26f8b7 Lower bool normal calls`
   - adds `Instruction::CallBool` for bool-returning same-file normal calls
   - lowers `let value = ready()` when `ready` returns `bool`
   - emits bool normal calls with the existing framed normal-call sequence, scalar spill/reload, and `i32` argument staging
@@ -92,7 +99,7 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None after the current checkpoint.
+- `Lower unary bool normal-call expressions` is pending commit.
 
 ## Verification Already Run
 
@@ -287,6 +294,24 @@ git diff --check
 All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew shellenv, but the commands exited successfully.
 Running test binaries in this sandbox currently hangs before `--list` or `running ...` output, so `cargo test --quiet` and targeted runtime tests could not complete in this environment after the change. An escalation attempt for the targeted lowering test was rejected by the automatic approval reviewer.
 
+For the unary bool normal-call expression work, from `compiler/`:
+
+```sh
+cargo fmt
+cargo check --quiet
+cargo test --quiet --no-run
+cargo clippy --all-targets --quiet -- -D warnings
+```
+
+From repository root:
+
+```sh
+git diff --check
+```
+
+All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew shellenv, but the commands exited successfully.
+Runtime test execution remains blocked by the same sandbox test-binary hang described above.
+
 ## First Action In Next Session
 
 1. Run `git status --short`.
@@ -304,7 +329,7 @@ The current LSP maintainability pass has reached its planned stopping point:
 Recommended next small task for the next session:
 
 1. Continue compiler core backend work, not LSP-only behavior.
-2. Consider lowerable bool expression placement next, such as bool-returning normal calls in simple bool return expressions, while keeping condition calls disabled.
+2. Consider the next bool-call placement only if it preserves evaluation order; short-circuit expressions with calls need explicit staging semantics.
 3. Keep imported calls, aggregates, ownership/drop lowering, nested tail-call arguments, and general condition calls disabled until their lowering rules are designed.
 4. Add CLI build/run coverage for any newly buildable source subset.
 

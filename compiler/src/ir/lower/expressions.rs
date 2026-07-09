@@ -132,6 +132,21 @@ impl TemporaryAllocator {
         self.next_index += 1;
         Ok(location)
     }
+
+    fn next_bool(&mut self) -> Result<BoolLocation, Vec<Diagnostic>> {
+        if self.next_index >= MAX_TEMPORARY_SCALAR_LOCALS {
+            return Err(vec![Diagnostic::error(
+                "E8008",
+                format!(
+                    "IR v0 can only lower up to {MAX_TEMPORARY_SCALAR_LOCALS} local scalar bindings"
+                ),
+            )]);
+        }
+
+        let location = BoolLocation::Local(self.next_index);
+        self.next_index += 1;
+        Ok(location)
+    }
 }
 
 const MAX_TEMPORARY_SCALAR_LOCALS: usize = 7;
@@ -161,13 +176,16 @@ pub(super) fn lower_bool_return_expression(
         Expr::Group(group) => {
             lower_bool_return_expression(&group.expression, context, diagnostic_code)
         }
-        _ => Ok(vec![
-            Instruction::SetBool {
-                destination: BoolLocation::Return,
-                value: lower_bool_value(expression, context, diagnostic_code)?,
-            },
-            Instruction::Return,
-        ]),
+        _ => {
+            let mut instructions = lower_bool_expression_to_location(
+                expression,
+                BoolLocation::Return,
+                context,
+                diagnostic_code,
+            )?;
+            instructions.push(Instruction::Return);
+            Ok(instructions)
+        }
     }
 }
 
@@ -175,20 +193,63 @@ pub(super) fn lower_bool_expression_to_location(
     expression: &Expr,
     destination: BoolLocation,
     context: &LoweringContext,
+    diagnostic_code: &'static str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             lower_bool_normal_call(call, destination, context, &mut temporaries)
         }
-        Expr::Group(group) => {
-            lower_bool_expression_to_location(&group.expression, destination, context)
+        Expr::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let operand =
+                lower_bool_expression_to_value(&unary.operand, context, &mut temporaries)?;
+            let mut instructions = operand.instructions;
+            instructions.push(Instruction::SetBool {
+                destination,
+                value: BoolValue::Not(Box::new(operand.value)),
+            });
+            Ok(instructions)
         }
+        Expr::Group(group) => lower_bool_expression_to_location(
+            &group.expression,
+            destination,
+            context,
+            diagnostic_code,
+        ),
         _ => Ok(vec![Instruction::SetBool {
             destination,
-            value: lower_bool_value(expression, context, "E8008")?,
+            value: lower_bool_value(expression, context, diagnostic_code)?,
         }]),
     }
+}
+
+fn lower_bool_expression_to_value(
+    expression: &Expr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(call) => {
+            let temporary = temporaries.next_bool()?;
+            Ok(LoweredBoolValue {
+                instructions: lower_bool_normal_call(call, temporary, context, temporaries)?,
+                value: BoolValue::Location(temporary),
+            })
+        }
+        Expr::Group(group) => {
+            lower_bool_expression_to_value(&group.expression, context, temporaries)
+        }
+        _ => Ok(LoweredBoolValue {
+            instructions: Vec::new(),
+            value: lower_bool_value(expression, context, "E8008")?,
+        }),
+    }
+}
+
+struct LoweredBoolValue {
+    instructions: Vec<Instruction>,
+    value: BoolValue,
 }
 
 fn lower_i32_normal_call(

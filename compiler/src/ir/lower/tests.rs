@@ -1794,6 +1794,76 @@ func ready(): bool {
 }
 
 #[test]
+fn lowers_bool_return_not_normal_call() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func ready(): bool {
+    return false
+}
+
+func disabled(): bool {
+    return !ready()
+}
+"#,
+        "disabled",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "disabled".to_string(),
+            return_type: Type::Bool,
+            instructions: vec![
+                call_bool(BoolLocation::Local(0), "ready", vec![]),
+                Instruction::SetBool {
+                    destination: BoolLocation::Return,
+                    value: BoolValue::Not(Box::new(BoolValue::Location(BoolLocation::Local(0)))),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_bool_let_initializer_not_normal_call() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let disabled = !ready()
+    if disabled {
+        return 42
+    } else {
+        return 7
+    }
+}
+
+func ready(): bool {
+    return false
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            call_bool(BoolLocation::Local(0), "ready", vec![]),
+            Instruction::SetBool {
+                destination: BoolLocation::Local(0),
+                value: BoolValue::Not(Box::new(BoolValue::Location(BoolLocation::Local(0)))),
+            },
+            Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Local(0)),
+                then_instructions: vec![set_return_i32(42), Instruction::Return],
+                else_instructions: vec![set_return_i32(7), Instruction::Return],
+            },
+        ]
+    );
+}
+
+#[test]
 fn reports_unsupported_call_in_condition() {
     let diagnostics = lower_text_diagnostics(
         r#"func main(): i32 {

@@ -13,7 +13,7 @@ The current LSP feature modules should present compiler analysis results, not gr
 Recommended next small task:
 
 1. Keep expanding from the narrow source-level scalar normal-call subset already enabled.
-2. Consider lowerable bool expression placement next, such as bool-returning normal calls in simple bool return expressions, while keeping condition calls disabled.
+2. Consider the next bool-call placement only if it preserves evaluation order; short-circuit expressions with calls need explicit staging semantics.
 3. Keep imported calls, aggregate values, nested tail-call arguments, and general condition calls disabled until their lowering rules are designed.
 
 ## Near-Term Constraints
@@ -29,5 +29,5 @@ Recommended next small task:
 - No LLVM, `clang`, `as`, `ld`, Xcode Command Line Tools, or external linker backend.
 - Keep the compiler self-contained.
 - Prefer maintainable module boundaries over adding more logic to already busy files.
-- Backend v0 has frame layout planning, framed prologue/epilogue emission, normal-call codegen with conservative scalar spill/reload and argument staging, tail-call argument staging, and source lowering for same-file `i32` normal calls in `let` initializers, additions, and nested normal-call arguments plus bool-returning normal calls in `let` initializers.
+- Backend v0 has frame layout planning, framed prologue/epilogue emission, normal-call codegen with conservative scalar spill/reload and argument staging, tail-call argument staging, and source lowering for same-file `i32` normal calls in `let` initializers, additions, and nested normal-call arguments plus bool-returning normal calls in `let` initializers and unary-not bool expressions.
 - Session handoff and maintenance rules live in `../AGENTS.md` and `maintenance.md`.
