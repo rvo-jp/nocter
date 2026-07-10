@@ -25,6 +25,7 @@ pub(super) fn imported_call_diagnostics(
 ) -> Vec<Diagnostic> {
     imported_call_targets(function, root_source, resolved)
         .into_iter()
+        .filter(|target| matches!(target.source, ImportedCallSource::UnloadedPath(_)))
         .map(|target| unsupported_imported_call_diagnostic(&target.call_name))
         .collect()
 }
@@ -278,7 +279,7 @@ fn unsupported_imported_call_diagnostic(call_name: &str) -> Diagnostic {
     Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 cannot lower imported function call `{call_name}` yet; imported standard-library calls need explicit backend call-target lowering"
+            "IR v0 cannot lower unresolved imported function call `{call_name}`; the imported declaration must be loaded before backend call-target lowering"
         ),
     )
 }

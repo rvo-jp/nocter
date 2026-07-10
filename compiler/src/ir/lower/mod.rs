@@ -13,7 +13,7 @@ mod reachability;
 mod tests;
 
 use super::{CallTarget, Function, IrModule};
-use crate::analysis::CompileUnitAnalysis;
+use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{FunctionDecl, Item, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::Type;
@@ -64,7 +64,6 @@ pub(crate) fn lower_executable_with_entry(
         &function_signatures,
         entry_name,
         root.ast.span.source,
-        &root.resolved,
     )?;
 
     Ok(IrModule::new(functions))
@@ -87,7 +86,6 @@ fn lower_reachable_functions(
     function_signatures: &FunctionSignatures,
     entry_name: &str,
     root_source: SourceId,
-    resolved: &ResolveOutput,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut seen = HashSet::from([CallTarget::same_file(entry_name)]);
     let mut queue = reachable_call_targets(&lowered[0]);
@@ -97,25 +95,27 @@ fn lower_reachable_functions(
             continue;
         }
 
-        let CallTarget::SameFile(name) = &target else {
-            continue;
-        };
-        let Some(function) = function_index.same_file_definition(name) else {
+        let Some(function) = function_index.definition(&target) else {
             return Err(vec![Diagnostic::error(
                 "E8006",
-                format!("IR v0 can only lower calls to same-file functions, got `{name}`"),
+                format!(
+                    "IR v0 cannot find reachable function target `{}`",
+                    describe_call_target(&target)
+                ),
             )]);
         };
-        let diagnostics = imported_call_diagnostics(function, root_source, resolved);
+        let diagnostics =
+            imported_call_diagnostics(function.declaration, root_source, function.resolved);
         if !diagnostics.is_empty() {
             return Err(diagnostics);
         }
 
         let function = functions::lower_function(
-            function,
+            function.declaration,
+            target,
             function_signatures.clone(),
             root_source,
-            resolved,
+            function.resolved,
         )?;
         queue.extend(reachable_call_targets(&function));
         lowered.push(function);
@@ -125,7 +125,12 @@ fn lower_reachable_functions(
 }
 
 struct FunctionIndex<'a> {
-    definitions: HashMap<CallTarget, &'a FunctionDecl>,
+    definitions: HashMap<CallTarget, IndexedFunction<'a>>,
+}
+
+struct IndexedFunction<'a> {
+    declaration: &'a FunctionDecl,
+    resolved: &'a ResolveOutput,
 }
 
 impl<'a> FunctionIndex<'a> {
@@ -141,14 +146,14 @@ impl<'a> FunctionIndex<'a> {
                 } else {
                     CallTarget::imported(file.ast.span.source, function.name.clone())
                 };
-                definitions.insert(target, function);
+                definitions.insert(target, IndexedFunction::new(function, file));
             }
         }
         Self { definitions }
     }
 
-    fn same_file_definition(&self, name: &str) -> Option<&'a FunctionDecl> {
-        self.definitions.get(&CallTarget::same_file(name)).copied()
+    fn definition(&self, target: &CallTarget) -> Option<&IndexedFunction<'a>> {
+        self.definitions.get(target)
     }
 
     fn signatures(&self) -> FunctionSignatures {
@@ -156,10 +161,28 @@ impl<'a> FunctionIndex<'a> {
             self.definitions
                 .iter()
                 .filter_map(|(target, function)| {
-                    lower_signature_return_type(&function.return_type)
+                    lower_signature_return_type(&function.declaration.return_type)
                         .map(|return_type| (target.clone(), return_type))
                 })
                 .collect(),
         )
+    }
+}
+
+impl<'a> IndexedFunction<'a> {
+    fn new(declaration: &'a FunctionDecl, file: &'a FileAnalysis) -> Self {
+        Self {
+            declaration,
+            resolved: &file.resolved,
+        }
+    }
+}
+
+fn describe_call_target(target: &CallTarget) -> String {
+    match target {
+        CallTarget::SameFile(name) => name.clone(),
+        CallTarget::Imported { source, name } => {
+            format!("{} from source {}", name, source.raw())
+        }
     }
 }

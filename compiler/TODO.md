@@ -24,7 +24,11 @@ Recommended next implementation order:
 
 Recent committed work:
 
-- Current checkpoint: attach call targets to IR functions
+- Current checkpoint: lower loaded imported scalar calls
+  - changes reachable lowering to lower loaded imported function definitions from the compile-unit function index
+  - narrows imported-call diagnostics to unresolved imported placeholders
+  - adds IR, `nocter build`, and `nocter run` coverage for a loaded imported `i32` call returning 42
+- `Attach targets to IR functions`
   - adds `Function.target` so lowered function definitions can be keyed as same-file or imported definitions
   - changes backend function offset registration to derive `FunctionSymbol` from `Function.target`
   - keeps existing lowered functions same-file for now while preparing imported definitions to resolve imported call patches
@@ -35,11 +39,11 @@ Recent committed work:
 - `Resolve imported IR call targets`
   - threads resolver output into IR entry/function lowering through `LoweringContext`
   - changes normal-call, bool-call, and tail-call lowering to derive `CallTarget` from resolver symbols instead of always creating same-file targets
-  - verifies that direct lowering can emit `CallTarget::Imported` while the public build/run pipeline still preserves the current `E8006` imported-call boundary
+  - verifies that direct lowering can emit `CallTarget::Imported` before the public build/run pipeline enables loaded imported call lowering
 - `Index IR functions by call target`
   - adds a lowering-time function index that keys root functions as `CallTarget::SameFile` and imported file functions as `CallTarget::Imported`
   - builds `FunctionSignatures` from the compile-unit function index, so imported scalar function signatures are present before imported call lowering is enabled
-  - keeps reachable lowering limited to same-file functions and preserves the current `E8006` imported-call boundary
+  - kept reachable lowering limited to same-file functions until loaded imported call lowering was enabled
 - `Key IR signatures by call target`
   - changes IR lowering return-type lookup from raw function names to `CallTarget` keys
   - keeps test-only same-file signature construction available while production lowering builds same-file `CallTarget` signatures explicitly
@@ -279,7 +283,7 @@ Current uncommitted compiler work:
 For the imported-call build diagnostic coverage, from `compiler/`:
 
 ```sh
-cargo test --quiet --test cli_build build_command_reports_unsupported_imported_call
+cargo test --quiet --test cli_build build_command_lowers_imported_i32_call
 cargo fmt
 cargo test --quiet
 ```
@@ -299,7 +303,7 @@ For same-file call reachability tightening, from `compiler/`:
 
 ```sh
 cargo test --quiet lowers_entry_returning_same_file_function_call
-cargo test --quiet reports_unsupported_imported_i32_normal_call
+cargo test --quiet lowers_imported_i32_normal_call
 cargo fmt
 ./scripts/verify.sh
 ```
@@ -308,7 +312,7 @@ For the IR call reachability extraction, from `compiler/`:
 
 ```sh
 cargo test --quiet ir::lower::reachability
-cargo test --quiet reports_unsupported_imported_i32_normal_call
+cargo test --quiet lowers_imported_i32_normal_call
 cargo test --quiet lowers_entry_returning_same_file_function_call
 cargo fmt
 ./scripts/verify.sh
@@ -319,7 +323,7 @@ For imported call target collection, from `compiler/`:
 ```sh
 cargo test --quiet imported_placeholder_symbol_becomes_unloaded_imported_call_target
 cargo test --quiet collects_loaded_imported_call_targets
-cargo test --quiet reports_unsupported_imported_i32_normal_call
+cargo test --quiet lowers_imported_i32_normal_call
 cargo fmt
 ./scripts/verify.sh
 ```
@@ -347,7 +351,7 @@ cargo fmt
 For the imported-call lowering-boundary diagnostic, from `compiler/`:
 
 ```sh
-cargo test --quiet reports_unsupported_imported_i32_normal_call
+cargo test --quiet lowers_imported_i32_normal_call
 cargo fmt
 cargo test --quiet
 ```

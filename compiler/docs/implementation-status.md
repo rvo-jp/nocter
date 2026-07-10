@@ -23,9 +23,9 @@ This file describes implementation state only.
 | String literals and interpolation | yes | yes | partial | partial | partial | Single-line and multi-line string literals are tokenized, parsed, and typed as `str`; interpolation is parsed as an explicit expression and checked as `String!` with limited supported part types. The initial `std/string` and `std/fmt` API boundary exists, but build currently consumes only static string literals as `make_error` messages; interpolated string construction is not lowerable. |
 | Immutable `let` bindings | yes | yes | yes | partial | yes | Build supports lowerable `i32` and `bool` initializers. |
 | `var` and reassignment | yes | yes | partial | no | no | Backend has no general local storage yet. |
-| Same-file function calls | yes | yes | yes | partial | partial | Build supports non-generic `i32` tail calls with up to 8 `i32` arguments, `bool` tail returns, and a narrow same-file scalar normal-call subset. |
-| Imported function calls | yes | yes | yes | no | no | Import resolution exists; backend lowering now reports a dedicated imported-call boundary diagnostic, but does not lower imported calls. |
-| General non-tail calls | yes | yes | yes | partial | partial | Build supports same-file non-generic scalar normal calls in selected expression positions. Unsupported shapes still report IR lowering diagnostics. |
+| Same-file function calls | yes | yes | yes | partial | partial | Build supports non-generic `i32` tail calls with up to 8 `i32` arguments, `bool` tail returns, and a narrow scalar normal-call subset. |
+| Imported function calls | yes | yes | yes | partial | partial | Build supports loaded imported non-generic scalar calls through the same narrow scalar call subset as same-file calls. Unloaded imported placeholders still diagnose before backend lowering. |
+| General non-tail calls | yes | yes | yes | partial | partial | Build supports non-generic scalar normal calls in selected expression positions. Unsupported shapes still report IR lowering diagnostics. |
 | Terminal `if` / `else` | yes | yes | yes | partial | yes | Build supports terminal branches returning direct `i32` or non-entry `bool`. |
 | General `if`, `while`, `loop`, `for`, `match`, `?{}` | yes | yes | partial | no | no | Several forms are checkable; backend lowering remains intentionally narrow. |
 | Fallible entry success/failure | yes | yes | partial | partial | partial | Build supports simple success and `return make_error("code", "message")` failure. |
@@ -52,16 +52,16 @@ Currently buildable:
 - literal `i32` returns
 - immutable local `let` bindings whose initializer is lowerable as `i32` or `bool`
 - `void` entry with an empty body or bare `return`
-- same-file non-generic tail calls returning `i32` or `bool`
-- same-file non-generic normal calls returning `i32` in `let` initializers
-- same-file non-generic normal calls returning `i32` in `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, evaluated left to right with distinct temporary locals
-- same-file non-generic normal calls returning `i32` as `i32` comparison operands such as `if answer() == 42`, `let matched = left() <= right()`, and `return left() < right()`
-- same-file non-generic normal calls returning `bool` in `let` initializers
-- same-file non-generic normal calls returning `bool` under unary `!` in `let` initializers and bool return expressions
-- same-file non-generic normal calls returning `bool` as atomic bool equality/inequality operands such as `ready() == true` and `left() != right()`
-- same-file non-generic normal calls returning `bool` in short-circuit bool value expressions such as `let value = ready() && other()` and `return ready() || other()`
-- same-file non-generic normal calls returning `bool` directly in terminal `if` conditions, including unary `!`
-- same-file non-generic normal calls returning `bool` in terminal `if` short-circuit conditions such as `ready() && other()` and `ready() || other()`
+- same-file and loaded imported non-generic tail calls returning `i32` or `bool`
+- same-file and loaded imported non-generic normal calls returning `i32` in `let` initializers
+- same-file and loaded imported non-generic normal calls returning `i32` in `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, evaluated left to right with distinct temporary locals
+- same-file and loaded imported non-generic normal calls returning `i32` as `i32` comparison operands such as `if answer() == 42`, `let matched = left() <= right()`, and `return left() < right()`
+- same-file and loaded imported non-generic normal calls returning `bool` in `let` initializers
+- same-file and loaded imported non-generic normal calls returning `bool` under unary `!` in `let` initializers and bool return expressions
+- same-file and loaded imported non-generic normal calls returning `bool` as atomic bool equality/inequality operands such as `ready() == true` and `left() != right()`
+- same-file and loaded imported non-generic normal calls returning `bool` in short-circuit bool value expressions such as `let value = ready() && other()` and `return ready() || other()`
+- same-file and loaded imported non-generic normal calls returning `bool` directly in terminal `if` conditions, including unary `!`
+- same-file and loaded imported non-generic normal calls returning `bool` in terminal `if` short-circuit conditions such as `ready() && other()` and `ready() || other()`
 - short-circuit bool expressions that combine `i32` call comparisons with bool calls, such as `if answer() == 42 && ready()` and `let matched = answer() == 42 && ready()`
 - nested `i32` normal-call arguments such as `let value = outer(inner())`
 - nested `i32` tail-call arguments such as `return outer(inner())`
@@ -79,7 +79,7 @@ Currently not buildable even when it may be checkable:
 
 - `var`, reassignment, and general local storage
 - general `if`, `while`, `loop`, range `for`, `match`, and pattern conditional `?{}`
-- imported function calls
+- unloaded imported function placeholders
 - compound bool equality operands with calls such as `(ready() && other()) == true`
 - `str` values beyond static fallible failure messages
 - interpolated string construction

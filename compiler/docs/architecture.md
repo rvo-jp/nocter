@@ -175,7 +175,7 @@ Currently not buildable even when it may be checkable:
 
 - `var`, reassignment, and general local storage
 - general `if`, `while`, `loop`, range `for`, and `match`
-- imported function calls
+- unloaded imported function placeholders
 - `str` values beyond static fallible failure messages
 - interpolated string construction
 - optional values
@@ -194,16 +194,16 @@ The `arm64-darwin` backend v0 uses a deliberately small register-only convention
 - `w16` and `w17` are backend scratch registers and may be clobbered by code generation
 
 Tail calls are lowered by loading the callee arguments into `w0` through `w7` and branching directly to the target function.
-The source-level scalar call subset lowers same-file non-generic `i32` calls in `let` initializers, `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, `i32` comparison operands, nested normal-call arguments, and nested tail-call arguments, evaluating staged calls left to right into distinct temporary locals.
+The source-level scalar call subset lowers same-file and loaded imported non-generic `i32` calls in `let` initializers, `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, `i32` comparison operands, nested normal-call arguments, and nested tail-call arguments, evaluating staged calls left to right into distinct temporary locals.
 The frame, spill/reload, and normal-call implementation order is tracked in `backend-v0.md`.
 `backend/frame.rs` owns the fixed v0 frame layout planner: frame size, saved `x30` offset, and scalar spill-slot offsets.
 Codegen emits framed prologue/epilogue sequences and normal calls with conservative scalar spill/reload plus stack-backed argument staging.
-Backend call patching and function offset registration use an internal `FunctionSymbol` key rather than raw function-name strings, so same-file calls and future imported calls can use distinct symbol identities before Mach-O branch patching resolves offsets.
+Backend call patching and function offset registration use an internal `FunctionSymbol` key rather than raw function-name strings, so same-file calls and imported calls use distinct symbol identities before Mach-O branch patching resolves offsets.
 Addition and subtraction emission uses ARM64 flag-setting arithmetic and traps on signed overflow.
 Multiplication emission computes a signed 64-bit product and traps unless that product exactly fits in `i32`.
 Division and remainder emission inserts zero-divisor and signed-overflow trap checks before ARM64 `sdiv`.
 Shift emission checks the runtime count before ARM64 variable shift instructions and traps when the count is negative or greater than or equal to the shifted value width.
-Imported calls, aggregate values, ownership/drop lowering, and general control-flow call placement remain outside the buildable subset.
+Unloaded imported placeholders, aggregate values, ownership/drop lowering, and general control-flow call placement remain outside the buildable subset.
 
 Use integration tests for user-visible CLI behavior and backend/unit tests for lower-level encoding and Mach-O layout. When extending build support, first add a small `nocter build` regression case, then expand IR lowering, code generation, and documentation together.
 
@@ -250,7 +250,7 @@ Responsibilities:
 - `frontend/`: root `.nct` loading, lexing/parsing for semantic checks, recursive import graph loading, canonical-path module de-duplication, synthetic standard prelude insertion, active target overlay lookup, and common Nocter home `std` lookup.
 - `home/`: installed Nocter home resolution, `VERSION` reading, `MANIFEST.json` parsing, manifest schema validation, release/host/default-target validation, archive metadata validation, and standard-library directory shape validation.
 - `analysis/`: whole-compile-unit semantic analysis that combines per-file resolve and typecheck output into reusable `CompileUnitAnalysis` and `FileAnalysis` records for CLI diagnostics and future LSP features.
-- `ir/`: optional lower-level compiler representation if direct AST lowering becomes too tangled. IR call instructions, function definitions, and lowering-time function signature lookup carry a backend-independent `CallTarget` so same-file targets and imported targets do not share raw strings. Lowering indexes root functions as `CallTarget::SameFile` and imported file functions as `CallTarget::Imported { source, name }`, using declaration source identity plus function name. `LoweringContext` can resolve call expressions through resolver output, so direct expression lowering can emit imported call targets. `ir/lower/reachability.rs` owns reachable `CallTarget` collection from lowered instructions. `ir/lower/imported_calls.rs` owns imported call target collection and the current backend boundary diagnostic that rejects imported call targets before imported definition lowering is enabled.
+- `ir/`: optional lower-level compiler representation if direct AST lowering becomes too tangled. IR call instructions, function definitions, and lowering-time function signature lookup carry a backend-independent `CallTarget` so same-file targets and imported targets do not share raw strings. Lowering indexes root functions as `CallTarget::SameFile` and imported file functions as `CallTarget::Imported { source, name }`, using declaration source identity plus function name. `LoweringContext` can resolve call expressions through resolver output, so direct expression lowering can emit imported call targets. `ir/lower/reachability.rs` owns reachable `CallTarget` collection from lowered instructions. `ir/lower/imported_calls.rs` owns imported call target collection and the current diagnostic for unresolved imported placeholders.
 - `abi/`: Nocter ABI v0 classification, data layout, aggregate layout, call lowering rules, return lowering rules, and drop glue rules.
 - `target/`: target-specific lowering and output.
 - `target/arm64/`: ARM64 instruction selection and binary instruction encoding.

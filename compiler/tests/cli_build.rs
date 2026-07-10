@@ -368,7 +368,7 @@ fn build_command_reports_unsupported_compound_bool_equality_condition() {
 }
 
 #[test]
-fn build_command_reports_unsupported_imported_call() {
+fn build_command_lowers_imported_i32_call() {
     let project = TempProject::new("cli-build-imported-call");
     project.write_nocter_home_file(
         "std/math.nct",
@@ -391,20 +391,10 @@ func main(): i32 {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E8006]"),
-        "expected imported call lowering diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("imported function call `answer`"),
-        "expected imported call message, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after compile diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
+    let status = Command::new(&executable).status().unwrap();
+    assert_eq!(status.code(), Some(42));
 }
 
 #[test]

@@ -104,8 +104,8 @@ func answer(): i32 {
 }
 
 #[test]
-fn reports_unsupported_imported_i32_normal_call() {
-    let diagnostics = lower_text_diagnostics_with_nocter_home_files(
+fn lowers_imported_i32_normal_call() {
+    let analysis = analyze_text_with_entry_and_nocter_home_files(
         r#"from std/math import answer
 
 func main(): i32 {
@@ -113,6 +113,7 @@ func main(): i32 {
     return value
 }
 "#,
+        crate::entry::DEFAULT_ENTRY_NAME,
         &[(
             "std/math.nct",
             r#"pub func answer(): i32 {
@@ -121,13 +122,50 @@ func main(): i32 {
 "#,
         )],
     );
+    let root = analysis.root_file().unwrap();
+    let imported_source = analysis
+        .files
+        .iter()
+        .find(|file| {
+            !file.is_root
+                && file.ast.items.iter().any(|item| {
+                    matches!(item, crate::ast::Item::Function(function) if function.name == "answer")
+                })
+        })
+        .map(|file| file.ast.span.source)
+        .unwrap();
 
-    assert_eq!(diagnostics[0].code, "E8006");
-    assert!(
-        diagnostics[0]
-            .message
-            .contains("imported function call `answer`")
+    let ir = lower_executable_with_entry(&analysis, crate::entry::DEFAULT_ENTRY_NAME).unwrap();
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: CallTarget::same_file("main"),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::CallI32 {
+                        destination: I32Location::Local(0),
+                        target: CallTarget::imported(imported_source, "answer"),
+                        arguments: vec![],
+                    },
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "answer".to_string(),
+                target: CallTarget::imported(imported_source, "answer"),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(42), Instruction::Return],
+            },
+        ])
     );
+    assert_ne!(root.ast.span.source, imported_source);
 }
 
 #[test]
@@ -3174,6 +3212,7 @@ fn lower_named_function_with_signatures(
 
     functions::lower_function(
         function,
+        CallTarget::same_file(function_name),
         function_signatures,
         root.ast.span.source,
         &root.resolved,
@@ -3240,21 +3279,6 @@ fn lower_text_diagnostics(text: &str) -> Vec<Diagnostic> {
 fn lower_text_diagnostics_with_entry(text: &str, entry_name: &str) -> Vec<Diagnostic> {
     let analysis = analyze_text_with_entry(text, entry_name);
     match lower_executable_with_entry(&analysis, entry_name) {
-        Ok(_) => Vec::new(),
-        Err(diagnostics) => diagnostics,
-    }
-}
-
-fn lower_text_diagnostics_with_nocter_home_files(
-    text: &str,
-    home_files: &[(&str, &str)],
-) -> Vec<Diagnostic> {
-    let analysis = analyze_text_with_entry_and_nocter_home_files(
-        text,
-        crate::entry::DEFAULT_ENTRY_NAME,
-        home_files,
-    );
-    match lower_executable_with_entry(&analysis, crate::entry::DEFAULT_ENTRY_NAME) {
         Ok(_) => Vec::new(),
         Err(diagnostics) => diagnostics,
     }

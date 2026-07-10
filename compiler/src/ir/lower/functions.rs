@@ -10,6 +10,7 @@ use crate::source::SourceId;
 
 pub(super) fn lower_function(
     function: &FunctionDecl,
+    target: CallTarget,
     function_signatures: FunctionSignatures,
     root_source: SourceId,
     resolved: &ResolveOutput,
@@ -37,7 +38,7 @@ pub(super) fn lower_function(
 
     Ok(Function {
         name: function.name.clone(),
-        target: CallTarget::same_file(function.name.clone()),
+        target,
         return_type,
         instructions,
     })

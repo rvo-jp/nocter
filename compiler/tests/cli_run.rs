@@ -57,6 +57,38 @@ func answer(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_imported_function_call_exit_code() {
+    let project = TempProject::new("cli-run-imported-function-call");
+    project.write_nocter_home_file(
+        "std/math.nct",
+        r#"pub func answer(): i32 {
+    return 42
+}
+"#,
+    );
+    let source = project.write_source(
+        "call.nct",
+        r#"from std/math import answer
+
+func main(): i32 {
+    return answer()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_i32_function_call_with_arguments_exit_code() {
     let project = TempProject::new("cli-run-function-arguments");
     let source = project.write_source(
@@ -1318,6 +1350,14 @@ impl TempProject {
         let path = self.root.join(name);
         fs::write(&path, text).unwrap();
         path
+    }
+
+    fn write_nocter_home_file(&self, relative: &str, text: &str) {
+        let path = self.nocter_home().join(relative);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(path, text).unwrap();
     }
 
     fn write_nocter_home(&self) {
