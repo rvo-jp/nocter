@@ -24,7 +24,11 @@ Recommended next implementation order:
 
 Recent committed work:
 
-- Current checkpoint: constrain IR call reachability to same-file targets
+- Current checkpoint: extract IR call reachability
+  - adds `ir/lower/reachability.rs` for same-file call target discovery
+  - keeps reachable lowering behavior unchanged while giving imported call lowering a narrower boundary to extend next
+  - adds direct coverage for nested `Instruction::If` call target collection order
+- `Constrain IR call reachability to same-file targets`
   - changes IR lowering reachability collection to queue only `CallTarget::SameFile` names
   - adds `CallTarget::same_file_name()` so future imported targets can be ignored by same-file function discovery instead of accidentally being treated as local functions
 - `Type IR call targets`
@@ -233,7 +237,7 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Constrain IR call reachability to same-file targets`.
+- None expected after committing `Extract IR call reachability`.
 
 ## Verification Already Run
 
@@ -261,6 +265,16 @@ For same-file call reachability tightening, from `compiler/`:
 ```sh
 cargo test --quiet lowers_entry_returning_same_file_function_call
 cargo test --quiet reports_unsupported_imported_i32_normal_call
+cargo fmt
+./scripts/verify.sh
+```
+
+For the IR call reachability extraction, from `compiler/`:
+
+```sh
+cargo test --quiet ir::lower::reachability
+cargo test --quiet reports_unsupported_imported_i32_normal_call
+cargo test --quiet lowers_entry_returning_same_file_function_call
 cargo fmt
 ./scripts/verify.sh
 ```

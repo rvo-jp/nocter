@@ -7,11 +7,12 @@ mod expressions;
 mod functions;
 mod imported_calls;
 mod literals;
+mod reachability;
 
 #[cfg(test)]
 mod tests;
 
-use super::{Function, Instruction, IrModule};
+use super::{Function, IrModule};
 use crate::analysis::CompileUnitAnalysis;
 use crate::ast::{FunctionDecl, Item, TypeExpr};
 use crate::diagnostics::Diagnostic;
@@ -20,7 +21,8 @@ use crate::resolve::ResolveOutput;
 use crate::source::SourceId;
 use context::FunctionSignatures;
 use imported_calls::imported_call_diagnostics;
-use std::collections::{HashMap, HashSet, VecDeque};
+use reachability::same_file_call_targets;
+use std::collections::{HashMap, HashSet};
 
 pub(crate) fn lower_executable_with_entry(
     analysis: &CompileUnitAnalysis,
@@ -132,43 +134,4 @@ fn lower_reachable_functions(
     }
 
     Ok(())
-}
-
-fn same_file_call_targets(function: &Function) -> VecDeque<String> {
-    let mut targets = VecDeque::new();
-    collect_same_file_call_targets(&function.instructions, &mut targets);
-    targets
-}
-
-fn collect_same_file_call_targets(instructions: &[Instruction], targets: &mut VecDeque<String>) {
-    for instruction in instructions {
-        match instruction {
-            Instruction::CallI32 { target, .. }
-            | Instruction::CallBool { target, .. }
-            | Instruction::TailCall { target, .. } => {
-                if let Some(name) = target.same_file_name() {
-                    targets.push_back(name.to_string());
-                }
-            }
-            Instruction::If {
-                then_instructions,
-                else_instructions,
-                ..
-            } => {
-                collect_same_file_call_targets(then_instructions, targets);
-                collect_same_file_call_targets(else_instructions, targets);
-            }
-            Instruction::WriteStaticStderr(_)
-            | Instruction::SetI32 { .. }
-            | Instruction::SetBool { .. }
-            | Instruction::AddI32 { .. }
-            | Instruction::SubtractI32 { .. }
-            | Instruction::MultiplyI32 { .. }
-            | Instruction::DivideI32 { .. }
-            | Instruction::RemainderI32 { .. }
-            | Instruction::ShiftLeftI32 { .. }
-            | Instruction::ShiftRightI32 { .. }
-            | Instruction::Return => {}
-        }
-    }
 }
