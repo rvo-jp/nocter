@@ -198,7 +198,7 @@ The source-level scalar call subset lowers same-file non-generic `i32` calls in 
 The frame, spill/reload, and normal-call implementation order is tracked in `backend-v0.md`.
 `backend/frame.rs` owns the fixed v0 frame layout planner: frame size, saved `x30` offset, and scalar spill-slot offsets.
 Codegen emits framed prologue/epilogue sequences and normal calls with conservative scalar spill/reload plus stack-backed argument staging.
-Backend call patching uses an internal `FunctionSymbol` key rather than raw function-name strings, so same-file calls and future imported calls can use distinct symbol identities before Mach-O branch patching resolves offsets.
+Backend call patching and function offset registration use an internal `FunctionSymbol` key rather than raw function-name strings, so same-file calls and future imported calls can use distinct symbol identities before Mach-O branch patching resolves offsets.
 Addition and subtraction emission uses ARM64 flag-setting arithmetic and traps on signed overflow.
 Multiplication emission computes a signed 64-bit product and traps unless that product exactly fits in `i32`.
 Division and remainder emission inserts zero-divisor and signed-overflow trap checks before ARM64 `sdiv`.

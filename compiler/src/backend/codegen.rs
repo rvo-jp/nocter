@@ -66,7 +66,7 @@ impl EntryEmitter {
     }
 
     fn emit_process_entry(&mut self, entry: &Function) {
-        self.emit_call(FunctionSymbol::same_file(&entry.name));
+        self.emit_call(FunctionSymbol::from_function(entry));
         if matches!(entry.return_type.success_type(), Type::Void) {
             emit_mov_i32_to_w0(&mut self.encoder, 0);
         }
@@ -75,7 +75,7 @@ impl EntryEmitter {
 
     fn emit_function(&mut self, function: &Function) -> Result<(), Vec<Diagnostic>> {
         self.function_offsets.insert(
-            FunctionSymbol::same_file(&function.name),
+            FunctionSymbol::from_function(function),
             self.encoder.position(),
         );
         let frame = plan_function_frame(function)?;
@@ -1009,6 +1009,10 @@ impl FunctionSymbol {
         Self::SameFile(name.into())
     }
 
+    fn from_function(function: &Function) -> Self {
+        Self::same_file(&function.name)
+    }
+
     fn from_call_target(target: &CallTarget) -> Self {
         match target {
             CallTarget::SameFile(name) => Self::same_file(name),
@@ -1199,6 +1203,20 @@ mod tests {
             }
         );
         assert_eq!(symbol.description(), "answer from source 9");
+    }
+
+    #[test]
+    fn maps_function_definition_to_same_file_function_symbol() {
+        let function = Function {
+            name: "answer".to_string(),
+            return_type: Type::I32,
+            instructions: vec![Instruction::Return],
+        };
+
+        assert_eq!(
+            FunctionSymbol::from_function(&function),
+            FunctionSymbol::SameFile("answer".to_string())
+        );
     }
 
     #[test]

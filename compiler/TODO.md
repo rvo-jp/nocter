@@ -24,7 +24,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
-- Current checkpoint: add imported IR call target
+- Current checkpoint: centralize backend function definition symbols
+  - changes ARM64 entry and function offset registration to derive backend `FunctionSymbol` through one helper instead of open-coding same-file names
+  - keeps generated machine code unchanged while leaving a single extension point for future imported function definitions
+- `Add imported IR call target`
   - adds reserved `CallTarget::Imported { source, name }` with loaded imported declaration source identity
   - maps imported IR call targets to backend `FunctionSymbol::Imported` without enabling imported call lowering yet
   - keeps same-file lowering and current `E8006` imported-call boundary unchanged
