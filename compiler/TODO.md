@@ -24,7 +24,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
-- Current checkpoint: type IR call targets
+- Current checkpoint: constrain IR call reachability to same-file targets
+  - changes IR lowering reachability collection to queue only `CallTarget::SameFile` names
+  - adds `CallTarget::same_file_name()` so future imported targets can be ignored by same-file function discovery instead of accidentally being treated as local functions
+- `Type IR call targets`
   - changes IR call instructions from raw callee strings to backend-independent `CallTarget::SameFile`
   - keeps same-file call lowering and ARM64 codegen behavior unchanged
   - prepares the IR surface for a future `Imported` call target without teaching backend code to infer source identity from plain names
@@ -230,7 +233,7 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Type IR call targets`.
+- None expected after committing `Constrain IR call reachability to same-file targets`.
 
 ## Verification Already Run
 
@@ -250,6 +253,15 @@ cargo test --quiet lowers_entry_i32_let_initializer_normal_call
 cargo test --quiet backend::codegen::tests::generates_framed_i32_normal_call_from_hand_built_ir
 cargo fmt
 cargo test --quiet
+./scripts/verify.sh
+```
+
+For same-file call reachability tightening, from `compiler/`:
+
+```sh
+cargo test --quiet lowers_entry_returning_same_file_function_call
+cargo test --quiet reports_unsupported_imported_i32_normal_call
+cargo fmt
 ./scripts/verify.sh
 ```
 

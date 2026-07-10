@@ -31,6 +31,12 @@ impl CallTarget {
             Self::SameFile(name) => name,
         }
     }
+
+    pub(crate) fn same_file_name(&self) -> Option<&str> {
+        match self {
+            Self::SameFile(name) => Some(name),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

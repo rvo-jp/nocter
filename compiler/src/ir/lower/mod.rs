@@ -108,7 +108,7 @@ fn lower_reachable_functions(
     resolved: &ResolveOutput,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut seen = HashSet::from([entry_name.to_string()]);
-    let mut queue = call_targets(&lowered[0]);
+    let mut queue = same_file_call_targets(&lowered[0]);
 
     while let Some(name) = queue.pop_front() {
         if !seen.insert(name.clone()) {
@@ -127,32 +127,36 @@ fn lower_reachable_functions(
         }
 
         let function = functions::lower_function(function, function_signatures.clone())?;
-        queue.extend(call_targets(&function));
+        queue.extend(same_file_call_targets(&function));
         lowered.push(function);
     }
 
     Ok(())
 }
 
-fn call_targets(function: &Function) -> VecDeque<String> {
+fn same_file_call_targets(function: &Function) -> VecDeque<String> {
     let mut targets = VecDeque::new();
-    collect_call_targets(&function.instructions, &mut targets);
+    collect_same_file_call_targets(&function.instructions, &mut targets);
     targets
 }
 
-fn collect_call_targets(instructions: &[Instruction], targets: &mut VecDeque<String>) {
+fn collect_same_file_call_targets(instructions: &[Instruction], targets: &mut VecDeque<String>) {
     for instruction in instructions {
         match instruction {
             Instruction::CallI32 { target, .. }
             | Instruction::CallBool { target, .. }
-            | Instruction::TailCall { target, .. } => targets.push_back(target.name().to_string()),
+            | Instruction::TailCall { target, .. } => {
+                if let Some(name) = target.same_file_name() {
+                    targets.push_back(name.to_string());
+                }
+            }
             Instruction::If {
                 then_instructions,
                 else_instructions,
                 ..
             } => {
-                collect_call_targets(then_instructions, targets);
-                collect_call_targets(else_instructions, targets);
+                collect_same_file_call_targets(then_instructions, targets);
+                collect_same_file_call_targets(else_instructions, targets);
             }
             Instruction::WriteStaticStderr(_)
             | Instruction::SetI32 { .. }
