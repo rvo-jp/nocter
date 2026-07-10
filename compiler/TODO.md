@@ -24,7 +24,11 @@ Recommended next implementation order:
 
 Recent committed work:
 
-- Current checkpoint: resolve imported call targets during expression lowering
+- Current checkpoint: collect reachable IR call targets
+  - changes IR reachability collection from same-file function names to full `CallTarget` values
+  - keeps imported targets in the queue representation while still deferring imported definition lowering at the current boundary
+  - removes the now-unused `CallTarget::same_file_name()` helper
+- `Resolve imported IR call targets`
   - threads resolver output into IR entry/function lowering through `LoweringContext`
   - changes normal-call, bool-call, and tail-call lowering to derive `CallTarget` from resolver symbols instead of always creating same-file targets
   - verifies that direct lowering can emit `CallTarget::Imported` while the public build/run pipeline still preserves the current `E8006` imported-call boundary
@@ -57,7 +61,7 @@ Recent committed work:
   - adds direct coverage for nested `Instruction::If` call target collection order
 - `Constrain IR call reachability to same-file targets`
   - changes IR lowering reachability collection to queue only `CallTarget::SameFile` names
-  - adds `CallTarget::same_file_name()` so future imported targets can be ignored by same-file function discovery instead of accidentally being treated as local functions
+  - kept imported targets from being accidentally treated as local functions before full call-target reachability was introduced
 - `Type IR call targets`
   - changes IR call instructions from raw callee strings to backend-independent `CallTarget::SameFile`
   - keeps same-file call lowering and ARM64 codegen behavior unchanged

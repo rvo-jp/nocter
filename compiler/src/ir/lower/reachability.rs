@@ -1,29 +1,30 @@
-use crate::ir::{Function, Instruction};
+use crate::ir::{CallTarget, Function, Instruction};
 use std::collections::VecDeque;
 
-pub(super) fn same_file_call_targets(function: &Function) -> VecDeque<String> {
+pub(super) fn reachable_call_targets(function: &Function) -> VecDeque<CallTarget> {
     let mut targets = VecDeque::new();
-    collect_same_file_call_targets(&function.instructions, &mut targets);
+    collect_reachable_call_targets(&function.instructions, &mut targets);
     targets
 }
 
-fn collect_same_file_call_targets(instructions: &[Instruction], targets: &mut VecDeque<String>) {
+fn collect_reachable_call_targets(
+    instructions: &[Instruction],
+    targets: &mut VecDeque<CallTarget>,
+) {
     for instruction in instructions {
         match instruction {
             Instruction::CallI32 { target, .. }
             | Instruction::CallBool { target, .. }
             | Instruction::TailCall { target, .. } => {
-                if let Some(name) = target.same_file_name() {
-                    targets.push_back(name.to_string());
-                }
+                targets.push_back(target.clone());
             }
             Instruction::If {
                 then_instructions,
                 else_instructions,
                 ..
             } => {
-                collect_same_file_call_targets(then_instructions, targets);
-                collect_same_file_call_targets(else_instructions, targets);
+                collect_reachable_call_targets(then_instructions, targets);
+                collect_reachable_call_targets(else_instructions, targets);
             }
             Instruction::WriteStaticStderr(_)
             | Instruction::SetI32 { .. }
@@ -46,7 +47,7 @@ mod tests {
     use crate::ir::{BoolValue, CallTarget, Function, I32Location, I32Value, Instruction, Type};
 
     #[test]
-    fn collects_same_file_call_targets_from_nested_instructions_in_order() {
+    fn collects_reachable_call_targets_from_nested_instructions_in_order() {
         let function = Function {
             name: "main".to_string(),
             return_type: Type::I32,
@@ -72,14 +73,35 @@ mod tests {
         };
 
         assert_eq!(
-            same_file_call_targets(&function)
+            reachable_call_targets(&function)
                 .into_iter()
                 .collect::<Vec<_>>(),
             vec![
-                "first".to_string(),
-                "then_target".to_string(),
-                "else_target".to_string(),
+                CallTarget::same_file("first"),
+                CallTarget::same_file("then_target"),
+                CallTarget::same_file("else_target"),
             ]
+        );
+    }
+
+    #[test]
+    fn keeps_imported_reachable_call_targets() {
+        let source = crate::source::SourceId::new(7);
+        let function = Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![Instruction::CallI32 {
+                destination: I32Location::Local(0),
+                target: CallTarget::imported(source, "answer"),
+                arguments: vec![],
+            }],
+        };
+
+        assert_eq!(
+            reachable_call_targets(&function)
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec![CallTarget::imported(source, "answer")]
         );
     }
 }

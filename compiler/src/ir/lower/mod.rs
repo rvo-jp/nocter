@@ -21,7 +21,7 @@ use crate::resolve::ResolveOutput;
 use crate::source::SourceId;
 use context::FunctionSignatures;
 use imported_calls::imported_call_diagnostics;
-use reachability::same_file_call_targets;
+use reachability::reachable_call_targets;
 use std::collections::{HashMap, HashSet};
 
 pub(crate) fn lower_executable_with_entry(
@@ -89,15 +89,18 @@ fn lower_reachable_functions(
     root_source: SourceId,
     resolved: &ResolveOutput,
 ) -> Result<(), Vec<Diagnostic>> {
-    let mut seen = HashSet::from([entry_name.to_string()]);
-    let mut queue = same_file_call_targets(&lowered[0]);
+    let mut seen = HashSet::from([CallTarget::same_file(entry_name)]);
+    let mut queue = reachable_call_targets(&lowered[0]);
 
-    while let Some(name) = queue.pop_front() {
-        if !seen.insert(name.clone()) {
+    while let Some(target) = queue.pop_front() {
+        if !seen.insert(target.clone()) {
             continue;
         }
 
-        let Some(function) = function_index.same_file_definition(&name) else {
+        let CallTarget::SameFile(name) = &target else {
+            continue;
+        };
+        let Some(function) = function_index.same_file_definition(name) else {
             return Err(vec![Diagnostic::error(
                 "E8006",
                 format!("IR v0 can only lower calls to same-file functions, got `{name}`"),
@@ -114,7 +117,7 @@ fn lower_reachable_functions(
             root_source,
             resolved,
         )?;
-        queue.extend(same_file_call_targets(&function));
+        queue.extend(reachable_call_targets(&function));
         lowered.push(function);
     }
 

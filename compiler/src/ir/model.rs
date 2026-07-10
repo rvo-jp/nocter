@@ -35,13 +35,6 @@ impl CallTarget {
             name: name.into(),
         }
     }
-
-    pub(crate) fn same_file_name(&self) -> Option<&str> {
-        match self {
-            Self::SameFile(name) => Some(name),
-            Self::Imported { .. } => None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
