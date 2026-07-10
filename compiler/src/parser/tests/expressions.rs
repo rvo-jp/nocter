@@ -165,6 +165,35 @@ fn parses_array_literal_expression() {
 }
 
 #[test]
+fn parses_multi_line_string_literal_expression() {
+    let output = parse_text(
+        r#"func main(): str {
+    return """
+        alpha
+        beta
+        """
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
+    };
+    let Stmt::Return(statement) = &function.body.statements[0] else {
+        panic!("expected return statement");
+    };
+    let Some(Expr::StringLiteral(literal)) = &statement.expression else {
+        panic!("expected string literal");
+    };
+    assert_eq!(
+        literal.value,
+        "\"\"\"\n        alpha\n        beta\n        \"\"\""
+    );
+}
+
+#[test]
 fn parses_struct_literal_expression() {
     let output = parse_text(
         r#"struct Point {

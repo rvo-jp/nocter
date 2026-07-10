@@ -39,6 +39,9 @@ pub fn collect_comments(source: SourceId, text: &str) -> Vec<Comment> {
 
     while index < bytes.len() {
         match bytes[index] {
+            b'"' if bytes[index..].starts_with(b"\"\"\"") => {
+                index = skip_triple_quoted(bytes, index)
+            }
             b'"' => index = skip_quoted(bytes, index, b'"'),
             b'b' if bytes.get(index + 1) == Some(&b'\'') => {
                 index = skip_quoted(bytes, index + 1, b'\'')
@@ -115,6 +118,43 @@ fn skip_quoted(bytes: &[u8], start_quote: usize, quote: u8) -> usize {
 
         if bytes[index] == quote {
             return index + 1;
+        }
+
+        index += 1;
+    }
+
+    bytes.len()
+}
+
+fn skip_triple_quoted(bytes: &[u8], start_quote: usize) -> usize {
+    let mut index = start_quote + 3;
+    if bytes.get(index) != Some(&b'\n') {
+        return bytes.len();
+    }
+
+    index += 1;
+    let mut line_start = index;
+    while index < bytes.len() {
+        if index == line_start {
+            let mut indent_end = index;
+            while matches!(bytes.get(indent_end), Some(b' ' | b'\t')) {
+                indent_end += 1;
+            }
+
+            if bytes[indent_end..].starts_with(b"\"\"\"") {
+                return indent_end + 3;
+            }
+        }
+
+        if bytes[index] == b'\\' {
+            index = (index + 2).min(bytes.len());
+            continue;
+        }
+
+        if bytes[index] == b'\n' {
+            index += 1;
+            line_start = index;
+            continue;
         }
 
         index += 1;

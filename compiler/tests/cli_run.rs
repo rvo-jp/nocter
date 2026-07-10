@@ -897,6 +897,30 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_reports_fallible_entry_failure_multi_line_message() {
+    let project = TempProject::new("cli-run-fallible-failure-multi-line");
+    let source = project.write_source(
+        "fail.nct",
+        r#"primitive make_error(code: str, message: str): error
+
+func main(): i32! {
+    return make_error("app.failed", """
+        failed
+        later
+        """)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(output.stderr, b"failed\nlater\n");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn bare_source_command_runs_source_file() {
     let project = TempProject::new("cli-run-bare-source");
     let source = project.write_source(

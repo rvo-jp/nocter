@@ -168,14 +168,14 @@ Currently buildable:
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` comparisons used in lowerable bool expressions
 - terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over literal/local operands, or `i32` comparison conditions and direct `i32` or non-entry `bool` returns in both branches
 - simple fallible entry success
-- simple fallible entry failure through `return make_error("code", "message")`
+- simple fallible entry failure through `return make_error("code", <static string message>)`, where the message may be a single-line or multi-line string literal
 
 Currently not buildable even when it may be checkable:
 
 - `var`, reassignment, and general local storage
 - general `if`, `while`, `loop`, range `for`, and `match`
 - imported function calls
-- `str` values beyond static failure messages
+- `str` values beyond static fallible failure messages
 - optional values
 - aggregate values, arrays, views, pointers, methods, traits, generics, ownership lowering, and drop glue
 - custom output path selection through `-o`

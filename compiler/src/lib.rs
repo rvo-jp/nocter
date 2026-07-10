@@ -11,6 +11,7 @@ pub mod frontend;
 pub mod home;
 pub mod ir;
 pub mod lexer;
+mod literals;
 pub mod parser;
 pub mod resolve;
 pub mod source;

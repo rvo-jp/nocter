@@ -12,9 +12,10 @@ The current LSP feature modules should present compiler analysis results, not gr
 
 Recommended next small task:
 
-1. Keep expanding from the narrow source-level scalar normal-call subset already enabled.
-2. Consider broader terminal control-flow only after its lowering rules are designed.
-3. Keep imported calls, aggregate values, ownership/drop lowering, and general mutable storage disabled until their ABI and storage rules are designed.
+1. Finish string interpolation as an explicit expression AST and type-check it as `String!`, while keeping lowering rejected until the formatting and allocation API is designed.
+2. Then return to expanding the narrow source-level scalar normal-call subset already enabled.
+3. Consider broader terminal control-flow only after its lowering rules are designed.
+4. Keep imported calls, aggregate values, ownership/drop lowering, and general mutable storage disabled until their ABI and storage rules are designed.
 
 ## Near-Term Constraints
 

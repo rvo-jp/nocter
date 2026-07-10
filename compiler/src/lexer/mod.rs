@@ -1,6 +1,7 @@
 //! Tokenization for `.nct` source files.
 
 use crate::diagnostics::Diagnostic;
+use crate::literals::decode_string_literal_bytes;
 use crate::source::{ByteSpan, JsonSpan, SourceId, SourceMap};
 use serde::Serialize;
 
@@ -427,6 +428,14 @@ impl Lexer<'_> {
     }
 
     fn scan_string_literal(&mut self) {
+        if self.bytes[self.index..].starts_with(b"\"\"\"") {
+            self.scan_multi_line_string_literal();
+        } else {
+            self.scan_single_line_string_literal();
+        }
+    }
+
+    fn scan_single_line_string_literal(&mut self) {
         let start = self.index;
         self.index += 1;
 
@@ -434,14 +443,16 @@ impl Lexer<'_> {
             match self.bytes[self.index] {
                 b'"' => {
                     self.index += 1;
-                    self.push(TokenKind::StringLiteral, start, self.index);
+                    if self.validate_string_literal(start, self.index) {
+                        self.push(TokenKind::StringLiteral, start, self.index);
+                    }
                     return;
                 }
                 b'\n' | b'\r' => {
                     self.error(
                         start,
                         self.index + 1,
-                        "raw newlines are invalid in string literals",
+                        "raw newlines are invalid in single-line string literals",
                     );
                     return;
                 }
@@ -451,6 +462,17 @@ impl Lexer<'_> {
                         return;
                     }
                 }
+                b'$' if self.peek(1) == Some(b'{') => {
+                    let interpolation_start = self.index;
+                    self.index += 2;
+                    self.error(
+                        interpolation_start,
+                        self.index,
+                        "string interpolation is not implemented yet",
+                    );
+                    self.skip_single_line_string_remainder();
+                    return;
+                }
                 _ => {
                     self.index += current_char_len(self.text, self.index);
                 }
@@ -458,6 +480,134 @@ impl Lexer<'_> {
         }
 
         self.error(start, self.index, "unterminated string literal");
+    }
+
+    fn scan_multi_line_string_literal(&mut self) {
+        let start = self.index;
+        self.index += 3;
+
+        if self.peek(0) != Some(b'\n') {
+            self.error(
+                start,
+                self.index,
+                "multi-line string opening delimiter must be followed by a newline",
+            );
+            return;
+        }
+
+        self.index += 1;
+        let mut line_start = self.index;
+
+        while !self.is_at_end() {
+            if self.index == line_start {
+                let mut indent_end = self.index;
+                while matches!(self.bytes.get(indent_end), Some(b' ' | b'\t')) {
+                    indent_end += 1;
+                }
+
+                if self.bytes[indent_end..].starts_with(b"\"\"\"") {
+                    self.index = indent_end + 3;
+                    if self.validate_string_literal(start, self.index) {
+                        self.push(TokenKind::StringLiteral, start, self.index);
+                    }
+                    return;
+                }
+            }
+
+            match self.bytes[self.index] {
+                b'\n' => {
+                    self.index += 1;
+                    line_start = self.index;
+                }
+                b'\r' => {
+                    self.error(
+                        start,
+                        self.index + 1,
+                        "bare carriage return is invalid in string literals",
+                    );
+                    return;
+                }
+                b'\\' => {
+                    if let Err(message) = self.scan_escape() {
+                        self.error(start, self.index, message);
+                        return;
+                    }
+                }
+                b'$' if self.peek(1) == Some(b'{') => {
+                    let interpolation_start = self.index;
+                    self.index += 2;
+                    self.error(
+                        interpolation_start,
+                        self.index,
+                        "string interpolation is not implemented yet",
+                    );
+                    self.skip_multi_line_string_remainder(line_start);
+                    return;
+                }
+                _ => {
+                    self.index += current_char_len(self.text, self.index);
+                }
+            }
+        }
+
+        self.error(start, self.index, "unterminated multi-line string literal");
+    }
+
+    fn skip_single_line_string_remainder(&mut self) {
+        while !self.is_at_end() {
+            match self.bytes[self.index] {
+                b'"' => {
+                    self.index += 1;
+                    return;
+                }
+                b'\n' | b'\r' => return,
+                b'\\' => {
+                    self.index = (self.index + 2).min(self.bytes.len());
+                }
+                _ => {
+                    self.index += current_char_len(self.text, self.index);
+                }
+            }
+        }
+    }
+
+    fn skip_multi_line_string_remainder(&mut self, mut line_start: usize) {
+        while !self.is_at_end() {
+            if self.index == line_start {
+                let mut indent_end = self.index;
+                while matches!(self.bytes.get(indent_end), Some(b' ' | b'\t')) {
+                    indent_end += 1;
+                }
+
+                if self.bytes[indent_end..].starts_with(b"\"\"\"") {
+                    self.index = indent_end + 3;
+                    return;
+                }
+            }
+
+            match self.bytes[self.index] {
+                b'\n' => {
+                    self.index += 1;
+                    line_start = self.index;
+                }
+                b'\\' => {
+                    self.index = (self.index + 2).min(self.bytes.len());
+                }
+                _ => {
+                    self.index += current_char_len(self.text, self.index);
+                }
+            }
+        }
+    }
+
+    fn validate_string_literal(&mut self, start: usize, end: usize) -> bool {
+        match decode_string_literal_bytes(&self.text[start..end]) {
+            Ok(_) => true,
+            Err(message) => {
+                self.error(start, end, message);
+                false
+            }
+        }
     }
 
     fn scan_byte_literal(&mut self) {
@@ -517,7 +667,7 @@ impl Lexer<'_> {
         }
 
         match self.bytes[self.index] {
-            b'n' | b'r' | b't' | b'0' | b'\\' | b'"' | b'\'' => {
+            b'n' | b'r' | b't' | b'0' | b'\\' | b'"' | b'\'' | b'$' => {
                 self.index += 1;
                 Ok(())
             }
@@ -846,5 +996,79 @@ mod tests {
 
         assert_eq!(output.diagnostics.len(), 1);
         assert!(output.diagnostics[0].message.contains("float literals"));
+    }
+
+    #[test]
+    fn lexes_multi_line_string_literal_as_one_token() {
+        let mut sources = SourceMap::new();
+        let id = sources.add_source(
+            "app.nct",
+            None,
+            "let text = \"\"\"\n    alpha\n    beta\n    \"\"\"\nlet done = true",
+        );
+        let output = lex(&sources, id);
+
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        let string_tokens = output
+            .tokens
+            .iter()
+            .filter(|token| token.kind == TokenKind::StringLiteral)
+            .collect::<Vec<_>>();
+        assert_eq!(string_tokens.len(), 1);
+        assert_eq!(
+            output
+                .tokens
+                .iter()
+                .filter(|token| token.kind == TokenKind::Newline)
+                .count(),
+            1
+        );
+        assert_eq!(
+            sources
+                .get(string_tokens[0].span.source)
+                .and_then(|file| file
+                    .text()
+                    .get(string_tokens[0].span.start..string_tokens[0].span.end)),
+            Some("\"\"\"\n    alpha\n    beta\n    \"\"\"")
+        );
+    }
+
+    #[test]
+    fn diagnoses_multi_line_string_indent_mismatch() {
+        let mut sources = SourceMap::new();
+        let id = sources.add_source(
+            "app.nct",
+            None,
+            "let text = \"\"\"\n    alpha\n  beta\n    \"\"\"",
+        );
+        let output = lex(&sources, id);
+
+        assert_eq!(output.diagnostics.len(), 1);
+        assert!(output.diagnostics[0].message.contains("indentation"));
+    }
+
+    #[test]
+    fn allows_escaped_dollar_in_string_literal() {
+        let mut sources = SourceMap::new();
+        let id = sources.add_source("app.nct", None, r#"let text = "hello \${name}""#);
+        let output = lex(&sources, id);
+
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        assert!(
+            output
+                .tokens
+                .iter()
+                .any(|token| token.kind == TokenKind::StringLiteral)
+        );
+    }
+
+    #[test]
+    fn diagnoses_unescaped_string_interpolation_start() {
+        let mut sources = SourceMap::new();
+        let id = sources.add_source("app.nct", None, r#"let text = "hello ${name}""#);
+        let output = lex(&sources, id);
+
+        assert_eq!(output.diagnostics.len(), 1);
+        assert!(output.diagnostics[0].message.contains("interpolation"));
     }
 }

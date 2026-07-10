@@ -169,6 +169,30 @@ while var item=next(){print(item)}
 }
 
 #[test]
+fn formats_multi_line_string_with_comment_markers_stably() {
+    assert_formats_stably(
+        concat!(
+            "func main(): i32 {\n",
+            "    let text = \"\"\"\n",
+            "        not // a comment\n",
+            "        not /* a comment */ either\n",
+            "        \"\"\"\n",
+            "    return 0\n",
+            "}\n",
+        ),
+        concat!(
+            "func main(): i32 {\n",
+            "    let text = \"\"\"\n",
+            "        not // a comment\n",
+            "        not /* a comment */ either\n",
+            "        \"\"\"\n",
+            "    return 0\n",
+            "}\n",
+        ),
+    );
+}
+
+#[test]
 fn rejects_comments_until_formatter_preserves_them() {
     let mut sources = SourceMap::new();
     let source = sources.add_source(

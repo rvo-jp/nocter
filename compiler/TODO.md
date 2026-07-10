@@ -7,7 +7,15 @@ Long-lived maintenance rules live in `AGENTS.md` and `docs/maintenance.md`.
 
 Recent committed work:
 
-- Current checkpoint: `Lower i32 call arithmetic`
+- Current checkpoint: `Add multi-line string literals`
+  - adds shared string literal decoding for single-line and multi-line string literals
+  - lexes multi-line `"""..."""` string literals as one `StringLiteral` token without emitting statement newlines for literal content
+  - validates multi-line opening newline, closing indentation removal, final UTF-8 after escapes, and `\$`
+  - diagnoses unescaped `${` as unimplemented string interpolation instead of accepting it as literal text
+  - updates comment scanning so `//` and `/* */` inside multi-line string literals do not count as comments
+  - lowers static fallible failure messages from single-line or multi-line string literals through `return make_error("code", <message>)`
+  - keeps general `str` values, owned `String`, interpolation parsing/typechecking/lowering, imported calls, aggregate values, ownership/drop lowering, `var`/reassignment, and broader control-flow disabled
+- `Lower i32 call arithmetic`
   - adds IR lowering and ARM64 codegen for lowerable `i32` subtraction and multiplication alongside existing addition
   - supports same-file `i32` normal calls inside `+`, `-`, and `*` arithmetic expressions, such as `return answer() * 2 - offset()`
   - keeps arithmetic evaluation left to right through the existing temporary staging path
@@ -142,15 +150,39 @@ Recent committed work:
 
 Known unrelated local user changes:
 
-- None currently reported by `git status --short`.
+- `spec/07-strings-arrays-views-pointers.md`
+- `spec/13-lexical-grammar.md`
 
 Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Cover i32 comparison short-circuit calls`.
+- None expected after committing `Add multi-line string literals`.
 
 ## Verification Already Run
+
+For the multi-line string literal work, from `compiler/`:
+
+```sh
+cargo fmt
+cargo test --quiet literals
+cargo test --quiet lexer
+cargo test --quiet comments
+cargo test --quiet parser::tests::expressions::parses_multi_line_string_literal_expression
+cargo test --quiet format::tests::formats_multi_line_string_with_comment_markers_stably
+cargo test --quiet ir::lower::tests::lowers_fallible_entry_return_make_error_with_multi_line_message
+cargo test --quiet --test cli_run run_command_reports_fallible_entry_failure_multi_line_message
+cargo test --quiet
+cargo clippy --all-targets --quiet -- -D warnings
+```
+
+From repository root:
+
+```sh
+git diff --check
+```
+
+All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew shellenv, but the commands exited successfully.
 
 After the bool equality/inequality lowering work, from `compiler/`:
 

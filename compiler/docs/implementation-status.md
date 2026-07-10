@@ -20,6 +20,7 @@ This file describes implementation state only.
 | `i32` return values | yes | yes | yes | yes | yes | Literal returns and lowerable expressions are supported. |
 | `void` entry | yes | yes | yes | yes | yes | Empty body and bare `return` are buildable. |
 | `bool` expressions | yes | yes | yes | partial | yes | Build supports literals, locals, `!`, `&&`, `||`, `i32` comparisons, and bool equality/inequality over literal/local operands in lowerable positions. |
+| String literals | yes | partial | yes | partial | partial | Single-line and multi-line string literals are tokenized, parsed, and typed as `str`; build currently consumes them only as static `make_error` messages. String interpolation is diagnosed as not implemented. |
 | Immutable `let` bindings | yes | yes | yes | partial | yes | Build supports lowerable `i32` and `bool` initializers. |
 | `var` and reassignment | yes | yes | partial | no | no | Backend has no general local storage yet. |
 | Same-file function calls | yes | yes | yes | partial | partial | Build supports non-generic `i32` tail calls with up to 8 `i32` arguments, `bool` tail returns, and a narrow same-file scalar normal-call subset. |
@@ -71,7 +72,7 @@ Currently buildable:
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` comparisons used in lowerable bool expressions
 - terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over literal/local operands, or `i32` comparison conditions and direct `i32` or non-entry `bool` returns in both branches
 - simple fallible entry success
-- simple fallible entry failure through `return make_error("code", "message")`
+- simple fallible entry failure through `return make_error("code", <static string message>)`, where the message may be a single-line or multi-line string literal
 
 Currently not buildable even when it may be checkable:
 
@@ -79,7 +80,7 @@ Currently not buildable even when it may be checkable:
 - general `if`, `while`, `loop`, range `for`, `match`, and pattern conditional `?{}`
 - imported function calls
 - compound bool equality operands with calls such as `(ready() && other()) == true`
-- `str` values beyond static failure messages
+- `str` values beyond static fallible failure messages
 - optional values
 - aggregate values, arrays, views, pointers, methods, traits, generics, ownership lowering, and drop glue
 - custom output path selection through `-o`

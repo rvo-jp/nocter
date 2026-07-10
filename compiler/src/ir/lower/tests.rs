@@ -963,6 +963,30 @@ func main(): i32! {
 }
 
 #[test]
+fn lowers_fallible_entry_return_make_error_with_multi_line_message() {
+    let ir = lower_text(
+        r#"primitive make_error(code: str, message: str): error
+
+func main(): i32! {
+    return make_error("app.failed", """
+        failed
+        later
+        """)
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            Instruction::WriteStaticStderr(b"failed\nlater\n".to_vec()),
+            set_return_i32(1),
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_fallible_entry_return_error_message_without_duplicate_newline() {
     let ir = lower_text(
         r#"primitive make_error(code: str, message: str): error
