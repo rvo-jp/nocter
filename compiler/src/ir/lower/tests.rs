@@ -25,6 +25,7 @@ fn lowers_entry_returning_i32_literal() {
         ir,
         IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![set_return_i32(42), Instruction::Return],
         }])
@@ -45,6 +46,7 @@ fn lowers_entry_i32_let_binding_then_return() {
         ir,
         IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::SetI32 {
@@ -80,6 +82,7 @@ func answer(): i32 {
         IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     call_i32(I32Location::Local(0), "answer", vec![]),
@@ -92,6 +95,7 @@ func answer(): i32 {
             },
             Function {
                 name: "answer".to_string(),
+                target: crate::ir::CallTarget::same_file("answer".to_string()),
                 return_type: Type::I32,
                 instructions: vec![set_return_i32(42), Instruction::Return],
             },
@@ -295,6 +299,7 @@ func add(a: i32, b: i32): i32 {
         IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     call_i32(
@@ -311,6 +316,7 @@ func add(a: i32, b: i32): i32 {
             },
             Function {
                 name: "add".to_string(),
+                target: crate::ir::CallTarget::same_file("add".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     Instruction::AddI32 {
@@ -350,6 +356,7 @@ func wrapper(a: i32, b: i32): i32 {
         function,
         Function {
             name: "wrapper".to_string(),
+            target: crate::ir::CallTarget::same_file("wrapper".to_string()),
             return_type: Type::I32,
             instructions: vec![
                 call_i32(
@@ -385,6 +392,7 @@ func answer(): i32 {
         IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     call_i32(I32Location::Local(0), "answer", vec![]),
@@ -398,6 +406,7 @@ func answer(): i32 {
             },
             Function {
                 name: "answer".to_string(),
+                target: crate::ir::CallTarget::same_file("answer".to_string()),
                 return_type: Type::I32,
                 instructions: vec![set_return_i32(41), Instruction::Return],
             },
@@ -424,6 +433,7 @@ func answer(): i32 {
         IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     call_i32(I32Location::Local(0), "answer", vec![]),
@@ -441,6 +451,7 @@ func answer(): i32 {
             },
             Function {
                 name: "answer".to_string(),
+                target: crate::ir::CallTarget::same_file("answer".to_string()),
                 return_type: Type::I32,
                 instructions: vec![set_return_i32(41), Instruction::Return],
             },
@@ -467,6 +478,7 @@ func answer(): i32 {
         IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     Instruction::SetI32 {
@@ -484,6 +496,7 @@ func answer(): i32 {
             },
             Function {
                 name: "answer".to_string(),
+                target: crate::ir::CallTarget::same_file("answer".to_string()),
                 return_type: Type::I32,
                 instructions: vec![set_return_i32(37), Instruction::Return],
             },
@@ -509,6 +522,7 @@ func answer(): i32 {
         IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     call_i32(I32Location::Local(1), "answer", vec![]),
@@ -527,6 +541,7 @@ func answer(): i32 {
             },
             Function {
                 name: "answer".to_string(),
+                target: crate::ir::CallTarget::same_file("answer".to_string()),
                 return_type: Type::I32,
                 instructions: vec![set_return_i32(39), Instruction::Return],
             },
@@ -575,6 +590,7 @@ fn lowers_entry_i32_local_addition_binding_then_return() {
         ir,
         IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::SetI32 {
@@ -618,6 +634,7 @@ func offset(): i32 {
         IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     call_i32(I32Location::Local(1), "answer", vec![]),
@@ -637,11 +654,13 @@ func offset(): i32 {
             },
             Function {
                 name: "answer".to_string(),
+                target: crate::ir::CallTarget::same_file("answer".to_string()),
                 return_type: Type::I32,
                 instructions: vec![set_return_i32(24), Instruction::Return],
             },
             Function {
                 name: "offset".to_string(),
+                target: crate::ir::CallTarget::same_file("offset".to_string()),
                 return_type: Type::I32,
                 instructions: vec![set_return_i32(6), Instruction::Return],
             },
@@ -679,6 +698,7 @@ func modulus(): i32 {
         IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     call_i32(I32Location::Local(1), "total", vec![]),
@@ -705,21 +725,25 @@ func modulus(): i32 {
             },
             Function {
                 name: "total".to_string(),
+                target: crate::ir::CallTarget::same_file("total".to_string()),
                 return_type: Type::I32,
                 instructions: vec![set_return_i32(84), Instruction::Return],
             },
             Function {
                 name: "divisor".to_string(),
+                target: crate::ir::CallTarget::same_file("divisor".to_string()),
                 return_type: Type::I32,
                 instructions: vec![set_return_i32(2), Instruction::Return],
             },
             Function {
                 name: "dividend".to_string(),
+                target: crate::ir::CallTarget::same_file("dividend".to_string()),
                 return_type: Type::I32,
                 instructions: vec![set_return_i32(85), Instruction::Return],
             },
             Function {
                 name: "modulus".to_string(),
+                target: crate::ir::CallTarget::same_file("modulus".to_string()),
                 return_type: Type::I32,
                 instructions: vec![set_return_i32(43), Instruction::Return],
             },
@@ -757,6 +781,7 @@ func right_count(): i32 {
         IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     call_i32(I32Location::Local(1), "value", vec![]),
@@ -783,21 +808,25 @@ func right_count(): i32 {
             },
             Function {
                 name: "value".to_string(),
+                target: crate::ir::CallTarget::same_file("value".to_string()),
                 return_type: Type::I32,
                 instructions: vec![set_return_i32(5), Instruction::Return],
             },
             Function {
                 name: "left_count".to_string(),
+                target: crate::ir::CallTarget::same_file("left_count".to_string()),
                 return_type: Type::I32,
                 instructions: vec![set_return_i32(3), Instruction::Return],
             },
             Function {
                 name: "shifted".to_string(),
+                target: crate::ir::CallTarget::same_file("shifted".to_string()),
                 return_type: Type::I32,
                 instructions: vec![set_return_i32(8), Instruction::Return],
             },
             Function {
                 name: "right_count".to_string(),
+                target: crate::ir::CallTarget::same_file("right_count".to_string()),
                 return_type: Type::I32,
                 instructions: vec![set_return_i32(1), Instruction::Return],
             },
@@ -822,6 +851,7 @@ fn lowers_entry_terminal_if_with_bool_literal_condition() {
         ir,
         IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![Instruction::If {
                 condition: BoolValue::Const(false),
@@ -850,6 +880,7 @@ fn lowers_entry_terminal_if_with_bool_local_condition() {
         ir,
         IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::SetBool {
@@ -885,6 +916,7 @@ fn lowers_entry_terminal_if_with_mixed_i32_and_bool_locals() {
         ir,
         IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::SetI32 {
@@ -1117,6 +1149,7 @@ fn lowers_entry_terminal_if_returning_outer_local() {
         ir,
         IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::SetI32 {
@@ -1157,6 +1190,7 @@ fn lowers_entry_terminal_if_with_i32_equality_condition() {
         ir,
         IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::SetI32 {
@@ -1195,6 +1229,7 @@ fn lowers_entry_terminal_if_with_i32_less_condition() {
         ir,
         IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::SetI32 {
@@ -1264,6 +1299,7 @@ fn lowers_fallible_entry_returning_i32_literal() {
         ir,
         IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::Fallible(Box::new(Type::I32)),
             instructions: vec![set_return_i32(7), Instruction::Return],
         }])
@@ -1285,6 +1321,7 @@ func main(): i32! {
         ir,
         IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::Fallible(Box::new(Type::I32)),
             instructions: vec![
                 Instruction::WriteStaticStderr(b"failed\n".to_vec()),
@@ -1388,6 +1425,7 @@ fn lowers_void_entry_with_empty_body() {
         ir,
         IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::Void,
             instructions: vec![Instruction::Return],
         }])
@@ -1412,11 +1450,13 @@ func answer(): i32 {
         IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![tail_call("answer", vec![])],
             },
             Function {
                 name: "answer".to_string(),
+                target: crate::ir::CallTarget::same_file("answer".to_string()),
                 return_type: Type::I32,
                 instructions: vec![set_return_i32(7), Instruction::Return],
             },
@@ -1442,11 +1482,13 @@ func add(a: i32, b: i32): i32 {
         IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![tail_call("add", vec![i32_const(20), i32_const(22)])],
             },
             Function {
                 name: "add".to_string(),
+                target: crate::ir::CallTarget::same_file("add".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     Instruction::AddI32 {
@@ -1480,11 +1522,13 @@ func answer(): i32 {
         IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![tail_call("answer", vec![])],
             },
             Function {
                 name: "answer".to_string(),
+                target: crate::ir::CallTarget::same_file("answer".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     Instruction::SetI32 {
@@ -1522,11 +1566,13 @@ func answer(): i32 {
         IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![tail_call("answer", vec![])],
             },
             Function {
                 name: "answer".to_string(),
+                target: crate::ir::CallTarget::same_file("answer".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     Instruction::SetI32 {
@@ -1571,11 +1617,13 @@ func answer(): i32 {
         IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![tail_call("answer", vec![])],
             },
             Function {
                 name: "answer".to_string(),
+                target: crate::ir::CallTarget::same_file("answer".to_string()),
                 return_type: Type::I32,
                 instructions: vec![Instruction::If {
                     condition: BoolValue::Const(true),
@@ -1609,11 +1657,13 @@ func differs(left: i32, right: i32): i32 {
         IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![tail_call("differs", vec![i32_const(40), i32_const(2)])],
             },
             Function {
                 name: "differs".to_string(),
+                target: crate::ir::CallTarget::same_file("differs".to_string()),
                 return_type: Type::I32,
                 instructions: vec![Instruction::If {
                     condition: BoolValue::I32Comparison {
@@ -1651,11 +1701,13 @@ func at_least(left: i32, right: i32): i32 {
         IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![tail_call("at_least", vec![i32_const(42), i32_const(40)])],
             },
             Function {
                 name: "at_least".to_string(),
+                target: crate::ir::CallTarget::same_file("at_least".to_string()),
                 return_type: Type::I32,
                 instructions: vec![Instruction::If {
                     condition: BoolValue::I32Comparison {
@@ -1691,6 +1743,7 @@ func enabled(): bool {
         function,
         Function {
             name: "enabled".to_string(),
+            target: crate::ir::CallTarget::same_file("enabled".to_string()),
             return_type: Type::Bool,
             instructions: vec![
                 Instruction::SetBool {
@@ -1740,6 +1793,7 @@ func enabled(): bool {
         function,
         Function {
             name: "enabled".to_string(),
+            target: crate::ir::CallTarget::same_file("enabled".to_string()),
             return_type: Type::Bool,
             instructions: vec![
                 Instruction::SetBool {
@@ -1790,6 +1844,7 @@ func mirrors_enabled(): bool {
         function,
         Function {
             name: "mirrors_enabled".to_string(),
+            target: crate::ir::CallTarget::same_file("mirrors_enabled".to_string()),
             return_type: Type::Bool,
             instructions: vec![tail_call("enabled", vec![])],
         }
@@ -1902,6 +1957,7 @@ func outer(value: i32): i32 {
         IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     call_i32(I32Location::Local(0), "inner", vec![]),
@@ -1915,11 +1971,13 @@ func outer(value: i32): i32 {
             },
             Function {
                 name: "inner".to_string(),
+                target: crate::ir::CallTarget::same_file("inner".to_string()),
                 return_type: Type::I32,
                 instructions: vec![set_return_i32(41), Instruction::Return],
             },
             Function {
                 name: "outer".to_string(),
+                target: crate::ir::CallTarget::same_file("outer".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     Instruction::AddI32 {
@@ -2029,6 +2087,7 @@ func right(): i32 {
         IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     call_i32(I32Location::Local(0), "left", vec![]),
@@ -2043,11 +2102,13 @@ func right(): i32 {
             },
             Function {
                 name: "left".to_string(),
+                target: crate::ir::CallTarget::same_file("left".to_string()),
                 return_type: Type::I32,
                 instructions: vec![set_return_i32(20), Instruction::Return],
             },
             Function {
                 name: "right".to_string(),
+                target: crate::ir::CallTarget::same_file("right".to_string()),
                 return_type: Type::I32,
                 instructions: vec![set_return_i32(22), Instruction::Return],
             },
@@ -2159,6 +2220,7 @@ func wrapper(a: i32, b: i32): i32 {
         function,
         Function {
             name: "wrapper".to_string(),
+            target: crate::ir::CallTarget::same_file("wrapper".to_string()),
             return_type: Type::I32,
             instructions: vec![
                 call_i32(
@@ -2200,6 +2262,7 @@ func wrapper(a: i32, b: i32): i32 {
         function,
         Function {
             name: "wrapper".to_string(),
+            target: crate::ir::CallTarget::same_file("wrapper".to_string()),
             return_type: Type::I32,
             instructions: vec![tail_call("first", vec![i32_param(1), i32_param(0)])],
         }
@@ -2229,6 +2292,7 @@ func ready(): bool {
         IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     call_bool(BoolLocation::Local(0), "ready", vec![]),
@@ -2241,6 +2305,7 @@ func ready(): bool {
             },
             Function {
                 name: "ready".to_string(),
+                target: crate::ir::CallTarget::same_file("ready".to_string()),
                 return_type: Type::Bool,
                 instructions: vec![
                     Instruction::SetBool {
@@ -2276,6 +2341,7 @@ func disabled(): bool {
         function,
         Function {
             name: "disabled".to_string(),
+            target: crate::ir::CallTarget::same_file("disabled".to_string()),
             return_type: Type::Bool,
             instructions: vec![
                 call_bool(BoolLocation::Local(0), "ready", vec![]),
@@ -2406,6 +2472,7 @@ func enabled(): bool {
         function,
         Function {
             name: "enabled".to_string(),
+            target: crate::ir::CallTarget::same_file("enabled".to_string()),
             return_type: Type::Bool,
             instructions: vec![
                 call_bool(BoolLocation::Local(0), "ready", vec![]),
@@ -2506,6 +2573,7 @@ func differs(): bool {
         function,
         Function {
             name: "differs".to_string(),
+            target: crate::ir::CallTarget::same_file("differs".to_string()),
             return_type: Type::Bool,
             instructions: vec![
                 call_bool(BoolLocation::Local(0), "left", vec![]),
@@ -2672,6 +2740,7 @@ func less(): bool {
         function,
         Function {
             name: "less".to_string(),
+            target: crate::ir::CallTarget::same_file("less".to_string()),
             return_type: Type::Bool,
             instructions: vec![
                 call_i32(I32Location::Local(0), "left", vec![]),
@@ -2776,6 +2845,7 @@ func choose(): bool {
         function,
         Function {
             name: "choose".to_string(),
+            target: crate::ir::CallTarget::same_file("choose".to_string()),
             return_type: Type::Bool,
             instructions: vec![
                 call_bool(BoolLocation::Local(0), "ready", vec![]),

@@ -390,6 +390,7 @@ mod tests {
     fn plans_current_ir_functions_as_frameless() {
         let function = Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![Instruction::TailCall {
                 target: CallTarget::same_file("answer"),
@@ -489,6 +490,7 @@ mod tests {
     fn call_i32_requires_frame_and_counts_destination_and_argument_locals() {
         let function = Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![Instruction::CallI32 {
                 destination: I32Location::Local(2),
@@ -509,6 +511,7 @@ mod tests {
     fn call_bool_requires_frame_and_counts_destination_and_argument_locals() {
         let function = Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![Instruction::CallBool {
                 destination: BoolLocation::Local(2),
@@ -529,6 +532,7 @@ mod tests {
     fn tail_call_with_arguments_requires_frame_and_argument_staging_slots() {
         let function = Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![Instruction::TailCall {
                 target: CallTarget::same_file("answer"),
@@ -548,6 +552,7 @@ mod tests {
     fn tail_call_with_local_argument_counts_argument_local() {
         let function = Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![Instruction::TailCall {
                 target: CallTarget::same_file("answer"),

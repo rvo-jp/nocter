@@ -24,7 +24,11 @@ Recommended next implementation order:
 
 Recent committed work:
 
-- Current checkpoint: collect reachable IR call targets
+- Current checkpoint: attach call targets to IR functions
+  - adds `Function.target` so lowered function definitions can be keyed as same-file or imported definitions
+  - changes backend function offset registration to derive `FunctionSymbol` from `Function.target`
+  - keeps existing lowered functions same-file for now while preparing imported definitions to resolve imported call patches
+- `Collect reachable IR call targets`
   - changes IR reachability collection from same-file function names to full `CallTarget` values
   - keeps imported targets in the queue representation while still deferring imported definition lowering at the current boundary
   - removes the now-unused `CallTarget::same_file_name()` helper

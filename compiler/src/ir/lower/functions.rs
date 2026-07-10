@@ -4,7 +4,7 @@ use super::control_flow::{lower_terminal_bool_if_statement, lower_terminal_i32_i
 use super::expressions::{lower_bool_return_expression, lower_i32_return_expression};
 use crate::ast::{FunctionDecl, Parameter, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
-use crate::ir::{Function, Instruction, Type};
+use crate::ir::{CallTarget, Function, Instruction, Type};
 use crate::resolve::ResolveOutput;
 use crate::source::SourceId;
 
@@ -37,6 +37,7 @@ pub(super) fn lower_function(
 
     Ok(Function {
         name: function.name.clone(),
+        target: CallTarget::same_file(function.name.clone()),
         return_type,
         instructions,
     })

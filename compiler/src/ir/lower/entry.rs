@@ -5,7 +5,7 @@ use super::errors::{lower_make_error_message, with_trailing_newline};
 use super::expressions::lower_i32_return_expression;
 use crate::ast::{Expr, FunctionDecl, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
-use crate::ir::{Function, I32Location, I32Value, Instruction, Type};
+use crate::ir::{CallTarget, Function, I32Location, I32Value, Instruction, Type};
 use crate::resolve::ResolveOutput;
 use crate::source::SourceId;
 
@@ -33,6 +33,7 @@ pub(super) fn lower_entry_function(
 
     Ok(Function {
         name: function.name.clone(),
+        target: CallTarget::same_file(function.name.clone()),
         return_type,
         instructions,
     })

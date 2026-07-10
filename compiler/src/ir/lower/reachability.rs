@@ -50,6 +50,7 @@ mod tests {
     fn collects_reachable_call_targets_from_nested_instructions_in_order() {
         let function = Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::CallI32 {
@@ -89,6 +90,7 @@ mod tests {
         let source = crate::source::SourceId::new(7);
         let function = Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![Instruction::CallI32 {
                 destination: I32Location::Local(0),

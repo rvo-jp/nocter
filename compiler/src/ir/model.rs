@@ -14,6 +14,7 @@ impl IrModule {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Function {
     pub(crate) name: String,
+    pub(crate) target: CallTarget,
     pub(crate) return_type: Type,
     pub(crate) instructions: Vec<Instruction>,
 }

@@ -1010,7 +1010,7 @@ impl FunctionSymbol {
     }
 
     fn from_function(function: &Function) -> Self {
-        Self::same_file(&function.name)
+        Self::from_call_target(&function.target)
     }
 
     fn from_call_target(target: &CallTarget) -> Self {
@@ -1209,6 +1209,7 @@ mod tests {
     fn maps_function_definition_to_same_file_function_symbol() {
         let function = Function {
             name: "answer".to_string(),
+            target: crate::ir::CallTarget::same_file("answer".to_string()),
             return_type: Type::I32,
             instructions: vec![Instruction::Return],
         };
@@ -1220,9 +1221,29 @@ mod tests {
     }
 
     #[test]
+    fn maps_imported_function_definition_to_imported_function_symbol() {
+        let source = SourceId::new(11);
+        let function = Function {
+            name: "answer".to_string(),
+            target: CallTarget::imported(source, "answer"),
+            return_type: Type::I32,
+            instructions: vec![Instruction::Return],
+        };
+
+        assert_eq!(
+            FunctionSymbol::from_function(&function),
+            FunctionSymbol::Imported {
+                source,
+                name: "answer".to_string(),
+            }
+        );
+    }
+
+    #[test]
     fn generates_exit_zero_for_return_i32_zero() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![set_return_i32(0), Instruction::Return],
         }]);
@@ -1246,6 +1267,7 @@ mod tests {
     fn generates_exit_code_for_return_i32_with_high_halfword() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![set_return_i32(0x1234_5678), Instruction::Return],
         }]);
@@ -1270,6 +1292,7 @@ mod tests {
     fn generates_exit_code_for_return_i32_negative_one() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![set_return_i32(-1), Instruction::Return],
         }]);
@@ -1294,6 +1317,7 @@ mod tests {
     fn generates_exit_code_for_fallible_success_return_i32() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::Fallible(Box::new(Type::I32)),
             instructions: vec![set_return_i32(7), Instruction::Return],
         }]);
@@ -1317,6 +1341,7 @@ mod tests {
     fn emits_framed_function_prologue_and_return_epilogue() {
         let function = Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![set_return_i32(7), Instruction::Return],
         };
@@ -1342,11 +1367,13 @@ mod tests {
     fn emits_framed_tail_call_epilogue_before_branch() {
         let main = Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![tail_call("answer", vec![])],
         };
         let answer = Function {
             name: "answer".to_string(),
+            target: crate::ir::CallTarget::same_file("answer".to_string()),
             return_type: Type::I32,
             instructions: vec![set_return_i32(7), Instruction::Return],
         };
@@ -1376,6 +1403,7 @@ mod tests {
         let module = IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     call_i32(I32Location::Return, "answer", vec![]),
@@ -1384,6 +1412,7 @@ mod tests {
             },
             Function {
                 name: "answer".to_string(),
+                target: crate::ir::CallTarget::same_file("answer".to_string()),
                 return_type: Type::I32,
                 instructions: vec![set_return_i32(7), Instruction::Return],
             },
@@ -1415,6 +1444,7 @@ mod tests {
         let module = IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     Instruction::SetI32 {
@@ -1432,6 +1462,7 @@ mod tests {
             },
             Function {
                 name: "add_two".to_string(),
+                target: crate::ir::CallTarget::same_file("add_two".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     Instruction::AddI32 {
@@ -1489,11 +1520,13 @@ mod tests {
         let module = IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![tail_call("wrapper", vec![i32_const(5), i32_const(42)])],
             },
             Function {
                 name: "wrapper".to_string(),
+                target: crate::ir::CallTarget::same_file("wrapper".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     call_i32(
@@ -1510,6 +1543,7 @@ mod tests {
             },
             Function {
                 name: "second".to_string(),
+                target: crate::ir::CallTarget::same_file("second".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     Instruction::SetI32 {
@@ -1539,6 +1573,7 @@ mod tests {
         let module = IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     call_bool(BoolLocation::Local(0), "ready", vec![]),
@@ -1551,6 +1586,7 @@ mod tests {
             },
             Function {
                 name: "ready".to_string(),
+                target: crate::ir::CallTarget::same_file("ready".to_string()),
                 return_type: Type::Bool,
                 instructions: vec![set_return_bool(true), Instruction::Return],
             },
@@ -1572,6 +1608,7 @@ mod tests {
     fn generates_exit_code_for_return_bool_true() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::Bool,
             instructions: vec![
                 Instruction::SetBool {
@@ -1602,11 +1639,13 @@ mod tests {
         let module = IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![tail_call("answer", vec![])],
             },
             Function {
                 name: "answer".to_string(),
+                target: crate::ir::CallTarget::same_file("answer".to_string()),
                 return_type: Type::I32,
                 instructions: vec![set_return_i32(7), Instruction::Return],
             },
@@ -1633,11 +1672,13 @@ mod tests {
         let module = IrModule::new(vec![
             Function {
                 name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
                 return_type: Type::I32,
                 instructions: vec![tail_call("add", vec![i32_const(20), i32_const(22)])],
             },
             Function {
                 name: "add".to_string(),
+                target: crate::ir::CallTarget::same_file("add".to_string()),
                 return_type: Type::I32,
                 instructions: vec![
                     Instruction::AddI32 {
@@ -1684,6 +1725,7 @@ mod tests {
     fn generates_i32_local_binding_return() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::SetI32 {
@@ -1718,6 +1760,7 @@ mod tests {
     fn generates_i32_local_addition_binding_return() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::SetI32 {
@@ -1762,6 +1805,7 @@ mod tests {
     fn generates_i32_addition_with_overflow_trap() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::AddI32 {
@@ -1784,6 +1828,7 @@ mod tests {
     fn generates_i32_subtraction_with_overflow_trap() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::SubtractI32 {
@@ -1806,6 +1851,7 @@ mod tests {
     fn generates_i32_multiplication_with_overflow_trap() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::MultiplyI32 {
@@ -1830,6 +1876,7 @@ mod tests {
     fn generates_i32_shift_left_with_count_traps() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::ShiftLeftI32 {
@@ -1853,6 +1900,7 @@ mod tests {
     fn generates_i32_shift_right_with_count_traps() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::ShiftRightI32 {
@@ -1876,6 +1924,7 @@ mod tests {
     fn generates_i32_division_with_safety_traps() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::DivideI32 {
@@ -1897,6 +1946,7 @@ mod tests {
     fn generates_i32_remainder_with_safety_traps() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::RemainderI32 {
@@ -1919,6 +1969,7 @@ mod tests {
     fn generates_terminal_if_with_false_condition() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![Instruction::If {
                 condition: BoolValue::Const(false),
@@ -1949,6 +2000,7 @@ mod tests {
     fn generates_terminal_if_with_bool_local_condition() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::SetBool {
@@ -1988,6 +2040,7 @@ mod tests {
     fn generates_terminal_if_returning_bool() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::Bool,
             instructions: vec![Instruction::If {
                 condition: BoolValue::Const(false),
@@ -2018,6 +2071,7 @@ mod tests {
     fn generates_terminal_if_with_i32_equality_condition() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![Instruction::If {
                 condition: BoolValue::I32Comparison {
@@ -2055,6 +2109,7 @@ mod tests {
     fn generates_terminal_if_with_i32_less_condition() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![Instruction::If {
                 condition: BoolValue::I32Comparison {
@@ -2120,6 +2175,7 @@ mod tests {
     fn generates_static_stderr_write_with_data_reference() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::WriteStaticStderr(b"error\n".to_vec()),
@@ -2155,6 +2211,7 @@ mod tests {
     fn generated_static_stderr_write_runs() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::WriteStaticStderr(b"failed\n".to_vec()),
@@ -2181,6 +2238,7 @@ mod tests {
     fn generates_exit_zero_for_return_void() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::Void,
             instructions: vec![Instruction::Return],
         }]);
