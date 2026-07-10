@@ -703,7 +703,8 @@ fn lower_i32_normal_call(
         return Err(unsupported_non_tail_call_diagnostic());
     };
 
-    validate_normal_call_return_type(&identifier.name, context)?;
+    let target = CallTarget::same_file(identifier.name.clone());
+    validate_normal_call_return_type(&target, &identifier.name, context)?;
 
     let mut instructions = Vec::new();
     let mut arguments = Vec::new();
@@ -715,7 +716,7 @@ fn lower_i32_normal_call(
 
     instructions.push(Instruction::CallI32 {
         destination,
-        target: CallTarget::same_file(identifier.name.clone()),
+        target,
         arguments,
     });
     Ok(instructions)
@@ -731,7 +732,8 @@ fn lower_bool_normal_call(
         return Err(unsupported_non_tail_call_diagnostic());
     };
 
-    validate_bool_normal_call_return_type(&identifier.name, context)?;
+    let target = CallTarget::same_file(identifier.name.clone());
+    validate_bool_normal_call_return_type(&target, &identifier.name, context)?;
 
     let mut instructions = Vec::new();
     let mut arguments = Vec::new();
@@ -743,7 +745,7 @@ fn lower_bool_normal_call(
 
     instructions.push(Instruction::CallBool {
         destination,
-        target: CallTarget::same_file(identifier.name.clone()),
+        target,
         arguments,
     });
     Ok(instructions)
@@ -760,7 +762,8 @@ fn lower_direct_tail_call(
         )]);
     };
 
-    validate_tail_call_return_type(&identifier.name, context)?;
+    let target = CallTarget::same_file(identifier.name.clone());
+    validate_tail_call_return_type(&target, &identifier.name, context)?;
 
     let mut temporaries = TemporaryAllocator::new(context)?;
     let mut instructions = Vec::new();
@@ -771,18 +774,16 @@ fn lower_direct_tail_call(
         arguments.push(argument.value);
     }
 
-    instructions.push(Instruction::TailCall {
-        target: CallTarget::same_file(identifier.name.clone()),
-        arguments,
-    });
+    instructions.push(Instruction::TailCall { target, arguments });
     Ok(instructions)
 }
 
 fn validate_normal_call_return_type(
+    target: &CallTarget,
     callee_name: &str,
     context: &LoweringContext,
 ) -> Result<(), Vec<Diagnostic>> {
-    let Some(callee_return_type) = context.function_return_type(callee_name) else {
+    let Some(callee_return_type) = context.call_return_type(target) else {
         return Ok(());
     };
 
@@ -800,10 +801,11 @@ fn validate_normal_call_return_type(
 }
 
 fn validate_bool_normal_call_return_type(
+    target: &CallTarget,
     callee_name: &str,
     context: &LoweringContext,
 ) -> Result<(), Vec<Diagnostic>> {
-    let Some(callee_return_type) = context.function_return_type(callee_name) else {
+    let Some(callee_return_type) = context.call_return_type(target) else {
         return Ok(());
     };
 
@@ -821,10 +823,11 @@ fn validate_bool_normal_call_return_type(
 }
 
 fn validate_tail_call_return_type(
+    target: &CallTarget,
     callee_name: &str,
     context: &LoweringContext,
 ) -> Result<(), Vec<Diagnostic>> {
-    let Some(callee_return_type) = context.function_return_type(callee_name) else {
+    let Some(callee_return_type) = context.call_return_type(target) else {
         return Ok(());
     };
 
@@ -1156,7 +1159,7 @@ fn expression_is_lowerable_i32_expression_with_calls(
             let Expr::Identifier(identifier) = call.callee.as_ref() else {
                 return false;
             };
-            context.function_return_type(&identifier.name) == Some(&Type::I32)
+            context.call_return_type(&CallTarget::same_file(&identifier.name)) == Some(&Type::I32)
         }
         Expr::Binary(binary) if is_i32_binary_operator(binary.operator) => {
             expression_is_lowerable_i32_expression_with_calls(&binary.left, context)
@@ -1233,7 +1236,7 @@ fn expression_is_direct_bool_returning_call(expression: &Expr, context: &Lowerin
             let Expr::Identifier(identifier) = call.callee.as_ref() else {
                 return false;
             };
-            context.function_return_type(&identifier.name) == Some(&Type::Bool)
+            context.call_return_type(&CallTarget::same_file(&identifier.name)) == Some(&Type::Bool)
         }
         Expr::Group(group) => expression_is_direct_bool_returning_call(&group.expression, context),
         _ => false,

@@ -6,7 +6,7 @@ use super::expressions::{
 };
 use crate::ast::{BinaryOperator, BindingKind, BindingStmt, Expr, TypeExpr, UnaryOperator};
 use crate::diagnostics::Diagnostic;
-use crate::ir::{Instruction, Type};
+use crate::ir::{CallTarget, Instruction, Type};
 
 pub(super) fn lower_let_binding(
     statement: &BindingStmt,
@@ -89,7 +89,7 @@ fn expression_is_bool_returning_call(expression: &Expr, context: &LoweringContex
             let Expr::Identifier(identifier) = call.callee.as_ref() else {
                 return false;
             };
-            context.function_return_type(&identifier.name) == Some(&Type::Bool)
+            context.call_return_type(&CallTarget::same_file(&identifier.name)) == Some(&Type::Bool)
         }
         Expr::Unary(unary) => {
             unary.operator == UnaryOperator::LogicalNot

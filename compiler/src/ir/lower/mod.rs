@@ -12,7 +12,7 @@ mod reachability;
 #[cfg(test)]
 mod tests;
 
-use super::{Function, IrModule};
+use super::{CallTarget, Function, IrModule};
 use crate::analysis::CompileUnitAnalysis;
 use crate::ast::{FunctionDecl, Item, TypeExpr};
 use crate::diagnostics::Diagnostic;
@@ -79,12 +79,12 @@ fn collect_root_functions(items: &[Item]) -> HashMap<&str, &FunctionDecl> {
 }
 
 fn collect_function_signatures(functions: &HashMap<&str, &FunctionDecl>) -> FunctionSignatures {
-    FunctionSignatures::new(
+    FunctionSignatures::from_call_targets(
         functions
             .values()
             .filter_map(|function| {
                 lower_signature_return_type(&function.return_type)
-                    .map(|return_type| (function.name.clone(), return_type))
+                    .map(|return_type| (CallTarget::same_file(function.name.clone()), return_type))
             })
             .collect(),
     )

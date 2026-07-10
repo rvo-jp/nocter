@@ -1,5 +1,5 @@
 use crate::diagnostics::Diagnostic;
-use crate::ir::{BoolLocation, I32Location, Type};
+use crate::ir::{BoolLocation, CallTarget, I32Location, Type};
 use std::collections::HashMap;
 
 pub(super) struct LoweringContext {
@@ -48,8 +48,8 @@ impl LoweringContext {
         &self.return_type
     }
 
-    pub(super) fn function_return_type(&self, name: &str) -> Option<&Type> {
-        self.function_signatures.return_type(name)
+    pub(super) fn call_return_type(&self, target: &CallTarget) -> Option<&Type> {
+        self.function_signatures.return_type(target)
     }
 
     pub(super) fn next_i32_local_location(&self) -> Result<I32Location, Vec<Diagnostic>> {
@@ -114,16 +114,26 @@ impl LoweringContext {
 
 #[derive(Debug, Clone, Default)]
 pub(super) struct FunctionSignatures {
-    return_types: HashMap<String, Type>,
+    return_types: HashMap<CallTarget, Type>,
 }
 
 impl FunctionSignatures {
+    #[cfg(test)]
     pub(super) fn new(return_types: HashMap<String, Type>) -> Self {
+        Self {
+            return_types: return_types
+                .into_iter()
+                .map(|(name, return_type)| (CallTarget::same_file(name), return_type))
+                .collect(),
+        }
+    }
+
+    pub(super) fn from_call_targets(return_types: HashMap<CallTarget, Type>) -> Self {
         Self { return_types }
     }
 
-    fn return_type(&self, name: &str) -> Option<&Type> {
-        self.return_types.get(name)
+    fn return_type(&self, target: &CallTarget) -> Option<&Type> {
+        self.return_types.get(target)
     }
 }
 

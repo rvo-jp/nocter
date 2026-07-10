@@ -24,7 +24,11 @@ Recommended next implementation order:
 
 Recent committed work:
 
-- Current checkpoint: centralize backend function definition symbols
+- Current checkpoint: key IR function signatures by call target
+  - changes IR lowering return-type lookup from raw function names to `CallTarget` keys
+  - keeps test-only same-file signature construction available while production lowering builds same-file `CallTarget` signatures explicitly
+  - keeps imported call lowering disabled, but prepares return-type validation to distinguish same-file and imported call targets
+- `Centralize backend function symbols`
   - changes ARM64 entry and function offset registration to derive backend `FunctionSymbol` through one helper instead of open-coding same-file names
   - keeps generated machine code unchanged while leaving a single extension point for future imported function definitions
 - `Add imported IR call target`

@@ -18,7 +18,7 @@ pub(crate) struct Function {
     pub(crate) instructions: Vec<Instruction>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum CallTarget {
     SameFile(String),
     #[allow(dead_code)]
