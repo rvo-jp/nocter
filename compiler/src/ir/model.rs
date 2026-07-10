@@ -1,3 +1,5 @@
+use crate::source::SourceId;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct IrModule {
     pub(crate) functions: Vec<Function>,
@@ -19,6 +21,11 @@ pub(crate) struct Function {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum CallTarget {
     SameFile(String),
+    #[allow(dead_code)]
+    Imported {
+        source: SourceId,
+        name: String,
+    },
 }
 
 impl CallTarget {
@@ -26,9 +33,18 @@ impl CallTarget {
         Self::SameFile(name.into())
     }
 
+    #[allow(dead_code)]
+    pub(crate) fn imported(source: SourceId, name: impl Into<String>) -> Self {
+        Self::Imported {
+            source,
+            name: name.into(),
+        }
+    }
+
     pub(crate) fn same_file_name(&self) -> Option<&str> {
         match self {
             Self::SameFile(name) => Some(name),
+            Self::Imported { .. } => None,
         }
     }
 }

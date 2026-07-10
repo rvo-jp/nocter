@@ -998,6 +998,10 @@ impl EntryEmitter {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum FunctionSymbol {
     SameFile(String),
+    Imported {
+        source: crate::source::SourceId,
+        name: String,
+    },
 }
 
 impl FunctionSymbol {
@@ -1008,12 +1012,19 @@ impl FunctionSymbol {
     fn from_call_target(target: &CallTarget) -> Self {
         match target {
             CallTarget::SameFile(name) => Self::same_file(name),
+            CallTarget::Imported { source, name } => Self::Imported {
+                source: *source,
+                name: name.clone(),
+            },
         }
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> String {
         match self {
-            Self::SameFile(name) => name,
+            Self::SameFile(name) => name.clone(),
+            Self::Imported { source, name } => {
+                format!("{} from source {}", name, source.raw())
+            }
         }
     }
 }
@@ -1173,6 +1184,22 @@ mod tests {
         BoolLocation, BoolValue, CallTarget, Function, I32ComparisonOperator, I32Location,
         I32Value, Type,
     };
+    use crate::source::SourceId;
+
+    #[test]
+    fn maps_imported_call_target_to_imported_function_symbol() {
+        let source = SourceId::new(9);
+        let symbol = FunctionSymbol::from_call_target(&CallTarget::imported(source, "answer"));
+
+        assert_eq!(
+            symbol,
+            FunctionSymbol::Imported {
+                source,
+                name: "answer".to_string(),
+            }
+        );
+        assert_eq!(symbol.description(), "answer from source 9");
+    }
 
     #[test]
     fn generates_exit_zero_for_return_i32_zero() {

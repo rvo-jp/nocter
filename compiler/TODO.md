@@ -24,7 +24,11 @@ Recommended next implementation order:
 
 Recent committed work:
 
-- Current checkpoint: type backend function symbols
+- Current checkpoint: add imported IR call target
+  - adds reserved `CallTarget::Imported { source, name }` with loaded imported declaration source identity
+  - maps imported IR call targets to backend `FunctionSymbol::Imported` without enabling imported call lowering yet
+  - keeps same-file lowering and current `E8006` imported-call boundary unchanged
+- `Type backend function symbols`
   - changes ARM64 codegen function offset lookup and call patches from raw function-name strings to an internal `FunctionSymbol` key
   - keeps current same-file call codegen behavior unchanged while making future imported symbols distinguishable before branch patching
   - removes the now-unused `CallTarget::name()` helper in favor of explicit target-to-symbol conversion
@@ -245,7 +249,7 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Type backend function symbols`.
+- None expected after committing `Add imported IR call target`.
 
 ## Verification Already Run
 
@@ -303,6 +307,16 @@ For backend function symbol typing, from `compiler/`:
 cargo test --quiet backend::codegen::tests::generates_same_file_function_call
 cargo test --quiet backend::codegen::tests::generates_framed_i32_normal_call_from_hand_built_ir
 cargo test --quiet run_command_returns_same_file_function_call_exit_code
+cargo fmt
+./scripts/verify.sh
+```
+
+For adding the imported IR call target, from `compiler/`:
+
+```sh
+cargo check --quiet
+cargo test --quiet maps_imported_call_target_to_imported_function_symbol
+cargo test --quiet ir::lower::reachability
 cargo fmt
 ./scripts/verify.sh
 ```
