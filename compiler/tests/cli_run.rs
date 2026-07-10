@@ -791,6 +791,62 @@ func modulus(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_traps_i32_division_by_zero() {
+    let project = TempProject::new("cli-run-i32-div-zero");
+    let source = project.write_source(
+        "i32_div_zero.nct",
+        r#"func main(): i32 {
+    return 1 / zero()
+}
+
+func zero(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert!(
+        !output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_traps_i32_signed_division_overflow() {
+    let project = TempProject::new("cli-run-i32-div-overflow");
+    let source = project.write_source(
+        "i32_div_overflow.nct",
+        r#"func main(): i32 {
+    return minimum() / minus_one()
+}
+
+func minimum(): i32 {
+    return -2147483648
+}
+
+func minus_one(): i32 {
+    return -1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert!(
+        !output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_nested_i32_normal_call_argument_exit_code() {
     let project = TempProject::new("cli-run-nested-normal-call-arg");
     let source = project.write_source(

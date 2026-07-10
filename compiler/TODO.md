@@ -13,7 +13,7 @@ Recent committed work:
   - supports same-file `i32` normal calls inside `/` and `%` arithmetic expressions
   - keeps arithmetic expression evaluation left to right through the existing temporary staging path
   - emits zero-divisor and signed-overflow trap checks before ARM64 `sdiv`
-  - adds IR lowering, codegen, CLI build, and CLI run coverage for user-visible `i32` division and remainder
+  - adds IR lowering, codegen, CLI build, and CLI run coverage for user-visible `i32` division and remainder, including zero-divisor and signed-overflow trap paths
   - keeps imported calls, aggregate arguments/returns, ownership/drop lowering, `var`/reassignment, broader control-flow, and overflow checks for `+`, `-`, and `*` disabled
 - `Add string interpolation front-end`
   - accepts `${...}` inside single-line and multi-line string source forms while keeping escaped `\${` as literal text
@@ -188,6 +188,8 @@ cargo test --quiet generates_i32_remainder_with_safety_traps
 cargo test --quiet ir::lower::tests::lowers_entry_i32_divide_and_remainder_with_normal_calls
 cargo test --quiet --test cli_build build_command_lowers_i32_call_division_and_remainder
 cargo test --quiet --test cli_run run_command_returns_i32_call_division_and_remainder_exit_code
+cargo test --quiet --test cli_run run_command_traps_i32_division_by_zero
+cargo test --quiet --test cli_run run_command_traps_i32_signed_division_overflow
 cargo test --quiet
 cargo clippy --all-targets --quiet -- -D warnings
 ```
