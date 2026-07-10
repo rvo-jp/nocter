@@ -166,23 +166,20 @@ impl EntryEmitter {
             }
             Instruction::CallI32 {
                 destination,
-                function,
+                target,
                 arguments,
             } => {
-                self.emit_call_i32(*destination, function, arguments, frame)?;
+                self.emit_call_i32(*destination, target.name(), arguments, frame)?;
             }
             Instruction::CallBool {
                 destination,
-                function,
+                target,
                 arguments,
             } => {
-                self.emit_call_bool(*destination, function, arguments, frame)?;
+                self.emit_call_bool(*destination, target.name(), arguments, frame)?;
             }
-            Instruction::TailCall {
-                function,
-                arguments,
-            } => {
-                self.emit_tail_call(function, arguments, frame)?;
+            Instruction::TailCall { target, arguments } => {
+                self.emit_tail_call(target.name(), arguments, frame)?;
             }
             Instruction::If {
                 condition,
@@ -1135,7 +1132,8 @@ const I32_BIT_WIDTH: i32 = 32;
 mod tests {
     use super::*;
     use crate::ir::{
-        BoolLocation, BoolValue, Function, I32ComparisonOperator, I32Location, I32Value, Type,
+        BoolLocation, BoolValue, CallTarget, Function, I32ComparisonOperator, I32Location,
+        I32Value, Type,
     };
 
     #[test]
@@ -2155,7 +2153,7 @@ mod tests {
 
     fn tail_call(function: &str, arguments: Vec<I32Value>) -> Instruction {
         Instruction::TailCall {
-            function: function.to_string(),
+            target: CallTarget::same_file(function),
             arguments,
         }
     }
@@ -2163,7 +2161,7 @@ mod tests {
     fn call_i32(destination: I32Location, function: &str, arguments: Vec<I32Value>) -> Instruction {
         Instruction::CallI32 {
             destination,
-            function: function.to_string(),
+            target: CallTarget::same_file(function),
             arguments,
         }
     }
@@ -2175,7 +2173,7 @@ mod tests {
     ) -> Instruction {
         Instruction::CallBool {
             destination,
-            function: function.to_string(),
+            target: CallTarget::same_file(function),
             arguments,
         }
     }

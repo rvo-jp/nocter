@@ -143,9 +143,9 @@ fn call_targets(function: &Function) -> VecDeque<String> {
 fn collect_call_targets(instructions: &[Instruction], targets: &mut VecDeque<String>) {
     for instruction in instructions {
         match instruction {
-            Instruction::CallI32 { function, .. }
-            | Instruction::CallBool { function, .. }
-            | Instruction::TailCall { function, .. } => targets.push_back(function.clone()),
+            Instruction::CallI32 { target, .. }
+            | Instruction::CallBool { target, .. }
+            | Instruction::TailCall { target, .. } => targets.push_back(target.name().to_string()),
             Instruction::If {
                 then_instructions,
                 else_instructions,

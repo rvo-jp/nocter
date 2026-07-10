@@ -384,7 +384,7 @@ const LDR_STR_X_SP_MAX_BYTE_OFFSET: u32 = 0x0fff * 8;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{BoolComparisonOperator, Type};
+    use crate::ir::{BoolComparisonOperator, CallTarget, Type};
 
     #[test]
     fn plans_current_ir_functions_as_frameless() {
@@ -392,7 +392,7 @@ mod tests {
             name: "main".to_string(),
             return_type: Type::I32,
             instructions: vec![Instruction::TailCall {
-                function: "answer".to_string(),
+                target: CallTarget::same_file("answer"),
                 arguments: vec![],
             }],
         };
@@ -492,7 +492,7 @@ mod tests {
             return_type: Type::I32,
             instructions: vec![Instruction::CallI32 {
                 destination: I32Location::Local(2),
-                function: "answer".to_string(),
+                target: CallTarget::same_file("answer"),
                 arguments: vec![I32Value::Location(I32Location::Local(1))],
             }],
         };
@@ -512,7 +512,7 @@ mod tests {
             return_type: Type::I32,
             instructions: vec![Instruction::CallBool {
                 destination: BoolLocation::Local(2),
-                function: "ready".to_string(),
+                target: CallTarget::same_file("ready"),
                 arguments: vec![I32Value::Location(I32Location::Local(1))],
             }],
         };
@@ -531,7 +531,7 @@ mod tests {
             name: "main".to_string(),
             return_type: Type::I32,
             instructions: vec![Instruction::TailCall {
-                function: "answer".to_string(),
+                target: CallTarget::same_file("answer"),
                 arguments: vec![I32Value::Const(40), I32Value::Const(2)],
             }],
         };
@@ -550,7 +550,7 @@ mod tests {
             name: "main".to_string(),
             return_type: Type::I32,
             instructions: vec![Instruction::TailCall {
-                function: "answer".to_string(),
+                target: CallTarget::same_file("answer"),
                 arguments: vec![I32Value::Location(I32Location::Local(2))],
             }],
         };

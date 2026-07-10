@@ -17,6 +17,23 @@ pub(crate) struct Function {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum CallTarget {
+    SameFile(String),
+}
+
+impl CallTarget {
+    pub(crate) fn same_file(name: impl Into<String>) -> Self {
+        Self::SameFile(name.into())
+    }
+
+    pub(crate) fn name(&self) -> &str {
+        match self {
+            Self::SameFile(name) => name,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Instruction {
     WriteStaticStderr(Vec<u8>),
     SetI32 {
@@ -65,17 +82,17 @@ pub(crate) enum Instruction {
     #[allow(dead_code)]
     CallI32 {
         destination: I32Location,
-        function: String,
+        target: CallTarget,
         arguments: Vec<I32Value>,
     },
     #[allow(dead_code)]
     CallBool {
         destination: BoolLocation,
-        function: String,
+        target: CallTarget,
         arguments: Vec<I32Value>,
     },
     TailCall {
-        function: String,
+        target: CallTarget,
         arguments: Vec<I32Value>,
     },
     If {

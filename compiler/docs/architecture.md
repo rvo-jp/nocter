@@ -249,7 +249,7 @@ Responsibilities:
 - `frontend/`: root `.nct` loading, lexing/parsing for semantic checks, recursive import graph loading, canonical-path module de-duplication, synthetic standard prelude insertion, active target overlay lookup, and common Nocter home `std` lookup.
 - `home/`: installed Nocter home resolution, `VERSION` reading, `MANIFEST.json` parsing, manifest schema validation, release/host/default-target validation, archive metadata validation, and standard-library directory shape validation.
 - `analysis/`: whole-compile-unit semantic analysis that combines per-file resolve and typecheck output into reusable `CompileUnitAnalysis` and `FileAnalysis` records for CLI diagnostics and future LSP features.
-- `ir/`: optional lower-level compiler representation if direct AST lowering becomes too tangled. `ir/lower/imported_calls.rs` owns the current backend boundary check that rejects imported call targets before same-file call lowering tries to treat them as reachable local functions.
+- `ir/`: optional lower-level compiler representation if direct AST lowering becomes too tangled. IR call instructions carry a backend-independent `CallTarget` so the current same-file target path and future imported target path do not share raw strings. `ir/lower/imported_calls.rs` owns the current backend boundary check that rejects imported call targets before same-file call lowering tries to treat them as reachable local functions.
 - `abi/`: Nocter ABI v0 classification, data layout, aggregate layout, call lowering rules, return lowering rules, and drop glue rules.
 - `target/`: target-specific lowering and output.
 - `target/arm64/`: ARM64 instruction selection and binary instruction encoding.

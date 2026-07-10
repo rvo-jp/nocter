@@ -24,7 +24,11 @@ Recommended next implementation order:
 
 Recent committed work:
 
-- Current checkpoint: `Cover imported call build diagnostic`
+- Current checkpoint: type IR call targets
+  - changes IR call instructions from raw callee strings to backend-independent `CallTarget::SameFile`
+  - keeps same-file call lowering and ARM64 codegen behavior unchanged
+  - prepares the IR surface for a future `Imported` call target without teaching backend code to infer source identity from plain names
+- `Cover imported call build diagnostic`
   - adds CLI build coverage for reachable imported calls
   - confirms the build command reports `E8006` and leaves no executable when imported call lowering is unsupported
 - `Diagnose imported call lowering boundary`
@@ -226,7 +230,7 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Cover imported call build diagnostic`.
+- None expected after committing `Type IR call targets`.
 
 ## Verification Already Run
 
@@ -236,6 +240,17 @@ For the imported-call build diagnostic coverage, from `compiler/`:
 cargo test --quiet --test cli_build build_command_reports_unsupported_imported_call
 cargo fmt
 cargo test --quiet
+```
+
+For type IR call targets, from `compiler/`:
+
+```sh
+cargo test --quiet backend::frame
+cargo test --quiet lowers_entry_i32_let_initializer_normal_call
+cargo test --quiet backend::codegen::tests::generates_framed_i32_normal_call_from_hand_built_ir
+cargo fmt
+cargo test --quiet
+./scripts/verify.sh
 ```
 
 For the imported-call lowering-boundary diagnostic, from `compiler/`:

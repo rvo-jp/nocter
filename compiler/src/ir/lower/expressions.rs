@@ -5,8 +5,8 @@ use crate::ast::{
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, I32ComparisonOperator,
-    I32Location, I32Value, Instruction, Type,
+    BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, CallTarget,
+    I32ComparisonOperator, I32Location, I32Value, Instruction, Type,
 };
 
 pub(super) fn lower_i32_expression(
@@ -715,7 +715,7 @@ fn lower_i32_normal_call(
 
     instructions.push(Instruction::CallI32 {
         destination,
-        function: identifier.name.clone(),
+        target: CallTarget::same_file(identifier.name.clone()),
         arguments,
     });
     Ok(instructions)
@@ -743,7 +743,7 @@ fn lower_bool_normal_call(
 
     instructions.push(Instruction::CallBool {
         destination,
-        function: identifier.name.clone(),
+        target: CallTarget::same_file(identifier.name.clone()),
         arguments,
     });
     Ok(instructions)
@@ -772,7 +772,7 @@ fn lower_direct_tail_call(
     }
 
     instructions.push(Instruction::TailCall {
-        function: identifier.name.clone(),
+        target: CallTarget::same_file(identifier.name.clone()),
         arguments,
     });
     Ok(instructions)

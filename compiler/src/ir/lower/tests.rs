@@ -3,7 +3,7 @@ use crate::analysis::{CompileUnit, analyze_compile_unit_with_entry};
 use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::ir::{
-    BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, Function,
+    BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, CallTarget, Function,
     I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule, Type,
 };
 use crate::source::SourceMap;
@@ -2975,7 +2975,7 @@ fn set_return_i32(value: i32) -> Instruction {
 
 fn tail_call(function: &str, arguments: Vec<I32Value>) -> Instruction {
     Instruction::TailCall {
-        function: function.to_string(),
+        target: CallTarget::same_file(function),
         arguments,
     }
 }
@@ -2983,7 +2983,7 @@ fn tail_call(function: &str, arguments: Vec<I32Value>) -> Instruction {
 fn call_i32(destination: I32Location, function: &str, arguments: Vec<I32Value>) -> Instruction {
     Instruction::CallI32 {
         destination,
-        function: function.to_string(),
+        target: CallTarget::same_file(function),
         arguments,
     }
 }
@@ -2991,7 +2991,7 @@ fn call_i32(destination: I32Location, function: &str, arguments: Vec<I32Value>) 
 fn call_bool(destination: BoolLocation, function: &str, arguments: Vec<I32Value>) -> Instruction {
     Instruction::CallBool {
         destination,
-        function: function.to_string(),
+        target: CallTarget::same_file(function),
         arguments,
     }
 }
