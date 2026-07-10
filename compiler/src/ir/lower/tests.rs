@@ -2415,6 +2415,111 @@ func other(): bool {
 }
 
 #[test]
+fn lowers_entry_i32_if_condition_and_i32_call_comparison() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    if answer() == 42 && ready() {
+        return 42
+    } else {
+        return 7
+    }
+}
+
+func answer(): i32 {
+    return 42
+}
+
+func ready(): bool {
+    return true
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            call_i32(I32Location::Local(0), "answer", vec![]),
+            Instruction::If {
+                condition: BoolValue::I32Comparison {
+                    operator: I32ComparisonOperator::Equal,
+                    left: i32_local(0),
+                    right: i32_const(42),
+                },
+                then_instructions: vec![
+                    call_bool(BoolLocation::Local(0), "ready", vec![]),
+                    Instruction::If {
+                        condition: BoolValue::Location(BoolLocation::Local(0)),
+                        then_instructions: vec![set_return_i32(42), Instruction::Return],
+                        else_instructions: vec![set_return_i32(7), Instruction::Return],
+                    },
+                ],
+                else_instructions: vec![set_return_i32(7), Instruction::Return],
+            },
+        ]
+    );
+}
+
+#[test]
+fn lowers_bool_let_initializer_and_i32_call_comparison() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let matched = answer() == 42 && ready()
+    if matched {
+        return 42
+    } else {
+        return 7
+    }
+}
+
+func answer(): i32 {
+    return 42
+}
+
+func ready(): bool {
+    return true
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            call_i32(I32Location::Local(0), "answer", vec![]),
+            Instruction::If {
+                condition: BoolValue::I32Comparison {
+                    operator: I32ComparisonOperator::Equal,
+                    left: i32_local(0),
+                    right: i32_const(42),
+                },
+                then_instructions: vec![
+                    call_bool(BoolLocation::Local(0), "ready", vec![]),
+                    Instruction::If {
+                        condition: BoolValue::Location(BoolLocation::Local(0)),
+                        then_instructions: vec![Instruction::SetBool {
+                            destination: BoolLocation::Local(0),
+                            value: BoolValue::Const(true),
+                        }],
+                        else_instructions: vec![Instruction::SetBool {
+                            destination: BoolLocation::Local(0),
+                            value: BoolValue::Const(false),
+                        }],
+                    },
+                ],
+                else_instructions: vec![Instruction::SetBool {
+                    destination: BoolLocation::Local(0),
+                    value: BoolValue::Const(false),
+                }],
+            },
+            Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Local(0)),
+                then_instructions: vec![set_return_i32(42), Instruction::Return],
+                else_instructions: vec![set_return_i32(7), Instruction::Return],
+            },
+        ]
+    );
+}
+
+#[test]
 fn lowers_entry_i32_if_condition_or_normal_calls() {
     let ir = lower_text(
         r#"func main(): i32 {

@@ -7,7 +7,13 @@ Long-lived maintenance rules live in `AGENTS.md` and `docs/maintenance.md`.
 
 Recent committed work:
 
-- Current checkpoint: `Lower i32 call comparisons`
+- Current checkpoint: `Cover i32 comparison short-circuit calls`
+  - adds IR lowering and CLI run coverage for short-circuit bool expressions that combine `i32` call comparisons with bool calls
+  - covers terminal conditions such as `if answer() == 42 && ready()`
+  - covers bool value materialization such as `let matched = answer() == 42 && ready()`
+  - confirms the existing short-circuit branch lowering can consume staged `BoolValue::I32Comparison` conditions without additional backend work
+  - keeps imported calls, aggregate arguments/returns, ownership/drop lowering, `var`/reassignment, and broader control-flow disabled
+- `f3f9df9 Lower i32 call comparisons`
   - lowers same-file `i32` normal calls as `i32` comparison operands
   - supports `if answer() == 42`, `let matched = left() <= right()`, and `return left() < right()`
   - evaluates comparison operands left to right through the existing `i32` expression staging path
@@ -136,7 +142,7 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Lower i32 call comparisons`.
+- None expected after committing `Cover i32 comparison short-circuit calls`.
 
 ## Verification Already Run
 
@@ -467,6 +473,26 @@ cargo test --quiet ir::lower::tests::lowers_bool_return_i32_normal_call_comparis
 cargo test --quiet --test cli_build build_command_reports_unsupported_i32_call_expression
 cargo test --quiet --test cli_run run_command_returns_i32_call_comparison_condition_exit_code
 cargo test --quiet --test cli_run run_command_returns_i32_call_comparison_return_exit_code
+cargo test --quiet
+cargo clippy --all-targets --quiet -- -D warnings
+```
+
+From repository root:
+
+```sh
+git diff --check
+```
+
+All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew shellenv, but the commands exited successfully.
+
+For the i32 comparison short-circuit coverage work, from `compiler/`:
+
+```sh
+cargo fmt
+cargo test --quiet ir::lower::tests::lowers_entry_i32_if_condition_and_i32_call_comparison
+cargo test --quiet ir::lower::tests::lowers_bool_let_initializer_and_i32_call_comparison
+cargo test --quiet --test cli_run run_command_returns_and_i32_call_comparison_condition_exit_code
+cargo test --quiet --test cli_run run_command_returns_and_i32_call_comparison_value_exit_code
 cargo test --quiet
 cargo clippy --all-targets --quiet -- -D warnings
 ```

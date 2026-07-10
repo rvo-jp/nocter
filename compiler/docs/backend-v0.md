@@ -170,6 +170,7 @@ The source expression lowerer stages normal-call results in temporary scalar loc
 Multiple normal calls in an addition are evaluated left to right and receive distinct temporary locals.
 Nested normal-call arguments are also evaluated left to right before the parent `CallI32`.
 `i32` comparisons such as `if answer() == 42 { ... }`, `let matched = left() <= right()`, and `return left() < right()` evaluate lowerable call operands left to right, stage each call result in a temporary scalar local, and then build a `BoolValue::I32Comparison`.
+Those staged comparisons can also participate in buildable short-circuit bool expressions such as `if answer() == 42 && ready() { ... }` and `let matched = answer() == 42 && ready()`.
 Bool-returning normal calls are buildable in `let` initializers, unary-not bool expressions, bool equality/inequality operands, short-circuit bool value expressions, direct terminal-if conditions, and terminal-if short-circuit conditions.
 For example, `let ready = enabled()`, `let disabled = !enabled()`, `if enabled() { ... }`, and `if !enabled() { ... }` lower by staging the bool call result in a temporary scalar local before the surrounding bool expression consumes it.
 Bool equality/inequality such as `let same = left() == right()` and `return ready() != false` evaluates call operands left to right, stages each result in a temporary scalar local, and then builds a `BoolValue::BoolComparison`.

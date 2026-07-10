@@ -61,6 +61,7 @@ Currently buildable:
 - same-file non-generic normal calls returning `bool` in short-circuit bool value expressions such as `let value = ready() && other()` and `return ready() || other()`
 - same-file non-generic normal calls returning `bool` directly in terminal `if` conditions, including unary `!`
 - same-file non-generic normal calls returning `bool` in terminal `if` short-circuit conditions such as `ready() && other()` and `ready() || other()`
+- short-circuit bool expressions that combine `i32` call comparisons with bool calls, such as `if answer() == 42 && ready()` and `let matched = answer() == 42 && ready()`
 - nested `i32` normal-call arguments such as `let value = outer(inner())`
 - nested `i32` tail-call arguments such as `return outer(inner())`
 - up to 8 `i32` parameters for lowered functions and calls
