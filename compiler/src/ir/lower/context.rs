@@ -1,16 +1,20 @@
+use crate::ast::CallExpr;
 use crate::diagnostics::Diagnostic;
 use crate::ir::{BoolLocation, CallTarget, I32Location, Type};
+use crate::resolve::{ResolveOutput, SymbolKind};
+use crate::source::SourceId;
 use std::collections::HashMap;
 
-pub(super) struct LoweringContext {
+pub(super) struct LoweringContext<'a> {
     function_name: String,
     return_type: Type,
     function_signatures: FunctionSignatures,
+    call_resolution: Option<CallResolution<'a>>,
     i32_parameters: Vec<String>,
     locals: Vec<LocalBinding>,
 }
 
-impl LoweringContext {
+impl<'a> LoweringContext<'a> {
     pub(super) fn empty(
         function_name: String,
         return_type: Type,
@@ -20,6 +24,7 @@ impl LoweringContext {
             function_name,
             return_type,
             function_signatures,
+            call_resolution: None,
             i32_parameters: Vec::new(),
             locals: Vec::new(),
         }
@@ -35,9 +40,22 @@ impl LoweringContext {
             function_name,
             return_type,
             function_signatures,
+            call_resolution: None,
             i32_parameters,
             locals: Vec::new(),
         }
+    }
+
+    pub(super) fn with_call_resolution(
+        mut self,
+        root_source: SourceId,
+        resolved: &'a ResolveOutput,
+    ) -> Self {
+        self.call_resolution = Some(CallResolution {
+            root_source,
+            resolved,
+        });
+        self
     }
 
     pub(super) fn function_name(&self) -> &str {
@@ -50,6 +68,27 @@ impl LoweringContext {
 
     pub(super) fn call_return_type(&self, target: &CallTarget) -> Option<&Type> {
         self.function_signatures.return_type(target)
+    }
+
+    pub(super) fn call_target(&self, call: &CallExpr, fallback_name: &str) -> CallTarget {
+        let Some(resolution) = &self.call_resolution else {
+            return CallTarget::same_file(fallback_name);
+        };
+        let Some(symbol) = resolution.resolved.symbol_for_call(call) else {
+            return CallTarget::same_file(fallback_name);
+        };
+
+        match &symbol.kind {
+            SymbolKind::Function(_) | SymbolKind::Type(_)
+                if symbol.declaration_span.source != resolution.root_source =>
+            {
+                CallTarget::imported(symbol.declaration_span.source, symbol.name.clone())
+            }
+            SymbolKind::Function(_) | SymbolKind::Type(_) => {
+                CallTarget::same_file(symbol.name.clone())
+            }
+            SymbolKind::Imported(_) => CallTarget::same_file(fallback_name),
+        }
     }
 
     pub(super) fn next_i32_local_location(&self) -> Result<I32Location, Vec<Diagnostic>> {
@@ -110,6 +149,11 @@ impl LoweringContext {
             index: self.locals.len(),
         });
     }
+}
+
+struct CallResolution<'a> {
+    root_source: SourceId,
+    resolved: &'a ResolveOutput,
 }
 
 #[derive(Debug, Clone, Default)]

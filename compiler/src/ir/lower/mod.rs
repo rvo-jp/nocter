@@ -55,6 +55,8 @@ pub(crate) fn lower_executable_with_entry(
     let mut functions = vec![entry::lower_entry_function(
         entry,
         function_signatures.clone(),
+        root.ast.span.source,
+        &root.resolved,
     )?];
     lower_reachable_functions(
         &mut functions,
@@ -106,7 +108,12 @@ fn lower_reachable_functions(
             return Err(diagnostics);
         }
 
-        let function = functions::lower_function(function, function_signatures.clone())?;
+        let function = functions::lower_function(
+            function,
+            function_signatures.clone(),
+            root_source,
+            resolved,
+        )?;
         queue.extend(same_file_call_targets(&function));
         lowered.push(function);
     }

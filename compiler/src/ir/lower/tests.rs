@@ -214,6 +214,69 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_imported_i32_call_target_when_boundary_is_bypassed() {
+    let analysis = analyze_text_with_entry_and_nocter_home_files(
+        r#"from std/math import answer
+
+func main(): i32 {
+    let value = answer()
+    return value
+}
+"#,
+        crate::entry::DEFAULT_ENTRY_NAME,
+        &[(
+            "std/math.nct",
+            r#"pub func answer(): i32 {
+    return 42
+}
+"#,
+        )],
+    );
+    let root = analysis.root_file().unwrap();
+    let imported_source = analysis
+        .files
+        .iter()
+        .find(|file| {
+            !file.is_root
+                && file.ast.items.iter().any(|item| {
+                    matches!(item, crate::ast::Item::Function(function) if function.name == "answer")
+                })
+        })
+        .map(|file| file.ast.span.source)
+        .unwrap();
+    let entry = root
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            crate::ast::Item::Function(function)
+                if function.name == crate::entry::DEFAULT_ENTRY_NAME =>
+            {
+                Some(function)
+            }
+            _ => None,
+        })
+        .unwrap();
+    let index = FunctionIndex::new(&analysis, root.ast.span.source);
+
+    let function = entry::lower_entry_function(
+        entry,
+        index.signatures(),
+        root.ast.span.source,
+        &root.resolved,
+    )
+    .unwrap();
+
+    assert!(matches!(
+        &function.instructions[0],
+        Instruction::CallI32 {
+            target: CallTarget::Imported { source, name },
+            ..
+        } if *source == imported_source && name == "answer"
+    ));
+}
+
+#[test]
 fn lowers_entry_i32_let_initializer_normal_call_with_arguments() {
     let ir = lower_text(
         r#"func main(): i32 {
@@ -3039,7 +3102,12 @@ fn lower_named_function_with_signatures(
         panic!("missing function `{function_name}`");
     };
 
-    functions::lower_function(function, function_signatures)
+    functions::lower_function(
+        function,
+        function_signatures,
+        root.ast.span.source,
+        &root.resolved,
+    )
 }
 
 fn lower_named_function_diagnostics_with_signatures(

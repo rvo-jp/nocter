@@ -5,10 +5,14 @@ use super::expressions::{lower_bool_return_expression, lower_i32_return_expressi
 use crate::ast::{FunctionDecl, Parameter, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{Function, Instruction, Type};
+use crate::resolve::ResolveOutput;
+use crate::source::SourceId;
 
 pub(super) fn lower_function(
     function: &FunctionDecl,
     function_signatures: FunctionSignatures,
+    root_source: SourceId,
+    resolved: &ResolveOutput,
 ) -> Result<Function, Vec<Diagnostic>> {
     if !function.generics.parameters.is_empty() {
         return Err(vec![Diagnostic::error(
@@ -27,7 +31,8 @@ pub(super) fn lower_function(
         return_type.clone(),
         function_signatures,
         parameters,
-    );
+    )
+    .with_call_resolution(root_source, resolved);
     let instructions = lower_function_body(function, &return_type, &mut context)?;
 
     Ok(Function {

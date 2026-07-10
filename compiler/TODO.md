@@ -24,7 +24,11 @@ Recommended next implementation order:
 
 Recent committed work:
 
-- Current checkpoint: index compile-unit functions by call target
+- Current checkpoint: resolve imported call targets during expression lowering
+  - threads resolver output into IR entry/function lowering through `LoweringContext`
+  - changes normal-call, bool-call, and tail-call lowering to derive `CallTarget` from resolver symbols instead of always creating same-file targets
+  - verifies that direct lowering can emit `CallTarget::Imported` while the public build/run pipeline still preserves the current `E8006` imported-call boundary
+- `Index IR functions by call target`
   - adds a lowering-time function index that keys root functions as `CallTarget::SameFile` and imported file functions as `CallTarget::Imported`
   - builds `FunctionSignatures` from the compile-unit function index, so imported scalar function signatures are present before imported call lowering is enabled
   - keeps reachable lowering limited to same-file functions and preserves the current `E8006` imported-call boundary

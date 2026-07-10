@@ -703,7 +703,7 @@ fn lower_i32_normal_call(
         return Err(unsupported_non_tail_call_diagnostic());
     };
 
-    let target = CallTarget::same_file(identifier.name.clone());
+    let target = context.call_target(call, &identifier.name);
     validate_normal_call_return_type(&target, &identifier.name, context)?;
 
     let mut instructions = Vec::new();
@@ -732,7 +732,7 @@ fn lower_bool_normal_call(
         return Err(unsupported_non_tail_call_diagnostic());
     };
 
-    let target = CallTarget::same_file(identifier.name.clone());
+    let target = context.call_target(call, &identifier.name);
     validate_bool_normal_call_return_type(&target, &identifier.name, context)?;
 
     let mut instructions = Vec::new();
@@ -762,7 +762,7 @@ fn lower_direct_tail_call(
         )]);
     };
 
-    let target = CallTarget::same_file(identifier.name.clone());
+    let target = context.call_target(call, &identifier.name);
     validate_tail_call_return_type(&target, &identifier.name, context)?;
 
     let mut temporaries = TemporaryAllocator::new(context)?;
@@ -1159,7 +1159,8 @@ fn expression_is_lowerable_i32_expression_with_calls(
             let Expr::Identifier(identifier) = call.callee.as_ref() else {
                 return false;
             };
-            context.call_return_type(&CallTarget::same_file(&identifier.name)) == Some(&Type::I32)
+            context.call_return_type(&context.call_target(call, &identifier.name))
+                == Some(&Type::I32)
         }
         Expr::Binary(binary) if is_i32_binary_operator(binary.operator) => {
             expression_is_lowerable_i32_expression_with_calls(&binary.left, context)
@@ -1236,7 +1237,8 @@ fn expression_is_direct_bool_returning_call(expression: &Expr, context: &Lowerin
             let Expr::Identifier(identifier) = call.callee.as_ref() else {
                 return false;
             };
-            context.call_return_type(&CallTarget::same_file(&identifier.name)) == Some(&Type::Bool)
+            context.call_return_type(&context.call_target(call, &identifier.name))
+                == Some(&Type::Bool)
         }
         Expr::Group(group) => expression_is_direct_bool_returning_call(&group.expression, context),
         _ => false,

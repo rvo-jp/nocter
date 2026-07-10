@@ -6,10 +6,14 @@ use super::expressions::lower_i32_return_expression;
 use crate::ast::{Expr, FunctionDecl, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{Function, I32Location, I32Value, Instruction, Type};
+use crate::resolve::ResolveOutput;
+use crate::source::SourceId;
 
 pub(super) fn lower_entry_function(
     function: &FunctionDecl,
     function_signatures: FunctionSignatures,
+    root_source: SourceId,
+    resolved: &ResolveOutput,
 ) -> Result<Function, Vec<Diagnostic>> {
     if !function.generics.parameters.is_empty() || !function.parameters.parameters.is_empty() {
         return Err(vec![Diagnostic::error(
@@ -19,7 +23,13 @@ pub(super) fn lower_entry_function(
     }
 
     let return_type = lower_entry_return_type(&function.return_type)?;
-    let instructions = lower_entry_body(function, &return_type, function_signatures)?;
+    let instructions = lower_entry_body(
+        function,
+        &return_type,
+        function_signatures,
+        root_source,
+        resolved,
+    )?;
 
     Ok(Function {
         name: function.name.clone(),
@@ -45,6 +55,8 @@ fn lower_entry_body(
     function: &FunctionDecl,
     return_type: &Type,
     function_signatures: FunctionSignatures,
+    root_source: SourceId,
+    resolved: &ResolveOutput,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let success_type = return_type.success_type();
     let statements = function.body.statements.as_slice();
@@ -61,7 +73,8 @@ fn lower_entry_body(
         function.name.clone(),
         success_type.clone(),
         function_signatures,
-    );
+    )
+    .with_call_resolution(root_source, resolved);
     let mut instructions = lower_leading_bindings(leading, &mut context)?;
 
     match last {
