@@ -84,6 +84,28 @@ fn build_command_lowers_i32_local_addition() {
 }
 
 #[test]
+fn build_command_lowers_i32_call_multiplication() {
+    let project = TempProject::new("cli-build-i32-call-multiply");
+    let source = project.write_source(
+        "i32_call_multiply.nct",
+        r#"func main(): i32 {
+    return answer() * 2
+}
+
+func answer(): i32 {
+    return 21
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_i32_normal_call_let_initializer() {
     let project = TempProject::new("cli-build-normal-call-let");
     let source = project.write_source(
@@ -270,40 +292,6 @@ fn build_command_reports_unsupported_compound_bool_equality_condition() {
             "IR v0 can only lower bool equality/inequality operands that are bool literals or bool locals"
         ),
         "expected bool equality/inequality operand diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after compile diagnostics"
-    );
-}
-
-#[test]
-fn build_command_reports_unsupported_i32_call_expression() {
-    let project = TempProject::new("cli-build-unsupported-i32-call-expression");
-    let source = project.write_source(
-        "unsupported_i32_call_expression.nct",
-        r#"func main(): i32 {
-    return answer() * 2
-}
-
-func answer(): i32 {
-    return 21
-}
-"#,
-    );
-
-    let output = nocter(&project, ["build", source.to_str().unwrap()]);
-    let executable = source.with_extension("");
-
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E8003]"),
-        "expected unsupported i32 expression diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("IR v0 can only lower integer literal returns"),
-        "expected unsupported i32 expression diagnostic, got:\n{stderr}"
     );
     assert!(
         !executable.exists(),

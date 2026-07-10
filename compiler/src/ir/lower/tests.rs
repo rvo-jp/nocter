@@ -420,6 +420,59 @@ fn lowers_entry_i32_local_addition_binding_then_return() {
 }
 
 #[test]
+fn lowers_entry_i32_subtract_and_multiply_with_normal_calls() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    return answer() * 2 - offset()
+}
+
+func answer(): i32 {
+    return 24
+}
+
+func offset(): i32 {
+    return 6
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_i32(I32Location::Local(1), "answer", vec![]),
+                    Instruction::MultiplyI32 {
+                        destination: I32Location::Local(0),
+                        left: i32_local(1),
+                        right: i32_const(2),
+                    },
+                    call_i32(I32Location::Local(2), "offset", vec![]),
+                    Instruction::SubtractI32 {
+                        destination: I32Location::Return,
+                        left: i32_local(0),
+                        right: i32_local(2),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "answer".to_string(),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(24), Instruction::Return],
+            },
+            Function {
+                name: "offset".to_string(),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(6), Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
 fn lowers_entry_terminal_if_with_bool_literal_condition() {
     let ir = lower_text(
         r#"func main(): i32 {

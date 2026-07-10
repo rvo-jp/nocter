@@ -26,6 +26,16 @@ impl Encoder {
         self.emit_word(ADD_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
     }
 
+    pub(crate) fn emit_sub_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
+        self.emit_word(SUB_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
+    }
+
+    pub(crate) fn emit_mul_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
+        self.emit_word(
+            MADD_W_BASE | (rm.bits() << 16) | (WZR_BITS << 10) | (rn.bits() << 5) | rd.bits(),
+        );
+    }
+
     #[allow(dead_code)]
     pub(crate) fn emit_sub_sp_imm(&mut self, byte_count: u32) {
         self.emit_word(add_sub_sp_imm_word(SUB_SP_IMM_BASE, byte_count));
@@ -308,6 +318,8 @@ const MOVZ_W_BASE: u32 = 0x5280_0000;
 const MOVK_W_BASE: u32 = 0x7280_0000;
 const ORR_W_BASE: u32 = 0x2a00_0000;
 const ADD_W_BASE: u32 = 0x0b00_0000;
+const SUB_W_BASE: u32 = 0x4b00_0000;
+const MADD_W_BASE: u32 = 0x1b00_0000;
 #[allow(dead_code)]
 const ADD_SP_IMM_BASE: u32 = 0x9100_0000;
 #[allow(dead_code)]
@@ -443,6 +455,24 @@ mod tests {
         encoder.emit_add_w(WReg::W0, WReg::W0, WReg::W1);
 
         assert_eq!(encoder.finish(), vec![0x00, 0x00, 0x01, 0x0b]);
+    }
+
+    #[test]
+    fn encodes_sub_w0_w0_w1() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_sub_w(WReg::W0, WReg::W0, WReg::W1);
+
+        assert_eq!(encoder.finish(), vec![0x00, 0x00, 0x01, 0x4b]);
+    }
+
+    #[test]
+    fn encodes_mul_w0_w0_w1() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_mul_w(WReg::W0, WReg::W0, WReg::W1);
+
+        assert_eq!(encoder.finish(), vec![0x00, 0x7c, 0x01, 0x1b]);
     }
 
     #[test]

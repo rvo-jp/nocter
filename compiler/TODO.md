@@ -7,7 +7,13 @@ Long-lived maintenance rules live in `AGENTS.md` and `docs/maintenance.md`.
 
 Recent committed work:
 
-- Current checkpoint: `Cover i32 comparison short-circuit calls`
+- Current checkpoint: `Lower i32 call arithmetic`
+  - adds IR lowering and ARM64 codegen for lowerable `i32` subtraction and multiplication alongside existing addition
+  - supports same-file `i32` normal calls inside `+`, `-`, and `*` arithmetic expressions, such as `return answer() * 2 - offset()`
+  - keeps arithmetic evaluation left to right through the existing temporary staging path
+  - adds IR lowering, ARM64 encoder, CLI build, and CLI run coverage for user-visible `i32` call arithmetic
+  - keeps imported calls, aggregate arguments/returns, ownership/drop lowering, `var`/reassignment, and broader control-flow disabled
+- `6a9553d Cover i32 comparison short-circuit calls`
   - adds IR lowering and CLI run coverage for short-circuit bool expressions that combine `i32` call comparisons with bool calls
   - covers terminal conditions such as `if answer() == 42 && ready()`
   - covers bool value materialization such as `let matched = answer() == 42 && ready()`
@@ -18,7 +24,7 @@ Recent committed work:
   - supports `if answer() == 42`, `let matched = left() <= right()`, and `return left() < right()`
   - evaluates comparison operands left to right through the existing `i32` expression staging path
   - keeps imported calls, aggregate arguments/returns, ownership/drop lowering, `var`/reassignment, and broader control-flow disabled
-  - keeps unsupported `i32` call expressions such as `return answer() * 2` reporting an IR lowering diagnostic
+  - kept unsupported `i32` call expressions such as `return answer() * 2` reporting an IR lowering diagnostic at that checkpoint
   - adds IR lowering and CLI run coverage for `i32` call comparisons
 - `3ebddf6 Lower nested tail-call arguments`
   - lowers nested same-file `i32` tail-call arguments such as `return outer(inner())`

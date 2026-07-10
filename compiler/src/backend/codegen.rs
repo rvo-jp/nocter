@@ -122,6 +122,20 @@ impl EntryEmitter {
             } => {
                 self.emit_add_i32(*destination, left, right)?;
             }
+            Instruction::SubtractI32 {
+                destination,
+                left,
+                right,
+            } => {
+                self.emit_subtract_i32(*destination, left, right)?;
+            }
+            Instruction::MultiplyI32 {
+                destination,
+                left,
+                right,
+            } => {
+                self.emit_multiply_i32(*destination, left, right)?;
+            }
             Instruction::CallI32 {
                 destination,
                 function,
@@ -615,6 +629,32 @@ impl EntryEmitter {
         Ok(())
     }
 
+    fn emit_subtract_i32(
+        &mut self,
+        destination: I32Location,
+        left: &I32Value,
+        right: &I32Value,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let destination = self.i32_location_register(destination)?;
+        self.emit_i32_value_to_w(left, WReg::W16)?;
+        self.emit_i32_value_to_w(right, destination)?;
+        self.encoder.emit_sub_w(destination, WReg::W16, destination);
+        Ok(())
+    }
+
+    fn emit_multiply_i32(
+        &mut self,
+        destination: I32Location,
+        left: &I32Value,
+        right: &I32Value,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let destination = self.i32_location_register(destination)?;
+        self.emit_i32_value_to_w(left, WReg::W16)?;
+        self.emit_i32_value_to_w(right, destination)?;
+        self.encoder.emit_mul_w(destination, WReg::W16, destination);
+        Ok(())
+    }
+
     fn emit_i32_value_to_w(
         &mut self,
         value: &I32Value,
@@ -869,6 +909,8 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::SetI32 { .. }
             | Instruction::SetBool { .. }
             | Instruction::AddI32 { .. }
+            | Instruction::SubtractI32 { .. }
+            | Instruction::MultiplyI32 { .. }
             | Instruction::CallI32 { .. }
             | Instruction::CallBool { .. },
         )
