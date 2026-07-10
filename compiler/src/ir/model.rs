@@ -26,12 +26,6 @@ impl CallTarget {
         Self::SameFile(name.into())
     }
 
-    pub(crate) fn name(&self) -> &str {
-        match self {
-            Self::SameFile(name) => name,
-        }
-    }
-
     pub(crate) fn same_file_name(&self) -> Option<&str> {
         match self {
             Self::SameFile(name) => Some(name),

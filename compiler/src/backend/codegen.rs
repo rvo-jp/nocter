@@ -1,7 +1,7 @@
 use crate::backend::frame::{FrameLayout, FunctionFrame, plan_function_frame};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, Function,
+    BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, CallTarget, Function,
     I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule, Type,
 };
 use crate::target::arm64::{BranchCondition, Encoder, MoveWideShift, WReg, XReg};
@@ -27,7 +27,7 @@ struct EntryEmitter {
     encoder: Encoder,
     read_only_data: Vec<u8>,
     data_address_patches: Vec<DataAddressPatch>,
-    function_offsets: HashMap<String, usize>,
+    function_offsets: HashMap<FunctionSymbol, usize>,
     call_patches: Vec<FunctionCallPatch>,
     tail_call_patches: Vec<FunctionCallPatch>,
 }
@@ -66,7 +66,7 @@ impl EntryEmitter {
     }
 
     fn emit_process_entry(&mut self, entry: &Function) {
-        self.emit_call(&entry.name);
+        self.emit_call(FunctionSymbol::same_file(&entry.name));
         if matches!(entry.return_type.success_type(), Type::Void) {
             emit_mov_i32_to_w0(&mut self.encoder, 0);
         }
@@ -74,8 +74,10 @@ impl EntryEmitter {
     }
 
     fn emit_function(&mut self, function: &Function) -> Result<(), Vec<Diagnostic>> {
-        self.function_offsets
-            .insert(function.name.clone(), self.encoder.position());
+        self.function_offsets.insert(
+            FunctionSymbol::same_file(&function.name),
+            self.encoder.position(),
+        );
         let frame = plan_function_frame(function)?;
         self.emit_function_with_frame(function, &frame)
     }
@@ -169,17 +171,27 @@ impl EntryEmitter {
                 target,
                 arguments,
             } => {
-                self.emit_call_i32(*destination, target.name(), arguments, frame)?;
+                self.emit_call_i32(
+                    *destination,
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    frame,
+                )?;
             }
             Instruction::CallBool {
                 destination,
                 target,
                 arguments,
             } => {
-                self.emit_call_bool(*destination, target.name(), arguments, frame)?;
+                self.emit_call_bool(
+                    *destination,
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    frame,
+                )?;
             }
             Instruction::TailCall { target, arguments } => {
-                self.emit_tail_call(target.name(), arguments, frame)?;
+                self.emit_tail_call(FunctionSymbol::from_call_target(target), arguments, frame)?;
             }
             Instruction::If {
                 condition,
@@ -449,18 +461,18 @@ impl EntryEmitter {
         Ok(())
     }
 
-    fn emit_call(&mut self, function: &str) {
+    fn emit_call(&mut self, function: FunctionSymbol) {
         let instruction_offset = self.encoder.position();
         self.encoder.emit_bl(0);
         self.call_patches.push(FunctionCallPatch {
             instruction_offset,
-            function: function.to_string(),
+            function,
         });
     }
 
     fn emit_tail_call(
         &mut self,
-        function: &str,
+        function: FunctionSymbol,
         arguments: &[I32Value],
         frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
@@ -482,7 +494,7 @@ impl EntryEmitter {
         self.encoder.emit_b(0);
         self.tail_call_patches.push(FunctionCallPatch {
             instruction_offset,
-            function: function.to_string(),
+            function,
         });
 
         Ok(())
@@ -491,7 +503,7 @@ impl EntryEmitter {
     fn emit_call_i32(
         &mut self,
         destination: I32Location,
-        function: &str,
+        function: FunctionSymbol,
         arguments: &[I32Value],
         frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
@@ -513,7 +525,7 @@ impl EntryEmitter {
     fn emit_call_bool(
         &mut self,
         destination: BoolLocation,
-        function: &str,
+        function: FunctionSymbol,
         arguments: &[I32Value],
         frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
@@ -961,7 +973,10 @@ impl EntryEmitter {
         let Some(target_offset) = self.function_offsets.get(&patch.function) else {
             return Err(vec![Diagnostic::error(
                 "E9002",
-                format!("codegen could not resolve function `{}`", patch.function),
+                format!(
+                    "codegen could not resolve function `{}`",
+                    patch.function.description()
+                ),
             )]);
         };
 
@@ -971,12 +986,35 @@ impl EntryEmitter {
                 "E9002",
                 format!(
                     "function `{}` is too far from call site for ARM64 `{instruction}`",
-                    patch.function
+                    patch.function.description()
                 ),
             )]);
         }
 
         Ok(byte_offset)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum FunctionSymbol {
+    SameFile(String),
+}
+
+impl FunctionSymbol {
+    fn same_file(name: impl Into<String>) -> Self {
+        Self::SameFile(name.into())
+    }
+
+    fn from_call_target(target: &CallTarget) -> Self {
+        match target {
+            CallTarget::SameFile(name) => Self::same_file(name),
+        }
+    }
+
+    fn description(&self) -> &str {
+        match self {
+            Self::SameFile(name) => name,
+        }
     }
 }
 
@@ -989,7 +1027,7 @@ struct DataAddressPatch {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct FunctionCallPatch {
     instruction_offset: usize,
-    function: String,
+    function: FunctionSymbol,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

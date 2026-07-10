@@ -24,7 +24,11 @@ Recommended next implementation order:
 
 Recent committed work:
 
-- Current checkpoint: collect imported call targets
+- Current checkpoint: type backend function symbols
+  - changes ARM64 codegen function offset lookup and call patches from raw function-name strings to an internal `FunctionSymbol` key
+  - keeps current same-file call codegen behavior unchanged while making future imported symbols distinguishable before branch patching
+  - removes the now-unused `CallTarget::name()` helper in favor of explicit target-to-symbol conversion
+- `Collect imported call targets`
   - changes `ir/lower/imported_calls.rs` from a diagnostic-only traversal into an imported call target collector plus diagnostic conversion
   - records loaded imported calls by declaration `SourceId` and unloaded placeholder imports by import path
   - keeps the existing `E8006` imported-call backend boundary behavior unchanged
@@ -241,7 +245,7 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Collect imported call targets`.
+- None expected after committing `Type backend function symbols`.
 
 ## Verification Already Run
 
@@ -289,6 +293,16 @@ For imported call target collection, from `compiler/`:
 cargo test --quiet imported_placeholder_symbol_becomes_unloaded_imported_call_target
 cargo test --quiet collects_loaded_imported_call_targets
 cargo test --quiet reports_unsupported_imported_i32_normal_call
+cargo fmt
+./scripts/verify.sh
+```
+
+For backend function symbol typing, from `compiler/`:
+
+```sh
+cargo test --quiet backend::codegen::tests::generates_same_file_function_call
+cargo test --quiet backend::codegen::tests::generates_framed_i32_normal_call_from_hand_built_ir
+cargo test --quiet run_command_returns_same_file_function_call_exit_code
 cargo fmt
 ./scripts/verify.sh
 ```
