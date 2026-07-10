@@ -173,6 +173,47 @@ func main(): i32 {
 }
 
 #[test]
+fn indexes_imported_function_signatures_by_call_target() {
+    let analysis = analyze_text_with_entry_and_nocter_home_files(
+        r#"from std/math import answer
+
+func main(): i32 {
+    let value = answer()
+    return value
+}
+"#,
+        crate::entry::DEFAULT_ENTRY_NAME,
+        &[(
+            "std/math.nct",
+            r#"pub func answer(): i32 {
+    return 42
+}
+"#,
+        )],
+    );
+    let root = analysis.root_file().unwrap();
+    let imported_source = analysis
+        .files
+        .iter()
+        .find(|file| {
+            !file.is_root
+                && file.ast.items.iter().any(|item| {
+                    matches!(item, crate::ast::Item::Function(function) if function.name == "answer")
+                })
+        })
+        .map(|file| file.ast.span.source)
+        .unwrap();
+
+    let index = FunctionIndex::new(&analysis, root.ast.span.source);
+    let signatures = index.signatures();
+
+    assert_eq!(
+        signatures.return_type(&CallTarget::imported(imported_source, "answer")),
+        Some(&Type::I32)
+    );
+}
+
+#[test]
 fn lowers_entry_i32_let_initializer_normal_call_with_arguments() {
     let ir = lower_text(
         r#"func main(): i32 {

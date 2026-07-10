@@ -132,7 +132,7 @@ impl FunctionSignatures {
         Self { return_types }
     }
 
-    fn return_type(&self, target: &CallTarget) -> Option<&Type> {
+    pub(super) fn return_type(&self, target: &CallTarget) -> Option<&Type> {
         self.return_types.get(target)
     }
 }

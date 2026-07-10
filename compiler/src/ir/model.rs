@@ -21,11 +21,7 @@ pub(crate) struct Function {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum CallTarget {
     SameFile(String),
-    #[allow(dead_code)]
-    Imported {
-        source: SourceId,
-        name: String,
-    },
+    Imported { source: SourceId, name: String },
 }
 
 impl CallTarget {
@@ -33,7 +29,6 @@ impl CallTarget {
         Self::SameFile(name.into())
     }
 
-    #[allow(dead_code)]
     pub(crate) fn imported(source: SourceId, name: impl Into<String>) -> Self {
         Self::Imported {
             source,

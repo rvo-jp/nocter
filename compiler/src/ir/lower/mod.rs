@@ -45,20 +45,20 @@ pub(crate) fn lower_executable_with_entry(
         )]);
     };
 
-    let root_functions = collect_root_functions(&root.ast.items);
+    let function_index = FunctionIndex::new(analysis, root.ast.span.source);
     let diagnostics = imported_call_diagnostics(entry, root.ast.span.source, &root.resolved);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
 
-    let function_signatures = collect_function_signatures(&root_functions);
+    let function_signatures = function_index.signatures();
     let mut functions = vec![entry::lower_entry_function(
         entry,
         function_signatures.clone(),
     )?];
     lower_reachable_functions(
         &mut functions,
-        &root_functions,
+        &function_index,
         &function_signatures,
         entry_name,
         root.ast.span.source,
@@ -66,28 +66,6 @@ pub(crate) fn lower_executable_with_entry(
     )?;
 
     Ok(IrModule::new(functions))
-}
-
-fn collect_root_functions(items: &[Item]) -> HashMap<&str, &FunctionDecl> {
-    items
-        .iter()
-        .filter_map(|item| match item {
-            Item::Function(function) => Some((function.name.as_str(), function)),
-            _ => None,
-        })
-        .collect()
-}
-
-fn collect_function_signatures(functions: &HashMap<&str, &FunctionDecl>) -> FunctionSignatures {
-    FunctionSignatures::from_call_targets(
-        functions
-            .values()
-            .filter_map(|function| {
-                lower_signature_return_type(&function.return_type)
-                    .map(|return_type| (CallTarget::same_file(function.name.clone()), return_type))
-            })
-            .collect(),
-    )
 }
 
 fn lower_signature_return_type(ty: &TypeExpr) -> Option<Type> {
@@ -103,7 +81,7 @@ fn lower_signature_return_type(ty: &TypeExpr) -> Option<Type> {
 
 fn lower_reachable_functions(
     lowered: &mut Vec<Function>,
-    candidates: &HashMap<&str, &FunctionDecl>,
+    function_index: &FunctionIndex<'_>,
     function_signatures: &FunctionSignatures,
     entry_name: &str,
     root_source: SourceId,
@@ -117,7 +95,7 @@ fn lower_reachable_functions(
             continue;
         }
 
-        let Some(function) = candidates.get(name.as_str()) else {
+        let Some(function) = function_index.same_file_definition(&name) else {
             return Err(vec![Diagnostic::error(
                 "E8006",
                 format!("IR v0 can only lower calls to same-file functions, got `{name}`"),
@@ -134,4 +112,44 @@ fn lower_reachable_functions(
     }
 
     Ok(())
+}
+
+struct FunctionIndex<'a> {
+    definitions: HashMap<CallTarget, &'a FunctionDecl>,
+}
+
+impl<'a> FunctionIndex<'a> {
+    fn new(analysis: &'a CompileUnitAnalysis, root_source: SourceId) -> Self {
+        let mut definitions = HashMap::new();
+        for file in &analysis.files {
+            for item in &file.ast.items {
+                let Item::Function(function) = item else {
+                    continue;
+                };
+                let target = if file.ast.span.source == root_source {
+                    CallTarget::same_file(function.name.clone())
+                } else {
+                    CallTarget::imported(file.ast.span.source, function.name.clone())
+                };
+                definitions.insert(target, function);
+            }
+        }
+        Self { definitions }
+    }
+
+    fn same_file_definition(&self, name: &str) -> Option<&'a FunctionDecl> {
+        self.definitions.get(&CallTarget::same_file(name)).copied()
+    }
+
+    fn signatures(&self) -> FunctionSignatures {
+        FunctionSignatures::from_call_targets(
+            self.definitions
+                .iter()
+                .filter_map(|(target, function)| {
+                    lower_signature_return_type(&function.return_type)
+                        .map(|return_type| (target.clone(), return_type))
+                })
+                .collect(),
+        )
+    }
 }

@@ -24,7 +24,11 @@ Recommended next implementation order:
 
 Recent committed work:
 
-- Current checkpoint: key IR function signatures by call target
+- Current checkpoint: index compile-unit functions by call target
+  - adds a lowering-time function index that keys root functions as `CallTarget::SameFile` and imported file functions as `CallTarget::Imported`
+  - builds `FunctionSignatures` from the compile-unit function index, so imported scalar function signatures are present before imported call lowering is enabled
+  - keeps reachable lowering limited to same-file functions and preserves the current `E8006` imported-call boundary
+- `Key IR signatures by call target`
   - changes IR lowering return-type lookup from raw function names to `CallTarget` keys
   - keeps test-only same-file signature construction available while production lowering builds same-file `CallTarget` signatures explicitly
   - keeps imported call lowering disabled, but prepares return-type validation to distinguish same-file and imported call targets
