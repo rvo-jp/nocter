@@ -368,6 +368,46 @@ fn build_command_reports_unsupported_compound_bool_equality_condition() {
 }
 
 #[test]
+fn build_command_reports_unsupported_imported_call() {
+    let project = TempProject::new("cli-build-imported-call");
+    project.write_nocter_home_file(
+        "std/math.nct",
+        r#"pub func answer(): i32 {
+    return 42
+}
+"#,
+    );
+    let source = project.write_source(
+        "imported_call.nct",
+        r#"from std/math import answer
+
+func main(): i32 {
+    let value = answer()
+    return value
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E8006]"),
+        "expected imported call lowering diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("imported function call `answer`"),
+        "expected imported call message, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after compile diagnostics"
+    );
+}
+
+#[test]
 fn build_command_lowers_terminal_if_i32_equality() {
     let project = TempProject::new("cli-build-terminal-if-equality");
     let source = project.write_source(
@@ -812,6 +852,14 @@ impl TempProject {
         let path = self.root.join(name);
         fs::write(&path, text).unwrap();
         path
+    }
+
+    fn write_nocter_home_file(&self, relative: &str, text: &str) {
+        let path = self.nocter_home().join(relative);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(path, text).unwrap();
     }
 
     fn write_nocter_home(&self) {

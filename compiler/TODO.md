@@ -24,7 +24,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
-- Current checkpoint: `Diagnose imported call lowering boundary`
+- Current checkpoint: `Cover imported call build diagnostic`
+  - adds CLI build coverage for reachable imported calls
+  - confirms the build command reports `E8006` and leaves no executable when imported call lowering is unsupported
+- `Diagnose imported call lowering boundary`
   - adds `ir/lower/imported_calls.rs` to detect imported call targets using resolver output before same-file call lowering
   - reports a dedicated `E8006` for reachable imported calls such as `from std/math import answer; answer()`
   - keeps imported call runtime lowering disabled while making the boundary explicit for the next backend step
@@ -223,9 +226,17 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Diagnose imported call lowering boundary`.
+- None expected after committing `Cover imported call build diagnostic`.
 
 ## Verification Already Run
+
+For the imported-call build diagnostic coverage, from `compiler/`:
+
+```sh
+cargo test --quiet --test cli_build build_command_reports_unsupported_imported_call
+cargo fmt
+cargo test --quiet
+```
 
 For the imported-call lowering-boundary diagnostic, from `compiler/`:
 
