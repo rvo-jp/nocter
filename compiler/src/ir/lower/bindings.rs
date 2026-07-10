@@ -1,7 +1,8 @@
 use super::context::LoweringContext;
 use super::expressions::{
-    expression_is_lowerable_bool_binding, expression_is_unsupported_bool_comparison_binding,
-    lower_bool_expression_to_location, lower_i32_expression_to_location,
+    expression_contains_interpolated_string, expression_is_lowerable_bool_binding,
+    expression_is_unsupported_bool_comparison_binding, lower_bool_expression_to_location,
+    lower_i32_expression_to_location,
 };
 use crate::ast::{BinaryOperator, BindingKind, BindingStmt, Expr, TypeExpr, UnaryOperator};
 use crate::diagnostics::Diagnostic;
@@ -21,6 +22,10 @@ pub(super) fn lower_let_binding(
         return Err(unsupported_binding_diagnostic(
             "IR v0 cannot lower optional `let ... else` bindings",
         ));
+    }
+
+    if expression_contains_interpolated_string(&statement.initializer) {
+        return Err(unsupported_interpolated_string_diagnostic());
     }
 
     match scalar_binding_kind(statement, context)? {
@@ -118,6 +123,13 @@ fn is_bool_type(ty: &TypeExpr) -> bool {
 
 fn unsupported_binding_diagnostic(message: &'static str) -> Vec<Diagnostic> {
     vec![Diagnostic::error("E8008", message)]
+}
+
+fn unsupported_interpolated_string_diagnostic() -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8008",
+        "IR v0 cannot lower interpolated string construction until explicit std/string allocation and std/fmt.append_* lowering are implemented",
+    )]
 }
 
 enum ScalarBindingKind {

@@ -24,7 +24,11 @@ Recommended next implementation order:
 
 Recent committed work:
 
-- Current checkpoint: `Cover std fmt import graph`
+- Current checkpoint: `Diagnose interpolated string lowering boundary`
+  - detects interpolated string expressions inside lowered `let` initializers
+  - reports a dedicated `E8008` explaining that backend lowering is waiting on explicit `std/string` allocation and `std/fmt.append_*` lowering
+  - keeps interpolation parsing and type checking enabled while runtime construction remains disabled
+- `Cover std fmt import graph`
   - adds frontend coverage for a user module importing `std/fmt`
   - confirms the imported standard-library graph can load `std/fmt`, `std/error`, `std/string`, and `std/mem`
   - keeps the test at the import/type-check layer; interpolated string runtime lowering remains disabled
@@ -215,9 +219,17 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Cover std fmt import graph`.
+- None expected after committing `Diagnose interpolated string lowering boundary`.
 
 ## Verification Already Run
+
+For the interpolated string lowering-boundary diagnostic, from `compiler/`:
+
+```sh
+cargo test --quiet reports_unsupported_interpolated_string_binding_lowering
+cargo fmt
+cargo test --quiet
+```
 
 For the `std/fmt` import graph frontend coverage, from `compiler/`:
 

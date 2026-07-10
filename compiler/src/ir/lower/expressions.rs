@@ -461,6 +461,59 @@ pub(super) fn expression_contains_call(expression: &Expr) -> bool {
     }
 }
 
+pub(super) fn expression_contains_interpolated_string(expression: &Expr) -> bool {
+    match expression {
+        Expr::InterpolatedString(_) => true,
+        Expr::Unary(unary) => expression_contains_interpolated_string(&unary.operand),
+        Expr::Binary(binary) => {
+            expression_contains_interpolated_string(&binary.left)
+                || expression_contains_interpolated_string(&binary.right)
+        }
+        Expr::Group(group) => expression_contains_interpolated_string(&group.expression),
+        Expr::TypeConversion(conversion) => {
+            expression_contains_interpolated_string(&conversion.expression)
+        }
+        Expr::Propagate(propagation) => {
+            expression_contains_interpolated_string(&propagation.expression)
+        }
+        Expr::Force(force) => expression_contains_interpolated_string(&force.expression),
+        Expr::Catch(catch) => expression_contains_interpolated_string(&catch.expression),
+        Expr::Call(call) => {
+            expression_contains_interpolated_string(&call.callee)
+                || call
+                    .arguments
+                    .iter()
+                    .any(expression_contains_interpolated_string)
+        }
+        Expr::Member(member) => expression_contains_interpolated_string(&member.object),
+        Expr::Index(index) => {
+            expression_contains_interpolated_string(&index.object)
+                || expression_contains_interpolated_string(&index.index)
+        }
+        Expr::ArrayLiteral(array) => array
+            .elements
+            .iter()
+            .any(expression_contains_interpolated_string),
+        Expr::StructLiteral(struct_literal) => struct_literal
+            .fields
+            .iter()
+            .any(|field| expression_contains_interpolated_string(&field.value)),
+        Expr::OptionalDefault(optional_default) => {
+            expression_contains_interpolated_string(&optional_default.value)
+                || expression_contains_interpolated_string(&optional_default.default)
+        }
+        Expr::PatternConditional(pattern_conditional) => {
+            expression_contains_interpolated_string(&pattern_conditional.target)
+                || pattern_conditional
+                    .arms
+                    .iter()
+                    .any(|arm| expression_contains_interpolated_string(&arm.expression))
+                || expression_contains_interpolated_string(&pattern_conditional.fallback)
+        }
+        _ => false,
+    }
+}
+
 pub(super) struct LoweredBoolValue {
     pub(super) instructions: Vec<Instruction>,
     pub(super) value: BoolValue,

@@ -1182,6 +1182,24 @@ func dynamic(): str {
 }
 
 #[test]
+fn reports_unsupported_interpolated_string_binding_lowering() {
+    let diagnostics = lower_text_diagnostics(
+        r#"struct String {
+    bytes: [u8]
+}
+
+func main(): i32! {
+    let text = "value ${1}"?
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics[0].code, "E8008");
+    assert!(diagnostics[0].message.contains("std/fmt.append_*"));
+}
+
+#[test]
 fn lowers_void_entry_with_empty_body() {
     let ir = lower_text(
         r#"func main(): void {
