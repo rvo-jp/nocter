@@ -104,6 +104,7 @@ tools/
     MANIFEST.json
     std/
         prelude.nct
+        fmt.nct
         io.nct
         mem.nct
         os.nct
@@ -724,6 +725,7 @@ C 連携が必要になった場合は、将来 `extern "c"` のような別 ABI
     MANIFEST.json
     std/
         prelude.nct
+        fmt.nct
         io.nct
         mem.nct
         os.nct

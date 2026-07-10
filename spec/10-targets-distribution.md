@@ -96,6 +96,7 @@ The installed layout is:
     MANIFEST.json
     std/
         prelude.nct
+        fmt.nct
         io.nct
         mem.nct
         os.nct

@@ -80,6 +80,8 @@ pub struct Allocator {
 pub func page_allocator(): Allocator
 pub func alloc(allocator: &+Allocator, size: usize, align: usize): RawBuffer!
 pub func free(allocator: &+Allocator, buffer: RawBuffer): void
+pub func out_of_memory(): error
+pub func invalid_argument(): error
 ```
 
 In primitive set v0, allocator operations are not compiler primitives. These public functions should be implemented in the standard library, eventually through target-overlay syscall wrappers and ordinary Nocter code. Names such as `raw_alloc` and `raw_free` are not part of the compiler's closed primitive set.
@@ -88,6 +90,7 @@ Rules:
 
 - Allocation is explicit.
 - Allocation APIs are fallible and return `T!` where allocation can fail.
+- The failure payload is always the built-in `error`; `std/mem` must not define `AllocError`, `Result<T, E>`, or another domain-specific fallible payload.
 - Out-of-memory is reported as `"std.mem.out_of_memory"`.
 - Invalid size / alignment requests are reported as `"std.mem.invalid_argument"`.
 - Allocation mutates allocator state, so allocation APIs take `&+Allocator`.

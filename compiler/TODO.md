@@ -18,13 +18,19 @@ Adopted user decisions:
 
 Recommended next implementation order:
 
-1. Specify the minimal standard-library allocation and formatting API needed for interpolated string lowering.
-2. Lower interpolated strings only through explicit standard-library `String` construction and formatting calls.
-3. Defer broad control flow, imported calls, aggregate values, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
+1. Design the interpolation allocator source and exact lowering shape around explicit `std/string` construction plus `std/fmt.append_*` calls.
+2. Lower interpolated strings only after the needed backend prerequisites exist: imported standard-library calls, aggregate `String` storage, mutable local mutation through `&+String`, and fallible propagation from append calls.
+3. Defer broad control flow, unrelated imported calls, aggregate values, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
-- Current checkpoint: `Lower i32 shifts`
+- Current checkpoint: `Specify std string formatting boundary`
+  - adds `.nocter/std/fmt.nct` with explicit append APIs for `str`, `String`, `i32`, and `bool`
+  - expands `.nocter/std/string.nct` from a placeholder owning type to the initial pointer/length/capacity ABI direction plus `empty`, `with_capacity`, `from_str`, `view`, and `push_str`
+  - adds common `error` helper functions in `.nocter/std/mem.nct` for `"std.mem.out_of_memory"` and `"std.mem.invalid_argument"`
+  - documents that `std/mem`, `std/string`, and `std/fmt` fail through the built-in `error` payload rather than domain-specific fallible error types
+  - keeps interpolated string runtime lowering disabled until an explicit allocator source and backend storage/call prerequisites are implemented
+- `Lower i32 shifts`
   - adds IR instructions and lowering for buildable `i32` `<<` and `>>`
   - supports same-file `i32` normal calls inside shift operands through the existing left-to-right temporary staging path
   - emits runtime shift-count traps for negative counts and counts greater than or equal to 32
@@ -205,9 +211,24 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Lower i32 shifts`.
+- None expected after committing `Specify std string formatting boundary`.
 
 ## Verification Already Run
+
+For the standard-library string/formatting boundary work, from `compiler/`:
+
+```sh
+NOCTER_HOME=/Users/manaberyou/Desktop/nocter/.nocter cargo run --quiet -- check ../.nocter/std/fmt.nct --format json
+cargo test --quiet
+```
+
+The direct `check` command exits with the expected executable-root diagnostic `E0300` because `std/fmt.nct` is not an executable root file; it produced no import, parse, or type diagnostics after that.
+
+From repository root:
+
+```sh
+git diff --check
+```
 
 For the i32 shift backend work, from `compiler/`:
 
@@ -695,10 +716,10 @@ The scalar `i32` backend subset now has runtime safety checks for `+`, `-`, `*`,
 
 Recommended next small task for the next session:
 
-1. Specify the minimal standard-library allocation and formatting API needed for interpolated string lowering.
-2. Lower interpolated strings only through explicit standard-library `String` construction and formatting calls.
+1. Design the interpolation allocator source and exact lowering shape around explicit `std/string` construction plus `std/fmt.append_*` calls.
+2. Add only the backend prerequisites needed by that lowering: imported standard-library calls, aggregate `String` storage, mutable local mutation through `&+String`, and fallible propagation from append calls.
 3. Consider broader terminal control-flow only after its lowering rules are designed.
-4. Keep imported calls, aggregates, ownership/drop lowering, general mutable storage, and broader control-flow disabled until their ABI, storage, and join rules are designed.
+4. Keep unrelated imported calls, aggregates, ownership/drop lowering, general mutable storage, and broader control-flow disabled until their ABI, storage, and join rules are designed.
 5. Add CLI build/run coverage for any newly buildable source subset.
 
 ## Design Constraints To Preserve

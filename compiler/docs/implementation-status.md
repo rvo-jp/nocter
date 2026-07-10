@@ -20,7 +20,7 @@ This file describes implementation state only.
 | `i32` return values | yes | yes | yes | yes | yes | Literal returns and lowerable expressions are supported. |
 | `void` entry | yes | yes | yes | yes | yes | Empty body and bare `return` are buildable. |
 | `bool` expressions | yes | yes | yes | partial | yes | Build supports literals, locals, `!`, `&&`, `||`, `i32` comparisons, and bool equality/inequality over literal/local operands in lowerable positions. |
-| String literals and interpolation | yes | yes | partial | partial | partial | Single-line and multi-line string literals are tokenized, parsed, and typed as `str`; interpolation is parsed as an explicit expression and checked as `String!` with limited supported part types. Build currently consumes only static string literals as `make_error` messages; interpolated string construction is not lowerable. |
+| String literals and interpolation | yes | yes | partial | partial | partial | Single-line and multi-line string literals are tokenized, parsed, and typed as `str`; interpolation is parsed as an explicit expression and checked as `String!` with limited supported part types. The initial `std/string` and `std/fmt` API boundary exists, but build currently consumes only static string literals as `make_error` messages; interpolated string construction is not lowerable. |
 | Immutable `let` bindings | yes | yes | yes | partial | yes | Build supports lowerable `i32` and `bool` initializers. |
 | `var` and reassignment | yes | yes | partial | no | no | Backend has no general local storage yet. |
 | Same-file function calls | yes | yes | yes | partial | partial | Build supports non-generic `i32` tail calls with up to 8 `i32` arguments, `bool` tail returns, and a narrow same-file scalar normal-call subset. |
@@ -34,7 +34,7 @@ This file describes implementation state only.
 | Arrays, views, and pointers | yes | yes | partial | no | no | Compiler-owned layout and provenance rules are still future work. |
 | Methods, traits, and generics | yes | yes | partial | no | no | Parser and selected diagnostics exist; monomorphization/lowering do not. |
 | Ownership, borrowing, move, drop | yes | partial | partial | no | no | Design exists; full semantic checking and drop glue are not implemented. |
-| Standard library API names | yes | yes | partial | partial | partial | Many `.nocter/std` declarations are placeholders or primitive boundaries. |
+| Standard library API names | yes | yes | partial | partial | partial | `.nocter/std` includes initial prelude, error, memory, owning string, formatting, pointer, OS, and I/O declarations; many bodies are placeholders or primitive boundaries. |
 | `check --format json` | yes | n/a | yes | n/a | yes | JSON diagnostics are used by corpus tests. |
 | `tokens --format json` and `ast --format json` | yes | yes | n/a | n/a | yes | Tooling aids, not stable language compatibility promises. |
 | `fmt` | yes | yes | n/a | n/a | partial | v0 rejects files with comments instead of rewriting them. |

@@ -117,9 +117,47 @@ Rules:
 - `error` is the compiler built-in payload type.
 - `Error` and `ErrorCode` are ordinary standard-library names.
 - The compiler does not know the name `ErrorCode`. `ErrorCode` is an open string classification alias, and `Error.new` converts that string value into the built-in `error` payload's primitive code representation.
-- Standard-library codes use dotted names such as `"std.io.not_found"`, `"std.mem.out_of_memory"`, and `"std.process.invalid_encoding"`. User and package code may use their own prefixes, such as `"app.config.missing_key"`.
+- Standard-library codes use dotted names such as `"std.io.not_found"`, `"std.mem.out_of_memory"`, `"std.string.capacity_overflow"`, `"std.fmt.unsupported"`, and `"std.process.invalid_encoding"`. User and package code may use their own prefixes, such as `"app.config.missing_key"`.
 - Standard-library modules should fail with `error`, not domain-specific fallible error type parameters.
 - Domain-specific detail is represented by `ErrorCode`, `message`, and, where needed later, additional standard-library helper APIs.
+
+### String and Formatting API Boundary
+
+Adopted: the initial owning-string and formatting boundary is split between `std/string` and `std/fmt`.
+
+Initial `std/string` public surface direction:
+
+```nct
+pub struct String {
+    ...
+}
+
+pub func empty(): String
+pub func with_capacity(allocator: &+Allocator, capacity: usize): String!
+pub func from_str(allocator: &+Allocator, value: str): String!
+pub func view(text: &String): str
+pub func push_str(text: &+String, value: str): void!
+pub func capacity_overflow(): error
+```
+
+Initial `std/fmt` public surface direction:
+
+```nct
+pub func append_str(out: &+String, value: str): void!
+pub func append_string(out: &+String, value: &String): void!
+pub func append_i32(out: &+String, value: i32): void!
+pub func append_bool(out: &+String, value: bool): void!
+pub func unsupported(): error
+```
+
+Rules:
+
+- These functions are ordinary standard-library APIs, not compiler built-ins.
+- Fallible functions fail with the built-in `error` payload. `std/string` and `std/fmt` must not introduce `StringError`, `FormatError`, or another domain-specific fallible payload.
+- `std/string.with_capacity` and `std/string.from_str` take an explicit `&+Allocator`.
+- The formatting append functions operate on an already-created `String`; they do not choose an allocator.
+- Future lowering for string interpolation must be expressed in terms of explicit `String` construction and `std/fmt.append_*` calls. It must not silently choose a process-global allocator.
+- `std/fmt` is not part of the initial prelude. User code imports it explicitly unless future prelude policy changes.
 
 ### I/O API
 

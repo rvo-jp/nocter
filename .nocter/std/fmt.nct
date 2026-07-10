@@ -1,0 +1,22 @@
+from std/error import make_error
+from std/string import String
+
+pub func append_str(out: &+String, value: str): void! {
+    return
+}
+
+pub func append_string(out: &+String, value: &String): void! {
+    return
+}
+
+pub func append_i32(out: &+String, value: i32): void! {
+    return
+}
+
+pub func append_bool(out: &+String, value: bool): void! {
+    return
+}
+
+pub func unsupported(): error {
+    return make_error("std.fmt.unsupported", "value cannot be formatted")
+}

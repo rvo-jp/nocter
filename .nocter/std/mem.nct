@@ -9,6 +9,8 @@
 // not part of the compiler primitive set in v0. The initial bodies are Parser
 // v0 placeholders until target-backed allocation wrappers are implemented.
 
+from std/error import make_error
+
 pub copy struct Layout {
     pub size: usize
     pub align: usize
@@ -39,4 +41,12 @@ pub func alloc(
 
 pub func free(allocator: &+Allocator, buffer: RawBuffer): void {
     return
+}
+
+pub func out_of_memory(): error {
+    return make_error("std.mem.out_of_memory", "allocation failed")
+}
+
+pub func invalid_argument(): error {
+    return make_error("std.mem.invalid_argument", "invalid allocation request")
 }

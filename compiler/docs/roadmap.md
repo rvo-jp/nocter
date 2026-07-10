@@ -12,10 +12,10 @@ The current LSP feature modules should present compiler analysis results, not gr
 
 Recommended next small task:
 
-1. Specify the minimal standard-library formatting/allocation API needed before interpolated strings can be lowered.
-2. Lower interpolated strings only through explicit standard-library `String` construction and formatting APIs; keep hidden compiler allocation disabled.
+1. Design the interpolation allocator source and lowering shape around explicit `std/string` construction plus `std/fmt.append_*` calls; keep hidden compiler allocation disabled.
+2. Add only the backend prerequisites needed by that lowering: imported standard-library calls, aggregate `String` storage, mutable local mutation through `&+String`, and fallible propagation from append calls.
 3. Consider broader terminal control-flow only after its lowering rules are designed.
-4. Keep imported calls, aggregate values, ownership/drop lowering, and general mutable storage disabled until their ABI and storage rules are designed.
+4. Keep unrelated imported calls, aggregate values, ownership/drop lowering, and general mutable storage disabled until their ABI and storage rules are designed.
 
 ## Near-Term Constraints
 
@@ -29,7 +29,7 @@ Recommended next small task:
 - Keep the self-contained backend direction. Do not switch to LLVM for the current compiler line.
 - Keep safety checks always enabled. Optimizers may remove checks only when they prove the trap condition impossible.
 - Treat allocation failure as recoverable failure in ordinary standard-library allocation APIs.
-- Model owned `String` as an ordinary standard-library owned value with explicit allocation; the target layout direction is pointer, length, and capacity.
+- Model owned `String` as an ordinary standard-library owned value with explicit allocation; the target layout direction is pointer, length, and capacity. Formatting APIs append into an existing `String` and fail through the built-in `error` payload.
 - Do not add a runtime GC.
 - Lower generics through monomorphization.
 - Prefer static trait dispatch; make dynamic dispatch explicit if it is added later.
