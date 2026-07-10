@@ -144,7 +144,8 @@ Newline rules:
 - LF bytes inside a block comment are emitted as `newline` tokens so block comments can preserve statement separation.
 - Comment text itself is not emitted as tokens.
 - Doc comment text is not emitted as ordinary tokens; compiler tooling scans source text to attach doc comments to symbols for future docs and LSP features.
-- Newlines inside string literals and byte literals are lexical errors.
+- Newlines inside single-line string literals and byte literals are lexical errors.
+- Newlines inside multi-line string literals are literal content and are not emitted as statement-separating `newline` tokens.
 
 EOF rules:
 
@@ -215,10 +216,19 @@ The type rules for integer literals are specified in [Values and Types](02-value
 
 ## String and Byte Literals
 
-String literals use double quotes:
+Single-line string literals use double quotes:
 
 ```nct
 let name = "Nocter"
+```
+
+Multi-line string literals use triple double quotes:
+
+```nct
+let message = """
+    first line
+    second line
+    """
 ```
 
 Byte literals use `b'...'`:
@@ -230,17 +240,33 @@ let marker: u8 = b'\xFF'
 
 Rules:
 
-- A string literal starts with `"` and ends at the next unescaped `"`.
+- A single-line string literal starts with `"` and ends at the next unescaped `"`.
+- A multi-line string literal starts with `"""` and ends at a closing `"""` delimiter.
 - A byte literal starts with `b'` and ends at the next unescaped `'`.
 - No whitespace is allowed between `b` and `'` in a byte literal.
 - Plain single-quoted literals such as `'a'` are invalid in v0.
-- Raw newlines are invalid inside string literals and byte literals.
-- Multi-line string literals are not part of v0.
+- Raw newlines are invalid inside single-line string literals and byte literals.
+- Raw newlines are valid inside multi-line string literals.
 - Raw string literals are not part of v0.
 - Unicode escape syntax is not part of v0.
 - Escapes are interpreted by the compiler before literal bytes are placed into the output executable.
 - A string literal must decode to valid UTF-8 after escapes are processed.
 - A byte literal must decode to exactly one byte.
+- Comments are not recognized inside single-line string literals, multi-line string literals, byte literals, or interpolation text segments.
+
+Multi-line string literal rules:
+
+- The opening `"""` delimiter must be followed immediately by a normalized LF.
+- The opening delimiter's LF is not part of the literal value.
+- The closing `"""` delimiter must appear after optional spaces or horizontal tabs at the start of a source line.
+- The closing delimiter's indentation is the exact byte prefix before the closing `"""`.
+- That exact indentation prefix is removed from each non-empty content line.
+- A non-empty content line that does not start with the closing delimiter's indentation prefix is invalid.
+- Empty content lines remain empty and do not need to contain the indentation prefix.
+- Spaces and tabs are compared byte-for-byte. Tabs are not expanded to columns.
+- The LF immediately before the closing delimiter is not part of the literal value.
+- The closing delimiter ends the multi-line string literal. Following source text is tokenized normally.
+- A `"""` sequence that is not in closing-delimiter position is ordinary literal content.
 
 Initial escapes:
 
@@ -252,12 +278,40 @@ Initial escapes:
 \\      backslash
 \"      double quote
 \'      single quote
+\$      dollar sign
 \xNN    byte with two hexadecimal digits
 ```
 
 In a byte literal, `\xNN` may produce any byte from `0x00` through `0xFF`.
 
 In a string literal, `\xNN` inserts that byte into the literal byte sequence. The final string literal must still be valid UTF-8.
+
+## String Interpolation
+
+String interpolation inserts expressions into string source forms with `${expr}`.
+
+Examples:
+
+```nct
+let path_text = "path: ${path}"
+let report = """
+    name: ${name}
+    count: ${count}
+    """
+```
+
+Rules:
+
+- Interpolation is recognized in single-line string forms and multi-line string forms.
+- Interpolation is not recognized in byte literals.
+- `${` begins an interpolation expression unless the `$` is escaped as `\$`.
+- The interpolation expression is parsed as a normal Nocter expression.
+- The expression ends at the matching `}` for the `${`.
+- Braces inside nested expressions, such as struct literals, blocks, and pattern conditionals, participate in normal brace matching.
+- Newline handling inside an interpolation expression follows ordinary expression grammar, not string-literal text rules.
+- Escapes in literal text segments are interpreted before the final text is constructed.
+- An interpolated string source form is an expression-level construct, not a plain string literal token. Its type, allocation behavior, evaluation order, and formatting rules are specified in [Strings, Arrays, Views, and Pointers](07-strings-arrays-views-pointers.md#string-interpolation).
+- To include the literal characters `${` in string text, write `\${`.
 
 The type and storage rules for string and byte literals are specified in [Strings, Arrays, Views, and Pointers](07-strings-arrays-views-pointers.md#string-and-byte-literals).
 
@@ -271,7 +325,6 @@ The following lexical features are intentionally not part of v0:
 - float literals
 - integer type suffixes
 - plain character literals
-- multi-line string literals
 - raw string literals
 - Unicode escape syntax
 - attribute syntax

@@ -353,9 +353,21 @@ String literals have the built-in type `str`.
 let name = "Nocter" // str
 ```
 
+Single-line and multi-line string literals are both string literals:
+
+```nct
+let one_line = "Nocter"
+let many_lines = """
+    first line
+    second line
+    """
+```
+
 `str` is a built-in type name and does not require an import. It is not exported by `std/string` or `std/prelude`.
 
 The compiler places string literal bytes into the Mach-O image. A string literal is not an owned `String`, and the compiler must not allocate a heap object for it.
+
+An interpolated string source form such as `"hello ${name}"` is not a string literal. It is an interpolated string expression and follows the separate interpolation rules below.
 
 `str` is the borrowed string view type:
 
@@ -407,6 +419,82 @@ There is no implicit conversion from a string literal to `&String`. `&String` bo
 
 The `char` type is deferred. Initial string APIs should operate on `str` and bytes until Unicode scalar and grapheme behavior is specified.
 
+## String and Byte Literals
+
+Adopted: string literals use either single-line double-quoted syntax or multi-line triple-double-quoted syntax.
+
+Rules:
+
+- A single-line string literal has type `str`.
+- A multi-line string literal has type `str`.
+- Both forms are valid UTF-8 after escape processing.
+- Both forms refer to static storage.
+- Multi-line string literal indentation is removed by the lexical rules in [Lexical Grammar](13-lexical-grammar.md#string-and-byte-literals).
+- Multi-line string literals do not add an implicit leading newline or trailing newline.
+- A multi-line string literal can include line breaks in its value.
+- The compiler must not allocate an owned `String` for a string literal.
+
+Example:
+
+```nct
+let text = """
+    alpha
+    beta
+    """
+```
+
+The value is equivalent to:
+
+```nct
+"alpha\nbeta"
+```
+
+## String Interpolation
+
+Adopted direction: `${expr}` inside a string source form creates an interpolated string expression.
+
+```nct
+let message = "hello ${name}"?
+let report = """
+    user: ${name}
+    count: ${count}
+    """?
+```
+
+An interpolated string expression is not a string literal, even when every literal text segment is static. It constructs an owned `String` at runtime.
+
+Rules:
+
+- The result type of an interpolated string expression is `String!`.
+- The expression is fallible because formatting or allocation can fail.
+- Literal text segments are decoded with the same escape rules as string literals.
+- Interpolation expressions are evaluated left to right with the surrounding literal text segments.
+- Each `${expr}` expression is evaluated exactly once.
+- Side effects in interpolation expressions occur at the interpolation position in left-to-right order.
+- If any interpolation expression fails through `?`, `!`, or an explicitly fallible call, normal fallible propagation rules apply.
+- If string construction fails, the expression fails with the error returned by the standard-library formatting operation.
+- `String` remains an ordinary standard-library type. The compiler must not make the identifier `String` a built-in type name.
+- The compiler must not treat user-defined names such as `to_string`, `format`, `append`, or `allocator` as magic.
+- A bare string literal without `${...}` remains `str` and does not allocate.
+
+Formatting rules:
+
+- `str` values append their bytes.
+- `String` values append their current string view.
+- Integer and boolean values format with their canonical source spelling without extra whitespace.
+- Optional, fallible, array, struct, enum, pointer, and user-defined nominal values are not interpolatable until a formatting trait or method protocol is adopted.
+- Using a non-interpolatable expression inside `${...}` is a type error.
+
+Allocator and lowering rules:
+
+- Interpolation requires runtime storage for the resulting owned `String`.
+- Nocter does not use GC and does not allow hidden compiler heap allocation for ordinary string literals.
+- The exact standard-library lowering API for interpolated strings is part of the string formatting design and must remain explicit about allocation.
+- A conforming implementation must not silently choose a process-global allocator for interpolation.
+- Until the standard-library formatting API is finalized, an implementation may parse and type-check interpolation syntax but reject lowering with a diagnostic that the interpolation lowering API is not implemented.
+
+The intended lowering is equivalent to constructing a `String` through ordinary standard-library operations, appending decoded text segments and formatted expression values in source order, then returning that owned value or a failure.
+
 ## Byte Literals and Escapes
 
 Adopted: byte literals use `b'...'` and have type `u8`.
@@ -426,7 +514,7 @@ Rules:
 - Plain single-quoted literals such as `'a'` are not part of the initial design.
 - The `char` type remains deferred.
 - Single quote syntax is reserved for a future `Char` or Unicode scalar design.
-- String literals use `"..."` and have built-in type `str`.
+- String literals use `"..."` or `"""..."""` and have built-in type `str`.
 - String literals are UTF-8.
 - String literal length APIs report byte length unless a future Unicode API explicitly says otherwise.
 - Escapes are interpreted by the compiler before placing literal bytes into the Mach-O image.
@@ -441,6 +529,7 @@ Initial escapes:
 \\      backslash
 \"      double quote
 \'      single quote
+\$      dollar sign
 \xNN    byte with two hexadecimal digits
 ```
 
