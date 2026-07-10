@@ -173,6 +173,8 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::AddI32 { .. }
         | Instruction::SubtractI32 { .. }
         | Instruction::MultiplyI32 { .. }
+        | Instruction::DivideI32 { .. }
+        | Instruction::RemainderI32 { .. }
         | Instruction::Return => false,
     }
 }
@@ -208,6 +210,8 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::AddI32 { .. }
         | Instruction::SubtractI32 { .. }
         | Instruction::MultiplyI32 { .. }
+        | Instruction::DivideI32 { .. }
+        | Instruction::RemainderI32 { .. }
         | Instruction::Return => 0,
     }
 }
@@ -251,6 +255,16 @@ fn record_instruction_scalar_locals(
             right,
         }
         | Instruction::MultiplyI32 {
+            destination,
+            left,
+            right,
+        }
+        | Instruction::DivideI32 {
+            destination,
+            left,
+            right,
+        }
+        | Instruction::RemainderI32 {
             destination,
             left,
             right,

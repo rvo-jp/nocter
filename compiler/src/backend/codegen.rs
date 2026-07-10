@@ -136,6 +136,20 @@ impl EntryEmitter {
             } => {
                 self.emit_multiply_i32(*destination, left, right)?;
             }
+            Instruction::DivideI32 {
+                destination,
+                left,
+                right,
+            } => {
+                self.emit_divide_i32(*destination, left, right)?;
+            }
+            Instruction::RemainderI32 {
+                destination,
+                left,
+                right,
+            } => {
+                self.emit_remainder_i32(*destination, left, right)?;
+            }
             Instruction::CallI32 {
                 destination,
                 function,
@@ -655,6 +669,70 @@ impl EntryEmitter {
         Ok(())
     }
 
+    fn emit_divide_i32(
+        &mut self,
+        destination: I32Location,
+        left: &I32Value,
+        right: &I32Value,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let destination = self.i32_location_register(destination)?;
+        self.emit_i32_value_to_w(left, WReg::W16)?;
+        self.emit_i32_value_to_w(right, destination)?;
+        self.emit_i32_division_safety_checks(WReg::W16, destination)?;
+        self.encoder
+            .emit_sdiv_w(destination, WReg::W16, destination);
+        Ok(())
+    }
+
+    fn emit_remainder_i32(
+        &mut self,
+        destination: I32Location,
+        left: &I32Value,
+        right: &I32Value,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let destination = self.i32_location_register(destination)?;
+        self.emit_i32_value_to_w(left, WReg::W16)?;
+        self.emit_i32_value_to_w(right, destination)?;
+        self.emit_i32_division_safety_checks(WReg::W16, destination)?;
+        self.encoder.emit_sdiv_w(WReg::W17, WReg::W16, destination);
+        self.encoder
+            .emit_msub_w(destination, WReg::W17, destination, WReg::W16);
+        Ok(())
+    }
+
+    fn emit_i32_division_safety_checks(
+        &mut self,
+        dividend: WReg,
+        divisor: WReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.encoder.emit_cmp_w_zero(divisor);
+        let divisor_nonzero = self.emit_cond_branch_placeholder(BranchCondition::Ne);
+        self.emit_trap();
+        self.patch_branch_placeholder_to_current(divisor_nonzero, "division non-zero target")?;
+
+        emit_mov_i32_to_w(&mut self.encoder, WReg::W17, i32::MIN);
+        self.encoder.emit_cmp_w(dividend, WReg::W17);
+        let dividend_not_min = self.emit_cond_branch_placeholder(BranchCondition::Ne);
+        emit_mov_i32_to_w(&mut self.encoder, WReg::W17, -1);
+        self.encoder.emit_cmp_w(divisor, WReg::W17);
+        let divisor_not_minus_one = self.emit_cond_branch_placeholder(BranchCondition::Ne);
+        self.emit_trap();
+        self.patch_branch_placeholder_to_current(
+            dividend_not_min,
+            "signed division overflow dividend target",
+        )?;
+        self.patch_branch_placeholder_to_current(
+            divisor_not_minus_one,
+            "signed division overflow divisor target",
+        )?;
+
+        Ok(())
+    }
+
+    fn emit_trap(&mut self) {
+        self.encoder.emit_brk(0);
+    }
+
     fn emit_i32_value_to_w(
         &mut self,
         value: &I32Value,
@@ -911,6 +989,8 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::AddI32 { .. }
             | Instruction::SubtractI32 { .. }
             | Instruction::MultiplyI32 { .. }
+            | Instruction::DivideI32 { .. }
+            | Instruction::RemainderI32 { .. }
             | Instruction::CallI32 { .. }
             | Instruction::CallBool { .. },
         )
@@ -1509,6 +1589,49 @@ mod tests {
     }
 
     #[test]
+    fn generates_i32_division_with_safety_traps() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::DivideI32 {
+                    destination: I32Location::Return,
+                    left: i32_const(84),
+                    right: i32_const(2),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+        assert!(contains_instruction(&code.text, [0x00, 0x0e, 0xc0, 0x1a])); // sdiv w0, w16, w0
+    }
+
+    #[test]
+    fn generates_i32_remainder_with_safety_traps() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::RemainderI32 {
+                    destination: I32Location::Return,
+                    left: i32_const(85),
+                    right: i32_const(43),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+        assert!(contains_instruction(&code.text, [0x11, 0x0e, 0xc0, 0x1a])); // sdiv w17, w16, w0
+        assert!(contains_instruction(&code.text, [0x20, 0xc2, 0x00, 0x1b])); // msub w0, w17, w0, w16
+    }
+
+    #[test]
     fn generates_terminal_if_with_false_condition() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
@@ -1864,5 +1987,9 @@ mod tests {
 
     fn i32_local(index: usize) -> I32Value {
         I32Value::Location(I32Location::Local(index))
+    }
+
+    fn contains_instruction(text: &[u8], instruction: [u8; 4]) -> bool {
+        text.windows(4).any(|window| window == instruction)
     }
 }

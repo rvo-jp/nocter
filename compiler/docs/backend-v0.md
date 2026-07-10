@@ -166,7 +166,7 @@ CallBool {
 ```
 
 This covers `let x = callee()` and `return callee() + 1` after the expression lowerer has a destination for intermediate results.
-The source expression lowerer stages normal-call results in temporary scalar locals for lowerable `i32` arithmetic with `+`, `-`, and `*`.
+The source expression lowerer stages normal-call results in temporary scalar locals for lowerable `i32` arithmetic with `+`, `-`, `*`, `/`, and `%`.
 Multiple normal calls in an arithmetic expression are evaluated left to right and receive distinct temporary locals.
 Nested normal-call arguments are also evaluated left to right before the parent `CallI32`.
 `i32` comparisons such as `if answer() == 42 { ... }`, `let matched = left() <= right()`, and `return left() < right()` evaluate lowerable call operands left to right, stage each call result in a temporary scalar local, and then build a `BoolValue::I32Comparison`.
@@ -217,6 +217,7 @@ Implement normal calls in this order:
 17. Done: lower nested `i32` tail-call arguments by staging child normal-call results before the final `TailCall`.
 18. Done: lower same-file `i32` normal calls as `i32` comparison operands by staging call results left to right before `BoolValue::I32Comparison`.
 19. Done: lower `i32` subtraction and multiplication through the same arithmetic staging path as addition, including same-file `i32` normal calls inside `+`, `-`, and `*` expressions.
+20. Done: lower `i32` division and remainder through the same arithmetic staging path, including same-file `i32` normal calls inside `/` and `%` expressions, and emit zero-divisor plus signed-overflow trap checks before ARM64 `sdiv`.
 
 ### Non-Goals For This Phase
 

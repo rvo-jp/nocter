@@ -106,6 +106,40 @@ func answer(): i32 {
 }
 
 #[test]
+fn build_command_lowers_i32_call_division_and_remainder() {
+    let project = TempProject::new("cli-build-i32-call-div-rem");
+    let source = project.write_source(
+        "i32_call_div_rem.nct",
+        r#"func main(): i32 {
+    return total() / divisor() + dividend() % modulus()
+}
+
+func total(): i32 {
+    return 60
+}
+
+func divisor(): i32 {
+    return 2
+}
+
+func dividend(): i32 {
+    return 25
+}
+
+func modulus(): i32 {
+    return 13
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_i32_normal_call_let_initializer() {
     let project = TempProject::new("cli-build-normal-call-let");
     let source = project.write_source(

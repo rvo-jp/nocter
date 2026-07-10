@@ -473,6 +473,84 @@ func offset(): i32 {
 }
 
 #[test]
+fn lowers_entry_i32_divide_and_remainder_with_normal_calls() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    return total() / divisor() + dividend() % modulus()
+}
+
+func total(): i32 {
+    return 84
+}
+
+func divisor(): i32 {
+    return 2
+}
+
+func dividend(): i32 {
+    return 85
+}
+
+func modulus(): i32 {
+    return 43
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_i32(I32Location::Local(1), "total", vec![]),
+                    call_i32(I32Location::Local(2), "divisor", vec![]),
+                    Instruction::DivideI32 {
+                        destination: I32Location::Local(0),
+                        left: i32_local(1),
+                        right: i32_local(2),
+                    },
+                    call_i32(I32Location::Local(4), "dividend", vec![]),
+                    call_i32(I32Location::Local(5), "modulus", vec![]),
+                    Instruction::RemainderI32 {
+                        destination: I32Location::Local(3),
+                        left: i32_local(4),
+                        right: i32_local(5),
+                    },
+                    Instruction::AddI32 {
+                        destination: I32Location::Return,
+                        left: i32_local(0),
+                        right: i32_local(3),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "total".to_string(),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(84), Instruction::Return],
+            },
+            Function {
+                name: "divisor".to_string(),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(2), Instruction::Return],
+            },
+            Function {
+                name: "dividend".to_string(),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(85), Instruction::Return],
+            },
+            Function {
+                name: "modulus".to_string(),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(43), Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
 fn lowers_entry_terminal_if_with_bool_literal_condition() {
     let ir = lower_text(
         r#"func main(): i32 {

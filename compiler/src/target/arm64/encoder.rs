@@ -36,6 +36,16 @@ impl Encoder {
         );
     }
 
+    pub(crate) fn emit_sdiv_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
+        self.emit_word(SDIV_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
+    }
+
+    pub(crate) fn emit_msub_w(&mut self, rd: WReg, rn: WReg, rm: WReg, ra: WReg) {
+        self.emit_word(
+            MSUB_W_BASE | (rm.bits() << 16) | (ra.bits() << 10) | (rn.bits() << 5) | rd.bits(),
+        );
+    }
+
     #[allow(dead_code)]
     pub(crate) fn emit_sub_sp_imm(&mut self, byte_count: u32) {
         self.emit_word(add_sub_sp_imm_word(SUB_SP_IMM_BASE, byte_count));
@@ -124,6 +134,10 @@ impl Encoder {
 
     pub(crate) fn emit_svc(&mut self, imm16: u16) {
         self.emit_word(SVC_BASE | ((imm16 as u32) << 5));
+    }
+
+    pub(crate) fn emit_brk(&mut self, imm16: u16) {
+        self.emit_word(BRK_BASE | ((imm16 as u32) << 5));
     }
 
     pub(crate) fn position(&self) -> usize {
@@ -320,6 +334,8 @@ const ORR_W_BASE: u32 = 0x2a00_0000;
 const ADD_W_BASE: u32 = 0x0b00_0000;
 const SUB_W_BASE: u32 = 0x4b00_0000;
 const MADD_W_BASE: u32 = 0x1b00_0000;
+const MSUB_W_BASE: u32 = 0x1b00_8000;
+const SDIV_W_BASE: u32 = 0x1ac0_0c00;
 #[allow(dead_code)]
 const ADD_SP_IMM_BASE: u32 = 0x9100_0000;
 #[allow(dead_code)]
@@ -341,6 +357,7 @@ const B_COND_BASE: u32 = 0x5400_0000;
 const BL_BASE: u32 = 0x9400_0000;
 const RET_X30: u32 = 0xd65f_03c0;
 const SVC_BASE: u32 = 0xd400_0001;
+const BRK_BASE: u32 = 0xd420_0000;
 
 const ADR_MIN_BYTE_OFFSET: i32 = -(1 << 20);
 const ADR_MAX_BYTE_OFFSET: i32 = (1 << 20) - 1;
@@ -473,6 +490,24 @@ mod tests {
         encoder.emit_mul_w(WReg::W0, WReg::W0, WReg::W1);
 
         assert_eq!(encoder.finish(), vec![0x00, 0x7c, 0x01, 0x1b]);
+    }
+
+    #[test]
+    fn encodes_sdiv_w0_w0_w1() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_sdiv_w(WReg::W0, WReg::W0, WReg::W1);
+
+        assert_eq!(encoder.finish(), vec![0x00, 0x0c, 0xc1, 0x1a]);
+    }
+
+    #[test]
+    fn encodes_msub_w0_w2_w1_w0() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_msub_w(WReg::W0, WReg::W2, WReg::W1, WReg::W0);
+
+        assert_eq!(encoder.finish(), vec![0x40, 0x80, 0x01, 0x1b]);
     }
 
     #[test]
@@ -743,5 +778,14 @@ mod tests {
         encoder.emit_svc(0x80);
 
         assert_eq!(encoder.finish(), vec![0x01, 0x10, 0x00, 0xd4]);
+    }
+
+    #[test]
+    fn encodes_brk_zero() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_brk(0);
+
+        assert_eq!(encoder.finish(), vec![0x00, 0x00, 0x20, 0xd4]);
     }
 }

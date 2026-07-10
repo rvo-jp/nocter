@@ -127,6 +127,16 @@ fn i32_arithmetic_instruction(
             left,
             right,
         }),
+        BinaryOperator::Divide => Ok(Instruction::DivideI32 {
+            destination,
+            left,
+            right,
+        }),
+        BinaryOperator::Remainder => Ok(Instruction::RemainderI32 {
+            destination,
+            left,
+            right,
+        }),
         _ => Err(unsupported_i32_expression_diagnostic()),
     }
 }
@@ -1019,7 +1029,11 @@ fn is_i32_comparison_operator(operator: BinaryOperator) -> bool {
 fn is_i32_arithmetic_operator(operator: BinaryOperator) -> bool {
     matches!(
         operator,
-        BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+        BinaryOperator::Add
+            | BinaryOperator::Subtract
+            | BinaryOperator::Multiply
+            | BinaryOperator::Divide
+            | BinaryOperator::Remainder
     )
 }
 
@@ -1175,7 +1189,7 @@ fn is_bool_equality_operator(operator: BinaryOperator) -> bool {
 fn unsupported_i32_expression_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8006",
-        "IR v0 can only lower i32 literals, parameters, addition, and direct tail calls",
+        "IR v0 can only lower i32 literals, parameters, arithmetic, and direct tail calls",
     )]
 }
 

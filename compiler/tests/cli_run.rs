@@ -752,6 +752,45 @@ func offset(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_i32_call_division_and_remainder_exit_code() {
+    let project = TempProject::new("cli-run-i32-call-div-rem");
+    let source = project.write_source(
+        "i32_call_div_rem.nct",
+        r#"func main(): i32 {
+    return total() / divisor() + dividend() % modulus()
+}
+
+func total(): i32 {
+    return 60
+}
+
+func divisor(): i32 {
+    return 2
+}
+
+func dividend(): i32 {
+    return 25
+}
+
+func modulus(): i32 {
+    return 13
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_nested_i32_normal_call_argument_exit_code() {
     let project = TempProject::new("cli-run-nested-normal-call-arg");
     let source = project.write_source(

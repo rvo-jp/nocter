@@ -7,7 +7,15 @@ Long-lived maintenance rules live in `AGENTS.md` and `docs/maintenance.md`.
 
 Recent committed work:
 
-- Current checkpoint: `Add string interpolation front-end`
+- Current checkpoint: `Lower i32 division and remainder`
+  - adds ARM64 encoder helpers for `sdiv`, `msub`, and `brk`
+  - adds IR lowering and ARM64 codegen for lowerable `i32` division and remainder
+  - supports same-file `i32` normal calls inside `/` and `%` arithmetic expressions
+  - keeps arithmetic expression evaluation left to right through the existing temporary staging path
+  - emits zero-divisor and signed-overflow trap checks before ARM64 `sdiv`
+  - adds IR lowering, codegen, CLI build, and CLI run coverage for user-visible `i32` division and remainder
+  - keeps imported calls, aggregate arguments/returns, ownership/drop lowering, `var`/reassignment, broader control-flow, and overflow checks for `+`, `-`, and `*` disabled
+- `Add string interpolation front-end`
   - accepts `${...}` inside single-line and multi-line string source forms while keeping escaped `\${` as literal text
   - adds `InterpolatedString` AST nodes with source-preserving text and expression parts
   - parses interpolation expressions with the normal expression parser over their original byte spans
@@ -166,9 +174,31 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Add string interpolation front-end`.
+- None expected after committing `Lower i32 division and remainder`.
 
 ## Verification Already Run
+
+For the i32 division/remainder backend work, from `compiler/`:
+
+```sh
+cargo fmt
+cargo test --quiet target::arm64::encoder
+cargo test --quiet generates_i32_division_with_safety_traps
+cargo test --quiet generates_i32_remainder_with_safety_traps
+cargo test --quiet ir::lower::tests::lowers_entry_i32_divide_and_remainder_with_normal_calls
+cargo test --quiet --test cli_build build_command_lowers_i32_call_division_and_remainder
+cargo test --quiet --test cli_run run_command_returns_i32_call_division_and_remainder_exit_code
+cargo test --quiet
+cargo clippy --all-targets --quiet -- -D warnings
+```
+
+From repository root:
+
+```sh
+git diff --check
+```
+
+All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew shellenv, but the commands exited successfully. One attempted targeted `cargo test` command passed two test names to Cargo and failed argument parsing before being rerun with separate filters.
 
 For the string interpolation front-end work, from `compiler/`:
 
