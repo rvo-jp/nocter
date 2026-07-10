@@ -18,21 +18,28 @@ Adopted user decisions:
 
 Recommended next implementation order:
 
-1. Finish scalar backend safety work: overflow traps for `+`, `-`, and `*`, then shift lowering with shift-count traps.
+1. Lower `i32` shift operators with shift-count traps.
 2. Specify the minimal standard-library allocation and formatting API needed for interpolated string lowering.
 3. Lower interpolated strings only through explicit standard-library `String` construction and formatting calls.
 4. Defer broad control flow, imported calls, aggregate values, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
-- Current checkpoint: `Lower i32 division and remainder`
+- Current checkpoint: `Add i32 arithmetic overflow traps`
+  - emits signed-overflow traps for lowered `i32` addition, subtraction, and multiplication
+  - lowers `+` and `-` through ARM64 `adds`/`subs` followed by a `b.vc` guarded `brk #0`
+  - lowers `*` through signed 64-bit `smull`, sign-extension comparison, and a `brk #0` when the product does not exactly fit in `i32`
+  - adds ARM64 encoder helpers and unit coverage for `adds`, `subs`, `smull`, `sxtw`, 64-bit `cmp`, and `b.vc`
+  - adds codegen coverage and CLI run coverage for addition, subtraction, and multiplication overflow trap paths
+  - keeps shift lowering, imported calls, aggregate arguments/returns, ownership/drop lowering, `var`/reassignment, and broader control-flow disabled
+- `Lower i32 division and remainder`
   - adds ARM64 encoder helpers for `sdiv`, `msub`, and `brk`
   - adds IR lowering and ARM64 codegen for lowerable `i32` division and remainder
   - supports same-file `i32` normal calls inside `/` and `%` arithmetic expressions
   - keeps arithmetic expression evaluation left to right through the existing temporary staging path
   - emits zero-divisor and signed-overflow trap checks before ARM64 `sdiv`
   - adds IR lowering, codegen, CLI build, and CLI run coverage for user-visible `i32` division and remainder, including zero-divisor and signed-overflow trap paths
-  - keeps imported calls, aggregate arguments/returns, ownership/drop lowering, `var`/reassignment, broader control-flow, and overflow checks for `+`, `-`, and `*` disabled
+  - kept imported calls, aggregate arguments/returns, ownership/drop lowering, `var`/reassignment, broader control-flow, and overflow checks for `+`, `-`, and `*` disabled at that checkpoint
 - `Add string interpolation front-end`
   - accepts `${...}` inside single-line and multi-line string source forms while keeping escaped `\${` as literal text
   - adds `InterpolatedString` AST nodes with source-preserving text and expression parts
@@ -192,9 +199,33 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Lower i32 division and remainder`.
+- None expected after committing `Add i32 arithmetic overflow traps`.
 
 ## Verification Already Run
+
+For the i32 arithmetic overflow backend work, from `compiler/`:
+
+```sh
+cargo fmt
+cargo test --quiet target::arm64::encoder
+cargo test --quiet backend::codegen
+cargo test --quiet generates_i32_addition_with_overflow_trap
+cargo test --quiet generates_i32_subtraction_with_overflow_trap
+cargo test --quiet generates_i32_multiplication_with_overflow_trap
+cargo test --quiet --test cli_run run_command_traps_i32_addition_overflow
+cargo test --quiet --test cli_run run_command_traps_i32_subtraction_overflow
+cargo test --quiet --test cli_run run_command_traps_i32_multiplication_overflow
+cargo test --quiet
+cargo clippy --all-targets --quiet -- -D warnings
+```
+
+From repository root:
+
+```sh
+git diff --check
+```
+
+All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew shellenv, but the commands exited successfully. Local assembler output was used once to confirm `smull`, `sxtw`, and 64-bit `cmp` instruction bytes for encoder tests; the compiler implementation still emits those bytes directly and does not depend on an external assembler.
 
 For the i32 division/remainder backend work, from `compiler/`:
 

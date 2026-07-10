@@ -218,6 +218,8 @@ Implement normal calls in this order:
 18. Done: lower same-file `i32` normal calls as `i32` comparison operands by staging call results left to right before `BoolValue::I32Comparison`.
 19. Done: lower `i32` subtraction and multiplication through the same arithmetic staging path as addition, including same-file `i32` normal calls inside `+`, `-`, and `*` expressions.
 20. Done: lower `i32` division and remainder through the same arithmetic staging path, including same-file `i32` normal calls inside `/` and `%` expressions, and emit zero-divisor plus signed-overflow trap checks before ARM64 `sdiv`.
+21. Done: emit signed-overflow trap checks for lowered `i32` addition, subtraction, and multiplication.
+22. Next: lower `i32` shift operators with shift-count trap checks.
 
 ### Non-Goals For This Phase
 

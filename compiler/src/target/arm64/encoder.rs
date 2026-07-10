@@ -22,14 +22,25 @@ impl Encoder {
         self.emit_word(ORR_W_BASE | (rm.bits() << 16) | (WZR_BITS << 5) | rd.bits());
     }
 
+    #[allow(dead_code)]
     pub(crate) fn emit_add_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
         self.emit_word(ADD_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
     }
 
+    pub(crate) fn emit_adds_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
+        self.emit_word(ADDS_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
+    }
+
+    #[allow(dead_code)]
     pub(crate) fn emit_sub_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
         self.emit_word(SUB_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
     }
 
+    pub(crate) fn emit_subs_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
+        self.emit_word(SUBS_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
+    }
+
+    #[allow(dead_code)]
     pub(crate) fn emit_mul_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
         self.emit_word(
             MADD_W_BASE | (rm.bits() << 16) | (WZR_BITS << 10) | (rn.bits() << 5) | rd.bits(),
@@ -44,6 +55,16 @@ impl Encoder {
         self.emit_word(
             MSUB_W_BASE | (rm.bits() << 16) | (ra.bits() << 10) | (rn.bits() << 5) | rd.bits(),
         );
+    }
+
+    pub(crate) fn emit_smull_x(&mut self, rd: XReg, rn: WReg, rm: WReg) {
+        self.emit_word(
+            SMADDL_X_BASE | (rm.bits() << 16) | (WZR_BITS << 10) | (rn.bits() << 5) | rd.bits(),
+        );
+    }
+
+    pub(crate) fn emit_sxtw_x_w(&mut self, rd: XReg, rn: WReg) {
+        self.emit_word(SXTW_X_BASE | (rn.bits() << 5) | rd.bits());
     }
 
     #[allow(dead_code)]
@@ -62,6 +83,10 @@ impl Encoder {
 
     pub(crate) fn emit_cmp_w_zero(&mut self, rn: WReg) {
         self.emit_word(SUBS_W_BASE | (WZR_BITS << 16) | (rn.bits() << 5) | WZR_BITS);
+    }
+
+    pub(crate) fn emit_cmp_x(&mut self, rn: XReg, rm: XReg) {
+        self.emit_word(SUBS_X_BASE | (rm.bits() << 16) | (rn.bits() << 5) | WZR_BITS);
     }
 
     pub(crate) fn emit_movz_x(&mut self, rd: XReg, imm16: u16, shift: MoveWideShift) {
@@ -266,6 +291,7 @@ impl WReg {
 pub(crate) enum BranchCondition {
     Eq,
     Ne,
+    Vc,
     Lt,
     Le,
     Gt,
@@ -277,6 +303,7 @@ impl BranchCondition {
         match self {
             Self::Eq => 0,
             Self::Ne => 1,
+            Self::Vc => 7,
             Self::Ge => 10,
             Self::Lt => 11,
             Self::Gt => 12,
@@ -290,6 +317,8 @@ pub(crate) enum XReg {
     X0,
     X1,
     X2,
+    X16,
+    X17,
     #[allow(dead_code)]
     X30,
 }
@@ -300,6 +329,8 @@ impl XReg {
             Self::X0 => 0,
             Self::X1 => 1,
             Self::X2 => 2,
+            Self::X16 => 16,
+            Self::X17 => 17,
             Self::X30 => 30,
         }
     }
@@ -331,16 +362,23 @@ impl MoveWideShift {
 const MOVZ_W_BASE: u32 = 0x5280_0000;
 const MOVK_W_BASE: u32 = 0x7280_0000;
 const ORR_W_BASE: u32 = 0x2a00_0000;
+#[allow(dead_code)]
 const ADD_W_BASE: u32 = 0x0b00_0000;
+const ADDS_W_BASE: u32 = 0x2b00_0000;
+#[allow(dead_code)]
 const SUB_W_BASE: u32 = 0x4b00_0000;
+#[allow(dead_code)]
 const MADD_W_BASE: u32 = 0x1b00_0000;
 const MSUB_W_BASE: u32 = 0x1b00_8000;
+const SMADDL_X_BASE: u32 = 0x9b20_0000;
+const SXTW_X_BASE: u32 = 0x9340_7c00;
 const SDIV_W_BASE: u32 = 0x1ac0_0c00;
 #[allow(dead_code)]
 const ADD_SP_IMM_BASE: u32 = 0x9100_0000;
 #[allow(dead_code)]
 const SUB_SP_IMM_BASE: u32 = 0xd100_0000;
 const SUBS_W_BASE: u32 = 0x6b00_0000;
+const SUBS_X_BASE: u32 = 0xeb00_0000;
 const MOVZ_X_BASE: u32 = 0xd280_0000;
 const MOVK_X_BASE: u32 = 0xf280_0000;
 const ADR_X_BASE: u32 = 0x1000_0000;
@@ -475,12 +513,30 @@ mod tests {
     }
 
     #[test]
+    fn encodes_adds_w0_w0_w1() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_adds_w(WReg::W0, WReg::W0, WReg::W1);
+
+        assert_eq!(encoder.finish(), vec![0x00, 0x00, 0x01, 0x2b]);
+    }
+
+    #[test]
     fn encodes_sub_w0_w0_w1() {
         let mut encoder = Encoder::new();
 
         encoder.emit_sub_w(WReg::W0, WReg::W0, WReg::W1);
 
         assert_eq!(encoder.finish(), vec![0x00, 0x00, 0x01, 0x4b]);
+    }
+
+    #[test]
+    fn encodes_subs_w0_w0_w1() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_subs_w(WReg::W0, WReg::W0, WReg::W1);
+
+        assert_eq!(encoder.finish(), vec![0x00, 0x00, 0x01, 0x6b]);
     }
 
     #[test]
@@ -508,6 +564,24 @@ mod tests {
         encoder.emit_msub_w(WReg::W0, WReg::W2, WReg::W1, WReg::W0);
 
         assert_eq!(encoder.finish(), vec![0x40, 0x80, 0x01, 0x1b]);
+    }
+
+    #[test]
+    fn encodes_smull_x17_w16_w0() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_smull_x(XReg::X17, WReg::W16, WReg::W0);
+
+        assert_eq!(encoder.finish(), vec![0x11, 0x7e, 0x20, 0x9b]);
+    }
+
+    #[test]
+    fn encodes_sxtw_x16_w17() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_sxtw_x_w(XReg::X16, WReg::W17);
+
+        assert_eq!(encoder.finish(), vec![0x30, 0x7e, 0x40, 0x93]);
     }
 
     #[test]
@@ -553,6 +627,15 @@ mod tests {
         encoder.emit_cmp_w_zero(WReg::W16);
 
         assert_eq!(encoder.finish(), vec![0x1f, 0x02, 0x1f, 0x6b]);
+    }
+
+    #[test]
+    fn encodes_cmp_x17_x16() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_cmp_x(XReg::X17, XReg::X16);
+
+        assert_eq!(encoder.finish(), vec![0x3f, 0x02, 0x10, 0xeb]);
     }
 
     #[test]
@@ -679,6 +762,15 @@ mod tests {
         encoder.emit_b_cond(BranchCondition::Ne, 8);
 
         assert_eq!(encoder.finish(), vec![0x41, 0x00, 0x00, 0x54]);
+    }
+
+    #[test]
+    fn encodes_b_vc_positive_offset() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_b_cond(BranchCondition::Vc, 8);
+
+        assert_eq!(encoder.finish(), vec![0x47, 0x00, 0x00, 0x54]);
     }
 
     #[test]

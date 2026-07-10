@@ -639,7 +639,9 @@ impl EntryEmitter {
         let destination = self.i32_location_register(destination)?;
         self.emit_i32_value_to_w(left, WReg::W16)?;
         self.emit_i32_value_to_w(right, destination)?;
-        self.encoder.emit_add_w(destination, WReg::W16, destination);
+        self.encoder
+            .emit_adds_w(destination, WReg::W16, destination);
+        self.emit_i32_overflow_check("i32 addition non-overflow target")?;
         Ok(())
     }
 
@@ -652,7 +654,9 @@ impl EntryEmitter {
         let destination = self.i32_location_register(destination)?;
         self.emit_i32_value_to_w(left, WReg::W16)?;
         self.emit_i32_value_to_w(right, destination)?;
-        self.encoder.emit_sub_w(destination, WReg::W16, destination);
+        self.encoder
+            .emit_subs_w(destination, WReg::W16, destination);
+        self.emit_i32_overflow_check("i32 subtraction non-overflow target")?;
         Ok(())
     }
 
@@ -665,7 +669,15 @@ impl EntryEmitter {
         let destination = self.i32_location_register(destination)?;
         self.emit_i32_value_to_w(left, WReg::W16)?;
         self.emit_i32_value_to_w(right, destination)?;
-        self.encoder.emit_mul_w(destination, WReg::W16, destination);
+        self.encoder.emit_smull_x(XReg::X17, WReg::W16, destination);
+        self.encoder.emit_sxtw_x_w(XReg::X16, WReg::W17);
+        self.encoder.emit_cmp_x(XReg::X17, XReg::X16);
+        let exact_fit = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+        self.emit_trap();
+        self.patch_branch_placeholder_to_current(exact_fit, "i32 multiplication exact-fit target")?;
+        if destination != WReg::W17 {
+            self.encoder.emit_mov_w(destination, WReg::W17);
+        }
         Ok(())
     }
 
@@ -726,6 +738,13 @@ impl EntryEmitter {
             "signed division overflow divisor target",
         )?;
 
+        Ok(())
+    }
+
+    fn emit_i32_overflow_check(&mut self, target_description: &str) -> Result<(), Vec<Diagnostic>> {
+        let no_overflow = self.emit_cond_branch_placeholder(BranchCondition::Vc);
+        self.emit_trap();
+        self.patch_branch_placeholder_to_current(no_overflow, target_description)?;
         Ok(())
     }
 
@@ -1299,19 +1318,23 @@ mod tests {
                 0xf0, 0x03, 0x09, 0x2a, // mov w16, w9
                 0xf0, 0x0b, 0x00, 0xb9, // str w16, [sp, #8]
                 0xe0, 0x0b, 0x40, 0xb9, // ldr w0, [sp, #8]
-                0x0a, 0x00, 0x00, 0x94, // bl add_two
+                0x0c, 0x00, 0x00, 0x94, // bl add_two
                 0xe9, 0x03, 0x40, 0xb9, // ldr w9, [sp, #0]
                 0xea, 0x07, 0x40, 0xb9, // ldr w10, [sp, #4]
                 0xea, 0x03, 0x00, 0x2a, // mov w10, w0
                 0xf0, 0x03, 0x09, 0x2a, // mov w16, w9
                 0xe0, 0x03, 0x0a, 0x2a, // mov w0, w10
-                0x00, 0x02, 0x00, 0x0b, // add w0, w16, w0
+                0x00, 0x02, 0x00, 0x2b, // adds w0, w16, w0
+                0x47, 0x00, 0x00, 0x54, // b.vc +8
+                0x00, 0x00, 0x20, 0xd4, // brk #0
                 0xfe, 0x0f, 0x40, 0xf9, // ldr x30, [sp, #24]
                 0xff, 0x83, 0x00, 0x91, // add sp, sp, #32
                 0xc0, 0x03, 0x5f, 0xd6, // ret
                 0xf0, 0x03, 0x00, 0x2a, // mov w16, w0
                 0x40, 0x00, 0x80, 0x52, // movz w0, #2
-                0x00, 0x02, 0x00, 0x0b, // add w0, w16, w0
+                0x00, 0x02, 0x00, 0x2b, // adds w0, w16, w0
+                0x47, 0x00, 0x00, 0x54, // b.vc +8
+                0x00, 0x00, 0x20, 0xd4, // brk #0
                 0xc0, 0x03, 0x5f, 0xd6, // ret
             ]
         );
@@ -1506,7 +1529,9 @@ mod tests {
                 0x01, 0x00, 0x00, 0x14, // b add
                 0xf0, 0x03, 0x00, 0x2a, // mov w16, w0
                 0xe0, 0x03, 0x01, 0x2a, // mov w0, w1
-                0x00, 0x02, 0x00, 0x0b, // add w0, w16, w0
+                0x00, 0x02, 0x00, 0x2b, // adds w0, w16, w0
+                0x47, 0x00, 0x00, 0x54, // b.vc +8
+                0x00, 0x00, 0x20, 0xd4, // brk #0
                 0xc0, 0x03, 0x5f, 0xd6, // ret
             ]
         );
@@ -1581,11 +1606,81 @@ mod tests {
                 0x09, 0x05, 0x80, 0x52, // movz w9, #40
                 0xf0, 0x03, 0x09, 0x2a, // mov w16, w9
                 0x4a, 0x00, 0x80, 0x52, // movz w10, #2
-                0x0a, 0x02, 0x0a, 0x0b, // add w10, w16, w10
+                0x0a, 0x02, 0x0a, 0x2b, // adds w10, w16, w10
+                0x47, 0x00, 0x00, 0x54, // b.vc +8
+                0x00, 0x00, 0x20, 0xd4, // brk #0
                 0xe0, 0x03, 0x0a, 0x2a, // mov w0, w10
                 0xc0, 0x03, 0x5f, 0xd6, // ret
             ]
         );
+    }
+
+    #[test]
+    fn generates_i32_addition_with_overflow_trap() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::AddI32 {
+                    destination: I32Location::Return,
+                    left: i32_const(40),
+                    right: i32_const(2),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0x00, 0x02, 0x00, 0x2b])); // adds w0, w16, w0
+        assert!(contains_instruction(&code.text, [0x47, 0x00, 0x00, 0x54])); // b.vc +8
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+    }
+
+    #[test]
+    fn generates_i32_subtraction_with_overflow_trap() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::SubtractI32 {
+                    destination: I32Location::Return,
+                    left: i32_const(40),
+                    right: i32_const(2),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0x00, 0x02, 0x00, 0x6b])); // subs w0, w16, w0
+        assert!(contains_instruction(&code.text, [0x47, 0x00, 0x00, 0x54])); // b.vc +8
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+    }
+
+    #[test]
+    fn generates_i32_multiplication_with_overflow_trap() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::MultiplyI32 {
+                    destination: I32Location::Return,
+                    left: i32_const(21),
+                    right: i32_const(2),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0x11, 0x7e, 0x20, 0x9b])); // smull x17, w16, w0
+        assert!(contains_instruction(&code.text, [0x30, 0x7e, 0x40, 0x93])); // sxtw x16, w17
+        assert!(contains_instruction(&code.text, [0x3f, 0x02, 0x10, 0xeb])); // cmp x17, x16
+        assert!(contains_instruction(&code.text, [0x40, 0x00, 0x00, 0x54])); // b.eq +8
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
     }
 
     #[test]

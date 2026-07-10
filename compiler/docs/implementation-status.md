@@ -68,7 +68,7 @@ Currently buildable:
 - up to 8 `i32` parameters for lowered functions and calls
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
 - non-entry functions returning `bool`
-- `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; division and remainder emit zero-divisor and signed-overflow trap checks
+- `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; addition, subtraction, and multiplication emit signed-overflow trap checks, and division and remainder emit zero-divisor plus signed-overflow trap checks
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` comparisons used in lowerable bool expressions
 - terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over literal/local operands, or `i32` comparison conditions and direct `i32` or non-entry `bool` returns in both branches
 - simple fallible entry success

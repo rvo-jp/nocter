@@ -847,6 +847,96 @@ func minus_one(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_traps_i32_addition_overflow() {
+    let project = TempProject::new("cli-run-i32-add-overflow");
+    let source = project.write_source(
+        "i32_add_overflow.nct",
+        r#"func main(): i32 {
+    return maximum() + one()
+}
+
+func maximum(): i32 {
+    return 2147483647
+}
+
+func one(): i32 {
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert!(
+        !output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_traps_i32_subtraction_overflow() {
+    let project = TempProject::new("cli-run-i32-sub-overflow");
+    let source = project.write_source(
+        "i32_sub_overflow.nct",
+        r#"func main(): i32 {
+    return minimum() - one()
+}
+
+func minimum(): i32 {
+    return -2147483648
+}
+
+func one(): i32 {
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert!(
+        !output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_traps_i32_multiplication_overflow() {
+    let project = TempProject::new("cli-run-i32-mul-overflow");
+    let source = project.write_source(
+        "i32_mul_overflow.nct",
+        r#"func main(): i32 {
+    return maximum() * two()
+}
+
+func maximum(): i32 {
+    return 2147483647
+}
+
+func two(): i32 {
+    return 2
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert!(
+        !output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_nested_i32_normal_call_argument_exit_code() {
     let project = TempProject::new("cli-run-nested-normal-call-arg");
     let source = project.write_source(

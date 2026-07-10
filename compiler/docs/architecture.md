@@ -164,7 +164,7 @@ Currently buildable:
 - up to 8 `i32` parameters for lowered functions and calls
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
 - non-entry functions returning `bool`
-- `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions
+- `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; addition, subtraction, and multiplication trap on signed overflow, and division and remainder trap on zero divisors and signed division overflow
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` comparisons used in lowerable bool expressions
 - terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over literal/local operands, or `i32` comparison conditions and direct `i32` or non-entry `bool` returns in both branches
 - simple fallible entry success
@@ -197,6 +197,8 @@ The source-level scalar call subset lowers same-file non-generic `i32` calls in 
 The frame, spill/reload, and normal-call implementation order is tracked in `backend-v0.md`.
 `backend/frame.rs` owns the fixed v0 frame layout planner: frame size, saved `x30` offset, and scalar spill-slot offsets.
 Codegen emits framed prologue/epilogue sequences and normal calls with conservative scalar spill/reload plus stack-backed argument staging.
+Addition and subtraction emission uses ARM64 flag-setting arithmetic and traps on signed overflow.
+Multiplication emission computes a signed 64-bit product and traps unless that product exactly fits in `i32`.
 Division and remainder emission inserts zero-divisor and signed-overflow trap checks before ARM64 `sdiv`.
 Imported calls, aggregate values, ownership/drop lowering, and general control-flow call placement remain outside the buildable subset.
 

@@ -12,7 +12,7 @@ The current LSP feature modules should present compiler analysis results, not gr
 
 Recommended next small task:
 
-1. Finish scalar backend safety work: overflow traps for `+`, `-`, and `*`, then shift lowering with shift-count traps.
+1. Lower `i32` shift operators with shift-count traps.
 2. Specify the minimal standard-library formatting/allocation API needed before interpolated strings can be lowered.
 3. Lower interpolated strings only through explicit standard-library `String` construction and formatting APIs; keep hidden compiler allocation disabled.
 4. Consider broader terminal control-flow only after its lowering rules are designed.
@@ -41,5 +41,5 @@ Recommended next small task:
 - No LLVM, `clang`, `as`, `ld`, Xcode Command Line Tools, or external linker backend.
 - Keep the compiler self-contained.
 - Prefer maintainable module boundaries over adding more logic to already busy files.
-- Backend v0 has frame layout planning, framed prologue/epilogue emission, normal-call codegen with conservative scalar spill/reload and argument staging, tail-call argument staging, and source lowering for same-file `i32` normal calls in `let` initializers, arithmetic expressions using `+`, `-`, `*`, `/`, and `%`, `i32` comparison operands, nested normal-call arguments, and nested tail-call arguments plus bool-returning normal calls in `let` initializers, unary-not bool expressions, bool equality/inequality operands, short-circuit bool value expressions, direct terminal-if conditions, terminal-if short-circuit conditions, and short-circuit expressions that combine bool calls with `i32` call comparisons.
+- Backend v0 has frame layout planning, framed prologue/epilogue emission, normal-call codegen with conservative scalar spill/reload and argument staging, tail-call argument staging, and source lowering for same-file `i32` normal calls in `let` initializers, arithmetic expressions using `+`, `-`, `*`, `/`, and `%`, `i32` comparison operands, nested normal-call arguments, and nested tail-call arguments plus bool-returning normal calls in `let` initializers, unary-not bool expressions, bool equality/inequality operands, short-circuit bool value expressions, direct terminal-if conditions, terminal-if short-circuit conditions, and short-circuit expressions that combine bool calls with `i32` call comparisons. Lowered `i32` `+`, `-`, `*`, `/`, and `%` now include the v0 runtime trap checks needed for signed scalar safety.
 - Session handoff and maintenance rules live in `../AGENTS.md` and `maintenance.md`.
