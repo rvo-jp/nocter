@@ -9,6 +9,7 @@ mod operators;
 mod optional;
 mod patterns;
 mod returns;
+mod strings;
 mod structs;
 mod support;
 mod variants;
@@ -18,9 +19,9 @@ use super::model::{ReturnContext, Type};
 use super::type_expr::type_expr_display_lossy;
 use crate::ast::{
     BinaryExpr, BindingKind, BindingStmt, Block, CallExpr, Expr, ForRangeStmt, IfIsStmt, IfLetStmt,
-    IndexExpr, MemberExpr, PatternConditionalArm, PatternConditionalExpr, ReturnStmt,
-    StructLiteralExpr, StructLiteralField, SwitchArm, SwitchStmt, TypeConversionExpr, UnaryExpr,
-    WhileLetStmt,
+    IndexExpr, InterpolatedStringExpression, MemberExpr, PatternConditionalArm,
+    PatternConditionalExpr, ReturnStmt, StructLiteralExpr, StructLiteralField, SwitchArm,
+    SwitchStmt, TypeConversionExpr, UnaryExpr, WhileLetStmt,
 };
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
 use crate::resolve::{
@@ -40,6 +41,7 @@ pub(super) use operators::*;
 pub(super) use optional::*;
 pub(super) use patterns::*;
 pub(super) use returns::*;
+pub(super) use strings::*;
 pub(super) use structs::*;
 pub(super) use variants::*;
 

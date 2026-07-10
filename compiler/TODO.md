@@ -7,14 +7,23 @@ Long-lived maintenance rules live in `AGENTS.md` and `docs/maintenance.md`.
 
 Recent committed work:
 
-- Current checkpoint: `Add multi-line string literals`
+- Current checkpoint: `Add string interpolation front-end`
+  - accepts `${...}` inside single-line and multi-line string source forms while keeping escaped `\${` as literal text
+  - adds `InterpolatedString` AST nodes with source-preserving text and expression parts
+  - parses interpolation expressions with the normal expression parser over their original byte spans
+  - type-checks interpolated string expressions as `String!`
+  - accepts interpolation parts of type `str`, `String`, integer, and `bool`
+  - reports `E0379` for unsupported interpolation part types such as arrays
+  - traverses interpolation expressions during resolution, return/propagation checks, documentation collection, LSP hover collection, and IR call-containment analysis
+  - keeps runtime lowering for interpolated string construction disabled until the standard-library formatting/allocation API is finalized
+- `Add multi-line string literals`
   - adds shared string literal decoding for single-line and multi-line string literals
   - lexes multi-line `"""..."""` string literals as one `StringLiteral` token without emitting statement newlines for literal content
   - validates multi-line opening newline, closing indentation removal, final UTF-8 after escapes, and `\$`
-  - diagnoses unescaped `${` as unimplemented string interpolation instead of accepting it as literal text
+  - diagnosed unescaped `${` as unimplemented string interpolation instead of accepting it as literal text at that checkpoint
   - updates comment scanning so `//` and `/* */` inside multi-line string literals do not count as comments
   - lowers static fallible failure messages from single-line or multi-line string literals through `return make_error("code", <message>)`
-  - keeps general `str` values, owned `String`, interpolation parsing/typechecking/lowering, imported calls, aggregate values, ownership/drop lowering, `var`/reassignment, and broader control-flow disabled
+  - kept general `str` values, owned `String`, interpolation parsing/typechecking/lowering, imported calls, aggregate values, ownership/drop lowering, `var`/reassignment, and broader control-flow disabled
 - `Lower i32 call arithmetic`
   - adds IR lowering and ARM64 codegen for lowerable `i32` subtraction and multiplication alongside existing addition
   - supports same-file `i32` normal calls inside `+`, `-`, and `*` arithmetic expressions, such as `return answer() * 2 - offset()`
@@ -157,9 +166,29 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Add multi-line string literals`.
+- None expected after committing `Add string interpolation front-end`.
 
 ## Verification Already Run
+
+For the string interpolation front-end work, from `compiler/`:
+
+```sh
+cargo fmt
+cargo test -q parser::tests::expressions::parses_interpolated_string_expression
+cargo test -q typecheck::tests::strings
+cargo test -q literals::tests::
+cargo test -q lexer::tests::
+cargo test --quiet
+cargo clippy --all-targets --quiet -- -D warnings
+```
+
+From repository root:
+
+```sh
+git diff --check
+```
+
+All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew shellenv, but the commands exited successfully.
 
 For the multi-line string literal work, from `compiler/`:
 

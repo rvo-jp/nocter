@@ -31,6 +31,7 @@ impl Formatter {
             | Expr::StringLiteral(expression)
             | Expr::BoolLiteral(expression)
             | Expr::NoneLiteral(expression) => self.write(&expression.value),
+            Expr::InterpolatedString(expression) => self.write(&expression.value),
             Expr::ArrayLiteral(expression) => {
                 self.write("[");
                 self.write_comma_separated(&expression.elements, |formatter, element| {
@@ -179,6 +180,7 @@ fn expression_precedence(expression: &Expr) -> u8 {
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
         | Expr::StringLiteral(_)
+        | Expr::InterpolatedString(_)
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_)
         | Expr::ArrayLiteral(_)

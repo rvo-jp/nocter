@@ -176,6 +176,7 @@ Currently not buildable even when it may be checkable:
 - general `if`, `while`, `loop`, range `for`, and `match`
 - imported function calls
 - `str` values beyond static fallible failure messages
+- interpolated string construction
 - optional values
 - aggregate values, arrays, views, pointers, methods, traits, generics, ownership lowering, and drop glue
 - custom output path selection through `-o`
@@ -235,7 +236,7 @@ src/
 Responsibilities:
 
 - `source/`: source file loading, UTF-8 decoding, CRLF-to-LF normalization, source maps, canonical absolute paths, and byte-based span conversion for diagnostics and JSON tools.
-- `lexer/`: comments, ASCII identifiers, integer/string/byte literals, tokenization for normalized `.nct` source text, and v0 diagnostics for reserved-but-invalid punctuation such as `@`.
+- `lexer/`: comments, ASCII identifiers, integer/string/byte literals, interpolation-aware string source forms, tokenization for normalized `.nct` source text, and v0 diagnostics for reserved-but-invalid punctuation such as `@`.
 - `parser/`: syntax parsing and parser diagnostics.
 - `ast/`: source-level syntax tree definitions.
 - `resolve/`: imports, canonical absolute source-file identity, path-derived modules, visibility, and name lookup.
@@ -396,6 +397,7 @@ Initial grammar coverage:
 - `??` optional-default expressions
 - `target ?{ Enum.variant : value : fallback }` enum pattern conditional expressions
 - identifier, integer, string, bool, and `none` expressions
+- interpolated string expressions with source-preserving text and expression parts
 
 Parser v0 deliberately does not resolve imports, validate the executable entry signature, type-check expressions, check ownership, or follow imported files. It may stop after the first syntax error. When lexing fails, `nocter ast` returns a `nocter.ast` envelope with `ast: null` and the lexer diagnostics.
 
@@ -449,6 +451,7 @@ Current semantic coverage:
 - integer literals can be checked against an expected integer type in returns, function arguments, annotated bindings, and array literal elements
 - bool literals have type `bool` in v0 checking
 - string literals are modeled as built-in `str` values in v0 checking
+- interpolated string expressions are modeled as `String!` and currently accept `str`, `String`, integer, and `bool` interpolation part types
 - `Enum.variant` and `Enum.variant(args...)` construct enum values and check declared variant payload arity and payload types
 - `as` type conversion expressions require lossless integer conversion and return the target type
 - arithmetic expressions return the resolved integer operand type and require matching integer operands

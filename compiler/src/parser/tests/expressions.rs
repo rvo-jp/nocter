@@ -1,5 +1,5 @@
 use super::support::{find_json_node, parse_text, parse_text_with_sources};
-use crate::ast::{BinaryOperator, Expr, Item, Stmt, UnaryOperator};
+use crate::ast::{BinaryOperator, Expr, InterpolatedStringPart, Item, Stmt, UnaryOperator};
 
 #[test]
 fn parses_optional_default_expression() {
@@ -191,6 +191,48 @@ fn parses_multi_line_string_literal_expression() {
         literal.value,
         "\"\"\"\n        alpha\n        beta\n        \"\"\""
     );
+}
+
+#[test]
+fn parses_interpolated_string_expression() {
+    let (sources, output) = parse_text_with_sources(
+        r#"func main(name: str): i32 {
+    let text = "hello ${name} ${1 + 2}"
+    return 0
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
+    };
+    let Stmt::Binding(binding) = &function.body.statements[0] else {
+        panic!("expected binding statement");
+    };
+    let Expr::InterpolatedString(expression) = &binding.initializer else {
+        panic!("expected interpolated string expression");
+    };
+    assert_eq!(expression.parts.len(), 4);
+    let InterpolatedStringPart::Expression(name_part) = &expression.parts[1] else {
+        panic!("expected interpolation expression");
+    };
+    let Expr::Identifier(identifier) = name_part.expression.as_ref() else {
+        panic!("expected identifier interpolation");
+    };
+    assert_eq!(identifier.name, "name");
+    let InterpolatedStringPart::Expression(sum_part) = &expression.parts[3] else {
+        panic!("expected interpolation expression");
+    };
+    let Expr::Binary(binary) = sum_part.expression.as_ref() else {
+        panic!("expected binary interpolation");
+    };
+    assert_eq!(binary.operator, BinaryOperator::Add);
+
+    let json = ast.to_json(&sources);
+    assert!(find_json_node(&json, "interpolated_string").is_some());
+    assert!(find_json_node(&json, "string_interpolation").is_some());
 }
 
 #[test]

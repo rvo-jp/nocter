@@ -1,7 +1,7 @@
 //! Tokenization for `.nct` source files.
 
 use crate::diagnostics::Diagnostic;
-use crate::literals::decode_string_literal_bytes;
+use crate::literals::{find_interpolation_end, validate_string_literal_source};
 use crate::source::{ByteSpan, JsonSpan, SourceId, SourceMap};
 use serde::Serialize;
 
@@ -96,14 +96,43 @@ pub fn lex(sources: &SourceMap, source: SourceId) -> LexOutput {
         };
     };
 
+    lex_range(sources, source, 0, file.text().len())
+}
+
+pub fn lex_span(sources: &SourceMap, span: ByteSpan) -> LexOutput {
+    lex_range(sources, span.source, span.start, span.end)
+}
+
+fn lex_range(sources: &SourceMap, source: SourceId, start: usize, end: usize) -> LexOutput {
+    let Some(file) = sources.get(source) else {
+        return LexOutput {
+            tokens: Vec::new(),
+            diagnostics: vec![Diagnostic::error(
+                "E0100",
+                format!("unknown source id {}", source.raw()),
+            )],
+        };
+    };
+
     let text = file.text();
     let bytes = text.as_bytes();
+    if start > end || end > bytes.len() {
+        return LexOutput {
+            tokens: Vec::new(),
+            diagnostics: vec![Diagnostic::error(
+                "E0100",
+                format!("invalid lexer byte range {start}..{end}"),
+            )],
+        };
+    }
+
     let mut lexer = Lexer {
         sources,
         source,
         text,
         bytes,
-        index: 0,
+        index: start,
+        end,
         tokens: Vec::new(),
         diagnostics: Vec::new(),
     };
@@ -198,6 +227,7 @@ struct Lexer<'a> {
     text: &'a str,
     bytes: &'a [u8],
     index: usize,
+    end: usize,
     tokens: Vec<Token>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -265,11 +295,12 @@ impl Lexer<'_> {
     }
 
     fn is_at_end(&self) -> bool {
-        self.index >= self.bytes.len()
+        self.index >= self.end
     }
 
     fn peek(&self, offset: usize) -> Option<u8> {
-        self.bytes.get(self.index + offset).copied()
+        let index = self.index + offset;
+        (index < self.end).then(|| self.bytes[index])
     }
 
     fn push(&mut self, kind: TokenKind, start: usize, end: usize) {
@@ -358,7 +389,7 @@ impl Lexer<'_> {
             self.index += 1;
         }
 
-        if self.index < self.bytes.len()
+        if self.index < self.end
             && self.bytes[self.index] == b'.'
             && self.peek(1).is_some_and(|next| next.is_ascii_digit())
         {
@@ -428,7 +459,7 @@ impl Lexer<'_> {
     }
 
     fn scan_string_literal(&mut self) {
-        if self.bytes[self.index..].starts_with(b"\"\"\"") {
+        if self.bytes[self.index..self.end].starts_with(b"\"\"\"") {
             self.scan_multi_line_string_literal();
         } else {
             self.scan_single_line_string_literal();
@@ -464,14 +495,14 @@ impl Lexer<'_> {
                 }
                 b'$' if self.peek(1) == Some(b'{') => {
                     let interpolation_start = self.index;
-                    self.index += 2;
-                    self.error(
-                        interpolation_start,
-                        self.index,
-                        "string interpolation is not implemented yet",
-                    );
-                    self.skip_single_line_string_remainder();
-                    return;
+                    match find_interpolation_end(self.text, interpolation_start, self.end) {
+                        Ok(end) => self.index = end + 1,
+                        Err(error) => {
+                            self.error(error.start, error.end, error.message);
+                            self.index = error.end;
+                            return;
+                        }
+                    }
                 }
                 _ => {
                     self.index += current_char_len(self.text, self.index);
@@ -501,11 +532,14 @@ impl Lexer<'_> {
         while !self.is_at_end() {
             if self.index == line_start {
                 let mut indent_end = self.index;
-                while matches!(self.bytes.get(indent_end), Some(b' ' | b'\t')) {
+                while indent_end < self.end
+                    && matches!(self.bytes.get(indent_end), Some(b' ' | b'\t'))
+                {
                     indent_end += 1;
                 }
 
-                if self.bytes[indent_end..].starts_with(b"\"\"\"") {
+                if indent_end <= self.end && self.bytes[indent_end..self.end].starts_with(b"\"\"\"")
+                {
                     self.index = indent_end + 3;
                     if self.validate_string_literal(start, self.index) {
                         self.push(TokenKind::StringLiteral, start, self.index);
@@ -535,14 +569,14 @@ impl Lexer<'_> {
                 }
                 b'$' if self.peek(1) == Some(b'{') => {
                     let interpolation_start = self.index;
-                    self.index += 2;
-                    self.error(
-                        interpolation_start,
-                        self.index,
-                        "string interpolation is not implemented yet",
-                    );
-                    self.skip_multi_line_string_remainder(line_start);
-                    return;
+                    match find_interpolation_end(self.text, interpolation_start, self.end) {
+                        Ok(end) => self.index = end + 1,
+                        Err(error) => {
+                            self.error(error.start, error.end, error.message);
+                            self.index = error.end;
+                            return;
+                        }
+                    }
                 }
                 _ => {
                     self.index += current_char_len(self.text, self.index);
@@ -553,58 +587,11 @@ impl Lexer<'_> {
         self.error(start, self.index, "unterminated multi-line string literal");
     }
 
-    fn skip_single_line_string_remainder(&mut self) {
-        while !self.is_at_end() {
-            match self.bytes[self.index] {
-                b'"' => {
-                    self.index += 1;
-                    return;
-                }
-                b'\n' | b'\r' => return,
-                b'\\' => {
-                    self.index = (self.index + 2).min(self.bytes.len());
-                }
-                _ => {
-                    self.index += current_char_len(self.text, self.index);
-                }
-            }
-        }
-    }
-
-    fn skip_multi_line_string_remainder(&mut self, mut line_start: usize) {
-        while !self.is_at_end() {
-            if self.index == line_start {
-                let mut indent_end = self.index;
-                while matches!(self.bytes.get(indent_end), Some(b' ' | b'\t')) {
-                    indent_end += 1;
-                }
-
-                if self.bytes[indent_end..].starts_with(b"\"\"\"") {
-                    self.index = indent_end + 3;
-                    return;
-                }
-            }
-
-            match self.bytes[self.index] {
-                b'\n' => {
-                    self.index += 1;
-                    line_start = self.index;
-                }
-                b'\\' => {
-                    self.index = (self.index + 2).min(self.bytes.len());
-                }
-                _ => {
-                    self.index += current_char_len(self.text, self.index);
-                }
-            }
-        }
-    }
-
     fn validate_string_literal(&mut self, start: usize, end: usize) -> bool {
-        match decode_string_literal_bytes(&self.text[start..end]) {
+        match validate_string_literal_source(&self.text[start..end]) {
             Ok(_) => true,
-            Err(message) => {
-                self.error(start, end, message);
+            Err(error) => {
+                self.error(start + error.start, start + error.end, error.message);
                 false
             }
         }
@@ -706,7 +693,7 @@ impl Lexer<'_> {
         ];
 
         for &(bytes, spelling) in MULTI {
-            if self.bytes[start..].starts_with(bytes) {
+            if self.bytes[start..self.end].starts_with(bytes) {
                 self.index += bytes.len();
                 self.push(TokenKind::Punctuation(spelling), start, self.index);
                 return true;
@@ -1063,12 +1050,42 @@ mod tests {
     }
 
     #[test]
-    fn diagnoses_unescaped_string_interpolation_start() {
+    fn lexes_string_interpolation_source_form() {
         let mut sources = SourceMap::new();
         let id = sources.add_source("app.nct", None, r#"let text = "hello ${name}""#);
         let output = lex(&sources, id);
 
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        assert!(
+            output
+                .tokens
+                .iter()
+                .any(|token| token.kind == TokenKind::StringLiteral)
+        );
+    }
+
+    #[test]
+    fn diagnoses_unterminated_string_interpolation() {
+        let mut sources = SourceMap::new();
+        let id = sources.add_source("app.nct", None, r#"let text = "hello ${name""#);
+        let output = lex(&sources, id);
+
         assert_eq!(output.diagnostics.len(), 1);
         assert!(output.diagnostics[0].message.contains("interpolation"));
+    }
+
+    #[test]
+    fn lexes_byte_span_with_original_offsets() {
+        let mut sources = SourceMap::new();
+        let id = sources.add_source("app.nct", None, r#"let text = "hello ${name}""#);
+        let output = lex_span(&sources, ByteSpan::new(id, 20, 24));
+
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        assert_eq!(output.tokens[0].kind, TokenKind::Identifier);
+        assert_eq!(output.tokens[0].span, ByteSpan::new(id, 20, 24));
+        assert_eq!(
+            output.tokens.last().unwrap().span,
+            ByteSpan::new(id, 24, 24)
+        );
     }
 }

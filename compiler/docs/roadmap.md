@@ -12,8 +12,8 @@ The current LSP feature modules should present compiler analysis results, not gr
 
 Recommended next small task:
 
-1. Finish string interpolation as an explicit expression AST and type-check it as `String!`, while keeping lowering rejected until the formatting and allocation API is designed.
-2. Then return to expanding the narrow source-level scalar normal-call subset already enabled.
+1. Decide the explicit standard-library formatting/allocation API needed before interpolated strings can be lowered, or keep lowering rejected until that API is specified.
+2. Return to expanding the narrow source-level scalar normal-call subset already enabled.
 3. Consider broader terminal control-flow only after its lowering rules are designed.
 4. Keep imported calls, aggregate values, ownership/drop lowering, and general mutable storage disabled until their ABI and storage rules are designed.
 

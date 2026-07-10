@@ -160,6 +160,13 @@ fn collect_expression_targets(
         | Expr::StringLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => {}
+        Expr::InterpolatedString(expression) => {
+            for part in &expression.parts {
+                if let InterpolatedStringPart::Expression(part) = part {
+                    collect_expression_targets(text, &part.expression, targets);
+                }
+            }
+        }
         Expr::ArrayLiteral(expression) => {
             for element in &expression.elements {
                 collect_expression_targets(text, element, targets);

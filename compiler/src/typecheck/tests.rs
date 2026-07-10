@@ -8,6 +8,7 @@ mod methods;
 mod operators;
 mod optional;
 mod returns;
+mod strings;
 mod structs;
 mod variants;
 

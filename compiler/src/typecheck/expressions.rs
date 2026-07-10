@@ -4,6 +4,7 @@ use super::diagnostics::error_member_unknown_diagnostic;
 use super::environments::environment_for_pattern_conditional_arm;
 use super::model::{Type, TypeEnvironment};
 use super::operations::{binary_expression_type, is_assignable};
+use super::strings::interpolated_string_type;
 use super::structs::{struct_literal_type, struct_member_type};
 use super::type_expr::{type_expr_to_type_in_environment, type_expr_to_type_with_self_type};
 use super::variants::{enum_variant_call_type, enum_variant_member_type};
@@ -65,6 +66,7 @@ pub(super) fn expression_type(
     match expression {
         Expr::IntegerLiteral(_) => Type::I32,
         Expr::StringLiteral(_) => Type::Str,
+        Expr::InterpolatedString(_) => interpolated_string_type(resolved),
         Expr::BoolLiteral(_) => Type::Primitive("bool".to_string()),
         Expr::NoneLiteral(_) => Type::None,
         Expr::ArrayLiteral(expression) => array_literal_type(expression, resolved, environment),

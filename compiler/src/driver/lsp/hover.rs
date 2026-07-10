@@ -6,8 +6,8 @@ use super::protocol::{
 use super::semantic::{SEMANTIC_DECLARATION_MODIFIER, classified_identifiers};
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    AstFile, BindingStmt, Block, EnumDecl, Expr, FunctionDecl, ImplMember, Item, MethodDecl,
-    Parameter, PrimitiveDecl, Stmt, StructDecl, StructField, TraitDecl,
+    AstFile, BindingStmt, Block, EnumDecl, Expr, FunctionDecl, ImplMember, InterpolatedStringPart,
+    Item, MethodDecl, Parameter, PrimitiveDecl, Stmt, StructDecl, StructField, TraitDecl,
 };
 use crate::comments::{DocumentationTarget, attach_documentation};
 use crate::lexer::lex;
@@ -573,6 +573,18 @@ fn collect_expression_resolved_hover_symbols(
                 candidates,
             );
         }
+        Expr::InterpolatedString(expression) => {
+            for part in &expression.parts {
+                if let InterpolatedStringPart::Expression(part) = part {
+                    collect_expression_resolved_hover_symbols(
+                        &part.expression,
+                        resolved,
+                        offset,
+                        candidates,
+                    );
+                }
+            }
+        }
         Expr::OptionalDefault(expression) => {
             collect_expression_resolved_hover_symbols(
                 &expression.value,
@@ -966,6 +978,13 @@ fn collect_expression_hover_symbols(text: &str, expression: &Expr, symbols: &mut
         }
         Expr::Group(expression) => {
             collect_expression_hover_symbols(text, &expression.expression, symbols);
+        }
+        Expr::InterpolatedString(expression) => {
+            for part in &expression.parts {
+                if let InterpolatedStringPart::Expression(part) = part {
+                    collect_expression_hover_symbols(text, &part.expression, symbols);
+                }
+            }
         }
         Expr::OptionalDefault(expression) => {
             collect_expression_hover_symbols(text, &expression.value, symbols);

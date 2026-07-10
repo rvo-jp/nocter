@@ -21,12 +21,13 @@ use super::model::{TypeEnvironment, binding_kind_is_mutable};
 use super::operations::{
     check_binary_expression, check_type_conversion_expression, check_unary_expression,
 };
+use super::strings::check_interpolated_string_expression;
 use super::structs::{check_struct_literal_expression, check_struct_member_expression};
 use super::variants::{
     check_enum_variant_call, check_enum_variant_member, check_if_is_statement,
     check_pattern_conditional_expression, check_switch_statement, is_enum_variant_call,
 };
-use crate::ast::{AstFile, Block, Expr, ImplDecl, ImplMember, Item, Stmt};
+use crate::ast::{AstFile, Block, Expr, ImplDecl, ImplMember, InterpolatedStringPart, Item, Stmt};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
 use crate::source::SourceMap;
@@ -671,6 +672,27 @@ fn check_expression_tree(
                 diagnostics,
                 environment,
                 loop_depth,
+            );
+        }
+        Expr::InterpolatedString(expression) => {
+            for part in &expression.parts {
+                if let InterpolatedStringPart::Expression(part) = part {
+                    check_expression_tree(
+                        sources,
+                        &part.expression,
+                        resolved,
+                        diagnostics,
+                        environment,
+                        loop_depth,
+                    );
+                }
+            }
+            check_interpolated_string_expression(
+                sources,
+                expression,
+                resolved,
+                diagnostics,
+                environment,
             );
         }
         Expr::OptionalDefault(expression) => {

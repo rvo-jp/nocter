@@ -1,11 +1,14 @@
 use super::{ParseResult, Parser};
 use crate::ast::{
     ArrayLiteralExpr, BinaryExpr, CallExpr, CatchExpr, Expr, ForceExpr, GroupExpr, IdentifierExpr,
-    IndexExpr, LiteralExpr, MemberExpr, OptionalDefaultExpr, PatternConditionalArm,
+    IndexExpr, InterpolatedStringExpr, InterpolatedStringExpression, InterpolatedStringPart,
+    InterpolatedStringText, LiteralExpr, MemberExpr, OptionalDefaultExpr, PatternConditionalArm,
     PatternConditionalExpr, PropagationExpr, StructLiteralExpr, StructLiteralField,
     TypeConversionExpr, TypeExpr, TypeReference, UnaryExpr,
 };
-use crate::lexer::{Keyword, TokenKind};
+use crate::lexer::{Keyword, Token, TokenKind, lex_span};
+use crate::literals::{StringLiteralPartSpan, string_literal_parts};
+use crate::source::ByteSpan;
 
 impl Parser<'_> {
     pub(super) fn parse_expression(&mut self) -> ParseResult<Expr> {
@@ -428,10 +431,7 @@ impl Parser<'_> {
             }
             TokenKind::StringLiteral => {
                 let token = self.bump();
-                Ok(Expr::StringLiteral(LiteralExpr {
-                    span: token.span,
-                    value: self.lexeme(&token),
-                }))
+                self.parse_string_literal_expression(token)
             }
             TokenKind::Keyword(Keyword::True) | TokenKind::Keyword(Keyword::False) => {
                 let token = self.bump();
@@ -462,6 +462,100 @@ impl Parser<'_> {
                 Err(())
             }
         }
+    }
+
+    fn parse_string_literal_expression(&mut self, token: Token) -> ParseResult<Expr> {
+        let value = self.lexeme(&token);
+        let parts = match string_literal_parts(&value) {
+            Ok(parts) => parts,
+            Err(error) => {
+                self.error_at(
+                    self.span(token.span.start + error.start, token.span.start + error.end),
+                    error.message,
+                );
+                return Err(());
+            }
+        };
+
+        if parts
+            .iter()
+            .all(|part| matches!(part, StringLiteralPartSpan::Text { .. }))
+        {
+            return Ok(Expr::StringLiteral(LiteralExpr {
+                span: token.span,
+                value,
+            }));
+        }
+
+        let mut ast_parts = Vec::with_capacity(parts.len());
+        for part in parts {
+            match part {
+                StringLiteralPartSpan::Text { start, end } => {
+                    ast_parts.push(InterpolatedStringPart::Text(InterpolatedStringText {
+                        span: self.span(token.span.start + start, token.span.start + end),
+                        value: value.get(start..end).unwrap_or("").to_string(),
+                    }));
+                }
+                StringLiteralPartSpan::Interpolation {
+                    start,
+                    expression_start,
+                    expression_end,
+                    end,
+                } => {
+                    let expression_span = self.span(
+                        token.span.start + expression_start,
+                        token.span.start + expression_end,
+                    );
+                    let expression = self.parse_interpolation_expression(expression_span)?;
+                    ast_parts.push(InterpolatedStringPart::Expression(
+                        InterpolatedStringExpression {
+                            span: self.span(token.span.start + start, token.span.start + end),
+                            expression_span,
+                            expression: Box::new(expression),
+                        },
+                    ));
+                }
+            }
+        }
+
+        Ok(Expr::InterpolatedString(InterpolatedStringExpr {
+            span: token.span,
+            value,
+            parts: ast_parts,
+        }))
+    }
+
+    fn parse_interpolation_expression(&mut self, span: ByteSpan) -> ParseResult<Expr> {
+        let lexed = lex_span(self.sources, span);
+        if !lexed.diagnostics.is_empty() {
+            self.diagnostics.extend(lexed.diagnostics);
+            return Err(());
+        }
+
+        let mut parser = Parser {
+            sources: self.sources,
+            source: span.source,
+            tokens: &lexed.tokens,
+            index: 0,
+            diagnostics: Vec::new(),
+        };
+        parser.skip_newlines();
+        let expression = match parser.parse_expression() {
+            Ok(expression) => expression,
+            Err(()) => {
+                self.diagnostics.extend(parser.diagnostics);
+                return Err(());
+            }
+        };
+        parser.skip_newlines();
+        if !parser.at_eof() {
+            parser.error_current("expected end of string interpolation expression");
+            self.diagnostics.extend(parser.diagnostics);
+            return Err(());
+        }
+
+        self.diagnostics.extend(parser.diagnostics);
+        Ok(expression)
     }
 
     fn parse_array_literal_expression(&mut self) -> ParseResult<Expr> {

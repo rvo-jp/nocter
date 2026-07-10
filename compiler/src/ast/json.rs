@@ -736,6 +736,28 @@ impl Expr {
                 json_span(sources, expression.span),
                 Vec::new(),
             ),
+            Expr::InterpolatedString(expression) => JsonAstNode::with_value(
+                "interpolated_string",
+                expression.value.clone(),
+                json_span(sources, expression.span),
+                expression
+                    .parts
+                    .iter()
+                    .map(|part| match part {
+                        InterpolatedStringPart::Text(part) => JsonAstNode::with_value(
+                            "interpolated_string_text",
+                            part.value.clone(),
+                            json_span(sources, part.span),
+                            Vec::new(),
+                        ),
+                        InterpolatedStringPart::Expression(part) => JsonAstNode::new(
+                            "string_interpolation",
+                            json_span(sources, part.span),
+                            vec![part.expression.to_json(sources)],
+                        ),
+                    })
+                    .collect(),
+            ),
             Expr::BoolLiteral(expression) => JsonAstNode::with_value(
                 "bool_literal",
                 expression.value.clone(),

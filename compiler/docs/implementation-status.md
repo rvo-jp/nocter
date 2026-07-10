@@ -20,7 +20,7 @@ This file describes implementation state only.
 | `i32` return values | yes | yes | yes | yes | yes | Literal returns and lowerable expressions are supported. |
 | `void` entry | yes | yes | yes | yes | yes | Empty body and bare `return` are buildable. |
 | `bool` expressions | yes | yes | yes | partial | yes | Build supports literals, locals, `!`, `&&`, `||`, `i32` comparisons, and bool equality/inequality over literal/local operands in lowerable positions. |
-| String literals | yes | partial | yes | partial | partial | Single-line and multi-line string literals are tokenized, parsed, and typed as `str`; build currently consumes them only as static `make_error` messages. String interpolation is diagnosed as not implemented. |
+| String literals and interpolation | yes | yes | partial | partial | partial | Single-line and multi-line string literals are tokenized, parsed, and typed as `str`; interpolation is parsed as an explicit expression and checked as `String!` with limited supported part types. Build currently consumes only static string literals as `make_error` messages; interpolated string construction is not lowerable. |
 | Immutable `let` bindings | yes | yes | yes | partial | yes | Build supports lowerable `i32` and `bool` initializers. |
 | `var` and reassignment | yes | yes | partial | no | no | Backend has no general local storage yet. |
 | Same-file function calls | yes | yes | yes | partial | partial | Build supports non-generic `i32` tail calls with up to 8 `i32` arguments, `bool` tail returns, and a narrow same-file scalar normal-call subset. |
@@ -81,6 +81,7 @@ Currently not buildable even when it may be checkable:
 - imported function calls
 - compound bool equality operands with calls such as `(ready() && other()) == true`
 - `str` values beyond static fallible failure messages
+- interpolated string construction
 - optional values
 - aggregate values, arrays, views, pointers, methods, traits, generics, ownership lowering, and drop glue
 - custom output path selection through `-o`

@@ -2,7 +2,8 @@ use super::builtins::is_builtin_type_name;
 use super::diagnostics::{builtin_name_reuse_diagnostic, duplicate_visible_name_diagnostic};
 use super::{LocalSymbolId, LocalSymbolKind, Resolver, SymbolId};
 use crate::ast::{
-    AstFile, Block, Expr, IdentifierExpr, ImplDecl, ImplMember, Item, Parameter, Stmt,
+    AstFile, Block, Expr, IdentifierExpr, ImplDecl, ImplMember, InterpolatedStringPart, Item,
+    Parameter, Stmt,
 };
 use crate::source::ByteSpan;
 use std::collections::HashMap;
@@ -244,6 +245,13 @@ impl Resolver<'_> {
                 }
             }
             Expr::Group(expression) => self.resolve_expression(&expression.expression, scope),
+            Expr::InterpolatedString(expression) => {
+                for part in &expression.parts {
+                    if let InterpolatedStringPart::Expression(part) = part {
+                        self.resolve_expression(&part.expression, scope);
+                    }
+                }
+            }
             Expr::OptionalDefault(expression) => {
                 self.resolve_expression(&expression.value, scope);
                 self.resolve_expression(&expression.default, scope);

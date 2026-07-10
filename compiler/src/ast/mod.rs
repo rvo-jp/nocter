@@ -467,6 +467,7 @@ pub enum Expr {
     Identifier(IdentifierExpr),
     IntegerLiteral(LiteralExpr),
     StringLiteral(LiteralExpr),
+    InterpolatedString(InterpolatedStringExpr),
     BoolLiteral(LiteralExpr),
     NoneLiteral(LiteralExpr),
     ArrayLiteral(ArrayLiteralExpr),
@@ -495,6 +496,32 @@ pub struct IdentifierExpr {
 pub struct LiteralExpr {
     pub span: ByteSpan,
     pub value: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InterpolatedStringExpr {
+    pub span: ByteSpan,
+    pub value: String,
+    pub parts: Vec<InterpolatedStringPart>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InterpolatedStringPart {
+    Text(InterpolatedStringText),
+    Expression(InterpolatedStringExpression),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InterpolatedStringText {
+    pub span: ByteSpan,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InterpolatedStringExpression {
+    pub span: ByteSpan,
+    pub expression_span: ByteSpan,
+    pub expression: Box<Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -738,6 +765,7 @@ impl Expr {
             Expr::Identifier(expression) => expression.span,
             Expr::IntegerLiteral(expression) => expression.span,
             Expr::StringLiteral(expression) => expression.span,
+            Expr::InterpolatedString(expression) => expression.span,
             Expr::BoolLiteral(expression) => expression.span,
             Expr::NoneLiteral(expression) => expression.span,
             Expr::ArrayLiteral(expression) => expression.span,

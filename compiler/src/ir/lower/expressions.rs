@@ -1,6 +1,8 @@
 use super::context::LoweringContext;
 use super::literals::lower_i32_literal;
-use crate::ast::{BinaryExpr, BinaryOperator, CallExpr, Expr, UnaryExpr, UnaryOperator};
+use crate::ast::{
+    BinaryExpr, BinaryOperator, CallExpr, Expr, InterpolatedStringPart, UnaryExpr, UnaryOperator,
+};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, I32ComparisonOperator,
@@ -416,6 +418,13 @@ pub(super) fn expression_contains_call(expression: &Expr) -> bool {
             .fields
             .iter()
             .any(|field| expression_contains_call(&field.value)),
+        Expr::InterpolatedString(interpolated) => interpolated.parts.iter().any(|part| {
+            matches!(
+                part,
+                InterpolatedStringPart::Expression(part)
+                    if expression_contains_call(&part.expression)
+            )
+        }),
         Expr::OptionalDefault(optional_default) => {
             expression_contains_call(&optional_default.value)
                 || expression_contains_call(&optional_default.default)

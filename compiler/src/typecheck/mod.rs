@@ -14,6 +14,7 @@ mod model;
 mod numeric;
 mod operations;
 mod returns;
+mod strings;
 mod structs;
 mod type_expr;
 mod variants;

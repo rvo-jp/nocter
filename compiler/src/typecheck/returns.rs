@@ -15,7 +15,9 @@ use super::fallible::{check_catch_operand, check_propagation};
 use super::model::{CallableKind, ReturnContext, Type, TypeEnvironment, binding_kind_is_mutable};
 use super::operations::is_expression_assignable;
 use super::type_expr::{type_expr_to_type, type_expr_to_type_with_self_type};
-use crate::ast::{AstFile, Block, Expr, ImplDecl, ImplMember, Item, ReturnStmt, Stmt};
+use crate::ast::{
+    AstFile, Block, Expr, ImplDecl, ImplMember, InterpolatedStringPart, Item, ReturnStmt, Stmt,
+};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
 use crate::source::SourceMap;
@@ -653,6 +655,20 @@ fn check_expression_for_nested_returns(
                 diagnostics,
                 environment,
             );
+        }
+        Expr::InterpolatedString(expression) => {
+            for part in &expression.parts {
+                if let InterpolatedStringPart::Expression(part) = part {
+                    check_expression_for_nested_returns(
+                        sources,
+                        &part.expression,
+                        context,
+                        resolved,
+                        diagnostics,
+                        environment,
+                    );
+                }
+            }
         }
         Expr::OptionalDefault(expression) => {
             check_expression_for_nested_returns(
