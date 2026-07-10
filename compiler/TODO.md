@@ -5,6 +5,24 @@ Long-lived maintenance rules live in `AGENTS.md` and `docs/maintenance.md`.
 
 ## Current Repository State
 
+Adopted user decisions:
+
+- Continue the self-contained backend path; do not switch to LLVM for the current compiler line.
+- Keep runtime safety checks always enabled; remove them only when the compiler can prove they cannot trap.
+- Treat ordinary allocation failure as recoverable failure, not implicit abort.
+- Use an owned `String` direction based on pointer, length, and capacity, implemented as an ordinary standard-library type.
+- Do not add a runtime GC.
+- Lower generics through monomorphization.
+- Prefer static trait dispatch; require an explicit dynamic-dispatch design if it is added later.
+- Keep the initial standard library small: trap/unreachable, process/stderr/syscall wrappers, allocator, owned `String`, and formatting support before larger collections or file APIs.
+
+Recommended next implementation order:
+
+1. Finish scalar backend safety work: overflow traps for `+`, `-`, and `*`, then shift lowering with shift-count traps.
+2. Specify the minimal standard-library allocation and formatting API needed for interpolated string lowering.
+3. Lower interpolated strings only through explicit standard-library `String` construction and formatting calls.
+4. Defer broad control flow, imported calls, aggregate values, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
+
 Recent committed work:
 
 - Current checkpoint: `Lower i32 division and remainder`

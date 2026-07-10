@@ -12,10 +12,11 @@ The current LSP feature modules should present compiler analysis results, not gr
 
 Recommended next small task:
 
-1. Decide the explicit standard-library formatting/allocation API needed before interpolated strings can be lowered, or keep lowering rejected until that API is specified.
-2. Return to expanding the narrow source-level scalar normal-call subset already enabled.
-3. Consider broader terminal control-flow only after its lowering rules are designed.
-4. Keep imported calls, aggregate values, ownership/drop lowering, and general mutable storage disabled until their ABI and storage rules are designed.
+1. Finish scalar backend safety work: overflow traps for `+`, `-`, and `*`, then shift lowering with shift-count traps.
+2. Specify the minimal standard-library formatting/allocation API needed before interpolated strings can be lowered.
+3. Lower interpolated strings only through explicit standard-library `String` construction and formatting APIs; keep hidden compiler allocation disabled.
+4. Consider broader terminal control-flow only after its lowering rules are designed.
+5. Keep imported calls, aggregate values, ownership/drop lowering, and general mutable storage disabled until their ABI and storage rules are designed.
 
 ## Near-Term Constraints
 
@@ -23,6 +24,17 @@ Recommended next small task:
 - Avoid broad `if`, `while`, `loop`, `match`, `var`, reassignment, imports, and aggregate lowering until backend storage and ABI rules are ready.
 - Prefer small user-visible build features with integration tests.
 - Prefer behavior-preserving LSP refactors before adding new LSP capabilities.
+
+## Adopted Direction
+
+- Keep the self-contained backend direction. Do not switch to LLVM for the current compiler line.
+- Keep safety checks always enabled. Optimizers may remove checks only when they prove the trap condition impossible.
+- Treat allocation failure as recoverable failure in ordinary standard-library allocation APIs.
+- Model owned `String` as an ordinary standard-library owned value with explicit allocation; the target layout direction is pointer, length, and capacity.
+- Do not add a runtime GC.
+- Lower generics through monomorphization.
+- Prefer static trait dispatch; make dynamic dispatch explicit if it is added later.
+- Keep the initial standard library small: primitive trap/unreachable boundaries, process/stderr/syscall wrappers, allocator, owned `String`, and formatting support before collections and file APIs grow.
 
 ## Design Constraints
 
