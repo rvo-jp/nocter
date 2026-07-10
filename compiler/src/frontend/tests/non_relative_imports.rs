@@ -65,6 +65,73 @@ func main(): i32 {
 }
 
 #[test]
+fn check_loads_std_fmt_import_graph_from_nocter_home() {
+    let root = make_temp_project("std-fmt-import-graph");
+    let home = make_nocter_home(&root);
+    fs::write(
+        root.join("app.nct"),
+        r#"from std/fmt import append_i32
+
+func main(): i32 {
+    return 0
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/error.nct"),
+        r#"pub type ErrorCode = str
+pub type Error = error
+
+pub(nocter) primitive make_error(code: ErrorCode, message: str): error
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/mem.nct"),
+        r#"pub struct Allocator {
+    state: usize
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/string.nct"),
+        r#"from std/mem import Allocator
+
+pub struct String {
+    ptr: *u8
+    len: usize
+    cap: usize
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/fmt.nct"),
+        r#"from std/error import make_error
+from std/string import String
+
+pub func append_i32(out: &+String, value: i32): void! {
+    return
+}
+
+pub func unsupported(): error {
+    return make_error("std.fmt.unsupported", "value cannot be formatted")
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn check_uses_non_relative_imported_function_return_type() {
     let root = make_temp_project("std-import-return-type");
     let home = make_nocter_home(&root);

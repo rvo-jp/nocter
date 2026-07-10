@@ -24,7 +24,11 @@ Recommended next implementation order:
 
 Recent committed work:
 
-- Current checkpoint: `Specify std string formatting boundary`
+- Current checkpoint: `Cover std fmt import graph`
+  - adds frontend coverage for a user module importing `std/fmt`
+  - confirms the imported standard-library graph can load `std/fmt`, `std/error`, `std/string`, and `std/mem`
+  - keeps the test at the import/type-check layer; interpolated string runtime lowering remains disabled
+- `Specify std string formatting boundary`
   - adds `.nocter/std/fmt.nct` with explicit append APIs for `str`, `String`, `i32`, and `bool`
   - expands `.nocter/std/string.nct` from a placeholder owning type to the initial pointer/length/capacity ABI direction plus `empty`, `with_capacity`, `from_str`, `view`, and `push_str`
   - adds common `error` helper functions in `.nocter/std/mem.nct` for `"std.mem.out_of_memory"` and `"std.mem.invalid_argument"`
@@ -211,9 +215,17 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Specify std string formatting boundary`.
+- None expected after committing `Cover std fmt import graph`.
 
 ## Verification Already Run
+
+For the `std/fmt` import graph frontend coverage, from `compiler/`:
+
+```sh
+cargo test --quiet check_loads_std_fmt_import_graph_from_nocter_home
+cargo fmt
+cargo test --quiet
+```
 
 For the standard-library string/formatting boundary work, from `compiler/`:
 
