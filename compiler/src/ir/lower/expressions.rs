@@ -26,8 +26,8 @@ pub(super) fn lower_i32_expression_to_location(
             let mut temporaries = TemporaryAllocator::new(context)?;
             lower_i32_normal_call(call, destination, context, &mut temporaries)
         }
-        Expr::Binary(binary) if is_i32_arithmetic_operator(binary.operator) => {
-            lower_i32_arithmetic_expression_to_location(binary, destination, context)
+        Expr::Binary(binary) if is_i32_binary_operator(binary.operator) => {
+            lower_i32_binary_expression_to_location(binary, destination, context)
         }
         Expr::Group(group) => {
             lower_i32_expression_to_location(&group.expression, destination, context)
@@ -37,13 +37,13 @@ pub(super) fn lower_i32_expression_to_location(
     }
 }
 
-fn lower_i32_arithmetic_expression_to_location(
+fn lower_i32_binary_expression_to_location(
     binary: &BinaryExpr,
     destination: I32Location,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut temporaries = TemporaryAllocator::new(context)?;
-    lower_i32_arithmetic_expression_to_location_with_temporaries(
+    lower_i32_binary_expression_to_location_with_temporaries(
         binary,
         destination,
         context,
@@ -51,7 +51,7 @@ fn lower_i32_arithmetic_expression_to_location(
     )
 }
 
-fn lower_i32_arithmetic_expression_to_location_with_temporaries(
+fn lower_i32_binary_expression_to_location_with_temporaries(
     binary: &BinaryExpr,
     destination: I32Location,
     context: &LoweringContext,
@@ -61,7 +61,7 @@ fn lower_i32_arithmetic_expression_to_location_with_temporaries(
     let right = lower_i32_expression_to_value(&binary.right, context, temporaries)?;
     let mut instructions = left.instructions;
     instructions.extend(right.instructions);
-    instructions.push(i32_arithmetic_instruction(
+    instructions.push(i32_binary_instruction(
         binary.operator,
         destination,
         left.value,
@@ -83,10 +83,10 @@ fn lower_i32_expression_to_value(
                 value: I32Value::Location(temporary),
             })
         }
-        Expr::Binary(binary) if is_i32_arithmetic_operator(binary.operator) => {
+        Expr::Binary(binary) if is_i32_binary_operator(binary.operator) => {
             let temporary = temporaries.next_i32()?;
             Ok(LoweredI32Value {
-                instructions: lower_i32_arithmetic_expression_to_location_with_temporaries(
+                instructions: lower_i32_binary_expression_to_location_with_temporaries(
                     binary,
                     temporary,
                     context,
@@ -105,7 +105,7 @@ fn lower_i32_expression_to_value(
     }
 }
 
-fn i32_arithmetic_instruction(
+fn i32_binary_instruction(
     operator: BinaryOperator,
     destination: I32Location,
     left: I32Value,
@@ -133,6 +133,16 @@ fn i32_arithmetic_instruction(
             right,
         }),
         BinaryOperator::Remainder => Ok(Instruction::RemainderI32 {
+            destination,
+            left,
+            right,
+        }),
+        BinaryOperator::ShiftLeft => Ok(Instruction::ShiftLeftI32 {
+            destination,
+            left,
+            right,
+        }),
+        BinaryOperator::ShiftRight => Ok(Instruction::ShiftRightI32 {
             destination,
             left,
             right,
@@ -1026,7 +1036,7 @@ fn is_i32_comparison_operator(operator: BinaryOperator) -> bool {
     )
 }
 
-fn is_i32_arithmetic_operator(operator: BinaryOperator) -> bool {
+fn is_i32_binary_operator(operator: BinaryOperator) -> bool {
     matches!(
         operator,
         BinaryOperator::Add
@@ -1034,6 +1044,8 @@ fn is_i32_arithmetic_operator(operator: BinaryOperator) -> bool {
             | BinaryOperator::Multiply
             | BinaryOperator::Divide
             | BinaryOperator::Remainder
+            | BinaryOperator::ShiftLeft
+            | BinaryOperator::ShiftRight
     )
 }
 
@@ -1093,7 +1105,7 @@ fn expression_is_lowerable_i32_expression_with_calls(
             };
             context.function_return_type(&identifier.name) == Some(&Type::I32)
         }
-        Expr::Binary(binary) if is_i32_arithmetic_operator(binary.operator) => {
+        Expr::Binary(binary) if is_i32_binary_operator(binary.operator) => {
             expression_is_lowerable_i32_expression_with_calls(&binary.left, context)
                 && expression_is_lowerable_i32_expression_with_calls(&binary.right, context)
         }
@@ -1189,7 +1201,7 @@ fn is_bool_equality_operator(operator: BinaryOperator) -> bool {
 fn unsupported_i32_expression_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8006",
-        "IR v0 can only lower i32 literals, parameters, arithmetic, and direct tail calls",
+        "IR v0 can only lower i32 literals, parameters, arithmetic or shift expressions, and direct tail calls",
     )]
 }
 

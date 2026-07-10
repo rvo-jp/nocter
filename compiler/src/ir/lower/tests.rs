@@ -551,6 +551,84 @@ func modulus(): i32 {
 }
 
 #[test]
+fn lowers_entry_i32_shifts_with_normal_calls() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    return (value() << left_count()) + (shifted() >> right_count())
+}
+
+func value(): i32 {
+    return 5
+}
+
+func left_count(): i32 {
+    return 3
+}
+
+func shifted(): i32 {
+    return 8
+}
+
+func right_count(): i32 {
+    return 1
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_i32(I32Location::Local(1), "value", vec![]),
+                    call_i32(I32Location::Local(2), "left_count", vec![]),
+                    Instruction::ShiftLeftI32 {
+                        destination: I32Location::Local(0),
+                        left: i32_local(1),
+                        right: i32_local(2),
+                    },
+                    call_i32(I32Location::Local(4), "shifted", vec![]),
+                    call_i32(I32Location::Local(5), "right_count", vec![]),
+                    Instruction::ShiftRightI32 {
+                        destination: I32Location::Local(3),
+                        left: i32_local(4),
+                        right: i32_local(5),
+                    },
+                    Instruction::AddI32 {
+                        destination: I32Location::Return,
+                        left: i32_local(0),
+                        right: i32_local(3),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "value".to_string(),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(5), Instruction::Return],
+            },
+            Function {
+                name: "left_count".to_string(),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(3), Instruction::Return],
+            },
+            Function {
+                name: "shifted".to_string(),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(8), Instruction::Return],
+            },
+            Function {
+                name: "right_count".to_string(),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(1), Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
 fn lowers_entry_terminal_if_with_bool_literal_condition() {
     let ir = lower_text(
         r#"func main(): i32 {

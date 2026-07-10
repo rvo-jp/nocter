@@ -156,7 +156,7 @@ Currently buildable:
 - immutable local `let` bindings whose initializer is lowerable as `i32` or `bool`
 - `void` entry with an empty body or bare `return`
 - same-file non-generic tail calls returning `i32` or `bool`
-- same-file non-generic normal calls returning `i32` in `let` initializers, `i32` arithmetic expressions using `+`, `-`, `*`, `/`, and `%`, `i32` comparison operands, and nested `i32` call arguments
+- same-file non-generic normal calls returning `i32` in `let` initializers, `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, `i32` comparison operands, and nested `i32` call arguments
 - same-file non-generic normal calls returning `bool` in `let` initializers, unary-not expressions, bool equality/inequality operands, short-circuit bool value expressions, and terminal `if` conditions
 - short-circuit bool expressions can combine `i32` call comparisons with bool calls, such as `if answer() == 42 && ready()` and `let matched = answer() == 42 && ready()`
 - nested `i32` normal-call arguments such as `let value = outer(inner())`
@@ -165,6 +165,7 @@ Currently buildable:
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
 - non-entry functions returning `bool`
 - `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; addition, subtraction, and multiplication trap on signed overflow, and division and remainder trap on zero divisors and signed division overflow
+- `i32` shifts with `<<` and `>>` used in lowerable `i32` expressions; shift counts trap when negative or greater than or equal to 32
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` comparisons used in lowerable bool expressions
 - terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over literal/local operands, or `i32` comparison conditions and direct `i32` or non-entry `bool` returns in both branches
 - simple fallible entry success
@@ -193,13 +194,14 @@ The `arm64-darwin` backend v0 uses a deliberately small register-only convention
 - `w16` and `w17` are backend scratch registers and may be clobbered by code generation
 
 Tail calls are lowered by loading the callee arguments into `w0` through `w7` and branching directly to the target function.
-The source-level scalar call subset lowers same-file non-generic `i32` calls in `let` initializers, `i32` arithmetic expressions using `+`, `-`, `*`, `/`, and `%`, `i32` comparison operands, nested normal-call arguments, and nested tail-call arguments, evaluating staged calls left to right into distinct temporary locals.
+The source-level scalar call subset lowers same-file non-generic `i32` calls in `let` initializers, `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, `i32` comparison operands, nested normal-call arguments, and nested tail-call arguments, evaluating staged calls left to right into distinct temporary locals.
 The frame, spill/reload, and normal-call implementation order is tracked in `backend-v0.md`.
 `backend/frame.rs` owns the fixed v0 frame layout planner: frame size, saved `x30` offset, and scalar spill-slot offsets.
 Codegen emits framed prologue/epilogue sequences and normal calls with conservative scalar spill/reload plus stack-backed argument staging.
 Addition and subtraction emission uses ARM64 flag-setting arithmetic and traps on signed overflow.
 Multiplication emission computes a signed 64-bit product and traps unless that product exactly fits in `i32`.
 Division and remainder emission inserts zero-divisor and signed-overflow trap checks before ARM64 `sdiv`.
+Shift emission checks the runtime count before ARM64 variable shift instructions and traps when the count is negative or greater than or equal to the shifted value width.
 Imported calls, aggregate values, ownership/drop lowering, and general control-flow call placement remain outside the buildable subset.
 
 Use integration tests for user-visible CLI behavior and backend/unit tests for lower-level encoding and Mach-O layout. When extending build support, first add a small `nocter build` regression case, then expand IR lowering, code generation, and documentation together.

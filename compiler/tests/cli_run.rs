@@ -791,6 +791,45 @@ func modulus(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_i32_call_shift_exit_code() {
+    let project = TempProject::new("cli-run-i32-call-shift");
+    let source = project.write_source(
+        "i32_call_shift.nct",
+        r#"func main(): i32 {
+    return (value() << left_count()) + (shifted() >> right_count())
+}
+
+func value(): i32 {
+    return 5
+}
+
+func left_count(): i32 {
+    return 3
+}
+
+func shifted(): i32 {
+    return 8
+}
+
+func right_count(): i32 {
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(44),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_traps_i32_division_by_zero() {
     let project = TempProject::new("cli-run-i32-div-zero");
     let source = project.write_source(
@@ -831,6 +870,58 @@ func minimum(): i32 {
 
 func minus_one(): i32 {
     return -1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert!(
+        !output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_traps_i32_negative_shift_count() {
+    let project = TempProject::new("cli-run-i32-shift-negative");
+    let source = project.write_source(
+        "i32_shift_negative.nct",
+        r#"func main(): i32 {
+    return 1 << count()
+}
+
+func count(): i32 {
+    return -1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert!(
+        !output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_traps_i32_too_large_shift_count() {
+    let project = TempProject::new("cli-run-i32-shift-too-large");
+    let source = project.write_source(
+        "i32_shift_too_large.nct",
+        r#"func main(): i32 {
+    return 1 >> count()
+}
+
+func count(): i32 {
+    return 32
 }
 "#,
     );

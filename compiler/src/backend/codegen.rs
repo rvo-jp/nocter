@@ -150,6 +150,20 @@ impl EntryEmitter {
             } => {
                 self.emit_remainder_i32(*destination, left, right)?;
             }
+            Instruction::ShiftLeftI32 {
+                destination,
+                left,
+                right,
+            } => {
+                self.emit_shift_left_i32(*destination, left, right)?;
+            }
+            Instruction::ShiftRightI32 {
+                destination,
+                left,
+                right,
+            } => {
+                self.emit_shift_right_i32(*destination, left, right)?;
+            }
             Instruction::CallI32 {
                 destination,
                 function,
@@ -712,6 +726,51 @@ impl EntryEmitter {
         Ok(())
     }
 
+    fn emit_shift_left_i32(
+        &mut self,
+        destination: I32Location,
+        left: &I32Value,
+        right: &I32Value,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let destination = self.i32_location_register(destination)?;
+        self.emit_i32_value_to_w(left, WReg::W16)?;
+        self.emit_i32_value_to_w(right, destination)?;
+        self.emit_i32_shift_count_safety_checks(destination)?;
+        self.encoder
+            .emit_lslv_w(destination, WReg::W16, destination);
+        Ok(())
+    }
+
+    fn emit_shift_right_i32(
+        &mut self,
+        destination: I32Location,
+        left: &I32Value,
+        right: &I32Value,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let destination = self.i32_location_register(destination)?;
+        self.emit_i32_value_to_w(left, WReg::W16)?;
+        self.emit_i32_value_to_w(right, destination)?;
+        self.emit_i32_shift_count_safety_checks(destination)?;
+        self.encoder
+            .emit_asrv_w(destination, WReg::W16, destination);
+        Ok(())
+    }
+
+    fn emit_i32_shift_count_safety_checks(&mut self, count: WReg) -> Result<(), Vec<Diagnostic>> {
+        self.encoder.emit_cmp_w_zero(count);
+        let count_nonnegative = self.emit_cond_branch_placeholder(BranchCondition::Ge);
+        self.emit_trap();
+        self.patch_branch_placeholder_to_current(count_nonnegative, "shift non-negative target")?;
+
+        emit_mov_i32_to_w(&mut self.encoder, WReg::W17, I32_BIT_WIDTH);
+        self.encoder.emit_cmp_w(count, WReg::W17);
+        let count_in_range = self.emit_cond_branch_placeholder(BranchCondition::Lt);
+        self.emit_trap();
+        self.patch_branch_placeholder_to_current(count_in_range, "shift count in-range target")?;
+
+        Ok(())
+    }
+
     fn emit_i32_division_safety_checks(
         &mut self,
         dividend: WReg,
@@ -1010,6 +1069,8 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::MultiplyI32 { .. }
             | Instruction::DivideI32 { .. }
             | Instruction::RemainderI32 { .. }
+            | Instruction::ShiftLeftI32 { .. }
+            | Instruction::ShiftRightI32 { .. }
             | Instruction::CallI32 { .. }
             | Instruction::CallBool { .. },
         )
@@ -1068,6 +1129,7 @@ const BRANCH_MAX_BYTE_OFFSET: i64 = (1 << 27) - 4;
 const DARWIN_WRITE_SYSCALL: u32 = 0x0200_0004;
 const DARWIN_EXIT_SYSCALL: u32 = 0x0200_0001;
 const DARWIN_SYSCALL_TRAP: u16 = 0x80;
+const I32_BIT_WIDTH: i32 = 32;
 
 #[cfg(test)]
 mod tests {
@@ -1681,6 +1743,52 @@ mod tests {
         assert!(contains_instruction(&code.text, [0x3f, 0x02, 0x10, 0xeb])); // cmp x17, x16
         assert!(contains_instruction(&code.text, [0x40, 0x00, 0x00, 0x54])); // b.eq +8
         assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+    }
+
+    #[test]
+    fn generates_i32_shift_left_with_count_traps() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ShiftLeftI32 {
+                    destination: I32Location::Return,
+                    left: i32_const(5),
+                    right: i32_const(3),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0x4a, 0x00, 0x00, 0x54])); // b.ge +8
+        assert!(contains_instruction(&code.text, [0x4b, 0x00, 0x00, 0x54])); // b.lt +8
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+        assert!(contains_instruction(&code.text, [0x00, 0x22, 0xc0, 0x1a])); // lslv w0, w16, w0
+    }
+
+    #[test]
+    fn generates_i32_shift_right_with_count_traps() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ShiftRightI32 {
+                    destination: I32Location::Return,
+                    left: i32_const(8),
+                    right: i32_const(1),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0x4a, 0x00, 0x00, 0x54])); // b.ge +8
+        assert!(contains_instruction(&code.text, [0x4b, 0x00, 0x00, 0x54])); // b.lt +8
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+        assert!(contains_instruction(&code.text, [0x00, 0x2a, 0xc0, 0x1a])); // asrv w0, w16, w0
     }
 
     #[test]

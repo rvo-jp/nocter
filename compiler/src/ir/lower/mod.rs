@@ -145,6 +145,8 @@ fn collect_call_targets(instructions: &[Instruction], targets: &mut VecDeque<Str
             | Instruction::MultiplyI32 { .. }
             | Instruction::DivideI32 { .. }
             | Instruction::RemainderI32 { .. }
+            | Instruction::ShiftLeftI32 { .. }
+            | Instruction::ShiftRightI32 { .. }
             | Instruction::Return => {}
         }
     }

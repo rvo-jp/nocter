@@ -52,6 +52,16 @@ pub(crate) enum Instruction {
         left: I32Value,
         right: I32Value,
     },
+    ShiftLeftI32 {
+        destination: I32Location,
+        left: I32Value,
+        right: I32Value,
+    },
+    ShiftRightI32 {
+        destination: I32Location,
+        left: I32Value,
+        right: I32Value,
+    },
     #[allow(dead_code)]
     CallI32 {
         destination: I32Location,

@@ -54,7 +54,7 @@ Currently buildable:
 - `void` entry with an empty body or bare `return`
 - same-file non-generic tail calls returning `i32` or `bool`
 - same-file non-generic normal calls returning `i32` in `let` initializers
-- same-file non-generic normal calls returning `i32` in `i32` arithmetic expressions using `+`, `-`, `*`, `/`, and `%`, evaluated left to right with distinct temporary locals
+- same-file non-generic normal calls returning `i32` in `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, evaluated left to right with distinct temporary locals
 - same-file non-generic normal calls returning `i32` as `i32` comparison operands such as `if answer() == 42`, `let matched = left() <= right()`, and `return left() < right()`
 - same-file non-generic normal calls returning `bool` in `let` initializers
 - same-file non-generic normal calls returning `bool` under unary `!` in `let` initializers and bool return expressions
@@ -69,6 +69,7 @@ Currently buildable:
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
 - non-entry functions returning `bool`
 - `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; addition, subtraction, and multiplication emit signed-overflow trap checks, and division and remainder emit zero-divisor plus signed-overflow trap checks
+- `i32` shifts with `<<` and `>>` used in lowerable `i32` expressions; shift counts trap when negative or greater than or equal to 32
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` comparisons used in lowerable bool expressions
 - terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over literal/local operands, or `i32` comparison conditions and direct `i32` or non-entry `bool` returns in both branches
 - simple fallible entry success

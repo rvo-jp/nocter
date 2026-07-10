@@ -51,6 +51,14 @@ impl Encoder {
         self.emit_word(SDIV_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
     }
 
+    pub(crate) fn emit_lslv_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
+        self.emit_word(LSLV_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
+    }
+
+    pub(crate) fn emit_asrv_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
+        self.emit_word(ASRV_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
+    }
+
     pub(crate) fn emit_msub_w(&mut self, rd: WReg, rn: WReg, rm: WReg, ra: WReg) {
         self.emit_word(
             MSUB_W_BASE | (rm.bits() << 16) | (ra.bits() << 10) | (rn.bits() << 5) | rd.bits(),
@@ -373,6 +381,8 @@ const MSUB_W_BASE: u32 = 0x1b00_8000;
 const SMADDL_X_BASE: u32 = 0x9b20_0000;
 const SXTW_X_BASE: u32 = 0x9340_7c00;
 const SDIV_W_BASE: u32 = 0x1ac0_0c00;
+const LSLV_W_BASE: u32 = 0x1ac0_2000;
+const ASRV_W_BASE: u32 = 0x1ac0_2800;
 #[allow(dead_code)]
 const ADD_SP_IMM_BASE: u32 = 0x9100_0000;
 #[allow(dead_code)]
@@ -555,6 +565,24 @@ mod tests {
         encoder.emit_sdiv_w(WReg::W0, WReg::W0, WReg::W1);
 
         assert_eq!(encoder.finish(), vec![0x00, 0x0c, 0xc1, 0x1a]);
+    }
+
+    #[test]
+    fn encodes_lslv_w0_w16_w0() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_lslv_w(WReg::W0, WReg::W16, WReg::W0);
+
+        assert_eq!(encoder.finish(), vec![0x00, 0x22, 0xc0, 0x1a]);
+    }
+
+    #[test]
+    fn encodes_asrv_w0_w16_w0() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_asrv_w(WReg::W0, WReg::W16, WReg::W0);
+
+        assert_eq!(encoder.finish(), vec![0x00, 0x2a, 0xc0, 0x1a]);
     }
 
     #[test]

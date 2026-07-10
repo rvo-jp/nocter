@@ -18,20 +18,26 @@ Adopted user decisions:
 
 Recommended next implementation order:
 
-1. Lower `i32` shift operators with shift-count traps.
-2. Specify the minimal standard-library allocation and formatting API needed for interpolated string lowering.
-3. Lower interpolated strings only through explicit standard-library `String` construction and formatting calls.
-4. Defer broad control flow, imported calls, aggregate values, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
+1. Specify the minimal standard-library allocation and formatting API needed for interpolated string lowering.
+2. Lower interpolated strings only through explicit standard-library `String` construction and formatting calls.
+3. Defer broad control flow, imported calls, aggregate values, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
-- Current checkpoint: `Add i32 arithmetic overflow traps`
+- Current checkpoint: `Lower i32 shifts`
+  - adds IR instructions and lowering for buildable `i32` `<<` and `>>`
+  - supports same-file `i32` normal calls inside shift operands through the existing left-to-right temporary staging path
+  - emits runtime shift-count traps for negative counts and counts greater than or equal to 32
+  - lowers `<<` through ARM64 `lslv` and `>>` through ARM64 `asrv` for signed `i32`
+  - adds ARM64 encoder, IR lowering, codegen, CLI build, and CLI run coverage, including negative and too-large count trap paths
+  - keeps imported calls, aggregate arguments/returns, ownership/drop lowering, `var`/reassignment, and broader control-flow disabled
+- `Add i32 arithmetic overflow traps`
   - emits signed-overflow traps for lowered `i32` addition, subtraction, and multiplication
   - lowers `+` and `-` through ARM64 `adds`/`subs` followed by a `b.vc` guarded `brk #0`
   - lowers `*` through signed 64-bit `smull`, sign-extension comparison, and a `brk #0` when the product does not exactly fit in `i32`
   - adds ARM64 encoder helpers and unit coverage for `adds`, `subs`, `smull`, `sxtw`, 64-bit `cmp`, and `b.vc`
   - adds codegen coverage and CLI run coverage for addition, subtraction, and multiplication overflow trap paths
-  - keeps shift lowering, imported calls, aggregate arguments/returns, ownership/drop lowering, `var`/reassignment, and broader control-flow disabled
+  - kept shift lowering, imported calls, aggregate arguments/returns, ownership/drop lowering, `var`/reassignment, and broader control-flow disabled at that checkpoint
 - `Lower i32 division and remainder`
   - adds ARM64 encoder helpers for `sdiv`, `msub`, and `brk`
   - adds IR lowering and ARM64 codegen for lowerable `i32` division and remainder
@@ -199,9 +205,33 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Add i32 arithmetic overflow traps`.
+- None expected after committing `Lower i32 shifts`.
 
 ## Verification Already Run
+
+For the i32 shift backend work, from `compiler/`:
+
+```sh
+cargo fmt
+cargo test --quiet target::arm64::encoder
+cargo test --quiet ir::lower::tests::lowers_entry_i32_shifts_with_normal_calls
+cargo test --quiet generates_i32_shift_left_with_count_traps
+cargo test --quiet generates_i32_shift_right_with_count_traps
+cargo test --quiet --test cli_build build_command_lowers_i32_call_shifts
+cargo test --quiet --test cli_run run_command_returns_i32_call_shift_exit_code
+cargo test --quiet --test cli_run run_command_traps_i32_negative_shift_count
+cargo test --quiet --test cli_run run_command_traps_i32_too_large_shift_count
+cargo test --quiet
+cargo clippy --all-targets --quiet -- -D warnings
+```
+
+From repository root:
+
+```sh
+git diff --check
+```
+
+All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew shellenv, but the commands exited successfully. Local assembler output was used once to confirm `lslv` and `asrv` instruction bytes for encoder tests; the compiler implementation still emits those bytes directly and does not depend on an external assembler.
 
 For the i32 arithmetic overflow backend work, from `compiler/`:
 
@@ -661,18 +691,15 @@ All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew s
 
 ## Next Implementation Direction
 
-The current LSP maintainability pass has reached its planned stopping point:
-
-- `driver/lsp/mod.rs` owns request routing, notification handling, and feature orchestration.
-- LSP presentation responsibilities are split across `diagnostics.rs`, `semantic.rs`, `hover.rs`, `definition.rs`, `completion.rs`, `symbols.rs`, and `analysis.rs`.
-- Do not add rename, references, formatting integration, or richer type hovers before returning to compiler core work.
+The scalar `i32` backend subset now has runtime safety checks for `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`.
 
 Recommended next small task for the next session:
 
-1. Continue compiler core backend work, not LSP-only behavior.
-2. Consider broader terminal control-flow only after its lowering rules are designed.
-3. Keep imported calls, aggregates, ownership/drop lowering, general mutable storage, and broader control-flow disabled until their ABI, storage, and join rules are designed.
-4. Add CLI build/run coverage for any newly buildable source subset.
+1. Specify the minimal standard-library allocation and formatting API needed for interpolated string lowering.
+2. Lower interpolated strings only through explicit standard-library `String` construction and formatting calls.
+3. Consider broader terminal control-flow only after its lowering rules are designed.
+4. Keep imported calls, aggregates, ownership/drop lowering, general mutable storage, and broader control-flow disabled until their ABI, storage, and join rules are designed.
+5. Add CLI build/run coverage for any newly buildable source subset.
 
 ## Design Constraints To Preserve
 

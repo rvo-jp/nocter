@@ -140,6 +140,40 @@ func modulus(): i32 {
 }
 
 #[test]
+fn build_command_lowers_i32_call_shifts() {
+    let project = TempProject::new("cli-build-i32-call-shifts");
+    let source = project.write_source(
+        "i32_call_shifts.nct",
+        r#"func main(): i32 {
+    return (value() << left_count()) + (shifted() >> right_count())
+}
+
+func value(): i32 {
+    return 5
+}
+
+func left_count(): i32 {
+    return 3
+}
+
+func shifted(): i32 {
+    return 8
+}
+
+func right_count(): i32 {
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_i32_normal_call_let_initializer() {
     let project = TempProject::new("cli-build-normal-call-let");
     let source = project.write_source(
