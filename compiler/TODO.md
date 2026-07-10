@@ -24,7 +24,11 @@ Recommended next implementation order:
 
 Recent committed work:
 
-- Current checkpoint: `Diagnose interpolated string lowering boundary`
+- Current checkpoint: `Diagnose imported call lowering boundary`
+  - adds `ir/lower/imported_calls.rs` to detect imported call targets using resolver output before same-file call lowering
+  - reports a dedicated `E8006` for reachable imported calls such as `from std/math import answer; answer()`
+  - keeps imported call runtime lowering disabled while making the boundary explicit for the next backend step
+- `Diagnose interpolated string lowering boundary`
   - detects interpolated string expressions inside lowered `let` initializers
   - reports a dedicated `E8008` explaining that backend lowering is waiting on explicit `std/string` allocation and `std/fmt.append_*` lowering
   - keeps interpolation parsing and type checking enabled while runtime construction remains disabled
@@ -219,9 +223,17 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Diagnose interpolated string lowering boundary`.
+- None expected after committing `Diagnose imported call lowering boundary`.
 
 ## Verification Already Run
+
+For the imported-call lowering-boundary diagnostic, from `compiler/`:
+
+```sh
+cargo test --quiet reports_unsupported_imported_i32_normal_call
+cargo fmt
+cargo test --quiet
+```
 
 For the interpolated string lowering-boundary diagnostic, from `compiler/`:
 

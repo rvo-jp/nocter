@@ -24,7 +24,7 @@ This file describes implementation state only.
 | Immutable `let` bindings | yes | yes | yes | partial | yes | Build supports lowerable `i32` and `bool` initializers. |
 | `var` and reassignment | yes | yes | partial | no | no | Backend has no general local storage yet. |
 | Same-file function calls | yes | yes | yes | partial | partial | Build supports non-generic `i32` tail calls with up to 8 `i32` arguments, `bool` tail returns, and a narrow same-file scalar normal-call subset. |
-| Imported function calls | yes | yes | yes | no | no | Import resolution exists; backend call lowering does not cover imported calls. |
+| Imported function calls | yes | yes | yes | no | no | Import resolution exists; backend lowering now reports a dedicated imported-call boundary diagnostic, but does not lower imported calls. |
 | General non-tail calls | yes | yes | yes | partial | partial | Build supports same-file non-generic scalar normal calls in selected expression positions. Unsupported shapes still report IR lowering diagnostics. |
 | Terminal `if` / `else` | yes | yes | yes | partial | yes | Build supports terminal branches returning direct `i32` or non-entry `bool`. |
 | General `if`, `while`, `loop`, `for`, `match`, `?{}` | yes | yes | partial | no | no | Several forms are checkable; backend lowering remains intentionally narrow. |

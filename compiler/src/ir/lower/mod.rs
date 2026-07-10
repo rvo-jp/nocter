@@ -5,6 +5,7 @@ mod entry;
 mod errors;
 mod expressions;
 mod functions;
+mod imported_calls;
 mod literals;
 
 #[cfg(test)]
@@ -15,7 +16,10 @@ use crate::analysis::CompileUnitAnalysis;
 use crate::ast::{FunctionDecl, Item, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::Type;
+use crate::resolve::ResolveOutput;
+use crate::source::SourceId;
 use context::FunctionSignatures;
+use imported_calls::imported_call_diagnostics;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 pub(crate) fn lower_executable_with_entry(
@@ -40,6 +44,11 @@ pub(crate) fn lower_executable_with_entry(
     };
 
     let root_functions = collect_root_functions(&root.ast.items);
+    let diagnostics = imported_call_diagnostics(entry, root.ast.span.source, &root.resolved);
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+
     let function_signatures = collect_function_signatures(&root_functions);
     let mut functions = vec![entry::lower_entry_function(
         entry,
@@ -50,6 +59,8 @@ pub(crate) fn lower_executable_with_entry(
         &root_functions,
         &function_signatures,
         entry_name,
+        root.ast.span.source,
+        &root.resolved,
     )?;
 
     Ok(IrModule::new(functions))
@@ -93,6 +104,8 @@ fn lower_reachable_functions(
     candidates: &HashMap<&str, &FunctionDecl>,
     function_signatures: &FunctionSignatures,
     entry_name: &str,
+    root_source: SourceId,
+    resolved: &ResolveOutput,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut seen = HashSet::from([entry_name.to_string()]);
     let mut queue = call_targets(&lowered[0]);
@@ -108,6 +121,10 @@ fn lower_reachable_functions(
                 format!("IR v0 can only lower calls to same-file functions, got `{name}`"),
             )]);
         };
+        let diagnostics = imported_call_diagnostics(function, root_source, resolved);
+        if !diagnostics.is_empty() {
+            return Err(diagnostics);
+        }
 
         let function = functions::lower_function(function, function_signatures.clone())?;
         queue.extend(call_targets(&function));

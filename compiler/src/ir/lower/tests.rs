@@ -100,6 +100,33 @@ func answer(): i32 {
 }
 
 #[test]
+fn reports_unsupported_imported_i32_normal_call() {
+    let diagnostics = lower_text_diagnostics_with_nocter_home_files(
+        r#"from std/math import answer
+
+func main(): i32 {
+    let value = answer()
+    return value
+}
+"#,
+        &[(
+            "std/math.nct",
+            r#"pub func answer(): i32 {
+    return 42
+}
+"#,
+        )],
+    );
+
+    assert_eq!(diagnostics[0].code, "E8006");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("imported function call `answer`")
+    );
+}
+
+#[test]
 fn lowers_entry_i32_let_initializer_normal_call_with_arguments() {
     let ir = lower_text(
         r#"func main(): i32 {
@@ -2993,11 +3020,35 @@ fn lower_text_diagnostics_with_entry(text: &str, entry_name: &str) -> Vec<Diagno
     }
 }
 
+fn lower_text_diagnostics_with_nocter_home_files(
+    text: &str,
+    home_files: &[(&str, &str)],
+) -> Vec<Diagnostic> {
+    let analysis = analyze_text_with_entry_and_nocter_home_files(
+        text,
+        crate::entry::DEFAULT_ENTRY_NAME,
+        home_files,
+    );
+    match lower_executable_with_entry(&analysis, crate::entry::DEFAULT_ENTRY_NAME) {
+        Ok(_) => Vec::new(),
+        Err(diagnostics) => diagnostics,
+    }
+}
+
 fn analyze_text_with_entry(text: &str, entry_name: &str) -> crate::analysis::CompileUnitAnalysis {
+    analyze_text_with_entry_and_nocter_home_files(text, entry_name, &[])
+}
+
+fn analyze_text_with_entry_and_nocter_home_files(
+    text: &str,
+    entry_name: &str,
+    home_files: &[(&str, &str)],
+) -> crate::analysis::CompileUnitAnalysis {
     let mut sources = SourceMap::new();
     let source = sources.add_source("app.nct", None, text);
     let temp_root = make_temp_project();
     let nocter_home = make_nocter_home(&temp_root);
+    write_nocter_home_files(&nocter_home, home_files);
     let unit: CompileUnit = load_compile_unit(
         &mut sources,
         source,
@@ -3011,6 +3062,16 @@ fn analyze_text_with_entry(text: &str, entry_name: &str) -> crate::analysis::Com
     let diagnostics = analysis.diagnostics();
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     analysis
+}
+
+fn write_nocter_home_files(home: &Path, files: &[(&str, &str)]) {
+    for (relative, text) in files {
+        let path = home.join(relative);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(path, text).unwrap();
+    }
 }
 
 fn make_temp_project() -> PathBuf {
