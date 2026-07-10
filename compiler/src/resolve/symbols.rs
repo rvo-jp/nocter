@@ -7,6 +7,10 @@ use std::collections::HashMap;
 pub struct SymbolId(u32);
 
 impl SymbolId {
+    pub const fn new(raw: u32) -> Self {
+        Self(raw)
+    }
+
     pub const fn raw(self) -> u32 {
         self.0
     }

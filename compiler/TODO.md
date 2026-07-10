@@ -24,7 +24,11 @@ Recommended next implementation order:
 
 Recent committed work:
 
-- Current checkpoint: extract IR call reachability
+- Current checkpoint: collect imported call targets
+  - changes `ir/lower/imported_calls.rs` from a diagnostic-only traversal into an imported call target collector plus diagnostic conversion
+  - records loaded imported calls by declaration `SourceId` and unloaded placeholder imports by import path
+  - keeps the existing `E8006` imported-call backend boundary behavior unchanged
+- `Extract IR call reachability`
   - adds `ir/lower/reachability.rs` for same-file call target discovery
   - keeps reachable lowering behavior unchanged while giving imported call lowering a narrower boundary to extend next
   - adds direct coverage for nested `Instruction::If` call target collection order
@@ -237,7 +241,7 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Extract IR call reachability`.
+- None expected after committing `Collect imported call targets`.
 
 ## Verification Already Run
 
@@ -275,6 +279,16 @@ For the IR call reachability extraction, from `compiler/`:
 cargo test --quiet ir::lower::reachability
 cargo test --quiet reports_unsupported_imported_i32_normal_call
 cargo test --quiet lowers_entry_returning_same_file_function_call
+cargo fmt
+./scripts/verify.sh
+```
+
+For imported call target collection, from `compiler/`:
+
+```sh
+cargo test --quiet imported_placeholder_symbol_becomes_unloaded_imported_call_target
+cargo test --quiet collects_loaded_imported_call_targets
+cargo test --quiet reports_unsupported_imported_i32_normal_call
 cargo fmt
 ./scripts/verify.sh
 ```

@@ -127,6 +127,52 @@ func main(): i32 {
 }
 
 #[test]
+fn collects_loaded_imported_call_targets() {
+    let analysis = analyze_text_with_entry_and_nocter_home_files(
+        r#"from std/math import answer
+
+func main(): i32 {
+    let value = answer()
+    return value
+}
+"#,
+        crate::entry::DEFAULT_ENTRY_NAME,
+        &[(
+            "std/math.nct",
+            r#"pub func answer(): i32 {
+    return 42
+}
+"#,
+        )],
+    );
+    let root = analysis.root_file().unwrap();
+    let entry = root
+        .ast
+        .items
+        .iter()
+        .find_map(|item| match item {
+            crate::ast::Item::Function(function)
+                if function.name == crate::entry::DEFAULT_ENTRY_NAME =>
+            {
+                Some(function)
+            }
+            _ => None,
+        })
+        .unwrap();
+
+    let targets =
+        super::imported_calls::imported_call_targets(entry, root.ast.span.source, &root.resolved);
+
+    assert_eq!(targets.len(), 1);
+    assert_eq!(targets[0].call_name, "answer");
+    assert!(matches!(
+        targets[0].source,
+        super::imported_calls::ImportedCallSource::Loaded(source)
+            if source != root.ast.span.source
+    ));
+}
+
+#[test]
 fn lowers_entry_i32_let_initializer_normal_call_with_arguments() {
     let ir = lower_text(
         r#"func main(): i32 {
