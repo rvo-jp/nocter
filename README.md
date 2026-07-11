@@ -101,12 +101,13 @@ compiler/
         io.nct
         mem.nct
         os.nct
+        process.nct
         ptr.nct
         string.nct
     targets/
         arm64-darwin/
             std/
-                process.nct
+                process_impl.nct
                 os/
                     macos.nct
         x64-linux/
@@ -722,12 +723,13 @@ C 連携が必要になった場合は、将来 `extern "c"` のような別 ABI
         io.nct
         mem.nct
         os.nct
+        process.nct
         ptr.nct
         string.nct
     targets/
         arm64-darwin/
             std/
-                process.nct
+                process_impl.nct
                 os/
                     macos.nct
         x64-linux/
@@ -834,7 +836,7 @@ pub func print(text: str): void!
 
 `exit` / `abort` は target overlay の syscall や process termination boundary を使って実装し、万一 OS の終了操作から戻った場合は `trap()` します。`exit` / `abort` は caller scope の Nocter cleanup を実行しません。cleanup が必要な場合は、呼び出し前に明示します。
 
-`std/process` はユーザー向け module path ですが、process context や process termination は process ABI に依存するため、初期実装では target overlay 側に物理配置します。利用者は配置を意識せず `from std/process import args`、`from std/process import env`、`from std/process import exit` のように使います。
+`std/process` はユーザー向け module path であり、共通 `std/process.nct` に安定した公開 API wrapper を置きます。process context や process termination の target 依存部分は active target overlay の `std/process_impl.nct` に隠し、`pub(nocter)` API として共通 wrapper からだけ使います。利用者は配置を意識せず `from std/process import args`、`from std/process import env`、`from std/process import exit` のように使います。
 
 ## ランタイム
 

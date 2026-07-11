@@ -297,7 +297,8 @@ func main(): i32! {
 Physical placement:
 
 - `std/process` is the user-facing module path.
-- Process context implementation may live in the active target overlay when it depends on the target process ABI.
+- Common `std/process.nct` owns the stable public wrapper API.
+- Process context implementation may live in a target overlay module such as `std/process_impl` when it depends on the target process ABI.
 - Common process API names should remain stable across targets.
 
 ### Process Termination
@@ -320,11 +321,11 @@ Rules:
 - Neither `exit` nor `abort` runs caller-scope Nocter cleanup. Code that needs cleanup must do it before calling them.
 - The target implementation uses the active target's syscall or process termination boundary.
 - If the platform termination operation unexpectedly returns, the implementation calls `trap()`.
-- The module path is `std/process`, but the physical implementation may live in the active target overlay when the implementation depends on process ABI.
+- The public module path is `std/process`, while target-dependent implementation details may live behind a `pub(nocter)` target overlay module such as `std/process_impl`.
 
 ### Not Adopted
 
-`std/posix` is not part of the initial design. macOS and Linux can share POSIX-like ideas, but Windows does not fit that layer cleanly. Shared concepts should use stable module paths such as `std/os`, `std/io`, and `std/process`. Their physical implementation may live in common `std/` or in the active target overlay depending on whether the implementation is target-independent.
+`std/posix` is not part of the initial design. macOS and Linux can share POSIX-like ideas, but Windows does not fit that layer cleanly. Shared concepts should use stable module paths such as `std/os`, `std/io`, and `std/process`. Their target-dependent implementation may live behind common wrappers or in active target overlays depending on whether the implementation is target-independent.
 
 ## Standard Library and Low-Level Code
 

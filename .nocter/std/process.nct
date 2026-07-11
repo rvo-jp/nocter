@@ -1,0 +1,30 @@
+// User-facing process API.
+//
+// This module keeps the public std/process path stable. Target-dependent
+// process context and termination details live behind std/process_impl.
+
+from std/process_impl import abort as abort_impl
+from std/process_impl import args as args_impl
+from std/process_impl import cwd as cwd_impl
+from std/process_impl import env as env_impl
+from std/process_impl import exit as exit_impl
+
+pub func args(): [str]! {
+    return args_impl()?
+}
+
+pub func env(name: str): (str?)! {
+    return env_impl(name)?
+}
+
+pub func cwd(): str! {
+    return cwd_impl()?
+}
+
+pub func exit(code: i32): never {
+    exit_impl(code)
+}
+
+pub func abort(): never {
+    abort_impl()
+}

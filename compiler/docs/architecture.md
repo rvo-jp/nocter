@@ -30,15 +30,17 @@ The distributable archive root for the initial host is:
     MANIFEST.json
     std/
         prelude.nct
+        fmt.nct
         io.nct
         mem.nct
         os.nct
+        process.nct
         ptr.nct
         string.nct
     targets/
         arm64-darwin/
             std/
-                process.nct
+                process_impl.nct
                 os/
                     macos.nct
         x64-linux/
@@ -544,7 +546,7 @@ If source loading, lexing, or parsing fails, `check` returns a `nocter.diagnosti
 
 `CompileUnitAnalysis` is the `analysis/` module's semantic-analysis result for the whole reachable compile unit. Each `FileAnalysis` keeps the file AST, its file-scoped `ResolveOutput`, that file's diagnostics, and whether the file is the executable root. Flattened diagnostics are sorted by loaded file order, primary span start byte, primary span end byte, diagnostic code, and message. This keeps the command-line checker aligned with future LSP features such as hover, completion, and definition lookup, where editor features need the semantic state for a specific file rather than only a flattened diagnostics list.
 
-The first standard-library source files are `.nocter/std/prelude.nct`, `.nocter/std/string.nct`, `.nocter/std/fmt.nct`, `.nocter/std/mem.nct`, `.nocter/std/ptr.nct`, `.nocter/std/os.nct`, `.nocter/std/io.nct`, `.nocter/targets/arm64-darwin/std/process.nct`, and `.nocter/targets/arm64-darwin/std/os/macos.nct`. They currently form a Parser v0-readable skeleton for the synthetic user prelude, owning string type, explicit formatting append boundary, initial memory API, core pointer primitive boundary, common OS error model, user-facing I/O errors, `File`, `stdout`, `stderr`, `print`, macOS process API placeholders, and macOS primitive boundary. `std/process.abort` and the placeholder `exit` terminate through the target `trap` primitive today. Future target support should add target overlays without changing ordinary user-facing APIs.
+The first standard-library source files are `.nocter/std/prelude.nct`, `.nocter/std/string.nct`, `.nocter/std/fmt.nct`, `.nocter/std/mem.nct`, `.nocter/std/ptr.nct`, `.nocter/std/os.nct`, `.nocter/std/io.nct`, `.nocter/std/process.nct`, `.nocter/targets/arm64-darwin/std/process_impl.nct`, and `.nocter/targets/arm64-darwin/std/os/macos.nct`. They currently form a Parser v0-readable skeleton for the synthetic user prelude, owning string type, explicit formatting append boundary, initial memory API, core pointer primitive boundary, common OS error model, user-facing I/O errors, `File`, `stdout`, `stderr`, `print`, common process API wrappers, macOS process implementation placeholders, and macOS primitive boundary. `std/process.abort` and the placeholder `exit` terminate through the target `trap` primitive today. Future target support should add target overlays without changing ordinary user-facing APIs.
 
 The target-independent core pointer primitive set is:
 
@@ -657,7 +659,7 @@ Milestone grouping:
 28. initial `.nocter/std/ptr.nct`
 29. initial `.nocter/std/os.nct`
 30. initial `.nocter/std/io.nct`
-31. initial `.nocter/targets/arm64-darwin/std/process.nct` with process context APIs and termination APIs
+31. initial `.nocter/std/process.nct` with process context APIs and termination APIs plus target `.nocter/targets/arm64-darwin/std/process_impl.nct`
 32. initial `.nocter/targets/arm64-darwin/std/os/macos.nct`
 33. core pointer primitive validation and lowering for `std/ptr`
 34. closed target primitive set validation for `std/os/macos.syscall0..6`, `trap`, and `unreachable`

@@ -100,12 +100,13 @@ The installed layout is:
         io.nct
         mem.nct
         os.nct
+        process.nct
         ptr.nct
         string.nct
     targets/
         arm64-darwin/
             std/
-                process.nct
+                process_impl.nct
                 os/
                     macos.nct
         x64-linux/

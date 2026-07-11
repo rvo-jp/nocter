@@ -1,0 +1,29 @@
+// macOS implementation behind the user-facing std/process API.
+//
+// exit is a standard-library API, not a compiler primitive. The target-specific
+// implementation will call the active target boundary and trap if the platform
+// exit operation unexpectedly returns.
+
+from std/error import Error
+from std/os/macos import trap
+
+pub(nocter) func args(): [str]! {
+    return Error.new("std.process.unsupported", "process arguments are not implemented")
+}
+
+pub(nocter) func env(name: str): (str?)! {
+    return none
+}
+
+pub(nocter) func cwd(): str! {
+    return Error.new("std.process.unsupported", "current working directory is not implemented")
+}
+
+pub(nocter) func exit(code: i32): never {
+    // TODO: call macOS SYS_exit after syscall number constants are specified.
+    trap()
+}
+
+pub(nocter) func abort(): never {
+    trap()
+}
