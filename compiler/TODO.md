@@ -19,11 +19,15 @@ Adopted user decisions:
 Recommended next implementation order:
 
 1. Design the interpolation allocator source and exact lowering shape around explicit `std/string` construction plus `std/fmt.append_*` calls.
-2. Lower interpolated strings only after the remaining backend prerequisites exist: `usize` parameter/call-argument support where the explicit APIs require it, aggregate `String` storage, mutable local mutation through `&+String`, and fallible propagation from append calls. Loaded imported scalar calls and `usize` locals/returns/comparisons are now buildable.
+2. Lower interpolated strings only after the remaining backend prerequisites exist: aggregate `String` storage, mutable local mutation through `&+String`, and fallible propagation from append calls. Loaded imported scalar calls and `usize` parameters/call arguments/locals/returns/comparisons are now buildable in the current narrow scalar subset.
 3. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
+- Current checkpoint: add typed scalar call arguments
+  - lowers `usize` parameters and calls whose arguments include `usize`, while preserving ABI argument indexes for mixed `i32`/`usize` parameter lists
+  - changes IR call arguments from `I32Value` to typed scalar arguments and updates ARM64 argument staging to use W registers for `i32` and X registers for `usize`
+  - adds IR and CLI run coverage for a mixed `i32`/`usize` call returning `usize`
 - Current checkpoint: add target `std/io_impl` skeleton
   - adds `.nocter/targets/arm64-darwin/std/io_impl.nct` with `pub(nocter)` raw file-descriptor helpers
   - updates common `.nocter/std/io.nct` to keep the public `File` API while obtaining standard stream and future opened descriptors through the target overlay

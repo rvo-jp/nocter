@@ -1,7 +1,7 @@
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolLocation, BoolValue, Function, I32Location, I32Value, Instruction, UsizeLocation,
-    UsizeValue,
+    BoolLocation, BoolValue, Function, I32Location, I32Value, Instruction, ScalarArgument,
+    UsizeLocation, UsizeValue,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -247,7 +247,7 @@ fn record_instruction_scalar_locals(
         Instruction::WriteStaticStderr(_) | Instruction::Trap | Instruction::Return => {}
         Instruction::TailCall { arguments, .. } => {
             for argument in arguments {
-                record_i32_value(argument, highest_local_index);
+                record_scalar_argument(argument, highest_local_index);
             }
         }
         Instruction::SetI32 { destination, value } => {
@@ -308,7 +308,7 @@ fn record_instruction_scalar_locals(
         } => {
             record_i32_location(*destination, highest_local_index);
             for argument in arguments {
-                record_i32_value(argument, highest_local_index);
+                record_scalar_argument(argument, highest_local_index);
             }
         }
         Instruction::CallUsize {
@@ -318,7 +318,7 @@ fn record_instruction_scalar_locals(
         } => {
             record_usize_location(*destination, highest_local_index);
             for argument in arguments {
-                record_i32_value(argument, highest_local_index);
+                record_scalar_argument(argument, highest_local_index);
             }
         }
         Instruction::CallBool {
@@ -328,7 +328,7 @@ fn record_instruction_scalar_locals(
         } => {
             record_bool_location(*destination, highest_local_index);
             for argument in arguments {
-                record_i32_value(argument, highest_local_index);
+                record_scalar_argument(argument, highest_local_index);
             }
         }
         Instruction::If {
@@ -347,6 +347,13 @@ fn record_i32_value(value: &I32Value, highest_local_index: &mut Option<usize>) {
     match value {
         I32Value::Const(_) => {}
         I32Value::Location(location) => record_i32_location(*location, highest_local_index),
+    }
+}
+
+fn record_scalar_argument(argument: &ScalarArgument, highest_local_index: &mut Option<usize>) {
+    match argument {
+        ScalarArgument::I32(value) => record_i32_value(value, highest_local_index),
+        ScalarArgument::Usize(value) => record_usize_value(value, highest_local_index),
     }
 }
 
@@ -425,7 +432,7 @@ const LDR_STR_X_SP_MAX_BYTE_OFFSET: u32 = 0x0fff * 8;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{BoolComparisonOperator, CallTarget, Type};
+    use crate::ir::{BoolComparisonOperator, CallTarget, ScalarArgument, Type};
 
     #[test]
     fn plans_current_ir_functions_as_frameless() {
@@ -536,7 +543,9 @@ mod tests {
             instructions: vec![Instruction::CallI32 {
                 destination: I32Location::Local(2),
                 target: CallTarget::same_file("answer"),
-                arguments: vec![I32Value::Location(I32Location::Local(1))],
+                arguments: vec![ScalarArgument::I32(I32Value::Location(I32Location::Local(
+                    1,
+                )))],
             }],
         };
 
@@ -557,7 +566,9 @@ mod tests {
             instructions: vec![Instruction::CallBool {
                 destination: BoolLocation::Local(2),
                 target: CallTarget::same_file("ready"),
-                arguments: vec![I32Value::Location(I32Location::Local(1))],
+                arguments: vec![ScalarArgument::I32(I32Value::Location(I32Location::Local(
+                    1,
+                )))],
             }],
         };
 
@@ -577,7 +588,10 @@ mod tests {
             return_type: Type::I32,
             instructions: vec![Instruction::TailCall {
                 target: CallTarget::same_file("answer"),
-                arguments: vec![I32Value::Const(40), I32Value::Const(2)],
+                arguments: vec![
+                    ScalarArgument::I32(I32Value::Const(40)),
+                    ScalarArgument::I32(I32Value::Const(2)),
+                ],
             }],
         };
 
@@ -597,7 +611,9 @@ mod tests {
             return_type: Type::I32,
             instructions: vec![Instruction::TailCall {
                 target: CallTarget::same_file("answer"),
-                arguments: vec![I32Value::Location(I32Location::Local(2))],
+                arguments: vec![ScalarArgument::I32(I32Value::Location(I32Location::Local(
+                    2,
+                )))],
             }],
         };
 

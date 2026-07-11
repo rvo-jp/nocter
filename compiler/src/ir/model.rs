@@ -92,23 +92,23 @@ pub(crate) enum Instruction {
     CallI32 {
         destination: I32Location,
         target: CallTarget,
-        arguments: Vec<I32Value>,
+        arguments: Vec<ScalarArgument>,
     },
     #[allow(dead_code)]
     CallUsize {
         destination: UsizeLocation,
         target: CallTarget,
-        arguments: Vec<I32Value>,
+        arguments: Vec<ScalarArgument>,
     },
     #[allow(dead_code)]
     CallBool {
         destination: BoolLocation,
         target: CallTarget,
-        arguments: Vec<I32Value>,
+        arguments: Vec<ScalarArgument>,
     },
     TailCall {
         target: CallTarget,
-        arguments: Vec<I32Value>,
+        arguments: Vec<ScalarArgument>,
     },
     Trap,
     If {
@@ -143,6 +143,12 @@ pub(crate) enum UsizeLocation {
 pub(crate) enum UsizeValue {
     Const(u64),
     Location(UsizeLocation),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ScalarArgument {
+    I32(I32Value),
+    Usize(UsizeValue),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

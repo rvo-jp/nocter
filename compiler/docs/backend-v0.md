@@ -128,23 +128,23 @@ Use a temporary result register when the call result is not written directly to 
 For example, `let x = callee()` can reload locals and then write `w0` into `x` if the destination local was not among the spilled pre-call locals.
 For `callee() + local`, preserve the call result in a scratch or spill slot before reloading locals, then perform the addition.
 
-Normal calls can stage nested `i32` call arguments.
+Normal calls can stage nested scalar call arguments.
 For example, `let value = outer(inner())` lowers `inner()` into a temporary local, then passes that local to `outer`.
-Tail calls can also stage nested `i32` call arguments before the final tail branch.
+Tail calls can also stage nested scalar call arguments before the final tail branch.
 For example, `return outer(inner())` lowers `inner()` into a temporary local, then uses that local as the staged argument for `outer`.
 
 ### Argument Movement
 
 Normal calls and tail calls with arguments use argument staging slots:
 
-- evaluate each lowerable `i32` argument into a stack slot or scratch register
-- after all arguments are staged, load `w0` through `w7` from those staged values
+- evaluate each lowerable `i32` or `usize` argument into a stack slot or scratch register
+- after all arguments are staged, load `w0` through `w7` or `x0` through `x7` according to each argument type and ABI argument index
 - issue `bl` for normal calls or restore the frame and branch with `b` for tail calls
 
 This makes source calls such as `swap(b, a)` safe when `a` and `b` already live in argument registers.
 Tail calls with arguments require a frame for staging even when the function has no normal calls.
 Tail calls without arguments can remain frameless.
-Nested `i32` tail-call arguments use the same source-level expression staging as normal-call arguments before the final frame restore and branch.
+Nested scalar tail-call arguments use the same source-level expression staging as normal-call arguments before the final frame restore and branch.
 
 ### IR Shape
 
@@ -157,20 +157,26 @@ A minimal extension is:
 CallI32 {
     destination: I32Location,
     function: String,
-    arguments: Vec<I32Value>,
+    arguments: Vec<ScalarArgument>,
+}
+
+CallUsize {
+    destination: UsizeLocation,
+    function: String,
+    arguments: Vec<ScalarArgument>,
 }
 
 CallBool {
     destination: BoolLocation,
     function: String,
-    arguments: Vec<I32Value>,
+    arguments: Vec<ScalarArgument>,
 }
 ```
 
 This covers `let x = callee()` and `return callee() + 1` after the expression lowerer has a destination for intermediate results.
 The source expression lowerer stages normal-call results in temporary scalar locals for lowerable `i32` arithmetic and shifts with `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`.
 Multiple normal calls in an arithmetic expression are evaluated left to right and receive distinct temporary locals.
-Nested normal-call arguments are also evaluated left to right before the parent `CallI32`.
+Nested normal-call arguments are also evaluated left to right before the parent scalar call.
 `i32` comparisons such as `if answer() == 42 { ... }`, `let matched = left() <= right()`, and `return left() < right()` evaluate lowerable call operands left to right, stage each call result in a temporary scalar local, and then build a `BoolValue::I32Comparison`.
 Those staged comparisons can also participate in buildable short-circuit bool expressions such as `if answer() == 42 && ready() { ... }` and `let matched = answer() == 42 && ready()`.
 Bool-returning normal calls are buildable in `let` initializers, unary-not bool expressions, bool equality/inequality operands, short-circuit bool value expressions, direct terminal-if conditions, and terminal-if short-circuit conditions.
@@ -223,6 +229,7 @@ Implement normal calls in this order:
 21. Done: emit signed-overflow trap checks for lowered `i32` addition, subtraction, and multiplication.
 22. Done: lower `i32` shift operators with shift-count trap checks.
 23. Done: lower terminal calls returning `never` and the `std/os/macos.trap` / `unreachable` primitives to ARM64 `brk #0`.
+24. Done: type call arguments as scalar `i32`/`usize` IR values, lower `usize` parameters, and stage ARM64 call arguments through W or X registers according to each ABI argument index.
 
 ### Non-Goals For This Phase
 

@@ -2,8 +2,8 @@ use crate::backend::frame::{FrameLayout, FunctionFrame, plan_function_frame};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, CallTarget, Function,
-    I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule, Type, UsizeLocation,
-    UsizeValue,
+    I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule, ScalarArgument, Type,
+    UsizeLocation, UsizeValue,
 };
 use crate::target::arm64::{BranchCondition, Encoder, MoveWideShift, WReg, XReg};
 use std::collections::HashMap;
@@ -516,7 +516,7 @@ impl EntryEmitter {
     fn emit_tail_call(
         &mut self,
         function: FunctionSymbol,
-        arguments: &[I32Value],
+        arguments: &[ScalarArgument],
         frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
         if !arguments.is_empty() {
@@ -526,7 +526,7 @@ impl EntryEmitter {
                     "tail call argument staging requires a stack frame",
                 )]);
             };
-            self.emit_staged_i32_arguments(arguments, frame)?;
+            self.emit_staged_scalar_arguments(arguments, frame)?;
         }
 
         if let Some(frame) = frame {
@@ -547,7 +547,7 @@ impl EntryEmitter {
         &mut self,
         destination: I32Location,
         function: FunctionSymbol,
-        arguments: &[I32Value],
+        arguments: &[ScalarArgument],
         frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(frame) = frame else {
@@ -558,7 +558,7 @@ impl EntryEmitter {
         };
 
         self.emit_scalar_spills(frame)?;
-        self.emit_staged_i32_arguments(arguments, frame)?;
+        self.emit_staged_scalar_arguments(arguments, frame)?;
 
         self.emit_call(function);
         self.emit_scalar_reloads(frame)?;
@@ -569,7 +569,7 @@ impl EntryEmitter {
         &mut self,
         destination: UsizeLocation,
         function: FunctionSymbol,
-        arguments: &[I32Value],
+        arguments: &[ScalarArgument],
         frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(frame) = frame else {
@@ -580,7 +580,7 @@ impl EntryEmitter {
         };
 
         self.emit_scalar_spills(frame)?;
-        self.emit_staged_i32_arguments(arguments, frame)?;
+        self.emit_staged_scalar_arguments(arguments, frame)?;
 
         self.emit_call(function);
         self.emit_scalar_reloads(frame)?;
@@ -591,7 +591,7 @@ impl EntryEmitter {
         &mut self,
         destination: BoolLocation,
         function: FunctionSymbol,
-        arguments: &[I32Value],
+        arguments: &[ScalarArgument],
         frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(frame) = frame else {
@@ -602,41 +602,65 @@ impl EntryEmitter {
         };
 
         self.emit_scalar_spills(frame)?;
-        self.emit_staged_i32_arguments(arguments, frame)?;
+        self.emit_staged_scalar_arguments(arguments, frame)?;
 
         self.emit_call(function);
         self.emit_scalar_reloads(frame)?;
         self.emit_call_result_to_bool_location(destination)
     }
 
-    fn emit_staged_i32_arguments(
+    fn emit_staged_scalar_arguments(
         &mut self,
-        arguments: &[I32Value],
+        arguments: &[ScalarArgument],
         frame: &FrameLayout,
     ) -> Result<(), Vec<Diagnostic>> {
         for (index, argument) in arguments.iter().enumerate() {
             let Some(slot) = frame.argument_staging_slots().get(index) else {
                 return Err(vec![Diagnostic::error(
                     "E9003",
-                    format!("codegen supports at most 8 i32 arguments, got argument {index}"),
+                    format!("codegen supports at most 8 scalar arguments, got argument {index}"),
                 )]);
             };
             debug_assert_eq!(slot.argument_index(), index);
-            self.emit_i32_value_to_w(argument, WReg::W16)?;
-            self.encoder.emit_str_w_sp(WReg::W16, slot.offset());
+            match argument {
+                ScalarArgument::I32(value) => {
+                    self.emit_i32_value_to_w(value, WReg::W16)?;
+                    self.encoder.emit_str_w_sp(WReg::W16, slot.offset());
+                }
+                ScalarArgument::Usize(value) => {
+                    self.emit_usize_value_to_x(value, XReg::X16)?;
+                    self.encoder.emit_str_x_sp(XReg::X16, slot.offset());
+                }
+            }
         }
 
         for slot in frame.argument_staging_slots().iter().take(arguments.len()) {
-            let Some(register) = WReg::argument(slot.argument_index()) else {
-                return Err(vec![Diagnostic::error(
-                    "E9003",
-                    format!(
-                        "codegen supports at most 8 i32 arguments, got argument {}",
-                        slot.argument_index()
-                    ),
-                )]);
-            };
-            self.encoder.emit_ldr_w_sp(register, slot.offset());
+            match &arguments[slot.argument_index()] {
+                ScalarArgument::I32(_) => {
+                    let Some(register) = WReg::argument(slot.argument_index()) else {
+                        return Err(vec![Diagnostic::error(
+                            "E9003",
+                            format!(
+                                "codegen supports at most 8 i32 arguments, got argument {}",
+                                slot.argument_index()
+                            ),
+                        )]);
+                    };
+                    self.encoder.emit_ldr_w_sp(register, slot.offset());
+                }
+                ScalarArgument::Usize(_) => {
+                    let Some(register) = XReg::argument(slot.argument_index()) else {
+                        return Err(vec![Diagnostic::error(
+                            "E9003",
+                            format!(
+                                "codegen supports at most 8 usize arguments, got argument {}",
+                                slot.argument_index()
+                            ),
+                        )]);
+                    };
+                    self.encoder.emit_ldr_x_sp(register, slot.offset());
+                }
+            }
         }
 
         Ok(())
@@ -2466,7 +2490,7 @@ mod tests {
     fn tail_call(function: &str, arguments: Vec<I32Value>) -> Instruction {
         Instruction::TailCall {
             target: CallTarget::same_file(function),
-            arguments,
+            arguments: i32_arguments(arguments),
         }
     }
 
@@ -2474,7 +2498,7 @@ mod tests {
         Instruction::CallI32 {
             destination,
             target: CallTarget::same_file(function),
-            arguments,
+            arguments: i32_arguments(arguments),
         }
     }
 
@@ -2486,8 +2510,12 @@ mod tests {
         Instruction::CallBool {
             destination,
             target: CallTarget::same_file(function),
-            arguments,
+            arguments: i32_arguments(arguments),
         }
+    }
+
+    fn i32_arguments(arguments: Vec<I32Value>) -> Vec<ScalarArgument> {
+        arguments.into_iter().map(ScalarArgument::I32).collect()
     }
 
     fn i32_const(value: i32) -> I32Value {

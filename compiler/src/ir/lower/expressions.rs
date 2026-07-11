@@ -6,7 +6,8 @@ use crate::ast::{
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, CallTarget,
-    I32ComparisonOperator, I32Location, I32Value, Instruction, Type, UsizeLocation, UsizeValue,
+    I32ComparisonOperator, I32Location, I32Value, Instruction, ScalarArgument, Type, UsizeLocation,
+    UsizeValue,
 };
 
 pub(super) fn lower_i32_expression(
@@ -292,13 +293,8 @@ pub(super) fn lower_never_return_expression(
             }
 
             let mut temporaries = TemporaryAllocator::new(context)?;
-            let mut instructions = Vec::new();
-            let mut arguments = Vec::new();
-            for argument in &call.arguments {
-                let argument = lower_i32_expression_to_value(argument, context, &mut temporaries)?;
-                instructions.extend(argument.instructions);
-                arguments.push(argument.value);
-            }
+            let (mut instructions, arguments) =
+                lower_call_arguments(call, &target, &identifier.name, context, &mut temporaries)?;
             instructions.push(Instruction::TailCall { target, arguments });
             Ok(Some(instructions))
         }
@@ -849,13 +845,8 @@ fn lower_i32_normal_call(
     let target = context.call_target(call, &identifier.name);
     validate_normal_call_return_type(&target, &identifier.name, context)?;
 
-    let mut instructions = Vec::new();
-    let mut arguments = Vec::new();
-    for argument in &call.arguments {
-        let argument = lower_i32_expression_to_value(argument, context, temporaries)?;
-        instructions.extend(argument.instructions);
-        arguments.push(argument.value);
-    }
+    let (mut instructions, arguments) =
+        lower_call_arguments(call, &target, &identifier.name, context, temporaries)?;
 
     instructions.push(Instruction::CallI32 {
         destination,
@@ -878,13 +869,8 @@ fn lower_usize_normal_call(
     let target = context.call_target(call, &identifier.name);
     validate_usize_normal_call_return_type(&target, &identifier.name, context)?;
 
-    let mut instructions = Vec::new();
-    let mut arguments = Vec::new();
-    for argument in &call.arguments {
-        let argument = lower_i32_expression_to_value(argument, context, temporaries)?;
-        instructions.extend(argument.instructions);
-        arguments.push(argument.value);
-    }
+    let (mut instructions, arguments) =
+        lower_call_arguments(call, &target, &identifier.name, context, temporaries)?;
 
     instructions.push(Instruction::CallUsize {
         destination,
@@ -907,13 +893,8 @@ fn lower_bool_normal_call(
     let target = context.call_target(call, &identifier.name);
     validate_bool_normal_call_return_type(&target, &identifier.name, context)?;
 
-    let mut instructions = Vec::new();
-    let mut arguments = Vec::new();
-    for argument in &call.arguments {
-        let argument = lower_i32_expression_to_value(argument, context, temporaries)?;
-        instructions.extend(argument.instructions);
-        arguments.push(argument.value);
-    }
+    let (mut instructions, arguments) =
+        lower_call_arguments(call, &target, &identifier.name, context, temporaries)?;
 
     instructions.push(Instruction::CallBool {
         destination,
@@ -942,16 +923,78 @@ fn lower_direct_tail_call(
     validate_tail_call_return_type(&target, &identifier.name, context)?;
 
     let mut temporaries = TemporaryAllocator::new(context)?;
-    let mut instructions = Vec::new();
-    let mut arguments = Vec::new();
-    for argument in &call.arguments {
-        let argument = lower_i32_expression_to_value(argument, context, &mut temporaries)?;
-        instructions.extend(argument.instructions);
-        arguments.push(argument.value);
-    }
+    let (mut instructions, arguments) =
+        lower_call_arguments(call, &target, &identifier.name, context, &mut temporaries)?;
 
     instructions.push(Instruction::TailCall { target, arguments });
     Ok(instructions)
+}
+
+fn lower_call_arguments(
+    call: &CallExpr,
+    target: &CallTarget,
+    callee_name: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, Vec<ScalarArgument>), Vec<Diagnostic>> {
+    let Some(parameter_types) = context.call_parameter_types(target) else {
+        return lower_legacy_i32_call_arguments(call, context, temporaries);
+    };
+
+    if parameter_types.len() != call.arguments.len() {
+        return Err(vec![Diagnostic::error(
+            "E8006",
+            format!(
+                "IR v0 cannot lower call to function `{callee_name}` with {} arguments against {} parameters",
+                call.arguments.len(),
+                parameter_types.len(),
+            ),
+        )]);
+    }
+
+    let mut instructions = Vec::new();
+    let mut arguments = Vec::new();
+    for (argument, parameter_type) in call.arguments.iter().zip(parameter_types) {
+        match parameter_type {
+            Type::I32 => {
+                let argument = lower_i32_expression_to_value(argument, context, temporaries)?;
+                instructions.extend(argument.instructions);
+                arguments.push(ScalarArgument::I32(argument.value));
+            }
+            Type::Usize => {
+                let argument = lower_usize_expression_to_value(argument, context, temporaries)?;
+                instructions.extend(argument.instructions);
+                arguments.push(ScalarArgument::Usize(argument.value));
+            }
+            Type::Bool | Type::Void | Type::Never | Type::Fallible(_) => {
+                return Err(vec![Diagnostic::error(
+                    "E8006",
+                    format!(
+                        "IR v0 can only lower `i32` and `usize` call arguments for function `{callee_name}`, got `{}`",
+                        describe_type(parameter_type),
+                    ),
+                )]);
+            }
+        }
+    }
+
+    Ok((instructions, arguments))
+}
+
+fn lower_legacy_i32_call_arguments(
+    call: &CallExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, Vec<ScalarArgument>), Vec<Diagnostic>> {
+    let mut instructions = Vec::new();
+    let mut arguments = Vec::new();
+    for argument in &call.arguments {
+        let argument = lower_i32_expression_to_value(argument, context, temporaries)?;
+        instructions.extend(argument.instructions);
+        arguments.push(ScalarArgument::I32(argument.value));
+    }
+
+    Ok((instructions, arguments))
 }
 
 fn validate_normal_call_return_type(

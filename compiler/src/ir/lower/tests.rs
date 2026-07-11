@@ -4,8 +4,8 @@ use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::ir::{
     BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, CallTarget, Function,
-    I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule, Type, UsizeLocation,
-    UsizeValue,
+    I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule, ScalarArgument, Type,
+    UsizeLocation, UsizeValue,
 };
 use crate::source::SourceMap;
 use crate::target::DEFAULT_TARGET;
@@ -186,6 +186,138 @@ func size(): usize {
                 target: crate::ir::CallTarget::same_file("size".to_string()),
                 return_type: Type::Usize,
                 instructions: vec![set_return_usize(42), Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
+fn lowers_usize_parameter_normal_call_in_let_initializer() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let value: usize = choose(7, 42)
+    if value == 42 {
+        return 0
+    } else {
+        return 1
+    }
+}
+
+func choose(code: i32, value: usize): usize {
+    return value
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_usize(
+                        UsizeLocation::Local(0),
+                        "choose",
+                        vec![
+                            ScalarArgument::I32(i32_const(7)),
+                            ScalarArgument::Usize(usize_const(42)),
+                        ],
+                    ),
+                    Instruction::If {
+                        condition: BoolValue::UsizeComparison {
+                            operator: I32ComparisonOperator::Equal,
+                            left: usize_local(0),
+                            right: usize_const(42),
+                        },
+                        then_instructions: vec![set_return_i32(0), Instruction::Return],
+                        else_instructions: vec![set_return_i32(1), Instruction::Return],
+                    },
+                ],
+            },
+            Function {
+                name: "choose".to_string(),
+                target: crate::ir::CallTarget::same_file("choose".to_string()),
+                return_type: Type::Usize,
+                instructions: vec![
+                    Instruction::SetUsize {
+                        destination: UsizeLocation::Return,
+                        value: usize_param(1),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ])
+    );
+}
+
+#[test]
+fn lowers_usize_parameter_tail_call() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let value: usize = forward(42)
+    if value == 42 {
+        return 0
+    } else {
+        return 1
+    }
+}
+
+func forward(value: usize): usize {
+    return identity(value)
+}
+
+func identity(value: usize): usize {
+    return value
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_usize(
+                        UsizeLocation::Local(0),
+                        "forward",
+                        vec![ScalarArgument::Usize(usize_const(42))],
+                    ),
+                    Instruction::If {
+                        condition: BoolValue::UsizeComparison {
+                            operator: I32ComparisonOperator::Equal,
+                            left: usize_local(0),
+                            right: usize_const(42),
+                        },
+                        then_instructions: vec![set_return_i32(0), Instruction::Return],
+                        else_instructions: vec![set_return_i32(1), Instruction::Return],
+                    },
+                ],
+            },
+            Function {
+                name: "forward".to_string(),
+                target: crate::ir::CallTarget::same_file("forward".to_string()),
+                return_type: Type::Usize,
+                instructions: vec![Instruction::TailCall {
+                    target: CallTarget::same_file("identity"),
+                    arguments: vec![ScalarArgument::Usize(usize_param(0))],
+                }],
+            },
+            Function {
+                name: "identity".to_string(),
+                target: crate::ir::CallTarget::same_file("identity".to_string()),
+                return_type: Type::Usize,
+                instructions: vec![
+                    Instruction::SetUsize {
+                        destination: UsizeLocation::Return,
+                        value: usize_param(0),
+                    },
+                    Instruction::Return,
+                ],
             },
         ])
     );
@@ -3524,7 +3656,7 @@ fn set_return_usize(value: u64) -> Instruction {
 fn tail_call(function: &str, arguments: Vec<I32Value>) -> Instruction {
     Instruction::TailCall {
         target: CallTarget::same_file(function),
-        arguments,
+        arguments: i32_arguments(arguments),
     }
 }
 
@@ -3532,11 +3664,15 @@ fn call_i32(destination: I32Location, function: &str, arguments: Vec<I32Value>) 
     Instruction::CallI32 {
         destination,
         target: CallTarget::same_file(function),
-        arguments,
+        arguments: i32_arguments(arguments),
     }
 }
 
-fn call_usize(destination: UsizeLocation, function: &str, arguments: Vec<I32Value>) -> Instruction {
+fn call_usize(
+    destination: UsizeLocation,
+    function: &str,
+    arguments: Vec<ScalarArgument>,
+) -> Instruction {
     Instruction::CallUsize {
         destination,
         target: CallTarget::same_file(function),
@@ -3548,8 +3684,12 @@ fn call_bool(destination: BoolLocation, function: &str, arguments: Vec<I32Value>
     Instruction::CallBool {
         destination,
         target: CallTarget::same_file(function),
-        arguments,
+        arguments: i32_arguments(arguments),
     }
+}
+
+fn i32_arguments(arguments: Vec<I32Value>) -> Vec<ScalarArgument> {
+    arguments.into_iter().map(ScalarArgument::I32).collect()
 }
 
 fn i32_const(value: i32) -> I32Value {
@@ -3566,6 +3706,10 @@ fn i32_local(index: usize) -> I32Value {
 
 fn usize_const(value: u64) -> UsizeValue {
     UsizeValue::Const(value)
+}
+
+fn usize_param(index: usize) -> UsizeValue {
+    UsizeValue::Location(UsizeLocation::Parameter(index))
 }
 
 fn usize_local(index: usize) -> UsizeValue {

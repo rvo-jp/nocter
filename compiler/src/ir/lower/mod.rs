@@ -19,7 +19,7 @@ use crate::diagnostics::Diagnostic;
 use crate::ir::Type;
 use crate::resolve::ResolveOutput;
 use crate::source::SourceId;
-use context::{FunctionNames, FunctionSignatures};
+use context::{FunctionNames, FunctionSignature, FunctionSignatures};
 use imported_calls::imported_call_diagnostics;
 use reachability::reachable_call_targets;
 use std::collections::{HashMap, HashSet};
@@ -81,6 +81,15 @@ fn lower_signature_return_type(ty: &TypeExpr) -> Option<Type> {
         TypeExpr::Reference(reference) if reference.name == "never" => Some(Type::Never),
         TypeExpr::Fallible(fallible) => lower_signature_return_type(&fallible.success)
             .map(|success| Type::Fallible(Box::new(success))),
+        _ => None,
+    }
+}
+
+fn lower_signature_parameter_type(ty: &TypeExpr) -> Option<Type> {
+    match ty {
+        TypeExpr::Reference(reference) if reference.name == "i32" => Some(Type::I32),
+        TypeExpr::Reference(reference) if reference.name == "usize" => Some(Type::Usize),
+        TypeExpr::Reference(reference) if reference.name == "bool" => Some(Type::Bool),
         _ => None,
     }
 }
@@ -168,8 +177,25 @@ impl<'a> FunctionIndex<'a> {
             self.definitions
                 .iter()
                 .filter_map(|(target, function)| {
-                    lower_signature_return_type(&function.declaration.return_type)
-                        .map(|return_type| (target.clone(), return_type))
+                    lower_signature_return_type(&function.declaration.return_type).map(
+                        |return_type| {
+                            let parameter_types = function
+                                .declaration
+                                .parameters
+                                .parameters
+                                .iter()
+                                .map(|parameter| lower_signature_parameter_type(&parameter.ty))
+                                .collect::<Option<Vec<_>>>();
+
+                            (
+                                target.clone(),
+                                FunctionSignature {
+                                    return_type,
+                                    parameter_types,
+                                },
+                            )
+                        },
+                    )
                 })
                 .collect(),
         )

@@ -47,7 +47,9 @@ fn collect_reachable_call_targets(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{BoolValue, CallTarget, Function, I32Location, I32Value, Instruction, Type};
+    use crate::ir::{
+        BoolValue, CallTarget, Function, I32Location, I32Value, Instruction, ScalarArgument, Type,
+    };
 
     #[test]
     fn collects_reachable_call_targets_from_nested_instructions_in_order() {
@@ -66,11 +68,11 @@ mod tests {
                     then_instructions: vec![Instruction::CallBool {
                         destination: crate::ir::BoolLocation::Local(0),
                         target: CallTarget::same_file("then_target"),
-                        arguments: vec![I32Value::Const(1)],
+                        arguments: vec![ScalarArgument::I32(I32Value::Const(1))],
                     }],
                     else_instructions: vec![Instruction::TailCall {
                         target: CallTarget::same_file("else_target"),
-                        arguments: vec![I32Value::Const(2)],
+                        arguments: vec![ScalarArgument::I32(I32Value::Const(2))],
                     }],
                 },
             ],

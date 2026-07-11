@@ -29,14 +29,14 @@ pub(super) fn lower_function(
         )]);
     }
 
-    let parameters = lower_i32_parameters(function)?;
+    let parameters = lower_scalar_parameters(function)?;
     let return_type = lower_function_return_type(&function.return_type, &function.name)?;
     let mut context = LoweringContext::new(
         function.name.clone(),
         return_type.clone(),
         function_signatures,
-        parameters,
-        Vec::new(),
+        parameters.i32,
+        parameters.usize,
     )
     .with_call_resolution(root_source, resolved, function_names);
     let instructions = lower_function_body(function, &return_type, &mut context)?;
@@ -49,34 +49,65 @@ pub(super) fn lower_function(
     })
 }
 
-fn lower_i32_parameters(function: &FunctionDecl) -> Result<Vec<String>, Vec<Diagnostic>> {
-    if function.parameters.parameters.len() > MAX_I32_PARAMETERS {
+struct LoweredScalarParameters {
+    i32: Vec<Option<String>>,
+    usize: Vec<Option<String>>,
+}
+
+fn lower_scalar_parameters(
+    function: &FunctionDecl,
+) -> Result<LoweredScalarParameters, Vec<Diagnostic>> {
+    if function.parameters.parameters.len() > MAX_SCALAR_PARAMETERS {
         return Err(vec![Diagnostic::error(
             "E8007",
             format!(
-                "IR v0 can only lower up to {MAX_I32_PARAMETERS} i32 parameters for function `{}`",
+                "IR v0 can only lower up to {MAX_SCALAR_PARAMETERS} scalar parameters for function `{}`",
                 function.name
             ),
         )]);
     }
 
-    function
-        .parameters
-        .parameters
-        .iter()
-        .map(|parameter| lower_i32_parameter(parameter, &function.name))
-        .collect()
+    let mut i32_parameters = Vec::with_capacity(function.parameters.parameters.len());
+    let mut usize_parameters = Vec::with_capacity(function.parameters.parameters.len());
+    for parameter in &function.parameters.parameters {
+        match lower_scalar_parameter_kind(parameter, &function.name)? {
+            ScalarParameterKind::I32 => {
+                i32_parameters.push(Some(parameter.name.clone()));
+                usize_parameters.push(None);
+            }
+            ScalarParameterKind::Usize => {
+                i32_parameters.push(None);
+                usize_parameters.push(Some(parameter.name.clone()));
+            }
+        }
+    }
+
+    Ok(LoweredScalarParameters {
+        i32: i32_parameters,
+        usize: usize_parameters,
+    })
 }
 
-fn lower_i32_parameter(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ScalarParameterKind {
+    I32,
+    Usize,
+}
+
+fn lower_scalar_parameter_kind(
     parameter: &Parameter,
     function_name: &str,
-) -> Result<String, Vec<Diagnostic>> {
+) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
     match &parameter.ty {
-        TypeExpr::Reference(reference) if reference.name == "i32" => Ok(parameter.name.clone()),
+        TypeExpr::Reference(reference) if reference.name == "i32" => Ok(ScalarParameterKind::I32),
+        TypeExpr::Reference(reference) if reference.name == "usize" => {
+            Ok(ScalarParameterKind::Usize)
+        }
         _ => Err(vec![Diagnostic::error(
             "E8007",
-            format!("IR v0 can only lower i32 parameters for function `{function_name}`"),
+            format!(
+                "IR v0 can only lower `i32` and `usize` parameters for function `{function_name}`"
+            ),
         )]),
     }
 }
@@ -242,4 +273,4 @@ fn unsupported_function_body_diagnostic(function_name: &str) -> Vec<Diagnostic> 
     )]
 }
 
-const MAX_I32_PARAMETERS: usize = 8;
+const MAX_SCALAR_PARAMETERS: usize = 8;

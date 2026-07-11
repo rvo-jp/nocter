@@ -159,16 +159,16 @@ Currently buildable:
 - `void` entry with an empty body or bare `return`
 - same-file non-generic tail calls returning `i32` or `bool`
 - same-file and loaded imported calls returning `never` in terminal return or expression-statement position
-- same-file non-generic normal calls returning `i32` in `let` initializers, `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, `i32` comparison operands, and nested `i32` call arguments
-- same-file and loaded imported non-generic normal calls returning `usize` in annotated `let` initializers
+- same-file non-generic normal calls returning `i32` in `let` initializers, `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, `i32` comparison operands, and nested scalar call arguments
+- same-file and loaded imported non-generic normal calls returning `usize` in annotated `let` initializers, including `i32`/`usize` call arguments
 - custom executable output paths through `build -o <path>`
 - explicit `--target arm64-darwin` selection for `build`, `run`, and `check`; reserved future targets are recognized but rejected as unimplemented
 - same-file non-generic normal calls returning `bool` in `let` initializers, unary-not expressions, bool equality/inequality operands, short-circuit bool value expressions, and terminal `if` conditions
 - short-circuit bool expressions can combine `i32` call comparisons with bool calls, such as `if answer() == 42 && ready()` and `let matched = answer() == 42 && ready()`
 - `usize` comparisons over literals, locals, and same-file or loaded imported normal calls in lowerable bool expressions and terminal `if` conditions
-- nested `i32` normal-call arguments such as `let value = outer(inner())`
-- nested `i32` tail-call arguments such as `return outer(inner())`
-- up to 8 `i32` parameters for lowered functions and calls
+- nested scalar normal-call arguments such as `let value = outer(inner())`, for `i32` and `usize` parameter positions
+- nested scalar tail-call arguments such as `return outer(inner())`, for `i32` and `usize` parameter positions
+- up to 8 scalar `i32`/`usize` parameters and call arguments for lowered functions and calls
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
 - non-entry functions returning `bool` or `usize`
 - `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; addition, subtraction, and multiplication trap on signed overflow, and division and remainder trap on zero divisors and signed division overflow
@@ -198,14 +198,14 @@ The `arm64-darwin` backend v0 uses a deliberately small register-only convention
 - scalar `i32` and `bool` values are represented in 32-bit ARM64 `w` registers
 - scalar `usize` values are represented in 64-bit ARM64 `x` registers
 - `bool` is encoded as `0` for false and `1` for true
-- lowered `i32` function arguments are passed in `w0` through `w7`; `usize` parameters are not buildable yet
+- lowered `i32` function arguments are passed in `w0` through `w7`, and lowered `usize` function arguments are passed in `x0` through `x7` at the same ABI argument index; `bool` parameters are not buildable yet
 - lowered function return values are produced in `w0` for `i32`/`bool` and `x0` for `usize`
 - scalar local bindings use `w9` through `w15` for `i32`/`bool` and `x9` through `x15` for `usize`; framed functions spill scalar locals through 8-byte stack slots
 - `w16`/`w17` and `x16`/`x17` are backend scratch registers and may be clobbered by code generation
 
-Tail calls are lowered by loading the callee arguments into `w0` through `w7` and branching directly to the target function.
+Tail calls are lowered by loading the callee arguments into `w0` through `w7` or `x0` through `x7` according to each scalar argument type, then branching directly to the target function.
 The source-level scalar call subset lowers same-file and loaded imported non-generic `i32` calls in `let` initializers, `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, `i32` comparison operands, nested normal-call arguments, and nested tail-call arguments, evaluating staged calls left to right into distinct temporary locals.
-It also lowers same-file and loaded imported non-generic no-`usize`-argument calls returning `usize` in annotated `let` initializers and `usize` comparison operands.
+It also lowers same-file and loaded imported non-generic calls returning `usize` in annotated `let` initializers and `usize` comparison operands, including calls whose parameter list contains `usize`.
 The frame, spill/reload, and normal-call implementation order is tracked in `backend-v0.md`.
 `backend/frame.rs` owns the fixed v0 frame layout planner: frame size, saved `x30` offset, and scalar spill-slot offsets.
 Codegen emits framed prologue/epilogue sequences and normal calls with conservative scalar spill/reload plus stack-backed argument staging.

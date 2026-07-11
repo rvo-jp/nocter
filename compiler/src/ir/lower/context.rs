@@ -11,8 +11,8 @@ pub(super) struct LoweringContext<'a> {
     function_signatures: FunctionSignatures,
     call_resolution: Option<CallResolution<'a>>,
     function_names: FunctionNames,
-    i32_parameters: Vec<String>,
-    usize_parameters: Vec<String>,
+    i32_parameters: Vec<Option<String>>,
+    usize_parameters: Vec<Option<String>>,
     locals: Vec<LocalBinding>,
 }
 
@@ -38,8 +38,8 @@ impl<'a> LoweringContext<'a> {
         function_name: String,
         return_type: Type,
         function_signatures: FunctionSignatures,
-        i32_parameters: Vec<String>,
-        usize_parameters: Vec<String>,
+        i32_parameters: Vec<Option<String>>,
+        usize_parameters: Vec<Option<String>>,
     ) -> Self {
         Self {
             function_name,
@@ -77,6 +77,10 @@ impl<'a> LoweringContext<'a> {
 
     pub(super) fn call_return_type(&self, target: &CallTarget) -> Option<&Type> {
         self.function_signatures.return_type(target)
+    }
+
+    pub(super) fn call_parameter_types(&self, target: &CallTarget) -> Option<&[Type]> {
+        self.function_signatures.parameter_types(target)
     }
 
     pub(super) fn call_target(&self, call: &CallExpr, fallback_name: &str) -> CallTarget {
@@ -149,7 +153,7 @@ impl<'a> LoweringContext<'a> {
             .or_else(|| {
                 self.i32_parameters
                     .iter()
-                    .position(|parameter| parameter == name)
+                    .position(|parameter| parameter.as_deref() == Some(name))
                     .map(I32Location::Parameter)
             })
     }
@@ -162,7 +166,7 @@ impl<'a> LoweringContext<'a> {
             .or_else(|| {
                 self.usize_parameters
                     .iter()
-                    .position(|parameter| parameter == name)
+                    .position(|parameter| parameter.as_deref() == Some(name))
                     .map(UsizeLocation::Parameter)
             })
     }
@@ -218,27 +222,49 @@ impl FunctionNames {
 
 #[derive(Debug, Clone, Default)]
 pub(super) struct FunctionSignatures {
-    return_types: HashMap<CallTarget, Type>,
+    signatures: HashMap<CallTarget, FunctionSignature>,
 }
 
 impl FunctionSignatures {
     #[cfg(test)]
     pub(super) fn new(return_types: HashMap<String, Type>) -> Self {
         Self {
-            return_types: return_types
+            signatures: return_types
                 .into_iter()
-                .map(|(name, return_type)| (CallTarget::same_file(name), return_type))
+                .map(|(name, return_type)| {
+                    (
+                        CallTarget::same_file(name),
+                        FunctionSignature {
+                            return_type,
+                            parameter_types: None,
+                        },
+                    )
+                })
                 .collect(),
         }
     }
 
-    pub(super) fn from_call_targets(return_types: HashMap<CallTarget, Type>) -> Self {
-        Self { return_types }
+    pub(super) fn from_call_targets(signatures: HashMap<CallTarget, FunctionSignature>) -> Self {
+        Self { signatures }
     }
 
     pub(super) fn return_type(&self, target: &CallTarget) -> Option<&Type> {
-        self.return_types.get(target)
+        self.signatures
+            .get(target)
+            .map(|signature| &signature.return_type)
     }
+
+    pub(super) fn parameter_types(&self, target: &CallTarget) -> Option<&[Type]> {
+        self.signatures
+            .get(target)
+            .and_then(|signature| signature.parameter_types.as_deref())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct FunctionSignature {
+    pub(super) return_type: Type,
+    pub(super) parameter_types: Option<Vec<Type>>,
 }
 
 struct LocalBinding {
