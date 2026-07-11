@@ -171,6 +171,10 @@ pub(crate) enum Instruction {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
     },
+    CallVoid {
+        target: CallTarget,
+        arguments: Vec<ScalarArgument>,
+    },
     TailCall {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,

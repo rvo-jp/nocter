@@ -4,7 +4,7 @@ use super::control_flow::{lower_terminal_bool_if_statement, lower_terminal_i32_i
 use super::expressions::{
     lower_bool_return_expression, lower_i32_return_expression, lower_never_return_expression,
     lower_slice_return_expression, lower_str_return_expression, lower_u8_return_expression,
-    lower_usize_return_expression,
+    lower_usize_return_expression, lower_void_expression_statement,
 };
 use crate::ast::{FunctionDecl, Parameter, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
@@ -364,6 +364,15 @@ fn lower_function_body(
             let Some(terminating_instructions) =
                 lower_never_return_expression(&statement.expression, context)?
             else {
+                if return_type == &Type::Void
+                    && let Some(void_instructions) =
+                        lower_void_expression_statement(&statement.expression, context)?
+                {
+                    instructions.extend(void_instructions);
+                    instructions.push(Instruction::Return);
+                    return Ok(instructions);
+                }
+
                 return Err(unsupported_function_body_diagnostic(&function.name));
             };
             instructions.extend(terminating_instructions);
@@ -380,14 +389,28 @@ fn lower_leading_bindings(
     let mut instructions = Vec::new();
 
     for statement in statements {
-        let Stmt::Binding(statement) = statement else {
-            return Err(vec![Diagnostic::error(
-                "E8007",
-                "IR v0 can only lower leading scalar `let` bindings before `return`",
-            )]);
+        match statement {
+            Stmt::Binding(statement) => {
+                instructions.extend(lower_let_binding(statement, context)?);
+            }
+            Stmt::Expression(statement) => {
+                let Some(void_instructions) =
+                    lower_void_expression_statement(&statement.expression, context)?
+                else {
+                    return Err(vec![Diagnostic::error(
+                        "E8007",
+                        "IR v0 can only lower leading scalar `let` bindings or void call statements before `return`",
+                    )]);
+                };
+                instructions.extend(void_instructions);
+            }
+            _ => {
+                return Err(vec![Diagnostic::error(
+                    "E8007",
+                    "IR v0 can only lower leading scalar `let` bindings or void call statements before `return`",
+                )]);
+            }
         };
-
-        instructions.extend(lower_let_binding(statement, context)?);
     }
 
     Ok(instructions)
@@ -397,7 +420,7 @@ fn unsupported_function_body_diagnostic(function_name: &str) -> Vec<Diagnostic> 
     vec![Diagnostic::error(
         "E8007",
         format!(
-            "IR v0 can only lower function `{function_name}` bodies containing leading scalar `let` bindings followed by `return`"
+            "IR v0 can only lower function `{function_name}` bodies containing leading scalar `let` bindings or void call statements followed by `return`"
         ),
     )]
 }

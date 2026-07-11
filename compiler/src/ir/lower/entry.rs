@@ -2,7 +2,9 @@ use super::bindings::lower_let_binding;
 use super::context::{FunctionNames, FunctionSignatures, LoweringContext};
 use super::control_flow::lower_terminal_i32_if_statement;
 use super::errors::{StaticErrorPayload, lower_static_error_payload};
-use super::expressions::{lower_i32_return_expression, lower_never_return_expression};
+use super::expressions::{
+    lower_i32_return_expression, lower_never_return_expression, lower_void_expression_statement,
+};
 use crate::ast::{FunctionDecl, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{CallTarget, Function, I32Location, I32Value, Instruction, Type};
@@ -135,6 +137,15 @@ fn lower_entry_body(
             let Some(terminating_instructions) =
                 lower_never_return_expression(&statement.expression, &context)?
             else {
+                if success_type == &Type::Void
+                    && let Some(void_instructions) =
+                        lower_void_expression_statement(&statement.expression, &context)?
+                {
+                    instructions.extend(void_instructions);
+                    instructions.push(Instruction::Return);
+                    return Ok(instructions);
+                }
+
                 return Err(unsupported_entry_body_diagnostic());
             };
             instructions.extend(terminating_instructions);
@@ -166,11 +177,20 @@ fn lower_leading_bindings(
     let mut instructions = Vec::new();
 
     for statement in statements {
-        let Stmt::Binding(statement) = statement else {
-            return Err(unsupported_entry_body_diagnostic());
+        match statement {
+            Stmt::Binding(statement) => {
+                instructions.extend(lower_let_binding(statement, context)?);
+            }
+            Stmt::Expression(statement) => {
+                let Some(void_instructions) =
+                    lower_void_expression_statement(&statement.expression, context)?
+                else {
+                    return Err(unsupported_entry_body_diagnostic());
+                };
+                instructions.extend(void_instructions);
+            }
+            _ => return Err(unsupported_entry_body_diagnostic()),
         };
-
-        instructions.extend(lower_let_binding(statement, context)?);
     }
 
     Ok(instructions)
@@ -179,6 +199,6 @@ fn lower_leading_bindings(
 fn unsupported_entry_body_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8002",
-        "IR v0 can only lower entry function bodies containing leading scalar `let` bindings followed by `return`, a static error constructor failure return, or a void return",
+        "IR v0 can only lower entry function bodies containing leading scalar `let` bindings or void call statements followed by `return`, a static error constructor failure return, or a void return",
     )]
 }

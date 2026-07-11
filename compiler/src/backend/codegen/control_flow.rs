@@ -319,7 +319,8 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::CallUsize { .. }
             | Instruction::CallBool { .. }
             | Instruction::CallStr { .. }
-            | Instruction::CallSlice { .. },
+            | Instruction::CallSlice { .. }
+            | Instruction::CallVoid { .. },
         )
         | None => false,
     }

@@ -3394,6 +3394,101 @@ fn lowers_void_entry_with_empty_body() {
 }
 
 #[test]
+fn lowers_void_entry_with_void_call_statement() {
+    let ir = lower_text(
+        r#"func main(): void {
+    effect()
+}
+
+func effect(): void {
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::Void,
+                instructions: vec![call_void("effect", vec![]), Instruction::Return],
+            },
+            Function {
+                name: "effect".to_string(),
+                target: crate::ir::CallTarget::same_file("effect".to_string()),
+                return_type: Type::Void,
+                instructions: vec![Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
+fn lowers_entry_leading_void_call_statement_before_return() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    effect()
+    return 7
+}
+
+func effect(): void {
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_void("effect", vec![]),
+                    set_return_i32(7),
+                    Instruction::Return
+                ],
+            },
+            Function {
+                name: "effect".to_string(),
+                target: crate::ir::CallTarget::same_file("effect".to_string()),
+                return_type: Type::Void,
+                instructions: vec![Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
+fn lowers_void_function_with_void_call_statement() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    run()
+    return 7
+}
+
+func run(): void {
+    effect()
+}
+
+func effect(): void {
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[1],
+        Function {
+            name: "run".to_string(),
+            target: crate::ir::CallTarget::same_file("run".to_string()),
+            return_type: Type::Void,
+            instructions: vec![call_void("effect", vec![]), Instruction::Return],
+        }
+    );
+}
+
+#[test]
 fn lowers_entry_returning_same_file_function_call() {
     let ir = lower_text(
         r#"func main(): i32 {
@@ -5226,6 +5321,13 @@ fn call_bool(
 ) -> Instruction {
     Instruction::CallBool {
         destination,
+        target: CallTarget::same_file(function),
+        arguments,
+    }
+}
+
+fn call_void(function: &str, arguments: Vec<ScalarArgument>) -> Instruction {
+    Instruction::CallVoid {
         target: CallTarget::same_file(function),
         arguments,
     }

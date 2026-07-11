@@ -19,7 +19,7 @@ use crate::ir::{
 use calls::{
     lower_bool_normal_call, lower_call_arguments, lower_direct_tail_call, lower_i32_normal_call,
     lower_slice_normal_call, lower_str_normal_call, lower_u8_normal_call, lower_usize_normal_call,
-    primitive_trap_call,
+    lower_void_normal_call, primitive_trap_call,
 };
 use predicates::{
     bool_comparison_contains_call, expressions_are_lowerable_bool_comparison_operands,
@@ -190,6 +190,28 @@ pub(super) fn lower_slice_expression_to_location(
         }
         _ => lower_slice_value(expression, context)
             .map(|value| vec![Instruction::SetSlice { destination, value }]),
+    }
+}
+
+pub(super) fn lower_void_expression_statement(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(call) => {
+            let Expr::Identifier(identifier) = call.callee.as_ref() else {
+                return Ok(None);
+            };
+            let target = context.call_target(call, &identifier.name);
+            if context.call_return_type(&target) != Some(&Type::Void) {
+                return Ok(None);
+            }
+
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            lower_void_normal_call(call, context, &mut temporaries).map(Some)
+        }
+        Expr::Group(group) => lower_void_expression_statement(&group.expression, context),
+        _ => Ok(None),
     }
 }
 

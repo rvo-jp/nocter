@@ -301,6 +301,9 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
+            Instruction::CallVoid { target, arguments } => {
+                self.emit_call_void(FunctionSymbol::from_call_target(target), arguments, frame)?;
+            }
             Instruction::TailCall { target, arguments } => {
                 self.emit_tail_call(FunctionSymbol::from_call_target(target), arguments, frame)?;
             }
@@ -849,6 +852,48 @@ mod tests {
                 0xff, 0x43, 0x00, 0x91, // add sp, sp, #16
                 0xc0, 0x03, 0x5f, 0xd6, // ret
                 0xe0, 0x00, 0x80, 0x52, // movz w0, #7
+                0xc0, 0x03, 0x5f, 0xd6, // ret
+            ]
+        );
+    }
+
+    #[test]
+    fn generates_framed_void_normal_call_from_hand_built_ir() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_void("effect", vec![]),
+                    set_return_i32(7),
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "effect".to_string(),
+                target: crate::ir::CallTarget::same_file("effect".to_string()),
+                return_type: Type::Void,
+                instructions: vec![Instruction::Return],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert_eq!(
+            code.text,
+            vec![
+                0x04, 0x00, 0x00, 0x94, // bl main
+                0x30, 0x00, 0x80, 0x52, // movz w16, #1
+                0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
+                0x01, 0x10, 0x00, 0xd4, // svc #0x80
+                0xff, 0x43, 0x00, 0xd1, // sub sp, sp, #16
+                0xfe, 0x07, 0x00, 0xf9, // str x30, [sp, #8]
+                0x05, 0x00, 0x00, 0x94, // bl effect
+                0xe0, 0x00, 0x80, 0x52, // movz w0, #7
+                0xfe, 0x07, 0x40, 0xf9, // ldr x30, [sp, #8]
+                0xff, 0x43, 0x00, 0x91, // add sp, sp, #16
+                0xc0, 0x03, 0x5f, 0xd6, // ret
                 0xc0, 0x03, 0x5f, 0xd6, // ret
             ]
         );
@@ -2159,6 +2204,13 @@ mod tests {
     fn call_i32(destination: I32Location, function: &str, arguments: Vec<I32Value>) -> Instruction {
         Instruction::CallI32 {
             destination,
+            target: CallTarget::same_file(function),
+            arguments: i32_arguments(arguments),
+        }
+    }
+
+    fn call_void(function: &str, arguments: Vec<I32Value>) -> Instruction {
+        Instruction::CallVoid {
             target: CallTarget::same_file(function),
             arguments: i32_arguments(arguments),
         }

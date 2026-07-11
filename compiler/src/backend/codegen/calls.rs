@@ -47,6 +47,27 @@ impl EntryEmitter {
         Ok(())
     }
 
+    pub(super) fn emit_call_void(
+        &mut self,
+        function: FunctionSymbol,
+        arguments: &[ScalarArgument],
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "normal void call emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_staged_scalar_arguments(arguments, frame)?;
+
+        self.emit_call(function);
+        self.emit_scalar_reloads(frame)?;
+        Ok(())
+    }
+
     pub(super) fn emit_call_i32(
         &mut self,
         destination: I32Location,

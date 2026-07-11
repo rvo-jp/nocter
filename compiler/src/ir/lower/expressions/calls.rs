@@ -157,6 +157,25 @@ pub(super) fn lower_slice_normal_call(
     Ok(instructions)
 }
 
+pub(super) fn lower_void_normal_call(
+    call: &CallExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Err(unsupported_non_tail_call_diagnostic());
+    };
+
+    let target = context.call_target(call, &identifier.name);
+    validate_void_normal_call_return_type(&target, &identifier.name, context)?;
+
+    let (mut instructions, arguments) =
+        lower_call_arguments(call, &target, &identifier.name, context, temporaries)?;
+
+    instructions.push(Instruction::CallVoid { target, arguments });
+    Ok(instructions)
+}
+
 pub(super) fn lower_direct_tail_call(
     call: &CallExpr,
     context: &LoweringContext,
@@ -409,6 +428,33 @@ fn validate_slice_normal_call_return_type(
         "E8006",
         format!(
             "IR v0 can only lower normal calls returning a slice, got function `{callee_name}` returning `{}`",
+            describe_type(callee_return_type),
+        ),
+    )])
+}
+
+fn validate_void_normal_call_return_type(
+    target: &CallTarget,
+    callee_name: &str,
+    context: &LoweringContext,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(callee_return_type) = context.call_return_type(target) else {
+        return Err(vec![Diagnostic::error(
+            "E8006",
+            format!(
+                "IR v0 can only lower expression statements calling functions with known `void` return type, got function `{callee_name}`"
+            ),
+        )]);
+    };
+
+    if callee_return_type == &Type::Void {
+        return Ok(());
+    }
+
+    Err(vec![Diagnostic::error(
+        "E8006",
+        format!(
+            "IR v0 can only lower expression statements calling functions returning `void`, got function `{callee_name}` returning `{}`",
             describe_type(callee_return_type),
         ),
     )])

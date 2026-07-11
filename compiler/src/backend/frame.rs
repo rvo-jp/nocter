@@ -174,7 +174,8 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::CallUsize { .. }
         | Instruction::CallBool { .. }
         | Instruction::CallStr { .. }
-        | Instruction::CallSlice { .. } => true,
+        | Instruction::CallSlice { .. }
+        | Instruction::CallVoid { .. } => true,
         Instruction::TailCall { arguments, .. } => !arguments.is_empty(),
         Instruction::WriteStaticStderr(_)
         | Instruction::SetI32 { .. }
@@ -224,6 +225,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::CallBool { arguments, .. }
         | Instruction::CallStr { arguments, .. }
         | Instruction::CallSlice { arguments, .. }
+        | Instruction::CallVoid { arguments, .. }
         | Instruction::TailCall { arguments, .. } => {
             arguments.iter().map(ScalarArgument::abi_word_count).sum()
         }
@@ -437,6 +439,11 @@ fn record_instruction_scalar_locals(
             ..
         } => {
             record_slice_location(*destination, highest_local_index);
+            for argument in arguments {
+                record_scalar_argument(argument, highest_local_index);
+            }
+        }
+        Instruction::CallVoid { arguments, .. } => {
             for argument in arguments {
                 record_scalar_argument(argument, highest_local_index);
             }
@@ -749,6 +756,28 @@ mod tests {
         assert_eq!(
             frame,
             FunctionFrame::Framed(FrameLayout::for_slot_counts(3, 1).unwrap())
+        );
+    }
+
+    #[test]
+    fn call_void_requires_frame_and_counts_argument_locals() {
+        let function = Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![Instruction::CallVoid {
+                target: CallTarget::same_file("effect"),
+                arguments: vec![ScalarArgument::I32(I32Value::Location(I32Location::Local(
+                    1,
+                )))],
+            }],
+        };
+
+        let frame = plan_function_frame(&function).unwrap();
+
+        assert_eq!(
+            frame,
+            FunctionFrame::Framed(FrameLayout::for_slot_counts(2, 1).unwrap())
         );
     }
 
