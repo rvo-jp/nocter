@@ -19,12 +19,19 @@ Adopted user decisions:
 Recommended next implementation order:
 
 1. Design the interpolation allocator source and exact lowering shape around explicit `std/string` construction plus `std/fmt.append_*` calls.
-2. Lower interpolated strings only after the needed backend prerequisites exist: imported standard-library calls, aggregate `String` storage, mutable local mutation through `&+String`, and fallible propagation from append calls.
-3. Defer broad control flow, unrelated imported calls, aggregate values, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
+2. Lower interpolated strings only after the remaining backend prerequisites exist: aggregate `String` storage, mutable local mutation through `&+String`, and fallible propagation from append calls. Loaded imported scalar calls are now buildable.
+3. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
-- Current checkpoint: lower loaded imported scalar calls
+- Current checkpoint: cover imported scalar build variants
+  - adds `nocter build` coverage for loaded imported alias calls, imported bool conditions, and imported nested arguments
+  - verifies each generated executable returns the expected status code
+- `Canonicalize imported call targets`
+  - adds a declaration-span to function-name map inside IR lowering so imported aliases lower to the imported declaration name instead of the local alias
+  - covers imported `bool` normal calls in terminal conditions at the IR and `nocter run` layers
+  - covers imported nested arguments and imported alias calls through `nocter run`
+- `Lower loaded imported scalar calls`
   - changes reachable lowering to lower loaded imported function definitions from the compile-unit function index
   - narrows imported-call diagnostics to unresolved imported placeholders
   - adds IR, `nocter build`, and `nocter run` coverage for a loaded imported `i32` call returning 42
@@ -269,16 +276,30 @@ Recent committed work:
 
 Known unrelated local user changes:
 
-- `spec/07-strings-arrays-views-pointers.md`
-- `spec/13-lexical-grammar.md`
+- None currently visible in `git status --short`.
 
 Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Add imported IR call target`.
+- None expected after committing `Cover imported scalar build variants`.
 
 ## Verification Already Run
+
+For imported scalar alias/bool/nested coverage, from `compiler/`:
+
+```sh
+cargo test --quiet imported_alias_call_uses_imported_declaration_name_as_target
+cargo test --quiet lowers_imported_bool_normal_call_in_terminal_if_condition
+cargo test --quiet run_command_returns_imported_alias_function_call_exit_code
+cargo test --quiet run_command_returns_imported_bool_condition_exit_code
+cargo test --quiet run_command_returns_imported_nested_argument_exit_code
+cargo test --quiet --test cli_build build_command_lowers_imported_alias_i32_call
+cargo test --quiet --test cli_build build_command_lowers_imported_bool_condition
+cargo test --quiet --test cli_build build_command_lowers_imported_nested_argument
+cargo fmt
+./scripts/verify.sh
+```
 
 For the imported-call build diagnostic coverage, from `compiler/`:
 
