@@ -1042,6 +1042,36 @@ fn built_executable_returns_terminal_if_bool_or_binding_value() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn built_executable_runs_str_len_and_index_call_results() {
+    let project = TempProject::new("cli-build-run-str-call-result-ops");
+    let source = project.write_source(
+        "str_call_result_ops.nct",
+        r#"func main(): i32 {
+    let size: usize = identity("Nocter").len()
+    let byte: u8 = identity("Nocter")[3]
+    if size == 6 && byte == 116 {
+        return 0
+    } else {
+        return 1
+    }
+}
+
+func identity(text: &str): &str {
+    return text
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    let status = Command::new(&executable).status().unwrap();
+    assert_eq!(status.code(), Some(0));
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn built_fallible_entry_failure_reports_stderr() {
     let project = TempProject::new("cli-build-run-fallible-failure");
     project.write_nocter_home_file(
