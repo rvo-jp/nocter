@@ -183,6 +183,7 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::RemainderI32 { .. }
         | Instruction::ShiftLeftI32 { .. }
         | Instruction::ShiftRightI32 { .. }
+        | Instruction::Trap
         | Instruction::Return => false,
     }
 }
@@ -224,6 +225,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::RemainderI32 { .. }
         | Instruction::ShiftLeftI32 { .. }
         | Instruction::ShiftRightI32 { .. }
+        | Instruction::Trap
         | Instruction::Return => 0,
     }
 }
@@ -242,7 +244,7 @@ fn record_instruction_scalar_locals(
     highest_local_index: &mut Option<usize>,
 ) {
     match instruction {
-        Instruction::WriteStaticStderr(_) | Instruction::Return => {}
+        Instruction::WriteStaticStderr(_) | Instruction::Trap | Instruction::Return => {}
         Instruction::TailCall { arguments, .. } => {
             for argument in arguments {
                 record_i32_value(argument, highest_local_index);

@@ -132,7 +132,7 @@ impl Resolver<'_> {
                     let imported = ImportableSymbol {
                         declaration_span: primitive.name_span,
                         visibility: primitive.visibility,
-                        kind: SymbolKind::Function(primitive_signature(primitive)),
+                        kind: SymbolKind::Primitive(primitive_signature(primitive)),
                     };
                     self.collect_public_export(
                         primitive.name.clone(),
@@ -318,7 +318,7 @@ fn direct_importable_symbol(ast: &AstFile, name: &str) -> Option<ImportableSymbo
         Item::Primitive(primitive) if primitive.name == name => Some(ImportableSymbol {
             declaration_span: primitive.name_span,
             visibility: primitive.visibility,
-            kind: SymbolKind::Function(primitive_signature(primitive)),
+            kind: SymbolKind::Primitive(primitive_signature(primitive)),
         }),
         Item::TypeAlias(alias) if alias.name == name => {
             let symbol = type_alias_symbol_with_impl_members(ast, alias);

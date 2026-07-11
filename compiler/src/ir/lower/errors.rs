@@ -56,7 +56,7 @@ fn is_static_error_constructor_call(
 ) -> bool {
     if let Some(symbol) = resolved.symbol_for_call(call)
         && symbol.declaration_span.source != root_source
-        && let SymbolKind::Function(signature) = &symbol.kind
+        && let SymbolKind::Function(signature) | SymbolKind::Primitive(signature) = &symbol.kind
     {
         return signature_is_static_error_constructor(signature, resolved);
     }

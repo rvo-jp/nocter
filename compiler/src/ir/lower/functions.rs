@@ -2,7 +2,8 @@ use super::bindings::lower_let_binding;
 use super::context::{FunctionNames, FunctionSignatures, LoweringContext};
 use super::control_flow::{lower_terminal_bool_if_statement, lower_terminal_i32_if_statement};
 use super::expressions::{
-    lower_bool_return_expression, lower_i32_return_expression, lower_usize_return_expression,
+    lower_bool_return_expression, lower_i32_return_expression, lower_never_return_expression,
+    lower_usize_return_expression,
 };
 use crate::ast::{FunctionDecl, Parameter, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
@@ -86,10 +87,11 @@ fn lower_function_return_type(ty: &TypeExpr, name: &str) -> Result<Type, Vec<Dia
         TypeExpr::Reference(reference) if reference.name == "usize" => Ok(Type::Usize),
         TypeExpr::Reference(reference) if reference.name == "bool" => Ok(Type::Bool),
         TypeExpr::Reference(reference) if reference.name == "void" => Ok(Type::Void),
+        TypeExpr::Reference(reference) if reference.name == "never" => Ok(Type::Never),
         _ => Err(vec![Diagnostic::error(
             "E8007",
             format!(
-                "IR v0 can only lower function `{name}` return type `i32`, `usize`, `bool`, or `void`"
+                "IR v0 can only lower function `{name}` return type `i32`, `usize`, `bool`, `void`, or `never`"
             ),
         )]),
     }
@@ -114,6 +116,14 @@ fn lower_function_body(
 
     match last {
         Stmt::Return(statement) => {
+            if let Some(expression) = &statement.expression
+                && let Some(return_instructions) =
+                    lower_never_return_expression(expression, context)?
+            {
+                instructions.extend(return_instructions);
+                return Ok(instructions);
+            }
+
             let return_instructions = match (return_type, &statement.expression) {
                 (Type::I32, Some(expression)) => lower_i32_return_expression(expression, context),
                 (Type::Usize, Some(expression)) => {
@@ -122,6 +132,13 @@ fn lower_function_body(
                 (Type::Bool, Some(expression)) => {
                     lower_bool_return_expression(expression, context, "E8007")
                 }
+                (Type::Never, Some(_)) => Err(vec![Diagnostic::error(
+                    "E8007",
+                    format!(
+                        "IR v0 can only lower never function `{}` returns from `never` calls",
+                        function.name
+                    ),
+                )]),
                 (Type::Void, None) => Ok(vec![Instruction::Return]),
                 (Type::Void, Some(_)) => Err(vec![Diagnostic::error(
                     "E8007",
@@ -151,6 +168,13 @@ fn lower_function_body(
                         function.name
                     ),
                 )]),
+                (Type::Never, None) => Err(vec![Diagnostic::error(
+                    "E8007",
+                    format!(
+                        "IR v0 cannot lower bare returns from never function `{}`",
+                        function.name
+                    ),
+                )]),
                 (Type::Fallible(_), _) => {
                     unreachable!("fallible function type is not lowered in v0")
                 }
@@ -174,6 +198,15 @@ fn lower_function_body(
                 "E8007",
                 "functions",
             )?);
+            Ok(instructions)
+        }
+        Stmt::Expression(statement) => {
+            let Some(terminating_instructions) =
+                lower_never_return_expression(&statement.expression, context)?
+            else {
+                return Err(unsupported_function_body_diagnostic(&function.name));
+            };
+            instructions.extend(terminating_instructions);
             Ok(instructions)
         }
         _ => Err(unsupported_function_body_diagnostic(&function.name)),

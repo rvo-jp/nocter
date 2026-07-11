@@ -2,7 +2,7 @@ use super::bindings::lower_let_binding;
 use super::context::{FunctionNames, FunctionSignatures, LoweringContext};
 use super::control_flow::lower_terminal_i32_if_statement;
 use super::errors::{StaticErrorPayload, lower_static_error_payload};
-use super::expressions::lower_i32_return_expression;
+use super::expressions::{lower_i32_return_expression, lower_never_return_expression};
 use crate::ast::{FunctionDecl, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{CallTarget, Function, I32Location, I32Value, Instruction, Type};
@@ -83,6 +83,14 @@ fn lower_entry_body(
 
     match last {
         Stmt::Return(statement) => {
+            if let Some(expression) = &statement.expression
+                && let Some(return_instructions) =
+                    lower_never_return_expression(expression, &context)?
+            {
+                instructions.extend(return_instructions);
+                return Ok(instructions);
+            }
+
             if leading.is_empty()
                 && let Some(expression) = &statement.expression
                 && return_type_is_lowerable_i32_fallible(return_type)
@@ -105,6 +113,7 @@ fn lower_entry_body(
                     "IR v0 cannot lower bare returns from `i32` entry function",
                 )]),
                 (Type::Bool, _) => unreachable!("bool entry type is not lowered in v0"),
+                (Type::Never, _) => unreachable!("never entry type is not lowered in v0"),
                 (Type::Fallible(_), _) => unreachable!("fallible success type must be unwrapped"),
             }?;
             instructions.extend(return_instructions);
@@ -117,6 +126,15 @@ fn lower_entry_body(
                 "E8002",
                 "entry functions",
             )?);
+            Ok(instructions)
+        }
+        Stmt::Expression(statement) => {
+            let Some(terminating_instructions) =
+                lower_never_return_expression(&statement.expression, &context)?
+            else {
+                return Err(unsupported_entry_body_diagnostic());
+            };
+            instructions.extend(terminating_instructions);
             Ok(instructions)
         }
         _ => Err(unsupported_entry_body_diagnostic()),

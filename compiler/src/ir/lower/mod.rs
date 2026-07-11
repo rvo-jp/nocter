@@ -78,6 +78,7 @@ fn lower_signature_return_type(ty: &TypeExpr) -> Option<Type> {
         TypeExpr::Reference(reference) if reference.name == "usize" => Some(Type::Usize),
         TypeExpr::Reference(reference) if reference.name == "bool" => Some(Type::Bool),
         TypeExpr::Reference(reference) if reference.name == "void" => Some(Type::Void),
+        TypeExpr::Reference(reference) if reference.name == "never" => Some(Type::Never),
         TypeExpr::Fallible(fallible) => lower_signature_return_type(&fallible.success)
             .map(|success| Type::Fallible(Box::new(success))),
         _ => None,

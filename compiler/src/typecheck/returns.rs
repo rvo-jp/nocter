@@ -1,7 +1,8 @@
 use super::bindings::{check_optional_let_else_statement, continuing_binding_type};
 use super::diagnostics::{
     fallible_success_error_diagnostic, missing_return_diagnostic, missing_return_value_diagnostic,
-    return_type_mismatch_diagnostic, unexpected_return_value_diagnostic,
+    never_return_statement_diagnostic, return_type_mismatch_diagnostic,
+    unexpected_return_value_diagnostic,
 };
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_if_is_binding,
@@ -143,7 +144,9 @@ fn check_block_returns(
 ) {
     check_block_return_statements(sources, block, context, resolved, diagnostics, environment);
 
-    if context.requires_explicit_return() && !block_guarantees_return(block) {
+    if context.requires_explicit_return()
+        && !block_guarantees_return_or_never(block, resolved, environment)
+    {
         diagnostics.push(missing_return_diagnostic(sources, block.span, context));
     }
 }
@@ -735,6 +738,12 @@ fn check_return_statement(
     environment: &TypeEnvironment,
 ) {
     let expected = context.success_type();
+    if expected == &Type::Never {
+        diagnostics.push(never_return_statement_diagnostic(
+            sources, statement, context,
+        ));
+        return;
+    }
 
     match (&statement.expression, expected) {
         (None, Type::Void) => {}
@@ -791,6 +800,51 @@ pub(super) fn block_guarantees_return(block: &Block) -> bool {
         .statements
         .last()
         .is_some_and(statement_guarantees_return)
+}
+
+fn block_guarantees_return_or_never(
+    block: &Block,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    block.statements.last().is_some_and(|statement| {
+        statement_guarantees_return_or_never(statement, resolved, environment)
+    })
+}
+
+fn statement_guarantees_return_or_never(
+    statement: &Stmt,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    match statement {
+        Stmt::Expression(statement) => {
+            expression_type(&statement.expression, resolved, environment) == Type::Never
+        }
+        Stmt::If(statement) => statement.else_block.as_ref().is_some_and(|else_block| {
+            block_guarantees_return_or_never(&statement.then_block, resolved, environment)
+                && block_guarantees_return_or_never(else_block, resolved, environment)
+        }),
+        Stmt::IfIs(statement) => statement.else_block.as_ref().is_some_and(|else_block| {
+            block_guarantees_return_or_never(&statement.then_block, resolved, environment)
+                && block_guarantees_return_or_never(else_block, resolved, environment)
+        }),
+        Stmt::IfLet(statement) => statement.else_block.as_ref().is_some_and(|else_block| {
+            block_guarantees_return_or_never(&statement.then_block, resolved, environment)
+                && block_guarantees_return_or_never(else_block, resolved, environment)
+        }),
+        Stmt::Switch(statement) => statement.else_arm.as_ref().is_some_and(|else_arm| {
+            statement
+                .arms
+                .iter()
+                .all(|arm| block_guarantees_return_or_never(&arm.body, resolved, environment))
+                && block_guarantees_return_or_never(&else_arm.body, resolved, environment)
+        }),
+        Stmt::Loop(statement) => {
+            block_guarantees_return_or_never(&statement.body, resolved, environment)
+        }
+        _ => statement_guarantees_return(statement),
+    }
 }
 
 fn statement_guarantees_return(statement: &Stmt) -> bool {

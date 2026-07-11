@@ -156,6 +156,7 @@ Currently buildable:
 - immutable local `let` bindings whose initializer is lowerable as `i32`, annotated `usize`, or `bool`
 - `void` entry with an empty body or bare `return`
 - same-file non-generic tail calls returning `i32` or `bool`
+- same-file and loaded imported calls returning `never` in terminal return or expression-statement position
 - same-file non-generic normal calls returning `i32` in `let` initializers, `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, `i32` comparison operands, and nested `i32` call arguments
 - same-file and loaded imported non-generic normal calls returning `usize` in annotated `let` initializers
 - custom executable output paths through `build -o <path>`
@@ -172,6 +173,8 @@ Currently buildable:
 - `i32` shifts with `<<` and `>>` used in lowerable `i32` expressions; shift counts trap when negative or greater than or equal to 32
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` or `usize` comparisons used in lowerable bool expressions
 - terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over literal/local operands, or `i32`/`usize` comparison conditions and direct `i32` or non-entry `bool` returns in both branches
+- non-entry `never` functions that end with a lowerable call returning `never`
+- the `std/os/macos.trap` and `std/os/macos.unreachable` target primitives as ARM64 `brk #0`
 - simple fallible entry success
 - simple fallible entry failure through a loaded static `error` constructor call with string code and message literals, where the message may be single-line or multi-line
 
@@ -541,7 +544,7 @@ If source loading, lexing, or parsing fails, `check` returns a `nocter.diagnosti
 
 `CompileUnitAnalysis` is the `analysis/` module's semantic-analysis result for the whole reachable compile unit. Each `FileAnalysis` keeps the file AST, its file-scoped `ResolveOutput`, that file's diagnostics, and whether the file is the executable root. Flattened diagnostics are sorted by loaded file order, primary span start byte, primary span end byte, diagnostic code, and message. This keeps the command-line checker aligned with future LSP features such as hover, completion, and definition lookup, where editor features need the semantic state for a specific file rather than only a flattened diagnostics list.
 
-The first standard-library source files are `.nocter/std/prelude.nct`, `.nocter/std/string.nct`, `.nocter/std/fmt.nct`, `.nocter/std/mem.nct`, `.nocter/std/ptr.nct`, `.nocter/std/os.nct`, `.nocter/std/io.nct`, `.nocter/targets/arm64-darwin/std/process.nct`, and `.nocter/targets/arm64-darwin/std/os/macos.nct`. They currently form a Parser v0-readable skeleton for the synthetic user prelude, owning string type, explicit formatting append boundary, initial memory API, core pointer primitive boundary, common OS error model, user-facing I/O errors, `File`, `stdout`, `stderr`, `print`, macOS process API placeholder, and macOS primitive boundary. Future target support should add target overlays without changing ordinary user-facing APIs.
+The first standard-library source files are `.nocter/std/prelude.nct`, `.nocter/std/string.nct`, `.nocter/std/fmt.nct`, `.nocter/std/mem.nct`, `.nocter/std/ptr.nct`, `.nocter/std/os.nct`, `.nocter/std/io.nct`, `.nocter/targets/arm64-darwin/std/process.nct`, and `.nocter/targets/arm64-darwin/std/os/macos.nct`. They currently form a Parser v0-readable skeleton for the synthetic user prelude, owning string type, explicit formatting append boundary, initial memory API, core pointer primitive boundary, common OS error model, user-facing I/O errors, `File`, `stdout`, `stderr`, `print`, macOS process API placeholders, and macOS primitive boundary. `std/process.abort` and the placeholder `exit` terminate through the target `trap` primitive today. Future target support should add target overlays without changing ordinary user-facing APIs.
 
 The target-independent core pointer primitive set is:
 

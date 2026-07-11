@@ -21,9 +21,9 @@ pub func cwd(): str! {
 
 pub func exit(code: i32): never {
     // TODO: call macOS SYS_exit after syscall number constants are specified.
-    return trap()
+    trap()
 }
 
 pub func abort(): never {
-    return trap()
+    trap()
 }

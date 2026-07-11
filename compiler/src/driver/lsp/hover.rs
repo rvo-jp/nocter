@@ -1061,8 +1061,13 @@ fn hover_markdown(label: &str, documentation: Option<&str>) -> String {
 
 fn symbol_hover_label(text: &str, symbol: &Symbol) -> String {
     match &symbol.kind {
-        SymbolKind::Function(signature) => format!(
-            "func {}({}): {}",
+        SymbolKind::Function(signature) | SymbolKind::Primitive(signature) => format!(
+            "{} {}({}): {}",
+            if matches!(&symbol.kind, SymbolKind::Primitive(_)) {
+                "primitive"
+            } else {
+                "func"
+            },
             symbol.name,
             parameter_signatures_label(text, &signature.parameters),
             source_fragment(text, signature.return_type.span())
@@ -1170,8 +1175,13 @@ fn resolved_symbol_hover_contents(
 
 fn symbol_hover_label_for_sources(sources: &SourceMap, symbol: &Symbol) -> String {
     match &symbol.kind {
-        SymbolKind::Function(signature) => format!(
-            "func {}({}): {}",
+        SymbolKind::Function(signature) | SymbolKind::Primitive(signature) => format!(
+            "{} {}({}): {}",
+            if matches!(&symbol.kind, SymbolKind::Primitive(_)) {
+                "primitive"
+            } else {
+                "func"
+            },
             symbol.name,
             parameter_signatures_label_for_sources(sources, &signature.parameters),
             source_fragment_from_sources(sources, signature.return_type.span())

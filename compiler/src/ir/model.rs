@@ -110,6 +110,7 @@ pub(crate) enum Instruction {
         target: CallTarget,
         arguments: Vec<I32Value>,
     },
+    Trap,
     If {
         condition: BoolValue,
         then_instructions: Vec<Instruction>,
@@ -205,6 +206,7 @@ pub(crate) enum Type {
     Usize,
     Bool,
     Void,
+    Never,
     Fallible(Box<Type>),
 }
 
@@ -212,7 +214,7 @@ impl Type {
     pub(crate) fn success_type(&self) -> &Type {
         match self {
             Self::Fallible(success) => success,
-            Self::I32 | Self::Usize | Self::Bool | Self::Void => self,
+            Self::I32 | Self::Usize | Self::Bool | Self::Void | Self::Never => self,
         }
     }
 }

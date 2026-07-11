@@ -276,6 +276,37 @@ pub(super) fn lower_i32_return_expression(
     }
 }
 
+pub(super) fn lower_never_return_expression(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(call) if primitive_trap_call(call, context) => Ok(Some(vec![Instruction::Trap])),
+        Expr::Call(call) => {
+            let Expr::Identifier(identifier) = call.callee.as_ref() else {
+                return Ok(None);
+            };
+            let target = context.call_target(call, &identifier.name);
+            if context.call_return_type(&target) != Some(&Type::Never) {
+                return Ok(None);
+            }
+
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let mut instructions = Vec::new();
+            let mut arguments = Vec::new();
+            for argument in &call.arguments {
+                let argument = lower_i32_expression_to_value(argument, context, &mut temporaries)?;
+                instructions.extend(argument.instructions);
+                arguments.push(argument.value);
+            }
+            instructions.push(Instruction::TailCall { target, arguments });
+            Ok(Some(instructions))
+        }
+        Expr::Group(group) => lower_never_return_expression(&group.expression, context),
+        _ => Ok(None),
+    }
+}
+
 pub(super) fn lower_usize_return_expression(
     expression: &Expr,
     context: &LoweringContext,
@@ -896,6 +927,10 @@ fn lower_direct_tail_call(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if primitive_trap_call(call, context) {
+        return Ok(vec![Instruction::Trap]);
+    }
+
     let Expr::Identifier(identifier) = call.callee.as_ref() else {
         return Err(vec![Diagnostic::error(
             "E8006",
@@ -994,7 +1029,7 @@ fn validate_tail_call_return_type(
         return Ok(());
     };
 
-    if callee_return_type == context.return_type() {
+    if callee_return_type == &Type::Never || callee_return_type == context.return_type() {
         return Ok(());
     }
 
@@ -1015,14 +1050,23 @@ fn describe_type(ty: &Type) -> &'static str {
         Type::Usize => "usize",
         Type::Bool => "bool",
         Type::Void => "void",
+        Type::Never => "never",
         Type::Fallible(success) => match success.as_ref() {
             Type::I32 => "i32!",
             Type::Usize => "usize!",
             Type::Bool => "bool!",
             Type::Void => "void!",
+            Type::Never => "never!",
             Type::Fallible(_) => "fallible",
         },
     }
+}
+
+fn primitive_trap_call(call: &CallExpr, context: &LoweringContext) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("trap" | "unreachable")
+    )
 }
 
 pub(super) fn lower_i32_value(

@@ -55,7 +55,9 @@ impl ResolveOutput {
 
     pub fn function_signature_for_call(&self, call: &CallExpr) -> Option<&FunctionSignature> {
         match self.symbol_for_call(call).map(|symbol| &symbol.kind) {
-            Some(SymbolKind::Function(signature)) => Some(signature),
+            Some(SymbolKind::Function(signature) | SymbolKind::Primitive(signature)) => {
+                Some(signature)
+            }
             Some(SymbolKind::Type(_) | SymbolKind::Imported(_)) | None => None,
         }
     }
@@ -115,7 +117,8 @@ impl ResolveOutput {
     pub fn type_symbol_by_name(&self, name: &str) -> Option<&TypeSymbol> {
         match self.symbols.symbol_by_name(name).map(|symbol| &symbol.kind) {
             Some(SymbolKind::Type(symbol)) => Some(symbol),
-            Some(SymbolKind::Function(_) | SymbolKind::Imported(_)) | None => None,
+            Some(SymbolKind::Function(_) | SymbolKind::Primitive(_) | SymbolKind::Imported(_))
+            | None => None,
         }
     }
 
@@ -127,7 +130,10 @@ impl ResolveOutput {
                 SymbolKind::Type(type_symbol) if type_symbol.canonical_name == canonical_name => {
                     Some(type_symbol)
                 }
-                SymbolKind::Function(_) | SymbolKind::Type(_) | SymbolKind::Imported(_) => None,
+                SymbolKind::Function(_)
+                | SymbolKind::Primitive(_)
+                | SymbolKind::Type(_)
+                | SymbolKind::Imported(_) => None,
             })
     }
 
@@ -253,6 +259,7 @@ pub struct Symbol {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SymbolKind {
     Function(FunctionSignature),
+    Primitive(FunctionSignature),
     Type(TypeSymbol),
     Imported(ImportedSymbol),
 }

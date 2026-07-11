@@ -222,6 +222,7 @@ Implement normal calls in this order:
 20. Done: lower `i32` division and remainder through the same arithmetic staging path, including same-file `i32` normal calls inside `/` and `%` expressions, and emit zero-divisor plus signed-overflow trap checks before ARM64 `sdiv`.
 21. Done: emit signed-overflow trap checks for lowered `i32` addition, subtraction, and multiplication.
 22. Done: lower `i32` shift operators with shift-count trap checks.
+23. Done: lower terminal calls returning `never` and the `std/os/macos.trap` / `unreachable` primitives to ARM64 `brk #0`.
 
 ### Non-Goals For This Phase
 

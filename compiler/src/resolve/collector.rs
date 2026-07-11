@@ -94,7 +94,7 @@ impl Resolver<'_> {
             primitive.name.clone(),
             primitive.name_span,
             primitive.name_span,
-            SymbolKind::Function(primitive_signature(primitive)),
+            SymbolKind::Primitive(primitive_signature(primitive)),
         );
     }
 

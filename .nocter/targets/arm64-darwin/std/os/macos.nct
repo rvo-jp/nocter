@@ -9,20 +9,20 @@
 
 from std/os import OSError, OSErrorKind, Platform
 
-pub copy struct SyscallResult {
+pub(nocter) copy struct SyscallResult {
     pub value: usize
     pub errno: i32
 }
 
-pub copy struct Errno {
+pub(nocter) copy struct Errno {
     pub code: i32
 }
 
-pub func errno(code: i32): Errno {
+pub(nocter) func errno(code: i32): Errno {
     return Errno { code: code }
 }
 
-pub func error_from_errno(error: Errno): OSError {
+pub(nocter) func error_from_errno(error: Errno): OSError {
     return OSError {
         platform: Platform.macos,
         code: error.code,
@@ -30,7 +30,7 @@ pub func error_from_errno(error: Errno): OSError {
     }
 }
 
-pub func kind_from_errno(error: Errno): OSErrorKind {
+pub(nocter) func kind_from_errno(error: Errno): OSErrorKind {
     return OSErrorKind.unknown
 }
 

@@ -380,6 +380,54 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_never_function_returning_target_trap_primitive() {
+    let analysis = analyze_text_with_entry_and_nocter_home_files(
+        r#"from std/process import abort
+
+func main(): i32 {
+    return abort()
+}
+"#,
+        crate::entry::DEFAULT_ENTRY_NAME,
+        &[std_process_file(), std_macos_file()],
+    );
+    let process_source = analysis
+        .files
+        .iter()
+        .find(|file| {
+            !file.is_root
+                && file.ast.items.iter().any(|item| {
+                    matches!(item, crate::ast::Item::Function(function) if function.name == "abort")
+                })
+        })
+        .map(|file| file.ast.span.source)
+        .unwrap();
+
+    let ir = lower_executable_with_entry(&analysis, crate::entry::DEFAULT_ENTRY_NAME).unwrap();
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: CallTarget::same_file("main"),
+                return_type: Type::I32,
+                instructions: vec![Instruction::TailCall {
+                    target: CallTarget::imported(process_source, "abort"),
+                    arguments: vec![],
+                }],
+            },
+            Function {
+                name: "abort".to_string(),
+                target: CallTarget::imported(process_source, "abort"),
+                return_type: Type::Never,
+                instructions: vec![Instruction::Trap],
+            },
+        ])
+    );
+}
+
+#[test]
 fn collects_loaded_imported_call_targets() {
     let analysis = analyze_text_with_entry_and_nocter_home_files(
         r#"from std/math import answer
@@ -3588,6 +3636,28 @@ impl Error {
         return new_error(code, message)
     }
 }
+"#,
+    )
+}
+
+fn std_process_file() -> (&'static str, &'static str) {
+    (
+        "std/process.nct",
+        r#"from std/os/macos import trap
+
+pub func abort(): never {
+    trap()
+}
+"#,
+    )
+}
+
+fn std_macos_file() -> (&'static str, &'static str) {
+    (
+        "targets/arm64-darwin/std/os/macos.nct",
+        r#"pub(nocter) primitive trap(): never
+
+pub(nocter) primitive unreachable(): never
 "#,
     )
 }

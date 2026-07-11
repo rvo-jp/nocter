@@ -38,6 +38,7 @@ fn collect_reachable_call_targets(
             | Instruction::RemainderI32 { .. }
             | Instruction::ShiftLeftI32 { .. }
             | Instruction::ShiftRightI32 { .. }
+            | Instruction::Trap
             | Instruction::Return => {}
         }
     }

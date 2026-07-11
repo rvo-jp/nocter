@@ -209,6 +209,9 @@ impl EntryEmitter {
             Instruction::TailCall { target, arguments } => {
                 self.emit_tail_call(FunctionSymbol::from_call_target(target), arguments, frame)?;
             }
+            Instruction::Trap => {
+                self.emit_trap();
+            }
             Instruction::If {
                 condition,
                 then_instructions,
@@ -1220,7 +1223,7 @@ fn emit_darwin_write_syscall(encoder: &mut Encoder) {
 
 fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
     match instructions.last() {
-        Some(Instruction::Return | Instruction::TailCall { .. }) => true,
+        Some(Instruction::Return | Instruction::TailCall { .. } | Instruction::Trap) => true,
         Some(Instruction::If {
             then_instructions,
             else_instructions,
@@ -1542,6 +1545,26 @@ mod tests {
                 0x01, 0x00, 0x00, 0x14, // b answer
                 0xe0, 0x00, 0x80, 0x52, // movz w0, #7
                 0xc0, 0x03, 0x5f, 0xd6, // ret
+            ]
+        );
+    }
+
+    #[test]
+    fn emits_trap_instruction() {
+        let function = Function {
+            name: "abort".to_string(),
+            target: crate::ir::CallTarget::same_file("abort".to_string()),
+            return_type: Type::Never,
+            instructions: vec![Instruction::Trap],
+        };
+        let mut emitter = EntryEmitter::new();
+
+        emitter.emit_function(&function).unwrap();
+
+        assert_eq!(
+            emitter.encoder.finish(),
+            vec![
+                0x00, 0x00, 0x20, 0xd4, // brk #0
             ]
         );
     }

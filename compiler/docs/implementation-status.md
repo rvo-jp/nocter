@@ -28,6 +28,7 @@ This file describes implementation state only.
 | Imported function calls | yes | yes | yes | partial | partial | Build supports loaded imported non-generic scalar calls through the same narrow scalar call subset as same-file calls. Unloaded imported placeholders still diagnose before backend lowering. |
 | General non-tail calls | yes | yes | yes | partial | partial | Build supports non-generic scalar normal calls in selected expression positions. Unsupported shapes still report IR lowering diagnostics. |
 | Terminal `if` / `else` | yes | yes | yes | partial | yes | Build supports terminal branches returning direct `i32` or non-entry `bool`. |
+| `never` termination | yes | yes | partial | partial | yes | Type checking accepts terminal expression statements whose type is `never` and rejects `return` in `never` functions. Build supports lowerable calls returning `never`, including `std/os/macos.trap` and `unreachable` as ARM64 traps. |
 | General `if`, `while`, `loop`, `for`, `match`, `?{}` | yes | yes | partial | no | no | Several forms are checkable; backend lowering remains intentionally narrow. |
 | Fallible entry success/failure | yes | yes | partial | partial | partial | Build supports simple success and static `error` constructor failure returns, reporting `code: message` on stderr. |
 | Optional values | yes | yes | yes | no | no | Check examples cover optionals; backend and runtime layout are not implemented. |
@@ -56,6 +57,7 @@ Currently buildable:
 - immutable local `let` bindings whose initializer is lowerable as `i32`, annotated `usize`, or `bool`
 - `void` entry with an empty body or bare `return`
 - same-file and loaded imported non-generic tail calls returning `i32` or `bool`
+- same-file and loaded imported calls returning `never` in terminal return or expression-statement position
 - same-file and loaded imported non-generic normal calls returning `i32` in `let` initializers
 - same-file and loaded imported non-generic normal calls returning `i32` in `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, evaluated left to right with distinct temporary locals
 - same-file and loaded imported non-generic normal calls returning `i32` as `i32` comparison operands such as `if answer() == 42`, `let matched = left() <= right()`, and `return left() < right()`
@@ -78,6 +80,8 @@ Currently buildable:
 - `i32` shifts with `<<` and `>>` used in lowerable `i32` expressions; shift counts trap when negative or greater than or equal to 32
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` or `usize` comparisons used in lowerable bool expressions
 - terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over literal/local operands, or `i32`/`usize` comparison conditions and direct `i32` or non-entry `bool` returns in both branches
+- non-entry `never` functions that end with a lowerable call returning `never`
+- the `std/os/macos.trap` and `std/os/macos.unreachable` target primitives as ARM64 `brk #0`
 - simple fallible entry success
 - simple fallible entry failure through a loaded static `error` constructor call with string code and message literals, where the message may be single-line or multi-line
 

@@ -80,7 +80,7 @@ pub(super) fn keyword_completion_items() -> Vec<Value> {
 
 fn completion_kind_for_symbol(symbol: &Symbol) -> u8 {
     match &symbol.kind {
-        SymbolKind::Function(_) => LSP_COMPLETION_ITEM_KIND_FUNCTION,
+        SymbolKind::Function(_) | SymbolKind::Primitive(_) => LSP_COMPLETION_ITEM_KIND_FUNCTION,
         SymbolKind::Type(type_symbol) => match type_symbol.kind {
             TypeSymbolKind::Alias => LSP_COMPLETION_ITEM_KIND_CLASS,
             TypeSymbolKind::Struct => LSP_COMPLETION_ITEM_KIND_STRUCT,
@@ -94,6 +94,7 @@ fn completion_kind_for_symbol(symbol: &Symbol) -> u8 {
 fn symbol_detail(symbol: &Symbol) -> String {
     match &symbol.kind {
         SymbolKind::Function(_) => "function".to_string(),
+        SymbolKind::Primitive(_) => "primitive".to_string(),
         SymbolKind::Type(type_symbol) => match type_symbol.kind {
             TypeSymbolKind::Alias => "type".to_string(),
             TypeSymbolKind::Struct => "struct".to_string(),

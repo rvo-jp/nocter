@@ -63,6 +63,25 @@ pub(in crate::typecheck) fn return_type_mismatch_diagnostic(
     diagnostic
 }
 
+pub(in crate::typecheck) fn never_return_statement_diagnostic(
+    sources: &SourceMap,
+    statement: &ReturnStmt,
+    context: &ReturnContext,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0314",
+        format!(
+            "`return` is not valid in {} returning `never`",
+            context.subject()
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(statement.span).ok().map(Box::new);
+    add_declared_return_note(sources, &mut diagnostic, context);
+    diagnostic.help =
+        Some("end the path with a call returning `never` instead of `return`".to_string());
+    diagnostic
+}
+
 pub(in crate::typecheck) fn fallible_success_error_diagnostic(
     sources: &SourceMap,
     context: &ReturnContext,
@@ -101,9 +120,13 @@ pub(in crate::typecheck) fn missing_return_diagnostic(
     );
     diagnostic.primary_span = sources.span_to_json(block_span).ok().map(Box::new);
     add_declared_return_note(sources, &mut diagnostic, context);
-    diagnostic.help = Some(format!(
-        "add a `return` with a value of type `{}`",
-        expected.display()
-    ));
+    diagnostic.help = Some(if expected == &Type::Never {
+        "end the path with a call returning `never`".to_string()
+    } else {
+        format!(
+            "add a `return` with a value of type `{}`",
+            expected.display()
+        )
+    });
     diagnostic
 }

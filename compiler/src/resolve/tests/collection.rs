@@ -46,7 +46,7 @@ func main(): i32 {
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     assert!(matches!(
         &output.symbols.symbol_by_name("addr").unwrap().kind,
-        SymbolKind::Function(_)
+        SymbolKind::Primitive(_)
     ));
     assert!(matches!(
         &output.symbols.symbol_by_name("Bytes").unwrap().kind,

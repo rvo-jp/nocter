@@ -54,6 +54,39 @@ fn diagnoses_missing_return_from_i32_function() {
 }
 
 #[test]
+fn accepts_terminal_never_expression_statement() {
+    let diagnostics = check_text(
+        r#"primitive trap(): never
+
+func main(): i32 {
+    trap()
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_return_from_never_function() {
+    let diagnostics = check_text(
+        r#"primitive trap(): never
+
+func main(): i32 {
+    return 0
+}
+
+func stop(): never {
+    return trap()
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].code, "E0314");
+}
+
+#[test]
 fn accepts_str_function_return() {
     let diagnostics = check_text(
         r#"func main(): i32 {

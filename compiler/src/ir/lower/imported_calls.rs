@@ -263,7 +263,7 @@ fn imported_call_target_for_symbol(
             call_name,
             source: ImportedCallSource::UnloadedPath(imported.path.clone()),
         }),
-        SymbolKind::Function(_) | SymbolKind::Type(_)
+        SymbolKind::Function(_) | SymbolKind::Primitive(_) | SymbolKind::Type(_)
             if symbol.declaration_span.source != root_source =>
         {
             Some(ImportedCallTarget {
@@ -271,7 +271,7 @@ fn imported_call_target_for_symbol(
                 source: ImportedCallSource::Loaded(symbol.declaration_span.source),
             })
         }
-        SymbolKind::Function(_) | SymbolKind::Type(_) => None,
+        SymbolKind::Function(_) | SymbolKind::Primitive(_) | SymbolKind::Type(_) => None,
     }
 }
 

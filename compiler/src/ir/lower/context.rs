@@ -88,7 +88,7 @@ impl<'a> LoweringContext<'a> {
         };
 
         match &symbol.kind {
-            SymbolKind::Function(_) | SymbolKind::Type(_)
+            SymbolKind::Function(_) | SymbolKind::Primitive(_) | SymbolKind::Type(_)
                 if symbol.declaration_span.source != resolution.root_source =>
             {
                 let target_name = self
@@ -97,10 +97,19 @@ impl<'a> LoweringContext<'a> {
                     .unwrap_or(&symbol.name);
                 CallTarget::imported(symbol.declaration_span.source, target_name.clone())
             }
-            SymbolKind::Function(_) | SymbolKind::Type(_) => {
+            SymbolKind::Function(_) | SymbolKind::Primitive(_) | SymbolKind::Type(_) => {
                 CallTarget::same_file(symbol.name.clone())
             }
             SymbolKind::Imported(_) => CallTarget::same_file(fallback_name),
+        }
+    }
+
+    pub(super) fn primitive_name_for_call(&self, call: &CallExpr) -> Option<&str> {
+        let resolution = self.call_resolution.as_ref()?;
+        let symbol = resolution.resolved.symbol_for_call(call)?;
+        match &symbol.kind {
+            SymbolKind::Primitive(_) => Some(symbol.name.as_str()),
+            SymbolKind::Function(_) | SymbolKind::Type(_) | SymbolKind::Imported(_) => None,
         }
     }
 
