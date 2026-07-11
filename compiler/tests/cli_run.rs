@@ -89,6 +89,111 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_imported_alias_function_call_exit_code() {
+    let project = TempProject::new("cli-run-imported-alias-function-call");
+    project.write_nocter_home_file(
+        "std/math.nct",
+        r#"pub func answer(): i32 {
+    return 42
+}
+"#,
+    );
+    let source = project.write_source(
+        "call_alias.nct",
+        r#"from std/math import answer as imported_answer
+
+func main(): i32 {
+    return imported_answer()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_imported_bool_condition_exit_code() {
+    let project = TempProject::new("cli-run-imported-bool-condition");
+    project.write_nocter_home_file(
+        "std/flags.nct",
+        r#"pub func ready(): bool {
+    return true
+}
+"#,
+    );
+    let source = project.write_source(
+        "condition.nct",
+        r#"from std/flags import ready
+
+func main(): i32 {
+    if ready() {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_imported_nested_argument_exit_code() {
+    let project = TempProject::new("cli-run-imported-nested-argument");
+    project.write_nocter_home_file(
+        "std/math.nct",
+        r#"pub func base(): i32 {
+    return 41
+}
+
+pub func add_one(value: i32): i32 {
+    return value + 1
+}
+"#,
+    );
+    let source = project.write_source(
+        "nested.nct",
+        r#"from std/math import add_one
+from std/math import base
+
+func main(): i32 {
+    return add_one(base())
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_i32_function_call_with_arguments_exit_code() {
     let project = TempProject::new("cli-run-function-arguments");
     let source = project.write_source(

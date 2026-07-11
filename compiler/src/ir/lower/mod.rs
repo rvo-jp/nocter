@@ -19,7 +19,7 @@ use crate::diagnostics::Diagnostic;
 use crate::ir::Type;
 use crate::resolve::ResolveOutput;
 use crate::source::SourceId;
-use context::FunctionSignatures;
+use context::{FunctionNames, FunctionSignatures};
 use imported_calls::imported_call_diagnostics;
 use reachability::reachable_call_targets;
 use std::collections::{HashMap, HashSet};
@@ -52,9 +52,11 @@ pub(crate) fn lower_executable_with_entry(
     }
 
     let function_signatures = function_index.signatures();
+    let function_names = function_index.names();
     let mut functions = vec![entry::lower_entry_function(
         entry,
         function_signatures.clone(),
+        function_names.clone(),
         root.ast.span.source,
         &root.resolved,
     )?];
@@ -62,6 +64,7 @@ pub(crate) fn lower_executable_with_entry(
         &mut functions,
         &function_index,
         &function_signatures,
+        &function_names,
         entry_name,
         root.ast.span.source,
     )?;
@@ -84,6 +87,7 @@ fn lower_reachable_functions(
     lowered: &mut Vec<Function>,
     function_index: &FunctionIndex<'_>,
     function_signatures: &FunctionSignatures,
+    function_names: &FunctionNames,
     entry_name: &str,
     root_source: SourceId,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -114,6 +118,7 @@ fn lower_reachable_functions(
             function.declaration,
             target,
             function_signatures.clone(),
+            function_names.clone(),
             root_source,
             function.resolved,
         )?;
@@ -163,6 +168,20 @@ impl<'a> FunctionIndex<'a> {
                 .filter_map(|(target, function)| {
                     lower_signature_return_type(&function.declaration.return_type)
                         .map(|return_type| (target.clone(), return_type))
+                })
+                .collect(),
+        )
+    }
+
+    fn names(&self) -> FunctionNames {
+        FunctionNames::from_declarations(
+            self.definitions
+                .values()
+                .map(|function| {
+                    (
+                        function.declaration.name_span,
+                        function.declaration.name.clone(),
+                    )
                 })
                 .collect(),
         )

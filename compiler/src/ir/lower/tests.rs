@@ -169,6 +169,129 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_imported_bool_normal_call_in_terminal_if_condition() {
+    let analysis = analyze_text_with_entry_and_nocter_home_files(
+        r#"from std/flags import ready
+
+func main(): i32 {
+    if ready() {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+        crate::entry::DEFAULT_ENTRY_NAME,
+        &[(
+            "std/flags.nct",
+            r#"pub func ready(): bool {
+    return true
+}
+"#,
+        )],
+    );
+    let imported_source = analysis
+        .files
+        .iter()
+        .find(|file| {
+            !file.is_root
+                && file.ast.items.iter().any(|item| {
+                    matches!(item, crate::ast::Item::Function(function) if function.name == "ready")
+                })
+        })
+        .map(|file| file.ast.span.source)
+        .unwrap();
+
+    let ir = lower_executable_with_entry(&analysis, crate::entry::DEFAULT_ENTRY_NAME).unwrap();
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: CallTarget::same_file("main"),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::CallBool {
+                        destination: BoolLocation::Local(0),
+                        target: CallTarget::imported(imported_source, "ready"),
+                        arguments: vec![],
+                    },
+                    Instruction::If {
+                        condition: BoolValue::Location(BoolLocation::Local(0)),
+                        then_instructions: vec![set_return_i32(42), Instruction::Return],
+                        else_instructions: vec![set_return_i32(1), Instruction::Return],
+                    },
+                ],
+            },
+            Function {
+                name: "ready".to_string(),
+                target: CallTarget::imported(imported_source, "ready"),
+                return_type: Type::Bool,
+                instructions: vec![
+                    Instruction::SetBool {
+                        destination: BoolLocation::Return,
+                        value: BoolValue::Const(true),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ])
+    );
+}
+
+#[test]
+fn imported_alias_call_uses_imported_declaration_name_as_target() {
+    let analysis = analyze_text_with_entry_and_nocter_home_files(
+        r#"from std/math import answer as imported_answer
+
+func main(): i32 {
+    return imported_answer()
+}
+"#,
+        crate::entry::DEFAULT_ENTRY_NAME,
+        &[(
+            "std/math.nct",
+            r#"pub func answer(): i32 {
+    return 42
+}
+"#,
+        )],
+    );
+    let imported_source = analysis
+        .files
+        .iter()
+        .find(|file| {
+            !file.is_root
+                && file.ast.items.iter().any(|item| {
+                    matches!(item, crate::ast::Item::Function(function) if function.name == "answer")
+                })
+        })
+        .map(|file| file.ast.span.source)
+        .unwrap();
+
+    let ir = lower_executable_with_entry(&analysis, crate::entry::DEFAULT_ENTRY_NAME).unwrap();
+
+    assert_eq!(
+        ir.functions
+            .iter()
+            .map(|function| function.target.clone())
+            .collect::<Vec<_>>(),
+        vec![
+            CallTarget::same_file("main"),
+            CallTarget::imported(imported_source, "answer"),
+        ]
+    );
+    assert!(matches!(
+        &ir.functions[0].instructions[0],
+        Instruction::TailCall {
+            target: CallTarget::Imported { source, name },
+            ..
+        } if *source == imported_source && name == "answer"
+    ));
+}
+
+#[test]
 fn collects_loaded_imported_call_targets() {
     let analysis = analyze_text_with_entry_and_nocter_home_files(
         r#"from std/math import answer
@@ -304,6 +427,7 @@ func main(): i32 {
     let function = entry::lower_entry_function(
         entry,
         index.signatures(),
+        index.names(),
         root.ast.span.source,
         &root.resolved,
     )
@@ -3214,6 +3338,7 @@ fn lower_named_function_with_signatures(
         function,
         CallTarget::same_file(function_name),
         function_signatures,
+        context::FunctionNames::default(),
         root.ast.span.source,
         &root.resolved,
     )

@@ -2,7 +2,7 @@ use crate::ast::CallExpr;
 use crate::diagnostics::Diagnostic;
 use crate::ir::{BoolLocation, CallTarget, I32Location, Type};
 use crate::resolve::{ResolveOutput, SymbolKind};
-use crate::source::SourceId;
+use crate::source::{ByteSpan, SourceId};
 use std::collections::HashMap;
 
 pub(super) struct LoweringContext<'a> {
@@ -10,6 +10,7 @@ pub(super) struct LoweringContext<'a> {
     return_type: Type,
     function_signatures: FunctionSignatures,
     call_resolution: Option<CallResolution<'a>>,
+    function_names: FunctionNames,
     i32_parameters: Vec<String>,
     locals: Vec<LocalBinding>,
 }
@@ -25,6 +26,7 @@ impl<'a> LoweringContext<'a> {
             return_type,
             function_signatures,
             call_resolution: None,
+            function_names: FunctionNames::default(),
             i32_parameters: Vec::new(),
             locals: Vec::new(),
         }
@@ -41,6 +43,7 @@ impl<'a> LoweringContext<'a> {
             return_type,
             function_signatures,
             call_resolution: None,
+            function_names: FunctionNames::default(),
             i32_parameters,
             locals: Vec::new(),
         }
@@ -50,11 +53,13 @@ impl<'a> LoweringContext<'a> {
         mut self,
         root_source: SourceId,
         resolved: &'a ResolveOutput,
+        function_names: FunctionNames,
     ) -> Self {
         self.call_resolution = Some(CallResolution {
             root_source,
             resolved,
         });
+        self.function_names = function_names;
         self
     }
 
@@ -82,7 +87,11 @@ impl<'a> LoweringContext<'a> {
             SymbolKind::Function(_) | SymbolKind::Type(_)
                 if symbol.declaration_span.source != resolution.root_source =>
             {
-                CallTarget::imported(symbol.declaration_span.source, symbol.name.clone())
+                let target_name = self
+                    .function_names
+                    .name_for_declaration(symbol.declaration_span)
+                    .unwrap_or(&symbol.name);
+                CallTarget::imported(symbol.declaration_span.source, target_name.clone())
             }
             SymbolKind::Function(_) | SymbolKind::Type(_) => {
                 CallTarget::same_file(symbol.name.clone())
@@ -154,6 +163,23 @@ impl<'a> LoweringContext<'a> {
 struct CallResolution<'a> {
     root_source: SourceId,
     resolved: &'a ResolveOutput,
+}
+
+#[derive(Debug, Clone, Default)]
+pub(super) struct FunctionNames {
+    by_declaration_span: HashMap<ByteSpan, String>,
+}
+
+impl FunctionNames {
+    pub(super) fn from_declarations(functions: Vec<(ByteSpan, String)>) -> Self {
+        Self {
+            by_declaration_span: functions.into_iter().collect(),
+        }
+    }
+
+    fn name_for_declaration(&self, span: ByteSpan) -> Option<&String> {
+        self.by_declaration_span.get(&span)
+    }
 }
 
 #[derive(Debug, Clone, Default)]

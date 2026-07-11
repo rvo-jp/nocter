@@ -1,5 +1,5 @@
 use super::bindings::lower_let_binding;
-use super::context::{FunctionSignatures, LoweringContext};
+use super::context::{FunctionNames, FunctionSignatures, LoweringContext};
 use super::control_flow::lower_terminal_i32_if_statement;
 use super::errors::{lower_make_error_message, with_trailing_newline};
 use super::expressions::lower_i32_return_expression;
@@ -12,6 +12,7 @@ use crate::source::SourceId;
 pub(super) fn lower_entry_function(
     function: &FunctionDecl,
     function_signatures: FunctionSignatures,
+    function_names: FunctionNames,
     root_source: SourceId,
     resolved: &ResolveOutput,
 ) -> Result<Function, Vec<Diagnostic>> {
@@ -27,6 +28,7 @@ pub(super) fn lower_entry_function(
         function,
         &return_type,
         function_signatures,
+        function_names,
         root_source,
         resolved,
     )?;
@@ -56,6 +58,7 @@ fn lower_entry_body(
     function: &FunctionDecl,
     return_type: &Type,
     function_signatures: FunctionSignatures,
+    function_names: FunctionNames,
     root_source: SourceId,
     resolved: &ResolveOutput,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -75,7 +78,7 @@ fn lower_entry_body(
         success_type.clone(),
         function_signatures,
     )
-    .with_call_resolution(root_source, resolved);
+    .with_call_resolution(root_source, resolved, function_names);
     let mut instructions = lower_leading_bindings(leading, &mut context)?;
 
     match last {

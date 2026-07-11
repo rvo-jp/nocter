@@ -1,5 +1,5 @@
 use super::bindings::lower_let_binding;
-use super::context::{FunctionSignatures, LoweringContext};
+use super::context::{FunctionNames, FunctionSignatures, LoweringContext};
 use super::control_flow::{lower_terminal_bool_if_statement, lower_terminal_i32_if_statement};
 use super::expressions::{lower_bool_return_expression, lower_i32_return_expression};
 use crate::ast::{FunctionDecl, Parameter, Stmt, TypeExpr};
@@ -12,6 +12,7 @@ pub(super) fn lower_function(
     function: &FunctionDecl,
     target: CallTarget,
     function_signatures: FunctionSignatures,
+    function_names: FunctionNames,
     root_source: SourceId,
     resolved: &ResolveOutput,
 ) -> Result<Function, Vec<Diagnostic>> {
@@ -33,7 +34,7 @@ pub(super) fn lower_function(
         function_signatures,
         parameters,
     )
-    .with_call_resolution(root_source, resolved);
+    .with_call_resolution(root_source, resolved, function_names);
     let instructions = lower_function_body(function, &return_type, &mut context)?;
 
     Ok(Function {
