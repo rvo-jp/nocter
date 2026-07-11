@@ -419,20 +419,9 @@ impl TempProject {
         )
         .unwrap();
         fs::write(
-            home.join("std/process.nct"),
+            home.join("targets/arm64-darwin/std/process.nct"),
             concat!(
-                "from std/process_impl import env as env_impl\n",
-                "\n",
                 "pub func env(name: str): (str?)! {\n",
-                "    return env_impl(name)?\n",
-                "}\n",
-            ),
-        )
-        .unwrap();
-        fs::write(
-            home.join("targets/arm64-darwin/std/process_impl.nct"),
-            concat!(
-                "pub(nocter) func env(name: str): (str?)! {\n",
                 "    return none\n",
                 "}\n",
             ),

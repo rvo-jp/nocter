@@ -27,10 +27,10 @@ Recent committed work:
 - `Add std io file method surface`
   - adds `.nocter/std/io.nct` skeleton methods for `File.open`, `File.read`, `File.write`, and `File.write_text`
   - keeps runtime I/O broadening deferred while checking the user-facing method surface through the distributed Nocter home
-- `Split std process API from target implementation`
-  - moves the public `std/process` API into common `.nocter/std/process.nct`
-  - moves macOS process implementation placeholders into target overlay `.nocter/targets/arm64-darwin/std/process_impl.nct` behind `pub(nocter)`
-  - adds distributed-home coverage that user code imports `std/process` but cannot import `std/process_impl` internals
+- Current checkpoint: keep `std/process` target-specific
+  - keeps user-facing imports stable at `std/process`
+  - places the physical `std/process.nct` implementation in the active target overlay because process context and termination depend on the process ABI
+  - avoids a common wrapper that only delegates to a target-specific `process_impl` module
 - Current checkpoint: add backend usize scalar foundation
   - adds IR and ARM64 lowering for annotated `usize` locals, non-entry `usize` returns, same-file and loaded imported normal calls returning `usize`, and `usize` comparisons in lowerable bool/terminal-if positions
   - widens framed scalar spill slots to 8 bytes so `i32`/`bool` and `usize` locals share the same conservative spill/reload path

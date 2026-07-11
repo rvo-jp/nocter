@@ -36,7 +36,7 @@ This file describes implementation state only.
 | Arrays, views, and pointers | yes | yes | partial | no | no | Compiler-owned layout and provenance rules are still future work. |
 | Methods, traits, and generics | yes | yes | partial | no | no | Parser and selected diagnostics exist; monomorphization/lowering do not. |
 | Ownership, borrowing, move, drop | yes | partial | partial | no | no | Design exists; full semantic checking and drop glue are not implemented. |
-| Standard library API names | yes | yes | partial | partial | partial | `.nocter/std` includes initial prelude, error, memory, owning string, formatting, pointer, OS, I/O declarations with the initial `File` method surface, and common `std/process` wrappers over target `process_impl`; many bodies are placeholders or primitive boundaries. |
+| Standard library API names | yes | yes | partial | partial | partial | `.nocter/std` includes initial prelude, error, memory, owning string, formatting, pointer, OS, and I/O declarations with the initial `File` method surface; the active target overlay provides `std/process`. Many bodies are placeholders or primitive boundaries. |
 | `check --format json` | yes | n/a | yes | n/a | yes | JSON diagnostics are used by corpus tests. |
 | `tokens --format json` and `ast --format json` | yes | yes | n/a | n/a | yes | Tooling aids, not stable language compatibility promises. |
 | `fmt` | yes | yes | n/a | n/a | partial | v0 rejects files with comments instead of rewriting them. |

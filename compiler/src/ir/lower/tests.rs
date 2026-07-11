@@ -380,7 +380,7 @@ func main(): i32 {
 }
 
 #[test]
-fn lowers_never_function_through_common_process_wrapper_to_target_trap() {
+fn lowers_never_function_returning_target_trap_primitive() {
     let analysis = analyze_text_with_entry_and_nocter_home_files(
         r#"from std/process import abort
 
@@ -389,67 +389,41 @@ func main(): i32 {
 }
 "#,
         crate::entry::DEFAULT_ENTRY_NAME,
-        &[
-            std_process_file(),
-            std_process_impl_file(),
-            std_macos_file(),
-        ],
+        &[std_process_file(), std_macos_file()],
     );
+    let process_source = analysis
+        .files
+        .iter()
+        .find(|file| {
+            !file.is_root
+                && file.ast.items.iter().any(|item| {
+                    matches!(item, crate::ast::Item::Function(function) if function.name == "abort")
+                })
+        })
+        .map(|file| file.ast.span.source)
+        .unwrap();
 
     let ir = lower_executable_with_entry(&analysis, crate::entry::DEFAULT_ENTRY_NAME).unwrap();
 
-    assert_eq!(ir.functions.len(), 3);
-    assert_eq!(ir.functions[0].target, CallTarget::same_file("main"));
-    let Instruction::TailCall {
-        target:
-            CallTarget::Imported {
-                source: process_source,
-                name: process_name,
-            },
-        arguments,
-    } = &ir.functions[0].instructions[0]
-    else {
-        panic!("expected entry to tail-call std/process.abort");
-    };
-    assert_eq!(process_name, "abort");
-    assert!(arguments.is_empty());
-
-    let Instruction::TailCall {
-        target:
-            CallTarget::Imported {
-                source: process_impl_source,
-                name: process_impl_name,
-            },
-        arguments,
-    } = &ir.functions[1].instructions[0]
-    else {
-        panic!("expected std/process.abort to tail-call std/process_impl.abort");
-    };
-    assert_eq!(process_impl_name, "abort");
-    assert!(arguments.is_empty());
-    assert_ne!(*process_source, *process_impl_source);
-    let process_impl_source = *process_impl_source;
-
     assert_eq!(
-        ir.functions[1],
-        Function {
-            name: "abort".to_string(),
-            target: CallTarget::imported(*process_source, "abort"),
-            return_type: Type::Never,
-            instructions: vec![Instruction::TailCall {
-                target: CallTarget::imported(process_impl_source, "abort"),
-                arguments: vec![],
-            }],
-        }
-    );
-    assert_eq!(
-        ir.functions[2],
-        Function {
-            name: "abort".to_string(),
-            target: CallTarget::imported(process_impl_source, "abort"),
-            return_type: Type::Never,
-            instructions: vec![Instruction::Trap],
-        }
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: CallTarget::same_file("main"),
+                return_type: Type::I32,
+                instructions: vec![Instruction::TailCall {
+                    target: CallTarget::imported(process_source, "abort"),
+                    arguments: vec![],
+                }],
+            },
+            Function {
+                name: "abort".to_string(),
+                target: CallTarget::imported(process_source, "abort"),
+                return_type: Type::Never,
+                instructions: vec![Instruction::Trap],
+            },
+        ])
     );
 }
 
@@ -3668,22 +3642,10 @@ impl Error {
 
 fn std_process_file() -> (&'static str, &'static str) {
     (
-        "std/process.nct",
-        r#"from std/process_impl import abort as abort_impl
-
-pub func abort(): never {
-    abort_impl()
-}
-"#,
-    )
-}
-
-fn std_process_impl_file() -> (&'static str, &'static str) {
-    (
-        "targets/arm64-darwin/std/process_impl.nct",
+        "targets/arm64-darwin/std/process.nct",
         r#"from std/os/macos import trap
 
-pub(nocter) func abort(): never {
+pub func abort(): never {
     trap()
 }
 "#,
