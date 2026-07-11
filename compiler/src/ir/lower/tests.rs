@@ -1915,6 +1915,125 @@ func identity(byte: u8): u8 {
 }
 
 #[test]
+fn lowers_u8_slice_index_bool_return_comparison() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func is_elf(bytes: &[u8]): bool {
+    return bytes[0] == 0x7F
+}
+"#,
+        "is_elf",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "is_elf".to_string(),
+            target: crate::ir::CallTarget::same_file("is_elf".to_string()),
+            return_type: Type::Bool,
+            instructions: vec![
+                Instruction::SetBool {
+                    destination: BoolLocation::Return,
+                    value: BoolValue::I32Comparison {
+                        operator: I32ComparisonOperator::Equal,
+                        left: I32Value::U8ZeroExtend(Box::new(U8Value::SliceIndex {
+                            source: SliceLocation::Parameter(0),
+                            index: usize_const(0),
+                        })),
+                        right: I32Value::U8ZeroExtend(Box::new(u8_const(0x7F))),
+                    },
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_u8_str_index_terminal_if_comparison() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    if "Nocter"[0] == 78 {
+        return 0
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![Instruction::If {
+                condition: BoolValue::I32Comparison {
+                    operator: I32ComparisonOperator::Equal,
+                    left: I32Value::U8ZeroExtend(Box::new(U8Value::StaticStrIndex {
+                        bytes: b"Nocter".to_vec(),
+                        index: usize_const(0),
+                    })),
+                    right: I32Value::U8ZeroExtend(Box::new(u8_const(78))),
+                },
+                then_instructions: vec![set_return_i32(0), Instruction::Return],
+                else_instructions: vec![set_return_i32(1), Instruction::Return],
+            }],
+        }])
+    );
+}
+
+#[test]
+fn lowers_u8_normal_call_comparison() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func check(byte: u8): bool {
+    return identity(byte) != 0
+}
+
+func identity(byte: u8): u8 {
+    return byte
+}
+"#,
+        "check",
+        function_signatures(vec![("identity", Type::U8, vec![Type::U8])]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "check".to_string(),
+            target: crate::ir::CallTarget::same_file("check".to_string()),
+            return_type: Type::Bool,
+            instructions: vec![
+                call_u8(
+                    U8Location::Local(0),
+                    "identity",
+                    vec![ScalarArgument::U8(u8_param(0))],
+                ),
+                Instruction::SetBool {
+                    destination: BoolLocation::Return,
+                    value: BoolValue::I32Comparison {
+                        operator: I32ComparisonOperator::NotEqual,
+                        left: I32Value::U8ZeroExtend(Box::new(u8_local(0))),
+                        right: I32Value::U8ZeroExtend(Box::new(u8_const(0))),
+                    },
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_u8_index_conversion_to_i32_return() {
     let function = lower_named_function(
         r#"func main(): i32 {

@@ -1,6 +1,9 @@
 use super::super::context::LoweringContext;
-use super::super::literals::{lower_i32_literal, lower_usize_literal};
-use crate::ast::{BinaryExpr, BinaryOperator, Expr, InterpolatedStringPart, UnaryOperator};
+use super::super::literals::{lower_i32_literal, lower_u8_literal, lower_usize_literal};
+use crate::ast::{
+    BinaryExpr, BinaryOperator, Expr, InterpolatedStringPart, TypeConversionExpr, TypeExpr,
+    UnaryOperator,
+};
 use crate::ir::Type;
 
 pub(super) fn short_circuit_bool_expression_contains_call(binary: &BinaryExpr) -> bool {
@@ -139,6 +142,13 @@ pub(super) fn usize_comparison_needs_temporaries(
         && !expressions_are_lowerable_usize_values(&binary.left, &binary.right, context)
 }
 
+pub(super) fn u8_comparison_is_lowerable(binary: &BinaryExpr, context: &LoweringContext) -> bool {
+    is_i32_comparison_operator(binary.operator)
+        && expressions_are_lowerable_u8_expressions(&binary.left, &binary.right, context)
+        && (expression_is_known_u8_expression(&binary.left, context)
+            || expression_is_known_u8_expression(&binary.right, context))
+}
+
 pub(in crate::ir::lower) fn expression_is_lowerable_bool_binding(
     expression: &Expr,
     context: &LoweringContext,
@@ -246,6 +256,10 @@ fn expression_is_lowerable_comparison_binding(
     binary: &BinaryExpr,
     context: &LoweringContext,
 ) -> bool {
+    if is_i32_comparison_operator(binary.operator) && u8_comparison_is_lowerable(binary, context) {
+        return true;
+    }
+
     if is_i32_comparison_operator(binary.operator)
         && (expressions_are_lowerable_i32_values(&binary.left, &binary.right, context)
             || expressions_are_lowerable_i32_expressions(&binary.left, &binary.right, context))
@@ -296,6 +310,77 @@ fn expressions_are_lowerable_usize_expressions(
 ) -> bool {
     expression_is_lowerable_usize_expression(left, context)
         && expression_is_lowerable_usize_expression(right, context)
+}
+
+fn expressions_are_lowerable_u8_expressions(
+    left: &Expr,
+    right: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    expression_is_lowerable_u8_expression(left, context)
+        && expression_is_lowerable_u8_expression(right, context)
+}
+
+fn expression_is_lowerable_u8_expression(expression: &Expr, context: &LoweringContext) -> bool {
+    match expression {
+        Expr::Call(call) => {
+            let Expr::Identifier(identifier) = call.callee.as_ref() else {
+                return false;
+            };
+            context.call_return_type(&context.call_target(call, &identifier.name))
+                == Some(&Type::U8)
+        }
+        Expr::Index(index) => {
+            expression_is_lowerable_byte_index_object(&index.object, context)
+                && expression_is_lowerable_usize_expression(&index.index, context)
+        }
+        Expr::TypeConversion(conversion) if type_conversion_target_is(conversion, "u8") => {
+            expression_is_lowerable_u8_expression(&conversion.expression, context)
+        }
+        Expr::Group(group) => expression_is_lowerable_u8_expression(&group.expression, context),
+        _ => expression_is_lowerable_u8_value(expression, context),
+    }
+}
+
+fn expression_is_known_u8_expression(expression: &Expr, context: &LoweringContext) -> bool {
+    match expression {
+        Expr::Identifier(identifier) => context.u8_location(&identifier.name).is_some(),
+        Expr::Call(call) => {
+            let Expr::Identifier(identifier) = call.callee.as_ref() else {
+                return false;
+            };
+            context.call_return_type(&context.call_target(call, &identifier.name))
+                == Some(&Type::U8)
+        }
+        Expr::Index(index) => expression_is_lowerable_byte_index_object(&index.object, context),
+        Expr::TypeConversion(conversion) if type_conversion_target_is(conversion, "u8") => true,
+        Expr::Group(group) => expression_is_known_u8_expression(&group.expression, context),
+        _ => false,
+    }
+}
+
+fn expression_is_lowerable_u8_value(expression: &Expr, context: &LoweringContext) -> bool {
+    match expression {
+        Expr::Identifier(identifier) => context.u8_location(&identifier.name).is_some(),
+        Expr::Group(group) => expression_is_lowerable_u8_value(&group.expression, context),
+        _ => lower_u8_literal(expression).is_ok(),
+    }
+}
+
+fn expression_is_lowerable_byte_index_object(expression: &Expr, context: &LoweringContext) -> bool {
+    match expression {
+        Expr::StringLiteral(_) => true,
+        Expr::Identifier(identifier) => {
+            context.str_location(&identifier.name).is_some()
+                || context.slice_location(&identifier.name).is_some()
+        }
+        Expr::Group(group) => expression_is_lowerable_byte_index_object(&group.expression, context),
+        _ => false,
+    }
+}
+
+fn type_conversion_target_is(conversion: &TypeConversionExpr, name: &str) -> bool {
+    matches!(&conversion.ty, TypeExpr::Reference(reference) if reference.name == name)
 }
 
 fn expression_is_lowerable_usize_expression(expression: &Expr, context: &LoweringContext) -> bool {

@@ -25,7 +25,8 @@ use predicates::{
     bool_comparison_contains_call, expressions_are_lowerable_bool_comparison_operands,
     expressions_are_lowerable_bool_values, expressions_are_lowerable_usize_values,
     i32_comparison_needs_temporaries, is_i32_binary_operator, is_usize_binary_operator,
-    short_circuit_bool_expression_contains_call, usize_comparison_needs_temporaries,
+    short_circuit_bool_expression_contains_call, u8_comparison_is_lowerable,
+    usize_comparison_needs_temporaries,
 };
 pub(super) use predicates::{
     expression_contains_call, expression_contains_interpolated_string,
@@ -707,6 +708,21 @@ pub(super) fn lower_bool_expression_to_location(
             });
             Ok(instructions)
         }
+        Expr::Binary(binary) if u8_comparison_is_lowerable(binary, context) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let comparison = lower_u8_comparison_to_value_with_temporaries(
+                binary,
+                context,
+                diagnostic_code,
+                &mut temporaries,
+            )?;
+            let mut instructions = comparison.instructions;
+            instructions.push(Instruction::SetBool {
+                destination,
+                value: comparison.value,
+            });
+            Ok(instructions)
+        }
         Expr::Binary(binary) if i32_comparison_needs_temporaries(binary, context) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             let comparison = lower_i32_comparison_to_value_with_temporaries(
@@ -883,6 +899,14 @@ fn lower_bool_expression_to_value_with_temporaries(
                 temporaries,
             )
         }
+        Expr::Binary(binary) if u8_comparison_is_lowerable(binary, context) => {
+            lower_u8_comparison_to_value_with_temporaries(
+                binary,
+                context,
+                diagnostic_code,
+                temporaries,
+            )
+        }
         Expr::Binary(binary) if i32_comparison_needs_temporaries(binary, context) => {
             lower_i32_comparison_to_value_with_temporaries(
                 binary,
@@ -1040,6 +1064,47 @@ fn lower_usize_comparison_to_value_with_temporaries(
             right: right.value,
         },
     })
+}
+
+fn lower_u8_comparison_to_value_with_temporaries(
+    binary: &BinaryExpr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
+    let operator = i32_comparison_operator(binary.operator, diagnostic_code)?;
+    let left = lower_u8_expression_to_value(&binary.left, context, temporaries)?;
+    let right = lower_u8_expression_to_value(&binary.right, context, temporaries)?;
+
+    let mut instructions = left.instructions;
+    instructions.extend(right.instructions);
+    Ok(LoweredBoolValue {
+        instructions,
+        value: BoolValue::I32Comparison {
+            operator,
+            left: I32Value::U8ZeroExtend(Box::new(left.value)),
+            right: I32Value::U8ZeroExtend(Box::new(right.value)),
+        },
+    })
+}
+
+fn lower_u8_comparison_condition(
+    binary: &BinaryExpr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<BoolValue, Vec<Diagnostic>> {
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let comparison = lower_u8_comparison_to_value_with_temporaries(
+        binary,
+        context,
+        diagnostic_code,
+        &mut temporaries,
+    )?;
+    if comparison.instructions.is_empty() {
+        Ok(comparison.value)
+    } else {
+        Err(unsupported_bool_expression_diagnostic(diagnostic_code))
+    }
 }
 
 fn lower_str_value(
@@ -1238,6 +1303,9 @@ fn lower_bool_binary_value(
                 diagnostic_code,
             ))
         }
+        _ if u8_comparison_is_lowerable(binary, context) => {
+            lower_u8_comparison_condition(binary, context, diagnostic_code)
+        }
         _ if expressions_are_lowerable_usize_values(&binary.left, &binary.right, context) => {
             lower_usize_comparison_condition(binary, context, diagnostic_code)
         }
@@ -1408,6 +1476,6 @@ fn unsupported_bool_comparison_operand_diagnostic(
 fn unsupported_bool_expression_diagnostic(diagnostic_code: &'static str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         diagnostic_code,
-        "IR v0 can only lower bool literals, bool locals, bool operators, i32 or usize comparisons, and bool equality/inequality over bool literals or bool locals",
+        "IR v0 can only lower bool literals, bool locals, bool operators, i32, u8, or usize comparisons, and bool equality/inequality over bool literals or bool locals",
     )]
 }

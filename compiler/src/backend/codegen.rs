@@ -1050,6 +1050,42 @@ mod tests {
     }
 
     #[test]
+    fn generates_u8_comparison_from_hand_built_ir() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "check".to_string(),
+                target: crate::ir::CallTarget::same_file("check".to_string()),
+                return_type: Type::Bool,
+                instructions: vec![
+                    Instruction::SetBool {
+                        destination: BoolLocation::Return,
+                        value: BoolValue::I32Comparison {
+                            operator: I32ComparisonOperator::Equal,
+                            left: I32Value::U8ZeroExtend(Box::new(U8Value::SliceIndex {
+                                source: SliceLocation::Parameter(0),
+                                index: UsizeValue::Const(0),
+                            })),
+                            right: I32Value::U8ZeroExtend(Box::new(U8Value::Const(0x7F))),
+                        },
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0x10, 0x68, 0x70, 0x38])); // ldrb w16, [x0, x16]
+        assert!(contains_instruction(&code.text, [0x20, 0x00, 0x80, 0x52])); // mov w0, #1
+    }
+
+    #[test]
     fn normal_i32_call_spills_and_reloads_scalar_locals() {
         let module = IrModule::new(vec![
             Function {
