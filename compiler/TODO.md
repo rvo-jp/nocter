@@ -24,6 +24,9 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: add private `File` close-on-drop state
+  - adds `close_on_drop` to `.nocter/std/io.nct`'s private `File` representation so borrowed standard streams can be distinguished from future owned handles
+  - adds distributed-home coverage that user code cannot construct `File` through hidden fields
 - `Add std io file method surface`
   - adds `.nocter/std/io.nct` skeleton methods for `File.open`, `File.read`, `File.write`, and `File.write_text`
   - keeps runtime I/O broadening deferred while checking the user-facing method surface through the distributed Nocter home

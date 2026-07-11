@@ -24,6 +24,7 @@ pub enum IOError {
 
 pub struct File {
     handle: usize
+    close_on_drop: bool
 }
 
 pub func from_os_error(error: OSError): error {
@@ -31,11 +32,11 @@ pub func from_os_error(error: OSError): error {
 }
 
 pub func stdout(): File {
-    return File { handle: 1 }
+    return File { handle: 1, close_on_drop: false }
 }
 
 pub func stderr(): File {
-    return File { handle: 2 }
+    return File { handle: 2, close_on_drop: false }
 }
 
 impl File {
