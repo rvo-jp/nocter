@@ -392,12 +392,12 @@ impl TempProject {
         fs::write(
             home.join("std/error.nct"),
             concat!(
-                "pub type ErrorCode = str\n",
+                "pub type ErrorCode = &str\n",
                 "pub type Error = error\n",
-                "pub(nocter) primitive new_error(code: str, message: str): error\n",
+                "pub(nocter) primitive new_error(code: &str, message: &str): error\n",
                 "\n",
                 "impl Error {\n",
-                "    pub func new(code: ErrorCode, message: str): Error {\n",
+                "    pub func new(code: ErrorCode, message: &str): Error {\n",
                 "        return new_error(code, message)\n",
                 "    }\n",
                 "}\n",
@@ -406,13 +406,13 @@ impl TempProject {
         .unwrap();
         fs::write(
             home.join("std/string.nct"),
-            concat!("pub struct String {\n", "    bytes: [u8]\n", "}\n",),
+            concat!("pub struct String {\n", "    bytes: &[u8]\n", "}\n",),
         )
         .unwrap();
         fs::write(
             home.join("std/io.nct"),
             concat!(
-                "pub func print(text: str): void! {\n",
+                "pub func print(text: &str): void! {\n",
                 "    return\n",
                 "}\n",
             ),
@@ -421,7 +421,7 @@ impl TempProject {
         fs::write(
             home.join("targets/arm64-darwin/std/process.nct"),
             concat!(
-                "pub func env(name: str): (str?)! {\n",
+                "pub func env(name: &str): (&str?)! {\n",
                 "    return none\n",
                 "}\n",
             ),

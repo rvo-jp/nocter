@@ -38,7 +38,7 @@ fn type_expr_to_type_inner(
             "bool" | "i8" | "i16" | "i64" | "u8" | "u16" | "u32" | "u64" | "usize" | "isize" => {
                 Type::Primitive(reference.name.clone())
             }
-            "str" => Type::Str,
+            "str" => Type::StrData,
             "error" => Type::Error,
             "void" => Type::Void,
             "never" => Type::Never,
@@ -63,13 +63,26 @@ fn type_expr_to_type_inner(
                 })
                 .unwrap_or_else(|| Type::Unresolved(name.to_string())),
         },
-        TypeExpr::Generic(_) | TypeExpr::Pointer(_) | TypeExpr::Borrow(_) => {
+        TypeExpr::Borrow(borrow) => {
+            let inner_type =
+                type_expr_to_type_inner(&borrow.inner, resolved, self_type, resolving_aliases);
+            match (borrow.is_readwrite, inner_type) {
+                (false, Type::StrData) => Type::Str,
+                (_, Type::ArrayData { element }) => Type::View {
+                    is_readwrite: borrow.is_readwrite,
+                    element,
+                },
+                _ => type_expr_display_with_self_type(ty, resolved, self_type)
+                    .map(Type::Named)
+                    .unwrap_or_else(|| Type::Unresolved(type_expr_display_lossy(ty))),
+            }
+        }
+        TypeExpr::Generic(_) | TypeExpr::Pointer(_) => {
             type_expr_display_with_self_type(ty, resolved, self_type)
                 .map(Type::Named)
                 .unwrap_or_else(|| Type::Unresolved(type_expr_display_lossy(ty)))
         }
-        TypeExpr::View(ty) => Type::View {
-            is_readwrite: ty.is_readwrite,
+        TypeExpr::View(ty) => Type::ArrayData {
             element: Box::new(type_expr_to_type_inner(
                 &ty.element,
                 resolved,
@@ -148,7 +161,7 @@ fn type_expr_display_with_self_type(
             type_expr_display_with_self_type(&borrow.inner, resolved, self_type)?
         )),
         TypeExpr::View(view) if view.is_readwrite => Some(format!(
-            "[+{}]",
+            "&+[{}]",
             type_expr_display_with_self_type(&view.element, resolved, self_type)?
         )),
         TypeExpr::View(view) => Some(format!(
@@ -189,7 +202,7 @@ pub(super) fn type_expr_display_lossy(ty: &TypeExpr) -> String {
         }
         TypeExpr::Borrow(borrow) => format!("&{}", type_expr_display_lossy(&borrow.inner)),
         TypeExpr::View(view) if view.is_readwrite => {
-            format!("[+{}]", type_expr_display_lossy(&view.element))
+            format!("&+[{}]", type_expr_display_lossy(&view.element))
         }
         TypeExpr::View(view) => format!("[{}]", type_expr_display_lossy(&view.element)),
         TypeExpr::Array(array) => {

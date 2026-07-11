@@ -1,7 +1,7 @@
 from std/error import Error
 from std/string import String
 
-pub func append_str(out: &+String, value: str): void! {
+pub func append_str(out: &+String, value: &str): void! {
     return
 }
 

@@ -106,7 +106,7 @@ fn accepts_view_index_return() {
     return 0
 }
 
-func first(bytes: [u8]): u8 {
+func first(bytes: &[u8]): u8 {
     return bytes[0]
 }
 "#,

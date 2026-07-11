@@ -281,7 +281,7 @@ Required v0 diagnostic families:
 - Mismatched borrowed optional projection form, such as `if var name = &place`, `if let name = &+place`, `var name = &place else { ... }`, or `let name = &+place else { ... }`.
 - Selected entry function missing from the root file.
 - Selected entry function with an invalid return type.
-- Selected entry function with parameters, such as `func main(args: [str]): i32!`, used in v0.
+- Selected entry function with parameters, such as `func main(args: Vec<&str>): i32!`, used in v0.
 - Duplicate selected entry function names, reported by the normal duplicate visible-name diagnostic.
 - `return` without a value in a non-`void` function.
 - `return` with a value in a `void` function.

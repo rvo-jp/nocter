@@ -60,9 +60,9 @@ One-word values:
 
 Two-word values:
 
-- `str`
-- `[T]`
-- `[+T]`
+- `&str`
+- `&[T]`
+- `&+[T]`
 
 Layout of these view types:
 
@@ -71,7 +71,9 @@ word 0: ptr
 word 1: len
 ```
 
-`ptr` points to the first byte or element. `len` is a `usize` count. For `str`, `len` is the number of UTF-8 bytes.
+`ptr` points to the first byte or element. `len` is a `usize` count. For `&str`, `len` is the number of UTF-8 bytes.
+
+The unsized data forms `str` and `[T]` do not have a standalone by-value ABI. They are passed and returned only through an indirection such as `&str`, `&[T]`, `&+[T]`, or an owning standard-library type such as `String` or `Vec<T>`.
 
 Values larger than 16 bytes are classified as indirect values.
 

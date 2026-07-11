@@ -492,4 +492,4 @@ The following are not part of v0:
 - package registry commands
 - project-wide command configuration
 - passing `run` child-process arguments before the `--` forwarding design is implemented
-- entry function parameters such as `func main(args: [str]): i32!`
+- entry function parameters such as `func main(args: Vec<&str>): i32!`

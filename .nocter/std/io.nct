@@ -44,31 +44,31 @@ pub func stderr(): File {
 }
 
 impl File {
-    pub func open(path: str): File! {
+    pub func open(path: &str): File! {
         let fd = open_read_impl(path)?
         return File { fd: fd, close_on_drop: true }
     }
 
-    pub method (file: &+Self).read(buffer: [+u8]): usize! {
+    pub method (file: &+Self).read(buffer: &+[u8]): usize! {
         return unsupported()
     }
 
-    pub method (file: &+Self).write(bytes: [u8]): void! {
+    pub method (file: &+Self).write(bytes: &[u8]): void! {
         return
     }
 
-    pub method (file: &+Self).write_text(text: str): void! {
+    pub method (file: &+Self).write_text(text: &str): void! {
         return
     }
 }
 
-pub func print(text: str): void! {
+pub func print(text: &str): void! {
     var out = stdout()
     out.write_text(text)?
     return
 }
 
-pub func write_text(file: &+File, text: str): void! {
+pub func write_text(file: &+File, text: &str): void! {
     return
 }
 

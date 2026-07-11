@@ -105,7 +105,7 @@ If the receiver has a concrete nominal type, the compiler looks only for inheren
 If the receiver is a generic type parameter, the compiler looks at the receiver type parameter's explicit trait bound. A method declared by that bound may be called through the generic value.
 
 ```nct
-func write_line<W: Writer>(writer: &+W, text: str): void! {
+func write_line<W: Writer>(writer: &+W, text: &str): void! {
     writer.write(text)?
     writer.write("\n")?
     return
@@ -136,7 +136,7 @@ Adopted: traits describe required behavior without class inheritance.
 
 ```nct
 trait Writer {
-    method (out: &+Self).write(text: str): void!
+    method (out: &+Self).write(text: &str): void!
 }
 ```
 
@@ -146,7 +146,7 @@ Trait implementation uses `impl Trait for Type`.
 
 ```nct
 impl Writer for File {
-    method (file: &+Self).write(text: str): void! {
+    method (file: &+Self).write(text: &str): void! {
         ...
     }
 }
@@ -159,7 +159,7 @@ Each required trait method must be implemented exactly once, and its signature m
 Generic functions may use trait bounds.
 
 ```nct
-func print_line<W: Writer>(writer: &+W, text: str): void! {
+func print_line<W: Writer>(writer: &+W, text: &str): void! {
     writer.write(text)?
     writer.write("\n")?
     return
@@ -185,14 +185,14 @@ Rules:
 
 // In the module that defines File: OK.
 impl Writer for File {
-    method (file: &+Self).write(text: str): void! {
+    method (file: &+Self).write(text: &str): void! {
         ...
     }
 }
 
 // In the module that defines Writer: OK, even if File is external.
 impl Writer for File {
-    method (file: &+Self).write(text: str): void! {
+    method (file: &+Self).write(text: &str): void! {
         ...
     }
 }
@@ -212,7 +212,7 @@ struct Buffer<T> {
     ...
 }
 
-func first<T>(items: [T]): T? {
+func first<T>(items: &[T]): T? {
     ...
 }
 ```

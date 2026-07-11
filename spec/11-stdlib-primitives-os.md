@@ -104,21 +104,21 @@ The built-in failure payload is `error`. The standard library exposes ordinary n
 Initial public surface direction:
 
 ```nct
-pub type ErrorCode = str
+pub type ErrorCode = &str
 pub type Error = error
 
 impl Error {
-    pub func new(code: ErrorCode, message: str): Error
+    pub func new(code: ErrorCode, message: &str): Error
 }
 ```
 
 Initial standard-library implementation boundary:
 
 ```nct
-pub(nocter) primitive new_error(code: str, message: str): error
+pub(nocter) primitive new_error(code: &str, message: &str): error
 
 impl Error {
-    pub func new(code: ErrorCode, message: str): Error {
+    pub func new(code: ErrorCode, message: &str): Error {
         return new_error(code, message)
     }
 }
@@ -128,7 +128,7 @@ Rules:
 
 - `error` is the compiler built-in payload type.
 - `Error` and `ErrorCode` are ordinary standard-library names.
-- The compiler does not know the name `ErrorCode`. `ErrorCode` is an open string classification alias, and `Error.new` converts that string value into the built-in `error` payload's primitive code representation.
+- The compiler does not know the name `ErrorCode`. `ErrorCode` is an open string classification alias over `&str`, and `Error.new` converts that string slice into the built-in `error` payload's primitive code representation.
 - `new_error` is a `pub(nocter)` standard-library implementation primitive in `std/error`; user project modules must call `Error.new` instead of importing it.
 - Standard-library codes use dotted names such as `"std.io.not_found"`, `"std.mem.out_of_memory"`, `"std.string.capacity_overflow"`, `"std.fmt.unsupported"`, and `"std.process.invalid_encoding"`. User and package code may use their own prefixes, such as `"app.config.missing_key"`.
 - Standard-library modules should fail with `error`, not domain-specific fallible error type parameters.
@@ -147,16 +147,16 @@ pub struct String {
 
 pub func empty(): String
 pub func with_capacity(allocator: &+Allocator, capacity: usize): String!
-pub func from_str(allocator: &+Allocator, value: str): String!
-pub func view(text: &String): str
-pub func push_str(text: &+String, value: str): void!
+pub func from_str(allocator: &+Allocator, value: &str): String!
+pub func view(text: &String): &str
+pub func push_str(text: &+String, value: &str): void!
 pub func capacity_overflow(): error
 ```
 
 Initial `std/fmt` public surface direction:
 
 ```nct
-pub func append_str(out: &+String, value: str): void!
+pub func append_str(out: &+String, value: &str): void!
 pub func append_string(out: &+String, value: &String): void!
 pub func append_i32(out: &+String, value: i32): void!
 pub func append_bool(out: &+String, value: bool): void!
@@ -184,10 +184,10 @@ pub struct File {
 }
 
 impl File {
-    pub func open(path: str): File!
-    pub method (file: &+Self).read(buffer: [+u8]): usize!
-    pub method (file: &+Self).write(bytes: [u8]): void!
-    pub method (file: &+Self).write_text(text: str): void!
+    pub func open(path: &str): File!
+    pub method (file: &+Self).read(buffer: &+[u8]): usize!
+    pub method (file: &+Self).write(bytes: &[u8]): void!
+    pub method (file: &+Self).write_text(text: &str): void!
 
     drop File(file: &+Self) {
         ...
@@ -196,7 +196,7 @@ impl File {
 
 pub func stdout(): File
 pub func stderr(): File
-pub func print(text: str): void!
+pub func print(text: &str): void!
 ```
 
 Rules:
@@ -210,7 +210,7 @@ Rules:
 - `read(buffer)` may return fewer bytes than `buffer.len()` without treating that as an error.
 - `write(bytes)` writes all bytes in the view or fails.
 - Target implementations handle partial OS writes inside `write(bytes)`.
-- `write_text(text)` writes the UTF-8 bytes of `str` without encoding conversion.
+- `write_text(text)` writes the UTF-8 bytes of `&str` without encoding conversion.
 - `print(text)` writes `text` to `stdout()` and does not append a newline.
 - `stdout()` and `stderr()` return `File` values representing the process standard streams.
 - `File` internally distinguishes owned handles from borrowed process standard streams.
@@ -255,32 +255,32 @@ Adopted: command-line arguments and environment access are standard-library APIs
 Initial public surface direction:
 
 ```nct
-pub func args(): [str]!
-pub func env(name: str): str?!
-pub func cwd(): str!
+pub func args(): Vec<&str>!
+pub func env(name: &str): &str?!
+pub func cwd(): &str!
 pub func exit(code: i32): never
 pub func abort(): never
 ```
 
 Rules:
 
-- Entry function parameters, such as `func main(args: [str]): i32!`, are not part of v0.
+- Entry function parameters, such as `func main(args: Vec<&str>): i32!`, are not part of v0.
 - The compiler must not special-case a function named `args`, `env`, `cwd`, `exit`, or `abort`.
 - The generated low-level entry code may receive platform process entry information such as `argc`, `argv`, and `envp`.
 - That platform information is connected to a `std/process` process context inside the active target implementation.
 - User code reads command-line arguments with `std/process.args()`.
 - User code reads environment values with `std/process.env(name)`.
-- `args()` returns a readonly view of `str` values on success.
+- `args()` returns an owned `Vec<&str>` of borrowed string slices on success.
 - The first argument follows the host platform convention and represents the executable path or invocation name when the platform provides one.
-- `env(name)` has type `str?!`.
+- `env(name)` has type `&str?!`.
 - `env(name)` succeeds with `none` when the variable is absent.
-- `env(name)` succeeds with a present `str` when the variable is present and valid UTF-8.
+- `env(name)` succeeds with a present `&str` when the variable is present and valid UTF-8.
 - `cwd()` returns the current working directory or fails with `error`.
 - Process context string storage is valid for the whole program.
 - Argument, environment, and current-working-directory views returned by `std/process` are not owned by the caller and must be treated as borrowed view data.
 - The caller must not drop process-context storage.
 - APIs that need owned strings must explicitly copy into an allocator-owned `String`.
-- Target implementations must validate process strings before exposing them as `str`.
+- Target implementations must validate process strings before exposing them as `&str`.
 - `args()` fails with `"std.process.invalid_encoding"` if any returned argument cannot be represented as UTF-8.
 - `env(name)` fails with `"std.process.invalid_encoding"` if the matching environment value exists but cannot be represented as UTF-8.
 - `cwd()` fails with `"std.process.invalid_encoding"` if the current working directory cannot be represented as UTF-8.
@@ -411,7 +411,7 @@ Rules:
 - User project modules must not call `pub(nocter)` primitive declarations.
 - User project modules must not call restricted low-level APIs such as `std/ptr.from_addr`.
 - Trusted modules still go through normal parsing, type checking, ownership checking, borrowing rules, and drop checking.
-- Trusted modules should expose ordinary safe APIs to user code, using types such as `File`, `String`, `Buffer<T>`, `OSError`, `Allocator`, `error`, `[T]`, and `[+T]`.
+- Trusted modules should expose ordinary safe APIs to user code, using types such as `File`, `String`, `Vec<T>`, `Buffer<T>`, `OSError`, `Allocator`, `error`, `&str`, `&[T]`, and `&+[T]`.
 - If trusted standard-library code violates an invariant required by its public safe API, that is a standard-library or compiler bug. It is not an opt-in source-level permission granted to user code.
 
 Initial primitive declaration syntax:
@@ -438,7 +438,7 @@ Initial primitive files:
 Initial core error primitive set:
 
 ```nct
-pub(nocter) primitive new_error(code: str, message: str): error
+pub(nocter) primitive new_error(code: &str, message: &str): error
 ```
 
 Initial core pointer primitive set:

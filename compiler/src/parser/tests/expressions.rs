@@ -37,7 +37,7 @@ fn parses_pattern_conditional_expression() {
     let output = parse_text(
         r#"enum AppError {
     missing_path
-    open_failed(path: str)
+    open_failed(path: &str)
 }
 
 func code(error: AppError): i32 {
@@ -167,7 +167,7 @@ fn parses_array_literal_expression() {
 #[test]
 fn parses_multi_line_string_literal_expression() {
     let output = parse_text(
-        r#"func main(): str {
+        r#"func main(): &str {
     return """
         alpha
         beta
@@ -196,7 +196,7 @@ fn parses_multi_line_string_literal_expression() {
 #[test]
 fn parses_interpolated_string_expression() {
     let (sources, output) = parse_text_with_sources(
-        r#"func main(name: str): i32 {
+        r#"func main(name: &str): i32 {
     let text = "hello ${name} ${1 + 2}"
     return 0
 }
@@ -240,7 +240,7 @@ fn parses_struct_literal_expression() {
     let output = parse_text(
         r#"struct Point {
     x: i32
-    label: str
+    label: &str
 }
 
 func main(): i32 {

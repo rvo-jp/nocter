@@ -12,7 +12,7 @@ func inspect(file: &File): void {
     ...
 }
 
-func write(file: &+File, data: str): void! {
+func write(file: &+File, data: &str): void! {
     ...
 }
 ```
@@ -73,7 +73,7 @@ Method receiver borrows are automatic:
 
 ```nct
 impl File {
-    pub method (file: &+Self).write_text(text: str): void! {
+    pub method (file: &+Self).write_text(text: &str): void! {
         ...
     }
 }
@@ -130,7 +130,7 @@ Rules:
 - Method receiver borrows last only for the call unless the method returns a borrow-like value derived from the receiver.
 - If a method returns a borrow-like value derived from the receiver, the receiver borrow remains active for the returned value's live range.
 - Borrowed optional projections create a borrow only inside the then body, as specified in [Errors and Optionals](04-errors-optionals.md#borrowed-optional-projections).
-- `str`, `[T]`, `[+T]`, `ViewIter<T>`, and aggregates containing borrow-like values participate in the same live-range and provenance checks.
+- `&str`, `&[T]`, `&+[T]`, `ViewIter<T>`, and aggregates containing borrow-like values participate in the same live-range and provenance checks.
 - Borrow-like return values are governed by [Borrow-like Return Values](#borrow-like-return-values).
 
 ### Field-Sensitive Borrows
@@ -156,7 +156,7 @@ Rules:
 - A borrow of one named field does not conflict with mutation or borrowing of a disjoint named field.
 - Moving, dropping, reinitializing, or assigning the whole parent value conflicts with any active field borrow.
 - Assigning a field conflicts with active borrows of that same field and active borrows of the whole parent value.
-- Field-sensitive tracking does not apply to array indexes, collection indexes, `[T]` elements, pointer dereferences, method-call results, enum payloads, or computed projections in v0.
+- Field-sensitive tracking does not apply to array indexes, collection indexes, `&[T]` or `&+[T]` elements, pointer dereferences, method-call results, enum payloads, or computed projections in v0.
 - If the compiler cannot prove two places are disjoint, it treats them as conflicting.
 
 ## Function Parameters
@@ -491,9 +491,9 @@ Borrow-like return values include:
 
 - `&T`
 - `&+T`
-- `str`
-- `[T]`
-- `[+T]`
+- `&str`
+- `&[T]`
+- `&+[T]`
 - `ViewIter<T>`
 - structs, enums, optionals, fallible values, and arrays containing borrow-like values
 
@@ -505,7 +505,7 @@ Rules:
 - Borrow-like values derived from static storage, such as string literals, may be returned.
 - Borrow-like values derived from input borrow-like parameters may be returned when the return value's provenance is still tied to that input borrow-like value.
 - A readonly borrow-like value may be returned from a readonly or readwrite input borrow-like source.
-- A readwrite borrow-like value may be returned only from a readwrite input borrow-like source, such as `&+T` or `[+T]`.
+- A readwrite borrow-like value may be returned only from a readwrite input borrow-like source, such as `&+T` or `&+[T]`.
 - Borrow-like values derived from local owned values cannot be returned.
 - Borrow-like values derived from temporary owned values cannot be returned.
 - Borrow-like values derived from owned parameters cannot be returned, because owned parameters are dropped at function scope end unless moved.
@@ -516,7 +516,7 @@ Rules:
 Examples:
 
 ```nct
-func greeting(): str {
+func greeting(): &str {
     return "hello" // OK: string literal storage is static
 }
 ```
@@ -532,14 +532,14 @@ func first_byte(bytes: [u8]): u8? {
 ```
 
 ```nct
-func bad(allocator: &+Allocator): str! {
+func bad(allocator: &+Allocator): &str! {
     var text = String.copy(allocator, "hello")?
     return text.view() // error: view points to local owned value
 }
 ```
 
 ```nct
-func also_bad(text: String): str {
+func also_bad(text: String): &str {
     return text.view() // error: view points to an owned parameter dropped at return
 }
 ```

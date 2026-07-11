@@ -86,7 +86,7 @@ func main(): void {
 #[test]
 fn diagnoses_default_main_with_parameters() {
     let diagnostics = check_text(
-        r#"func main(args: str): i32 {
+        r#"func main(args: &str): i32 {
     return 0
 }
 "#,

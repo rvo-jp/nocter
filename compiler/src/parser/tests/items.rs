@@ -79,11 +79,11 @@ impl Counter {
 }
 
 pub trait Writer {
-    method (writer: &+Self).write(text: str): void!
+    method (writer: &+Self).write(text: &str): void!
 }
 
 impl Writer for Counter {
-    method (counter: &+Self).write(text: str): void! {
+    method (counter: &+Self).write(text: &str): void! {
         return
     }
 }
@@ -208,13 +208,13 @@ pub copy struct Layout {
 }
 
 pub enum IOError {
-    not_found(path: str)
+    not_found(path: &str)
     denied
 }
 
 pub(nocter) primitive addr<T>(pointer: *T): usize
 
-pub func write(file: &+File, text: str): void! {
+pub func write(file: &+File, text: &str): void! {
     return
 }
 
@@ -274,7 +274,7 @@ fn ast_json_includes_attached_documentation() {
 /// Stores a path.
 pub struct File {
     /// Raw path view.
-    pub path: str
+    pub path: &str
 }
 
 /// Runs the program.

@@ -154,7 +154,12 @@ fn is_bool_type(ty: &TypeExpr) -> bool {
 }
 
 fn is_str_type(ty: &TypeExpr) -> bool {
-    matches!(ty, TypeExpr::Reference(reference) if reference.name == "str")
+    matches!(
+        ty,
+        TypeExpr::Borrow(borrow)
+            if !borrow.is_readwrite
+                && matches!(borrow.inner.as_ref(), TypeExpr::Reference(reference) if reference.name == "str")
+    )
 }
 
 fn unsupported_binding_diagnostic(message: &'static str) -> Vec<Diagnostic> {

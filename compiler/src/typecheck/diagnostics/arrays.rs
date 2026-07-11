@@ -37,12 +37,12 @@ pub(in crate::typecheck) fn index_target_type_mismatch_diagnostic(
     let mut diagnostic = Diagnostic::error(
         "E0344",
         format!(
-            "index expression target has type `{}`, but indexing requires `[T; N]`, `[T]`, `[+T]`, or `str`",
+            "index expression target has type `{}`, but indexing requires `[T; N]`, `&[T]`, `&+[T]`, or `&str`",
             actual.display()
         ),
     );
     diagnostic.primary_span = sources.span_to_json(index.object.span()).ok().map(Box::new);
-    diagnostic.help = Some("index an array, view, or string value".to_string());
+    diagnostic.help = Some("index an array, slice, or string slice value".to_string());
     diagnostic
 }
 

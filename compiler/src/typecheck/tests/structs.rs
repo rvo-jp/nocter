@@ -5,7 +5,7 @@ fn accepts_struct_field_access() {
     let diagnostics = check_text(
         r#"struct Point {
     x: i32
-    label: str
+    label: &str
 }
 
 func main(): i32 {
@@ -16,7 +16,7 @@ func x(point: Point): i32 {
     return point.x
 }
 
-func label(point: Point): str {
+func label(point: Point): &str {
     return point.label
 }
 "#,
@@ -36,7 +36,7 @@ func main(): i32 {
     return 0
 }
 
-func x(point: Point): str {
+func x(point: Point): &str {
     return point.x
 }
 "#,
@@ -94,7 +94,7 @@ fn accepts_struct_literal_expression() {
     let diagnostics = check_text(
         r#"struct Point {
     x: i32
-    label: str
+    label: &str
 }
 
 func main(): i32 {

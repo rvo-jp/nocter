@@ -80,13 +80,13 @@ func main(): i32 {
     .unwrap();
     fs::write(
         home.join("std/error.nct"),
-        r#"pub type ErrorCode = str
+        r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: str, message: str): error
+pub(nocter) primitive new_error(code: &str, message: &str): error
 
 impl Error {
-    pub func new(code: ErrorCode, message: str): Error {
+    pub func new(code: ErrorCode, message: &str): Error {
         return new_error(code, message)
     }
 }
@@ -153,7 +153,7 @@ func main(): i32 {
     .unwrap();
     fs::write(
         home.join("std/io.nct"),
-        r#"pub func title(): str {
+        r#"pub func title(): &str {
     return "Nocter"
 }
 "#,
@@ -186,7 +186,7 @@ func main(): i32 {
     .unwrap();
     fs::write(
         home.join("std/io.nct"),
-        r#"pub func answer(): str {
+        r#"pub func answer(): &str {
     return "common"
 }
 "#,
@@ -279,7 +279,7 @@ fn check_rejects_primitive_declaration_outside_nocter_home_std() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"primitive new_error(code: str, message: str): error
+        r#"primitive new_error(code: &str, message: &str): error
 
 func main(): i32 {
     return 0

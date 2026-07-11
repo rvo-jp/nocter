@@ -226,7 +226,7 @@ fn uses_optional_let_else_unwrapped_return_type() {
     return value
 }
 
-func maybe_title(): str? {
+func maybe_title(): &str? {
     return "hello"
 }
 "#,
@@ -306,7 +306,7 @@ fn uses_optional_if_let_unwrapped_return_type() {
     return 0
 }
 
-func maybe_title(): str? {
+func maybe_title(): &str? {
     return "hello"
 }
 "#,
@@ -434,7 +434,7 @@ fn uses_optional_while_let_unwrapped_return_type() {
     return 0
 }
 
-func maybe_title(): str? {
+func maybe_title(): &str? {
     return "hello"
 }
 "#,

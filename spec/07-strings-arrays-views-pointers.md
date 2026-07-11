@@ -93,20 +93,20 @@ func address_of(value: &u8): usize {
 
 ### View Pointer APIs
 
-`[T]`, `[+T]`, and `str` expose pointer and length methods.
+`&[T]`, `&+[T]`, and `&str` expose pointer and length methods.
 
 ```nct
-impl [T] {
+impl &[T] {
     pub method (view: Self).ptr(): *T
     pub method (view: Self).len(): usize
 }
 
-impl [+T] {
+impl &+[T] {
     pub method (view: Self).ptr(): *T
     pub method (view: Self).len(): usize
 }
 
-impl str {
+impl &str {
     pub method (text: Self).ptr(): *u8
     pub method (text: Self).len(): usize
 }
@@ -170,37 +170,41 @@ Owned growable memory is represented by standard-library types such as `Buffer<T
 var bytes = Buffer<u8>.with_capacity(allocator, 4096)?
 bytes.push(10)?
 
-let read: [u8] = bytes.view()
-let write: [+u8] = bytes.write_view()
+let read: &[u8] = bytes.view()
+let write: &+[u8] = bytes.write_view()
 ```
 
-Nocter uses built-in `[T]` and `[+T]` type syntax for non-owning views over contiguous elements.
+Nocter uses built-in `[T]` type syntax for unsized contiguous array data. Array data is normally used behind a borrow:
 
 ```nct
-[T]       // readonly contiguous view
-[+T]      // readwrite contiguous view
+[T]       // unsized contiguous array data
+&[T]      // readonly contiguous array slice
+&+[T]     // readwrite contiguous array slice
+Vec<T>    // owned variable-length array
 ```
 
-`[T]` allows reading contiguous `T` elements but does not own them.
+`[T]` describes the element sequence itself and is unsized. It cannot be used by value as a parameter, return value, field, local annotation, optional payload, fallible success payload, or generic argument.
 
-`[+T]` allows reading and writing contiguous `T` elements but does not own them.
+`&[T]` allows reading contiguous `T` elements but does not own them.
 
-The syntax mirrors borrow permissions: `&T` and `[T]` are readonly, while `&+T` and `[+T]` are readwrite.
+`&+[T]` allows reading and writing contiguous `T` elements but does not own them.
+
+The syntax mirrors borrow permissions: `&T` and `&[T]` are readonly, while `&+T` and `&+[T]` are readwrite.
 
 ```nct
-func checksum(bytes: [u8]): u32 {
+func checksum(bytes: &[u8]): u32 {
     ...
 }
 
-func read_into(file: &+File, output: [+u8]): usize! {
+func read_into(file: &+File, output: &+[u8]): usize! {
     ...
 }
 ```
 
 Important distinction:
 
-- `[+T]` means the viewed elements are readwrite.
-- `&+[T]` means the `[T]` value itself is readwrite borrowed.
+- `&+[T]` means the viewed elements are readwrite.
+- `&+T` means the `T` value itself is readwrite borrowed.
 
 These are not the same thing.
 
@@ -212,9 +216,9 @@ Borrow-like values:
 
 - `&T`
 - `&+T`
-- `str`
-- `[T]`
-- `[+T]`
+- `&str`
+- `&[T]`
+- `&+[T]`
 - `ViewIter<T>`
 - aggregates containing any borrow-like value
 
@@ -234,7 +238,7 @@ unknown      storage the compiler cannot prove
 Rules:
 
 - Borrow-like values keep the provenance of the storage they refer to.
-- Derived views keep the same provenance as their source. For example, `str.bytes()` keeps the `str` provenance.
+- Derived views keep the same provenance as their source. For example, `text.bytes()` on an `&str` keeps the `&str` provenance.
 - Aggregates containing borrow-like values carry the contained provenance.
 - `static` provenance may escape any function or region.
 - `local` provenance must not escape the local scope.
@@ -242,8 +246,8 @@ Rules:
 - `region` provenance must not escape the region.
 - `param_borrow` provenance may be returned from the function, but the caller may not use the returned borrow-like value longer than the original input borrow remains valid.
 - `unknown` provenance cannot be returned from a function or stored into a longer-lived place in safe v0 code.
-- `[+T]` carries readwrite permission and follows the exclusivity rules of `&+T` for the viewed storage.
-- `[T]` and `str` carry readonly permission.
+- `&+[T]` carries readwrite permission and follows the exclusivity rules of `&+T` for the viewed storage.
+- `&[T]` and `&str` carry readonly permission.
 - A readonly borrow-like value may be derived from readonly or readwrite provenance.
 - A readwrite borrow-like value may be derived only from readwrite provenance.
 - If the compiler cannot prove the provenance and permission required for an escape or mutation, the program is invalid.
@@ -251,26 +255,26 @@ Rules:
 Examples:
 
 ```nct
-func ok(): str {
+func ok(): &str {
     return "hello" // static
 }
 ```
 
 ```nct
-func bad(allocator: &+Allocator): str! {
+func bad(allocator: &+Allocator): &str! {
     var text = String.copy(allocator, "hello")?
     return text.view() // error: local
 }
 ```
 
 ```nct
-func slice(input: str): str {
+func slice(input: &str): &str {
     return input // param_borrow-like provenance
 }
 ```
 
 ```nct
-func writable(input: [+u8]): [+u8] {
+func writable(input: &+[u8]): &+[u8] {
     return input // readwrite param_borrow-like provenance
 }
 ```
@@ -297,11 +301,11 @@ Initial collection method direction:
 - `len(): usize`
 - `get(index: usize): T?`
 - `ptr(): *T` for contiguous views
-- `view(): [T]` for owning collections that can expose readonly contiguous storage
-- `write_view(): [+T]` for owning collections that can expose readwrite contiguous storage
+- `view(): &[T]` for owning collections that can expose readonly contiguous storage
+- `write_view(): &+[T]` for owning collections that can expose readwrite contiguous storage
 - readonly borrow iteration through ordinary `iter()` and `next()` methods
 
-The compiler owns the layout and provenance rules for fixed-size arrays, `[T]`, and `[+T]`. `Buffer<T>`, `ViewIter<T>`, `get`, `len`, `ptr`, `view`, `write_view`, `iter`, and `next` remain ordinary API surface; the compiler must not special-case those names.
+The compiler owns the layout and provenance rules for fixed-size arrays, `[T]`, `&[T]`, and `&+[T]`. `Buffer<T>`, `ViewIter<T>`, `get`, `len`, `ptr`, `view`, `write_view`, `iter`, and `next` remain ordinary API surface; the compiler must not special-case those names.
 
 ### Iteration
 
@@ -316,8 +320,8 @@ pub struct ViewIter<T> {
     ...
 }
 
-impl [T] {
-    pub method (view: &Self).iter(): ViewIter<T>
+impl &[T] {
+    pub method (view: Self).iter(): ViewIter<T>
 }
 
 impl ViewIter<T> {
@@ -325,7 +329,7 @@ impl ViewIter<T> {
 }
 ```
 
-`[T].iter()` returns an iterator over readonly borrows into the viewed storage. `ViewIter<T>.next()` advances the iterator and returns an optional readonly borrow. The result type is written as `(&T)?` to mean "optional borrow"; it is not a borrow of an optional value.
+`&[T].iter()` returns an iterator over readonly borrows into the viewed storage. `ViewIter<T>.next()` advances the iterator and returns an optional readonly borrow. The result type is written as `(&T)?` to mean "optional borrow"; it is not a borrow of an optional value.
 
 ```nct
 var iter = bytes.iter()
@@ -338,19 +342,19 @@ while let byte = iter.next() {
 Rules:
 
 - `ViewIter<T>` is a standard-library type, not a compiler built-in.
-- `ViewIter<T>` carries the same hidden provenance as the source `[T]`.
-- The `&T` returned from `next()` carries the same provenance and readonly permission as the source `[T]`.
+- `ViewIter<T>` carries the same hidden provenance as the source `&[T]`.
+- The `&T` returned from `next()` carries the same provenance and readonly permission as the source `&[T]`.
 - The iterator must be stored in a `var` binding to call `next()` repeatedly because `next()` requires a `&+Self` receiver.
-- `[+T]` mutable element iteration is not part of v0.
+- `&+[T]` mutable element iteration is not part of v0.
 - Owned iteration that moves elements out of a collection, such as `into_iter()`, is not part of v0.
 - Range `for` remains the only `for` syntax in v0.
 
 ## Strings
 
-String literals have the built-in type `str`.
+String literals have the built-in type `&str`.
 
 ```nct
-let name = "Nocter" // str
+let name = "Nocter" // &str
 ```
 
 Single-line and multi-line string literals are both string literals:
@@ -363,20 +367,22 @@ let many_lines = """
     """
 ```
 
-`str` is a built-in type name and does not require an import. It is not exported by `std/string` or `std/prelude`.
+`str` and `&str` are built-in type syntax and do not require an import. They are not exported by `std/string` or `std/prelude`.
 
 The compiler places string literal bytes into the Mach-O image. A string literal is not an owned `String`, and the compiler must not allocate a heap object for it.
 
 An interpolated string source form such as `"hello ${name}"` is not a string literal. It is an interpolated string expression and follows the separate interpolation rules below.
 
-`str` is the borrowed string view type:
+`str` is unsized UTF-8 string data. It describes the byte sequence itself and cannot be used by value as a parameter, return value, field, local annotation, optional payload, fallible success payload, or generic argument.
+
+`&str` is the borrowed string slice type:
 
 - It is a copy type.
 - It is non-owning.
 - It points to valid UTF-8 bytes.
 - It does not run `drop`.
 - It may point to static literal bytes or bytes owned by another object.
-- It can expose its bytes as `[u8]`.
+- It can expose its bytes as `&[u8]`.
 
 `String` is the owning string type:
 
@@ -384,16 +390,16 @@ An interpolated string source form such as `"hello ${name}"` is not a string lit
 - It is move-only.
 - It is implemented in the standard library, likely on top of `Buffer<u8>`.
 - It releases its buffer when dropped.
-- It can produce a `str`.
+- It can produce a `&str`.
 
 ```nct
-let view: str = "README.md"
+let view: &str = "README.md"
 var owned = String.copy(allocator, view)?
 
 open(view)
 open(owned.view())
 
-func open(path: str): File! {
+func open(path: &str): File! {
     ...
 }
 ```
@@ -402,22 +408,22 @@ Adopted method surface direction:
 
 ```nct
 impl String {
-    pub func copy(allocator: &+Allocator, text: str): String!
-    pub method (text: &Self).view(): str
+    pub func copy(allocator: &+Allocator, text: &str): String!
+    pub method (text: &Self).view(): &str
 }
 
-impl str {
+impl &str {
     pub method (text: Self).ptr(): *u8
     pub method (text: Self).len(): usize
-    pub method (text: Self).bytes(): [u8]
+    pub method (text: Self).bytes(): &[u8]
 }
 ```
 
-`[u8]` represents arbitrary bytes and is not necessarily valid UTF-8. Converting `str` to `[u8]` is allowed. Converting `[u8]` to `str` requires UTF-8 validation.
+`&[u8]` represents arbitrary borrowed bytes and is not necessarily valid UTF-8. Converting `&str` to `&[u8]` is allowed. Converting `&[u8]` to `&str` requires UTF-8 validation.
 
-There is no implicit conversion from a string literal to `&String`. `&String` borrows an existing owned `String` object. A string literal is already a `str`; creating an owned `String` from it requires an explicit copy.
+There is no implicit conversion from a string literal to `&String`. `&String` borrows an existing owned `String` object. A string literal is already a `&str`; creating an owned `String` from it requires an explicit copy.
 
-The `char` type is deferred. Initial string APIs should operate on `str` and bytes until Unicode scalar and grapheme behavior is specified.
+The `char` type is deferred. Initial string APIs should operate on `&str` and bytes until Unicode scalar and grapheme behavior is specified.
 
 ## String and Byte Literals
 
@@ -425,8 +431,8 @@ Adopted: string literals use either single-line double-quoted syntax or multi-li
 
 Rules:
 
-- A single-line string literal has type `str`.
-- A multi-line string literal has type `str`.
+- A single-line string literal has type `&str`.
+- A multi-line string literal has type `&str`.
 - Both forms are valid UTF-8 after escape processing.
 - Both forms refer to static storage.
 - Multi-line string literal indentation is removed by the lexical rules in [Lexical Grammar](13-lexical-grammar.md#string-and-byte-literals).
@@ -475,11 +481,11 @@ Rules:
 - If string construction fails, the expression fails with the error returned by the standard-library formatting operation.
 - `String` remains an ordinary standard-library type. The compiler must not make the identifier `String` a built-in type name.
 - The compiler must not treat user-defined names such as `to_string`, `format`, `append`, or `allocator` as magic.
-- A bare string literal without `${...}` remains `str` and does not allocate.
+- A bare string literal without `${...}` remains `&str` and does not allocate.
 
 Formatting rules:
 
-- `str` values append their bytes.
+- `&str` values append their bytes.
 - `String` values append their current string view.
 - Integer and boolean values format with their canonical source spelling without extra whitespace.
 - Optional, fallible, array, struct, enum, pointer, and user-defined nominal values are not interpolatable until a formatting trait or method protocol is adopted.
@@ -514,7 +520,7 @@ Rules:
 - Plain single-quoted literals such as `'a'` are not part of the initial design.
 - The `char` type remains deferred.
 - Single quote syntax is reserved for a future `Char` or Unicode scalar design.
-- String literals use `"..."` or `"""..."""` and have built-in type `str`.
+- String literals use `"..."` or `"""..."""` and have built-in type `&str`.
 - String literals are UTF-8.
 - String literal length APIs report byte length unless a future Unicode API explicitly says otherwise.
 - Escapes are interpreted by the compiler before placing literal bytes into the Mach-O image.

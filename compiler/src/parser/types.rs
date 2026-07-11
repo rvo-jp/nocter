@@ -87,10 +87,18 @@ impl Parser<'_> {
                 }));
             }
 
+            if let Some(plus) = plus {
+                self.error_at(
+                    plus.span,
+                    "`+` is not valid inside an unsized array data type; use `&+[T]` for a mutable array slice",
+                );
+                return Err(());
+            }
+
             let close = self.expect_punctuation("]", "`]`")?;
             return Ok(TypeExpr::View(ViewType {
                 span: self.span(open.span.start, close.span.end),
-                is_readwrite: plus.is_some(),
+                is_readwrite: false,
                 element: Box::new(element),
             }));
         }

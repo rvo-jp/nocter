@@ -69,7 +69,7 @@ Fallible values use `T!`. The failure payload is always the built-in `error` typ
 ```nct
 from std/io import print
 
-func announce(text: str): void! {
+func announce(text: &str): void! {
     print(text)?
     return
 }
@@ -95,7 +95,7 @@ Rules:
 Optional values use `T?`.
 
 ```nct
-func lookup(name: str): str? {
+func lookup(name: &str): &str? {
     if missing {
         return none
     }
@@ -129,12 +129,12 @@ Fallible optional success values use `T?!`.
 ```nct
 from std/process import env
 
-func user_name(): str! {
+func user_name(): &str! {
     return env("USER")? ?? "unknown"
 }
 ```
 
-`env("USER")?` unwraps the fallible layer and leaves `str?`; `??` chooses a fallback when the optional success is `none`.
+`env("USER")?` unwraps the fallible layer and leaves `&str?`; `??` chooses a fallback when the optional success is `none`.
 
 ## Enums And Match
 
@@ -181,7 +181,7 @@ Use doc comments when generated APIs should be useful in future hover, LSP, and 
 //! File-level documentation.
 
 /// Opens a file.
-func open(path: str): File! {
+func open(path: &str): File! {
     ...
 }
 ```

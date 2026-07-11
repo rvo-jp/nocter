@@ -12,7 +12,7 @@ fn check_accepts_builtin_str_return_type() {
     return 0
 }
 
-func title(): str {
+func title(): &str {
     return "Nocter"
 }
 "#,
@@ -37,7 +37,7 @@ fn check_diagnoses_mismatched_builtin_str_return_type() {
     return 0
 }
 
-func title(): str {
+func title(): &str {
     return 1
 }
 "#,
@@ -51,5 +51,5 @@ func title(): str {
 
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].code, "E0312");
-    assert!(diagnostics[0].message.contains("str"));
+    assert!(diagnostics[0].message.contains("&str"));
 }

@@ -1,4 +1,4 @@
 // invalid: entry function parameters are not part of v0.
-func main(args: [str]): i32 {
+func main(args: &[&str]): i32 {
     return 0
 }

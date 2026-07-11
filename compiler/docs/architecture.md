@@ -155,7 +155,7 @@ Currently buildable:
 - root-file `main` or `--entry <name>`
 - entry return types `i32`, `i32!`, and `void`
 - literal `i32` returns
-- immutable local `let` bindings whose initializer is lowerable as `i32`, annotated `usize`, `bool`, or annotated `str`
+- immutable local `let` bindings whose initializer is lowerable as `i32`, annotated `usize`, `bool`, or annotated `&str`
 - `void` entry with an empty body or bare `return`
 - same-file non-generic tail calls returning `i32` or `bool`
 - same-file and loaded imported calls returning `never` in terminal return or expression-statement position
@@ -168,11 +168,11 @@ Currently buildable:
 - `usize` comparisons over literals, locals, and same-file or loaded imported normal calls in lowerable bool expressions and terminal `if` conditions
 - nested scalar normal-call arguments such as `let value = outer(inner())`, for `i32`, `usize`, and `bool` parameter positions
 - nested scalar tail-call arguments such as `return outer(inner())`, for `i32`, `usize`, and `bool` parameter positions
-- static string literals and `str` parameters as call arguments, passed as `ptr,len` ABI word pairs
-- same-file and loaded imported non-generic normal calls returning `str` in annotated `str` `let` initializers and as `str` call or tail-call arguments, with results staged into two local ABI words
-- up to 8 ABI argument words across scalar `i32`/`usize`/`bool` and `str` parameters/call arguments for lowered functions and calls
+- static string literals and `&str` parameters as call arguments, passed as `ptr,len` ABI word pairs
+- same-file and loaded imported non-generic normal calls returning `&str` in annotated `&str` `let` initializers and as `&str` call or tail-call arguments, with results staged into two local ABI words
+- up to 8 ABI argument words across scalar `i32`/`usize`/`bool` and `&str` parameters/call arguments for lowered functions and calls
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
-- non-entry functions returning `bool`, `usize`, or direct `str` literal/parameter/local/tail-call values
+- non-entry functions returning `bool`, `usize`, or direct `&str` literal/parameter/local/tail-call values
 - `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; addition, subtraction, and multiplication trap on signed overflow, and division and remainder trap on zero divisors and signed division overflow
 - `i32` shifts with `<<` and `>>` used in lowerable `i32` expressions; shift counts trap when negative or greater than or equal to 32
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` or `usize` comparisons used in lowerable bool expressions
@@ -188,7 +188,7 @@ Currently not buildable even when it may be checkable:
 - general `if`, `while`, `loop`, range `for`, and `match`
 - unloaded imported function placeholders
 - `usize` arithmetic and `usize` entry return values
-- `str` member operations and view/byte iteration
+- `&str` member operations and view/byte iteration
 - interpolated string construction
 - optional values
 - aggregate values, arrays, views, pointers, methods, traits, generics, ownership lowering, and drop glue
@@ -199,18 +199,18 @@ The `arm64-darwin` backend v0 uses a deliberately small register-only convention
 
 - scalar `i32` and `bool` values are represented in 32-bit ARM64 `w` registers
 - scalar `usize` values are represented in 64-bit ARM64 `x` registers
-- `str` values are represented as two 64-bit ABI words, `ptr` then byte `len`
+- `&str` values are represented as two 64-bit ABI words, `ptr` then byte `len`
 - `bool` is encoded as `0` for false and `1` for true
-- lowered `i32` and `bool` function arguments are passed in `w0` through `w7`, lowered `usize` function arguments are passed in `x0` through `x7`, and lowered `str` arguments consume two consecutive `x` argument registers at the same ABI word indexes
-- lowered function return values are produced in `w0` for `i32`/`bool`, `x0` for `usize`, and `x0,x1` for `str`
+- lowered `i32` and `bool` function arguments are passed in `w0` through `w7`, lowered `usize` function arguments are passed in `x0` through `x7`, and lowered `&str` arguments consume two consecutive `x` argument registers at the same ABI word indexes
+- lowered function return values are produced in `w0` for `i32`/`bool`, `x0` for `usize`, and `x0,x1` for `&str`
 - scalar local bindings use `w9` through `w15` for `i32`/`bool` and `x9` through `x15` for `usize`; framed functions spill scalar locals through 8-byte stack slots
 - `w16`/`w17` and `x16`/`x17` are backend scratch registers and may be clobbered by code generation
 
 Tail calls are lowered by loading the callee arguments into `w0` through `w7` or `x0` through `x7` according to each scalar argument type, then branching directly to the target function.
 The source-level scalar/view call subset lowers same-file and loaded imported non-generic `i32` calls in `let` initializers, `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, `i32` comparison operands, nested normal-call arguments, and nested tail-call arguments, evaluating staged calls left to right into distinct temporary locals.
 It also lowers same-file and loaded imported non-generic calls returning `usize` in annotated `let` initializers and `usize` comparison operands, including calls whose parameter list contains `usize`.
-Calls in the current buildable subset can receive static string literals, existing `str` parameters or locals, or staged `str` normal-call results as `str` arguments, with each `str` occupying two ABI argument words.
-Non-entry functions can directly return static string literals, `str` parameters, `str` locals, or tail calls to `str` functions, with `str` returns occupying `x0,x1`.
+Calls in the current buildable subset can receive static string literals, existing `&str` parameters or locals, or staged `&str` normal-call results as `&str` arguments, with each `&str` occupying two ABI argument words.
+Non-entry functions can directly return static string literals, `&str` parameters, `&str` locals, or tail calls to `&str` functions, with `&str` returns occupying `x0,x1`.
 The frame, spill/reload, and normal-call implementation order is tracked in `backend-v0.md`.
 `backend/frame.rs` owns the fixed v0 frame layout planner: frame size, saved `x30` offset, and scalar spill-slot offsets.
 Codegen emits framed prologue/epilogue sequences and normal calls with conservative scalar spill/reload plus stack-backed argument staging.
@@ -385,7 +385,7 @@ Initial grammar coverage:
 - `impl Trait for Type { method ... }`
 - parameter lists
 - generic parameter lists, including inline bounds such as `T: Trait`
-- `str`, `error`, `[T]`, `[+T]`, `[T; N]`, `T?`, and `T!` type syntax
+- `str`, `&str`, `error`, `[T]`, `&[T]`, `&+[T]`, `[T; N]`, `T?`, and `T!` type syntax
 - blocks
 - `return`
 - fallible failure through `return error_value`
@@ -467,24 +467,24 @@ Current semantic coverage:
 - inherent method calls support `Self`, `&Self`, and `&+Self` receiver declarations in v0; `&+Self` calls require the receiver expression to be a mutable `var` binding
 - inherent `impl` function bodies and method bodies are resolved and checked for calls, returns, fallible propagation, control-flow termination, and local binding types
 - inside an inherent `impl`, `Self` in return types, parameter types, receiver types, struct literals, and type conversions resolves to the impl target type
-- primitive return type checking for built-in primitive types, nominal struct types, `str`, `error`, `[T]`, `[+T]`, `[T; N]`, array literals, struct literals, `void`, `never`, `T?`, and the success side of `T!`
+- primitive return type checking for built-in primitive types, nominal struct types, `str`, `&str`, `error`, `[T]`, `&[T]`, `&+[T]`, `[T; N]`, array literals, struct literals, `void`, `never`, `T?`, and the success side of `T!`
 - local binding types are tracked inside a callable when they come from literals, struct literals, annotations, parameters, known direct calls, postfix `?`, `catch`, `??`, optional `let ... else`, optional `if let` / `if var`, or optional `while let` / `while var`
 - integer literals have type `i32` in v0 checking
 - integer literals can be checked against an expected integer type in returns, function arguments, annotated bindings, and array literal elements
 - bool literals have type `bool` in v0 checking
-- string literals are modeled as built-in `str` values in v0 checking
-- interpolated string expressions are modeled as `String!` and currently accept `str`, `String`, integer, and `bool` interpolation part types
+- string literals are modeled as built-in `&str` values in v0 checking
+- interpolated string expressions are modeled as `String!` and currently accept `&str`, `String`, integer, and `bool` interpolation part types
 - `Enum.variant` and `Enum.variant(args...)` construct enum values and check declared variant payload arity and payload types
 - `as` type conversion expressions require lossless integer conversion and return the target type
 - arithmetic expressions return the resolved integer operand type and require matching integer operands
 - shift expressions return the left integer operand type and require an integer shift count
-- comparison expressions return `bool`; equality is checked for supported `bool`, integer, and `str` operands, and ordering requires matching known integer operand types
+- comparison expressions return `bool`; equality is checked for supported `bool`, integer, and `&str` operands, and ordering requires matching known integer operand types
 - logical expressions return `bool` and require `bool` operands
 - prefix logical not expressions return `bool` and require a `bool` operand
 - prefix numeric negation expressions return the operand type and require a signed integer operand
-- `[T]` and `[+T]` parse as built-in readonly/readwrite view type syntax
+- `[T]` parses as built-in unsized array data syntax; `&[T]` and `&+[T]` parse as readonly/readwrite array slice syntax
 - `[T; N]` parses as built-in fixed-size array type syntax, and `[a, b, c]` infers `[T; N]`
-- index expressions check `[T; N]`, `[T]`, `[+T]`, and `str` targets with integer indexes
+- index expressions check `[T; N]`, `&[T]`, `&+[T]`, and `&str` targets with integer indexes
 - struct literals check the target type, required fields, duplicate fields, unknown fields, hidden fields, and field initializer types
 - `if` statement conditions must have type `bool`
 - `if ... else`, `if is ... else`, and `if let ... else` statements count as terminating when both branches terminate; parser/check v0 currently recognizes `return`, nested terminal `if ... else`, nested terminal `if is ... else`, nested terminal `if let ... else`, `loop`, and terminal `match ... else` as terminating forms
@@ -516,7 +516,7 @@ Current semantic coverage:
 - postfix `?` and `catch` expressions unwrap the success side of known `T!` expressions
 - `return expr` in a function returning `T!` is a failure return when `expr` has type `error` when both sides are known
 - `error!` is rejected because `return error_value` would be ambiguous between success and failure
-- built-in `error.code` and `error.message` fields have type `str`; other `error` fields are diagnosed
+- built-in `error.code` and `error.message` fields have type `&str`; other `error` fields are diagnosed
 - direct struct field access resolves field types for known struct values and diagnoses unknown fields
 - `let ... else` and `var ... else` require a known `T?` initializer when the initializer type is known
 - `let ... else` and `var ... else` expose the contained `T` type on the continuing path
@@ -692,7 +692,9 @@ Exceptions are syntax and core type forms adopted by the language, such as:
 - `error`
 - `str`
 - `[T]`
-- `[+T]`
+- `&str`
+- `&[T]`
+- `&+[T]`
 - `return none`
 - `return error`
 - postfix `?`

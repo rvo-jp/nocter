@@ -154,7 +154,7 @@ Rules:
 - Owned values backed by region allocation cannot be moved out of the region.
 - Borrows of region-owned values cannot escape the region.
 - Borrow-like views into region-owned storage cannot escape the region.
-- `str`, `[T]`, `[+T]`, raw pointers, or user structs that carry region-derived storage cannot escape the region.
+- `&str`, `&[T]`, `&+[T]`, raw pointers, or user structs that carry region-derived storage cannot escape the region.
 - A copy value may leave the region only if its type and value do not carry region-derived storage.
 - Pure copy values such as integers, booleans, and copy structs containing only region-independent fields may leave the region.
 - Returning a region-owned value from inside the region is a compile error.
@@ -168,7 +168,7 @@ Rules:
 Invalid:
 
 ```nct
-func load_path(allocator: &+Allocator): str! {
+func load_path(allocator: &+Allocator): &str! {
     region scratch using allocator {
         let text = read_file(scratch.allocator(), "main.nct")?
         return text.view() // error: view points into scratch
@@ -190,7 +190,7 @@ func load_text(allocator: &+Allocator): String! {
 Valid:
 
 ```nct
-func count_words(allocator: &+Allocator, path: str): WordStats! {
+func count_words(allocator: &+Allocator, path: &str): WordStats! {
     region scratch using allocator {
         let text = read_file(scratch.allocator(), path)?
         let stats = scan_words(text.view())

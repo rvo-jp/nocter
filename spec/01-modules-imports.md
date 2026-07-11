@@ -134,7 +134,7 @@ use std/prelude
 
 The compiler does not rewrite source text. The synthetic prelude exists in the module/import model only. Diagnostics, formatting, AST source spans, and editor views should continue to refer to the user's original source.
 
-The purpose is to avoid requiring this boilerplate in every file while keeping prelude behavior defined as an import rule rather than as special compiler treatment for names such as `Int`. Built-in forms such as `str`, `[T]`, and `[+T]` are not provided by the prelude.
+The purpose is to avoid requiring this boilerplate in every file while keeping prelude behavior defined as an import rule rather than as special compiler treatment for names such as `Int`. Built-in forms such as `str`, `&str`, `[T]`, `&[T]`, and `&+[T]` are not provided by the prelude.
 
 Initial rules:
 
@@ -218,7 +218,7 @@ func main(): i32! {
 ```nct
 // src/config.nct
 pub struct Config {
-    pub name: str
+    pub name: &str
 }
 
 impl Config {
@@ -397,7 +397,7 @@ pub struct File {
 }
 
 impl File {
-    pub func open(path: str): File! {
+    pub func open(path: &str): File! {
         ...
     }
 

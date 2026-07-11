@@ -25,10 +25,9 @@ impl Formatter {
             }
             TypeExpr::View(ty) => {
                 if ty.is_readwrite {
-                    self.write("[+");
-                } else {
-                    self.write("[");
+                    self.write("&+");
                 }
+                self.write("[");
                 self.format_type(&ty.element);
                 self.write("]");
             }

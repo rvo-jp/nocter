@@ -10,6 +10,7 @@ mod optional;
 mod returns;
 mod strings;
 mod structs;
+mod types;
 mod variants;
 
 use super::check;

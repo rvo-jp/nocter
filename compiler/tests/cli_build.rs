@@ -1046,13 +1046,13 @@ fn built_fallible_entry_failure_reports_stderr() {
     let project = TempProject::new("cli-build-run-fallible-failure");
     project.write_nocter_home_file(
         "std/error.nct",
-        r#"pub type ErrorCode = str
+        r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: str, message: str): error
+pub(nocter) primitive new_error(code: &str, message: &str): error
 
 impl Error {
-    pub func new(code: ErrorCode, message: str): Error {
+    pub func new(code: ErrorCode, message: &str): Error {
         return new_error(code, message)
     }
 }

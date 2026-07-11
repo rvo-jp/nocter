@@ -39,11 +39,11 @@ fn accepts_error_code_and_message_fields() {
     return 0
 }
 
-func error_code(error: error): str {
+func error_code(error: error): &str {
     return error.code
 }
 
-func error_message(error: error): str {
+func error_message(error: error): &str {
     return error.message
 }
 "#,
@@ -69,7 +69,7 @@ func run(): i32! {
     return 0
 }
 
-func report(text: str): void {
+func report(text: &str): void {
     return
 }
 "#,
@@ -85,7 +85,7 @@ fn diagnoses_unknown_error_field() {
     return 0
 }
 
-func error_code(error: error): str {
+func error_code(error: error): &str {
     return error.raw_code
 }
 "#,
@@ -157,7 +157,7 @@ fn diagnoses_error_type_mismatch_in_fallible_function() {
     return 0
 }
 
-func run(error: str): i32! {
+func run(error: &str): i32! {
     return error
 }
 "#,

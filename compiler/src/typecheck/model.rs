@@ -6,11 +6,15 @@ use std::collections::HashMap;
 pub(super) enum Type {
     I32,
     Primitive(String),
+    StrData,
     Str,
     Error,
     Void,
     Never,
     None,
+    ArrayData {
+        element: Box<Type>,
+    },
     View {
         is_readwrite: bool,
         element: Box<Type>,
@@ -34,19 +38,21 @@ impl Type {
         match self {
             Type::I32 => "i32".to_string(),
             Type::Primitive(name) => name.clone(),
-            Type::Str => "str".to_string(),
+            Type::StrData => "str".to_string(),
+            Type::Str => "&str".to_string(),
             Type::Error => "error".to_string(),
             Type::Void => "void".to_string(),
             Type::Never => "never".to_string(),
             Type::None => "none".to_string(),
+            Type::ArrayData { element } => format!("[{}]", element.display()),
             Type::View {
                 is_readwrite: true,
                 element,
-            } => format!("[+{}]", element.display()),
+            } => format!("&+[{}]", element.display()),
             Type::View {
                 is_readwrite: false,
                 element,
-            } => format!("[{}]", element.display()),
+            } => format!("&[{}]", element.display()),
             Type::Array { element, length } => format!("[{}; {}]", element.display(), length),
             Type::Optional(inner) => format!("{}?", inner.display()),
             Type::Fallible { success, .. } => format!("{}!", success.display()),
@@ -63,6 +69,7 @@ impl Type {
     pub(super) fn is_unknown_or_unresolved(&self) -> bool {
         match self {
             Type::Unknown | Type::Unresolved(_) => true,
+            Type::ArrayData { element } => element.is_unknown_or_unresolved(),
             Type::View { element, .. } => element.is_unknown_or_unresolved(),
             Type::Array { element, .. } => element.is_unknown_or_unresolved(),
             Type::Optional(inner) => inner.is_unknown_or_unresolved(),
@@ -71,12 +78,36 @@ impl Type {
             }
             Type::I32
             | Type::Primitive(_)
+            | Type::StrData
             | Type::Str
             | Type::Error
             | Type::Void
             | Type::Never
             | Type::None
             | Type::Named(_) => false,
+        }
+    }
+
+    pub(super) fn first_unsized_part(&self) -> Option<&Type> {
+        match self {
+            Type::StrData | Type::ArrayData { .. } => Some(self),
+            Type::View { element, .. } | Type::Array { element, .. } => {
+                element.first_unsized_part()
+            }
+            Type::Optional(inner) => inner.first_unsized_part(),
+            Type::Fallible { success, error } => success
+                .first_unsized_part()
+                .or_else(|| error.first_unsized_part()),
+            Type::I32
+            | Type::Primitive(_)
+            | Type::Str
+            | Type::Error
+            | Type::Void
+            | Type::Never
+            | Type::None
+            | Type::Named(_)
+            | Type::Unresolved(_)
+            | Type::Unknown => None,
         }
     }
 

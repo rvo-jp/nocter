@@ -67,7 +67,7 @@ if path.len() == 0 {
 
 ```nct
 impl File {
-    pub method (file: &+Self).write_text(text: str): void! {
+    pub method (file: &+Self).write_text(text: &str): void! {
         ...
     }
 }
@@ -82,16 +82,16 @@ Rules:
 - Optional type syntax is attached to the success type: `T?`.
 - Pointer and borrow syntax is attached to the type: `*T`, `&T`, `&+T`.
 - Generic type arguments are attached to the type name: `Buffer<T>`.
-- Built-in view type syntax is formatted as `[T]` and `[+T]`.
+- Unsized array data type syntax is formatted as `[T]`; array slices are formatted as `&[T]` and `&+[T]`.
 - Fixed-size arrays are formatted as `[T; N]`.
 - Parentheses used for type grouping do not add internal padding: `(T)!`.
 
 Examples:
 
 ```nct
-func open(path: str): File!
-func env(name: str): str?!
-func first(items: [str]): str?
+func open(path: &str): File!
+func env(name: &str): &str?!
+func first(items: &[&str]): &str?
 ```
 
 Formatter output uses `T?!` for fallible optional success values because the postfix operators can be read in order: optional success first, fallible wrapper second.
@@ -117,7 +117,7 @@ let home = maybe_home else {
 
 func read_all(
     allocator: &+Allocator,
-    path: str,
+    path: &str,
 ): String! {
     ...
 }

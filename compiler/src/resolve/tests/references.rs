@@ -28,12 +28,12 @@ func answer(): i32 {
 #[test]
 fn resolves_local_identifier_references() {
     let output = resolve_text(
-        r#"func main(path: str): i32 {
+        r#"func main(path: &str): i32 {
     let code = value(path)
     return code
 }
 
-func value(path: str): i32 {
+func value(path: &str): i32 {
     return 0
 }
 "#,

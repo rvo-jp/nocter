@@ -7,7 +7,7 @@ fn uses_same_file_function_call_return_type() {
     return title()
 }
 
-func title(): str {
+func title(): &str {
     return "hello"
 }
 "#,

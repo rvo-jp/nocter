@@ -7,13 +7,13 @@
 // ErrorCode is intentionally open. Standard-library and user-library code use
 // dotted string codes such as "std.io.not_found" or "app.config.missing_key".
 
-pub type ErrorCode = str
+pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: str, message: str): error
+pub(nocter) primitive new_error(code: &str, message: &str): error
 
 impl Error {
-    pub func new(code: ErrorCode, message: str): Error {
+    pub func new(code: ErrorCode, message: &str): Error {
         return new_error(code, message)
     }
 }

@@ -1535,13 +1535,13 @@ fn run_command_reports_fallible_entry_failure() {
     let project = TempProject::new("cli-run-fallible-failure");
     project.write_nocter_home_file(
         "std/error.nct",
-        r#"pub type ErrorCode = str
+        r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: str, message: str): error
+pub(nocter) primitive new_error(code: &str, message: &str): error
 
 impl Error {
-    pub func new(code: ErrorCode, message: str): Error {
+    pub func new(code: ErrorCode, message: &str): Error {
         return new_error(code, message)
     }
 }
@@ -1570,13 +1570,13 @@ fn run_command_reports_fallible_entry_failure_multi_line_message() {
     let project = TempProject::new("cli-run-fallible-failure-multi-line");
     project.write_nocter_home_file(
         "std/error.nct",
-        r#"pub type ErrorCode = str
+        r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: str, message: str): error
+pub(nocter) primitive new_error(code: &str, message: &str): error
 
 impl Error {
-    pub func new(code: ErrorCode, message: str): Error {
+    pub func new(code: ErrorCode, message: &str): Error {
         return new_error(code, message)
     }
 }
@@ -1651,7 +1651,7 @@ fn run_command_reports_compile_diagnostics_without_running() {
         "expected return type diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("`return` value has type `str`, but function `main` returns `i32`"),
+        stderr.contains("`return` value has type `&str`, but function `main` returns `i32`"),
         "expected diagnostic message, got:\n{stderr}"
     );
 }

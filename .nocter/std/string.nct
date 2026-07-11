@@ -1,8 +1,9 @@
 // Common owning string type.
 //
-// `str` is the compiler built-in non-owning UTF-8 view type and the type of
-// string literals. String is the future owning string type; its storage details
-// are intentionally not exposed here.
+// `str` is the compiler built-in unsized UTF-8 data type. `&str` is the
+// non-owning UTF-8 string slice type and the type of string literals. String is
+// the future owning string type; its storage details are intentionally not
+// exposed here.
 //
 // The initial public functions are ordinary standard-library APIs. Owning
 // allocation is reported as unsupported until target-backed allocation and
@@ -23,15 +24,15 @@ pub func with_capacity(allocator: &+Allocator, capacity: usize): String! {
     return Error.new("std.string.unsupported", "owning string allocation is not implemented")
 }
 
-pub func from_str(allocator: &+Allocator, value: str): String! {
+pub func from_str(allocator: &+Allocator, value: &str): String! {
     return Error.new("std.string.unsupported", "owning string allocation is not implemented")
 }
 
-pub func view(text: &String): str {
+pub func view(text: &String): &str {
     return ""
 }
 
-pub func push_str(text: &+String, value: str): void! {
+pub func push_str(text: &+String, value: &str): void! {
     return
 }
 

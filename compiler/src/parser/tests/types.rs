@@ -34,7 +34,7 @@ func run(): void! {
 #[test]
 fn parses_compact_optional_fallible_return_type() {
     let output = parse_text(
-        r#"func env(name: str): str?! {
+        r#"func env(name: &str): &str?! {
     return none
 }
 "#,
@@ -54,7 +54,7 @@ fn parses_compact_optional_fallible_return_type() {
 #[test]
 fn parses_builtin_view_and_array_types() {
     let output = parse_text(
-        r#"pub func checksum(bytes: [u8], output: [+u8], header: [u8; 4]): str {
+        r#"pub func checksum(bytes: &[u8], output: &+[u8], header: [u8; 4]): &str {
     return "ok"
 }
 
@@ -72,17 +72,21 @@ func main(): i32 {
 
     assert!(matches!(
         &function.parameters.parameters[0].ty,
-        TypeExpr::View(view) if !view.is_readwrite
+        TypeExpr::Borrow(borrow)
+            if !borrow.is_readwrite && matches!(borrow.inner.as_ref(), TypeExpr::View(view) if !view.is_readwrite)
     ));
     assert!(matches!(
         &function.parameters.parameters[1].ty,
-        TypeExpr::View(view) if view.is_readwrite
+        TypeExpr::Borrow(borrow)
+            if borrow.is_readwrite && matches!(borrow.inner.as_ref(), TypeExpr::View(view) if !view.is_readwrite)
     ));
     assert!(matches!(
         &function.parameters.parameters[2].ty,
         TypeExpr::Array(array) if array.length.value == "4"
     ));
-    assert!(
-        matches!(&function.return_type, TypeExpr::Reference(reference) if reference.name == "str")
-    );
+    assert!(matches!(
+        &function.return_type,
+        TypeExpr::Borrow(borrow)
+            if !borrow.is_readwrite && matches!(borrow.inner.as_ref(), TypeExpr::Reference(reference) if reference.name == "str")
+    ));
 }

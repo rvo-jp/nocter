@@ -18,15 +18,15 @@ pub(nocter) func stderr(): FileDescriptor {
     return FileDescriptor { raw: 2 }
 }
 
-pub(nocter) func open_read(path: str): FileDescriptor! {
+pub(nocter) func open_read(path: &str): FileDescriptor! {
     return Error.new("std.io.unsupported", "file open is not implemented")
 }
 
-pub(nocter) func read(fd: FileDescriptor, buffer: [+u8]): usize! {
+pub(nocter) func read(fd: FileDescriptor, buffer: &+[u8]): usize! {
     return Error.new("std.io.unsupported", "file read is not implemented")
 }
 
-pub(nocter) func write(fd: FileDescriptor, bytes: [u8]): void! {
+pub(nocter) func write(fd: FileDescriptor, bytes: &[u8]): void! {
     return
 }
 

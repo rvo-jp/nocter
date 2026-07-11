@@ -152,11 +152,11 @@ struct PrimitiveParameter {
 const ERROR_PARAMETERS: &[PrimitiveParameterSpec] = &[
     PrimitiveParameterSpec {
         name: "code",
-        ty: "str",
+        ty: "&str",
     },
     PrimitiveParameterSpec {
         name: "message",
-        ty: "str",
+        ty: "&str",
     },
 ];
 
@@ -450,7 +450,7 @@ fn type_expr_display(ty: &TypeExpr) -> String {
         }
         TypeExpr::Borrow(borrow) => format!("&{}", type_expr_display(&borrow.inner)),
         TypeExpr::View(view) if view.is_readwrite => {
-            format!("[+{}]", type_expr_display(&view.element))
+            format!("&+[{}]", type_expr_display(&view.element))
         }
         TypeExpr::View(view) => format!("[{}]", type_expr_display(&view.element)),
         TypeExpr::Array(array) => {

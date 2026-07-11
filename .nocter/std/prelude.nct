@@ -8,3 +8,4 @@ pub type Int = i32
 
 pub from std/error import Error, ErrorCode
 pub from std/string import String
+pub from std/vec import Vec

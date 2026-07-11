@@ -5,14 +5,14 @@ fn accepts_switch_over_enum() {
     let diagnostics = check_text(
         r#"enum AppError {
     missing_path
-    open_failed(path: str)
+    open_failed(path: &str)
 }
 
 func main(): i32 {
     return 0
 }
 
-func describe(error: AppError): str {
+func describe(error: AppError): &str {
     match error {
         AppError.missing_path {
             return "missing"
@@ -36,14 +36,14 @@ fn accepts_switch_else_as_terminal_statement() {
     let diagnostics = check_text(
         r#"enum AppError {
     missing_path
-    open_failed(path: str)
+    open_failed(path: &str)
 }
 
 func main(): i32 {
     return 0
 }
 
-func describe(error: AppError): str {
+func describe(error: AppError): &str {
     match error {
         AppError.missing_path {
             return "missing"
@@ -69,14 +69,14 @@ fn accepts_if_is_over_enum() {
     let diagnostics = check_text(
         r#"enum AppError {
     missing_path
-    open_failed(path: str)
+    open_failed(path: &str)
 }
 
 func main(): i32 {
     return 0
 }
 
-func describe(error: AppError): str {
+func describe(error: AppError): &str {
     if error is AppError.open_failed(path) {
         return path
     } else if error is AppError.missing_path {
@@ -96,14 +96,14 @@ fn accepts_pattern_conditional_over_enum() {
     let diagnostics = check_text(
         r#"enum AppError {
     missing_path
-    open_failed(path: str)
+    open_failed(path: &str)
 }
 
 func main(): i32 {
     return 0
 }
 
-func describe(error: AppError): str {
+func describe(error: AppError): &str {
     return error ?{
         AppError.missing_path : "missing"
         AppError.open_failed(path) : path
@@ -239,7 +239,7 @@ func code(error: AppError): i32 {
 fn diagnoses_if_is_payload_mismatch() {
     let diagnostics = check_text(
         r#"enum AppError {
-    open_failed(path: str)
+    open_failed(path: &str)
 }
 
 func main(): i32 {
@@ -271,7 +271,7 @@ func main(): i32 {
     return 0
 }
 
-func describe(error: AppError): str {
+func describe(error: AppError): &str {
     match error {
         AppError.missing_path {
             let message = "missing"
@@ -313,14 +313,14 @@ func make(): AppError {
 fn accepts_payload_enum_variant_construction() {
     let diagnostics = check_text(
         r#"enum AppError {
-    open_failed(path: str)
+    open_failed(path: &str)
 }
 
 func main(): i32 {
     return 0
 }
 
-func make(path: str): AppError {
+func make(path: &str): AppError {
     return AppError.open_failed(path)
 }
 "#,
@@ -333,14 +333,14 @@ func make(path: str): AppError {
 fn diagnoses_enum_variant_construction_as_fallible_failure() {
     let diagnostics = check_text(
         r#"enum AppError {
-    open_failed(path: str)
+    open_failed(path: &str)
 }
 
 func main(): i32 {
     return 0
 }
 
-func run(path: str): void! {
+func run(path: &str): void! {
     return AppError.open_failed(path)
 }
 "#,
@@ -375,7 +375,7 @@ func make(): AppError {
 fn diagnoses_enum_variant_payload_count_mismatch() {
     let diagnostics = check_text(
         r#"enum AppError {
-    open_failed(path: str)
+    open_failed(path: &str)
 }
 
 func main(): i32 {
@@ -417,7 +417,7 @@ func make(): AppError {
 fn diagnoses_enum_variant_payload_type_mismatch() {
     let diagnostics = check_text(
         r#"enum AppError {
-    open_failed(path: str)
+    open_failed(path: &str)
 }
 
 func main(): i32 {
@@ -521,7 +521,7 @@ func code(error: AppError): i32 {
 fn diagnoses_switch_payload_mismatch() {
     let diagnostics = check_text(
         r#"enum AppError {
-    open_failed(path: str)
+    open_failed(path: &str)
 }
 
 func main(): i32 {

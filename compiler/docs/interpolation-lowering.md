@@ -32,7 +32,7 @@ Once an explicit allocator source exists, interpolation lowering should be equiv
 4. For each literal text segment, call `std/fmt.append_str(&+out, segment)?`.
 5. For each interpolation expression, evaluate it exactly once in source order.
 6. Dispatch to the supported append function for the expression type:
-   - `str` -> `std/fmt.append_str`
+   - `&str` -> `std/fmt.append_str`
    - `String` -> `std/fmt.append_string`
    - `i32` -> `std/fmt.append_i32`
    - `bool` -> `std/fmt.append_bool`
@@ -46,9 +46,9 @@ Already buildable in the narrow scalar subset:
 
 - loaded imported scalar calls
 - scalar `i32`/`usize`/`bool` parameters and call arguments
-- static string literals and `str` parameters as `str` call arguments
-- direct `str` returns from static string literals, `str` parameters, `str` locals, and tail calls
-- `str` normal-call result staging for annotated `str` locals and nested `str` call arguments
+- static string literals and `&str` parameters as `&str` call arguments
+- direct `&str` returns from static string literals, `&str` parameters, `&str` locals, and tail calls
+- `&str` normal-call result staging for annotated `&str` locals and nested `&str` call arguments
 - scalar call-result staging and scalar tail-call staging
 
 Still required before explicit string construction can build:

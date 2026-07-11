@@ -8,7 +8,7 @@ pub(in crate::typecheck) fn interpolated_string_part_type_unsupported_diagnostic
     let mut diagnostic = Diagnostic::error(
         "E0379",
         format!(
-            "string interpolation expression has type `{}`, but interpolation currently supports `str`, `String`, integer, and `bool` values",
+            "string interpolation expression has type `{}`, but interpolation currently supports `&str`, `String`, integer, and `bool` values",
             actual.display()
         ),
     );

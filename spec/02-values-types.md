@@ -62,7 +62,7 @@ Rules:
 - Writable places in v0 are `var` bindings, fields reachable through writable places, and fields reachable through `&+T` borrow bindings or parameters.
 - `let` bindings are not writable places.
 - Fields reached through `&T` are not writable places.
-- Index assignment into `[+T]`, arrays, or collections is deferred.
+- Index assignment into `&+[T]`, arrays, or collections is deferred.
 - Assignment to a place that conflicts with an active borrow is an error. The field-sensitive conflict rules are specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#field-sensitive-borrows).
 - Field assignment overwrites the field. It is not a partial move.
 - For assignment, the right-hand side is evaluated first.
@@ -275,7 +275,8 @@ Initial built-in type syntax:
 &T
 &+T
 [T]
-[+T]
+&[T]
+&+[T]
 T?
 T!
 T?!
@@ -321,7 +322,9 @@ none
 
 `true` and `false` have type `bool`. `none` is a contextual optional absence literal and requires an expected `T?` type.
 
-Built-in core type forms include `str`, `error`, `[T]`, `[+T]`, and `[T; N]`. These forms are type-position syntax, not ordinary names imported from a module. In particular, `error` may still be used as a value binding name, such as the conventional binding in `catch error { ... }`.
+Built-in core type forms include `str`, `error`, `[T]`, `&str`, `&[T]`, `&+[T]`, and `[T; N]`. These forms are type-position syntax, not ordinary names imported from a module. In particular, `error` may still be used as a value binding name, such as the conventional binding in `catch error { ... }`.
+
+`str` is unsized UTF-8 string data. `[T]` is unsized contiguous array data. These unsized data forms cannot be used by value as parameters, return values, fields, local annotations, optional payloads, fallible success payloads, or generic arguments unless they are behind an indirection. Use `&str` for a string slice, `&[T]` for a readonly array slice, `&+[T]` for a readwrite array slice, `String` for owned variable-length text, and `Vec<T>` for owned variable-length arrays.
 
 Names such as `String`, `Error`, `ErrorCode`, `ViewIter`, `Allocator`, `File`, `IOError`, `OSError`, `print`, `args`, `env`, `cwd`, `exit`, and `abort` are not compiler built-ins.
 
@@ -484,8 +487,8 @@ Adopted: operator behavior is built in for a small initial set. User-defined ope
 Comparison rules:
 
 - `==` and `!=` require operands of the same type.
-- Built-in equality is available for `bool`, integer types, `str`, and payloadless enum types.
-- `String == String`, `String == str`, and `str == String` require operator definitions and are deferred in v0.
+- Built-in equality is available for `bool`, integer types, `&str`, and payloadless enum types.
+- `String == String`, `String == &str`, and `&str == String` require operator definitions and are deferred in v0.
 - Struct equality is not automatically generated.
 - Payload-carrying enum equality is not part of the initial design. Use `match` or `if expr is Pattern`.
 - `<`, `<=`, `>`, and `>=` are ordering comparisons.
@@ -629,7 +632,7 @@ Adopted: enums represent finite variants and may carry data.
 ```nct
 enum AppError {
     missing_path
-    open_failed(path: str)
+    open_failed(path: &str)
 }
 ```
 

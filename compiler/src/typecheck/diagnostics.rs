@@ -12,6 +12,7 @@ mod returns;
 mod strings;
 mod structs;
 mod support;
+mod types;
 mod variants;
 
 use super::calls::CheckedCallSignature;
@@ -21,7 +22,7 @@ use crate::ast::{
     BinaryExpr, BindingKind, BindingStmt, Block, CallExpr, Expr, ForRangeStmt, IfIsStmt, IfLetStmt,
     IndexExpr, InterpolatedStringExpression, MemberExpr, PatternConditionalArm,
     PatternConditionalExpr, ReturnStmt, StructLiteralExpr, StructLiteralField, SwitchArm,
-    SwitchStmt, TypeConversionExpr, UnaryExpr, WhileLetStmt,
+    SwitchStmt, TypeConversionExpr, TypeExpr, UnaryExpr, WhileLetStmt,
 };
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
 use crate::resolve::{
@@ -43,6 +44,7 @@ pub(super) use patterns::*;
 pub(super) use returns::*;
 pub(super) use strings::*;
 pub(super) use structs::*;
+pub(super) use types::*;
 pub(super) use variants::*;
 
 use support::*;

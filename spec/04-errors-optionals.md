@@ -8,7 +8,7 @@ The specification entry point is [README.md](README.md).
 Adopted: failure is represented with fallible types, not exceptions.
 
 ```nct
-func open(path: str): File! {
+func open(path: &str): File! {
     if failed {
         return Error.new("std.io.not_found", "file not found")
     }
@@ -28,8 +28,8 @@ The failure type is not written at each call site. All fallible values use the s
 Initial conceptual payload fields:
 
 ```text
-code: str
-message: str
+code: &str
+message: &str
 ```
 
 Rules:
@@ -39,7 +39,7 @@ Rules:
 - The spelling `error` may still be used as an ordinary value binding name. For example, `catch error` binds a local value named `error`.
 - `T!` always means success `T` or failure `error`.
 - `Error` may be provided by `std/prelude` as a normal alias or wrapper for `error`.
-- `ErrorCode` is a standard-library `str` alias, not a compiler-reserved name.
+- `ErrorCode` is a standard-library `&str` alias, not a compiler-reserved name.
 - `ErrorCode` is intentionally open. Standard-library, user, and package code may introduce dotted string codes such as `"std.io.not_found"`, `"app.config.missing_key"`, or `"package.module.reason"`.
 - Standard-library constructors such as `Error.new("std.io.not_found", "...")` translate the `ErrorCode` string into the built-in payload's primitive code representation.
 - The compiler must not special-case ordinary names such as `Error`, `ErrorCode`, `IOError`, or `Result`.
@@ -51,7 +51,7 @@ Rules:
 Inside a function returning `T!`, `return value` returns the success value unless the value has type `error`. `return error_value` returns the failure value.
 
 ```nct
-func write(file: &+File, text: str): void! {
+func write(file: &+File, text: &str): void! {
     if failed {
         return Error.new("std.io.broken_pipe", "broken pipe")
     }
@@ -171,7 +171,7 @@ Postfix `?` propagates the original failure.
 ```nct
 func read_all(
     allocator: &+Allocator,
-    path: str,
+    path: &str,
 ): String! {
     var file = File.open(path) catch error {
         return Error.new("std.io.open_failed", error.message)
@@ -210,7 +210,7 @@ An optional value is either present with a `T` value or absent.
 Inside a function returning `T?`, `return value` returns a present value and `return none` returns absence.
 
 ```nct
-func lookup(name: str): str? {
+func lookup(name: &str): &str? {
     if missing {
         return none
     }
@@ -259,7 +259,7 @@ Rules:
 Example:
 
 ```nct
-func env(name: str): str?! {
+func env(name: &str): &str?! {
     if missing {
         return none
     }
@@ -297,7 +297,7 @@ Adopted: postfix `?` propagates optional absence.
 When `expr` has type `T?`, `expr?` unwraps the present `T`. If `expr` is `none`, the current function returns `none` through its optional return layer.
 
 ```nct
-func require_home(): str? {
+func require_home(): &str? {
     if let home = lookup("HOME") {
         return home
     }

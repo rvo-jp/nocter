@@ -44,8 +44,8 @@ fn formats_type_and_data_declarations() {
     assert_formats_stably(
         r#"pub(nocter) type Path= [u8]
 copy struct Pair<T>{pub left:T,right:T}
-enum AppError{missing_path,open_failed(path:str)}
-trait Writer{method(out:&+Self).write(text:str):void!}
+enum AppError{missing_path,open_failed(path:&str)}
+trait Writer{method(out:&+Self).write(text:&str):void!}
 "#,
         concat!(
             "pub(nocter) type Path = [u8]\n",
@@ -57,11 +57,11 @@ trait Writer{method(out:&+Self).write(text:str):void!}
             "\n",
             "enum AppError {\n",
             "    missing_path,\n",
-            "    open_failed(path: str),\n",
+            "    open_failed(path: &str),\n",
             "}\n",
             "\n",
             "trait Writer {\n",
-            "    method (out: &+Self).write(text: str): void!\n",
+            "    method (out: &+Self).write(text: &str): void!\n",
             "}\n",
         ),
     );
@@ -100,7 +100,7 @@ match error{AppError.missing_path{return 1}else{return file.size() as i32}}
 #[test]
 fn formats_pattern_conditional_expression() {
     assert_formats_stably(
-        r#"enum AppError{missing_path,open_failed(path:str)}
+        r#"enum AppError{missing_path,open_failed(path:&str)}
 func code(error:AppError):i32{return error ?{AppError.missing_path:1
 AppError.open_failed(path):2
 :0}}
@@ -108,7 +108,7 @@ AppError.open_failed(path):2
         concat!(
             "enum AppError {\n",
             "    missing_path,\n",
-            "    open_failed(path: str),\n",
+            "    open_failed(path: &str),\n",
             "}\n",
             "\n",
             "func code(error: AppError): i32 {\n",
@@ -125,15 +125,15 @@ AppError.open_failed(path):2
 #[test]
 fn formats_optional_fallible_types_stably() {
     assert_formats_stably(
-        r#"func env(name:str):str?!{return none}
-func maybe_open(path:str):File?{return none}
+        r#"func env(name:&str):&str?!{return none}
+func maybe_open(path:&str):File?{return none}
 "#,
         concat!(
-            "func env(name: str): str?! {\n",
+            "func env(name: &str): &str?! {\n",
             "    return none\n",
             "}\n",
             "\n",
-            "func maybe_open(path: str): File? {\n",
+            "func maybe_open(path: &str): File? {\n",
             "    return none\n",
             "}\n",
         ),
@@ -145,7 +145,7 @@ fn formats_imports_impls_and_literals_stably() {
     assert_formats_stably(
         r#"from std/io import print as write,File
 import std/process as process
-impl Writer for File{pub method(file:&+Self).write(text:str):void!{let bytes=[1,2,3]
+impl Writer for File{pub method(file:&+Self).write(text:&str):void!{let bytes=[1,2,3]
 var point=Point{x:1,y:2}
 while var item=next(){print(item)}
 }}
@@ -156,7 +156,7 @@ while var item=next(){print(item)}
             "import std/process as process\n",
             "\n",
             "impl Writer for File {\n",
-            "    pub method (file: &+Self).write(text: str): void! {\n",
+            "    pub method (file: &+Self).write(text: &str): void! {\n",
             "        let bytes = [1, 2, 3]\n",
             "        var point = Point { x: 1, y: 2 }\n",
             "        while var item = next() {\n",

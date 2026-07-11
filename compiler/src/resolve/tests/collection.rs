@@ -30,7 +30,7 @@ fn collects_primitive_and_type_symbols() {
 
 pub struct File {
     pub fd: i32
-    name: str
+    name: &str
 }
 
 pub enum IOError {
@@ -126,7 +126,7 @@ func main(): i32 {
 fn collects_trait_symbols() {
     let output = resolve_text(
         r#"pub trait Writer {
-    method (writer: &+Self).write(text: str): void!
+    method (writer: &+Self).write(text: &str): void!
 }
 
 func main(): i32 {

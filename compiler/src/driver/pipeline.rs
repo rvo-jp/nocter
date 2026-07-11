@@ -497,7 +497,7 @@ func choose(code: i32, flag: bool, size: usize): bool {
     return choose("Nocter", 42)
 }
 
-func choose(name: str, code: i32): i32 {
+func choose(name: &str, code: i32): i32 {
     return code
 }
 "#,
@@ -530,11 +530,11 @@ func choose(name: str, code: i32): i32 {
     return consume(title(), 42)
 }
 
-func title(): str {
+func title(): &str {
     return "Nocter"
 }
 
-func consume(name: str, code: i32): i32 {
+func consume(name: &str, code: i32): i32 {
     return code
 }
 "#,
@@ -591,13 +591,13 @@ func consume(name: str, code: i32): i32 {
         let nocter_home = make_nocter_home(&root);
         fs::write(
             nocter_home.join("std/error.nct"),
-            r#"pub type ErrorCode = str
+            r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: str, message: str): error
+pub(nocter) primitive new_error(code: &str, message: &str): error
 
 impl Error {
-    pub func new(code: ErrorCode, message: str): Error {
+    pub func new(code: ErrorCode, message: &str): Error {
         return new_error(code, message)
     }
 }

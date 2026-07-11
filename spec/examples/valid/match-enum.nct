@@ -1,6 +1,6 @@
 enum AppError {
     missing_path
-    open_failed(path: str)
+    open_failed(path: &str)
 }
 
 func main(): i32 {
@@ -22,6 +22,6 @@ func describe(error: AppError): i32 {
     return 2
 }
 
-func use_path(path: str): void {
+func use_path(path: &str): void {
     return
 }

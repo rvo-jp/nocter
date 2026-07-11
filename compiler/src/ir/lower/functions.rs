@@ -134,11 +134,16 @@ fn lower_scalar_parameter_kind(
             Ok(ScalarParameterKind::Usize)
         }
         TypeExpr::Reference(reference) if reference.name == "bool" => Ok(ScalarParameterKind::Bool),
-        TypeExpr::Reference(reference) if reference.name == "str" => Ok(ScalarParameterKind::Str),
+        TypeExpr::Borrow(borrow)
+            if !borrow.is_readwrite
+                && matches!(borrow.inner.as_ref(), TypeExpr::Reference(reference) if reference.name == "str") =>
+        {
+            Ok(ScalarParameterKind::Str)
+        }
         _ => Err(vec![Diagnostic::error(
             "E8007",
             format!(
-                "IR v0 can only lower `i32`, `usize`, `bool`, and `str` parameters for function `{function_name}`"
+                "IR v0 can only lower `i32`, `usize`, `bool`, and `&str` parameters for function `{function_name}`"
             ),
         )]),
     }
@@ -149,13 +154,18 @@ fn lower_function_return_type(ty: &TypeExpr, name: &str) -> Result<Type, Vec<Dia
         TypeExpr::Reference(reference) if reference.name == "i32" => Ok(Type::I32),
         TypeExpr::Reference(reference) if reference.name == "usize" => Ok(Type::Usize),
         TypeExpr::Reference(reference) if reference.name == "bool" => Ok(Type::Bool),
-        TypeExpr::Reference(reference) if reference.name == "str" => Ok(Type::Str),
+        TypeExpr::Borrow(borrow)
+            if !borrow.is_readwrite
+                && matches!(borrow.inner.as_ref(), TypeExpr::Reference(reference) if reference.name == "str") =>
+        {
+            Ok(Type::Str)
+        }
         TypeExpr::Reference(reference) if reference.name == "void" => Ok(Type::Void),
         TypeExpr::Reference(reference) if reference.name == "never" => Ok(Type::Never),
         _ => Err(vec![Diagnostic::error(
             "E8007",
             format!(
-                "IR v0 can only lower function `{name}` return type `i32`, `usize`, `bool`, `str`, `void`, or `never`"
+                "IR v0 can only lower function `{name}` return type `i32`, `usize`, `bool`, `&str`, `void`, or `never`"
             ),
         )]),
     }

@@ -322,7 +322,7 @@ fn parses_switch_statement() {
     let output = parse_text(
         r#"enum AppError {
     missing_path
-    open_failed(path: str)
+    open_failed(path: &str)
 }
 
 func main(): i32 {
@@ -409,7 +409,7 @@ fn parses_if_is_statement() {
     let output = parse_text(
         r#"enum AppError {
     missing_path
-    open_failed(path: str)
+    open_failed(path: &str)
 }
 
 func main(): i32 {

@@ -6,16 +6,17 @@
 
 from std/error import Error
 from std/os/macos import trap
+from std/vec import Vec
 
-pub func args(): [str]! {
+pub func args(): Vec<&str>! {
     return Error.new("std.process.unsupported", "process arguments are not implemented")
 }
 
-pub func env(name: str): (str?)! {
+pub func env(name: &str): (&str?)! {
     return none
 }
 
-pub func cwd(): str! {
+pub func cwd(): &str! {
     return Error.new("std.process.unsupported", "current working directory is not implemented")
 }
 

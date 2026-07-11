@@ -19,7 +19,7 @@ Adopted user decisions:
 Recommended next implementation order:
 
 1. Follow `compiler/docs/interpolation-lowering.md`: keep bare interpolation lowering disabled until an explicit allocator source is designed, and first make explicit `std/string` construction plus `std/fmt.append_*` calls buildable.
-2. Lower interpolated strings only after the remaining backend prerequisites exist: `str` argument representation, aggregate `String`/`Allocator`/`RawBuffer` storage, stack-backed `var`, borrow argument lowering for `&T` and `&+T`, fallible propagation from ordinary calls, and owned aggregate return/move handling. Loaded imported scalar calls and scalar parameters/call arguments are now buildable in the current narrow scalar subset.
+2. Lower interpolated strings only after the remaining backend prerequisites exist: `&str` argument representation, aggregate `String`/`Allocator`/`RawBuffer` storage, stack-backed `var`, borrow argument lowering for `&T` and `&+T`, fallible propagation from ordinary calls, and owned aggregate return/move handling. Loaded imported scalar calls and scalar parameters/call arguments are now buildable in the current narrow scalar subset.
 3. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
@@ -33,7 +33,7 @@ Recent committed work:
 - Current checkpoint: document interpolation lowering direction
   - records that bare interpolation still cannot lower without an explicit source-level allocator
   - sets the next implementation path as explicit `std/string` construction plus `std/fmt.append_*` calls before lowering bare interpolation syntax
-  - lists the remaining backend prerequisites: `str` arguments, aggregate storage, stack-backed `var`, borrow arguments, ordinary fallible propagation, and owned aggregate returns/moves
+  - lists the remaining backend prerequisites: `&str` arguments, aggregate storage, stack-backed `var`, borrow arguments, ordinary fallible propagation, and owned aggregate returns/moves
 - Current checkpoint: add bool scalar call arguments
   - lowers `bool` parameters and calls whose arguments include `bool`, preserving ABI argument indexes for mixed scalar parameter lists
   - extends typed IR call arguments and ARM64 staging so `i32`/`bool` use W registers and `usize` uses X registers
@@ -133,7 +133,7 @@ Recent committed work:
   - confirms the imported standard-library graph can load `std/fmt`, `std/error`, `std/string`, and `std/mem`
   - keeps the test at the import/type-check layer; interpolated string runtime lowering remains disabled
 - `Specify std string formatting boundary`
-  - adds `.nocter/std/fmt.nct` with explicit append APIs for `str`, `String`, `i32`, and `bool`
+  - adds `.nocter/std/fmt.nct` with explicit append APIs for `&str`, `String`, `i32`, and `bool`
   - expands `.nocter/std/string.nct` from a placeholder owning type to the initial pointer/length/capacity ABI direction plus `empty`, `with_capacity`, `from_str`, `view`, and `push_str`
   - adds common `error` helper functions in `.nocter/std/mem.nct` for `"std.mem.out_of_memory"` and `"std.mem.invalid_argument"`
   - documents that `std/mem`, `std/string`, and `std/fmt` fail through the built-in `error` payload rather than domain-specific fallible error types
@@ -165,7 +165,7 @@ Recent committed work:
   - adds `InterpolatedString` AST nodes with source-preserving text and expression parts
   - parses interpolation expressions with the normal expression parser over their original byte spans
   - type-checks interpolated string expressions as `String!`
-  - accepts interpolation parts of type `str`, `String`, integer, and `bool`
+  - accepts interpolation parts of type `&str`, `String`, integer, and `bool`
   - reports `E0379` for unsupported interpolation part types such as arrays
   - traverses interpolation expressions during resolution, return/propagation checks, documentation collection, LSP hover collection, and IR call-containment analysis
   - keeps runtime lowering for interpolated string construction disabled until the standard-library formatting/allocation API is finalized
@@ -176,7 +176,7 @@ Recent committed work:
   - diagnosed unescaped `${` as unimplemented string interpolation instead of accepting it as literal text at that checkpoint
   - updates comment scanning so `//` and `/* */` inside multi-line string literals do not count as comments
   - lowers static fallible failure reports from single-line or multi-line string literals through a loaded static `error` constructor call
-  - kept general `str` values, owned `String`, interpolation parsing/typechecking/lowering, imported calls, aggregate values, ownership/drop lowering, `var`/reassignment, and broader control-flow disabled
+  - kept general `&str` values, owned `String`, interpolation parsing/typechecking/lowering, imported calls, aggregate values, ownership/drop lowering, `var`/reassignment, and broader control-flow disabled
 - `Lower i32 call arithmetic`
   - adds IR lowering and ARM64 codegen for lowerable `i32` subtraction and multiplication alongside existing addition
   - supports same-file `i32` normal calls inside `+`, `-`, and `*` arithmetic expressions, such as `return answer() * 2 - offset()`
@@ -941,7 +941,7 @@ The scalar `i32` and `usize` backend subsets now have runtime safety checks for 
 Recommended next small task for the next session:
 
 1. Follow `compiler/docs/interpolation-lowering.md`: keep bare interpolation lowering disabled until an explicit allocator source is designed, and first make explicit `std/string` construction plus `std/fmt.append_*` calls buildable.
-2. Add only the backend prerequisites needed by that explicit path: `str` arguments, aggregate `String`/`Allocator`/`RawBuffer` storage, stack-backed `var`, borrow argument lowering, ordinary fallible propagation, and owned aggregate returns/moves.
+2. Add only the backend prerequisites needed by that explicit path: `&str` arguments, aggregate `String`/`Allocator`/`RawBuffer` storage, stack-backed `var`, borrow argument lowering, ordinary fallible propagation, and owned aggregate returns/moves.
 3. Consider broader terminal control-flow only after its lowering rules are designed.
 4. Keep unrelated imported calls, aggregates, ownership/drop lowering, general mutable storage, and broader control-flow disabled until their ABI, storage, and join rules are designed.
 5. Add CLI build/run coverage for any newly buildable source subset.

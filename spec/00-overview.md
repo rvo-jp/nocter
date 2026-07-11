@@ -95,7 +95,7 @@ Rules:
 - `func main(): i32` uses the returned value as the process exit status.
 - `func main(): void` and `func main(): i32` are accepted for simple infallible entry points in v0, but `func main(): i32!` is the preferred form for applications.
 - Entry function parameters are not part of v0.
-- Entry functions with parameters, such as `func main(args: [str]): i32!`, are not part of v0.
+- Entry functions with parameters, such as `func main(args: Vec<&str>): i32!`, are not part of v0.
 - Command-line arguments and environment variables are accessed through `std/process`, not through special entry function parameters.
 - Future manifest configuration may allow setting the entry point without repeating `--entry` on every command.
 

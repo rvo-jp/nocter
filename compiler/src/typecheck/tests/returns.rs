@@ -93,7 +93,7 @@ fn accepts_str_function_return() {
     return 0
 }
 
-func title(): str {
+func title(): &str {
     return "hello"
 }
 "#,

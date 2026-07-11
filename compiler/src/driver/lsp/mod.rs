@@ -507,7 +507,7 @@ mod tests {
         let document = open_document(
             uri.clone(),
             Some(1),
-            "func main(path: str): i32 {\n    let code = 0\n    return code\n}\n".to_string(),
+            "func main(path: &str): i32 {\n    let code = 0\n    return code\n}\n".to_string(),
         );
         let server = LspServer {
             documents: HashMap::from([(uri.clone(), document)]),
@@ -543,7 +543,7 @@ mod tests {
         let document = open_document(
             uri.clone(),
             Some(1),
-            "/// Computes the answer.\nfunc answer(path: str): i32 {\n    return 0\n}\n"
+            "/// Computes the answer.\nfunc answer(path: &str): i32 {\n    return 0\n}\n"
                 .to_string(),
         );
         let server = LspServer {
@@ -568,7 +568,7 @@ mod tests {
 
         assert_eq!(
             response["result"]["contents"]["value"],
-            json!("```nocter\nfunc answer(path: str): i32\n```\n\nComputes the answer.")
+            json!("```nocter\nfunc answer(path: &str): i32\n```\n\nComputes the answer.")
         );
         assert_eq!(response["result"]["range"]["start"]["line"], json!(1));
         assert_eq!(response["result"]["range"]["start"]["character"], json!(5));
@@ -748,7 +748,7 @@ mod tests {
         let document = open_document(
             uri.clone(),
             Some(1),
-            "func main(path: str): i32 {\n    let code = 0\n    return code\n}\n".to_string(),
+            "func main(path: &str): i32 {\n    let code = 0\n    return code\n}\n".to_string(),
         );
         let server = LspServer {
             documents: HashMap::from([(uri.clone(), document)]),
@@ -841,7 +841,7 @@ mod tests {
         let document = open_document(
             uri.clone(),
             Some(1),
-            "struct Config {\n    path: str\n}\n\nenum Mode {\n    fast\n    slow\n}\n\nfunc main(): i32 {\n    return 0\n}\n"
+            "struct Config {\n    path: &str\n}\n\nenum Mode {\n    fast\n    slow\n}\n\nfunc main(): i32 {\n    return 0\n}\n"
                 .to_string(),
         );
         let server = LspServer {
@@ -886,7 +886,7 @@ mod tests {
         let document = open_document(
             uri.clone(),
             Some(1),
-            "struct Config {\n    path: str\n}\n\nfunc answer(): i32 {\n    return 42\n}\n"
+            "struct Config {\n    path: &str\n}\n\nfunc answer(): i32 {\n    return 42\n}\n"
                 .to_string(),
         );
         let server = LspServer {

@@ -8,7 +8,7 @@ The specification entry point is [README.md](README.md).
 Functions are declared with `func`.
 
 ```nct
-func scan_words(text: str): WordStats {
+func scan_words(text: &str): WordStats {
     ...
 }
 ```
@@ -34,7 +34,7 @@ Return value ownership, move, borrow, and view rules are specified in [Ownership
 Adopted: v0 uses positional arguments only.
 
 ```nct
-func copy(allocator: &+Allocator, source: str): String! {
+func copy(allocator: &+Allocator, source: &str): String! {
     ...
 }
 
@@ -64,7 +64,7 @@ Examples:
 ```nct
 pub func copy(
     allocator: &+Allocator,
-    source: str,
+    source: &str,
 ): String! {
     ...
 }
@@ -82,19 +82,19 @@ Invalid in v0:
 ```nct
 String.copy(allocator: &+allocator, source: "hello") // named arguments
 
-func open(path: str = "input.txt"): File! {
+func open(path: &str = "input.txt"): File! {
     ...
 }
 
-func print_all(parts: str...): void {
+func print_all(parts: &str...): void {
     ...
 }
 
-func open(path: str): File! {
+func open(path: &str): File! {
     ...
 }
 
-func open(path: str, mode: OpenMode): File! {
+func open(path: &str, mode: OpenMode): File! {
     ...
 }
 ```
@@ -273,7 +273,7 @@ This is invalid:
 let view = (String.copy(allocator, "abc")?).view()
 ```
 
-`String.copy(...)` produces a temporary owned `String`. `.view()` borrows from that temporary. The temporary would be dropped at the end of the statement, so the `str` cannot be stored in `view`.
+`String.copy(...)` produces a temporary owned `String`. `.view()` borrows from that temporary. The temporary would be dropped at the end of the statement, so the `&str` cannot be stored in `view`.
 
 Write this instead:
 
@@ -370,7 +370,7 @@ Rules:
 Deferred:
 
 - `for item in expr { ... }`
-- mutable element iteration over `[+T]`
+- mutable element iteration over `&+[T]`
 - compiler-lowered iteration syntax that treats ordinary names such as `iter` or `next` specially
 - reverse iteration and custom step syntax
 
@@ -420,7 +420,7 @@ Example:
 ```nct
 import std/process as process
 
-func require_path(path: str?): str {
+func require_path(path: &str?): &str {
     if let value = path {
         return value
     }
@@ -451,12 +451,12 @@ Rules:
 Example:
 
 ```nct
-func require_path_short(path: str?): str {
+func require_path_short(path: &str?): &str {
     return path ?? process.abort()
 }
 ```
 
-The `??` expression above has type `str`. The right side does not produce a fallback `str`; it terminates the current path.
+The `??` expression above has type `&str`. The right side does not produce a fallback `&str`; it terminates the current path.
 
 `never` also satisfies `catch` block termination:
 

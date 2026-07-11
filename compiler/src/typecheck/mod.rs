@@ -14,6 +14,7 @@ mod model;
 mod numeric;
 mod operations;
 mod returns;
+mod sized;
 mod strings;
 mod structs;
 mod type_expr;
@@ -26,6 +27,7 @@ use crate::source::SourceMap;
 use body::*;
 use entry::*;
 use returns::*;
+use sized::*;
 
 pub fn check(
     sources: &SourceMap,
@@ -48,6 +50,7 @@ pub fn check_module(
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
 
+    check_sized_value_types(sources, ast, resolved, &mut diagnostics);
     check_body_expressions(sources, ast, resolved, &mut diagnostics);
     check_return_types(sources, ast, resolved, &mut diagnostics);
 

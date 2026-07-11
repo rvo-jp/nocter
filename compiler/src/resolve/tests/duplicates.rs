@@ -48,7 +48,7 @@ impl File {
         return 0
     }
 
-    func open(path: str): i32 {
+    func open(path: &str): i32 {
         return 1
     }
 }

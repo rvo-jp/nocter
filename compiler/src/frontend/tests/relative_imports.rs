@@ -49,7 +49,7 @@ func main(): i32 {
     .unwrap();
     fs::write(
         root.join("config.nct"),
-        r#"pub func title(): str {
+        r#"pub func title(): &str {
     return "Nocter"
 }
 "#,

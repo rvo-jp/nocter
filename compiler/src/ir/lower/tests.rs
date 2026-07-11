@@ -1109,7 +1109,7 @@ fn lowers_str_literal_call_argument_as_two_abi_words() {
     return consume("Nocter", 42)
 }
 
-func consume(name: str, code: i32): i32 {
+func consume(name: &str, code: i32): i32 {
     return code
 }
 "#,
@@ -1153,11 +1153,11 @@ fn lowers_str_parameter_forwarding_call_argument() {
     return wrapper("Nocter")
 }
 
-func wrapper(name: str): i32 {
+func wrapper(name: &str): i32 {
     return consume(name, 42)
 }
 
-func consume(name: str, code: i32): i32 {
+func consume(name: &str, code: i32): i32 {
     return code
 }
 "#,
@@ -1187,7 +1187,7 @@ fn lowers_str_literal_return() {
     return 0
 }
 
-func title(): str {
+func title(): &str {
     return "Nocter"
 }
 "#,
@@ -1218,7 +1218,7 @@ fn lowers_str_parameter_return() {
     return 0
 }
 
-func echo(name: str): str {
+func echo(name: &str): &str {
     return name
 }
 "#,
@@ -1249,11 +1249,11 @@ fn lowers_str_tail_call_return() {
     return 0
 }
 
-func alias(): str {
+func alias(): &str {
     return title()
 }
 
-func title(): str {
+func title(): &str {
     return "Nocter"
 }
 "#,
@@ -1283,11 +1283,11 @@ fn lowers_str_normal_call_result_as_call_argument() {
     return consume(title(), 42)
 }
 
-func title(): str {
+func title(): &str {
     return "Nocter"
 }
 
-func consume(name: str, code: i32): i32 {
+func consume(name: &str, code: i32): i32 {
     return code
 }
 "#,
@@ -1346,12 +1346,12 @@ fn lowers_str_let_initializer_normal_call() {
     return 0
 }
 
-func wrapper(): str {
-    let text: str = title()
+func wrapper(): &str {
+    let text: &str = title()
     return text
 }
 
-func title(): str {
+func title(): &str {
     return "Nocter"
 }
 "#,
@@ -2348,7 +2348,7 @@ func main(): i32! {
     return Error.new("app.failed", dynamic())
 }
 
-func dynamic(): str {
+func dynamic(): &str {
     return "failed"
 }
 "#,
@@ -2361,7 +2361,7 @@ func dynamic(): str {
 fn reports_unsupported_interpolated_string_binding_lowering() {
     let diagnostics = lower_text_diagnostics(
         r#"struct String {
-    bytes: [u8]
+    bytes: &[u8]
 }
 
 func main(): i32! {
@@ -4330,13 +4330,13 @@ fn analyze_text_with_entry_and_nocter_home_files(
 fn std_error_file() -> (&'static str, &'static str) {
     (
         "std/error.nct",
-        r#"pub type ErrorCode = str
+        r#"pub type ErrorCode = &str
 pub type Error = error
 
-pub(nocter) primitive new_error(code: str, message: str): error
+pub(nocter) primitive new_error(code: &str, message: &str): error
 
 impl Error {
-    pub func new(code: ErrorCode, message: str): Error {
+    pub func new(code: ErrorCode, message: &str): Error {
         return new_error(code, message)
     }
 }
