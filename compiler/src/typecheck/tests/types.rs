@@ -20,6 +20,97 @@ func consume(text: str): i32 {
 }
 
 #[test]
+fn diagnoses_unsized_str_parameter_without_argument_mismatch_cascade() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    consume("Nocter")
+    return 0
+}
+
+func consume(text: str): void {
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0380");
+    assert!(diagnostics[0].message.contains("parameter `text`"));
+}
+
+#[test]
+fn diagnoses_unsized_str_return_without_return_mismatch_cascade() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func title(): str {
+    return "Nocter"
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0380");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("function `title` return type")
+    );
+}
+
+#[test]
+fn diagnoses_unsized_str_return_without_missing_return_cascade() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func title(): str {
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0380");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("function `title` return type")
+    );
+}
+
+#[test]
+fn diagnoses_unsized_binding_annotation_without_mismatch_cascade() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    let text: str = "Nocter"
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0380");
+    assert!(diagnostics[0].message.contains("binding `text` annotation"));
+}
+
+#[test]
+fn diagnoses_unsized_conversion_target_without_conversion_cascade() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    let text = "Nocter" as str
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0380");
+    assert!(diagnostics[0].message.contains("type conversion target"));
+}
+
+#[test]
 fn diagnoses_unsized_array_struct_field() {
     let diagnostics = check_text(
         r#"struct Packet {

@@ -163,6 +163,9 @@ pub(super) fn check_type_conversion_expression(
     if source_type.is_unknown_or_unresolved() || target_type.is_unknown_or_unresolved() {
         return;
     }
+    if target_type.first_unsized_part().is_some() {
+        return;
+    }
 
     if !is_lossless_integer_conversion(
         &source_type,

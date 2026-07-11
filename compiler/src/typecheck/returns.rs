@@ -142,6 +142,10 @@ fn check_block_returns(
     diagnostics: &mut Vec<Diagnostic>,
     environment: &mut TypeEnvironment,
 ) {
+    if context.success_type().first_unsized_part().is_some() {
+        return;
+    }
+
     check_block_return_statements(sources, block, context, resolved, diagnostics, environment);
 
     if context.requires_explicit_return()
@@ -757,6 +761,9 @@ fn check_return_statement(
         (Some(expression), expected) => {
             let actual = expression_type(expression, resolved, environment);
             if actual.is_unknown_or_unresolved() || expected.is_unknown_or_unresolved() {
+                return;
+            }
+            if expected.first_unsized_part().is_some() {
                 return;
             }
 

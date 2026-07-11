@@ -78,6 +78,7 @@ pub(super) fn check_binding_annotation(
 
     if initializer_type.is_unknown_or_unresolved()
         || expected_initializer.is_unknown_or_unresolved()
+        || expected_initializer.first_unsized_part().is_some()
     {
         return;
     }

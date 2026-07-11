@@ -44,6 +44,9 @@ pub(super) fn check_known_function_call(
         if actual.is_unknown_or_unresolved() || expected.is_unknown_or_unresolved() {
             continue;
         }
+        if expected.first_unsized_part().is_some() {
+            continue;
+        }
 
         if !is_expression_assignable(&expected, argument, resolved, environment) {
             diagnostics.push(argument_type_mismatch_diagnostic(
