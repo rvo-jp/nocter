@@ -106,6 +106,7 @@ compiler/
     targets/
         arm64-darwin/
             std/
+                io_impl.nct
                 process.nct
                 os/
                     macos.nct
@@ -727,6 +728,7 @@ C 連携が必要になった場合は、将来 `extern "c"` のような別 ABI
     targets/
         arm64-darwin/
             std/
+                io_impl.nct
                 process.nct
                 os/
                     macos.nct
@@ -827,6 +829,8 @@ pub func print(text: str): void!
 `read(buffer)` は読み込んだ byte 数を返し、通常ファイルでは `0` が EOF です。`write(bytes)` は byte view 全体を書き切るか `error` で失敗します。`write_text(text)` は `str` の UTF-8 bytes をそのまま書きます。`print(text)` は `stdout()` へ text を書き、改行は追加しません。
 
 `File` は内部的に owned handle と borrowed process standard stream を区別します。`File.open(path)` で得た `File` の drop は handle を閉じますが、`stdout()` / `stderr()` で得た `File` の drop は process の標準出力 / 標準エラーを閉じません。`drop File` は失敗できないため、close error は v0 では無視します。将来必要なら明示的な `close` API を追加します。
+
+`std/io` は共通の user-facing module です。raw file descriptor や syscall との接続は active target overlay の `std/io_impl` に置き、`pub(nocter)` helper として `std/io` からだけ使います。利用者は `std/io_impl` を import せず、`File`、`stdout`、`stderr`、`print`、`File.open/read/write/write_text` を通じて I/O を扱います。
 
 `std/process` の `args(): [str]!`、`env(name): str?!`、`cwd(): str!`、`exit(code): never`、`abort(): never` は標準ライブラリ API です。compiler primitive ではありません。`args` / `env` / `cwd` / `exit` / `abort` という名前を compiler は特別扱いしません。
 

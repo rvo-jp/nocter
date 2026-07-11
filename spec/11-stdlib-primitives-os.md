@@ -219,6 +219,13 @@ Rules:
 - `drop File` cannot fail. Close errors are ignored in v0 unless a future explicit close API is adopted.
 - Unexpected OS errors are converted to `"std.os.unexpected_os_error"` with a message that preserves useful target context.
 
+Physical placement:
+
+- `std/io` is the user-facing module path and owns `File` plus the public I/O API.
+- Target-dependent raw file-descriptor helpers may live in a target overlay module such as `std/io_impl`.
+- `std/io_impl` names are `pub(nocter)` implementation details, not user-facing API.
+- Common I/O API names should remain stable across targets.
+
 Conversion flow:
 
 ```text

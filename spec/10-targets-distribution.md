@@ -105,6 +105,7 @@ The installed layout is:
     targets/
         arm64-darwin/
             std/
+                io_impl.nct
                 process.nct
                 os/
                     macos.nct

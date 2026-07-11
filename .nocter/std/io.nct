@@ -5,6 +5,10 @@
 // results and errno wrappers stay inside target overlays.
 
 from std/error import Error
+from std/io_impl import FileDescriptor
+from std/io_impl import open_read as open_read_impl
+from std/io_impl import stderr as stderr_impl
+from std/io_impl import stdout as stdout_impl
 from std/os import OSError
 
 // Compatibility classification type. It is an ordinary enum, not the fallible
@@ -23,7 +27,7 @@ pub enum IOError {
 }
 
 pub struct File {
-    handle: usize
+    fd: FileDescriptor
     close_on_drop: bool
 }
 
@@ -32,16 +36,17 @@ pub func from_os_error(error: OSError): error {
 }
 
 pub func stdout(): File {
-    return File { handle: 1, close_on_drop: false }
+    return File { fd: stdout_impl(), close_on_drop: false }
 }
 
 pub func stderr(): File {
-    return File { handle: 2, close_on_drop: false }
+    return File { fd: stderr_impl(), close_on_drop: false }
 }
 
 impl File {
     pub func open(path: str): File! {
-        return unsupported()
+        let fd = open_read_impl(path)?
+        return File { fd: fd, close_on_drop: true }
     }
 
     pub method (file: &+Self).read(buffer: [+u8]): usize! {
@@ -58,6 +63,8 @@ impl File {
 }
 
 pub func print(text: str): void! {
+    var out = stdout()
+    out.write_text(text)?
     return
 }
 

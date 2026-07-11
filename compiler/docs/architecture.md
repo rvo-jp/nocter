@@ -39,6 +39,7 @@ The distributable archive root for the initial host is:
     targets/
         arm64-darwin/
             std/
+                io_impl.nct
                 process.nct
                 os/
                     macos.nct
@@ -545,7 +546,7 @@ If source loading, lexing, or parsing fails, `check` returns a `nocter.diagnosti
 
 `CompileUnitAnalysis` is the `analysis/` module's semantic-analysis result for the whole reachable compile unit. Each `FileAnalysis` keeps the file AST, its file-scoped `ResolveOutput`, that file's diagnostics, and whether the file is the executable root. Flattened diagnostics are sorted by loaded file order, primary span start byte, primary span end byte, diagnostic code, and message. This keeps the command-line checker aligned with future LSP features such as hover, completion, and definition lookup, where editor features need the semantic state for a specific file rather than only a flattened diagnostics list.
 
-The first standard-library source files are `.nocter/std/prelude.nct`, `.nocter/std/string.nct`, `.nocter/std/fmt.nct`, `.nocter/std/mem.nct`, `.nocter/std/ptr.nct`, `.nocter/std/os.nct`, `.nocter/std/io.nct`, `.nocter/targets/arm64-darwin/std/process.nct`, and `.nocter/targets/arm64-darwin/std/os/macos.nct`. They currently form a Parser v0-readable skeleton for the synthetic user prelude, owning string type, explicit formatting append boundary, initial memory API, core pointer primitive boundary, common OS error model, user-facing I/O errors, `File`, `stdout`, `stderr`, `print`, macOS process API placeholders, and macOS primitive boundary. `std/process.abort` and the placeholder `exit` terminate through the target `trap` primitive today. Future target support should add target overlays without changing ordinary user-facing APIs.
+The first standard-library source files are `.nocter/std/prelude.nct`, `.nocter/std/string.nct`, `.nocter/std/fmt.nct`, `.nocter/std/mem.nct`, `.nocter/std/ptr.nct`, `.nocter/std/os.nct`, `.nocter/std/io.nct`, `.nocter/targets/arm64-darwin/std/io_impl.nct`, `.nocter/targets/arm64-darwin/std/process.nct`, and `.nocter/targets/arm64-darwin/std/os/macos.nct`. They currently form a Parser v0-readable skeleton for the synthetic user prelude, owning string type, explicit formatting append boundary, initial memory API, core pointer primitive boundary, common OS error model, user-facing I/O errors, `File`, `stdout`, `stderr`, `print`, macOS raw file-descriptor helpers, macOS process API placeholders, and macOS primitive boundary. `std/process.abort` and the placeholder `exit` terminate through the target `trap` primitive today. Future target support should add target overlays without changing ordinary user-facing APIs.
 
 The target-independent core pointer primitive set is:
 
@@ -576,7 +577,7 @@ The compiler should validate primitives by module path, name, and exact signatur
 
 Future typed wrappers such as raw file, process, allocation, or memory-map helpers should be ordinary Nocter APIs in common `std/` or the active target overlay. The normal implementation path is to grow the standard library on top of the closed primitive set, not to add compiler primitives for each OS operation. User project modules remain outside the primitive declaration boundary.
 
-Initial `std/io.nct` should expose `File`, `File.open`, `File.read`, `File.write`, `File.write_text`, `stdout`, `stderr`, and `print`. Fallible APIs return `T!` and fail with built-in `error`; common classification names such as `Error` and `ErrorCode` belong to `std/prelude` / `std/error`, not to compiler special cases. `File.open` creates an owned handle whose drop closes it. `stdout` and `stderr` return `File` values for borrowed process standard streams, and their drop must not close the underlying standard stream.
+Initial `std/io.nct` should expose `File`, `File.open`, `File.read`, `File.write`, `File.write_text`, `stdout`, `stderr`, and `print`. Fallible APIs return `T!` and fail with built-in `error`; common classification names such as `Error` and `ErrorCode` belong to `std/prelude` / `std/error`, not to compiler special cases. File has a private close-on-drop state so `File.open` can create an owned handle whose drop closes it while `stdout` and `stderr` return borrowed process standard streams. Target-dependent raw file-descriptor helpers live behind `pub(nocter)` in the active target overlay, currently `.nocter/targets/arm64-darwin/std/io_impl.nct`.
 
 OS error flow belongs in the standard library:
 

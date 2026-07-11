@@ -24,6 +24,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: add target `std/io_impl` skeleton
+  - adds `.nocter/targets/arm64-darwin/std/io_impl.nct` with `pub(nocter)` raw file-descriptor helpers
+  - updates common `.nocter/std/io.nct` to keep the public `File` API while obtaining standard stream and future opened descriptors through the target overlay
+  - adds distributed-home coverage that user code cannot import `std/io_impl`
 - Current checkpoint: add private `File` close-on-drop state
   - adds `close_on_drop` to `.nocter/std/io.nct`'s private `File` representation so borrowed standard streams can be distinguished from future owned handles
   - adds distributed-home coverage that user code cannot construct `File` through hidden fields
