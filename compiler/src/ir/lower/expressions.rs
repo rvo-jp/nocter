@@ -966,11 +966,21 @@ fn lower_call_arguments(
                 instructions.extend(argument.instructions);
                 arguments.push(ScalarArgument::Usize(argument.value));
             }
-            Type::Bool | Type::Void | Type::Never | Type::Fallible(_) => {
+            Type::Bool => {
+                let argument = lower_bool_expression_to_value_with_temporaries(
+                    argument,
+                    context,
+                    "E8006",
+                    temporaries,
+                )?;
+                instructions.extend(argument.instructions);
+                arguments.push(ScalarArgument::Bool(argument.value));
+            }
+            Type::Void | Type::Never | Type::Fallible(_) => {
                 return Err(vec![Diagnostic::error(
                     "E8006",
                     format!(
-                        "IR v0 can only lower `i32` and `usize` call arguments for function `{callee_name}`, got `{}`",
+                        "IR v0 can only lower scalar call arguments for function `{callee_name}`, got `{}`",
                         describe_type(parameter_type),
                     ),
                 )]);

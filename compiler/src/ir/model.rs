@@ -149,11 +149,13 @@ pub(crate) enum UsizeValue {
 pub(crate) enum ScalarArgument {
     I32(I32Value),
     Usize(UsizeValue),
+    Bool(BoolValue),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BoolLocation {
     Return,
+    Parameter(usize),
     Local(usize),
 }
 

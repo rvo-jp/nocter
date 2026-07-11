@@ -160,15 +160,15 @@ Currently buildable:
 - same-file non-generic tail calls returning `i32` or `bool`
 - same-file and loaded imported calls returning `never` in terminal return or expression-statement position
 - same-file non-generic normal calls returning `i32` in `let` initializers, `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, `i32` comparison operands, and nested scalar call arguments
-- same-file and loaded imported non-generic normal calls returning `usize` in annotated `let` initializers, including `i32`/`usize` call arguments
+- same-file and loaded imported non-generic normal calls returning `usize` in annotated `let` initializers, including scalar call arguments
 - custom executable output paths through `build -o <path>`
 - explicit `--target arm64-darwin` selection for `build`, `run`, and `check`; reserved future targets are recognized but rejected as unimplemented
 - same-file non-generic normal calls returning `bool` in `let` initializers, unary-not expressions, bool equality/inequality operands, short-circuit bool value expressions, and terminal `if` conditions
 - short-circuit bool expressions can combine `i32` call comparisons with bool calls, such as `if answer() == 42 && ready()` and `let matched = answer() == 42 && ready()`
 - `usize` comparisons over literals, locals, and same-file or loaded imported normal calls in lowerable bool expressions and terminal `if` conditions
-- nested scalar normal-call arguments such as `let value = outer(inner())`, for `i32` and `usize` parameter positions
-- nested scalar tail-call arguments such as `return outer(inner())`, for `i32` and `usize` parameter positions
-- up to 8 scalar `i32`/`usize` parameters and call arguments for lowered functions and calls
+- nested scalar normal-call arguments such as `let value = outer(inner())`, for `i32`, `usize`, and `bool` parameter positions
+- nested scalar tail-call arguments such as `return outer(inner())`, for `i32`, `usize`, and `bool` parameter positions
+- up to 8 scalar `i32`/`usize`/`bool` parameters and call arguments for lowered functions and calls
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
 - non-entry functions returning `bool` or `usize`
 - `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; addition, subtraction, and multiplication trap on signed overflow, and division and remainder trap on zero divisors and signed division overflow
@@ -185,7 +185,7 @@ Currently not buildable even when it may be checkable:
 - `var`, reassignment, and general local storage
 - general `if`, `while`, `loop`, range `for`, and `match`
 - unloaded imported function placeholders
-- `usize` parameters, `usize` arithmetic, and `usize` entry return values
+- `usize` arithmetic and `usize` entry return values
 - `str` values beyond static fallible failure messages
 - interpolated string construction
 - optional values
@@ -198,7 +198,7 @@ The `arm64-darwin` backend v0 uses a deliberately small register-only convention
 - scalar `i32` and `bool` values are represented in 32-bit ARM64 `w` registers
 - scalar `usize` values are represented in 64-bit ARM64 `x` registers
 - `bool` is encoded as `0` for false and `1` for true
-- lowered `i32` function arguments are passed in `w0` through `w7`, and lowered `usize` function arguments are passed in `x0` through `x7` at the same ABI argument index; `bool` parameters are not buildable yet
+- lowered `i32` and `bool` function arguments are passed in `w0` through `w7`, and lowered `usize` function arguments are passed in `x0` through `x7` at the same ABI argument index
 - lowered function return values are produced in `w0` for `i32`/`bool` and `x0` for `usize`
 - scalar local bindings use `w9` through `w15` for `i32`/`bool` and `x9` through `x15` for `usize`; framed functions spill scalar locals through 8-byte stack slots
 - `w16`/`w17` and `x16`/`x17` are backend scratch registers and may be clobbered by code generation

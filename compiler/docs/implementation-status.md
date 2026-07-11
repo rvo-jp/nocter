@@ -20,11 +20,11 @@ This file describes implementation state only.
 | `i32` return values | yes | yes | yes | yes | yes | Literal returns and lowerable expressions are supported. |
 | `usize` scalar values | yes | yes | yes | partial | partial | Build supports annotated `usize` locals, non-entry `usize` literal/local/call returns, same-file and loaded imported scalar calls with `usize` parameters/arguments, and `usize` comparisons in lowerable bool positions. |
 | `void` entry | yes | yes | yes | yes | yes | Empty body and bare `return` are buildable. |
-| `bool` expressions | yes | yes | yes | partial | yes | Build supports literals, locals, `!`, `&&`, `||`, `i32` and `usize` comparisons, and bool equality/inequality over literal/local operands in lowerable positions. |
+| `bool` expressions | yes | yes | yes | partial | yes | Build supports literals, locals, parameters, `!`, `&&`, `||`, `i32` and `usize` comparisons, bool equality/inequality over literal/local operands, and bool call arguments in lowerable positions. |
 | String literals and interpolation | yes | yes | partial | partial | partial | Single-line and multi-line string literals are tokenized, parsed, and typed as `str`; interpolation is parsed as an explicit expression and checked as `String!` with limited supported part types. The initial `std/string` and `std/fmt` API boundary exists, but build currently consumes only static string literals in lowerable error constructor payloads; interpolated string construction is not lowerable. |
 | Immutable `let` bindings | yes | yes | yes | partial | yes | Build supports lowerable `i32`, annotated `usize`, and `bool` initializers. |
 | `var` and reassignment | yes | yes | partial | no | no | Backend has no general local storage yet. |
-| Same-file function calls | yes | yes | yes | partial | partial | Build supports non-generic `i32` tail calls with up to 8 `i32` arguments, `bool` tail returns, and a narrow scalar normal-call subset. |
+| Same-file function calls | yes | yes | yes | partial | partial | Build supports non-generic scalar tail calls with up to 8 scalar arguments, `bool` tail returns, and a narrow scalar normal-call subset. |
 | Imported function calls | yes | yes | yes | partial | partial | Build supports loaded imported non-generic scalar calls through the same narrow scalar call subset as same-file calls. Unloaded imported placeholders still diagnose before backend lowering. |
 | General non-tail calls | yes | yes | yes | partial | partial | Build supports non-generic scalar normal calls in selected expression positions. Unsupported shapes still report IR lowering diagnostics. |
 | Terminal `if` / `else` | yes | yes | yes | partial | yes | Build supports terminal branches returning direct `i32` or non-entry `bool`. |
@@ -61,7 +61,7 @@ Currently buildable:
 - same-file and loaded imported non-generic normal calls returning `i32` in `let` initializers
 - same-file and loaded imported non-generic normal calls returning `i32` in `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, evaluated left to right with distinct temporary locals
 - same-file and loaded imported non-generic normal calls returning `i32` as `i32` comparison operands such as `if answer() == 42`, `let matched = left() <= right()`, and `return left() < right()`
-- same-file and loaded imported non-generic normal calls returning `usize` in annotated `let` initializers, including calls with `i32` and `usize` arguments
+- same-file and loaded imported non-generic normal calls returning `usize` in annotated `let` initializers, including calls with scalar arguments
 - non-entry functions returning `usize` literal/local/call values in lowerable positions
 - `usize` comparisons over literals, locals, and same-file or loaded imported normal calls in lowerable bool expressions and terminal `if` conditions
 - same-file and loaded imported non-generic normal calls returning `bool` in `let` initializers
@@ -71,9 +71,9 @@ Currently buildable:
 - same-file and loaded imported non-generic normal calls returning `bool` directly in terminal `if` conditions, including unary `!`
 - same-file and loaded imported non-generic normal calls returning `bool` in terminal `if` short-circuit conditions such as `ready() && other()` and `ready() || other()`
 - short-circuit bool expressions that combine `i32` call comparisons with bool calls, such as `if answer() == 42 && ready()` and `let matched = answer() == 42 && ready()`
-- nested scalar normal-call arguments such as `let value = outer(inner())`, for `i32` and `usize` parameter positions
-- nested scalar tail-call arguments such as `return outer(inner())`, for `i32` and `usize` parameter positions
-- up to 8 scalar `i32`/`usize` parameters and call arguments for lowered functions and calls
+- nested scalar normal-call arguments such as `let value = outer(inner())`, for `i32`, `usize`, and `bool` parameter positions
+- nested scalar tail-call arguments such as `return outer(inner())`, for `i32`, `usize`, and `bool` parameter positions
+- up to 8 scalar `i32`/`usize`/`bool` parameters and call arguments for lowered functions and calls
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
 - non-entry functions returning `bool` or `usize`
 - `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; addition, subtraction, and multiplication emit signed-overflow trap checks, and division and remainder emit zero-divisor plus signed-overflow trap checks

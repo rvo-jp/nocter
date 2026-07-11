@@ -37,6 +37,7 @@ pub(super) fn lower_function(
         function_signatures,
         parameters.i32,
         parameters.usize,
+        parameters.bool,
     )
     .with_call_resolution(root_source, resolved, function_names);
     let instructions = lower_function_body(function, &return_type, &mut context)?;
@@ -52,6 +53,7 @@ pub(super) fn lower_function(
 struct LoweredScalarParameters {
     i32: Vec<Option<String>>,
     usize: Vec<Option<String>>,
+    bool: Vec<Option<String>>,
 }
 
 fn lower_scalar_parameters(
@@ -69,15 +71,23 @@ fn lower_scalar_parameters(
 
     let mut i32_parameters = Vec::with_capacity(function.parameters.parameters.len());
     let mut usize_parameters = Vec::with_capacity(function.parameters.parameters.len());
+    let mut bool_parameters = Vec::with_capacity(function.parameters.parameters.len());
     for parameter in &function.parameters.parameters {
         match lower_scalar_parameter_kind(parameter, &function.name)? {
             ScalarParameterKind::I32 => {
                 i32_parameters.push(Some(parameter.name.clone()));
                 usize_parameters.push(None);
+                bool_parameters.push(None);
             }
             ScalarParameterKind::Usize => {
                 i32_parameters.push(None);
                 usize_parameters.push(Some(parameter.name.clone()));
+                bool_parameters.push(None);
+            }
+            ScalarParameterKind::Bool => {
+                i32_parameters.push(None);
+                usize_parameters.push(None);
+                bool_parameters.push(Some(parameter.name.clone()));
             }
         }
     }
@@ -85,6 +95,7 @@ fn lower_scalar_parameters(
     Ok(LoweredScalarParameters {
         i32: i32_parameters,
         usize: usize_parameters,
+        bool: bool_parameters,
     })
 }
 
@@ -92,6 +103,7 @@ fn lower_scalar_parameters(
 enum ScalarParameterKind {
     I32,
     Usize,
+    Bool,
 }
 
 fn lower_scalar_parameter_kind(
@@ -103,10 +115,11 @@ fn lower_scalar_parameter_kind(
         TypeExpr::Reference(reference) if reference.name == "usize" => {
             Ok(ScalarParameterKind::Usize)
         }
+        TypeExpr::Reference(reference) if reference.name == "bool" => Ok(ScalarParameterKind::Bool),
         _ => Err(vec![Diagnostic::error(
             "E8007",
             format!(
-                "IR v0 can only lower `i32` and `usize` parameters for function `{function_name}`"
+                "IR v0 can only lower `i32`, `usize`, and `bool` parameters for function `{function_name}`"
             ),
         )]),
     }

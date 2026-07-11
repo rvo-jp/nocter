@@ -137,7 +137,7 @@ For example, `return outer(inner())` lowers `inner()` into a temporary local, th
 
 Normal calls and tail calls with arguments use argument staging slots:
 
-- evaluate each lowerable `i32` or `usize` argument into a stack slot or scratch register
+- evaluate each lowerable scalar argument into a stack slot or scratch register
 - after all arguments are staged, load `w0` through `w7` or `x0` through `x7` according to each argument type and ABI argument index
 - issue `bl` for normal calls or restore the frame and branch with `b` for tail calls
 
@@ -230,6 +230,7 @@ Implement normal calls in this order:
 22. Done: lower `i32` shift operators with shift-count trap checks.
 23. Done: lower terminal calls returning `never` and the `std/os/macos.trap` / `unreachable` primitives to ARM64 `brk #0`.
 24. Done: type call arguments as scalar `i32`/`usize` IR values, lower `usize` parameters, and stage ARM64 call arguments through W or X registers according to each ABI argument index.
+25. Done: extend typed scalar call arguments and parameter lowering to `bool`, using W registers at the same ABI argument index.
 
 ### Non-Goals For This Phase
 

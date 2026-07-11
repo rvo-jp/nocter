@@ -631,17 +631,21 @@ impl EntryEmitter {
                     self.emit_usize_value_to_x(value, XReg::X16)?;
                     self.encoder.emit_str_x_sp(XReg::X16, slot.offset());
                 }
+                ScalarArgument::Bool(value) => {
+                    self.emit_bool_value_to_w(value, WReg::W16)?;
+                    self.encoder.emit_str_w_sp(WReg::W16, slot.offset());
+                }
             }
         }
 
         for slot in frame.argument_staging_slots().iter().take(arguments.len()) {
             match &arguments[slot.argument_index()] {
-                ScalarArgument::I32(_) => {
+                ScalarArgument::I32(_) | ScalarArgument::Bool(_) => {
                     let Some(register) = WReg::argument(slot.argument_index()) else {
                         return Err(vec![Diagnostic::error(
                             "E9003",
                             format!(
-                                "codegen supports at most 8 i32 arguments, got argument {}",
+                                "codegen supports at most 8 i32/bool arguments, got argument {}",
                                 slot.argument_index()
                             ),
                         )]);
@@ -1043,6 +1047,12 @@ impl EntryEmitter {
     fn bool_location_register(&self, location: BoolLocation) -> Result<WReg, Vec<Diagnostic>> {
         match location {
             BoolLocation::Return => Ok(WReg::W0),
+            BoolLocation::Parameter(index) => WReg::argument(index).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "E9003",
+                    format!("codegen supports at most 8 bool parameters, got parameter {index}"),
+                )]
+            }),
             BoolLocation::Local(index) => WReg::local(index).ok_or_else(|| {
                 vec![Diagnostic::error(
                     "E9003",

@@ -354,6 +354,7 @@ fn record_scalar_argument(argument: &ScalarArgument, highest_local_index: &mut O
     match argument {
         ScalarArgument::I32(value) => record_i32_value(value, highest_local_index),
         ScalarArgument::Usize(value) => record_usize_value(value, highest_local_index),
+        ScalarArgument::Bool(value) => record_bool_value(value, highest_local_index),
     }
 }
 

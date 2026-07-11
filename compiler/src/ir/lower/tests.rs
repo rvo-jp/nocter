@@ -324,6 +324,63 @@ func identity(value: usize): usize {
 }
 
 #[test]
+fn lowers_bool_parameter_normal_call_in_terminal_if() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    if choose(7, true, 42) {
+        return 0
+    } else {
+        return 1
+    }
+}
+
+func choose(code: i32, flag: bool, size: usize): bool {
+    return flag
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_bool(
+                        BoolLocation::Local(0),
+                        "choose",
+                        vec![
+                            ScalarArgument::I32(i32_const(7)),
+                            ScalarArgument::Bool(BoolValue::Const(true)),
+                            ScalarArgument::Usize(usize_const(42)),
+                        ],
+                    ),
+                    Instruction::If {
+                        condition: BoolValue::Location(BoolLocation::Local(0)),
+                        then_instructions: vec![set_return_i32(0), Instruction::Return],
+                        else_instructions: vec![set_return_i32(1), Instruction::Return],
+                    },
+                ],
+            },
+            Function {
+                name: "choose".to_string(),
+                target: crate::ir::CallTarget::same_file("choose".to_string()),
+                return_type: Type::Bool,
+                instructions: vec![
+                    Instruction::SetBool {
+                        destination: BoolLocation::Return,
+                        value: bool_param(1),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ])
+    );
+}
+
+#[test]
 fn lowers_imported_i32_normal_call() {
     let analysis = analyze_text_with_entry_and_nocter_home_files(
         r#"from std/math import answer
@@ -3680,11 +3737,15 @@ fn call_usize(
     }
 }
 
-fn call_bool(destination: BoolLocation, function: &str, arguments: Vec<I32Value>) -> Instruction {
+fn call_bool(
+    destination: BoolLocation,
+    function: &str,
+    arguments: Vec<ScalarArgument>,
+) -> Instruction {
     Instruction::CallBool {
         destination,
         target: CallTarget::same_file(function),
-        arguments: i32_arguments(arguments),
+        arguments,
     }
 }
 
@@ -3714,6 +3775,10 @@ fn usize_param(index: usize) -> UsizeValue {
 
 fn usize_local(index: usize) -> UsizeValue {
     UsizeValue::Location(UsizeLocation::Local(index))
+}
+
+fn bool_param(index: usize) -> BoolValue {
+    BoolValue::Location(BoolLocation::Parameter(index))
 }
 
 fn lower_text_diagnostics(text: &str) -> Vec<Diagnostic> {

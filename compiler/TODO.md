@@ -19,11 +19,15 @@ Adopted user decisions:
 Recommended next implementation order:
 
 1. Design the interpolation allocator source and exact lowering shape around explicit `std/string` construction plus `std/fmt.append_*` calls.
-2. Lower interpolated strings only after the remaining backend prerequisites exist: aggregate `String` storage, mutable local mutation through `&+String`, and fallible propagation from append calls. Loaded imported scalar calls and `usize` parameters/call arguments/locals/returns/comparisons are now buildable in the current narrow scalar subset.
+2. Lower interpolated strings only after the remaining backend prerequisites exist: aggregate `String` storage, mutable local mutation through `&+String`, and fallible propagation from append calls. Loaded imported scalar calls and scalar parameters/call arguments are now buildable in the current narrow scalar subset.
 3. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
+- Current checkpoint: add bool scalar call arguments
+  - lowers `bool` parameters and calls whose arguments include `bool`, preserving ABI argument indexes for mixed scalar parameter lists
+  - extends typed IR call arguments and ARM64 staging so `i32`/`bool` use W registers and `usize` uses X registers
+  - adds IR and CLI run coverage for a mixed `i32`/`bool`/`usize` call returning `bool`
 - Current checkpoint: add typed scalar call arguments
   - lowers `usize` parameters and calls whose arguments include `usize`, while preserving ABI argument indexes for mixed `i32`/`usize` parameter lists
   - changes IR call arguments from `I32Value` to typed scalar arguments and updates ARM64 argument staging to use W registers for `i32` and X registers for `usize`
@@ -928,7 +932,7 @@ The scalar `i32` backend subset now has runtime safety checks for `+`, `-`, `*`,
 Recommended next small task for the next session:
 
 1. Design the interpolation allocator source and exact lowering shape around explicit `std/string` construction plus `std/fmt.append_*` calls.
-2. Add only the backend prerequisites needed by that lowering: imported standard-library calls, aggregate `String` storage, mutable local mutation through `&+String`, and fallible propagation from append calls.
+2. Add only the backend prerequisites needed by that lowering: aggregate `String` storage, mutable local mutation through `&+String`, and fallible propagation from append calls.
 3. Consider broader terminal control-flow only after its lowering rules are designed.
 4. Keep unrelated imported calls, aggregates, ownership/drop lowering, general mutable storage, and broader control-flow disabled until their ABI, storage, and join rules are designed.
 5. Add CLI build/run coverage for any newly buildable source subset.

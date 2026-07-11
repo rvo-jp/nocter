@@ -13,6 +13,7 @@ pub(super) struct LoweringContext<'a> {
     function_names: FunctionNames,
     i32_parameters: Vec<Option<String>>,
     usize_parameters: Vec<Option<String>>,
+    bool_parameters: Vec<Option<String>>,
     locals: Vec<LocalBinding>,
 }
 
@@ -30,6 +31,7 @@ impl<'a> LoweringContext<'a> {
             function_names: FunctionNames::default(),
             i32_parameters: Vec::new(),
             usize_parameters: Vec::new(),
+            bool_parameters: Vec::new(),
             locals: Vec::new(),
         }
     }
@@ -40,6 +42,7 @@ impl<'a> LoweringContext<'a> {
         function_signatures: FunctionSignatures,
         i32_parameters: Vec<Option<String>>,
         usize_parameters: Vec<Option<String>>,
+        bool_parameters: Vec<Option<String>>,
     ) -> Self {
         Self {
             function_name,
@@ -49,6 +52,7 @@ impl<'a> LoweringContext<'a> {
             function_names: FunctionNames::default(),
             i32_parameters,
             usize_parameters,
+            bool_parameters,
             locals: Vec::new(),
         }
     }
@@ -176,6 +180,12 @@ impl<'a> LoweringContext<'a> {
             .iter()
             .find(|local| local.name == name && local.kind == LocalKind::Bool)
             .map(|local| BoolLocation::Local(local.index))
+            .or_else(|| {
+                self.bool_parameters
+                    .iter()
+                    .position(|parameter| parameter.as_deref() == Some(name))
+                    .map(BoolLocation::Parameter)
+            })
     }
 
     fn next_local_index(&self) -> Result<usize, Vec<Diagnostic>> {

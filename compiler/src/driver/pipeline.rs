@@ -450,6 +450,43 @@ func identity(value: usize): usize {
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     #[test]
+    fn build_file_output_runs_bool_function_call_with_mixed_arguments() {
+        let root = make_temp_project("build-run-bool-function-arguments");
+        let nocter_home = make_nocter_home(&root);
+        let source = root.join("choose_bool.nct");
+        fs::write(
+            &source,
+            r#"func main(): i32 {
+    if choose(7, true, 42) {
+        return 0
+    } else {
+        return 1
+    }
+}
+
+func choose(code: i32, flag: bool, size: usize): bool {
+    return flag
+}
+"#,
+        )
+        .unwrap();
+
+        let executable = default_executable_path(&source);
+        let output = build_file_to_path_with_options(
+            &source,
+            &executable,
+            &frontend_options(nocter_home),
+            DEFAULT_ENTRY_NAME,
+        );
+
+        assert_diagnostics_empty(&output.diagnostics);
+        assert_eq!(output.output_path, executable);
+        let status = std::process::Command::new(&executable).status().unwrap();
+        assert_eq!(status.code(), Some(0));
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
     fn build_file_output_runs_fallible_entry_success_return_code() {
         let root = make_temp_project("build-run-fallible-success");
         let nocter_home = make_nocter_home(&root);
