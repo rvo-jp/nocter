@@ -11,7 +11,7 @@ pub(super) fn lower_str_literal(expression: &Expr) -> Result<StrValue, Vec<Diagn
         Expr::Group(group) => lower_str_literal(&group.expression),
         _ => Err(vec![Diagnostic::error(
             "E8003",
-            "IR v0 can only lower string literals as `str` values",
+            "IR v0 can only lower string literals as `&str` values",
         )]),
     }
 }

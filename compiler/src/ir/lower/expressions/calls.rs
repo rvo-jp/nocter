@@ -386,7 +386,7 @@ fn validate_str_normal_call_return_type(
     Err(vec![Diagnostic::error(
         "E8006",
         format!(
-            "IR v0 can only lower normal calls returning `str`, got function `{callee_name}` returning `{}`",
+            "IR v0 can only lower normal calls returning `&str`, got function `{callee_name}` returning `{}`",
             describe_type(callee_return_type),
         ),
     )])

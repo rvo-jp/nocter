@@ -317,7 +317,7 @@ fn lower_function_body(
                 (Type::Str, None) => Err(vec![Diagnostic::error(
                     "E8007",
                     format!(
-                        "IR v0 cannot lower bare returns from str function `{}`",
+                        "IR v0 cannot lower bare returns from &str function `{}`",
                         function.name
                     ),
                 )]),
