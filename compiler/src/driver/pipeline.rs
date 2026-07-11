@@ -402,13 +402,20 @@ func add(a: i32, b: i32): i32 {
     fn build_file_output_runs_fallible_entry_failure() {
         let root = make_temp_project("build-run-fallible-failure");
         let nocter_home = make_nocter_home(&root);
+        fs::write(
+            nocter_home.join("std/error.nct"),
+            r#"pub type ErrorCode = str
+pub primitive new_error(code: ErrorCode, message: str): error
+"#,
+        )
+        .unwrap();
         let source = root.join("fallible_fail.nct");
         fs::write(
             &source,
-            r#"primitive make_error(code: str, message: str): error
+            r#"from std/error import new_error as fail
 
 func main(): i32! {
-    return make_error("app.failed", "failed")
+    return fail("app.failed", "failed")
 }
 "#,
         )
@@ -427,7 +434,7 @@ func main(): i32! {
         let output = std::process::Command::new(&executable).output().unwrap();
         assert_eq!(output.status.code(), Some(1));
         assert!(output.stdout.is_empty());
-        assert_eq!(output.stderr, b"failed\n");
+        assert_eq!(output.stderr, b"app.failed: failed\n");
     }
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

@@ -982,12 +982,18 @@ fn built_executable_returns_terminal_if_bool_or_binding_value() {
 #[test]
 fn built_fallible_entry_failure_reports_stderr() {
     let project = TempProject::new("cli-build-run-fallible-failure");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = str
+pub primitive new_error(code: ErrorCode, message: str): error
+"#,
+    );
     let source = project.write_source(
         "fail.nct",
-        r#"primitive make_error(code: str, message: str): error
+        r#"from std/error import new_error as fail
 
 func main(): i32! {
-    return make_error("app.failed", "failed")
+    return fail("app.failed", "failed")
 }
 "#,
     );
@@ -999,7 +1005,7 @@ func main(): i32! {
     let output = Command::new(&executable).output().unwrap();
     assert_eq!(output.status.code(), Some(1));
     assert!(output.stdout.is_empty());
-    assert_eq!(output.stderr, b"failed\n");
+    assert_eq!(output.stderr, b"app.failed: failed\n");
 }
 
 fn nocter<const N: usize>(project: &TempProject, args: [&str; N]) -> Output {

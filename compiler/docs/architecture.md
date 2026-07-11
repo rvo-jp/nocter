@@ -173,7 +173,7 @@ Currently buildable:
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` or `usize` comparisons used in lowerable bool expressions
 - terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over literal/local operands, or `i32`/`usize` comparison conditions and direct `i32` or non-entry `bool` returns in both branches
 - simple fallible entry success
-- simple fallible entry failure through `return make_error("code", <static string message>)`, where the message may be a single-line or multi-line string literal
+- simple fallible entry failure through a loaded static `error` constructor call with string code and message literals, where the message may be single-line or multi-line
 
 Currently not buildable even when it may be checkable:
 

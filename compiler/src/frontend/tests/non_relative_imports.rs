@@ -268,6 +268,34 @@ func main(): i32 {
 }
 
 #[test]
+fn check_rejects_primitive_declaration_outside_nocter_home_std() {
+    let root = make_temp_project("user-primitive");
+    let home = make_nocter_home(&root);
+    fs::write(
+        root.join("app.nct"),
+        r#"primitive new_error(code: str, message: str): error
+
+func main(): i32 {
+    return 0
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].code, "E0414");
+    assert!(
+        diagnostics[0].message.contains("primitive"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn check_reports_missing_non_relative_imports() {
     let root = make_temp_project("missing-std-import");
     let home = make_nocter_home(&root);

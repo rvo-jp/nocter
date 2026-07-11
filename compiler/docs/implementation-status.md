@@ -21,7 +21,7 @@ This file describes implementation state only.
 | `usize` scalar values | yes | yes | yes | partial | partial | Build supports annotated `usize` locals, non-entry `usize` literal returns, same-file and loaded imported normal calls returning `usize`, and `usize` comparisons in lowerable bool positions. |
 | `void` entry | yes | yes | yes | yes | yes | Empty body and bare `return` are buildable. |
 | `bool` expressions | yes | yes | yes | partial | yes | Build supports literals, locals, `!`, `&&`, `||`, `i32` and `usize` comparisons, and bool equality/inequality over literal/local operands in lowerable positions. |
-| String literals and interpolation | yes | yes | partial | partial | partial | Single-line and multi-line string literals are tokenized, parsed, and typed as `str`; interpolation is parsed as an explicit expression and checked as `String!` with limited supported part types. The initial `std/string` and `std/fmt` API boundary exists, but build currently consumes only static string literals as `make_error` messages; interpolated string construction is not lowerable. |
+| String literals and interpolation | yes | yes | partial | partial | partial | Single-line and multi-line string literals are tokenized, parsed, and typed as `str`; interpolation is parsed as an explicit expression and checked as `String!` with limited supported part types. The initial `std/string` and `std/fmt` API boundary exists, but build currently consumes only static string literals in lowerable error constructor payloads; interpolated string construction is not lowerable. |
 | Immutable `let` bindings | yes | yes | yes | partial | yes | Build supports lowerable `i32`, annotated `usize`, and `bool` initializers. |
 | `var` and reassignment | yes | yes | partial | no | no | Backend has no general local storage yet. |
 | Same-file function calls | yes | yes | yes | partial | partial | Build supports non-generic `i32` tail calls with up to 8 `i32` arguments, `bool` tail returns, and a narrow scalar normal-call subset. |
@@ -29,7 +29,7 @@ This file describes implementation state only.
 | General non-tail calls | yes | yes | yes | partial | partial | Build supports non-generic scalar normal calls in selected expression positions. Unsupported shapes still report IR lowering diagnostics. |
 | Terminal `if` / `else` | yes | yes | yes | partial | yes | Build supports terminal branches returning direct `i32` or non-entry `bool`. |
 | General `if`, `while`, `loop`, `for`, `match`, `?{}` | yes | yes | partial | no | no | Several forms are checkable; backend lowering remains intentionally narrow. |
-| Fallible entry success/failure | yes | yes | partial | partial | partial | Build supports simple success and `return make_error("code", "message")` failure. |
+| Fallible entry success/failure | yes | yes | partial | partial | partial | Build supports simple success and static `error` constructor failure returns, reporting `code: message` on stderr. |
 | Optional values | yes | yes | yes | no | no | Check examples cover optionals; backend and runtime layout are not implemented. |
 | Structs and enums | yes | yes | partial | no | no | Type checking exists for several cases; aggregate layout/lowering is not buildable. |
 | Arrays, views, and pointers | yes | yes | partial | no | no | Compiler-owned layout and provenance rules are still future work. |
@@ -79,7 +79,7 @@ Currently buildable:
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` or `usize` comparisons used in lowerable bool expressions
 - terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over literal/local operands, or `i32`/`usize` comparison conditions and direct `i32` or non-entry `bool` returns in both branches
 - simple fallible entry success
-- simple fallible entry failure through `return make_error("code", <static string message>)`, where the message may be a single-line or multi-line string literal
+- simple fallible entry failure through a loaded static `error` constructor call with string code and message literals, where the message may be single-line or multi-line
 
 Currently not buildable even when it may be checkable:
 

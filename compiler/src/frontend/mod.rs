@@ -9,15 +9,19 @@ mod prelude;
 mod tests;
 
 use crate::analysis::CompileUnit;
+use crate::ast::{AstFile, Item};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{ImportSource, ImportSourceMap};
 use crate::source::{SourceId, SourceMap};
 use crate::target::DEFAULT_TARGET;
 use std::collections::{HashSet, VecDeque};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use diagnostics::import_source_diagnostic;
-use imports::{import_access_for_source, import_paths, resolve_import_path};
+use diagnostics::{import_source_diagnostic, primitive_outside_nocter_home_diagnostic};
+use imports::{
+    active_nocter_home, canonicalize_existing, import_access_for_source, import_paths,
+    resolve_import_path,
+};
 use parsing::parse_source_for_check;
 use prelude::{should_synthesize_prelude, synthesize_prelude_use};
 
@@ -66,6 +70,14 @@ pub(crate) fn load_compile_unit(
         if should_synthesize_prelude(sources, source, &ast, options, &mut resolved_nocter_home) {
             synthesize_prelude_use(source, &mut ast);
         }
+
+        diagnostics.extend(validate_primitive_declarations(
+            sources,
+            source,
+            &ast,
+            options,
+            &mut resolved_nocter_home,
+        ));
 
         if source == root {
             root_ast = Some(ast.clone());
@@ -137,4 +149,60 @@ pub(crate) fn load_compile_unit(
     };
 
     Ok(CompileUnit::new(root_ast, files, import_sources))
+}
+
+fn validate_primitive_declarations(
+    sources: &SourceMap,
+    source: SourceId,
+    ast: &AstFile,
+    options: &FrontendOptions,
+    resolved_nocter_home: &mut Option<Result<PathBuf, String>>,
+) -> Vec<Diagnostic> {
+    let primitive_spans = ast
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Primitive(primitive) => Some(primitive.span),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    if primitive_spans.is_empty() {
+        return Vec::new();
+    }
+
+    let Ok(home) = active_nocter_home(options, resolved_nocter_home) else {
+        return primitive_spans
+            .into_iter()
+            .map(|span| primitive_outside_nocter_home_diagnostic(sources, span, &options.target))
+            .collect();
+    };
+
+    let Some(source_path) = sources
+        .get(source)
+        .and_then(|file| file.absolute_path())
+        .map(|path| canonicalize_existing(path))
+    else {
+        return primitive_spans
+            .into_iter()
+            .map(|span| primitive_outside_nocter_home_diagnostic(sources, span, &options.target))
+            .collect();
+    };
+
+    if primitive_source_is_allowed(&source_path, &home, &options.target) {
+        return Vec::new();
+    }
+
+    primitive_spans
+        .into_iter()
+        .map(|span| primitive_outside_nocter_home_diagnostic(sources, span, &options.target))
+        .collect()
+}
+
+fn primitive_source_is_allowed(source_path: &Path, home: &Path, target: &str) -> bool {
+    let home = canonicalize_existing(home);
+    let common_std = home.join("std");
+    let target_std = home.join("targets").join(target).join("std");
+
+    source_path.starts_with(common_std) || source_path.starts_with(target_std)
 }

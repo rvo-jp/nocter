@@ -1557,12 +1557,12 @@ fn lowers_fallible_entry_returning_i32_literal() {
 }
 
 #[test]
-fn lowers_fallible_entry_return_make_error() {
-    let ir = lower_text(
-        r#"primitive make_error(code: str, message: str): error
+fn lowers_fallible_entry_return_static_error_constructor() {
+    let ir = lower_text_with_std_error(
+        r#"from std/error import new_error as fail
 
 func main(): i32! {
-    return make_error("app.failed", "failed")
+    return fail("app.failed", "failed")
 }
 "#,
     );
@@ -1574,7 +1574,7 @@ func main(): i32! {
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::Fallible(Box::new(Type::I32)),
             instructions: vec![
-                Instruction::WriteStaticStderr(b"failed\n".to_vec()),
+                Instruction::WriteStaticStderr(b"app.failed: failed\n".to_vec()),
                 set_return_i32(1),
                 Instruction::Return,
             ],
@@ -1583,12 +1583,12 @@ func main(): i32! {
 }
 
 #[test]
-fn lowers_fallible_entry_return_make_error_with_multi_line_message() {
-    let ir = lower_text(
-        r#"primitive make_error(code: str, message: str): error
+fn lowers_fallible_entry_return_static_error_constructor_with_multi_line_message() {
+    let ir = lower_text_with_std_error(
+        r#"from std/error import new_error as fail
 
 func main(): i32! {
-    return make_error("app.failed", """
+    return fail("app.failed", """
         failed
         later
         """)
@@ -1599,7 +1599,7 @@ func main(): i32! {
     assert_eq!(
         ir.functions[0].instructions,
         vec![
-            Instruction::WriteStaticStderr(b"failed\nlater\n".to_vec()),
+            Instruction::WriteStaticStderr(b"app.failed: failed\nlater\n".to_vec()),
             set_return_i32(1),
             Instruction::Return,
         ]
@@ -1608,11 +1608,11 @@ func main(): i32! {
 
 #[test]
 fn lowers_fallible_entry_return_error_message_without_duplicate_newline() {
-    let ir = lower_text(
-        r#"primitive make_error(code: str, message: str): error
+    let ir = lower_text_with_std_error(
+        r#"from std/error import new_error as fail
 
 func main(): i32! {
-    return make_error("app.failed", "failed\n")
+    return fail("app.failed", "failed\n")
 }
 "#,
     );
@@ -1620,7 +1620,7 @@ func main(): i32! {
     assert_eq!(
         ir.functions[0].instructions,
         vec![
-            Instruction::WriteStaticStderr(b"failed\n".to_vec()),
+            Instruction::WriteStaticStderr(b"app.failed: failed\n".to_vec()),
             set_return_i32(1),
             Instruction::Return,
         ]
@@ -1629,11 +1629,11 @@ func main(): i32! {
 
 #[test]
 fn reports_unsupported_fail_payload() {
-    let diagnostics = lower_text_diagnostics(
-        r#"primitive make_error(code: str, message: str): error
+    let diagnostics = lower_text_diagnostics_with_std_error(
+        r#"from std/error import new_error as fail
 
 func main(): i32! {
-    return make_error("app.failed", dynamic())
+    return fail("app.failed", dynamic())
 }
 
 func dynamic(): str {
@@ -3400,6 +3400,22 @@ fn lower_text_with_entry(text: &str, entry_name: &str) -> IrModule {
     }
 }
 
+fn lower_text_with_std_error(text: &str) -> IrModule {
+    let entry_name = crate::entry::DEFAULT_ENTRY_NAME;
+    let diagnostics = lower_text_diagnostics_with_std_error(text);
+    match diagnostics.as_slice() {
+        [] => {
+            let analysis = analyze_text_with_entry_and_nocter_home_files(
+                text,
+                entry_name,
+                &[std_error_file()],
+            );
+            lower_executable_with_entry(&analysis, entry_name).unwrap()
+        }
+        diagnostics => panic!("unexpected diagnostics: {diagnostics:?}"),
+    }
+}
+
 fn lower_named_function(text: &str, function_name: &str) -> Function {
     lower_named_function_with_signatures(
         text,
@@ -3512,6 +3528,16 @@ fn lower_text_diagnostics(text: &str) -> Vec<Diagnostic> {
     lower_text_diagnostics_with_entry(text, crate::entry::DEFAULT_ENTRY_NAME)
 }
 
+fn lower_text_diagnostics_with_std_error(text: &str) -> Vec<Diagnostic> {
+    let entry_name = crate::entry::DEFAULT_ENTRY_NAME;
+    let analysis =
+        analyze_text_with_entry_and_nocter_home_files(text, entry_name, &[std_error_file()]);
+    match lower_executable_with_entry(&analysis, entry_name) {
+        Ok(_) => Vec::new(),
+        Err(diagnostics) => diagnostics,
+    }
+}
+
 fn lower_text_diagnostics_with_entry(text: &str, entry_name: &str) -> Vec<Diagnostic> {
     let analysis = analyze_text_with_entry(text, entry_name);
     match lower_executable_with_entry(&analysis, entry_name) {
@@ -3547,6 +3573,15 @@ fn analyze_text_with_entry_and_nocter_home_files(
     let diagnostics = analysis.diagnostics();
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     analysis
+}
+
+fn std_error_file() -> (&'static str, &'static str) {
+    (
+        "std/error.nct",
+        r#"pub type ErrorCode = str
+pub primitive new_error(code: ErrorCode, message: str): error
+"#,
+    )
 }
 
 fn write_nocter_home_files(home: &Path, files: &[(&str, &str)]) {

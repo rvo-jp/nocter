@@ -88,3 +88,19 @@ pub(super) fn import_source_diagnostic(
     diagnostic.help = source_error.help;
     diagnostic
 }
+
+pub(super) fn primitive_outside_nocter_home_diagnostic(
+    sources: &SourceMap,
+    span: ByteSpan,
+    target: &str,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0414",
+        "`primitive` declarations are allowed only inside the active Nocter home standard library",
+    );
+    diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+    diagnostic.help = Some(format!(
+        "move the declaration under `std/` or `targets/{target}/std/` inside the active Nocter home"
+    ));
+    diagnostic
+}

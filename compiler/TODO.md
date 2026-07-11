@@ -143,7 +143,7 @@ Recent committed work:
   - validates multi-line opening newline, closing indentation removal, final UTF-8 after escapes, and `\$`
   - diagnosed unescaped `${` as unimplemented string interpolation instead of accepting it as literal text at that checkpoint
   - updates comment scanning so `//` and `/* */` inside multi-line string literals do not count as comments
-  - lowers static fallible failure messages from single-line or multi-line string literals through `return make_error("code", <message>)`
+  - lowers static fallible failure reports from single-line or multi-line string literals through a loaded static `error` constructor call
   - kept general `str` values, owned `String`, interpolation parsing/typechecking/lowering, imported calls, aggregate values, ownership/drop lowering, `var`/reassignment, and broader control-flow disabled
 - `Lower i32 call arithmetic`
   - adds IR lowering and ARM64 codegen for lowerable `i32` subtraction and multiplication alongside existing addition
@@ -524,7 +524,7 @@ cargo test --quiet lexer
 cargo test --quiet comments
 cargo test --quiet parser::tests::expressions::parses_multi_line_string_literal_expression
 cargo test --quiet format::tests::formats_multi_line_string_with_comment_markers_stably
-cargo test --quiet ir::lower::tests::lowers_fallible_entry_return_make_error_with_multi_line_message
+cargo test --quiet ir::lower::tests::lowers_fallible_entry_return_static_error_constructor_with_multi_line_message
 cargo test --quiet --test cli_run run_command_reports_fallible_entry_failure_multi_line_message
 cargo test --quiet
 cargo clippy --all-targets --quiet -- -D warnings

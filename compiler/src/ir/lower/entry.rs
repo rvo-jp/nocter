@@ -1,9 +1,9 @@
 use super::bindings::lower_let_binding;
 use super::context::{FunctionNames, FunctionSignatures, LoweringContext};
 use super::control_flow::lower_terminal_i32_if_statement;
-use super::errors::{lower_make_error_message, with_trailing_newline};
+use super::errors::{StaticErrorPayload, lower_static_error_payload};
 use super::expressions::lower_i32_return_expression;
-use crate::ast::{Expr, FunctionDecl, Stmt, TypeExpr};
+use crate::ast::{FunctionDecl, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{CallTarget, Function, I32Location, I32Value, Instruction, Type};
 use crate::resolve::ResolveOutput;
@@ -86,9 +86,10 @@ fn lower_entry_body(
             if leading.is_empty()
                 && let Some(expression) = &statement.expression
                 && return_type_is_lowerable_i32_fallible(return_type)
-                && expression_is_make_error_call(expression)
+                && let Some(payload) =
+                    lower_static_error_payload(expression, resolved, root_source)?
             {
-                return lower_i32_fallible_failure(expression);
+                return Ok(lower_i32_fallible_failure(payload));
             }
 
             let return_instructions = match (success_type, &statement.expression) {
@@ -126,23 +127,15 @@ fn return_type_is_lowerable_i32_fallible(return_type: &Type) -> bool {
     matches!(return_type, Type::Fallible(success) if success.as_ref() == &Type::I32)
 }
 
-fn expression_is_make_error_call(expression: &Expr) -> bool {
-    let Expr::Call(call) = expression else {
-        return false;
-    };
-    matches!(call.callee.as_ref(), Expr::Identifier(identifier) if identifier.name == "make_error")
-}
-
-fn lower_i32_fallible_failure(expression: &Expr) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let message = lower_make_error_message(expression)?;
-    Ok(vec![
-        Instruction::WriteStaticStderr(with_trailing_newline(message)),
+fn lower_i32_fallible_failure(payload: StaticErrorPayload) -> Vec<Instruction> {
+    vec![
+        Instruction::WriteStaticStderr(payload.report_bytes()),
         Instruction::SetI32 {
             destination: I32Location::Return,
             value: I32Value::Const(1),
         },
         Instruction::Return,
-    ])
+    ]
 }
 
 fn lower_leading_bindings(
@@ -165,6 +158,6 @@ fn lower_leading_bindings(
 fn unsupported_entry_body_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8002",
-        "IR v0 can only lower entry function bodies containing leading scalar `let` bindings followed by `return`, `return make_error(...)`, or a void return",
+        "IR v0 can only lower entry function bodies containing leading scalar `let` bindings followed by `return`, a static error constructor failure return, or a void return",
     )]
 }

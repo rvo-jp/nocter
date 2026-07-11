@@ -1360,12 +1360,18 @@ fn run_command_returns_fallible_entry_success_exit_code() {
 #[test]
 fn run_command_reports_fallible_entry_failure() {
     let project = TempProject::new("cli-run-fallible-failure");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = str
+pub primitive new_error(code: ErrorCode, message: str): error
+"#,
+    );
     let source = project.write_source(
         "fail.nct",
-        r#"primitive make_error(code: str, message: str): error
+        r#"from std/error import new_error as fail
 
 func main(): i32! {
-    return make_error("app.failed", "failed")
+    return fail("app.failed", "failed")
 }
 "#,
     );
@@ -1374,19 +1380,25 @@ func main(): i32! {
 
     assert_eq!(output.status.code(), Some(1));
     assert!(output.stdout.is_empty());
-    assert_eq!(output.stderr, b"failed\n");
+    assert_eq!(output.stderr, b"app.failed: failed\n");
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn run_command_reports_fallible_entry_failure_multi_line_message() {
     let project = TempProject::new("cli-run-fallible-failure-multi-line");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = str
+pub primitive new_error(code: ErrorCode, message: str): error
+"#,
+    );
     let source = project.write_source(
         "fail.nct",
-        r#"primitive make_error(code: str, message: str): error
+        r#"from std/error import new_error as fail
 
 func main(): i32! {
-    return make_error("app.failed", """
+    return fail("app.failed", """
         failed
         later
         """)
@@ -1398,7 +1410,7 @@ func main(): i32! {
 
     assert_eq!(output.status.code(), Some(1));
     assert!(output.stdout.is_empty());
-    assert_eq!(output.stderr, b"failed\nlater\n");
+    assert_eq!(output.stderr, b"app.failed: failed\nlater\n");
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
