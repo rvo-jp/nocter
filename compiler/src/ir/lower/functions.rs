@@ -32,9 +32,10 @@ pub(super) fn lower_function(
 
     let parameters = lower_scalar_parameters(function)?;
     let return_type = lower_function_return_type(&function.return_type, &function.name)?;
+    let success_type = return_type.success_type().clone();
     let mut context = LoweringContext::new(
         function.name.clone(),
-        return_type.clone(),
+        success_type,
         function_signatures,
         parameters.i32,
         parameters.u8,
@@ -213,10 +214,12 @@ fn lower_function_return_type(ty: &TypeExpr, name: &str) -> Result<Type, Vec<Dia
         }),
         TypeExpr::Reference(reference) if reference.name == "void" => Ok(Type::Void),
         TypeExpr::Reference(reference) if reference.name == "never" => Ok(Type::Never),
+        TypeExpr::Fallible(fallible) => lower_function_return_type(&fallible.success, name)
+            .map(|success| Type::Fallible(Box::new(success))),
         _ => Err(vec![Diagnostic::error(
             "E8007",
             format!(
-                "IR v0 can only lower function `{name}` return type `i32`, `u8`, `usize`, `bool`, `&str`, `&[u8]`, `&+[u8]`, `void`, or `never`"
+                "IR v0 can only lower function `{name}` return type `i32`, `u8`, `usize`, `bool`, `&str`, `&[u8]`, `&+[u8]`, `void`, `never`, or a fallible form of those types"
             ),
         )]),
     }
@@ -236,9 +239,10 @@ fn lower_function_body(
     return_type: &Type,
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let success_type = return_type.success_type();
     let statements = function.body.statements.as_slice();
 
-    if statements.is_empty() && *return_type == Type::Void {
+    if statements.is_empty() && *success_type == Type::Void {
         return Ok(vec![Instruction::Return]);
     }
 
@@ -258,7 +262,7 @@ fn lower_function_body(
                 return Ok(instructions);
             }
 
-            let return_instructions = match (return_type, &statement.expression) {
+            let return_instructions = match (success_type, &statement.expression) {
                 (Type::I32, Some(expression)) => lower_i32_return_expression(expression, context),
                 (Type::U8, Some(expression)) => lower_u8_return_expression(expression, context),
                 (Type::Usize, Some(expression)) => {
@@ -336,13 +340,13 @@ fn lower_function_body(
                     ),
                 )]),
                 (Type::Fallible(_), _) => {
-                    unreachable!("fallible function type is not lowered in v0")
+                    unreachable!("fallible success type must be unwrapped")
                 }
             }?;
             instructions.extend(return_instructions);
             Ok(instructions)
         }
-        Stmt::If(statement) if return_type == &Type::I32 => {
+        Stmt::If(statement) if success_type == &Type::I32 => {
             instructions.extend(lower_terminal_i32_if_statement(
                 statement,
                 context,
@@ -351,7 +355,7 @@ fn lower_function_body(
             )?);
             Ok(instructions)
         }
-        Stmt::If(statement) if return_type == &Type::Bool => {
+        Stmt::If(statement) if success_type == &Type::Bool => {
             instructions.extend(lower_terminal_bool_if_statement(
                 statement,
                 context,
@@ -364,7 +368,7 @@ fn lower_function_body(
             let Some(terminating_instructions) =
                 lower_never_return_expression(&statement.expression, context)?
             else {
-                if return_type == &Type::Void
+                if success_type == &Type::Void
                     && let Some(void_instructions) =
                         lower_void_expression_statement(&statement.expression, context)?
                 {

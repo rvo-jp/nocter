@@ -3268,6 +3268,56 @@ fn lowers_fallible_entry_returning_i32_literal() {
 }
 
 #[test]
+fn lowers_fallible_void_function_success_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func run(): void! {
+    return
+}
+"#,
+        "run",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "run".to_string(),
+            target: crate::ir::CallTarget::same_file("run".to_string()),
+            return_type: Type::Fallible(Box::new(Type::Void)),
+            instructions: vec![Instruction::Return],
+        }
+    );
+}
+
+#[test]
+fn lowers_fallible_i32_function_success_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func answer(): i32! {
+    return 42
+}
+"#,
+        "answer",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "answer".to_string(),
+            target: crate::ir::CallTarget::same_file("answer".to_string()),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![set_return_i32(42), Instruction::Return],
+        }
+    );
+}
+
+#[test]
 fn lowers_fallible_entry_return_static_error_constructor() {
     let ir = lower_text_with_std_error(
         r#"from std/error import Error
