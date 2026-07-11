@@ -4,8 +4,8 @@ use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::ir::{
     BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, CallTarget, Function,
-    I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule, ScalarArgument, Type,
-    UsizeLocation, UsizeValue,
+    I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule, ScalarArgument,
+    StrLocation, StrValue, Type, UsizeLocation, UsizeValue,
 };
 use crate::source::SourceMap;
 use crate::target::DEFAULT_TARGET;
@@ -898,6 +898,84 @@ func answer(): i32 {
                 instructions: vec![set_return_i32(41), Instruction::Return],
             },
         ])
+    );
+}
+
+#[test]
+fn lowers_str_literal_call_argument_as_two_abi_words() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    return consume("Nocter", 42)
+}
+
+func consume(name: str, code: i32): i32 {
+    return code
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![Instruction::TailCall {
+                    target: CallTarget::same_file("consume"),
+                    arguments: vec![
+                        str_static(b"Nocter"),
+                        ScalarArgument::I32(I32Value::Const(42)),
+                    ],
+                }],
+            },
+            Function {
+                name: "consume".to_string(),
+                target: crate::ir::CallTarget::same_file("consume".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_param(2),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ])
+    );
+}
+
+#[test]
+fn lowers_str_parameter_forwarding_call_argument() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    return wrapper("Nocter")
+}
+
+func wrapper(name: str): i32 {
+    return consume(name, 42)
+}
+
+func consume(name: str, code: i32): i32 {
+    return code
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[1],
+        Function {
+            name: "wrapper".to_string(),
+            target: crate::ir::CallTarget::same_file("wrapper".to_string()),
+            return_type: Type::I32,
+            instructions: vec![Instruction::TailCall {
+                target: CallTarget::same_file("consume"),
+                arguments: vec![
+                    ScalarArgument::Str(StrValue::Location(StrLocation::Parameter(0))),
+                    ScalarArgument::I32(I32Value::Const(42)),
+                ],
+            }],
+        }
     );
 }
 
@@ -3771,6 +3849,10 @@ fn usize_const(value: u64) -> UsizeValue {
 
 fn usize_param(index: usize) -> UsizeValue {
     UsizeValue::Location(UsizeLocation::Parameter(index))
+}
+
+fn str_static(bytes: &[u8]) -> ScalarArgument {
+    ScalarArgument::Str(StrValue::StaticBytes(bytes.to_vec()))
 }
 
 fn usize_local(index: usize) -> UsizeValue {

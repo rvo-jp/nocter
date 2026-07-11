@@ -168,7 +168,8 @@ Currently buildable:
 - `usize` comparisons over literals, locals, and same-file or loaded imported normal calls in lowerable bool expressions and terminal `if` conditions
 - nested scalar normal-call arguments such as `let value = outer(inner())`, for `i32`, `usize`, and `bool` parameter positions
 - nested scalar tail-call arguments such as `return outer(inner())`, for `i32`, `usize`, and `bool` parameter positions
-- up to 8 scalar `i32`/`usize`/`bool` parameters and call arguments for lowered functions and calls
+- static string literals and `str` parameters as call arguments, passed as `ptr,len` ABI word pairs
+- up to 8 ABI argument words across scalar `i32`/`usize`/`bool` and `str` parameters/call arguments for lowered functions and calls
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
 - non-entry functions returning `bool` or `usize`
 - `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; addition, subtraction, and multiplication trap on signed overflow, and division and remainder trap on zero divisors and signed division overflow
@@ -186,7 +187,7 @@ Currently not buildable even when it may be checkable:
 - general `if`, `while`, `loop`, range `for`, and `match`
 - unloaded imported function placeholders
 - `usize` arithmetic and `usize` entry return values
-- `str` values beyond static fallible failure messages
+- `str` returns, `str` locals, `str` member operations, and view/byte iteration
 - interpolated string construction
 - optional values
 - aggregate values, arrays, views, pointers, methods, traits, generics, ownership lowering, and drop glue
@@ -197,8 +198,9 @@ The `arm64-darwin` backend v0 uses a deliberately small register-only convention
 
 - scalar `i32` and `bool` values are represented in 32-bit ARM64 `w` registers
 - scalar `usize` values are represented in 64-bit ARM64 `x` registers
+- `str` values are represented as two 64-bit ABI words, `ptr` then byte `len`
 - `bool` is encoded as `0` for false and `1` for true
-- lowered `i32` and `bool` function arguments are passed in `w0` through `w7`, and lowered `usize` function arguments are passed in `x0` through `x7` at the same ABI argument index
+- lowered `i32` and `bool` function arguments are passed in `w0` through `w7`, lowered `usize` function arguments are passed in `x0` through `x7`, and lowered `str` arguments consume two consecutive `x` argument registers at the same ABI word indexes
 - lowered function return values are produced in `w0` for `i32`/`bool` and `x0` for `usize`
 - scalar local bindings use `w9` through `w15` for `i32`/`bool` and `x9` through `x15` for `usize`; framed functions spill scalar locals through 8-byte stack slots
 - `w16`/`w17` and `x16`/`x17` are backend scratch registers and may be clobbered by code generation
@@ -206,6 +208,7 @@ The `arm64-darwin` backend v0 uses a deliberately small register-only convention
 Tail calls are lowered by loading the callee arguments into `w0` through `w7` or `x0` through `x7` according to each scalar argument type, then branching directly to the target function.
 The source-level scalar call subset lowers same-file and loaded imported non-generic `i32` calls in `let` initializers, `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, `i32` comparison operands, nested normal-call arguments, and nested tail-call arguments, evaluating staged calls left to right into distinct temporary locals.
 It also lowers same-file and loaded imported non-generic calls returning `usize` in annotated `let` initializers and `usize` comparison operands, including calls whose parameter list contains `usize`.
+Calls in the current buildable subset can receive static string literals or existing `str` parameters as `str` arguments, with each `str` occupying two ABI argument words.
 The frame, spill/reload, and normal-call implementation order is tracked in `backend-v0.md`.
 `backend/frame.rs` owns the fixed v0 frame layout planner: frame size, saved `x30` offset, and scalar spill-slot offsets.
 Codegen emits framed prologue/epilogue sequences and normal calls with conservative scalar spill/reload plus stack-backed argument staging.

@@ -150,6 +150,27 @@ pub(crate) enum ScalarArgument {
     I32(I32Value),
     Usize(UsizeValue),
     Bool(BoolValue),
+    Str(StrValue),
+}
+
+impl ScalarArgument {
+    pub(crate) fn abi_word_count(&self) -> usize {
+        match self {
+            Self::I32(_) | Self::Usize(_) | Self::Bool(_) => 1,
+            Self::Str(_) => 2,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum StrValue {
+    StaticBytes(Vec<u8>),
+    Location(StrLocation),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StrLocation {
+    Parameter(usize),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -213,6 +234,7 @@ pub(crate) enum Type {
     I32,
     Usize,
     Bool,
+    Str,
     Void,
     Never,
     Fallible(Box<Type>),
@@ -222,7 +244,7 @@ impl Type {
     pub(crate) fn success_type(&self) -> &Type {
         match self {
             Self::Fallible(success) => success,
-            Self::I32 | Self::Usize | Self::Bool | Self::Void | Self::Never => self,
+            Self::I32 | Self::Usize | Self::Bool | Self::Str | Self::Void | Self::Never => self,
         }
     }
 }

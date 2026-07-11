@@ -77,6 +77,7 @@ fn lower_signature_return_type(ty: &TypeExpr) -> Option<Type> {
         TypeExpr::Reference(reference) if reference.name == "i32" => Some(Type::I32),
         TypeExpr::Reference(reference) if reference.name == "usize" => Some(Type::Usize),
         TypeExpr::Reference(reference) if reference.name == "bool" => Some(Type::Bool),
+        TypeExpr::Reference(reference) if reference.name == "str" => Some(Type::Str),
         TypeExpr::Reference(reference) if reference.name == "void" => Some(Type::Void),
         TypeExpr::Reference(reference) if reference.name == "never" => Some(Type::Never),
         TypeExpr::Fallible(fallible) => lower_signature_return_type(&fallible.success)
@@ -90,6 +91,7 @@ fn lower_signature_parameter_type(ty: &TypeExpr) -> Option<Type> {
         TypeExpr::Reference(reference) if reference.name == "i32" => Some(Type::I32),
         TypeExpr::Reference(reference) if reference.name == "usize" => Some(Type::Usize),
         TypeExpr::Reference(reference) if reference.name == "bool" => Some(Type::Bool),
+        TypeExpr::Reference(reference) if reference.name == "str" => Some(Type::Str),
         _ => None,
     }
 }

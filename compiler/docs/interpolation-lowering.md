@@ -46,11 +46,11 @@ Already buildable in the narrow scalar subset:
 
 - loaded imported scalar calls
 - scalar `i32`/`usize`/`bool` parameters and call arguments
+- static string literals and `str` parameters as `str` call arguments
 - scalar call-result staging and scalar tail-call staging
 
 Still required before explicit string construction can build:
 
-- `str` value representation and calling convention for string-literal arguments
 - aggregate storage for `String`, `Allocator`, and `RawBuffer`
 - stack-backed `var` bindings and reassignment for mutable owned values
 - borrow argument lowering for `&T` and `&+T`

@@ -2,8 +2,8 @@ use crate::backend::frame::{FrameLayout, FunctionFrame, plan_function_frame};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, CallTarget, Function,
-    I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule, ScalarArgument, Type,
-    UsizeLocation, UsizeValue,
+    I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule, ScalarArgument,
+    StrLocation, StrValue, Type, UsizeLocation, UsizeValue,
 };
 use crate::target::arm64::{BranchCondition, Encoder, MoveWideShift, WReg, XReg};
 use std::collections::HashMap;
@@ -614,55 +614,90 @@ impl EntryEmitter {
         arguments: &[ScalarArgument],
         frame: &FrameLayout,
     ) -> Result<(), Vec<Diagnostic>> {
-        for (index, argument) in arguments.iter().enumerate() {
-            let Some(slot) = frame.argument_staging_slots().get(index) else {
-                return Err(vec![Diagnostic::error(
-                    "E9003",
-                    format!("codegen supports at most 8 scalar arguments, got argument {index}"),
-                )]);
-            };
-            debug_assert_eq!(slot.argument_index(), index);
+        let mut abi_word_index = 0;
+        for argument in arguments {
             match argument {
                 ScalarArgument::I32(value) => {
+                    let slot = staging_slot(frame, abi_word_index)?;
                     self.emit_i32_value_to_w(value, WReg::W16)?;
                     self.encoder.emit_str_w_sp(WReg::W16, slot.offset());
+                    abi_word_index += 1;
                 }
                 ScalarArgument::Usize(value) => {
+                    let slot = staging_slot(frame, abi_word_index)?;
                     self.emit_usize_value_to_x(value, XReg::X16)?;
                     self.encoder.emit_str_x_sp(XReg::X16, slot.offset());
+                    abi_word_index += 1;
                 }
                 ScalarArgument::Bool(value) => {
+                    let slot = staging_slot(frame, abi_word_index)?;
                     self.emit_bool_value_to_w(value, WReg::W16)?;
                     self.encoder.emit_str_w_sp(WReg::W16, slot.offset());
+                    abi_word_index += 1;
+                }
+                ScalarArgument::Str(value) => {
+                    let ptr_slot = staging_slot(frame, abi_word_index)?;
+                    let len_slot = staging_slot(frame, abi_word_index + 1)?;
+                    self.emit_str_value_to_x_pair(value, XReg::X16, XReg::X17)?;
+                    self.encoder.emit_str_x_sp(XReg::X16, ptr_slot.offset());
+                    self.encoder.emit_str_x_sp(XReg::X17, len_slot.offset());
+                    abi_word_index += 2;
                 }
             }
         }
 
-        for slot in frame.argument_staging_slots().iter().take(arguments.len()) {
-            match &arguments[slot.argument_index()] {
+        let mut abi_word_index = 0;
+        for argument in arguments {
+            match argument {
                 ScalarArgument::I32(_) | ScalarArgument::Bool(_) => {
-                    let Some(register) = WReg::argument(slot.argument_index()) else {
+                    let Some(register) = WReg::argument(abi_word_index) else {
                         return Err(vec![Diagnostic::error(
                             "E9003",
                             format!(
-                                "codegen supports at most 8 i32/bool arguments, got argument {}",
-                                slot.argument_index()
+                                "codegen supports at most 8 ABI argument words, got argument word {abi_word_index}"
                             ),
                         )]);
                     };
+                    let slot = staging_slot(frame, abi_word_index)?;
                     self.encoder.emit_ldr_w_sp(register, slot.offset());
+                    abi_word_index += 1;
                 }
                 ScalarArgument::Usize(_) => {
-                    let Some(register) = XReg::argument(slot.argument_index()) else {
+                    let Some(register) = XReg::argument(abi_word_index) else {
                         return Err(vec![Diagnostic::error(
                             "E9003",
                             format!(
-                                "codegen supports at most 8 usize arguments, got argument {}",
-                                slot.argument_index()
+                                "codegen supports at most 8 ABI argument words, got argument word {abi_word_index}"
                             ),
                         )]);
                     };
+                    let slot = staging_slot(frame, abi_word_index)?;
                     self.encoder.emit_ldr_x_sp(register, slot.offset());
+                    abi_word_index += 1;
+                }
+                ScalarArgument::Str(_) => {
+                    let Some(ptr_register) = XReg::argument(abi_word_index) else {
+                        return Err(vec![Diagnostic::error(
+                            "E9003",
+                            format!(
+                                "codegen supports at most 8 ABI argument words, got argument word {abi_word_index}"
+                            ),
+                        )]);
+                    };
+                    let len_word_index = abi_word_index + 1;
+                    let Some(len_register) = XReg::argument(len_word_index) else {
+                        return Err(vec![Diagnostic::error(
+                            "E9003",
+                            format!(
+                                "codegen supports at most 8 ABI argument words, got argument word {len_word_index}"
+                            ),
+                        )]);
+                    };
+                    let ptr_slot = staging_slot(frame, abi_word_index)?;
+                    let len_slot = staging_slot(frame, len_word_index)?;
+                    self.encoder.emit_ldr_x_sp(ptr_register, ptr_slot.offset());
+                    self.encoder.emit_ldr_x_sp(len_register, len_slot.offset());
+                    abi_word_index += 2;
                 }
             }
         }
@@ -1008,6 +1043,31 @@ impl EntryEmitter {
         Ok(())
     }
 
+    fn emit_str_value_to_x_pair(
+        &mut self,
+        value: &StrValue,
+        ptr_destination: XReg,
+        len_destination: XReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match value {
+            StrValue::StaticBytes(bytes) => {
+                self.emit_static_data_address(ptr_destination, bytes);
+                emit_mov_u64_to_x(&mut self.encoder, len_destination, bytes.len() as u64);
+            }
+            StrValue::Location(location) => {
+                let (ptr_source, len_source) = self.str_location_registers(*location)?;
+                if ptr_source != ptr_destination {
+                    self.encoder.emit_mov_x(ptr_destination, ptr_source);
+                }
+                if len_source != len_destination {
+                    self.encoder.emit_mov_x(len_destination, len_source);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     fn i32_location_register(&self, location: I32Location) -> Result<WReg, Vec<Diagnostic>> {
         match location {
             I32Location::Return => Ok(WReg::W0),
@@ -1062,23 +1122,52 @@ impl EntryEmitter {
         }
     }
 
+    fn str_location_registers(
+        &self,
+        location: StrLocation,
+    ) -> Result<(XReg, XReg), Vec<Diagnostic>> {
+        match location {
+            StrLocation::Parameter(index) => {
+                let ptr = XReg::argument(index).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9003",
+                        format!("codegen supports at most 8 ABI parameter words, got parameter word {index}"),
+                    )]
+                })?;
+                let len_index = index + 1;
+                let len = XReg::argument(len_index).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9003",
+                        format!("codegen supports at most 8 ABI parameter words, got parameter word {len_index}"),
+                    )]
+                })?;
+                Ok((ptr, len))
+            }
+        }
+    }
+
     fn emit_write_static_stderr(&mut self, bytes: &[u8]) {
         if bytes.is_empty() {
             return;
         }
 
+        emit_mov_u64_to_x(&mut self.encoder, XReg::X0, STDERR_FILENO);
+        self.emit_static_data_address(XReg::X1, bytes);
+        emit_mov_u64_to_x(&mut self.encoder, XReg::X2, bytes.len() as u64);
+        emit_darwin_write_syscall(&mut self.encoder);
+    }
+
+    fn emit_static_data_address(&mut self, register: XReg, bytes: &[u8]) {
         let data_offset = self.read_only_data.len();
         self.read_only_data.extend_from_slice(bytes);
 
-        emit_mov_u64_to_x(&mut self.encoder, XReg::X0, STDERR_FILENO);
         let instruction_offset = self.encoder.position();
-        self.encoder.emit_adr_x(XReg::X1, 0);
+        self.encoder.emit_adr_x(register, 0);
         self.data_address_patches.push(DataAddressPatch {
             instruction_offset,
+            register,
             data_offset,
         });
-        emit_mov_u64_to_x(&mut self.encoder, XReg::X2, bytes.len() as u64);
-        emit_darwin_write_syscall(&mut self.encoder);
     }
 
     fn finish(mut self) -> Result<MachineCode, Vec<Diagnostic>> {
@@ -1097,7 +1186,7 @@ impl EntryEmitter {
             }
 
             self.encoder
-                .patch_adr_x(patch.instruction_offset, XReg::X1, byte_offset as i32);
+                .patch_adr_x(patch.instruction_offset, patch.register, byte_offset as i32);
         }
 
         Ok(MachineCode {
@@ -1193,6 +1282,7 @@ impl FunctionSymbol {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct DataAddressPatch {
     instruction_offset: usize,
+    register: XReg,
     data_offset: usize,
 }
 
@@ -1211,6 +1301,26 @@ enum BranchPatch {
         instruction_offset: usize,
         condition: BranchCondition,
     },
+}
+
+fn staging_slot(
+    frame: &FrameLayout,
+    abi_word_index: usize,
+) -> Result<crate::backend::frame::ArgumentStagingSlot, Vec<Diagnostic>> {
+    let slot = frame
+        .argument_staging_slots()
+        .get(abi_word_index)
+        .copied()
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "E9003",
+                format!(
+                    "codegen supports at most 8 ABI argument words, got argument word {abi_word_index}"
+                ),
+            )]
+        })?;
+    debug_assert_eq!(slot.abi_word_index(), abi_word_index);
+    Ok(slot)
 }
 
 fn emit_mov_i32_to_w0(encoder: &mut Encoder, value: i32) {
@@ -1770,6 +1880,49 @@ mod tests {
         let _ = std::fs::remove_file(executable);
 
         assert_eq!(output.status.code(), Some(5));
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
+    fn generated_str_literal_argument_uses_two_abi_words() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![Instruction::TailCall {
+                    target: CallTarget::same_file("consume"),
+                    arguments: vec![
+                        ScalarArgument::Str(StrValue::StaticBytes(b"Nocter".to_vec())),
+                        ScalarArgument::I32(I32Value::Const(42)),
+                    ],
+                }],
+            },
+            Function {
+                name: "consume".to_string(),
+                target: crate::ir::CallTarget::same_file("consume".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_param(2),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        assert_eq!(code.read_only_data, b"Nocter");
+        let image = crate::target::macho::write_arm64_macos_executable_with_data(
+            &code.text,
+            &code.read_only_data,
+        );
+        let executable = write_temp_executable("codegen-str-argument-runs", &image.bytes);
+
+        let output = std::process::Command::new(&executable).output().unwrap();
+        let _ = std::fs::remove_file(executable);
+
+        assert_eq!(output.status.code(), Some(42));
     }
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

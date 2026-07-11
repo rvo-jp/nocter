@@ -1,13 +1,13 @@
 use super::context::LoweringContext;
-use super::literals::{lower_i32_literal, lower_usize_literal};
+use super::literals::{lower_i32_literal, lower_str_literal, lower_usize_literal};
 use crate::ast::{
     BinaryExpr, BinaryOperator, CallExpr, Expr, InterpolatedStringPart, UnaryExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, CallTarget,
-    I32ComparisonOperator, I32Location, I32Value, Instruction, ScalarArgument, Type, UsizeLocation,
-    UsizeValue,
+    I32ComparisonOperator, I32Location, I32Value, Instruction, ScalarArgument, StrValue, Type,
+    UsizeLocation, UsizeValue,
 };
 
 pub(super) fn lower_i32_expression(
@@ -976,6 +976,10 @@ fn lower_call_arguments(
                 instructions.extend(argument.instructions);
                 arguments.push(ScalarArgument::Bool(argument.value));
             }
+            Type::Str => {
+                let argument = lower_str_value(argument, context)?;
+                arguments.push(ScalarArgument::Str(argument));
+            }
             Type::Void | Type::Never | Type::Fallible(_) => {
                 return Err(vec![Diagnostic::error(
                     "E8006",
@@ -1005,6 +1009,20 @@ fn lower_legacy_i32_call_arguments(
     }
 
     Ok((instructions, arguments))
+}
+
+fn lower_str_value(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Result<StrValue, Vec<Diagnostic>> {
+    match expression {
+        Expr::Identifier(identifier) => context
+            .str_location(&identifier.name)
+            .map(StrValue::Location)
+            .ok_or_else(unsupported_str_expression_diagnostic),
+        Expr::Group(group) => lower_str_value(&group.expression, context),
+        _ => lower_str_literal(expression),
+    }
 }
 
 fn validate_normal_call_return_type(
@@ -1102,12 +1120,14 @@ fn describe_type(ty: &Type) -> &'static str {
         Type::I32 => "i32",
         Type::Usize => "usize",
         Type::Bool => "bool",
+        Type::Str => "str",
         Type::Void => "void",
         Type::Never => "never",
         Type::Fallible(success) => match success.as_ref() {
             Type::I32 => "i32!",
             Type::Usize => "usize!",
             Type::Bool => "bool!",
+            Type::Str => "str!",
             Type::Void => "void!",
             Type::Never => "never!",
             Type::Fallible(_) => "fallible",
@@ -1618,6 +1638,13 @@ fn unsupported_usize_expression_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8006",
         "IR v0 can only lower usize literals, parameters, and direct tail calls",
+    )]
+}
+
+fn unsupported_str_expression_diagnostic() -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8006",
+        "IR v0 can only lower string literals and `str` parameters as `str` values",
     )]
 }
 

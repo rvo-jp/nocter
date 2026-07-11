@@ -6,6 +6,6 @@ mod model;
 pub(crate) use lower::lower_executable_with_entry;
 pub(crate) use model::{
     BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, CallTarget, Function,
-    I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule, ScalarArgument, Type,
-    UsizeLocation, UsizeValue,
+    I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule, ScalarArgument,
+    StrLocation, StrValue, Type, UsizeLocation, UsizeValue,
 };

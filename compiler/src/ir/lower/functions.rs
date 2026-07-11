@@ -38,6 +38,7 @@ pub(super) fn lower_function(
         parameters.i32,
         parameters.usize,
         parameters.bool,
+        parameters.str,
     )
     .with_call_resolution(root_source, resolved, function_names);
     let instructions = lower_function_body(function, &return_type, &mut context)?;
@@ -54,41 +55,56 @@ struct LoweredScalarParameters {
     i32: Vec<Option<String>>,
     usize: Vec<Option<String>>,
     bool: Vec<Option<String>>,
+    str: Vec<Option<String>>,
 }
 
 fn lower_scalar_parameters(
     function: &FunctionDecl,
 ) -> Result<LoweredScalarParameters, Vec<Diagnostic>> {
-    if function.parameters.parameters.len() > MAX_SCALAR_PARAMETERS {
-        return Err(vec![Diagnostic::error(
-            "E8007",
-            format!(
-                "IR v0 can only lower up to {MAX_SCALAR_PARAMETERS} scalar parameters for function `{}`",
-                function.name
-            ),
-        )]);
-    }
-
-    let mut i32_parameters = Vec::with_capacity(function.parameters.parameters.len());
-    let mut usize_parameters = Vec::with_capacity(function.parameters.parameters.len());
-    let mut bool_parameters = Vec::with_capacity(function.parameters.parameters.len());
+    let mut i32_parameters = Vec::new();
+    let mut usize_parameters = Vec::new();
+    let mut bool_parameters = Vec::new();
+    let mut str_parameters = Vec::new();
     for parameter in &function.parameters.parameters {
         match lower_scalar_parameter_kind(parameter, &function.name)? {
             ScalarParameterKind::I32 => {
                 i32_parameters.push(Some(parameter.name.clone()));
                 usize_parameters.push(None);
                 bool_parameters.push(None);
+                str_parameters.push(None);
             }
             ScalarParameterKind::Usize => {
                 i32_parameters.push(None);
                 usize_parameters.push(Some(parameter.name.clone()));
                 bool_parameters.push(None);
+                str_parameters.push(None);
             }
             ScalarParameterKind::Bool => {
                 i32_parameters.push(None);
                 usize_parameters.push(None);
                 bool_parameters.push(Some(parameter.name.clone()));
+                str_parameters.push(None);
             }
+            ScalarParameterKind::Str => {
+                i32_parameters.push(None);
+                usize_parameters.push(None);
+                bool_parameters.push(None);
+                str_parameters.push(Some(parameter.name.clone()));
+                i32_parameters.push(None);
+                usize_parameters.push(None);
+                bool_parameters.push(None);
+                str_parameters.push(None);
+            }
+        }
+
+        if i32_parameters.len() > MAX_PARAMETER_ABI_WORDS {
+            return Err(vec![Diagnostic::error(
+                "E8007",
+                format!(
+                    "IR v0 can only lower up to {MAX_PARAMETER_ABI_WORDS} ABI parameter words for function `{}`",
+                    function.name
+                ),
+            )]);
         }
     }
 
@@ -96,6 +112,7 @@ fn lower_scalar_parameters(
         i32: i32_parameters,
         usize: usize_parameters,
         bool: bool_parameters,
+        str: str_parameters,
     })
 }
 
@@ -104,6 +121,7 @@ enum ScalarParameterKind {
     I32,
     Usize,
     Bool,
+    Str,
 }
 
 fn lower_scalar_parameter_kind(
@@ -116,10 +134,11 @@ fn lower_scalar_parameter_kind(
             Ok(ScalarParameterKind::Usize)
         }
         TypeExpr::Reference(reference) if reference.name == "bool" => Ok(ScalarParameterKind::Bool),
+        TypeExpr::Reference(reference) if reference.name == "str" => Ok(ScalarParameterKind::Str),
         _ => Err(vec![Diagnostic::error(
             "E8007",
             format!(
-                "IR v0 can only lower `i32`, `usize`, and `bool` parameters for function `{function_name}`"
+                "IR v0 can only lower `i32`, `usize`, `bool`, and `str` parameters for function `{function_name}`"
             ),
         )]),
     }
@@ -176,6 +195,7 @@ fn lower_function_body(
                 (Type::Bool, Some(expression)) => {
                     lower_bool_return_expression(expression, context, "E8007")
                 }
+                (Type::Str, _) => unreachable!("str return type is not lowered in v0"),
                 (Type::Never, Some(_)) => Err(vec![Diagnostic::error(
                     "E8007",
                     format!(
@@ -286,4 +306,4 @@ fn unsupported_function_body_diagnostic(function_name: &str) -> Vec<Diagnostic> 
     )]
 }
 
-const MAX_SCALAR_PARAMETERS: usize = 8;
+const MAX_PARAMETER_ABI_WORDS: usize = 8;

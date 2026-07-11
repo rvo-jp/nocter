@@ -97,7 +97,7 @@ impl FrameLayout {
                 ));
             }
             argument_staging_slots.push(ArgumentStagingSlot {
-                argument_index,
+                abi_word_index: argument_index,
                 offset: offset as u32,
             });
         }
@@ -129,13 +129,13 @@ impl ScalarSpillSlot {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct ArgumentStagingSlot {
-    argument_index: usize,
+    abi_word_index: usize,
     offset: u32,
 }
 
 impl ArgumentStagingSlot {
-    pub(super) fn argument_index(self) -> usize {
-        self.argument_index
+    pub(super) fn abi_word_index(self) -> usize {
+        self.abi_word_index
     }
 
     pub(super) fn offset(self) -> u32 {
@@ -207,7 +207,9 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         Instruction::CallI32 { arguments, .. }
         | Instruction::CallUsize { arguments, .. }
         | Instruction::CallBool { arguments, .. }
-        | Instruction::TailCall { arguments, .. } => arguments.len(),
+        | Instruction::TailCall { arguments, .. } => {
+            arguments.iter().map(ScalarArgument::abi_word_count).sum()
+        }
         Instruction::If {
             then_instructions,
             else_instructions,
@@ -355,6 +357,7 @@ fn record_scalar_argument(argument: &ScalarArgument, highest_local_index: &mut O
         ScalarArgument::I32(value) => record_i32_value(value, highest_local_index),
         ScalarArgument::Usize(value) => record_usize_value(value, highest_local_index),
         ScalarArgument::Bool(value) => record_bool_value(value, highest_local_index),
+        ScalarArgument::Str(_) => {}
     }
 }
 
@@ -433,7 +436,7 @@ const LDR_STR_X_SP_MAX_BYTE_OFFSET: u32 = 0x0fff * 8;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{BoolComparisonOperator, CallTarget, ScalarArgument, Type};
+    use crate::ir::{BoolComparisonOperator, CallTarget, ScalarArgument, StrValue, Type};
 
     #[test]
     fn plans_current_ir_functions_as_frameless() {
@@ -498,15 +501,15 @@ mod tests {
             layout.argument_staging_slots(),
             &[
                 ArgumentStagingSlot {
-                    argument_index: 0,
+                    abi_word_index: 0,
                     offset: 16
                 },
                 ArgumentStagingSlot {
-                    argument_index: 1,
+                    abi_word_index: 1,
                     offset: 24
                 },
                 ArgumentStagingSlot {
-                    argument_index: 2,
+                    abi_word_index: 2,
                     offset: 32
                 },
             ]
@@ -601,6 +604,29 @@ mod tests {
         assert_eq!(
             frame,
             FunctionFrame::Framed(FrameLayout::for_slot_counts(0, 2).unwrap())
+        );
+    }
+
+    #[test]
+    fn tail_call_with_str_argument_counts_two_argument_staging_slots() {
+        let function = Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![Instruction::TailCall {
+                target: CallTarget::same_file("answer"),
+                arguments: vec![
+                    ScalarArgument::Str(StrValue::StaticBytes(b"Nocter".to_vec())),
+                    ScalarArgument::I32(I32Value::Const(42)),
+                ],
+            }],
+        };
+
+        let frame = plan_function_frame(&function).unwrap();
+
+        assert_eq!(
+            frame,
+            FunctionFrame::Framed(FrameLayout::for_slot_counts(0, 3).unwrap())
         );
     }
 

@@ -1,6 +1,6 @@
 use crate::ast::CallExpr;
 use crate::diagnostics::Diagnostic;
-use crate::ir::{BoolLocation, CallTarget, I32Location, Type, UsizeLocation};
+use crate::ir::{BoolLocation, CallTarget, I32Location, StrLocation, Type, UsizeLocation};
 use crate::resolve::{ResolveOutput, SymbolKind};
 use crate::source::{ByteSpan, SourceId};
 use std::collections::HashMap;
@@ -14,6 +14,7 @@ pub(super) struct LoweringContext<'a> {
     i32_parameters: Vec<Option<String>>,
     usize_parameters: Vec<Option<String>>,
     bool_parameters: Vec<Option<String>>,
+    str_parameters: Vec<Option<String>>,
     locals: Vec<LocalBinding>,
 }
 
@@ -32,6 +33,7 @@ impl<'a> LoweringContext<'a> {
             i32_parameters: Vec::new(),
             usize_parameters: Vec::new(),
             bool_parameters: Vec::new(),
+            str_parameters: Vec::new(),
             locals: Vec::new(),
         }
     }
@@ -43,6 +45,7 @@ impl<'a> LoweringContext<'a> {
         i32_parameters: Vec<Option<String>>,
         usize_parameters: Vec<Option<String>>,
         bool_parameters: Vec<Option<String>>,
+        str_parameters: Vec<Option<String>>,
     ) -> Self {
         Self {
             function_name,
@@ -53,6 +56,7 @@ impl<'a> LoweringContext<'a> {
             i32_parameters,
             usize_parameters,
             bool_parameters,
+            str_parameters,
             locals: Vec::new(),
         }
     }
@@ -186,6 +190,13 @@ impl<'a> LoweringContext<'a> {
                     .position(|parameter| parameter.as_deref() == Some(name))
                     .map(BoolLocation::Parameter)
             })
+    }
+
+    pub(super) fn str_location(&self, name: &str) -> Option<StrLocation> {
+        self.str_parameters
+            .iter()
+            .position(|parameter| parameter.as_deref() == Some(name))
+            .map(StrLocation::Parameter)
     }
 
     fn next_local_index(&self) -> Result<usize, Vec<Diagnostic>> {
