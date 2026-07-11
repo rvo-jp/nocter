@@ -90,6 +90,28 @@ func main(): i32 {
 }
 
 #[test]
+fn distributed_io_file_methods_pass_check() {
+    let project = TempProject::new("distributed-home-io-file-methods");
+    let source = project.write_source(
+        "io_file_methods.nct",
+        r#"from std/io import File, stdout
+
+func main(): i32! {
+    let input = File.open("input.txt") catch error {
+        return 0
+    }
+    var out = stdout()
+    out.write_text("checked")?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+    assert_success(&output);
+}
+
+#[test]
 fn distributed_std_abort_builds_to_macho() {
     let project = TempProject::new("distributed-home-abort-build");
     let source = project.write_source(

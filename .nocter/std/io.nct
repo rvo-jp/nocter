@@ -38,6 +38,24 @@ pub func stderr(): File {
     return File { handle: 2 }
 }
 
+impl File {
+    pub func open(path: str): File! {
+        return unsupported()
+    }
+
+    pub method (file: &+Self).read(buffer: [+u8]): usize! {
+        return unsupported()
+    }
+
+    pub method (file: &+Self).write(bytes: [u8]): void! {
+        return
+    }
+
+    pub method (file: &+Self).write_text(text: str): void! {
+        return
+    }
+}
+
 pub func print(text: str): void! {
     return
 }
