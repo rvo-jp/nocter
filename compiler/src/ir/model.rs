@@ -110,6 +110,12 @@ pub(crate) enum Instruction {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
     },
+    #[allow(dead_code)]
+    CallStr {
+        destination: StrLocation,
+        target: CallTarget,
+        arguments: Vec<ScalarArgument>,
+    },
     TailCall {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
@@ -176,6 +182,7 @@ pub(crate) enum StrValue {
 pub(crate) enum StrLocation {
     Return,
     Parameter(usize),
+    Local(usize),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

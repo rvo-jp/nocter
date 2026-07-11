@@ -155,7 +155,7 @@ Currently buildable:
 - root-file `main` or `--entry <name>`
 - entry return types `i32`, `i32!`, and `void`
 - literal `i32` returns
-- immutable local `let` bindings whose initializer is lowerable as `i32`, annotated `usize`, or `bool`
+- immutable local `let` bindings whose initializer is lowerable as `i32`, annotated `usize`, `bool`, or annotated `str`
 - `void` entry with an empty body or bare `return`
 - same-file non-generic tail calls returning `i32` or `bool`
 - same-file and loaded imported calls returning `never` in terminal return or expression-statement position
@@ -169,9 +169,10 @@ Currently buildable:
 - nested scalar normal-call arguments such as `let value = outer(inner())`, for `i32`, `usize`, and `bool` parameter positions
 - nested scalar tail-call arguments such as `return outer(inner())`, for `i32`, `usize`, and `bool` parameter positions
 - static string literals and `str` parameters as call arguments, passed as `ptr,len` ABI word pairs
+- same-file and loaded imported non-generic normal calls returning `str` in annotated `str` `let` initializers and as `str` call or tail-call arguments, with results staged into two local ABI words
 - up to 8 ABI argument words across scalar `i32`/`usize`/`bool` and `str` parameters/call arguments for lowered functions and calls
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
-- non-entry functions returning `bool`, `usize`, or direct `str` literal/parameter/tail-call values
+- non-entry functions returning `bool`, `usize`, or direct `str` literal/parameter/local/tail-call values
 - `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; addition, subtraction, and multiplication trap on signed overflow, and division and remainder trap on zero divisors and signed division overflow
 - `i32` shifts with `<<` and `>>` used in lowerable `i32` expressions; shift counts trap when negative or greater than or equal to 32
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` or `usize` comparisons used in lowerable bool expressions
@@ -187,7 +188,7 @@ Currently not buildable even when it may be checkable:
 - general `if`, `while`, `loop`, range `for`, and `match`
 - unloaded imported function placeholders
 - `usize` arithmetic and `usize` entry return values
-- `str` normal-call results, `str` locals, `str` member operations, and view/byte iteration
+- `str` member operations and view/byte iteration
 - interpolated string construction
 - optional values
 - aggregate values, arrays, views, pointers, methods, traits, generics, ownership lowering, and drop glue
@@ -206,10 +207,10 @@ The `arm64-darwin` backend v0 uses a deliberately small register-only convention
 - `w16`/`w17` and `x16`/`x17` are backend scratch registers and may be clobbered by code generation
 
 Tail calls are lowered by loading the callee arguments into `w0` through `w7` or `x0` through `x7` according to each scalar argument type, then branching directly to the target function.
-The source-level scalar call subset lowers same-file and loaded imported non-generic `i32` calls in `let` initializers, `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, `i32` comparison operands, nested normal-call arguments, and nested tail-call arguments, evaluating staged calls left to right into distinct temporary locals.
+The source-level scalar/view call subset lowers same-file and loaded imported non-generic `i32` calls in `let` initializers, `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, `i32` comparison operands, nested normal-call arguments, and nested tail-call arguments, evaluating staged calls left to right into distinct temporary locals.
 It also lowers same-file and loaded imported non-generic calls returning `usize` in annotated `let` initializers and `usize` comparison operands, including calls whose parameter list contains `usize`.
-Calls in the current buildable subset can receive static string literals or existing `str` parameters as `str` arguments, with each `str` occupying two ABI argument words.
-Non-entry functions can directly return static string literals, `str` parameters, or tail calls to `str` functions, with `str` returns occupying `x0,x1`.
+Calls in the current buildable subset can receive static string literals, existing `str` parameters or locals, or staged `str` normal-call results as `str` arguments, with each `str` occupying two ABI argument words.
+Non-entry functions can directly return static string literals, `str` parameters, `str` locals, or tail calls to `str` functions, with `str` returns occupying `x0,x1`.
 The frame, spill/reload, and normal-call implementation order is tracked in `backend-v0.md`.
 `backend/frame.rs` owns the fixed v0 frame layout planner: frame size, saved `x30` offset, and scalar spill-slot offsets.
 Codegen emits framed prologue/epilogue sequences and normal calls with conservative scalar spill/reload plus stack-backed argument staging.

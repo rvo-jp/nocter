@@ -1,7 +1,7 @@
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolLocation, BoolValue, Function, I32Location, I32Value, Instruction, ScalarArgument,
-    UsizeLocation, UsizeValue,
+    StrLocation, StrValue, UsizeLocation, UsizeValue,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -170,7 +170,8 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         }
         Instruction::CallI32 { .. }
         | Instruction::CallUsize { .. }
-        | Instruction::CallBool { .. } => true,
+        | Instruction::CallBool { .. }
+        | Instruction::CallStr { .. } => true,
         Instruction::TailCall { arguments, .. } => !arguments.is_empty(),
         Instruction::WriteStaticStderr(_)
         | Instruction::SetI32 { .. }
@@ -208,6 +209,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         Instruction::CallI32 { arguments, .. }
         | Instruction::CallUsize { arguments, .. }
         | Instruction::CallBool { arguments, .. }
+        | Instruction::CallStr { arguments, .. }
         | Instruction::TailCall { arguments, .. } => {
             arguments.iter().map(ScalarArgument::abi_word_count).sum()
         }
@@ -266,7 +268,10 @@ fn record_instruction_scalar_locals(
             record_bool_location(*destination, highest_local_index);
             record_bool_value(value, highest_local_index);
         }
-        Instruction::SetStr { .. } => {}
+        Instruction::SetStr { destination, value } => {
+            record_str_location(*destination, highest_local_index);
+            record_str_value(value, highest_local_index);
+        }
         Instruction::AddI32 {
             destination,
             left,
@@ -336,6 +341,16 @@ fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
+        Instruction::CallStr {
+            destination,
+            arguments,
+            ..
+        } => {
+            record_str_location(*destination, highest_local_index);
+            for argument in arguments {
+                record_scalar_argument(argument, highest_local_index);
+            }
+        }
         Instruction::If {
             condition,
             then_instructions,
@@ -360,7 +375,7 @@ fn record_scalar_argument(argument: &ScalarArgument, highest_local_index: &mut O
         ScalarArgument::I32(value) => record_i32_value(value, highest_local_index),
         ScalarArgument::Usize(value) => record_usize_value(value, highest_local_index),
         ScalarArgument::Bool(value) => record_bool_value(value, highest_local_index),
-        ScalarArgument::Str(_) => {}
+        ScalarArgument::Str(value) => record_str_value(value, highest_local_index),
     }
 }
 
@@ -410,6 +425,20 @@ fn record_bool_value(value: &BoolValue, highest_local_index: &mut Option<usize>)
 fn record_bool_location(location: BoolLocation, highest_local_index: &mut Option<usize>) {
     if let BoolLocation::Local(index) = location {
         record_scalar_local(index, highest_local_index);
+    }
+}
+
+fn record_str_value(value: &StrValue, highest_local_index: &mut Option<usize>) {
+    match value {
+        StrValue::StaticBytes(_) => {}
+        StrValue::Location(location) => record_str_location(*location, highest_local_index),
+    }
+}
+
+fn record_str_location(location: StrLocation, highest_local_index: &mut Option<usize>) {
+    if let StrLocation::Local(index) = location {
+        record_scalar_local(index, highest_local_index);
+        record_scalar_local(index + 1, highest_local_index);
     }
 }
 

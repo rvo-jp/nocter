@@ -2,7 +2,8 @@ use super::context::LoweringContext;
 use super::expressions::{
     expression_contains_interpolated_string, expression_is_lowerable_bool_binding,
     expression_is_unsupported_bool_comparison_binding, lower_bool_expression_to_location,
-    lower_i32_expression_to_location, lower_usize_expression_to_location,
+    lower_i32_expression_to_location, lower_str_expression_to_location,
+    lower_usize_expression_to_location,
 };
 use crate::ast::{BinaryOperator, BindingKind, BindingStmt, Expr, TypeExpr, UnaryOperator};
 use crate::diagnostics::Diagnostic;
@@ -32,6 +33,7 @@ pub(super) fn lower_let_binding(
         ScalarBindingKind::I32 => lower_i32_let_binding(statement, context),
         ScalarBindingKind::Usize => lower_usize_let_binding(statement, context),
         ScalarBindingKind::Bool => lower_bool_let_binding(statement, context),
+        ScalarBindingKind::Str => lower_str_let_binding(statement, context),
     }
 }
 
@@ -68,6 +70,17 @@ fn lower_bool_let_binding(
     Ok(instructions)
 }
 
+fn lower_str_let_binding(
+    statement: &BindingStmt,
+    context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let destination = context.next_str_local_location()?;
+    let instructions =
+        lower_str_expression_to_location(&statement.initializer, destination, context)?;
+    context.define_str_local(statement.name.clone());
+    Ok(instructions)
+}
+
 fn scalar_binding_kind(
     statement: &BindingStmt,
     context: &LoweringContext,
@@ -76,8 +89,9 @@ fn scalar_binding_kind(
         Some(ty) if is_i32_type(ty) => Ok(ScalarBindingKind::I32),
         Some(ty) if is_usize_type(ty) => Ok(ScalarBindingKind::Usize),
         Some(ty) if is_bool_type(ty) => Ok(ScalarBindingKind::Bool),
+        Some(ty) if is_str_type(ty) => Ok(ScalarBindingKind::Str),
         Some(_) => Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower local bindings annotated as `i32`, `usize`, or `bool`",
+            "IR v0 can only lower local bindings annotated as `i32`, `usize`, `bool`, or `str`",
         )),
         None if expression_is_lowerable_bool_binding(&statement.initializer, context) => {
             Ok(ScalarBindingKind::Bool)
@@ -139,6 +153,10 @@ fn is_bool_type(ty: &TypeExpr) -> bool {
     matches!(ty, TypeExpr::Reference(reference) if reference.name == "bool")
 }
 
+fn is_str_type(ty: &TypeExpr) -> bool {
+    matches!(ty, TypeExpr::Reference(reference) if reference.name == "str")
+}
+
 fn unsupported_binding_diagnostic(message: &'static str) -> Vec<Diagnostic> {
     vec![Diagnostic::error("E8008", message)]
 }
@@ -154,4 +172,5 @@ enum ScalarBindingKind {
     I32,
     Usize,
     Bool,
+    Str,
 }

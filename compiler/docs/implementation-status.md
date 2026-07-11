@@ -21,12 +21,12 @@ This file describes implementation state only.
 | `usize` scalar values | yes | yes | yes | partial | partial | Build supports annotated `usize` locals, non-entry `usize` literal/local/call returns, same-file and loaded imported scalar calls with `usize` parameters/arguments, and `usize` comparisons in lowerable bool positions. |
 | `void` entry | yes | yes | yes | yes | yes | Empty body and bare `return` are buildable. |
 | `bool` expressions | yes | yes | yes | partial | yes | Build supports literals, locals, parameters, `!`, `&&`, `||`, `i32` and `usize` comparisons, bool equality/inequality over literal/local operands, and bool call arguments in lowerable positions. |
-| String literals and interpolation | yes | yes | partial | partial | partial | Single-line and multi-line string literals are tokenized, parsed, typed as `str`, buildable as `str` call arguments, and buildable as direct non-entry `str` returns. Interpolation is parsed as an explicit expression and checked as `String!` with limited supported part types. The initial `std/string` and `std/fmt` API boundary exists, but owned/interpolated string construction is not lowerable. |
-| Immutable `let` bindings | yes | yes | yes | partial | yes | Build supports lowerable `i32`, annotated `usize`, and `bool` initializers. |
+| String literals and interpolation | yes | yes | partial | partial | partial | Single-line and multi-line string literals are tokenized, parsed, typed as `str`, buildable as `str` call arguments, buildable as direct non-entry `str` returns, and buildable through annotated `str` locals plus narrow `str` normal-call result staging. Interpolation is parsed as an explicit expression and checked as `String!` with limited supported part types. The initial `std/string` and `std/fmt` API boundary exists, but owned/interpolated string construction is not lowerable. |
+| Immutable `let` bindings | yes | yes | yes | partial | yes | Build supports lowerable `i32`, annotated `usize`, `bool`, and annotated `str` initializers. |
 | `var` and reassignment | yes | yes | partial | no | no | Backend has no general local storage yet. |
-| Same-file function calls | yes | yes | yes | partial | partial | Build supports non-generic tail calls with scalar `i32`/`usize`/`bool` arguments plus `str` view arguments when the total register ABI footprint is at most 8 words, `bool` tail returns, and a narrow scalar normal-call subset. |
+| Same-file function calls | yes | yes | yes | partial | partial | Build supports non-generic tail calls with scalar `i32`/`usize`/`bool` arguments plus `str` view arguments when the total register ABI footprint is at most 8 words, `bool` tail returns, and a narrow scalar/view normal-call subset. |
 | Imported function calls | yes | yes | yes | partial | partial | Build supports loaded imported non-generic calls through the same narrow call subset as same-file calls. Unloaded imported placeholders still diagnose before backend lowering. |
-| General non-tail calls | yes | yes | yes | partial | partial | Build supports non-generic scalar normal calls in selected expression positions, and those calls may receive `str` arguments. Unsupported shapes still report IR lowering diagnostics. |
+| General non-tail calls | yes | yes | yes | partial | partial | Build supports non-generic scalar/view normal calls in selected expression positions, including `str` results staged into annotated `str` locals or `str` call arguments. Unsupported shapes still report IR lowering diagnostics. |
 | Terminal `if` / `else` | yes | yes | yes | partial | yes | Build supports terminal branches returning direct `i32` or non-entry `bool`. |
 | `never` termination | yes | yes | partial | partial | yes | Type checking accepts terminal expression statements whose type is `never` and rejects `return` in `never` functions. Build supports lowerable calls returning `never`, including `std/os/macos.trap` and `unreachable` as ARM64 traps. |
 | General `if`, `while`, `loop`, `for`, `match`, `?{}` | yes | yes | partial | no | no | Several forms are checkable; backend lowering remains intentionally narrow. |
@@ -54,7 +54,7 @@ Currently buildable:
 - explicit `--target arm64-darwin` selection for `build`, `run`, and `check`; reserved future targets are recognized but rejected as unimplemented
 - entry return types `i32`, `i32!`, and `void`
 - literal `i32` returns
-- immutable local `let` bindings whose initializer is lowerable as `i32`, annotated `usize`, or `bool`
+- immutable local `let` bindings whose initializer is lowerable as `i32`, annotated `usize`, `bool`, or annotated `str`
 - `void` entry with an empty body or bare `return`
 - same-file and loaded imported non-generic tail calls returning `i32` or `bool`
 - same-file and loaded imported calls returning `never` in terminal return or expression-statement position
@@ -74,9 +74,10 @@ Currently buildable:
 - nested scalar normal-call arguments such as `let value = outer(inner())`, for `i32`, `usize`, and `bool` parameter positions
 - nested scalar tail-call arguments such as `return outer(inner())`, for `i32`, `usize`, and `bool` parameter positions
 - static string literals and `str` parameters as call arguments, passed as `ptr,len` ABI word pairs
+- same-file and loaded imported non-generic normal calls returning `str` in annotated `str` `let` initializers and as `str` call or tail-call arguments, with results staged into two local ABI words
 - up to 8 ABI argument words across scalar `i32`/`usize`/`bool` and `str` parameters/call arguments for lowered functions and calls
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
-- non-entry functions returning `bool`, `usize`, or direct `str` literal/parameter/tail-call values
+- non-entry functions returning `bool`, `usize`, or direct `str` literal/parameter/local/tail-call values
 - `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; addition, subtraction, and multiplication emit signed-overflow trap checks, and division and remainder emit zero-divisor plus signed-overflow trap checks
 - `i32` shifts with `<<` and `>>` used in lowerable `i32` expressions; shift counts trap when negative or greater than or equal to 32
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` or `usize` comparisons used in lowerable bool expressions
@@ -93,7 +94,7 @@ Currently not buildable even when it may be checkable:
 - unloaded imported function placeholders
 - compound bool equality operands with calls such as `(ready() && other()) == true`
 - `usize` arithmetic and `usize` entry return values
-- `str` normal-call results, `str` locals, `str` member operations, and view/byte iteration
+- `str` member operations and view/byte iteration
 - interpolated string construction
 - optional values
 - aggregate values, arrays, views, pointers, methods, traits, generics, ownership lowering, and drop glue

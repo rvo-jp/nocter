@@ -47,7 +47,8 @@ Already buildable in the narrow scalar subset:
 - loaded imported scalar calls
 - scalar `i32`/`usize`/`bool` parameters and call arguments
 - static string literals and `str` parameters as `str` call arguments
-- direct `str` returns from static string literals, `str` parameters, and tail calls
+- direct `str` returns from static string literals, `str` parameters, `str` locals, and tail calls
+- `str` normal-call result staging for annotated `str` locals and nested `str` call arguments
 - scalar call-result staging and scalar tail-call staging
 
 Still required before explicit string construction can build:

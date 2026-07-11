@@ -16,6 +16,7 @@ fn collect_reachable_call_targets(
             Instruction::CallI32 { target, .. }
             | Instruction::CallUsize { target, .. }
             | Instruction::CallBool { target, .. }
+            | Instruction::CallStr { target, .. }
             | Instruction::TailCall { target, .. } => {
                 targets.push_back(target.clone());
             }

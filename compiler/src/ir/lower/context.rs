@@ -126,19 +126,23 @@ impl<'a> LoweringContext<'a> {
     }
 
     pub(super) fn next_i32_local_location(&self) -> Result<I32Location, Vec<Diagnostic>> {
-        self.next_local_index().map(I32Location::Local)
+        self.next_local_index(1).map(I32Location::Local)
     }
 
     pub(super) fn next_usize_local_location(&self) -> Result<UsizeLocation, Vec<Diagnostic>> {
-        self.next_local_index().map(UsizeLocation::Local)
+        self.next_local_index(1).map(UsizeLocation::Local)
     }
 
     pub(super) fn first_temporary_local_index(&self) -> Result<usize, Vec<Diagnostic>> {
-        self.next_local_index()
+        Ok(self.used_local_abi_words())
     }
 
     pub(super) fn next_bool_local_location(&self) -> Result<BoolLocation, Vec<Diagnostic>> {
-        self.next_local_index().map(BoolLocation::Local)
+        self.next_local_index(1).map(BoolLocation::Local)
+    }
+
+    pub(super) fn next_str_local_location(&self) -> Result<StrLocation, Vec<Diagnostic>> {
+        self.next_local_index(2).map(StrLocation::Local)
     }
 
     pub(super) fn define_i32_local(&mut self, name: String) {
@@ -151,6 +155,10 @@ impl<'a> LoweringContext<'a> {
 
     pub(super) fn define_bool_local(&mut self, name: String) {
         self.define_local(name, LocalKind::Bool);
+    }
+
+    pub(super) fn define_str_local(&mut self, name: String) {
+        self.define_local(name, LocalKind::Str);
     }
 
     pub(super) fn i32_location(&self, name: &str) -> Option<I32Location> {
@@ -193,29 +201,40 @@ impl<'a> LoweringContext<'a> {
     }
 
     pub(super) fn str_location(&self, name: &str) -> Option<StrLocation> {
-        self.str_parameters
+        self.locals
             .iter()
-            .position(|parameter| parameter.as_deref() == Some(name))
-            .map(StrLocation::Parameter)
+            .find(|local| local.name == name && local.kind == LocalKind::Str)
+            .map(|local| StrLocation::Local(local.index))
+            .or_else(|| {
+                self.str_parameters
+                    .iter()
+                    .position(|parameter| parameter.as_deref() == Some(name))
+                    .map(StrLocation::Parameter)
+            })
     }
 
-    fn next_local_index(&self) -> Result<usize, Vec<Diagnostic>> {
-        if self.locals.len() >= MAX_SCALAR_LOCALS {
+    fn next_local_index(&self, required_words: usize) -> Result<usize, Vec<Diagnostic>> {
+        let index = self.used_local_abi_words();
+        if index + required_words > MAX_LOCAL_ABI_WORDS {
             return Err(vec![Diagnostic::error(
                 "E8008",
-                format!("IR v0 can only lower up to {MAX_SCALAR_LOCALS} local scalar bindings"),
+                format!("IR v0 can only lower up to {MAX_LOCAL_ABI_WORDS} local ABI words"),
             )]);
         }
 
-        Ok(self.locals.len())
+        Ok(index)
     }
 
     fn define_local(&mut self, name: String, kind: LocalKind) {
-        self.locals.push(LocalBinding {
-            name,
-            kind,
-            index: self.locals.len(),
-        });
+        let index = self.used_local_abi_words();
+        self.locals.push(LocalBinding { name, kind, index });
+    }
+
+    fn used_local_abi_words(&self) -> usize {
+        self.locals
+            .iter()
+            .map(|local| local.kind.abi_word_count())
+            .sum()
     }
 }
 
@@ -299,6 +318,16 @@ enum LocalKind {
     I32,
     Usize,
     Bool,
+    Str,
 }
 
-const MAX_SCALAR_LOCALS: usize = 7;
+impl LocalKind {
+    fn abi_word_count(self) -> usize {
+        match self {
+            Self::I32 | Self::Usize | Self::Bool => 1,
+            Self::Str => 2,
+        }
+    }
+}
+
+const MAX_LOCAL_ABI_WORDS: usize = 7;

@@ -33,7 +33,7 @@ The backend v0 uses a deliberately small register-only convention while the IR h
 - `w16`/`w17` and `x16`/`x17` are backend scratch registers and may be clobbered by code generation
 
 Tail calls are lowered by staging callee arguments, loading `w0`/`x0` through `w7`/`x7` according to ABI word indexes, and branching directly to the target function.
-Normal calls are buildable only for the narrow same-file scalar subset described below.
+Normal calls are buildable only for the narrow same-file and loaded imported scalar/view subset described below.
 A normal call returns to the caller after clobbering argument, return, and scratch registers, so v0 framed functions conservatively spill and reload scalar locals around each normal call.
 
 ## Normal Call Lowering Design
@@ -50,7 +50,8 @@ The first implementation should keep the user-visible subset small:
 - scalar `i32`/`usize`/`bool` arguments and `str` view arguments only
 - `i32` return values in lowerable `i32` expressions, `let` initializers, and `i32` comparison operands
 - `bool` return values in `let` initializers, unary-not bool expressions, bool equality/inequality operands, short-circuit bool value expressions, direct terminal-if conditions, and terminal-if short-circuit conditions
-- direct `str` return values from static string literals, `str` parameters, and tail calls
+- direct `str` return values from static string literals, `str` parameters, `str` locals, and tail calls
+- `str` return values in annotated `str` `let` initializers and as `str` call arguments
 - up to 8 ABI argument words, passed in `w0`/`x0` through `w7`/`x7`
 - no aggregate arguments, aggregate returns, owned strings, optionals, ownership/drop lowering, or calls in broader control-flow
 
@@ -173,12 +174,18 @@ CallBool {
     function: String,
     arguments: Vec<ScalarArgument>,
 }
+
+CallStr {
+    destination: StrLocation,
+    function: String,
+    arguments: Vec<ScalarArgument>,
+}
 ```
 
 This covers `let x = callee()` and `return callee() + 1` after the expression lowerer has a destination for intermediate results.
 The source expression lowerer stages normal-call results in temporary scalar locals for lowerable `i32` arithmetic and shifts with `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`.
 Multiple normal calls in an arithmetic expression are evaluated left to right and receive distinct temporary locals.
-Nested normal-call arguments are also evaluated left to right before the parent scalar call.
+Nested normal-call arguments are also evaluated left to right before the parent scalar/view call.
 `i32` comparisons such as `if answer() == 42 { ... }`, `let matched = left() <= right()`, and `return left() < right()` evaluate lowerable call operands left to right, stage each call result in a temporary scalar local, and then build a `BoolValue::I32Comparison`.
 Those staged comparisons can also participate in buildable short-circuit bool expressions such as `if answer() == 42 && ready() { ... }` and `let matched = answer() == 42 && ready()`.
 Bool-returning normal calls are buildable in `let` initializers, unary-not bool expressions, bool equality/inequality operands, short-circuit bool value expressions, direct terminal-if conditions, and terminal-if short-circuit conditions.
@@ -188,6 +195,7 @@ Compound bool comparison operands such as `(left() && right()) == true` remain d
 Terminal-if conditions such as `if enabled() && other() { ... }` lower to nested `Instruction::If` nodes so `other()` is only evaluated when `enabled()` is true.
 `if enabled() || other() { ... }` uses the same nested form with `other()` evaluated only when `enabled()` is false.
 Bool short-circuit value expressions with calls, such as `let ready = enabled() && other()` or `return enabled() && other()`, lower to nested `Instruction::If` nodes that materialize `true` or `false` into the destination bool location.
+`str` normal-call results are staged into two consecutive local ABI words. They are lowerable in annotated `str` `let` initializers and as `str` call or tail-call arguments, for example `let text: str = title()` and `return consume(title())`.
 Loaded imported calls use the same narrow call subset as same-file calls. Unloaded imported placeholders still diagnose before backend lowering.
 
 ### Encoder Work Required First
@@ -235,6 +243,7 @@ Implement normal calls in this order:
 25. Done: extend typed scalar call arguments and parameter lowering to `bool`, using W registers at the same ABI argument index.
 26. Done: lower static string literals and `str` parameters as `str` call arguments, represented as `ptr,len` ABI word pairs in consecutive X argument registers.
 27. Done: lower direct non-entry `str` returns from static string literals, `str` parameters, and tail calls, returning `ptr,len` in `x0,x1`.
+28. Done: lower `str` normal-call results into two local ABI words for annotated `str` `let` initializers and nested `str` call arguments, and emit `CallStr`.
 
 ### Non-Goals For This Phase
 

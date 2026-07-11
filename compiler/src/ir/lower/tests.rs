@@ -1076,6 +1076,106 @@ func title(): str {
 }
 
 #[test]
+fn lowers_str_normal_call_result_as_call_argument() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    return consume(title(), 42)
+}
+
+func title(): str {
+    return "Nocter"
+}
+
+func consume(name: str, code: i32): i32 {
+    return code
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_str(StrLocation::Local(0), "title", vec![]),
+                    Instruction::TailCall {
+                        target: CallTarget::same_file("consume"),
+                        arguments: vec![
+                            ScalarArgument::Str(StrValue::Location(StrLocation::Local(0))),
+                            ScalarArgument::I32(I32Value::Const(42)),
+                        ],
+                    },
+                ],
+            },
+            Function {
+                name: "title".to_string(),
+                target: crate::ir::CallTarget::same_file("title".to_string()),
+                return_type: Type::Str,
+                instructions: vec![
+                    Instruction::SetStr {
+                        destination: StrLocation::Return,
+                        value: str_static_value(b"Nocter"),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "consume".to_string(),
+                target: crate::ir::CallTarget::same_file("consume".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_param(2),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ])
+    );
+}
+
+#[test]
+fn lowers_str_let_initializer_normal_call() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func wrapper(): str {
+    let text: str = title()
+    return text
+}
+
+func title(): str {
+    return "Nocter"
+}
+"#,
+        "wrapper",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "wrapper".to_string(),
+            target: crate::ir::CallTarget::same_file("wrapper".to_string()),
+            return_type: Type::Str,
+            instructions: vec![
+                call_str(StrLocation::Local(0), "title", vec![]),
+                Instruction::SetStr {
+                    destination: StrLocation::Return,
+                    value: StrValue::Location(StrLocation::Local(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_entry_i32_let_initializer_normal_call_addition() {
     let ir = lower_text(
         r#"func main(): i32 {
@@ -3917,6 +4017,18 @@ fn call_bool(
     arguments: Vec<ScalarArgument>,
 ) -> Instruction {
     Instruction::CallBool {
+        destination,
+        target: CallTarget::same_file(function),
+        arguments,
+    }
+}
+
+fn call_str(
+    destination: StrLocation,
+    function: &str,
+    arguments: Vec<ScalarArgument>,
+) -> Instruction {
+    Instruction::CallStr {
         destination,
         target: CallTarget::same_file(function),
         arguments,

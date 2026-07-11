@@ -62,7 +62,10 @@ pub(super) fn lower_str_expression_to_location(
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
-        Expr::Call(_) => Err(unsupported_non_tail_call_diagnostic()),
+        Expr::Call(call) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            lower_str_normal_call(call, destination, context, &mut temporaries)
+        }
         Expr::Group(group) => {
             lower_str_expression_to_location(&group.expression, destination, context)
         }
@@ -162,6 +165,29 @@ fn lower_usize_expression_to_value(
     }
 }
 
+fn lower_str_expression_to_value(
+    expression: &Expr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredStrValue, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(call) => {
+            let temporary = temporaries.next_str()?;
+            Ok(LoweredStrValue {
+                instructions: lower_str_normal_call(call, temporary, context, temporaries)?,
+                value: StrValue::Location(temporary),
+            })
+        }
+        Expr::Group(group) => {
+            lower_str_expression_to_value(&group.expression, context, temporaries)
+        }
+        _ => Ok(LoweredStrValue {
+            instructions: Vec::new(),
+            value: lower_str_value(expression, context)?,
+        }),
+    }
+}
+
 fn i32_binary_instruction(
     operator: BinaryOperator,
     destination: I32Location,
@@ -218,6 +244,11 @@ struct LoweredUsizeValue {
     value: UsizeValue,
 }
 
+struct LoweredStrValue {
+    instructions: Vec<Instruction>,
+    value: StrValue,
+}
+
 struct TemporaryAllocator {
     next_index: usize,
 }
@@ -230,52 +261,38 @@ impl TemporaryAllocator {
     }
 
     fn next_i32(&mut self) -> Result<I32Location, Vec<Diagnostic>> {
-        if self.next_index >= MAX_TEMPORARY_SCALAR_LOCALS {
-            return Err(vec![Diagnostic::error(
-                "E8008",
-                format!(
-                    "IR v0 can only lower up to {MAX_TEMPORARY_SCALAR_LOCALS} local scalar bindings"
-                ),
-            )]);
-        }
-
-        let location = I32Location::Local(self.next_index);
-        self.next_index += 1;
-        Ok(location)
+        self.next_local_index(1).map(I32Location::Local)
     }
 
     fn next_usize(&mut self) -> Result<UsizeLocation, Vec<Diagnostic>> {
-        if self.next_index >= MAX_TEMPORARY_SCALAR_LOCALS {
-            return Err(vec![Diagnostic::error(
-                "E8008",
-                format!(
-                    "IR v0 can only lower up to {MAX_TEMPORARY_SCALAR_LOCALS} local scalar bindings"
-                ),
-            )]);
-        }
-
-        let location = UsizeLocation::Local(self.next_index);
-        self.next_index += 1;
-        Ok(location)
+        self.next_local_index(1).map(UsizeLocation::Local)
     }
 
     fn next_bool(&mut self) -> Result<BoolLocation, Vec<Diagnostic>> {
-        if self.next_index >= MAX_TEMPORARY_SCALAR_LOCALS {
+        self.next_local_index(1).map(BoolLocation::Local)
+    }
+
+    fn next_str(&mut self) -> Result<StrLocation, Vec<Diagnostic>> {
+        self.next_local_index(2).map(StrLocation::Local)
+    }
+
+    fn next_local_index(&mut self, word_count: usize) -> Result<usize, Vec<Diagnostic>> {
+        if self.next_index + word_count > MAX_TEMPORARY_LOCAL_ABI_WORDS {
             return Err(vec![Diagnostic::error(
                 "E8008",
                 format!(
-                    "IR v0 can only lower up to {MAX_TEMPORARY_SCALAR_LOCALS} local scalar bindings"
+                    "IR v0 can only lower up to {MAX_TEMPORARY_LOCAL_ABI_WORDS} local ABI words"
                 ),
             )]);
         }
 
-        let location = BoolLocation::Local(self.next_index);
-        self.next_index += 1;
-        Ok(location)
+        let index = self.next_index;
+        self.next_index += word_count;
+        Ok(index)
     }
 }
 
-const MAX_TEMPORARY_SCALAR_LOCALS: usize = 7;
+const MAX_TEMPORARY_LOCAL_ABI_WORDS: usize = 7;
 
 pub(super) fn lower_i32_return_expression(
     expression: &Expr,
@@ -935,6 +952,30 @@ fn lower_bool_normal_call(
     Ok(instructions)
 }
 
+fn lower_str_normal_call(
+    call: &CallExpr,
+    destination: StrLocation,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Err(unsupported_non_tail_call_diagnostic());
+    };
+
+    let target = context.call_target(call, &identifier.name);
+    validate_str_normal_call_return_type(&target, &identifier.name, context)?;
+
+    let (mut instructions, arguments) =
+        lower_call_arguments(call, &target, &identifier.name, context, temporaries)?;
+
+    instructions.push(Instruction::CallStr {
+        destination,
+        target,
+        arguments,
+    });
+    Ok(instructions)
+}
+
 fn lower_direct_tail_call(
     call: &CallExpr,
     context: &LoweringContext,
@@ -1008,8 +1049,9 @@ fn lower_call_arguments(
                 arguments.push(ScalarArgument::Bool(argument.value));
             }
             Type::Str => {
-                let argument = lower_str_value(argument, context)?;
-                arguments.push(ScalarArgument::Str(argument));
+                let argument = lower_str_expression_to_value(argument, context, temporaries)?;
+                instructions.extend(argument.instructions);
+                arguments.push(ScalarArgument::Str(argument.value));
             }
             Type::Void | Type::Never | Type::Fallible(_) => {
                 return Err(vec![Diagnostic::error(
@@ -1117,6 +1159,28 @@ fn validate_bool_normal_call_return_type(
         "E8006",
         format!(
             "IR v0 can only lower normal calls returning `bool`, got function `{callee_name}` returning `{}`",
+            describe_type(callee_return_type),
+        ),
+    )])
+}
+
+fn validate_str_normal_call_return_type(
+    target: &CallTarget,
+    callee_name: &str,
+    context: &LoweringContext,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(callee_return_type) = context.call_return_type(target) else {
+        return Ok(());
+    };
+
+    if callee_return_type == &Type::Str {
+        return Ok(());
+    }
+
+    Err(vec![Diagnostic::error(
+        "E8006",
+        format!(
+            "IR v0 can only lower normal calls returning `str`, got function `{callee_name}` returning `{}`",
             describe_type(callee_return_type),
         ),
     )])

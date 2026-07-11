@@ -209,6 +209,18 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
+            Instruction::CallStr {
+                destination,
+                target,
+                arguments,
+            } => {
+                self.emit_call_str(
+                    *destination,
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    frame,
+                )?;
+            }
             Instruction::TailCall { target, arguments } => {
                 self.emit_tail_call(FunctionSymbol::from_call_target(target), arguments, frame)?;
             }
@@ -612,6 +624,28 @@ impl EntryEmitter {
         self.emit_call_result_to_bool_location(destination)
     }
 
+    fn emit_call_str(
+        &mut self,
+        destination: StrLocation,
+        function: FunctionSymbol,
+        arguments: &[ScalarArgument],
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "normal str call emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_staged_scalar_arguments(arguments, frame)?;
+
+        self.emit_call(function);
+        self.emit_scalar_reloads(frame)?;
+        self.emit_call_result_to_str_location(destination)
+    }
+
     fn emit_staged_scalar_arguments(
         &mut self,
         arguments: &[ScalarArgument],
@@ -773,6 +807,32 @@ impl EntryEmitter {
         let destination = self.bool_location_register(destination)?;
         if destination != WReg::W0 {
             self.encoder.emit_mov_w(destination, WReg::W0);
+        }
+
+        Ok(())
+    }
+
+    fn emit_call_result_to_str_location(
+        &mut self,
+        destination: StrLocation,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if destination == StrLocation::Return {
+            return Ok(());
+        }
+
+        let (ptr_destination, len_destination) = self.str_location_registers(destination)?;
+        let len_source = if ptr_destination == XReg::X1 {
+            self.encoder.emit_mov_x(XReg::X16, XReg::X1);
+            XReg::X16
+        } else {
+            XReg::X1
+        };
+
+        if ptr_destination != XReg::X0 {
+            self.encoder.emit_mov_x(ptr_destination, XReg::X0);
+        }
+        if len_destination != len_source {
+            self.encoder.emit_mov_x(len_destination, len_source);
         }
 
         Ok(())
@@ -1156,6 +1216,26 @@ impl EntryEmitter {
                 })?;
                 Ok((ptr, len))
             }
+            StrLocation::Local(index) => {
+                let ptr = XReg::local(index).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9004",
+                        format!(
+                            "codegen supports at most 7 local ABI words, got local word {index}"
+                        ),
+                    )]
+                })?;
+                let len_index = index + 1;
+                let len = XReg::local(len_index).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9004",
+                        format!(
+                            "codegen supports at most 7 local ABI words, got local word {len_index}"
+                        ),
+                    )]
+                })?;
+                Ok((ptr, len))
+            }
         }
     }
 
@@ -1405,7 +1485,8 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::ShiftRightI32 { .. }
             | Instruction::CallI32 { .. }
             | Instruction::CallUsize { .. }
-            | Instruction::CallBool { .. },
+            | Instruction::CallBool { .. }
+            | Instruction::CallStr { .. },
         )
         | None => false,
     }
