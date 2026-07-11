@@ -305,6 +305,13 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::RemainderI32 { .. }
             | Instruction::ShiftLeftI32 { .. }
             | Instruction::ShiftRightI32 { .. }
+            | Instruction::AddUsize { .. }
+            | Instruction::SubtractUsize { .. }
+            | Instruction::MultiplyUsize { .. }
+            | Instruction::DivideUsize { .. }
+            | Instruction::RemainderUsize { .. }
+            | Instruction::ShiftLeftUsize { .. }
+            | Instruction::ShiftRightUsize { .. }
             | Instruction::CallI32 { .. }
             | Instruction::CallUsize { .. }
             | Instruction::CallBool { .. }

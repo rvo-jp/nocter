@@ -24,6 +24,12 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: support `usize` arithmetic and shifts
+  - adds IR instructions and lowering for buildable `usize` `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`
+  - supports same-file and loaded imported `usize` normal calls inside lowerable `usize` arithmetic and shift expressions through the existing temporary staging path
+  - emits runtime traps for unsigned addition carry, subtraction borrow, multiplication high-word overflow, zero divisors, and shift counts greater than or equal to 64
+  - lowers `<<` through ARM64 `lslv` and `>>` through ARM64 `lsrv` for unsigned `usize`
+  - adds ARM64 encoder, IR lowering, codegen, CLI build, and CLI run coverage, including overflow/division/shift trap paths
 - Current checkpoint: document interpolation lowering direction
   - records that bare interpolation still cannot lower without an explicit source-level allocator
   - sets the next implementation path as explicit `std/string` construction plus `std/fmt.append_*` calls before lowering bare interpolation syntax
@@ -312,16 +318,15 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Add backend usize scalar foundation`.
+- None expected after committing `Support usize arithmetic and shifts`.
 
 ## Verification Already Run
 
-For the backend `usize` scalar foundation, from `compiler/`:
+For backend `usize` arithmetic and shifts, from `compiler/`:
 
 ```sh
 cargo check --quiet
-cargo test --quiet usize -- --nocapture
-cargo test --quiet imported_usize -- --nocapture
+cargo test --quiet usize
 cargo test --quiet --lib
 cargo test --quiet
 ./scripts/verify.sh
@@ -931,7 +936,7 @@ All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew s
 
 ## Next Implementation Direction
 
-The scalar `i32` backend subset now has runtime safety checks for `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`.
+The scalar `i32` and `usize` backend subsets now have runtime safety checks for `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`.
 
 Recommended next small task for the next session:
 

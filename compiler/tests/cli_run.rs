@@ -1036,6 +1036,73 @@ func right_count(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_usize_arithmetic_and_shift_exit_code() {
+    let project = TempProject::new("cli-run-usize-arithmetic-shift");
+    let source = project.write_source(
+        "usize_arithmetic_shift.nct",
+        r#"func main(): i32 {
+    if combined(20, size()) == 23 {
+        return 42
+    } else {
+        return 1
+    }
+}
+
+func combined(left: usize, right: usize): usize {
+    return arithmetic(left, right) + shifted_left() + shifted_right()
+}
+
+func arithmetic(left: usize, right: usize): usize {
+    let doubled: usize = right * 2
+    let adjusted: usize = left + doubled - 4
+    let quotient: usize = adjusted / 2
+    let remainder: usize = quotient % 9
+    return remainder
+}
+
+func shifted_left(): usize {
+    return one() << left_count()
+}
+
+func shifted_right(): usize {
+    return sixty_four() >> right_count()
+}
+
+func size(): usize {
+    return 6
+}
+
+func one(): usize {
+    return 1
+}
+
+func sixty_four(): usize {
+    return 64
+}
+
+func left_count(): usize {
+    return 4
+}
+
+func right_count(): usize {
+    return 5
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_traps_i32_division_by_zero() {
     let project = TempProject::new("cli-run-i32-div-zero");
     let source = project.write_source(
@@ -1218,6 +1285,112 @@ func maximum(): i32 {
 
 func two(): i32 {
     return 2
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert!(
+        !output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_traps_usize_addition_overflow() {
+    let project = TempProject::new("cli-run-usize-add-overflow");
+    let source = project.write_source(
+        "usize_add_overflow.nct",
+        r#"func main(): i32 {
+    if overflow() == 0 {
+        return 0
+    } else {
+        return 1
+    }
+}
+
+func overflow(): usize {
+    return maximum() + 1
+}
+
+func maximum(): usize {
+    return 0xffff_ffff_ffff_ffff
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert!(
+        !output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_traps_usize_division_by_zero() {
+    let project = TempProject::new("cli-run-usize-div-zero");
+    let source = project.write_source(
+        "usize_div_zero.nct",
+        r#"func main(): i32 {
+    if divide() == 0 {
+        return 0
+    } else {
+        return 1
+    }
+}
+
+func divide(): usize {
+    return 1 / zero()
+}
+
+func zero(): usize {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert!(
+        !output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_traps_usize_too_large_shift_count() {
+    let project = TempProject::new("cli-run-usize-shift-too-large");
+    let source = project.write_source(
+        "usize_shift_too_large.nct",
+        r#"func main(): i32 {
+    if shift() == 0 {
+        return 0
+    } else {
+        return 1
+    }
+}
+
+func shift(): usize {
+    return one() << count()
+}
+
+func one(): usize {
+    return 1
+}
+
+func count(): usize {
+    return 64
 }
 "#,
     );

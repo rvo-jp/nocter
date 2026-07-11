@@ -174,6 +174,55 @@ impl EntryEmitter {
             } => {
                 self.emit_shift_right_i32(*destination, left, right)?;
             }
+            Instruction::AddUsize {
+                destination,
+                left,
+                right,
+            } => {
+                self.emit_add_usize(*destination, left, right)?;
+            }
+            Instruction::SubtractUsize {
+                destination,
+                left,
+                right,
+            } => {
+                self.emit_subtract_usize(*destination, left, right)?;
+            }
+            Instruction::MultiplyUsize {
+                destination,
+                left,
+                right,
+            } => {
+                self.emit_multiply_usize(*destination, left, right)?;
+            }
+            Instruction::DivideUsize {
+                destination,
+                left,
+                right,
+            } => {
+                self.emit_divide_usize(*destination, left, right)?;
+            }
+            Instruction::RemainderUsize {
+                destination,
+                left,
+                right,
+            } => {
+                self.emit_remainder_usize(*destination, left, right)?;
+            }
+            Instruction::ShiftLeftUsize {
+                destination,
+                left,
+                right,
+            } => {
+                self.emit_shift_left_usize(*destination, left, right)?;
+            }
+            Instruction::ShiftRightUsize {
+                destination,
+                left,
+                right,
+            } => {
+                self.emit_shift_right_usize(*destination, left, right)?;
+            }
             Instruction::CallI32 {
                 destination,
                 target,
@@ -464,6 +513,7 @@ const DARWIN_WRITE_SYSCALL: u32 = 0x0200_0004;
 const DARWIN_EXIT_SYSCALL: u32 = 0x0200_0001;
 const DARWIN_SYSCALL_TRAP: u16 = 0x80;
 const I32_BIT_WIDTH: i32 = 32;
+const USIZE_BIT_WIDTH: u64 = 64;
 
 #[cfg(test)]
 mod tests {
@@ -471,7 +521,7 @@ mod tests {
     use super::*;
     use crate::ir::{
         BoolLocation, BoolValue, CallTarget, Function, I32ComparisonOperator, I32Location,
-        I32Value, ScalarArgument, StrLocation, StrValue, Type,
+        I32Value, ScalarArgument, StrLocation, StrValue, Type, UsizeLocation, UsizeValue,
     };
     use crate::source::SourceId;
     use crate::target::arm64::BranchCondition;
@@ -1343,6 +1393,174 @@ mod tests {
     }
 
     #[test]
+    fn generates_usize_addition_with_overflow_trap() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Usize,
+            instructions: vec![
+                Instruction::AddUsize {
+                    destination: UsizeLocation::Return,
+                    left: usize_const(40),
+                    right: usize_const(2),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0x00, 0x02, 0x00, 0xab])); // adds x0, x16, x0
+        assert!(contains_instruction(&code.text, [0x43, 0x00, 0x00, 0x54])); // b.cc +8
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+    }
+
+    #[test]
+    fn generates_usize_subtraction_with_underflow_trap() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Usize,
+            instructions: vec![
+                Instruction::SubtractUsize {
+                    destination: UsizeLocation::Return,
+                    left: usize_const(40),
+                    right: usize_const(2),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0x00, 0x02, 0x00, 0xeb])); // subs x0, x16, x0
+        assert!(contains_instruction(&code.text, [0x42, 0x00, 0x00, 0x54])); // b.cs +8
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+    }
+
+    #[test]
+    fn generates_usize_multiplication_with_overflow_trap() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Usize,
+            instructions: vec![
+                Instruction::MultiplyUsize {
+                    destination: UsizeLocation::Return,
+                    left: usize_const(21),
+                    right: usize_const(2),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0x11, 0x7e, 0xc0, 0x9b])); // umulh x17, x16, x0
+        assert!(contains_instruction(&code.text, [0x3f, 0x02, 0x1f, 0xeb])); // cmp x17, xzr
+        assert!(contains_instruction(&code.text, [0x40, 0x00, 0x00, 0x54])); // b.eq +8
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+        assert!(contains_instruction(&code.text, [0x00, 0x7e, 0x00, 0x9b])); // mul x0, x16, x0
+    }
+
+    #[test]
+    fn generates_usize_division_with_zero_trap() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Usize,
+            instructions: vec![
+                Instruction::DivideUsize {
+                    destination: UsizeLocation::Return,
+                    left: usize_const(84),
+                    right: usize_const(2),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0x1f, 0x00, 0x1f, 0xeb])); // cmp x0, xzr
+        assert!(contains_instruction(&code.text, [0x41, 0x00, 0x00, 0x54])); // b.ne +8
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+        assert!(contains_instruction(&code.text, [0x00, 0x0a, 0xc0, 0x9a])); // udiv x0, x16, x0
+    }
+
+    #[test]
+    fn generates_usize_remainder_with_zero_trap() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Usize,
+            instructions: vec![
+                Instruction::RemainderUsize {
+                    destination: UsizeLocation::Return,
+                    left: usize_const(85),
+                    right: usize_const(43),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0x1f, 0x00, 0x1f, 0xeb])); // cmp x0, xzr
+        assert!(contains_instruction(&code.text, [0x41, 0x00, 0x00, 0x54])); // b.ne +8
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+        assert!(contains_instruction(&code.text, [0x11, 0x0a, 0xc0, 0x9a])); // udiv x17, x16, x0
+        assert!(contains_instruction(&code.text, [0x20, 0xc2, 0x00, 0x9b])); // msub x0, x17, x0, x16
+    }
+
+    #[test]
+    fn generates_usize_shift_left_with_count_trap() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Usize,
+            instructions: vec![
+                Instruction::ShiftLeftUsize {
+                    destination: UsizeLocation::Return,
+                    left: usize_const(5),
+                    right: usize_const(3),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0x1f, 0x00, 0x11, 0xeb])); // cmp x0, x17
+        assert!(contains_instruction(&code.text, [0x43, 0x00, 0x00, 0x54])); // b.cc +8
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+        assert!(contains_instruction(&code.text, [0x00, 0x22, 0xc0, 0x9a])); // lslv x0, x16, x0
+    }
+
+    #[test]
+    fn generates_usize_shift_right_with_count_trap() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Usize,
+            instructions: vec![
+                Instruction::ShiftRightUsize {
+                    destination: UsizeLocation::Return,
+                    left: usize_const(8),
+                    right: usize_const(1),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0x1f, 0x00, 0x11, 0xeb])); // cmp x0, x17
+        assert!(contains_instruction(&code.text, [0x43, 0x00, 0x00, 0x54])); // b.cc +8
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+        assert!(contains_instruction(&code.text, [0x00, 0x26, 0xc0, 0x9a])); // lsrv x0, x16, x0
+    }
+
+    #[test]
     fn generates_terminal_if_with_false_condition() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),
@@ -1710,6 +1928,10 @@ mod tests {
 
     fn i32_local(index: usize) -> I32Value {
         I32Value::Location(I32Location::Local(index))
+    }
+
+    fn usize_const(value: u64) -> UsizeValue {
+        UsizeValue::Const(value)
     }
 
     fn contains_instruction(text: &[u8], instruction: [u8; 4]) -> bool {

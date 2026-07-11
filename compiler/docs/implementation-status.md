@@ -18,7 +18,7 @@ This file describes implementation state only.
 |---|---:|---:|---:|---:|---:|---|
 | Root `main` / `--entry` selection | yes | yes | yes | yes | yes | Entry function must be in the root file. |
 | `i32` return values | yes | yes | yes | yes | yes | Literal returns and lowerable expressions are supported. |
-| `usize` scalar values | yes | yes | yes | partial | partial | Build supports annotated `usize` locals, non-entry `usize` literal/local/call returns, same-file and loaded imported scalar calls with `usize` parameters/arguments, and `usize` comparisons in lowerable bool positions. |
+| `usize` scalar values | yes | yes | yes | partial | partial | Build supports annotated `usize` locals, non-entry `usize` literal/local/call/arithmetic/shift returns, same-file and loaded imported scalar calls with `usize` parameters/arguments, `usize` arithmetic and shifts in lowerable expressions, and `usize` comparisons in lowerable bool positions. |
 | `void` entry | yes | yes | yes | yes | yes | Empty body and bare `return` are buildable. |
 | `bool` expressions | yes | yes | yes | partial | yes | Build supports literals, locals, parameters, `!`, `&&`, `||`, `i32` and `usize` comparisons, bool equality/inequality over literal/local operands, and bool call arguments in lowerable positions. |
 | String literals and interpolation | yes | yes | partial | partial | partial | Single-line and multi-line string literals are tokenized, parsed, typed as `str`, buildable as `str` call arguments, buildable as direct non-entry `str` returns, and buildable through annotated `str` locals plus narrow `str` normal-call result staging. Interpolation is parsed as an explicit expression and checked as `String!` with limited supported part types. The initial `std/string` and `std/fmt` API boundary exists, but owned/interpolated string construction is not lowerable. |
@@ -61,9 +61,9 @@ Currently buildable:
 - same-file and loaded imported non-generic normal calls returning `i32` in `let` initializers
 - same-file and loaded imported non-generic normal calls returning `i32` in `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, evaluated left to right with distinct temporary locals
 - same-file and loaded imported non-generic normal calls returning `i32` as `i32` comparison operands such as `if answer() == 42`, `let matched = left() <= right()`, and `return left() < right()`
-- same-file and loaded imported non-generic normal calls returning `usize` in annotated `let` initializers, including calls with scalar arguments
-- non-entry functions returning `usize` literal/local/call values in lowerable positions
-- `usize` comparisons over literals, locals, and same-file or loaded imported normal calls in lowerable bool expressions and terminal `if` conditions
+- same-file and loaded imported non-generic normal calls returning `usize` in annotated `let` initializers and `usize` arithmetic or shift expressions, including calls with scalar arguments
+- non-entry functions returning `usize` literal/local/call/arithmetic/shift values in lowerable positions
+- `usize` comparisons over literals, locals, lowerable arithmetic or shift expressions, and same-file or loaded imported normal calls in lowerable bool expressions and terminal `if` conditions
 - same-file and loaded imported non-generic normal calls returning `bool` in `let` initializers
 - same-file and loaded imported non-generic normal calls returning `bool` under unary `!` in `let` initializers and bool return expressions
 - same-file and loaded imported non-generic normal calls returning `bool` as atomic bool equality/inequality operands such as `ready() == true` and `left() != right()`
@@ -80,6 +80,8 @@ Currently buildable:
 - non-entry functions returning `bool`, `usize`, or direct `str` literal/parameter/local/tail-call values
 - `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; addition, subtraction, and multiplication emit signed-overflow trap checks, and division and remainder emit zero-divisor plus signed-overflow trap checks
 - `i32` shifts with `<<` and `>>` used in lowerable `i32` expressions; shift counts trap when negative or greater than or equal to 32
+- `usize` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `usize` expressions; addition traps on carry, subtraction traps on borrow, multiplication traps when the high product word is non-zero, and division and remainder trap on zero divisors
+- `usize` shifts with `<<` and `>>` used in lowerable `usize` expressions; shift counts trap when greater than or equal to 64
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` or `usize` comparisons used in lowerable bool expressions
 - terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over literal/local operands, or `i32`/`usize` comparison conditions and direct `i32` or non-entry `bool` returns in both branches
 - non-entry `never` functions that end with a lowerable call returning `never`
@@ -93,7 +95,7 @@ Currently not buildable even when it may be checkable:
 - general `if`, `while`, `loop`, range `for`, `match`, and pattern conditional `?{}`
 - unloaded imported function placeholders
 - compound bool equality operands with calls such as `(ready() && other()) == true`
-- `usize` arithmetic and `usize` entry return values
+- `usize` entry return values
 - `str` member operations and view/byte iteration
 - interpolated string construction
 - optional values

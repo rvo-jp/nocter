@@ -324,6 +324,207 @@ func identity(value: usize): usize {
 }
 
 #[test]
+fn lowers_usize_arithmetic_and_shift_returns() {
+    let text = r#"func main(): i32 {
+    return 0
+}
+
+func add(left: usize, right: usize): usize {
+    return left + right
+}
+
+func subtract(left: usize, right: usize): usize {
+    return left - right
+}
+
+func multiply(left: usize, right: usize): usize {
+    return left * right
+}
+
+func divide(left: usize, right: usize): usize {
+    return left / right
+}
+
+func remainder(left: usize, right: usize): usize {
+    return left % right
+}
+
+func shift_left(left: usize, right: usize): usize {
+    return left << right
+}
+
+func shift_right(left: usize, right: usize): usize {
+    return left >> right
+}
+"#;
+
+    for (name, instruction) in [
+        (
+            "add",
+            Instruction::AddUsize {
+                destination: UsizeLocation::Return,
+                left: usize_param(0),
+                right: usize_param(1),
+            },
+        ),
+        (
+            "subtract",
+            Instruction::SubtractUsize {
+                destination: UsizeLocation::Return,
+                left: usize_param(0),
+                right: usize_param(1),
+            },
+        ),
+        (
+            "multiply",
+            Instruction::MultiplyUsize {
+                destination: UsizeLocation::Return,
+                left: usize_param(0),
+                right: usize_param(1),
+            },
+        ),
+        (
+            "divide",
+            Instruction::DivideUsize {
+                destination: UsizeLocation::Return,
+                left: usize_param(0),
+                right: usize_param(1),
+            },
+        ),
+        (
+            "remainder",
+            Instruction::RemainderUsize {
+                destination: UsizeLocation::Return,
+                left: usize_param(0),
+                right: usize_param(1),
+            },
+        ),
+        (
+            "shift_left",
+            Instruction::ShiftLeftUsize {
+                destination: UsizeLocation::Return,
+                left: usize_param(0),
+                right: usize_param(1),
+            },
+        ),
+        (
+            "shift_right",
+            Instruction::ShiftRightUsize {
+                destination: UsizeLocation::Return,
+                left: usize_param(0),
+                right: usize_param(1),
+            },
+        ),
+    ] {
+        assert_eq!(
+            lower_named_function(text, name),
+            Function {
+                name: name.to_string(),
+                target: crate::ir::CallTarget::same_file(name),
+                return_type: Type::Usize,
+                instructions: vec![instruction, Instruction::Return],
+            }
+        );
+    }
+}
+
+#[test]
+fn lowers_usize_call_in_nested_arithmetic_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func score(base: usize): usize {
+    return base + size() * 2
+}
+
+func size(): usize {
+    return 20
+}
+"#,
+        "score",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "score".to_string(),
+            target: crate::ir::CallTarget::same_file("score".to_string()),
+            return_type: Type::Usize,
+            instructions: vec![
+                call_usize(UsizeLocation::Local(1), "size", vec![]),
+                Instruction::MultiplyUsize {
+                    destination: UsizeLocation::Local(0),
+                    left: usize_local(1),
+                    right: usize_const(2),
+                },
+                Instruction::AddUsize {
+                    destination: UsizeLocation::Return,
+                    left: usize_param(0),
+                    right: usize_local(0),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_entry_usize_arithmetic_condition() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let left: usize = 20
+    let right: usize = 6
+    if left + right * 2 == 32 {
+        return 0
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Local(0),
+                    value: usize_const(20),
+                },
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Local(1),
+                    value: usize_const(6),
+                },
+                Instruction::MultiplyUsize {
+                    destination: UsizeLocation::Local(3),
+                    left: usize_local(1),
+                    right: usize_const(2),
+                },
+                Instruction::AddUsize {
+                    destination: UsizeLocation::Local(2),
+                    left: usize_local(0),
+                    right: usize_local(3),
+                },
+                Instruction::If {
+                    condition: BoolValue::UsizeComparison {
+                        operator: I32ComparisonOperator::Equal,
+                        left: usize_local(2),
+                        right: usize_const(32),
+                    },
+                    then_instructions: vec![set_return_i32(0), Instruction::Return],
+                    else_instructions: vec![set_return_i32(1), Instruction::Return],
+                },
+            ],
+        }])
+    );
+}
+
+#[test]
 fn lowers_bool_parameter_normal_call_in_terminal_if() {
     let ir = lower_text(
         r#"func main(): i32 {

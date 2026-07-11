@@ -35,6 +35,10 @@ impl Encoder {
         self.emit_word(ADDS_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
     }
 
+    pub(crate) fn emit_adds_x(&mut self, rd: XReg, rn: XReg, rm: XReg) {
+        self.emit_word(ADDS_X_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
+    }
+
     #[allow(dead_code)]
     pub(crate) fn emit_sub_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
         self.emit_word(SUB_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
@@ -44,6 +48,10 @@ impl Encoder {
         self.emit_word(SUBS_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
     }
 
+    pub(crate) fn emit_subs_x(&mut self, rd: XReg, rn: XReg, rm: XReg) {
+        self.emit_word(SUBS_X_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
+    }
+
     #[allow(dead_code)]
     pub(crate) fn emit_mul_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
         self.emit_word(
@@ -51,12 +59,30 @@ impl Encoder {
         );
     }
 
+    pub(crate) fn emit_mul_x(&mut self, rd: XReg, rn: XReg, rm: XReg) {
+        self.emit_word(
+            MADD_X_BASE | (rm.bits() << 16) | (XZR_BITS << 10) | (rn.bits() << 5) | rd.bits(),
+        );
+    }
+
     pub(crate) fn emit_sdiv_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
         self.emit_word(SDIV_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
     }
 
+    pub(crate) fn emit_udiv_x(&mut self, rd: XReg, rn: XReg, rm: XReg) {
+        self.emit_word(UDIV_X_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
+    }
+
     pub(crate) fn emit_lslv_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
         self.emit_word(LSLV_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
+    }
+
+    pub(crate) fn emit_lslv_x(&mut self, rd: XReg, rn: XReg, rm: XReg) {
+        self.emit_word(LSLV_X_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
+    }
+
+    pub(crate) fn emit_lsrv_x(&mut self, rd: XReg, rn: XReg, rm: XReg) {
+        self.emit_word(LSRV_X_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
     }
 
     pub(crate) fn emit_asrv_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
@@ -69,10 +95,20 @@ impl Encoder {
         );
     }
 
+    pub(crate) fn emit_msub_x(&mut self, rd: XReg, rn: XReg, rm: XReg, ra: XReg) {
+        self.emit_word(
+            MSUB_X_BASE | (rm.bits() << 16) | (ra.bits() << 10) | (rn.bits() << 5) | rd.bits(),
+        );
+    }
+
     pub(crate) fn emit_smull_x(&mut self, rd: XReg, rn: WReg, rm: WReg) {
         self.emit_word(
             SMADDL_X_BASE | (rm.bits() << 16) | (WZR_BITS << 10) | (rn.bits() << 5) | rd.bits(),
         );
+    }
+
+    pub(crate) fn emit_umulh_x(&mut self, rd: XReg, rn: XReg, rm: XReg) {
+        self.emit_word(UMULH_X_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
     }
 
     pub(crate) fn emit_sxtw_x_w(&mut self, rd: XReg, rn: WReg) {
@@ -99,6 +135,10 @@ impl Encoder {
 
     pub(crate) fn emit_cmp_x(&mut self, rn: XReg, rm: XReg) {
         self.emit_word(SUBS_X_BASE | (rm.bits() << 16) | (rn.bits() << 5) | WZR_BITS);
+    }
+
+    pub(crate) fn emit_cmp_x_zero(&mut self, rn: XReg) {
+        self.emit_word(SUBS_X_BASE | (XZR_BITS << 16) | (rn.bits() << 5) | XZR_BITS);
     }
 
     pub(crate) fn emit_movz_x(&mut self, rd: XReg, imm16: u16, shift: MoveWideShift) {
@@ -437,15 +477,22 @@ const ORR_X_BASE: u32 = 0xaa00_0000;
 #[allow(dead_code)]
 const ADD_W_BASE: u32 = 0x0b00_0000;
 const ADDS_W_BASE: u32 = 0x2b00_0000;
+const ADDS_X_BASE: u32 = 0xab00_0000;
 #[allow(dead_code)]
 const SUB_W_BASE: u32 = 0x4b00_0000;
 #[allow(dead_code)]
 const MADD_W_BASE: u32 = 0x1b00_0000;
+const MADD_X_BASE: u32 = 0x9b00_0000;
 const MSUB_W_BASE: u32 = 0x1b00_8000;
+const MSUB_X_BASE: u32 = 0x9b00_8000;
 const SMADDL_X_BASE: u32 = 0x9b20_0000;
+const UMULH_X_BASE: u32 = 0x9bc0_7c00;
 const SXTW_X_BASE: u32 = 0x9340_7c00;
 const SDIV_W_BASE: u32 = 0x1ac0_0c00;
+const UDIV_X_BASE: u32 = 0x9ac0_0800;
 const LSLV_W_BASE: u32 = 0x1ac0_2000;
+const LSLV_X_BASE: u32 = 0x9ac0_2000;
+const LSRV_X_BASE: u32 = 0x9ac0_2400;
 const ASRV_W_BASE: u32 = 0x1ac0_2800;
 #[allow(dead_code)]
 const ADD_SP_IMM_BASE: u32 = 0x9100_0000;
@@ -606,6 +653,15 @@ mod tests {
     }
 
     #[test]
+    fn encodes_adds_x0_x0_x1() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_adds_x(XReg::X0, XReg::X0, XReg::X1);
+
+        assert_eq!(encoder.finish(), vec![0x00, 0x00, 0x01, 0xab]);
+    }
+
+    #[test]
     fn encodes_sub_w0_w0_w1() {
         let mut encoder = Encoder::new();
 
@@ -624,12 +680,30 @@ mod tests {
     }
 
     #[test]
+    fn encodes_subs_x0_x0_x1() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_subs_x(XReg::X0, XReg::X0, XReg::X1);
+
+        assert_eq!(encoder.finish(), vec![0x00, 0x00, 0x01, 0xeb]);
+    }
+
+    #[test]
     fn encodes_mul_w0_w0_w1() {
         let mut encoder = Encoder::new();
 
         encoder.emit_mul_w(WReg::W0, WReg::W0, WReg::W1);
 
         assert_eq!(encoder.finish(), vec![0x00, 0x7c, 0x01, 0x1b]);
+    }
+
+    #[test]
+    fn encodes_mul_x0_x0_x1() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_mul_x(XReg::X0, XReg::X0, XReg::X1);
+
+        assert_eq!(encoder.finish(), vec![0x00, 0x7c, 0x01, 0x9b]);
     }
 
     #[test]
@@ -642,12 +716,39 @@ mod tests {
     }
 
     #[test]
+    fn encodes_udiv_x0_x0_x1() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_udiv_x(XReg::X0, XReg::X0, XReg::X1);
+
+        assert_eq!(encoder.finish(), vec![0x00, 0x08, 0xc1, 0x9a]);
+    }
+
+    #[test]
     fn encodes_lslv_w0_w16_w0() {
         let mut encoder = Encoder::new();
 
         encoder.emit_lslv_w(WReg::W0, WReg::W16, WReg::W0);
 
         assert_eq!(encoder.finish(), vec![0x00, 0x22, 0xc0, 0x1a]);
+    }
+
+    #[test]
+    fn encodes_lslv_x0_x16_x0() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_lslv_x(XReg::X0, XReg::X16, XReg::X0);
+
+        assert_eq!(encoder.finish(), vec![0x00, 0x22, 0xc0, 0x9a]);
+    }
+
+    #[test]
+    fn encodes_lsrv_x0_x16_x0() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_lsrv_x(XReg::X0, XReg::X16, XReg::X0);
+
+        assert_eq!(encoder.finish(), vec![0x00, 0x26, 0xc0, 0x9a]);
     }
 
     #[test]
@@ -669,12 +770,30 @@ mod tests {
     }
 
     #[test]
+    fn encodes_msub_x0_x2_x1_x0() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_msub_x(XReg::X0, XReg::X2, XReg::X1, XReg::X0);
+
+        assert_eq!(encoder.finish(), vec![0x40, 0x80, 0x01, 0x9b]);
+    }
+
+    #[test]
     fn encodes_smull_x17_w16_w0() {
         let mut encoder = Encoder::new();
 
         encoder.emit_smull_x(XReg::X17, WReg::W16, WReg::W0);
 
         assert_eq!(encoder.finish(), vec![0x11, 0x7e, 0x20, 0x9b]);
+    }
+
+    #[test]
+    fn encodes_umulh_x17_x16_x0() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_umulh_x(XReg::X17, XReg::X16, XReg::X0);
+
+        assert_eq!(encoder.finish(), vec![0x11, 0x7e, 0xc0, 0x9b]);
     }
 
     #[test]
@@ -738,6 +857,15 @@ mod tests {
         encoder.emit_cmp_x(XReg::X17, XReg::X16);
 
         assert_eq!(encoder.finish(), vec![0x3f, 0x02, 0x10, 0xeb]);
+    }
+
+    #[test]
+    fn encodes_cmp_x17_zero() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_cmp_x_zero(XReg::X17);
+
+        assert_eq!(encoder.finish(), vec![0x3f, 0x02, 0x1f, 0xeb]);
     }
 
     #[test]
@@ -864,6 +992,15 @@ mod tests {
         encoder.emit_b_cond(BranchCondition::Ne, 8);
 
         assert_eq!(encoder.finish(), vec![0x41, 0x00, 0x00, 0x54]);
+    }
+
+    #[test]
+    fn encodes_b_cs_positive_offset() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_b_cond(BranchCondition::Cs, 8);
+
+        assert_eq!(encoder.finish(), vec![0x42, 0x00, 0x00, 0x54]);
     }
 
     #[test]

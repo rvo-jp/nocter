@@ -185,6 +185,13 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::RemainderI32 { .. }
         | Instruction::ShiftLeftI32 { .. }
         | Instruction::ShiftRightI32 { .. }
+        | Instruction::AddUsize { .. }
+        | Instruction::SubtractUsize { .. }
+        | Instruction::MultiplyUsize { .. }
+        | Instruction::DivideUsize { .. }
+        | Instruction::RemainderUsize { .. }
+        | Instruction::ShiftLeftUsize { .. }
+        | Instruction::ShiftRightUsize { .. }
         | Instruction::Trap
         | Instruction::Return => false,
     }
@@ -231,6 +238,13 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::RemainderI32 { .. }
         | Instruction::ShiftLeftI32 { .. }
         | Instruction::ShiftRightI32 { .. }
+        | Instruction::AddUsize { .. }
+        | Instruction::SubtractUsize { .. }
+        | Instruction::MultiplyUsize { .. }
+        | Instruction::DivideUsize { .. }
+        | Instruction::RemainderUsize { .. }
+        | Instruction::ShiftLeftUsize { .. }
+        | Instruction::ShiftRightUsize { .. }
         | Instruction::Trap
         | Instruction::Return => 0,
     }
@@ -310,6 +324,45 @@ fn record_instruction_scalar_locals(
             record_i32_location(*destination, highest_local_index);
             record_i32_value(left, highest_local_index);
             record_i32_value(right, highest_local_index);
+        }
+        Instruction::AddUsize {
+            destination,
+            left,
+            right,
+        }
+        | Instruction::SubtractUsize {
+            destination,
+            left,
+            right,
+        }
+        | Instruction::MultiplyUsize {
+            destination,
+            left,
+            right,
+        }
+        | Instruction::DivideUsize {
+            destination,
+            left,
+            right,
+        }
+        | Instruction::RemainderUsize {
+            destination,
+            left,
+            right,
+        }
+        | Instruction::ShiftLeftUsize {
+            destination,
+            left,
+            right,
+        }
+        | Instruction::ShiftRightUsize {
+            destination,
+            left,
+            right,
+        } => {
+            record_usize_location(*destination, highest_local_index);
+            record_usize_value(left, highest_local_index);
+            record_usize_value(right, highest_local_index);
         }
         Instruction::CallI32 {
             destination,

@@ -40,6 +40,13 @@ fn collect_reachable_call_targets(
             | Instruction::RemainderI32 { .. }
             | Instruction::ShiftLeftI32 { .. }
             | Instruction::ShiftRightI32 { .. }
+            | Instruction::AddUsize { .. }
+            | Instruction::SubtractUsize { .. }
+            | Instruction::MultiplyUsize { .. }
+            | Instruction::DivideUsize { .. }
+            | Instruction::RemainderUsize { .. }
+            | Instruction::ShiftLeftUsize { .. }
+            | Instruction::ShiftRightUsize { .. }
             | Instruction::Trap
             | Instruction::Return => {}
         }

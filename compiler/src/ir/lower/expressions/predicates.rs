@@ -121,17 +121,22 @@ pub(super) fn bool_comparison_contains_call(
     )
 }
 
-pub(super) fn i32_comparison_contains_call(binary: &BinaryExpr, context: &LoweringContext) -> bool {
-    is_i32_comparison_operator(binary.operator)
-        && expressions_are_lowerable_i32_values_with_calls(&binary.left, &binary.right, context)
-}
-
-pub(super) fn usize_comparison_contains_call(
+pub(super) fn i32_comparison_needs_temporaries(
     binary: &BinaryExpr,
     context: &LoweringContext,
 ) -> bool {
     is_i32_comparison_operator(binary.operator)
-        && expressions_are_lowerable_usize_values_with_calls(&binary.left, &binary.right, context)
+        && expressions_are_lowerable_i32_expressions(&binary.left, &binary.right, context)
+        && !expressions_are_lowerable_i32_values(&binary.left, &binary.right, context)
+}
+
+pub(super) fn usize_comparison_needs_temporaries(
+    binary: &BinaryExpr,
+    context: &LoweringContext,
+) -> bool {
+    is_i32_comparison_operator(binary.operator)
+        && expressions_are_lowerable_usize_expressions(&binary.left, &binary.right, context)
+        && !expressions_are_lowerable_usize_values(&binary.left, &binary.right, context)
 }
 
 pub(in crate::ir::lower) fn expression_is_lowerable_bool_binding(
@@ -205,6 +210,14 @@ pub(super) fn expressions_are_lowerable_usize_values(
 }
 
 pub(super) fn is_i32_binary_operator(operator: BinaryOperator) -> bool {
+    is_integer_binary_operator(operator)
+}
+
+pub(super) fn is_usize_binary_operator(operator: BinaryOperator) -> bool {
+    is_integer_binary_operator(operator)
+}
+
+fn is_integer_binary_operator(operator: BinaryOperator) -> bool {
     matches!(
         operator,
         BinaryOperator::Add
@@ -235,22 +248,14 @@ fn expression_is_lowerable_comparison_binding(
 ) -> bool {
     if is_i32_comparison_operator(binary.operator)
         && (expressions_are_lowerable_i32_values(&binary.left, &binary.right, context)
-            || expressions_are_lowerable_i32_values_with_calls(
-                &binary.left,
-                &binary.right,
-                context,
-            ))
+            || expressions_are_lowerable_i32_expressions(&binary.left, &binary.right, context))
     {
         return true;
     }
 
     if is_i32_comparison_operator(binary.operator)
         && (expressions_are_lowerable_usize_values(&binary.left, &binary.right, context)
-            || expressions_are_lowerable_usize_values_with_calls(
-                &binary.left,
-                &binary.right,
-                context,
-            ))
+            || expressions_are_lowerable_usize_expressions(&binary.left, &binary.right, context))
     {
         return true;
     }
@@ -275,30 +280,25 @@ fn expressions_are_lowerable_i32_values(
         && expression_is_lowerable_i32_value(right, context)
 }
 
-fn expressions_are_lowerable_i32_values_with_calls(
+fn expressions_are_lowerable_i32_expressions(
     left: &Expr,
     right: &Expr,
     context: &LoweringContext,
 ) -> bool {
-    expression_is_lowerable_i32_expression_with_calls(left, context)
-        && expression_is_lowerable_i32_expression_with_calls(right, context)
-        && (expression_contains_call(left) || expression_contains_call(right))
+    expression_is_lowerable_i32_expression(left, context)
+        && expression_is_lowerable_i32_expression(right, context)
 }
 
-fn expressions_are_lowerable_usize_values_with_calls(
+fn expressions_are_lowerable_usize_expressions(
     left: &Expr,
     right: &Expr,
     context: &LoweringContext,
 ) -> bool {
-    expression_is_lowerable_usize_expression_with_calls(left, context)
-        && expression_is_lowerable_usize_expression_with_calls(right, context)
-        && (expression_contains_call(left) || expression_contains_call(right))
+    expression_is_lowerable_usize_expression(left, context)
+        && expression_is_lowerable_usize_expression(right, context)
 }
 
-fn expression_is_lowerable_usize_expression_with_calls(
-    expression: &Expr,
-    context: &LoweringContext,
-) -> bool {
+fn expression_is_lowerable_usize_expression(expression: &Expr, context: &LoweringContext) -> bool {
     match expression {
         Expr::Call(call) => {
             let Expr::Identifier(identifier) = call.callee.as_ref() else {
@@ -307,9 +307,11 @@ fn expression_is_lowerable_usize_expression_with_calls(
             context.call_return_type(&context.call_target(call, &identifier.name))
                 == Some(&Type::Usize)
         }
-        Expr::Group(group) => {
-            expression_is_lowerable_usize_expression_with_calls(&group.expression, context)
+        Expr::Binary(binary) if is_usize_binary_operator(binary.operator) => {
+            expression_is_lowerable_usize_expression(&binary.left, context)
+                && expression_is_lowerable_usize_expression(&binary.right, context)
         }
+        Expr::Group(group) => expression_is_lowerable_usize_expression(&group.expression, context),
         _ => expression_is_lowerable_usize_value(expression, context),
     }
 }
@@ -322,10 +324,7 @@ fn expression_is_lowerable_usize_value(expression: &Expr, context: &LoweringCont
     }
 }
 
-fn expression_is_lowerable_i32_expression_with_calls(
-    expression: &Expr,
-    context: &LoweringContext,
-) -> bool {
+fn expression_is_lowerable_i32_expression(expression: &Expr, context: &LoweringContext) -> bool {
     match expression {
         Expr::Call(call) => {
             let Expr::Identifier(identifier) = call.callee.as_ref() else {
@@ -335,12 +334,10 @@ fn expression_is_lowerable_i32_expression_with_calls(
                 == Some(&Type::I32)
         }
         Expr::Binary(binary) if is_i32_binary_operator(binary.operator) => {
-            expression_is_lowerable_i32_expression_with_calls(&binary.left, context)
-                && expression_is_lowerable_i32_expression_with_calls(&binary.right, context)
+            expression_is_lowerable_i32_expression(&binary.left, context)
+                && expression_is_lowerable_i32_expression(&binary.right, context)
         }
-        Expr::Group(group) => {
-            expression_is_lowerable_i32_expression_with_calls(&group.expression, context)
-        }
+        Expr::Group(group) => expression_is_lowerable_i32_expression(&group.expression, context),
         _ => expression_is_lowerable_i32_value(expression, context),
     }
 }

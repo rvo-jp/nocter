@@ -1,4 +1,4 @@
-use super::{EntryEmitter, I32_BIT_WIDTH, emit_mov_i32_to_w, emit_mov_u64_to_x};
+use super::{EntryEmitter, I32_BIT_WIDTH, USIZE_BIT_WIDTH, emit_mov_i32_to_w, emit_mov_u64_to_x};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolLocation, BoolValue, I32Location, I32Value, StrLocation, StrValue, UsizeLocation,
@@ -155,6 +155,118 @@ impl EntryEmitter {
         Ok(())
     }
 
+    pub(super) fn emit_add_usize(
+        &mut self,
+        destination: UsizeLocation,
+        left: &UsizeValue,
+        right: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let destination = self.usize_location_register(destination)?;
+        self.emit_usize_value_to_x(left, XReg::X16)?;
+        self.emit_usize_value_to_x(right, destination)?;
+        self.encoder
+            .emit_adds_x(destination, XReg::X16, destination);
+        self.emit_usize_no_carry_check("usize addition non-overflow target")?;
+        Ok(())
+    }
+
+    pub(super) fn emit_subtract_usize(
+        &mut self,
+        destination: UsizeLocation,
+        left: &UsizeValue,
+        right: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let destination = self.usize_location_register(destination)?;
+        self.emit_usize_value_to_x(left, XReg::X16)?;
+        self.emit_usize_value_to_x(right, destination)?;
+        self.encoder
+            .emit_subs_x(destination, XReg::X16, destination);
+        self.emit_usize_no_borrow_check("usize subtraction non-underflow target")?;
+        Ok(())
+    }
+
+    pub(super) fn emit_multiply_usize(
+        &mut self,
+        destination: UsizeLocation,
+        left: &UsizeValue,
+        right: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let destination = self.usize_location_register(destination)?;
+        self.emit_usize_value_to_x(left, XReg::X16)?;
+        self.emit_usize_value_to_x(right, destination)?;
+        self.encoder.emit_umulh_x(XReg::X17, XReg::X16, destination);
+        self.encoder.emit_cmp_x_zero(XReg::X17);
+        let exact_fit = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+        self.emit_trap();
+        self.patch_branch_placeholder_to_current(
+            exact_fit,
+            "usize multiplication exact-fit target",
+        )?;
+        self.encoder.emit_mul_x(destination, XReg::X16, destination);
+        Ok(())
+    }
+
+    pub(super) fn emit_divide_usize(
+        &mut self,
+        destination: UsizeLocation,
+        left: &UsizeValue,
+        right: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let destination = self.usize_location_register(destination)?;
+        self.emit_usize_value_to_x(left, XReg::X16)?;
+        self.emit_usize_value_to_x(right, destination)?;
+        self.emit_usize_division_safety_checks(destination)?;
+        self.encoder
+            .emit_udiv_x(destination, XReg::X16, destination);
+        Ok(())
+    }
+
+    pub(super) fn emit_remainder_usize(
+        &mut self,
+        destination: UsizeLocation,
+        left: &UsizeValue,
+        right: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let destination = self.usize_location_register(destination)?;
+        self.emit_usize_value_to_x(left, XReg::X16)?;
+        self.emit_usize_value_to_x(right, destination)?;
+        self.emit_usize_division_safety_checks(destination)?;
+        self.encoder.emit_udiv_x(XReg::X17, XReg::X16, destination);
+        self.encoder
+            .emit_msub_x(destination, XReg::X17, destination, XReg::X16);
+        Ok(())
+    }
+
+    pub(super) fn emit_shift_left_usize(
+        &mut self,
+        destination: UsizeLocation,
+        left: &UsizeValue,
+        right: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let destination = self.usize_location_register(destination)?;
+        self.emit_usize_value_to_x(left, XReg::X16)?;
+        self.emit_usize_value_to_x(right, destination)?;
+        self.emit_usize_shift_count_safety_checks(destination)?;
+        self.encoder
+            .emit_lslv_x(destination, XReg::X16, destination);
+        Ok(())
+    }
+
+    pub(super) fn emit_shift_right_usize(
+        &mut self,
+        destination: UsizeLocation,
+        left: &UsizeValue,
+        right: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let destination = self.usize_location_register(destination)?;
+        self.emit_usize_value_to_x(left, XReg::X16)?;
+        self.emit_usize_value_to_x(right, destination)?;
+        self.emit_usize_shift_count_safety_checks(destination)?;
+        self.encoder
+            .emit_lsrv_x(destination, XReg::X16, destination);
+        Ok(())
+    }
+
     fn emit_i32_shift_count_safety_checks(&mut self, count: WReg) -> Result<(), Vec<Diagnostic>> {
         self.encoder.emit_cmp_w_zero(count);
         let count_nonnegative = self.emit_cond_branch_placeholder(BranchCondition::Ge);
@@ -166,6 +278,25 @@ impl EntryEmitter {
         let count_in_range = self.emit_cond_branch_placeholder(BranchCondition::Lt);
         self.emit_trap();
         self.patch_branch_placeholder_to_current(count_in_range, "shift count in-range target")?;
+
+        Ok(())
+    }
+
+    fn emit_usize_shift_count_safety_checks(&mut self, count: XReg) -> Result<(), Vec<Diagnostic>> {
+        emit_mov_u64_to_x(&mut self.encoder, XReg::X17, USIZE_BIT_WIDTH);
+        self.encoder.emit_cmp_x(count, XReg::X17);
+        let count_in_range = self.emit_cond_branch_placeholder(BranchCondition::Cc);
+        self.emit_trap();
+        self.patch_branch_placeholder_to_current(count_in_range, "shift count in-range target")?;
+
+        Ok(())
+    }
+
+    fn emit_usize_division_safety_checks(&mut self, divisor: XReg) -> Result<(), Vec<Diagnostic>> {
+        self.encoder.emit_cmp_x_zero(divisor);
+        let divisor_nonzero = self.emit_cond_branch_placeholder(BranchCondition::Ne);
+        self.emit_trap();
+        self.patch_branch_placeholder_to_current(divisor_nonzero, "division non-zero target")?;
 
         Ok(())
     }
@@ -196,6 +327,26 @@ impl EntryEmitter {
             "signed division overflow divisor target",
         )?;
 
+        Ok(())
+    }
+
+    fn emit_usize_no_carry_check(
+        &mut self,
+        target_description: &str,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let no_carry = self.emit_cond_branch_placeholder(BranchCondition::Cc);
+        self.emit_trap();
+        self.patch_branch_placeholder_to_current(no_carry, target_description)?;
+        Ok(())
+    }
+
+    fn emit_usize_no_borrow_check(
+        &mut self,
+        target_description: &str,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let no_borrow = self.emit_cond_branch_placeholder(BranchCondition::Cs);
+        self.emit_trap();
+        self.patch_branch_placeholder_to_current(no_borrow, target_description)?;
         Ok(())
     }
 

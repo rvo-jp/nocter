@@ -17,8 +17,8 @@ use calls::{
 use predicates::{
     bool_comparison_contains_call, expressions_are_lowerable_bool_comparison_operands,
     expressions_are_lowerable_bool_values, expressions_are_lowerable_usize_values,
-    i32_comparison_contains_call, is_i32_binary_operator,
-    short_circuit_bool_expression_contains_call, usize_comparison_contains_call,
+    i32_comparison_needs_temporaries, is_i32_binary_operator, is_usize_binary_operator,
+    short_circuit_bool_expression_contains_call, usize_comparison_needs_temporaries,
 };
 pub(super) use predicates::{
     expression_contains_call, expression_contains_interpolated_string,
@@ -63,6 +63,9 @@ pub(super) fn lower_usize_expression_to_location(
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             lower_usize_normal_call(call, destination, context, &mut temporaries)
+        }
+        Expr::Binary(binary) if is_usize_binary_operator(binary.operator) => {
+            lower_usize_binary_expression_to_location(binary, destination, context)
         }
         Expr::Group(group) => {
             lower_usize_expression_to_location(&group.expression, destination, context)
@@ -158,6 +161,39 @@ fn lower_i32_expression_to_value(
     }
 }
 
+fn lower_usize_binary_expression_to_location(
+    binary: &BinaryExpr,
+    destination: UsizeLocation,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    lower_usize_binary_expression_to_location_with_temporaries(
+        binary,
+        destination,
+        context,
+        &mut temporaries,
+    )
+}
+
+fn lower_usize_binary_expression_to_location_with_temporaries(
+    binary: &BinaryExpr,
+    destination: UsizeLocation,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let left = lower_usize_expression_to_value(&binary.left, context, temporaries)?;
+    let right = lower_usize_expression_to_value(&binary.right, context, temporaries)?;
+    let mut instructions = left.instructions;
+    instructions.extend(right.instructions);
+    instructions.push(usize_binary_instruction(
+        binary.operator,
+        destination,
+        left.value,
+        right.value,
+    )?);
+    Ok(instructions)
+}
+
 fn lower_usize_expression_to_value(
     expression: &Expr,
     context: &LoweringContext,
@@ -168,6 +204,18 @@ fn lower_usize_expression_to_value(
             let temporary = temporaries.next_usize()?;
             Ok(LoweredUsizeValue {
                 instructions: lower_usize_normal_call(call, temporary, context, temporaries)?,
+                value: UsizeValue::Location(temporary),
+            })
+        }
+        Expr::Binary(binary) if is_usize_binary_operator(binary.operator) => {
+            let temporary = temporaries.next_usize()?;
+            Ok(LoweredUsizeValue {
+                instructions: lower_usize_binary_expression_to_location_with_temporaries(
+                    binary,
+                    temporary,
+                    context,
+                    temporaries,
+                )?,
                 value: UsizeValue::Location(temporary),
             })
         }
@@ -247,6 +295,52 @@ fn i32_binary_instruction(
             right,
         }),
         _ => Err(unsupported_i32_expression_diagnostic()),
+    }
+}
+
+fn usize_binary_instruction(
+    operator: BinaryOperator,
+    destination: UsizeLocation,
+    left: UsizeValue,
+    right: UsizeValue,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    match operator {
+        BinaryOperator::Add => Ok(Instruction::AddUsize {
+            destination,
+            left,
+            right,
+        }),
+        BinaryOperator::Subtract => Ok(Instruction::SubtractUsize {
+            destination,
+            left,
+            right,
+        }),
+        BinaryOperator::Multiply => Ok(Instruction::MultiplyUsize {
+            destination,
+            left,
+            right,
+        }),
+        BinaryOperator::Divide => Ok(Instruction::DivideUsize {
+            destination,
+            left,
+            right,
+        }),
+        BinaryOperator::Remainder => Ok(Instruction::RemainderUsize {
+            destination,
+            left,
+            right,
+        }),
+        BinaryOperator::ShiftLeft => Ok(Instruction::ShiftLeftUsize {
+            destination,
+            left,
+            right,
+        }),
+        BinaryOperator::ShiftRight => Ok(Instruction::ShiftRightUsize {
+            destination,
+            left,
+            right,
+        }),
+        _ => Err(unsupported_usize_expression_diagnostic()),
     }
 }
 
@@ -376,7 +470,7 @@ pub(super) fn lower_bool_expression_to_location(
             });
             Ok(instructions)
         }
-        Expr::Binary(binary) if i32_comparison_contains_call(binary, context) => {
+        Expr::Binary(binary) if i32_comparison_needs_temporaries(binary, context) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             let comparison = lower_i32_comparison_to_value_with_temporaries(
                 binary,
@@ -552,7 +646,7 @@ fn lower_bool_expression_to_value_with_temporaries(
                 temporaries,
             )
         }
-        Expr::Binary(binary) if i32_comparison_contains_call(binary, context) => {
+        Expr::Binary(binary) if i32_comparison_needs_temporaries(binary, context) => {
             lower_i32_comparison_to_value_with_temporaries(
                 binary,
                 context,
@@ -560,7 +654,7 @@ fn lower_bool_expression_to_value_with_temporaries(
                 temporaries,
             )
         }
-        Expr::Binary(binary) if usize_comparison_contains_call(binary, context) => {
+        Expr::Binary(binary) if usize_comparison_needs_temporaries(binary, context) => {
             lower_usize_comparison_to_value_with_temporaries(
                 binary,
                 context,
@@ -944,7 +1038,7 @@ fn unsupported_i32_expression_diagnostic() -> Vec<Diagnostic> {
 fn unsupported_usize_expression_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8006",
-        "IR v0 can only lower usize literals, parameters, and direct tail calls",
+        "IR v0 can only lower usize literals, parameters, arithmetic or shift expressions, and direct tail calls",
     )]
 }
 

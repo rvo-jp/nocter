@@ -92,6 +92,41 @@ pub(crate) enum Instruction {
         left: I32Value,
         right: I32Value,
     },
+    AddUsize {
+        destination: UsizeLocation,
+        left: UsizeValue,
+        right: UsizeValue,
+    },
+    SubtractUsize {
+        destination: UsizeLocation,
+        left: UsizeValue,
+        right: UsizeValue,
+    },
+    MultiplyUsize {
+        destination: UsizeLocation,
+        left: UsizeValue,
+        right: UsizeValue,
+    },
+    DivideUsize {
+        destination: UsizeLocation,
+        left: UsizeValue,
+        right: UsizeValue,
+    },
+    RemainderUsize {
+        destination: UsizeLocation,
+        left: UsizeValue,
+        right: UsizeValue,
+    },
+    ShiftLeftUsize {
+        destination: UsizeLocation,
+        left: UsizeValue,
+        right: UsizeValue,
+    },
+    ShiftRightUsize {
+        destination: UsizeLocation,
+        left: UsizeValue,
+        right: UsizeValue,
+    },
     #[allow(dead_code)]
     CallI32 {
         destination: I32Location,
