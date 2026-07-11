@@ -1,5 +1,7 @@
 use super::{Command, parse_command};
-use crate::driver::compile_options::SourceCommand;
+use crate::driver::compile_options::{BuildCommand, SourceCommand};
+use crate::entry::DEFAULT_ENTRY_NAME;
+use crate::target::DEFAULT_TARGET;
 use std::ffi::OsString;
 use std::path::PathBuf;
 
@@ -23,10 +25,7 @@ fn parses_bare_source_entry_option_as_run() {
 
     assert_eq!(
         command,
-        Command::Run(SourceCommand {
-            file: PathBuf::from("app.nct"),
-            entry: "start".to_string(),
-        })
+        Command::Run(source_command("app.nct", "start", DEFAULT_TARGET))
     );
 }
 
@@ -42,10 +41,49 @@ fn parses_build_entry_option() {
 
     assert_eq!(
         command,
-        Command::Build(SourceCommand {
-            file: PathBuf::from("app.nct"),
-            entry: "start".to_string(),
-        })
+        Command::Build(build_command(
+            source_command("app.nct", "start", DEFAULT_TARGET),
+            None
+        ))
+    );
+}
+
+#[test]
+fn parses_build_output_path() {
+    let command = parse_command(&[
+        OsString::from("build"),
+        OsString::from("app.nct"),
+        OsString::from("-o"),
+        OsString::from("bin/app"),
+    ])
+    .unwrap();
+
+    assert_eq!(
+        command,
+        Command::Build(build_command(
+            SourceCommand::new(PathBuf::from("app.nct")),
+            Some(PathBuf::from("bin/app"))
+        ))
+    );
+}
+
+#[test]
+fn parses_compile_target_option() {
+    let command = parse_command(&[
+        OsString::from("check"),
+        OsString::from("app.nct"),
+        OsString::from("--target"),
+        OsString::from("arm64-darwin"),
+    ])
+    .unwrap();
+
+    assert_eq!(
+        command,
+        Command::Check(source_command(
+            "app.nct",
+            DEFAULT_ENTRY_NAME,
+            "arm64-darwin"
+        ))
     );
 }
 
@@ -63,10 +101,7 @@ fn parses_check_json_entry_option_in_either_order() {
 
     assert_eq!(
         command,
-        Command::CheckJson(SourceCommand {
-            file: PathBuf::from("app.nct"),
-            entry: "start".to_string(),
-        })
+        Command::CheckJson(source_command("app.nct", "start", DEFAULT_TARGET))
     );
 
     let command = parse_command(&[
@@ -81,11 +116,37 @@ fn parses_check_json_entry_option_in_either_order() {
 
     assert_eq!(
         command,
-        Command::CheckJson(SourceCommand {
-            file: PathBuf::from("app.nct"),
-            entry: "start".to_string(),
-        })
+        Command::CheckJson(source_command("app.nct", "start", DEFAULT_TARGET))
     );
+}
+
+#[test]
+fn rejects_unimplemented_reserved_target() {
+    let error = parse_command(&[
+        OsString::from("build"),
+        OsString::from("app.nct"),
+        OsString::from("--target"),
+        OsString::from("x64-linux"),
+    ])
+    .unwrap_err();
+
+    assert_eq!(
+        error,
+        "target `x64-linux` is recognized but not implemented"
+    );
+}
+
+#[test]
+fn rejects_output_path_for_non_build_commands() {
+    let error = parse_command(&[
+        OsString::from("run"),
+        OsString::from("app.nct"),
+        OsString::from("-o"),
+        OsString::from("app"),
+    ])
+    .unwrap_err();
+
+    assert_eq!(error, "unexpected argument `-o`");
 }
 
 #[test]
@@ -199,4 +260,16 @@ fn parses_ast_json() {
 fn rejects_tokens_without_json_format() {
     let error = parse_command(&[OsString::from("tokens"), OsString::from("app.nct")]).unwrap_err();
     assert_eq!(error, "missing `--format json`");
+}
+
+fn source_command(file: &str, entry: &str, target: &str) -> SourceCommand {
+    SourceCommand {
+        file: PathBuf::from(file),
+        entry: entry.to_string(),
+        target: target.to_string(),
+    }
+}
+
+fn build_command(source: SourceCommand, output: Option<PathBuf>) -> BuildCommand {
+    BuildCommand { source, output }
 }

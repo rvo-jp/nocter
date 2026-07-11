@@ -1484,6 +1484,40 @@ fn check_command_accepts_entry_option() {
     );
 }
 
+#[test]
+fn check_command_accepts_target_option() {
+    let project = TempProject::new("cli-check-target");
+    let source = project.write_source(
+        "target.nct",
+        r#"func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(
+        &project,
+        [
+            "check",
+            source.to_str().unwrap(),
+            "--target",
+            "arm64-darwin",
+        ],
+    );
+
+    assert_eq!(output.status.code(), Some(0));
+    assert!(
+        output.stdout.is_empty(),
+        "expected empty stdout, got:\n{}",
+        text(&output.stdout)
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
+    );
+}
+
 fn nocter<const N: usize>(project: &TempProject, args: [&str; N]) -> Output {
     let mut command = Command::new(NOCTER);
     command

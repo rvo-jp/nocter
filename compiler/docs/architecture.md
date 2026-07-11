@@ -158,6 +158,8 @@ Currently buildable:
 - same-file non-generic tail calls returning `i32` or `bool`
 - same-file non-generic normal calls returning `i32` in `let` initializers, `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, `i32` comparison operands, and nested `i32` call arguments
 - same-file and loaded imported non-generic normal calls returning `usize` in annotated `let` initializers
+- custom executable output paths through `build -o <path>`
+- explicit `--target arm64-darwin` selection for `build`, `run`, and `check`; reserved future targets are recognized but rejected as unimplemented
 - same-file non-generic normal calls returning `bool` in `let` initializers, unary-not expressions, bool equality/inequality operands, short-circuit bool value expressions, and terminal `if` conditions
 - short-circuit bool expressions can combine `i32` call comparisons with bool calls, such as `if answer() == 42 && ready()` and `let matched = answer() == 42 && ready()`
 - `usize` comparisons over literals, locals, and same-file or loaded imported normal calls in lowerable bool expressions and terminal `if` conditions
@@ -183,7 +185,6 @@ Currently not buildable even when it may be checkable:
 - interpolated string construction
 - optional values
 - aggregate values, arrays, views, pointers, methods, traits, generics, ownership lowering, and drop glue
-- custom output path selection through `-o`
 
 ### Backend V0 Register Convention
 
@@ -593,7 +594,7 @@ Reserved target overlay directories may exist before implementation:
 .nocter/targets/arm64-windows/std/
 ```
 
-These directories are placeholders. The driver must not treat them as implemented targets until the target registry marks the backend, executable writer, primitive set, and target standard-library overlay as implemented. A request such as `--target x64-linux` should fail with a not-implemented diagnostic while the name remains recognized.
+These directories are placeholders. The driver must not treat them as implemented targets until the target registry marks the backend, executable writer, primitive set, and target standard-library overlay as implemented. A request such as `--target x64-linux` should fail with a target-selection error while the name remains recognized.
 
 Standard-library resolution should search the active target overlay before the common standard library:
 

@@ -297,7 +297,7 @@ fn assert_check_json_envelope(json: &Value, example: &str, ok: bool) {
     assert_eq!(json["version"], Value::from(1));
     assert_eq!(json["ok"], Value::Bool(ok));
     assert_eq!(json["command"], Value::String("check".to_string()));
-    assert_eq!(json["target"], Value::Null);
+    assert_eq!(json["target"], Value::String("arm64-darwin".to_string()));
 
     let root = json["root"]
         .as_str()

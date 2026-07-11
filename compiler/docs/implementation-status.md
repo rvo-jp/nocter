@@ -49,6 +49,8 @@ The front end can parse and type-check more Nocter syntax than the backend can l
 Currently buildable:
 
 - root-file `main` or `--entry <name>`
+- custom executable output paths through `build -o <path>`
+- explicit `--target arm64-darwin` selection for `build`, `run`, and `check`; reserved future targets are recognized but rejected as unimplemented
 - entry return types `i32`, `i32!`, and `void`
 - literal `i32` returns
 - immutable local `let` bindings whose initializer is lowerable as `i32`, annotated `usize`, or `bool`
@@ -90,4 +92,3 @@ Currently not buildable even when it may be checkable:
 - interpolated string construction
 - optional values
 - aggregate values, arrays, views, pointers, methods, traits, generics, ownership lowering, and drop glue
-- custom output path selection through `-o`

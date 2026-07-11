@@ -1,4 +1,4 @@
-use super::pipeline::check_file_with_entry;
+use super::pipeline::check_file_with_entry_and_target;
 use crate::ast::AstEnvelope;
 use crate::diagnostics::DiagnosticsEnvelope;
 use crate::lexer::{TokensEnvelope, lex};
@@ -108,8 +108,8 @@ pub(super) fn run_ast_json(file: &Path) -> ExitCode {
     }
 }
 
-pub(super) fn run_check_json(file: &Path, entry_name: &str) -> ExitCode {
-    let output = check_file_with_entry(file, entry_name);
+pub(super) fn run_check_json(file: &Path, entry_name: &str, target: &str) -> ExitCode {
+    let output = check_file_with_entry_and_target(file, entry_name, target);
     let status = if output.is_ok() {
         ExitCode::SUCCESS
     } else {
@@ -117,7 +117,7 @@ pub(super) fn run_check_json(file: &Path, entry_name: &str) -> ExitCode {
     };
     let envelope = DiagnosticsEnvelope::new(
         "check",
-        None,
+        Some(target.to_string()),
         Some(output.root),
         output.root_absolute_path,
         output.diagnostics,

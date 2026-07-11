@@ -1,5 +1,5 @@
 use super::compile_options::{
-    CompileCommandKind, CompileCommandOptions, SourceCommand, parse_bare_run_command,
+    BuildCommand, CompileCommandKind, CompileCommandOptions, SourceCommand, parse_bare_run_command,
     parse_compile_command,
 };
 use super::fmt_options::{FmtCommandOptions, parse_fmt_command};
@@ -12,7 +12,7 @@ pub(super) enum Command {
     Help,
     Version,
     Doctor,
-    Build(SourceCommand),
+    Build(BuildCommand),
     Run(SourceCommand),
     Check(SourceCommand),
     CheckJson(SourceCommand),
@@ -32,8 +32,12 @@ pub(super) fn parse_command(args: &[OsString]) -> Result<Command, String> {
         "-h" | "--help" | "help" => Ok(Command::Help),
         "--version" | "version" => expect_no_extra(args, Command::Version),
         "doctor" => expect_no_extra(args, Command::Doctor),
-        "build" => parse_compile_command(args, CompileCommandKind::Build)
-            .map(|options| Command::Build(options.source)),
+        "build" => parse_compile_command(args, CompileCommandKind::Build).map(|options| {
+            Command::Build(BuildCommand {
+                source: options.source,
+                output: options.output,
+            })
+        }),
         "run" => parse_compile_command(args, CompileCommandKind::Run)
             .map(|options| Command::Run(options.source)),
         "check" => {

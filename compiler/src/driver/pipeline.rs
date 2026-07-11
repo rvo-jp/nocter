@@ -3,7 +3,6 @@ use crate::backend::{BuildRequest, build_executable};
 use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::source::{SourceId, SourceMap};
-use crate::target::DEFAULT_TARGET;
 use std::path::{Path, PathBuf};
 
 struct FrontendOutput {
@@ -36,8 +35,12 @@ impl BuildOutput {
     }
 }
 
-pub(super) fn check_file_with_entry(file: &Path, entry_name: &str) -> CheckOutput {
-    let options = FrontendOptions::default();
+pub(super) fn check_file_with_entry_and_target(
+    file: &Path,
+    entry_name: &str,
+    target: &str,
+) -> CheckOutput {
+    let options = frontend_options_for_target(target);
     let output = analyze_file(file, &options, entry_name);
 
     CheckOutput {
@@ -47,17 +50,23 @@ pub(super) fn check_file_with_entry(file: &Path, entry_name: &str) -> CheckOutpu
     }
 }
 
-pub(super) fn build_file_with_entry(file: &Path, entry_name: &str) -> BuildOutput {
+pub(super) fn build_file_with_entry_and_target(
+    file: &Path,
+    entry_name: &str,
+    target: &str,
+) -> BuildOutput {
     let output_path = default_executable_path(file);
-    build_file_to_path_with_entry(file, &output_path, entry_name)
+    build_file_to_path_with_entry_and_target(file, &output_path, entry_name, target)
 }
 
-pub(super) fn build_file_to_path_with_entry(
+pub(super) fn build_file_to_path_with_entry_and_target(
     file: &Path,
     output_path: &Path,
     entry_name: &str,
+    target: &str,
 ) -> BuildOutput {
-    build_file_to_path_with_options(file, output_path, &FrontendOptions::default(), entry_name)
+    let options = frontend_options_for_target(target);
+    build_file_to_path_with_options(file, output_path, &options, entry_name)
 }
 
 fn build_file_to_path_with_options(
@@ -88,7 +97,7 @@ fn build_file_to_path_with_options(
     let diagnostics = match build_executable(BuildRequest {
         analysis,
         output_path,
-        target: DEFAULT_TARGET,
+        target: options.target.as_str(),
         entry_name,
     }) {
         Ok(()) => Vec::new(),
@@ -98,6 +107,13 @@ fn build_file_to_path_with_options(
     BuildOutput {
         output_path: output_path.to_path_buf(),
         diagnostics,
+    }
+}
+
+fn frontend_options_for_target(target: &str) -> FrontendOptions {
+    FrontendOptions {
+        target: target.to_string(),
+        ..FrontendOptions::default()
     }
 }
 
@@ -168,6 +184,7 @@ fn canonical_absolute_string(path: &Path) -> Option<String> {
 mod tests {
     use super::*;
     use crate::entry::DEFAULT_ENTRY_NAME;
+    use crate::target::DEFAULT_TARGET;
     use std::fs;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};

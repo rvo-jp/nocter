@@ -1,22 +1,63 @@
 use crate::diagnostics::Diagnostic;
 use crate::target::macho::ExecutableImage;
+use std::ffi::OsStr;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(crate) fn write_executable_image(
     path: &Path,
     image: &ExecutableImage,
 ) -> Result<(), Vec<Diagnostic>> {
-    fs::write(path, &image.bytes).map_err(|error| {
+    let temporary_path = temporary_output_path(path);
+
+    fs::write(&temporary_path, &image.bytes).map_err(|error| {
         vec![Diagnostic::error(
             "E9001",
             format!("failed to write executable `{}`: {error}", path.display()),
         )]
     })?;
 
-    make_executable(path)?;
+    if let Err(diagnostics) = make_executable(&temporary_path) {
+        remove_temporary_output(&temporary_path);
+        return Err(diagnostics);
+    }
+
+    if let Err(error) = fs::rename(&temporary_path, path) {
+        remove_temporary_output(&temporary_path);
+        return Err(vec![Diagnostic::error(
+            "E9001",
+            format!("failed to replace executable `{}`: {error}", path.display()),
+        )]);
+    }
 
     Ok(())
+}
+
+fn temporary_output_path(path: &Path) -> PathBuf {
+    let file_name = path.file_name().unwrap_or_else(|| OsStr::new("a.out"));
+    let temporary_name = format!(
+        ".{}.{}.tmp",
+        file_name.to_string_lossy(),
+        unique_temporary_suffix()
+    );
+
+    match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.join(temporary_name),
+        _ => PathBuf::from(temporary_name),
+    }
+}
+
+fn unique_temporary_suffix() -> String {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0);
+    format!("{}-{nanos}", std::process::id())
+}
+
+fn remove_temporary_output(path: &Path) {
+    let _ = fs::remove_file(path);
 }
 
 #[cfg(unix)]
@@ -49,6 +90,20 @@ mod tests {
     fn writes_executable_image_bytes() {
         let root = make_temp_project("write-image");
         let output = root.join("app");
+        let image = ExecutableImage {
+            bytes: vec![0xcf, 0xfa, 0xed, 0xfe],
+        };
+
+        write_executable_image(&output, &image).unwrap();
+
+        assert_eq!(fs::read(&output).unwrap(), image.bytes);
+    }
+
+    #[test]
+    fn replaces_existing_output_on_success() {
+        let root = make_temp_project("replace-image");
+        let output = root.join("app");
+        fs::write(&output, b"old executable").unwrap();
         let image = ExecutableImage {
             bytes: vec![0xcf, 0xfa, 0xed, 0xfe],
         };

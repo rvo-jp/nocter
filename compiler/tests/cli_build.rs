@@ -45,6 +45,92 @@ fn build_command_accepts_entry_option() {
 }
 
 #[test]
+fn build_command_writes_configured_output_path() {
+    let project = TempProject::new("cli-build-custom-output");
+    let source = project.write_source(
+        "custom_output.nct",
+        r#"func main(): i32 {
+    return 0
+}
+"#,
+    );
+    let executable = project.root().join("bin/app");
+    fs::create_dir_all(executable.parent().unwrap()).unwrap();
+
+    let output = nocter(
+        &project,
+        [
+            "build",
+            source.to_str().unwrap(),
+            "-o",
+            executable.to_str().unwrap(),
+        ],
+    );
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+    assert!(
+        !source.with_extension("").exists(),
+        "default output path should not be written when -o is used"
+    );
+}
+
+#[test]
+fn build_command_accepts_target_option() {
+    let project = TempProject::new("cli-build-target");
+    let source = project.write_source(
+        "target.nct",
+        r#"func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(
+        &project,
+        [
+            "build",
+            source.to_str().unwrap(),
+            "--target",
+            "arm64-darwin",
+        ],
+    );
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_rejects_unimplemented_reserved_target() {
+    let project = TempProject::new("cli-build-unimplemented-target");
+    let source = project.write_source(
+        "target.nct",
+        r#"func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(
+        &project,
+        ["build", source.to_str().unwrap(), "--target", "x64-linux"],
+    );
+
+    assert_eq!(output.status.code(), Some(2));
+    assert!(
+        output.stdout.is_empty(),
+        "expected empty stdout, got:\n{}",
+        text(&output.stdout)
+    );
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("target `x64-linux` is recognized but not implemented"),
+        "expected unimplemented target error, got:\n{stderr}"
+    );
+}
+
+#[test]
 fn build_command_lowers_i32_let_binding_return() {
     let project = TempProject::new("cli-build-let-return");
     let source = project.write_source(
