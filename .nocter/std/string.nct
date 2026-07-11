@@ -4,29 +4,27 @@
 // string literals. String is the future owning string type; its storage details
 // are intentionally not exposed here.
 //
-// The initial public functions are ordinary standard-library APIs. Their
-// bodies are Parser v0 placeholders until target-backed allocation and string
-// storage are implemented.
+// The initial public functions are ordinary standard-library APIs. Owning
+// allocation is reported as unsupported until target-backed allocation and
+// string storage are implemented.
 
-from std/error import make_error
+from std/error import Error
 from std/mem import Allocator
 
 pub struct String {
-    ptr: *u8
     len: usize
-    cap: usize
 }
 
 pub func empty(): String {
-    return String.placeholder()
+    return String { len: 0 }
 }
 
 pub func with_capacity(allocator: &+Allocator, capacity: usize): String! {
-    return String.placeholder()
+    return Error.new("std.string.unsupported", "owning string allocation is not implemented")
 }
 
 pub func from_str(allocator: &+Allocator, value: str): String! {
-    return String.placeholder()
+    return Error.new("std.string.unsupported", "owning string allocation is not implemented")
 }
 
 pub func view(text: &String): str {
@@ -38,5 +36,5 @@ pub func push_str(text: &+String, value: str): void! {
 }
 
 pub func capacity_overflow(): error {
-    return make_error("std.string.capacity_overflow", "string capacity overflow")
+    return Error.new("std.string.capacity_overflow", "string capacity overflow")
 }

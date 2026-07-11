@@ -6,10 +6,10 @@
 // allocator provenance from the `region ... using ...` language construct.
 //
 // The public functions below are ordinary standard-library APIs. Allocation is
-// not part of the compiler primitive set in v0. The initial bodies are Parser
-// v0 placeholders until target-backed allocation wrappers are implemented.
+// not part of the compiler primitive set in v0. Allocation is reported as
+// unsupported until target-backed allocation wrappers are implemented.
 
-from std/error import make_error
+from std/error import Error
 
 pub copy struct Layout {
     pub size: usize
@@ -28,7 +28,7 @@ pub struct Allocator {
 }
 
 pub func page_allocator(): Allocator {
-    return Allocator.placeholder()
+    return Allocator { state: 0, kind: 0 }
 }
 
 pub func alloc(
@@ -36,7 +36,7 @@ pub func alloc(
     size: usize,
     align: usize,
 ): RawBuffer! {
-    return RawBuffer.placeholder()
+    return Error.new("std.mem.unsupported", "allocation is not implemented")
 }
 
 pub func free(allocator: &+Allocator, buffer: RawBuffer): void {
@@ -44,9 +44,9 @@ pub func free(allocator: &+Allocator, buffer: RawBuffer): void {
 }
 
 pub func out_of_memory(): error {
-    return make_error("std.mem.out_of_memory", "allocation failed")
+    return Error.new("std.mem.out_of_memory", "allocation failed")
 }
 
 pub func invalid_argument(): error {
-    return make_error("std.mem.invalid_argument", "invalid allocation request")
+    return Error.new("std.mem.invalid_argument", "invalid allocation request")
 }

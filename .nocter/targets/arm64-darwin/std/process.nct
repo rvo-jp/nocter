@@ -4,24 +4,19 @@
 // target-specific implementation will call the active target overlay and trap
 // if the platform exit operation unexpectedly returns.
 
+from std/error import Error
 from std/os/macos import trap
 
-pub(nocter) primitive args_impl(): [str]!
-
-pub(nocter) primitive env_impl(name: str): (str?)!
-
-pub(nocter) primitive cwd_impl(): str!
-
 pub func args(): [str]! {
-    return args_impl()?
+    return Error.new("std.process.unsupported", "process arguments are not implemented")
 }
 
 pub func env(name: str): (str?)! {
-    return env_impl(name)?
+    return none
 }
 
 pub func cwd(): str! {
-    return cwd_impl()?
+    return Error.new("std.process.unsupported", "current working directory is not implemented")
 }
 
 pub func exit(code: i32): never {

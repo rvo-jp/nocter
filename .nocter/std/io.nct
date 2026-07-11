@@ -4,7 +4,7 @@
 // and fail with the compiler built-in `error` payload. Target-specific syscall
 // results and errno wrappers stay inside target overlays.
 
-from std/error import make_error
+from std/error import Error
 from std/os import OSError
 
 // Compatibility classification type. It is an ordinary enum, not the fallible
@@ -26,18 +26,16 @@ pub struct File {
     handle: usize
 }
 
-pub(nocter) primitive error_from_os(error: OSError): error
-
 pub func from_os_error(error: OSError): error {
-    return error_from_os(error)
+    return Error.new("std.io.os_error", "OS operation failed")
 }
 
 pub func stdout(): File {
-    return File.placeholder()
+    return File { handle: 1 }
 }
 
 pub func stderr(): File {
-    return File.placeholder()
+    return File { handle: 2 }
 }
 
 pub func print(text: str): void! {
@@ -49,5 +47,5 @@ pub func write_text(file: &+File, text: str): void! {
 }
 
 pub func unsupported(): error {
-    return make_error("std.io.unsupported", "unsupported I/O operation")
+    return Error.new("std.io.unsupported", "unsupported I/O operation")
 }

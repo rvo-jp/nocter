@@ -19,11 +19,15 @@ pub copy struct Errno {
 }
 
 pub func errno(code: i32): Errno {
-    return Errno.placeholder()
+    return Errno { code: code }
 }
 
 pub func error_from_errno(error: Errno): OSError {
-    return OSError.placeholder()
+    return OSError {
+        platform: Platform.macos,
+        code: error.code,
+        kind: kind_from_errno(error),
+    }
 }
 
 pub func kind_from_errno(error: Errno): OSErrorKind {

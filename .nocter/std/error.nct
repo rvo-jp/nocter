@@ -10,5 +10,10 @@
 pub type ErrorCode = str
 pub type Error = error
 
-// Placeholder primitive until associated functions are implemented.
-pub(nocter) primitive make_error(code: ErrorCode, message: str): error
+pub(nocter) primitive new_error(code: str, message: str): error
+
+impl Error {
+    pub func new(code: ErrorCode, message: str): Error {
+        return new_error(code, message)
+    }
+}
