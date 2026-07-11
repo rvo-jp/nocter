@@ -18,12 +18,16 @@ Adopted user decisions:
 
 Recommended next implementation order:
 
-1. Design the interpolation allocator source and exact lowering shape around explicit `std/string` construction plus `std/fmt.append_*` calls.
-2. Lower interpolated strings only after the remaining backend prerequisites exist: aggregate `String` storage, mutable local mutation through `&+String`, and fallible propagation from append calls. Loaded imported scalar calls and scalar parameters/call arguments are now buildable in the current narrow scalar subset.
+1. Follow `compiler/docs/interpolation-lowering.md`: keep bare interpolation lowering disabled until an explicit allocator source is designed, and first make explicit `std/string` construction plus `std/fmt.append_*` calls buildable.
+2. Lower interpolated strings only after the remaining backend prerequisites exist: `str` argument representation, aggregate `String`/`Allocator`/`RawBuffer` storage, stack-backed `var`, borrow argument lowering for `&T` and `&+T`, fallible propagation from ordinary calls, and owned aggregate return/move handling. Loaded imported scalar calls and scalar parameters/call arguments are now buildable in the current narrow scalar subset.
 3. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
+- Current checkpoint: document interpolation lowering direction
+  - records that bare interpolation still cannot lower without an explicit source-level allocator
+  - sets the next implementation path as explicit `std/string` construction plus `std/fmt.append_*` calls before lowering bare interpolation syntax
+  - lists the remaining backend prerequisites: `str` arguments, aggregate storage, stack-backed `var`, borrow arguments, ordinary fallible propagation, and owned aggregate returns/moves
 - Current checkpoint: add bool scalar call arguments
   - lowers `bool` parameters and calls whose arguments include `bool`, preserving ABI argument indexes for mixed scalar parameter lists
   - extends typed IR call arguments and ARM64 staging so `i32`/`bool` use W registers and `usize` uses X registers
@@ -931,8 +935,8 @@ The scalar `i32` backend subset now has runtime safety checks for `+`, `-`, `*`,
 
 Recommended next small task for the next session:
 
-1. Design the interpolation allocator source and exact lowering shape around explicit `std/string` construction plus `std/fmt.append_*` calls.
-2. Add only the backend prerequisites needed by that lowering: aggregate `String` storage, mutable local mutation through `&+String`, and fallible propagation from append calls.
+1. Follow `compiler/docs/interpolation-lowering.md`: keep bare interpolation lowering disabled until an explicit allocator source is designed, and first make explicit `std/string` construction plus `std/fmt.append_*` calls buildable.
+2. Add only the backend prerequisites needed by that explicit path: `str` arguments, aggregate `String`/`Allocator`/`RawBuffer` storage, stack-backed `var`, borrow argument lowering, ordinary fallible propagation, and owned aggregate returns/moves.
 3. Consider broader terminal control-flow only after its lowering rules are designed.
 4. Keep unrelated imported calls, aggregates, ownership/drop lowering, general mutable storage, and broader control-flow disabled until their ABI, storage, and join rules are designed.
 5. Add CLI build/run coverage for any newly buildable source subset.

@@ -12,8 +12,8 @@ The current LSP feature modules should present compiler analysis results, not gr
 
 Recommended next small task:
 
-1. Design the interpolation allocator source and lowering shape around explicit `std/string` construction plus `std/fmt.append_*` calls; keep hidden compiler allocation disabled.
-2. Add only the remaining backend prerequisites needed by that lowering: aggregate `String` storage, mutable local mutation through `&+String`, and fallible propagation from append calls. Loaded imported scalar calls and scalar parameters/call arguments are already buildable in the current narrow scalar subset.
+1. Follow `interpolation-lowering.md`: keep bare interpolation lowering disabled until an explicit allocator source is designed, and first make explicit `std/string` construction plus `std/fmt.append_*` calls buildable.
+2. Add only the remaining backend prerequisites needed by that explicit path: `str` argument representation, aggregate `String`/`Allocator`/`RawBuffer` storage, stack-backed `var`, borrow argument lowering for `&T` and `&+T`, fallible propagation from ordinary calls, and owned aggregate return/move handling. Loaded imported scalar calls and scalar parameters/call arguments are already buildable in the current narrow scalar subset.
 3. Consider broader terminal control-flow only after its lowering rules are designed.
 4. Keep aggregate values beyond the explicit `String` path, ownership/drop lowering, and general mutable storage disabled until their ABI and storage rules are designed.
 
