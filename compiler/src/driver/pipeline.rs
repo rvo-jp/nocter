@@ -370,6 +370,39 @@ func add(a: i32, b: i32): i32 {
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     #[test]
+    fn build_file_output_runs_void_call_statement_before_return() {
+        let root = make_temp_project("build-run-void-call-statement");
+        let nocter_home = make_nocter_home(&root);
+        let source = root.join("effect.nct");
+        fs::write(
+            &source,
+            r#"func main(): i32 {
+    effect()
+    return 42
+}
+
+func effect(): void {
+}
+"#,
+        )
+        .unwrap();
+
+        let executable = default_executable_path(&source);
+        let output = build_file_to_path_with_options(
+            &source,
+            &executable,
+            &frontend_options(nocter_home),
+            DEFAULT_ENTRY_NAME,
+        );
+
+        assert_diagnostics_empty(&output.diagnostics);
+        assert_eq!(output.output_path, executable);
+        let status = std::process::Command::new(&executable).status().unwrap();
+        assert_eq!(status.code(), Some(42));
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
     fn build_file_output_runs_usize_function_call_with_mixed_arguments() {
         let root = make_temp_project("build-run-usize-function-arguments");
         let nocter_home = make_nocter_home(&root);
