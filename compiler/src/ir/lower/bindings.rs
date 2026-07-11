@@ -3,7 +3,8 @@ use super::expressions::{
     expression_contains_interpolated_string, expression_is_lowerable_bool_binding,
     expression_is_unsupported_bool_comparison_binding, lower_bool_expression_to_location,
     lower_i32_expression_to_location, lower_slice_expression_to_location,
-    lower_str_expression_to_location, lower_usize_expression_to_location,
+    lower_str_expression_to_location, lower_u8_expression_to_location,
+    lower_usize_expression_to_location,
 };
 use crate::ast::{BinaryOperator, BindingKind, BindingStmt, Expr, TypeExpr, UnaryOperator};
 use crate::diagnostics::Diagnostic;
@@ -31,6 +32,7 @@ pub(super) fn lower_let_binding(
 
     match scalar_binding_kind(statement, context)? {
         ScalarBindingKind::I32 => lower_i32_let_binding(statement, context),
+        ScalarBindingKind::U8 => lower_u8_let_binding(statement, context),
         ScalarBindingKind::Usize => lower_usize_let_binding(statement, context),
         ScalarBindingKind::Bool => lower_bool_let_binding(statement, context),
         ScalarBindingKind::Str => lower_str_let_binding(statement, context),
@@ -46,6 +48,17 @@ fn lower_i32_let_binding(
     let instructions =
         lower_i32_expression_to_location(&statement.initializer, destination, context)?;
     context.define_i32_local(statement.name.clone());
+    Ok(instructions)
+}
+
+fn lower_u8_let_binding(
+    statement: &BindingStmt,
+    context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let destination = context.next_u8_local_location()?;
+    let instructions =
+        lower_u8_expression_to_location(&statement.initializer, destination, context)?;
+    context.define_u8_local(statement.name.clone());
     Ok(instructions)
 }
 
@@ -99,12 +112,13 @@ fn scalar_binding_kind(
 ) -> Result<ScalarBindingKind, Vec<Diagnostic>> {
     match &statement.ty {
         Some(ty) if is_i32_type(ty) => Ok(ScalarBindingKind::I32),
+        Some(ty) if is_u8_type(ty) => Ok(ScalarBindingKind::U8),
         Some(ty) if is_usize_type(ty) => Ok(ScalarBindingKind::Usize),
         Some(ty) if is_bool_type(ty) => Ok(ScalarBindingKind::Bool),
         Some(ty) if is_str_type(ty) => Ok(ScalarBindingKind::Str),
         Some(ty) if is_u8_slice_type(ty) => Ok(ScalarBindingKind::Slice),
         Some(_) => Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower local bindings annotated as `i32`, `usize`, `bool`, `&str`, `&[u8]`, or `&+[u8]`",
+            "IR v0 can only lower local bindings annotated as `i32`, `u8`, `usize`, `bool`, `&str`, `&[u8]`, or `&+[u8]`",
         )),
         None if expression_is_lowerable_bool_binding(&statement.initializer, context) => {
             Ok(ScalarBindingKind::Bool)
@@ -158,6 +172,10 @@ fn is_i32_type(ty: &TypeExpr) -> bool {
     matches!(ty, TypeExpr::Reference(reference) if reference.name == "i32")
 }
 
+fn is_u8_type(ty: &TypeExpr) -> bool {
+    matches!(ty, TypeExpr::Reference(reference) if reference.name == "u8")
+}
+
 fn is_usize_type(ty: &TypeExpr) -> bool {
     matches!(ty, TypeExpr::Reference(reference) if reference.name == "usize")
 }
@@ -201,6 +219,7 @@ fn unsupported_interpolated_string_diagnostic() -> Vec<Diagnostic> {
 
 enum ScalarBindingKind {
     I32,
+    U8,
     Usize,
     Bool,
     Str,

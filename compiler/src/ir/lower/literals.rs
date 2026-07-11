@@ -49,6 +49,17 @@ pub(super) fn lower_usize_literal(expression: &Expr) -> Result<u64, Vec<Diagnost
     }
 }
 
+pub(super) fn lower_u8_literal(expression: &Expr) -> Result<u8, Vec<Diagnostic>> {
+    match expression {
+        Expr::IntegerLiteral(literal) => parse_u8_literal(&literal.value),
+        Expr::Group(group) => lower_u8_literal(&group.expression),
+        _ => Err(vec![Diagnostic::error(
+            "E8003",
+            "IR v0 can only lower integer literal returns",
+        )]),
+    }
+}
+
 fn lower_unsigned_integer_literal(expression: &Expr) -> Result<u32, Vec<Diagnostic>> {
     match expression {
         Expr::IntegerLiteral(literal) => parse_u32_literal(&literal.value),
@@ -77,6 +88,13 @@ fn parse_u64_literal(text: &str) -> Result<u64, Vec<Diagnostic>> {
     let digits = digits.replace('_', "");
 
     u64::from_str_radix(&digits, base).map_err(|_| integer_out_of_range_diagnostic())
+}
+
+fn parse_u8_literal(text: &str) -> Result<u8, Vec<Diagnostic>> {
+    let (base, digits) = literal_base_and_digits(text);
+    let digits = digits.replace('_', "");
+
+    u8::from_str_radix(&digits, base).map_err(|_| integer_out_of_range_diagnostic())
 }
 
 fn literal_base_and_digits(text: &str) -> (u32, &str) {

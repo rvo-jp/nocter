@@ -2,7 +2,7 @@ use super::{EntryEmitter, I32_BIT_WIDTH, USIZE_BIT_WIDTH, emit_mov_i32_to_w, emi
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolLocation, BoolValue, I32Location, I32Value, SliceLocation, SliceValue, StrLocation,
-    StrValue, UsizeLocation, UsizeValue,
+    StrValue, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use crate::target::arm64::{BranchCondition, WReg, XReg};
 
@@ -23,6 +23,15 @@ impl EntryEmitter {
     ) -> Result<(), Vec<Diagnostic>> {
         let destination = self.usize_location_register(destination)?;
         self.emit_usize_value_to_x(value, destination)
+    }
+
+    pub(super) fn emit_set_u8(
+        &mut self,
+        destination: U8Location,
+        value: &U8Value,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let destination = self.u8_location_register(destination)?;
+        self.emit_u8_value_to_w(value, destination)
     }
 
     pub(super) fn emit_set_bool(
@@ -415,6 +424,67 @@ impl EntryEmitter {
             }
         }
 
+        Ok(())
+    }
+
+    pub(super) fn emit_u8_value_to_w(
+        &mut self,
+        value: &U8Value,
+        destination: WReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match value {
+            U8Value::Const(value) => {
+                emit_mov_i32_to_w(&mut self.encoder, destination, i32::from(*value));
+            }
+            U8Value::Location(location) => {
+                let source = self.u8_location_register(*location)?;
+                if source != destination {
+                    self.encoder.emit_mov_w(destination, source);
+                }
+            }
+            U8Value::StrIndex { source, index } => {
+                let (ptr, len) = self.str_location_registers(*source)?;
+                self.emit_checked_byte_load(destination, ptr, len, index)?;
+            }
+            U8Value::StaticStrIndex { bytes, index } => {
+                self.emit_usize_value_to_x(index, XReg::X16)?;
+                emit_mov_u64_to_x(&mut self.encoder, XReg::X17, bytes.len() as u64);
+                self.emit_index_in_bounds_check(XReg::X16, XReg::X17)?;
+                self.emit_static_data_address(XReg::X17, bytes);
+                self.encoder
+                    .emit_ldrb_w_reg(destination, XReg::X17, XReg::X16);
+            }
+            U8Value::SliceIndex { source, index } => {
+                let (ptr, len) = self.slice_location_registers(*source)?;
+                self.emit_checked_byte_load(destination, ptr, len, index)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn emit_checked_byte_load(
+        &mut self,
+        destination: WReg,
+        ptr: XReg,
+        len: XReg,
+        index: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_usize_value_to_x(index, XReg::X16)?;
+        self.emit_index_in_bounds_check(XReg::X16, len)?;
+        self.encoder.emit_ldrb_w_reg(destination, ptr, XReg::X16);
+        Ok(())
+    }
+
+    fn emit_index_in_bounds_check(
+        &mut self,
+        index: XReg,
+        len: XReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.encoder.emit_cmp_x(index, len);
+        let in_bounds = self.emit_cond_branch_placeholder(BranchCondition::Cc);
+        self.emit_trap();
+        self.patch_branch_placeholder_to_current(in_bounds, "index in-bounds target")?;
         Ok(())
     }
 

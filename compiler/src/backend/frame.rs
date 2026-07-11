@@ -1,7 +1,8 @@
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolLocation, BoolValue, Function, I32Location, I32Value, Instruction, ScalarArgument,
-    SliceLocation, SliceValue, StrLocation, StrValue, UsizeLocation, UsizeValue,
+    SliceLocation, SliceValue, StrLocation, StrValue, U8Location, U8Value, UsizeLocation,
+    UsizeValue,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -169,6 +170,7 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
             function_requires_frame(then_instructions) || function_requires_frame(else_instructions)
         }
         Instruction::CallI32 { .. }
+        | Instruction::CallU8 { .. }
         | Instruction::CallUsize { .. }
         | Instruction::CallBool { .. }
         | Instruction::CallStr { .. }
@@ -176,6 +178,7 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         Instruction::TailCall { arguments, .. } => !arguments.is_empty(),
         Instruction::WriteStaticStderr(_)
         | Instruction::SetI32 { .. }
+        | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
         | Instruction::SetBool { .. }
         | Instruction::SetStr { .. }
@@ -216,6 +219,7 @@ fn max_call_argument_count(instructions: &[Instruction]) -> usize {
 fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
     match instruction {
         Instruction::CallI32 { arguments, .. }
+        | Instruction::CallU8 { arguments, .. }
         | Instruction::CallUsize { arguments, .. }
         | Instruction::CallBool { arguments, .. }
         | Instruction::CallStr { arguments, .. }
@@ -231,6 +235,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
             .max(max_call_argument_count(else_instructions)),
         Instruction::WriteStaticStderr(_)
         | Instruction::SetI32 { .. }
+        | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
         | Instruction::SetBool { .. }
         | Instruction::SetStr { .. }
@@ -277,6 +282,10 @@ fn record_instruction_scalar_locals(
         Instruction::SetI32 { destination, value } => {
             record_i32_location(*destination, highest_local_index);
             record_i32_value(value, highest_local_index);
+        }
+        Instruction::SetU8 { destination, value } => {
+            record_u8_location(*destination, highest_local_index);
+            record_u8_value(value, highest_local_index);
         }
         Instruction::SetUsize { destination, value } => {
             record_usize_location(*destination, highest_local_index);
@@ -382,6 +391,16 @@ fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
+        Instruction::CallU8 {
+            destination,
+            arguments,
+            ..
+        } => {
+            record_u8_location(*destination, highest_local_index);
+            for argument in arguments {
+                record_scalar_argument(argument, highest_local_index);
+            }
+        }
         Instruction::CallUsize {
             destination,
             arguments,
@@ -444,6 +463,7 @@ fn record_i32_value(value: &I32Value, highest_local_index: &mut Option<usize>) {
 fn record_scalar_argument(argument: &ScalarArgument, highest_local_index: &mut Option<usize>) {
     match argument {
         ScalarArgument::I32(value) => record_i32_value(value, highest_local_index),
+        ScalarArgument::U8(value) => record_u8_value(value, highest_local_index),
         ScalarArgument::Usize(value) => record_usize_value(value, highest_local_index),
         ScalarArgument::Bool(value) => record_bool_value(value, highest_local_index),
         ScalarArgument::Str(value) => record_str_value(value, highest_local_index),
@@ -453,6 +473,30 @@ fn record_scalar_argument(argument: &ScalarArgument, highest_local_index: &mut O
 
 fn record_i32_location(location: I32Location, highest_local_index: &mut Option<usize>) {
     if let I32Location::Local(index) = location {
+        record_scalar_local(index, highest_local_index);
+    }
+}
+
+fn record_u8_value(value: &U8Value, highest_local_index: &mut Option<usize>) {
+    match value {
+        U8Value::Const(_) => {}
+        U8Value::Location(location) => record_u8_location(*location, highest_local_index),
+        U8Value::StrIndex { source, index } => {
+            record_str_location(*source, highest_local_index);
+            record_usize_value(index, highest_local_index);
+        }
+        U8Value::StaticStrIndex { index, .. } => {
+            record_usize_value(index, highest_local_index);
+        }
+        U8Value::SliceIndex { source, index } => {
+            record_slice_location(*source, highest_local_index);
+            record_usize_value(index, highest_local_index);
+        }
+    }
+}
+
+fn record_u8_location(location: U8Location, highest_local_index: &mut Option<usize>) {
+    if let U8Location::Local(index) = location {
         record_scalar_local(index, highest_local_index);
     }
 }

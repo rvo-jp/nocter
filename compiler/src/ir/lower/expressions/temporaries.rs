@@ -2,12 +2,17 @@ use super::super::context::LoweringContext;
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolLocation, I32Location, I32Value, Instruction, SliceLocation, SliceValue, StrLocation,
-    StrValue, UsizeLocation, UsizeValue,
+    StrValue, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 
 pub(super) struct LoweredI32Value {
     pub(super) instructions: Vec<Instruction>,
     pub(super) value: I32Value,
+}
+
+pub(super) struct LoweredU8Value {
+    pub(super) instructions: Vec<Instruction>,
+    pub(super) value: U8Value,
 }
 
 pub(super) struct LoweredUsizeValue {
@@ -38,6 +43,10 @@ impl TemporaryAllocator {
 
     pub(super) fn next_i32(&mut self) -> Result<I32Location, Vec<Diagnostic>> {
         self.next_local_index(1).map(I32Location::Local)
+    }
+
+    pub(super) fn next_u8(&mut self) -> Result<U8Location, Vec<Diagnostic>> {
+        self.next_local_index(1).map(U8Location::Local)
     }
 
     pub(super) fn next_usize(&mut self) -> Result<UsizeLocation, Vec<Diagnostic>> {

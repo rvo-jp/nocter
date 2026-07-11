@@ -1,19 +1,22 @@
 use super::context::LoweringContext;
-use super::literals::{lower_i32_literal, lower_str_literal, lower_usize_literal};
+use super::literals::{
+    lower_i32_literal, lower_str_literal, lower_u8_literal, lower_usize_literal,
+};
 mod calls;
 mod predicates;
 mod temporaries;
 
-use crate::ast::{BinaryExpr, BinaryOperator, Expr, UnaryExpr, UnaryOperator};
+use crate::ast::{BinaryExpr, BinaryOperator, Expr, IndexExpr, UnaryExpr, UnaryOperator};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, I32ComparisonOperator,
     I32Location, I32Value, Instruction, SliceLocation, SliceValue, StrLocation, StrValue, Type,
-    UsizeLocation, UsizeValue,
+    U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use calls::{
     lower_bool_normal_call, lower_call_arguments, lower_direct_tail_call, lower_i32_normal_call,
-    lower_slice_normal_call, lower_str_normal_call, lower_usize_normal_call, primitive_trap_call,
+    lower_slice_normal_call, lower_str_normal_call, lower_u8_normal_call, lower_usize_normal_call,
+    primitive_trap_call,
 };
 use predicates::{
     bool_comparison_contains_call, expressions_are_lowerable_bool_comparison_operands,
@@ -26,7 +29,8 @@ pub(super) use predicates::{
     expression_is_lowerable_bool_binding, expression_is_unsupported_bool_comparison_binding,
 };
 use temporaries::{
-    LoweredI32Value, LoweredSliceValue, LoweredStrValue, LoweredUsizeValue, TemporaryAllocator,
+    LoweredI32Value, LoweredSliceValue, LoweredStrValue, LoweredU8Value, LoweredUsizeValue,
+    TemporaryAllocator,
 };
 
 pub(super) fn lower_i32_expression(
@@ -54,6 +58,34 @@ pub(super) fn lower_i32_expression_to_location(
         }
         _ => lower_i32_value(expression, context)
             .map(|value| vec![Instruction::SetI32 { destination, value }]),
+    }
+}
+
+pub(super) fn lower_u8_expression_to_location(
+    expression: &Expr,
+    destination: U8Location,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(call) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            lower_u8_normal_call(call, destination, context, &mut temporaries)
+        }
+        Expr::Index(index) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let lowered = lower_u8_index_expression_to_value(index, context, &mut temporaries)?;
+            let mut instructions = lowered.instructions;
+            instructions.push(Instruction::SetU8 {
+                destination,
+                value: lowered.value,
+            });
+            Ok(instructions)
+        }
+        Expr::Group(group) => {
+            lower_u8_expression_to_location(&group.expression, destination, context)
+        }
+        _ => lower_u8_value(expression, context)
+            .map(|value| vec![Instruction::SetU8 { destination, value }]),
     }
 }
 
@@ -182,6 +214,28 @@ fn lower_i32_expression_to_value(
         _ => Ok(LoweredI32Value {
             instructions: Vec::new(),
             value: lower_i32_value(expression, context)?,
+        }),
+    }
+}
+
+fn lower_u8_expression_to_value(
+    expression: &Expr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredU8Value, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(call) => {
+            let temporary = temporaries.next_u8()?;
+            Ok(LoweredU8Value {
+                instructions: lower_u8_normal_call(call, temporary, context, temporaries)?,
+                value: U8Value::Location(temporary),
+            })
+        }
+        Expr::Index(index) => lower_u8_index_expression_to_value(index, context, temporaries),
+        Expr::Group(group) => lower_u8_expression_to_value(&group.expression, context, temporaries),
+        _ => Ok(LoweredU8Value {
+            instructions: Vec::new(),
+            value: lower_u8_value(expression, context)?,
         }),
     }
 }
@@ -408,6 +462,22 @@ pub(super) fn lower_i32_return_expression(
         Expr::Group(group) => lower_i32_return_expression(&group.expression, context),
         _ => {
             let mut instructions = lower_i32_expression(expression, context)?;
+            instructions.push(Instruction::Return);
+            Ok(instructions)
+        }
+    }
+}
+
+pub(super) fn lower_u8_return_expression(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(call) => lower_direct_tail_call(call, context),
+        Expr::Group(group) => lower_u8_return_expression(&group.expression, context),
+        _ => {
+            let mut instructions =
+                lower_u8_expression_to_location(expression, U8Location::Return, context)?;
             instructions.push(Instruction::Return);
             Ok(instructions)
         }
@@ -928,6 +998,21 @@ pub(super) fn lower_i32_value(
     }
 }
 
+pub(super) fn lower_u8_value(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Result<U8Value, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(_) => Err(unsupported_non_tail_call_diagnostic()),
+        Expr::Identifier(identifier) => context
+            .u8_location(&identifier.name)
+            .map(U8Value::Location)
+            .ok_or_else(unsupported_u8_expression_diagnostic),
+        Expr::Group(group) => lower_u8_value(&group.expression, context),
+        _ => lower_u8_literal(expression).map(U8Value::Const),
+    }
+}
+
 pub(super) fn lower_usize_value(
     expression: &Expr,
     context: &LoweringContext,
@@ -941,6 +1026,41 @@ pub(super) fn lower_usize_value(
         Expr::Group(group) => lower_usize_value(&group.expression, context),
         _ => lower_usize_literal(expression).map(UsizeValue::Const),
     }
+}
+
+fn lower_u8_index_expression_to_value(
+    expression: &IndexExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredU8Value, Vec<Diagnostic>> {
+    let index = lower_usize_expression_to_value(&expression.index, context, temporaries)?;
+    if let Ok(value) = lower_str_value(&expression.object, context) {
+        return Ok(LoweredU8Value {
+            instructions: index.instructions,
+            value: match value {
+                StrValue::StaticBytes(bytes) => U8Value::StaticStrIndex {
+                    bytes,
+                    index: index.value,
+                },
+                StrValue::Location(source) => U8Value::StrIndex {
+                    source,
+                    index: index.value,
+                },
+            },
+        });
+    }
+
+    if let Ok(SliceValue::Location(source)) = lower_slice_value(&expression.object, context) {
+        return Ok(LoweredU8Value {
+            instructions: index.instructions,
+            value: U8Value::SliceIndex {
+                source,
+                index: index.value,
+            },
+        });
+    }
+
+    Err(unsupported_u8_expression_diagnostic())
 }
 
 fn lower_builtin_len_call_value(
@@ -1151,6 +1271,13 @@ fn unsupported_i32_expression_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8006",
         "IR v0 can only lower i32 literals, parameters, arithmetic or shift expressions, and direct tail calls",
+    )]
+}
+
+fn unsupported_u8_expression_diagnostic() -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8006",
+        "IR v0 can only lower u8 literals, parameters, locals, direct tail calls, and indexing into `&str`, `&[u8]`, or `&+[u8]`",
     )]
 }
 

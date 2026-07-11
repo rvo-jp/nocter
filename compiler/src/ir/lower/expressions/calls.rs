@@ -2,7 +2,7 @@ use super::super::context::LoweringContext;
 use super::temporaries::TemporaryAllocator;
 use super::{
     lower_bool_expression_to_value_with_temporaries, lower_i32_expression_to_value,
-    lower_slice_expression_to_value, lower_str_expression_to_value,
+    lower_slice_expression_to_value, lower_str_expression_to_value, lower_u8_expression_to_value,
     lower_usize_expression_to_value, unsupported_non_tail_call_diagnostic,
 };
 use crate::ast::{CallExpr, Expr};
@@ -10,7 +10,7 @@ use crate::diagnostics::Diagnostic;
 use crate::ir::StrLocation;
 use crate::ir::{
     BoolLocation, CallTarget, I32Location, Instruction, ScalarArgument, SliceLocation, Type,
-    UsizeLocation,
+    U8Location, UsizeLocation,
 };
 
 pub(super) fn lower_i32_normal_call(
@@ -54,6 +54,30 @@ pub(super) fn lower_usize_normal_call(
         lower_call_arguments(call, &target, &identifier.name, context, temporaries)?;
 
     instructions.push(Instruction::CallUsize {
+        destination,
+        target,
+        arguments,
+    });
+    Ok(instructions)
+}
+
+pub(super) fn lower_u8_normal_call(
+    call: &CallExpr,
+    destination: U8Location,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Err(unsupported_non_tail_call_diagnostic());
+    };
+
+    let target = context.call_target(call, &identifier.name);
+    validate_u8_normal_call_return_type(&target, &identifier.name, context)?;
+
+    let (mut instructions, arguments) =
+        lower_call_arguments(call, &target, &identifier.name, context, temporaries)?;
+
+    instructions.push(Instruction::CallU8 {
         destination,
         target,
         arguments,
@@ -190,6 +214,11 @@ pub(super) fn lower_call_arguments(
                 instructions.extend(argument.instructions);
                 arguments.push(ScalarArgument::I32(argument.value));
             }
+            Type::U8 => {
+                let argument = lower_u8_expression_to_value(argument, context, temporaries)?;
+                instructions.extend(argument.instructions);
+                arguments.push(ScalarArgument::U8(argument.value));
+            }
             Type::Usize => {
                 let argument = lower_usize_expression_to_value(argument, context, temporaries)?;
                 instructions.extend(argument.instructions);
@@ -297,6 +326,28 @@ fn validate_usize_normal_call_return_type(
     )])
 }
 
+fn validate_u8_normal_call_return_type(
+    target: &CallTarget,
+    callee_name: &str,
+    context: &LoweringContext,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(callee_return_type) = context.call_return_type(target) else {
+        return Ok(());
+    };
+
+    if callee_return_type == &Type::U8 {
+        return Ok(());
+    }
+
+    Err(vec![Diagnostic::error(
+        "E8006",
+        format!(
+            "IR v0 can only lower normal calls returning `u8`, got function `{callee_name}` returning `{}`",
+            describe_type(callee_return_type),
+        ),
+    )])
+}
+
 fn validate_bool_normal_call_return_type(
     target: &CallTarget,
     callee_name: &str,
@@ -390,6 +441,7 @@ fn validate_tail_call_return_type(
 fn describe_type(ty: &Type) -> &'static str {
     match ty {
         Type::I32 => "i32",
+        Type::U8 => "u8",
         Type::Usize => "usize",
         Type::Bool => "bool",
         Type::Str => "&str",
@@ -401,6 +453,7 @@ fn describe_type(ty: &Type) -> &'static str {
         Type::Never => "never",
         Type::Fallible(success) => match success.as_ref() {
             Type::I32 => "i32!",
+            Type::U8 => "u8!",
             Type::Usize => "usize!",
             Type::Bool => "bool!",
             Type::Str => "&str!",

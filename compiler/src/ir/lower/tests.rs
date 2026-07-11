@@ -5,7 +5,8 @@ use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::ir::{
     BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, CallTarget, Function,
     I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule, ScalarArgument,
-    SliceLocation, SliceValue, StrLocation, StrValue, Type, UsizeLocation, UsizeValue,
+    SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation,
+    UsizeValue,
 };
 use crate::source::SourceMap;
 use crate::target::DEFAULT_TARGET;
@@ -1653,6 +1654,263 @@ func size(): usize {
                 Instruction::Return,
             ],
         }
+    );
+}
+
+#[test]
+fn lowers_u8_slice_index_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func first(bytes: &[u8]): u8 {
+    return bytes[0]
+}
+"#,
+        "first",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "first".to_string(),
+            target: crate::ir::CallTarget::same_file("first".to_string()),
+            return_type: Type::U8,
+            instructions: vec![
+                Instruction::SetU8 {
+                    destination: U8Location::Return,
+                    value: U8Value::SliceIndex {
+                        source: SliceLocation::Parameter(0),
+                        index: usize_const(0),
+                    },
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_readwrite_u8_slice_index_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func first(bytes: &+[u8]): u8 {
+    return bytes[1]
+}
+"#,
+        "first",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "first".to_string(),
+            target: crate::ir::CallTarget::same_file("first".to_string()),
+            return_type: Type::U8,
+            instructions: vec![
+                Instruction::SetU8 {
+                    destination: U8Location::Return,
+                    value: U8Value::SliceIndex {
+                        source: SliceLocation::Parameter(0),
+                        index: usize_const(1),
+                    },
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_str_parameter_index_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func first(text: &str): u8 {
+    return text[2]
+}
+"#,
+        "first",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "first".to_string(),
+            target: crate::ir::CallTarget::same_file("first".to_string()),
+            return_type: Type::U8,
+            instructions: vec![
+                Instruction::SetU8 {
+                    destination: U8Location::Return,
+                    value: U8Value::StrIndex {
+                        source: StrLocation::Parameter(0),
+                        index: usize_const(2),
+                    },
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_str_literal_index_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func first(): u8 {
+    return "Nocter"[3]
+}
+"#,
+        "first",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "first".to_string(),
+            target: crate::ir::CallTarget::same_file("first".to_string()),
+            return_type: Type::U8,
+            instructions: vec![
+                Instruction::SetU8 {
+                    destination: U8Location::Return,
+                    value: U8Value::StaticStrIndex {
+                        bytes: b"Nocter".to_vec(),
+                        index: usize_const(3),
+                    },
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_u8_parameter_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func echo(byte: u8): u8 {
+    return byte
+}
+"#,
+        "echo",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "echo".to_string(),
+            target: crate::ir::CallTarget::same_file("echo".to_string()),
+            return_type: Type::U8,
+            instructions: vec![
+                Instruction::SetU8 {
+                    destination: U8Location::Return,
+                    value: u8_param(0),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_u8_local_binding_and_normal_call() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func wrapper(): u8 {
+    let byte: u8 = identity(7)
+    return byte
+}
+
+func identity(byte: u8): u8 {
+    return byte
+}
+"#,
+        "wrapper",
+        function_signatures(vec![("identity", Type::U8, vec![Type::U8])]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "wrapper".to_string(),
+            target: crate::ir::CallTarget::same_file("wrapper".to_string()),
+            return_type: Type::U8,
+            instructions: vec![
+                call_u8(
+                    U8Location::Local(0),
+                    "identity",
+                    vec![ScalarArgument::U8(u8_const(7))],
+                ),
+                Instruction::SetU8 {
+                    destination: U8Location::Return,
+                    value: u8_local(0),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_entry_u8_let_initializer_call_with_indexed_signature() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let byte: u8 = identity(7)
+    return 0
+}
+
+func identity(byte: u8): u8 {
+    return byte
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_u8(
+                        U8Location::Local(0),
+                        "identity",
+                        vec![ScalarArgument::U8(u8_const(7))],
+                    ),
+                    set_return_i32(0),
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "identity".to_string(),
+                target: crate::ir::CallTarget::same_file("identity".to_string()),
+                return_type: Type::U8,
+                instructions: vec![
+                    Instruction::SetU8 {
+                        destination: U8Location::Return,
+                        value: u8_param(0),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ])
     );
 }
 
@@ -4492,6 +4750,14 @@ fn call_usize(
     }
 }
 
+fn call_u8(destination: U8Location, function: &str, arguments: Vec<ScalarArgument>) -> Instruction {
+    Instruction::CallU8 {
+        destination,
+        target: CallTarget::same_file(function),
+        arguments,
+    }
+}
+
 fn call_bool(
     destination: BoolLocation,
     function: &str,
@@ -4569,6 +4835,18 @@ fn i32_param(index: usize) -> I32Value {
 
 fn i32_local(index: usize) -> I32Value {
     I32Value::Location(I32Location::Local(index))
+}
+
+fn u8_const(value: u8) -> U8Value {
+    U8Value::Const(value)
+}
+
+fn u8_param(index: usize) -> U8Value {
+    U8Value::Location(U8Location::Parameter(index))
+}
+
+fn u8_local(index: usize) -> U8Value {
+    U8Value::Location(U8Location::Local(index))
 }
 
 fn usize_const(value: u64) -> UsizeValue {

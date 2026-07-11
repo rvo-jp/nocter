@@ -45,6 +45,10 @@ pub(crate) enum Instruction {
         destination: I32Location,
         value: I32Value,
     },
+    SetU8 {
+        destination: U8Location,
+        value: U8Value,
+    },
     SetUsize {
         destination: UsizeLocation,
         value: UsizeValue,
@@ -138,6 +142,12 @@ pub(crate) enum Instruction {
         arguments: Vec<ScalarArgument>,
     },
     #[allow(dead_code)]
+    CallU8 {
+        destination: U8Location,
+        target: CallTarget,
+        arguments: Vec<ScalarArgument>,
+    },
+    #[allow(dead_code)]
     CallUsize {
         destination: UsizeLocation,
         target: CallTarget,
@@ -188,6 +198,31 @@ pub(crate) enum I32Value {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum U8Location {
+    Return,
+    Parameter(usize),
+    Local(usize),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum U8Value {
+    Const(u8),
+    Location(U8Location),
+    StrIndex {
+        source: StrLocation,
+        index: UsizeValue,
+    },
+    StaticStrIndex {
+        bytes: Vec<u8>,
+        index: UsizeValue,
+    },
+    SliceIndex {
+        source: SliceLocation,
+        index: UsizeValue,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum UsizeLocation {
     Return,
     Parameter(usize),
@@ -205,6 +240,7 @@ pub(crate) enum UsizeValue {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ScalarArgument {
     I32(I32Value),
+    U8(U8Value),
     Usize(UsizeValue),
     Bool(BoolValue),
     Str(StrValue),
@@ -214,7 +250,7 @@ pub(crate) enum ScalarArgument {
 impl ScalarArgument {
     pub(crate) fn abi_word_count(&self) -> usize {
         match self {
-            Self::I32(_) | Self::Usize(_) | Self::Bool(_) => 1,
+            Self::I32(_) | Self::U8(_) | Self::Usize(_) | Self::Bool(_) => 1,
             Self::Str(_) | Self::Slice(_) => 2,
         }
     }
@@ -304,6 +340,7 @@ pub(crate) enum BoolComparisonOperator {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Type {
     I32,
+    U8,
     Usize,
     Bool,
     Str,
@@ -318,6 +355,7 @@ impl Type {
         match self {
             Self::Fallible(success) => success,
             Self::I32
+            | Self::U8
             | Self::Usize
             | Self::Bool
             | Self::Str

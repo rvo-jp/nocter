@@ -3,7 +3,8 @@ use super::context::{FunctionNames, FunctionSignatures, LoweringContext};
 use super::control_flow::{lower_terminal_bool_if_statement, lower_terminal_i32_if_statement};
 use super::expressions::{
     lower_bool_return_expression, lower_i32_return_expression, lower_never_return_expression,
-    lower_slice_return_expression, lower_str_return_expression, lower_usize_return_expression,
+    lower_slice_return_expression, lower_str_return_expression, lower_u8_return_expression,
+    lower_usize_return_expression,
 };
 use crate::ast::{FunctionDecl, Parameter, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
@@ -36,6 +37,7 @@ pub(super) fn lower_function(
         return_type.clone(),
         function_signatures,
         parameters.i32,
+        parameters.u8,
         parameters.usize,
         parameters.bool,
         parameters.str,
@@ -54,6 +56,7 @@ pub(super) fn lower_function(
 
 struct LoweredScalarParameters {
     i32: Vec<Option<String>>,
+    u8: Vec<Option<String>>,
     usize: Vec<Option<String>>,
     bool: Vec<Option<String>>,
     str: Vec<Option<String>>,
@@ -64,6 +67,7 @@ fn lower_scalar_parameters(
     function: &FunctionDecl,
 ) -> Result<LoweredScalarParameters, Vec<Diagnostic>> {
     let mut i32_parameters = Vec::new();
+    let mut u8_parameters = Vec::new();
     let mut usize_parameters = Vec::new();
     let mut bool_parameters = Vec::new();
     let mut str_parameters = Vec::new();
@@ -72,6 +76,15 @@ fn lower_scalar_parameters(
         match lower_scalar_parameter_kind(parameter, &function.name)? {
             ScalarParameterKind::I32 => {
                 i32_parameters.push(Some(parameter.name.clone()));
+                u8_parameters.push(None);
+                usize_parameters.push(None);
+                bool_parameters.push(None);
+                str_parameters.push(None);
+                slice_parameters.push(None);
+            }
+            ScalarParameterKind::U8 => {
+                i32_parameters.push(None);
+                u8_parameters.push(Some(parameter.name.clone()));
                 usize_parameters.push(None);
                 bool_parameters.push(None);
                 str_parameters.push(None);
@@ -79,6 +92,7 @@ fn lower_scalar_parameters(
             }
             ScalarParameterKind::Usize => {
                 i32_parameters.push(None);
+                u8_parameters.push(None);
                 usize_parameters.push(Some(parameter.name.clone()));
                 bool_parameters.push(None);
                 str_parameters.push(None);
@@ -86,6 +100,7 @@ fn lower_scalar_parameters(
             }
             ScalarParameterKind::Bool => {
                 i32_parameters.push(None);
+                u8_parameters.push(None);
                 usize_parameters.push(None);
                 bool_parameters.push(Some(parameter.name.clone()));
                 str_parameters.push(None);
@@ -93,11 +108,13 @@ fn lower_scalar_parameters(
             }
             ScalarParameterKind::Str => {
                 i32_parameters.push(None);
+                u8_parameters.push(None);
                 usize_parameters.push(None);
                 bool_parameters.push(None);
                 str_parameters.push(Some(parameter.name.clone()));
                 slice_parameters.push(None);
                 i32_parameters.push(None);
+                u8_parameters.push(None);
                 usize_parameters.push(None);
                 bool_parameters.push(None);
                 str_parameters.push(None);
@@ -105,11 +122,13 @@ fn lower_scalar_parameters(
             }
             ScalarParameterKind::Slice => {
                 i32_parameters.push(None);
+                u8_parameters.push(None);
                 usize_parameters.push(None);
                 bool_parameters.push(None);
                 str_parameters.push(None);
                 slice_parameters.push(Some(parameter.name.clone()));
                 i32_parameters.push(None);
+                u8_parameters.push(None);
                 usize_parameters.push(None);
                 bool_parameters.push(None);
                 str_parameters.push(None);
@@ -130,6 +149,7 @@ fn lower_scalar_parameters(
 
     Ok(LoweredScalarParameters {
         i32: i32_parameters,
+        u8: u8_parameters,
         usize: usize_parameters,
         bool: bool_parameters,
         str: str_parameters,
@@ -140,6 +160,7 @@ fn lower_scalar_parameters(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ScalarParameterKind {
     I32,
+    U8,
     Usize,
     Bool,
     Str,
@@ -152,6 +173,7 @@ fn lower_scalar_parameter_kind(
 ) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
     match &parameter.ty {
         TypeExpr::Reference(reference) if reference.name == "i32" => Ok(ScalarParameterKind::I32),
+        TypeExpr::Reference(reference) if reference.name == "u8" => Ok(ScalarParameterKind::U8),
         TypeExpr::Reference(reference) if reference.name == "usize" => {
             Ok(ScalarParameterKind::Usize)
         }
@@ -168,7 +190,7 @@ fn lower_scalar_parameter_kind(
         _ => Err(vec![Diagnostic::error(
             "E8007",
             format!(
-                "IR v0 can only lower `i32`, `usize`, `bool`, `&str`, `&[u8]`, and `&+[u8]` parameters for function `{function_name}`"
+                "IR v0 can only lower `i32`, `u8`, `usize`, `bool`, `&str`, `&[u8]`, and `&+[u8]` parameters for function `{function_name}`"
             ),
         )]),
     }
@@ -177,6 +199,7 @@ fn lower_scalar_parameter_kind(
 fn lower_function_return_type(ty: &TypeExpr, name: &str) -> Result<Type, Vec<Diagnostic>> {
     match ty {
         TypeExpr::Reference(reference) if reference.name == "i32" => Ok(Type::I32),
+        TypeExpr::Reference(reference) if reference.name == "u8" => Ok(Type::U8),
         TypeExpr::Reference(reference) if reference.name == "usize" => Ok(Type::Usize),
         TypeExpr::Reference(reference) if reference.name == "bool" => Ok(Type::Bool),
         TypeExpr::Borrow(borrow)
@@ -193,7 +216,7 @@ fn lower_function_return_type(ty: &TypeExpr, name: &str) -> Result<Type, Vec<Dia
         _ => Err(vec![Diagnostic::error(
             "E8007",
             format!(
-                "IR v0 can only lower function `{name}` return type `i32`, `usize`, `bool`, `&str`, `&[u8]`, `&+[u8]`, `void`, or `never`"
+                "IR v0 can only lower function `{name}` return type `i32`, `u8`, `usize`, `bool`, `&str`, `&[u8]`, `&+[u8]`, `void`, or `never`"
             ),
         )]),
     }
@@ -237,6 +260,7 @@ fn lower_function_body(
 
             let return_instructions = match (return_type, &statement.expression) {
                 (Type::I32, Some(expression)) => lower_i32_return_expression(expression, context),
+                (Type::U8, Some(expression)) => lower_u8_return_expression(expression, context),
                 (Type::Usize, Some(expression)) => {
                     lower_usize_return_expression(expression, context)
                 }
@@ -266,6 +290,13 @@ fn lower_function_body(
                     "E8007",
                     format!(
                         "IR v0 cannot lower bare returns from i32 function `{}`",
+                        function.name
+                    ),
+                )]),
+                (Type::U8, None) => Err(vec![Diagnostic::error(
+                    "E8007",
+                    format!(
+                        "IR v0 cannot lower bare returns from u8 function `{}`",
                         function.name
                     ),
                 )]),

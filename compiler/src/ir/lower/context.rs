@@ -1,7 +1,8 @@
 use crate::ast::CallExpr;
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolLocation, CallTarget, I32Location, SliceLocation, StrLocation, Type, UsizeLocation,
+    BoolLocation, CallTarget, I32Location, SliceLocation, StrLocation, Type, U8Location,
+    UsizeLocation,
 };
 use crate::resolve::{ResolveOutput, SymbolKind};
 use crate::source::{ByteSpan, SourceId};
@@ -14,6 +15,7 @@ pub(super) struct LoweringContext<'a> {
     call_resolution: Option<CallResolution<'a>>,
     function_names: FunctionNames,
     i32_parameters: Vec<Option<String>>,
+    u8_parameters: Vec<Option<String>>,
     usize_parameters: Vec<Option<String>>,
     bool_parameters: Vec<Option<String>>,
     str_parameters: Vec<Option<String>>,
@@ -34,6 +36,7 @@ impl<'a> LoweringContext<'a> {
             call_resolution: None,
             function_names: FunctionNames::default(),
             i32_parameters: Vec::new(),
+            u8_parameters: Vec::new(),
             usize_parameters: Vec::new(),
             bool_parameters: Vec::new(),
             str_parameters: Vec::new(),
@@ -47,6 +50,7 @@ impl<'a> LoweringContext<'a> {
         return_type: Type,
         function_signatures: FunctionSignatures,
         i32_parameters: Vec<Option<String>>,
+        u8_parameters: Vec<Option<String>>,
         usize_parameters: Vec<Option<String>>,
         bool_parameters: Vec<Option<String>>,
         str_parameters: Vec<Option<String>>,
@@ -59,6 +63,7 @@ impl<'a> LoweringContext<'a> {
             call_resolution: None,
             function_names: FunctionNames::default(),
             i32_parameters,
+            u8_parameters,
             usize_parameters,
             bool_parameters,
             str_parameters,
@@ -135,6 +140,10 @@ impl<'a> LoweringContext<'a> {
         self.next_local_index(1).map(I32Location::Local)
     }
 
+    pub(super) fn next_u8_local_location(&self) -> Result<U8Location, Vec<Diagnostic>> {
+        self.next_local_index(1).map(U8Location::Local)
+    }
+
     pub(super) fn next_usize_local_location(&self) -> Result<UsizeLocation, Vec<Diagnostic>> {
         self.next_local_index(1).map(UsizeLocation::Local)
     }
@@ -157,6 +166,10 @@ impl<'a> LoweringContext<'a> {
 
     pub(super) fn define_i32_local(&mut self, name: String) {
         self.define_local(name, LocalKind::I32);
+    }
+
+    pub(super) fn define_u8_local(&mut self, name: String) {
+        self.define_local(name, LocalKind::U8);
     }
 
     pub(super) fn define_usize_local(&mut self, name: String) {
@@ -198,6 +211,19 @@ impl<'a> LoweringContext<'a> {
                     .iter()
                     .position(|parameter| parameter.as_deref() == Some(name))
                     .map(UsizeLocation::Parameter)
+            })
+    }
+
+    pub(super) fn u8_location(&self, name: &str) -> Option<U8Location> {
+        self.locals
+            .iter()
+            .find(|local| local.name == name && local.kind == LocalKind::U8)
+            .map(|local| U8Location::Local(local.index))
+            .or_else(|| {
+                self.u8_parameters
+                    .iter()
+                    .position(|parameter| parameter.as_deref() == Some(name))
+                    .map(U8Location::Parameter)
             })
     }
 
@@ -343,6 +369,7 @@ struct LocalBinding {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LocalKind {
     I32,
+    U8,
     Usize,
     Bool,
     Str,
@@ -352,7 +379,7 @@ enum LocalKind {
 impl LocalKind {
     fn abi_word_count(self) -> usize {
         match self {
-            Self::I32 | Self::Usize | Self::Bool => 1,
+            Self::I32 | Self::U8 | Self::Usize | Self::Bool => 1,
             Self::Str | Self::Slice => 2,
         }
     }

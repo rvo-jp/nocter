@@ -116,6 +116,9 @@ impl EntryEmitter {
             Instruction::SetI32 { destination, value } => {
                 self.emit_set_i32(*destination, value)?;
             }
+            Instruction::SetU8 { destination, value } => {
+                self.emit_set_u8(*destination, value)?;
+            }
             Instruction::SetUsize { destination, value } => {
                 self.emit_set_usize(*destination, value)?;
             }
@@ -232,6 +235,18 @@ impl EntryEmitter {
                 arguments,
             } => {
                 self.emit_call_i32(
+                    *destination,
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    frame,
+                )?;
+            }
+            Instruction::CallU8 {
+                destination,
+                target,
+                arguments,
+            } => {
+                self.emit_call_u8(
                     *destination,
                     FunctionSymbol::from_call_target(target),
                     arguments,
@@ -537,7 +552,7 @@ mod tests {
     use crate::ir::{
         BoolLocation, BoolValue, CallTarget, Function, I32ComparisonOperator, I32Location,
         I32Value, ScalarArgument, SliceLocation, SliceValue, StrLocation, StrValue, Type,
-        UsizeLocation, UsizeValue,
+        U8Location, U8Value, UsizeLocation, UsizeValue,
     };
     use crate::source::SourceId;
     use crate::target::arm64::BranchCondition;
@@ -936,6 +951,71 @@ mod tests {
         let code = generate_arm64_darwin_entry(&module, "main").unwrap();
 
         assert!(contains_instruction(&code.text, [0xe0, 0x03, 0x01, 0xaa])); // mov x0, x1
+    }
+
+    #[test]
+    fn generates_slice_index_byte_load_from_hand_built_ir() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "first".to_string(),
+                target: crate::ir::CallTarget::same_file("first".to_string()),
+                return_type: Type::U8,
+                instructions: vec![
+                    Instruction::SetU8 {
+                        destination: U8Location::Return,
+                        value: U8Value::SliceIndex {
+                            source: SliceLocation::Parameter(0),
+                            index: UsizeValue::Const(1),
+                        },
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+        assert!(contains_instruction(&code.text, [0x00, 0x68, 0x70, 0x38])); // ldrb w0, [x0, x16]
+    }
+
+    #[test]
+    fn generates_static_str_index_byte_load_from_hand_built_ir() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "first".to_string(),
+                target: crate::ir::CallTarget::same_file("first".to_string()),
+                return_type: Type::U8,
+                instructions: vec![
+                    Instruction::SetU8 {
+                        destination: U8Location::Return,
+                        value: U8Value::StaticStrIndex {
+                            bytes: b"Nocter".to_vec(),
+                            index: UsizeValue::Const(3),
+                        },
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+        assert!(contains_instruction(&code.text, [0x20, 0x6a, 0x70, 0x38])); // ldrb w0, [x17, x16]
+        assert_eq!(code.read_only_data, b"Nocter");
     }
 
     #[test]

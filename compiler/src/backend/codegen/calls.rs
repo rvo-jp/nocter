@@ -2,7 +2,8 @@ use super::{EntryEmitter, FunctionCallPatch, FunctionSymbol};
 use crate::backend::frame::{ArgumentStagingSlot, FrameLayout};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolLocation, I32Location, ScalarArgument, SliceLocation, StrLocation, UsizeLocation,
+    BoolLocation, I32Location, ScalarArgument, SliceLocation, StrLocation, U8Location,
+    UsizeLocation,
 };
 use crate::target::arm64::{WReg, XReg};
 
@@ -90,6 +91,28 @@ impl EntryEmitter {
         self.emit_call_result_to_usize_location(destination)
     }
 
+    pub(super) fn emit_call_u8(
+        &mut self,
+        destination: U8Location,
+        function: FunctionSymbol,
+        arguments: &[ScalarArgument],
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "normal u8 call emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_staged_scalar_arguments(arguments, frame)?;
+
+        self.emit_call(function);
+        self.emit_scalar_reloads(frame)?;
+        self.emit_call_result_to_u8_location(destination)
+    }
+
     pub(super) fn emit_call_bool(
         &mut self,
         destination: BoolLocation,
@@ -170,6 +193,12 @@ impl EntryEmitter {
                     self.encoder.emit_str_w_sp(WReg::W16, slot.offset());
                     abi_word_index += 1;
                 }
+                ScalarArgument::U8(value) => {
+                    let slot = staging_slot(frame, abi_word_index)?;
+                    self.emit_u8_value_to_w(value, WReg::W16)?;
+                    self.encoder.emit_str_w_sp(WReg::W16, slot.offset());
+                    abi_word_index += 1;
+                }
                 ScalarArgument::Usize(value) => {
                     let slot = staging_slot(frame, abi_word_index)?;
                     self.emit_usize_value_to_x(value, XReg::X16)?;
@@ -204,7 +233,7 @@ impl EntryEmitter {
         let mut abi_word_index = 0;
         for argument in arguments {
             match argument {
-                ScalarArgument::I32(_) | ScalarArgument::Bool(_) => {
+                ScalarArgument::I32(_) | ScalarArgument::U8(_) | ScalarArgument::Bool(_) => {
                     let Some(register) = WReg::argument(abi_word_index) else {
                         return Err(vec![Diagnostic::error(
                             "E9003",
@@ -313,6 +342,18 @@ impl EntryEmitter {
         let destination = self.usize_location_register(destination)?;
         if destination != XReg::X0 {
             self.encoder.emit_mov_x(destination, XReg::X0);
+        }
+
+        Ok(())
+    }
+
+    fn emit_call_result_to_u8_location(
+        &mut self,
+        destination: U8Location,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let destination = self.u8_location_register(destination)?;
+        if destination != WReg::W0 {
+            self.encoder.emit_mov_w(destination, WReg::W0);
         }
 
         Ok(())

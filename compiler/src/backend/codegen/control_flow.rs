@@ -295,6 +295,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
         Some(
             Instruction::WriteStaticStderr(_)
             | Instruction::SetI32 { .. }
+            | Instruction::SetU8 { .. }
             | Instruction::SetUsize { .. }
             | Instruction::SetBool { .. }
             | Instruction::SetStr { .. }
@@ -314,6 +315,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::ShiftLeftUsize { .. }
             | Instruction::ShiftRightUsize { .. }
             | Instruction::CallI32 { .. }
+            | Instruction::CallU8 { .. }
             | Instruction::CallUsize { .. }
             | Instruction::CallBool { .. }
             | Instruction::CallStr { .. }
