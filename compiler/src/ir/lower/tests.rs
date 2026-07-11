@@ -1915,6 +1915,103 @@ func identity(byte: u8): u8 {
 }
 
 #[test]
+fn lowers_u8_index_conversion_to_i32_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func first(text: &str): i32 {
+    return text[0] as i32
+}
+"#,
+        "first",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "first".to_string(),
+            target: crate::ir::CallTarget::same_file("first".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: I32Value::U8ZeroExtend(Box::new(U8Value::StrIndex {
+                        source: StrLocation::Parameter(0),
+                        index: usize_const(0),
+                    })),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_u8_index_conversion_to_usize_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func first(bytes: &[u8]): usize {
+    return bytes[1] as usize
+}
+"#,
+        "first",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "first".to_string(),
+            target: crate::ir::CallTarget::same_file("first".to_string()),
+            return_type: Type::Usize,
+            instructions: vec![
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: UsizeValue::U8ZeroExtend(Box::new(U8Value::SliceIndex {
+                        source: SliceLocation::Parameter(0),
+                        index: usize_const(1),
+                    })),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_entry_static_str_index_conversion_to_i32() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    return "A"[0] as i32
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: I32Value::U8ZeroExtend(Box::new(U8Value::StaticStrIndex {
+                        bytes: b"A".to_vec(),
+                        index: usize_const(0),
+                    })),
+                },
+                Instruction::Return,
+            ],
+        }])
+    );
+}
+
+#[test]
 fn lowers_entry_i32_let_initializer_normal_call_addition() {
     let ir = lower_text(
         r#"func main(): i32 {

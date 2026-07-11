@@ -1019,6 +1019,37 @@ mod tests {
     }
 
     #[test]
+    fn generates_u8_to_i32_zero_extend_from_hand_built_ir() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "first".to_string(),
+                target: crate::ir::CallTarget::same_file("first".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: I32Value::U8ZeroExtend(Box::new(U8Value::SliceIndex {
+                            source: SliceLocation::Parameter(0),
+                            index: UsizeValue::Const(1),
+                        })),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0x00, 0x68, 0x70, 0x38])); // ldrb w0, [x0, x16]
+    }
+
+    #[test]
     fn normal_i32_call_spills_and_reloads_scalar_locals() {
         let module = IrModule::new(vec![
             Function {

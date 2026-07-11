@@ -6,7 +6,10 @@ mod calls;
 mod predicates;
 mod temporaries;
 
-use crate::ast::{BinaryExpr, BinaryOperator, Expr, IndexExpr, UnaryExpr, UnaryOperator};
+use crate::ast::{
+    BinaryExpr, BinaryOperator, Expr, IndexExpr, TypeConversionExpr, TypeExpr, UnaryExpr,
+    UnaryOperator,
+};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, I32ComparisonOperator,
@@ -53,6 +56,17 @@ pub(super) fn lower_i32_expression_to_location(
         Expr::Binary(binary) if is_i32_binary_operator(binary.operator) => {
             lower_i32_binary_expression_to_location(binary, destination, context)
         }
+        Expr::TypeConversion(conversion) if type_conversion_target_is(conversion, "i32") => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let lowered =
+                lower_i32_conversion_expression_to_value(conversion, context, &mut temporaries)?;
+            let mut instructions = lowered.instructions;
+            instructions.push(Instruction::SetI32 {
+                destination,
+                value: lowered.value,
+            });
+            Ok(instructions)
+        }
         Expr::Group(group) => {
             lower_i32_expression_to_location(&group.expression, destination, context)
         }
@@ -74,6 +88,17 @@ pub(super) fn lower_u8_expression_to_location(
         Expr::Index(index) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             let lowered = lower_u8_index_expression_to_value(index, context, &mut temporaries)?;
+            let mut instructions = lowered.instructions;
+            instructions.push(Instruction::SetU8 {
+                destination,
+                value: lowered.value,
+            });
+            Ok(instructions)
+        }
+        Expr::TypeConversion(conversion) if type_conversion_target_is(conversion, "u8") => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let lowered =
+                lower_u8_expression_to_value(&conversion.expression, context, &mut temporaries)?;
             let mut instructions = lowered.instructions;
             instructions.push(Instruction::SetU8 {
                 destination,
@@ -105,6 +130,17 @@ pub(super) fn lower_usize_expression_to_location(
         }
         Expr::Binary(binary) if is_usize_binary_operator(binary.operator) => {
             lower_usize_binary_expression_to_location(binary, destination, context)
+        }
+        Expr::TypeConversion(conversion) if type_conversion_target_is(conversion, "usize") => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let lowered =
+                lower_usize_conversion_expression_to_value(conversion, context, &mut temporaries)?;
+            let mut instructions = lowered.instructions;
+            instructions.push(Instruction::SetUsize {
+                destination,
+                value: lowered.value,
+            });
+            Ok(instructions)
         }
         Expr::Group(group) => {
             lower_usize_expression_to_location(&group.expression, destination, context)
@@ -208,6 +244,9 @@ fn lower_i32_expression_to_value(
                 value: I32Value::Location(temporary),
             })
         }
+        Expr::TypeConversion(conversion) if type_conversion_target_is(conversion, "i32") => {
+            lower_i32_conversion_expression_to_value(conversion, context, temporaries)
+        }
         Expr::Group(group) => {
             lower_i32_expression_to_value(&group.expression, context, temporaries)
         }
@@ -232,12 +271,57 @@ fn lower_u8_expression_to_value(
             })
         }
         Expr::Index(index) => lower_u8_index_expression_to_value(index, context, temporaries),
+        Expr::TypeConversion(conversion) if type_conversion_target_is(conversion, "u8") => {
+            lower_u8_expression_to_value(&conversion.expression, context, temporaries)
+        }
         Expr::Group(group) => lower_u8_expression_to_value(&group.expression, context, temporaries),
         _ => Ok(LoweredU8Value {
             instructions: Vec::new(),
             value: lower_u8_value(expression, context)?,
         }),
     }
+}
+
+fn lower_i32_conversion_expression_to_value(
+    conversion: &TypeConversionExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredI32Value, Vec<Diagnostic>> {
+    if let Ok(value) = lower_i32_value(&conversion.expression, context) {
+        return Ok(LoweredI32Value {
+            instructions: Vec::new(),
+            value,
+        });
+    }
+
+    let value = lower_u8_expression_to_value(&conversion.expression, context, temporaries)?;
+    Ok(LoweredI32Value {
+        instructions: value.instructions,
+        value: I32Value::U8ZeroExtend(Box::new(value.value)),
+    })
+}
+
+fn lower_usize_conversion_expression_to_value(
+    conversion: &TypeConversionExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredUsizeValue, Vec<Diagnostic>> {
+    if let Ok(value) = lower_usize_value(&conversion.expression, context) {
+        return Ok(LoweredUsizeValue {
+            instructions: Vec::new(),
+            value,
+        });
+    }
+
+    let value = lower_u8_expression_to_value(&conversion.expression, context, temporaries)?;
+    Ok(LoweredUsizeValue {
+        instructions: value.instructions,
+        value: UsizeValue::U8ZeroExtend(Box::new(value.value)),
+    })
+}
+
+fn type_conversion_target_is(conversion: &TypeConversionExpr, name: &str) -> bool {
+    matches!(&conversion.ty, TypeExpr::Reference(reference) if reference.name == name)
 }
 
 fn lower_usize_binary_expression_to_location(
@@ -304,6 +388,9 @@ fn lower_usize_expression_to_value(
                 )?,
                 value: UsizeValue::Location(temporary),
             })
+        }
+        Expr::TypeConversion(conversion) if type_conversion_target_is(conversion, "usize") => {
+            lower_usize_conversion_expression_to_value(conversion, context, temporaries)
         }
         Expr::Group(group) => {
             lower_usize_expression_to_value(&group.expression, context, temporaries)

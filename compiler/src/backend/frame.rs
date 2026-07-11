@@ -457,6 +457,7 @@ fn record_i32_value(value: &I32Value, highest_local_index: &mut Option<usize>) {
     match value {
         I32Value::Const(_) => {}
         I32Value::Location(location) => record_i32_location(*location, highest_local_index),
+        I32Value::U8ZeroExtend(value) => record_u8_value(value, highest_local_index),
     }
 }
 
@@ -505,6 +506,7 @@ fn record_usize_value(value: &UsizeValue, highest_local_index: &mut Option<usize
     match value {
         UsizeValue::Const(_) => {}
         UsizeValue::Location(location) => record_usize_location(*location, highest_local_index),
+        UsizeValue::U8ZeroExtend(value) => record_u8_value(value, highest_local_index),
         UsizeValue::StrLen(location) => record_str_location(*location, highest_local_index),
         UsizeValue::SliceLen(location) => record_slice_location(*location, highest_local_index),
     }

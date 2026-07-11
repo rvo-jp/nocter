@@ -392,6 +392,9 @@ impl EntryEmitter {
                     self.encoder.emit_mov_w(destination, source);
                 }
             }
+            I32Value::U8ZeroExtend(value) => {
+                self.emit_u8_value_to_w(value, destination)?;
+            }
         }
 
         Ok(())
@@ -408,6 +411,12 @@ impl EntryEmitter {
                 let source = self.usize_location_register(*location)?;
                 if source != destination {
                     self.encoder.emit_mov_x(destination, source);
+                }
+            }
+            UsizeValue::U8ZeroExtend(value) => {
+                self.emit_u8_value_to_w(value, WReg::W16)?;
+                if destination != XReg::X16 {
+                    self.encoder.emit_mov_x(destination, XReg::X16);
                 }
             }
             UsizeValue::StrLen(location) => {

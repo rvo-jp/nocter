@@ -195,6 +195,7 @@ pub(crate) enum I32Location {
 pub(crate) enum I32Value {
     Const(i32),
     Location(I32Location),
+    U8ZeroExtend(Box<U8Value>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -233,6 +234,7 @@ pub(crate) enum UsizeLocation {
 pub(crate) enum UsizeValue {
     Const(u64),
     Location(UsizeLocation),
+    U8ZeroExtend(Box<U8Value>),
     StrLen(StrLocation),
     SliceLen(SliceLocation),
 }
