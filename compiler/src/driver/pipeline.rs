@@ -732,6 +732,56 @@ func main(): i32! {
         assert_eq!(status.code(), Some(0));
     }
 
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
+    fn build_file_output_runs_std_print_hello_world() {
+        let root = make_temp_project("build-run-std-print");
+        let nocter_home = make_nocter_home(&root);
+        fs::write(
+            nocter_home.join("std/io.nct"),
+            r#"from std/io_impl import write_text_raw
+
+pub func print(text: &str): void! {
+    write_text_raw(1, text)
+    return
+}
+"#,
+        )
+        .unwrap();
+        fs::write(
+            nocter_home.join("targets/arm64-darwin/std/io_impl.nct"),
+            r#"pub(nocter) primitive write_text_raw(fd: i32, text: &str): void
+"#,
+        )
+        .unwrap();
+        let source = root.join("hello.nct");
+        fs::write(
+            &source,
+            r#"from std/io import print
+
+func main(): void! {
+    print("Hello, world!\n")?
+}
+"#,
+        )
+        .unwrap();
+
+        let executable = default_executable_path(&source);
+        let output = build_file_to_path_with_options(
+            &source,
+            &executable,
+            &frontend_options(nocter_home),
+            DEFAULT_ENTRY_NAME,
+        );
+
+        assert_diagnostics_empty(&output.diagnostics);
+        assert_eq!(output.output_path, executable);
+        let output = std::process::Command::new(&executable).output().unwrap();
+        assert_eq!(output.status.code(), Some(0));
+        assert_eq!(output.stdout, b"Hello, world!\n");
+        assert!(output.stderr.is_empty());
+    }
+
     fn make_temp_project(name: &str) -> PathBuf {
         let unique = format!(
             "nocter-pipeline-{name}-{}-{}",

@@ -32,6 +32,7 @@ fn collect_reachable_call_targets(
                 collect_reachable_call_targets(else_instructions, targets);
             }
             Instruction::WriteStaticStderr(_)
+            | Instruction::WriteStr { .. }
             | Instruction::SetI32 { .. }
             | Instruction::SetU8 { .. }
             | Instruction::SetUsize { .. }

@@ -121,7 +121,7 @@ Rules:
 - `<name>` must be a valid Nocter identifier and must not be a keyword.
 - Entry lookup considers only top-level functions in the root file.
 - Imported functions with the same name are ordinary functions and are not selected as the executable entry.
-- The selected function must have no parameters and must return `i32!`, `i32`, or `void`.
+- The selected function must have no parameters and must return `i32!`, `i32`, `void!`, or `void`.
 - `--entry` is a compiler setting, not a language keyword, attribute, import, or built-in function.
 - `fmt`, `tokens`, and `ast` do not accept `--entry` because they do not perform executable entry validation.
 

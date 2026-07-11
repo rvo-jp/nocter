@@ -9,6 +9,7 @@ from std/io_impl import FileDescriptor
 from std/io_impl import open_read as open_read_impl
 from std/io_impl import stderr as stderr_impl
 from std/io_impl import stdout as stdout_impl
+from std/io_impl import write_text_raw
 from std/os import OSError
 
 // Compatibility classification type. It is an ordinary enum, not the fallible
@@ -63,8 +64,7 @@ impl File {
 }
 
 pub func print(text: &str): void! {
-    var out = stdout()
-    out.write_text(text)?
+    write_text_raw(1, text)
     return
 }
 

@@ -41,6 +41,22 @@ fn accepts_default_main_void() {
 }
 
 #[test]
+fn accepts_default_main_void_fallible() {
+    let diagnostics = check_text(
+        r#"func main(): void! {
+    run()?
+}
+
+func run(): void! {
+    return
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_missing_default_main() {
     let diagnostics = check_text(
         r#"func start(): i32 {

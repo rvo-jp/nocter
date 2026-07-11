@@ -310,7 +310,10 @@ impl EntryEmitter {
         Ok(())
     }
 
-    fn emit_scalar_spills(&mut self, frame: &FrameLayout) -> Result<(), Vec<Diagnostic>> {
+    pub(super) fn emit_scalar_spills(
+        &mut self,
+        frame: &FrameLayout,
+    ) -> Result<(), Vec<Diagnostic>> {
         for slot in frame.scalar_spill_slots() {
             let register = XReg::local(slot.local_index()).ok_or_else(|| {
                 vec![Diagnostic::error(
@@ -327,7 +330,10 @@ impl EntryEmitter {
         Ok(())
     }
 
-    fn emit_scalar_reloads(&mut self, frame: &FrameLayout) -> Result<(), Vec<Diagnostic>> {
+    pub(super) fn emit_scalar_reloads(
+        &mut self,
+        frame: &FrameLayout,
+    ) -> Result<(), Vec<Diagnostic>> {
         for slot in frame.scalar_spill_slots() {
             let register = XReg::local(slot.local_index()).ok_or_else(|| {
                 vec![Diagnostic::error(

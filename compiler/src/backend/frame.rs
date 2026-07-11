@@ -175,7 +175,8 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::CallBool { .. }
         | Instruction::CallStr { .. }
         | Instruction::CallSlice { .. }
-        | Instruction::CallVoid { .. } => true,
+        | Instruction::CallVoid { .. }
+        | Instruction::WriteStr { .. } => true,
         Instruction::TailCall { arguments, .. } => !arguments.is_empty(),
         Instruction::WriteStaticStderr(_)
         | Instruction::SetI32 { .. }
@@ -235,7 +236,8 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
             ..
         } => max_call_argument_count(then_instructions)
             .max(max_call_argument_count(else_instructions)),
-        Instruction::WriteStaticStderr(_)
+        Instruction::WriteStaticStderr(_) => 0,
+        Instruction::WriteStr { .. }
         | Instruction::SetI32 { .. }
         | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
@@ -276,6 +278,10 @@ fn record_instruction_scalar_locals(
 ) {
     match instruction {
         Instruction::WriteStaticStderr(_) | Instruction::Trap | Instruction::Return => {}
+        Instruction::WriteStr { fd, text } => {
+            record_i32_value(fd, highest_local_index);
+            record_str_value(text, highest_local_index);
+        }
         Instruction::TailCall { arguments, .. } => {
             for argument in arguments {
                 record_scalar_argument(argument, highest_local_index);

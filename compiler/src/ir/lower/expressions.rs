@@ -17,9 +17,10 @@ use crate::ir::{
     U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use calls::{
-    lower_bool_normal_call, lower_call_arguments, lower_direct_tail_call, lower_i32_normal_call,
-    lower_slice_normal_call, lower_str_normal_call, lower_u8_normal_call, lower_usize_normal_call,
-    lower_void_normal_call, primitive_trap_call,
+    lower_bool_normal_call, lower_call_arguments, lower_direct_tail_call,
+    lower_fallible_void_normal_call, lower_i32_normal_call, lower_slice_normal_call,
+    lower_str_normal_call, lower_u8_normal_call, lower_usize_normal_call, lower_void_normal_call,
+    primitive_trap_call, primitive_write_text_raw_call,
 };
 use predicates::{
     bool_comparison_contains_call, expressions_are_lowerable_bool_comparison_operands,
@@ -203,7 +204,9 @@ pub(super) fn lower_void_expression_statement(
                 return Ok(None);
             };
             let target = context.call_target(call, &identifier.name);
-            if context.call_return_type(&target) != Some(&Type::Void) {
+            if context.call_return_type(&target) != Some(&Type::Void)
+                && !primitive_write_text_raw_call(call, context)
+            {
                 return Ok(None);
             }
 
@@ -211,6 +214,34 @@ pub(super) fn lower_void_expression_statement(
             lower_void_normal_call(call, context, &mut temporaries).map(Some)
         }
         Expr::Group(group) => lower_void_expression_statement(&group.expression, context),
+        Expr::Propagate(propagation) => {
+            lower_fallible_void_expression_statement(&propagation.expression, context)
+        }
+        _ => Ok(None),
+    }
+}
+
+fn lower_fallible_void_expression_statement(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(call) => {
+            let Expr::Identifier(identifier) = call.callee.as_ref() else {
+                return Ok(None);
+            };
+            let target = context.call_target(call, &identifier.name);
+            if !matches!(
+                context.call_return_type(&target),
+                Some(Type::Fallible(success)) if success.as_ref() == &Type::Void
+            ) {
+                return Ok(None);
+            }
+
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            lower_fallible_void_normal_call(call, context, &mut temporaries).map(Some)
+        }
+        Expr::Group(group) => lower_fallible_void_expression_statement(&group.expression, context),
         _ => Ok(None),
     }
 }

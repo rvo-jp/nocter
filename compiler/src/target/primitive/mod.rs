@@ -300,6 +300,16 @@ const SYSCALL6_PARAMETERS: &[PrimitiveParameterSpec] = &[
         ty: "usize",
     },
 ];
+const WRITE_TEXT_RAW_PARAMETERS: &[PrimitiveParameterSpec] = &[
+    PrimitiveParameterSpec {
+        name: "fd",
+        ty: "i32",
+    },
+    PrimitiveParameterSpec {
+        name: "text",
+        ty: "&str",
+    },
+];
 
 fn primitive_set() -> &'static [PrimitiveSpec] {
     &[
@@ -428,6 +438,15 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             generics: &[],
             parameters: &[],
             return_type: "never",
+        },
+        PrimitiveSpec {
+            module_path: "std/io_impl",
+            target: Some("arm64-darwin"),
+            visibility: Visibility::Nocter,
+            name: "write_text_raw",
+            generics: &[],
+            parameters: WRITE_TEXT_RAW_PARAMETERS,
+            return_type: "void",
         },
     ]
 }

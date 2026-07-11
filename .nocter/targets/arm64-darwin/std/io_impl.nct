@@ -10,6 +10,8 @@ pub(nocter) copy struct FileDescriptor {
     raw: i32
 }
 
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void
+
 pub(nocter) func stdout(): FileDescriptor {
     return FileDescriptor { raw: 1 }
 }

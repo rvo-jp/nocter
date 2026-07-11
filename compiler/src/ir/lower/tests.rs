@@ -3539,6 +3539,50 @@ func effect(): void {
 }
 
 #[test]
+fn lowers_fallible_void_entry_propagating_std_print() {
+    let ir = lower_text_with_nocter_home_files(
+        r#"from std/io import print
+
+func main(): void! {
+    print("hello\n")?
+}
+"#,
+        &[std_io_file(), std_io_impl_file()],
+    );
+
+    let [main, print] = ir.functions.as_slice() else {
+        panic!("unexpected lowered functions: {:?}", ir.functions);
+    };
+
+    assert_eq!(main.return_type, Type::Fallible(Box::new(Type::Void)));
+    let [
+        Instruction::CallVoid { target, arguments },
+        Instruction::Return,
+    ] = main.instructions.as_slice()
+    else {
+        panic!("unexpected main instructions: {:?}", main.instructions);
+    };
+    assert!(matches!(target, CallTarget::Imported { name, .. } if name == "print"));
+    assert_eq!(arguments, &vec![str_static(b"hello\n")]);
+
+    assert_eq!(print.return_type, Type::Fallible(Box::new(Type::Void)));
+    assert!(matches!(
+        print.target,
+        CallTarget::Imported { ref name, .. } if name == "print"
+    ));
+    assert_eq!(
+        print.instructions,
+        vec![
+            Instruction::WriteStr {
+                fd: I32Value::Const(1),
+                text: StrValue::Location(StrLocation::Parameter(0)),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_entry_returning_same_file_function_call() {
     let ir = lower_text(
         r#"func main(): i32 {
@@ -5257,19 +5301,13 @@ fn lower_text_with_entry(text: &str, entry_name: &str) -> IrModule {
 }
 
 fn lower_text_with_std_error(text: &str) -> IrModule {
+    lower_text_with_nocter_home_files(text, &[std_error_file()])
+}
+
+fn lower_text_with_nocter_home_files(text: &str, home_files: &[(&str, &str)]) -> IrModule {
     let entry_name = crate::entry::DEFAULT_ENTRY_NAME;
-    let diagnostics = lower_text_diagnostics_with_std_error(text);
-    match diagnostics.as_slice() {
-        [] => {
-            let analysis = analyze_text_with_entry_and_nocter_home_files(
-                text,
-                entry_name,
-                &[std_error_file()],
-            );
-            lower_executable_with_entry(&analysis, entry_name).unwrap()
-        }
-        diagnostics => panic!("unexpected diagnostics: {diagnostics:?}"),
-    }
+    let analysis = analyze_text_with_entry_and_nocter_home_files(text, entry_name, home_files);
+    lower_executable_with_entry(&analysis, entry_name).unwrap()
 }
 
 fn lower_named_function(text: &str, function_name: &str) -> Function {
@@ -5550,6 +5588,27 @@ impl Error {
         return new_error(code, message)
     }
 }
+"#,
+    )
+}
+
+fn std_io_file() -> (&'static str, &'static str) {
+    (
+        "std/io.nct",
+        r#"from std/io_impl import write_text_raw
+
+pub func print(text: &str): void! {
+    write_text_raw(1, text)
+    return
+}
+"#,
+    )
+}
+
+fn std_io_impl_file() -> (&'static str, &'static str) {
+    (
+        "targets/arm64-darwin/std/io_impl.nct",
+        r#"pub(nocter) primitive write_text_raw(fd: i32, text: &str): void
 "#,
     )
 }

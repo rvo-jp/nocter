@@ -37,7 +37,7 @@ pub(super) fn is_valid_entry_return_type(ty: &TypeExpr) -> bool {
     match ty {
         TypeExpr::Reference(reference) => reference.name == "i32" || reference.name == "void",
         TypeExpr::Fallible(fallible) => {
-            matches!(fallible.success.as_ref(), TypeExpr::Reference(reference) if reference.name == "i32")
+            matches!(fallible.success.as_ref(), TypeExpr::Reference(reference) if reference.name == "i32" || reference.name == "void")
         }
         _ => false,
     }

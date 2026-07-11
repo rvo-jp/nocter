@@ -41,6 +41,10 @@ impl CallTarget {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Instruction {
     WriteStaticStderr(Vec<u8>),
+    WriteStr {
+        fd: I32Value,
+        text: StrValue,
+    },
     SetI32 {
         destination: I32Location,
         value: I32Value,

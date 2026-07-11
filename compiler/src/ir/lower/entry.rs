@@ -51,7 +51,7 @@ fn lower_entry_return_type(ty: &TypeExpr) -> Result<Type, Vec<Diagnostic>> {
             .map(|success| Type::Fallible(Box::new(success))),
         _ => Err(vec![Diagnostic::error(
             "E8001",
-            "IR v0 can only lower entry function return type `i32`, `i32!`, or `void`",
+            "IR v0 can only lower entry function return type `i32`, `i32!`, `void`, or `void!`",
         )]),
     }
 }

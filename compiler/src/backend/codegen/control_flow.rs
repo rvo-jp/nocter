@@ -294,6 +294,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
         }
         Some(
             Instruction::WriteStaticStderr(_)
+            | Instruction::WriteStr { .. }
             | Instruction::SetI32 { .. }
             | Instruction::SetU8 { .. }
             | Instruction::SetUsize { .. }

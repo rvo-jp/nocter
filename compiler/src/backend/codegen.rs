@@ -1,6 +1,6 @@
 use crate::backend::frame::{FrameLayout, FunctionFrame, plan_function_frame};
 use crate::diagnostics::Diagnostic;
-use crate::ir::{CallTarget, Function, Instruction, IrModule, Type};
+use crate::ir::{CallTarget, Function, I32Value, Instruction, IrModule, StrValue, Type};
 use crate::target::arm64::{Encoder, MoveWideShift, WReg, XReg};
 use std::collections::HashMap;
 
@@ -112,6 +112,9 @@ impl EntryEmitter {
         match instruction {
             Instruction::WriteStaticStderr(bytes) => {
                 self.emit_write_static_stderr(bytes);
+            }
+            Instruction::WriteStr { fd, text } => {
+                self.emit_write_str(fd, text, frame)?;
             }
             Instruction::SetI32 { destination, value } => {
                 self.emit_set_i32(*destination, value)?;
@@ -353,6 +356,29 @@ impl EntryEmitter {
         self.emit_static_data_address(XReg::X1, bytes);
         emit_mov_u64_to_x(&mut self.encoder, XReg::X2, bytes.len() as u64);
         emit_darwin_write_syscall(&mut self.encoder);
+    }
+
+    fn emit_write_str(
+        &mut self,
+        fd: &I32Value,
+        text: &StrValue,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "str write emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_str_value_to_x_pair(text, XReg::X3, XReg::X4)?;
+        self.emit_i32_value_to_w(fd, WReg::W0)?;
+        self.encoder.emit_mov_x(XReg::X1, XReg::X3);
+        self.encoder.emit_mov_x(XReg::X2, XReg::X4);
+        emit_darwin_write_syscall(&mut self.encoder);
+        self.emit_scalar_reloads(frame)?;
+        Ok(())
     }
 
     fn emit_static_data_address(&mut self, register: XReg, bytes: &[u8]) {
@@ -2134,6 +2160,37 @@ mod tests {
         assert_eq!(output.status.code(), Some(3));
         assert!(output.stdout.is_empty());
         assert_eq!(output.stderr, b"failed\n");
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
+    fn generated_str_write_runs() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::WriteStr {
+                    fd: I32Value::Const(1),
+                    text: StrValue::StaticBytes(b"hello\n".to_vec()),
+                },
+                set_return_i32(0),
+                Instruction::Return,
+            ],
+        }]);
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let image = crate::target::macho::write_arm64_macos_executable_with_data(
+            &code.text,
+            &code.read_only_data,
+        );
+        let executable = write_temp_executable("codegen-str-write-runs", &image.bytes);
+
+        let output = std::process::Command::new(&executable).output().unwrap();
+        let _ = std::fs::remove_file(executable);
+
+        assert_eq!(output.status.code(), Some(0));
+        assert_eq!(output.stdout, b"hello\n");
+        assert!(output.stderr.is_empty());
     }
 
     #[test]
