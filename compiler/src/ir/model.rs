@@ -198,6 +198,8 @@ pub(crate) enum UsizeLocation {
 pub(crate) enum UsizeValue {
     Const(u64),
     Location(UsizeLocation),
+    StrLen(StrLocation),
+    SliceLen(SliceLocation),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

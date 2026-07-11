@@ -64,6 +64,10 @@ pub(super) fn lower_usize_expression_to_location(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => {
+            if let Some(value) = lower_builtin_len_call_value(call, context) {
+                return value.map(|value| vec![Instruction::SetUsize { destination, value }]);
+            }
+
             let mut temporaries = TemporaryAllocator::new(context)?;
             lower_usize_normal_call(call, destination, context, &mut temporaries)
         }
@@ -222,6 +226,13 @@ fn lower_usize_expression_to_value(
 ) -> Result<LoweredUsizeValue, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => {
+            if let Some(value) = lower_builtin_len_call_value(call, context) {
+                return Ok(LoweredUsizeValue {
+                    instructions: Vec::new(),
+                    value: value?,
+                });
+            }
+
             let temporary = temporaries.next_usize()?;
             Ok(LoweredUsizeValue {
                 instructions: lower_usize_normal_call(call, temporary, context, temporaries)?,
@@ -434,7 +445,16 @@ pub(super) fn lower_usize_return_expression(
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
-        Expr::Call(call) => lower_direct_tail_call(call, context),
+        Expr::Call(call) => {
+            if lower_builtin_len_call_value(call, context).is_some() {
+                let mut instructions =
+                    lower_usize_expression_to_location(expression, UsizeLocation::Return, context)?;
+                instructions.push(Instruction::Return);
+                return Ok(instructions);
+            }
+
+            lower_direct_tail_call(call, context)
+        }
         Expr::Group(group) => lower_usize_return_expression(&group.expression, context),
         _ => {
             let mut instructions =
@@ -921,6 +941,31 @@ pub(super) fn lower_usize_value(
         Expr::Group(group) => lower_usize_value(&group.expression, context),
         _ => lower_usize_literal(expression).map(UsizeValue::Const),
     }
+}
+
+fn lower_builtin_len_call_value(
+    call: &crate::ast::CallExpr,
+    context: &LoweringContext,
+) -> Option<Result<UsizeValue, Vec<Diagnostic>>> {
+    let Expr::Member(member) = call.callee.as_ref() else {
+        return None;
+    };
+    if member.member != "len" || !call.arguments.is_empty() {
+        return None;
+    }
+
+    if let Ok(value) = lower_str_value(&member.object, context) {
+        return Some(Ok(match value {
+            StrValue::StaticBytes(bytes) => UsizeValue::Const(bytes.len() as u64),
+            StrValue::Location(location) => UsizeValue::StrLen(location),
+        }));
+    }
+
+    if let Ok(SliceValue::Location(location)) = lower_slice_value(&member.object, context) {
+        return Some(Ok(UsizeValue::SliceLen(location)));
+    }
+
+    None
 }
 
 pub(super) fn lower_bool_value(

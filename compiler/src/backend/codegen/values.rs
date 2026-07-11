@@ -401,6 +401,18 @@ impl EntryEmitter {
                     self.encoder.emit_mov_x(destination, source);
                 }
             }
+            UsizeValue::StrLen(location) => {
+                let (_, source) = self.str_location_registers(*location)?;
+                if source != destination {
+                    self.encoder.emit_mov_x(destination, source);
+                }
+            }
+            UsizeValue::SliceLen(location) => {
+                let (_, source) = self.slice_location_registers(*location)?;
+                if source != destination {
+                    self.encoder.emit_mov_x(destination, source);
+                }
+            }
         }
 
         Ok(())

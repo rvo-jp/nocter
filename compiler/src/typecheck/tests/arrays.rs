@@ -116,6 +116,38 @@ func first(bytes: &[u8]): u8 {
 }
 
 #[test]
+fn accepts_view_len_call_return() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func size(bytes: &[u8]): usize {
+    return bytes.len()
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_readwrite_view_len_call_return() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func size(bytes: &+[u8]): usize {
+    return bytes.len()
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn accepts_str_index_return() {
     let diagnostics = check_text(
         r#"func main(): i32 {
@@ -124,6 +156,22 @@ fn accepts_str_index_return() {
 
 func first(): u8 {
     return "hello"[0]
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_str_len_call_return() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func size(): usize {
+    return "hello".len()
 }
 "#,
     );

@@ -88,6 +88,10 @@ pub(super) fn expression_type(
         Expr::Catch(expression) => expression_type(&expression.expression, resolved, environment)
             .into_fallible_success_type(),
         Expr::Call(expression) => {
+            if collection_len_call_type(expression, resolved, environment).is_some() {
+                return Type::Primitive("usize".to_string());
+            }
+
             enum_variant_call_type(expression, resolved).unwrap_or_else(|| {
                 resolved_call_signature(resolved, expression, environment)
                     .map(|signature| {
@@ -133,4 +137,28 @@ pub(super) fn expression_type(
             .or_else(|| struct_member_type(expression, resolved, environment))
             .unwrap_or(Type::Unknown),
     }
+}
+
+pub(super) fn collection_len_call_type(
+    call: &crate::ast::CallExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<Type> {
+    let Expr::Member(member) = call.callee.as_ref() else {
+        return None;
+    };
+    if member.member != "len" || !call.arguments.is_empty() {
+        return None;
+    }
+
+    let receiver_type = expression_type(&member.object, resolved, environment);
+    if collection_has_len(&receiver_type) {
+        Some(Type::Primitive("usize".to_string()))
+    } else {
+        None
+    }
+}
+
+pub(super) fn collection_has_len(ty: &Type) -> bool {
+    matches!(ty, Type::Str | Type::View { .. })
 }

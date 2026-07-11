@@ -461,6 +461,8 @@ fn record_usize_value(value: &UsizeValue, highest_local_index: &mut Option<usize
     match value {
         UsizeValue::Const(_) => {}
         UsizeValue::Location(location) => record_usize_location(*location, highest_local_index),
+        UsizeValue::StrLen(location) => record_str_location(*location, highest_local_index),
+        UsizeValue::SliceLen(location) => record_slice_location(*location, highest_local_index),
     }
 }
 

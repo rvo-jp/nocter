@@ -1533,6 +1533,130 @@ func consume(bytes: &[u8], code: i32): i32 {
 }
 
 #[test]
+fn lowers_u8_slice_len_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func size(bytes: &[u8]): usize {
+    return bytes.len()
+}
+"#,
+        "size",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "size".to_string(),
+            target: crate::ir::CallTarget::same_file("size".to_string()),
+            return_type: Type::Usize,
+            instructions: vec![
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: UsizeValue::SliceLen(SliceLocation::Parameter(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_readwrite_u8_slice_len_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func size(bytes: &+[u8]): usize {
+    return bytes.len()
+}
+"#,
+        "size",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "size".to_string(),
+            target: crate::ir::CallTarget::same_file("size".to_string()),
+            return_type: Type::Usize,
+            instructions: vec![
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: UsizeValue::SliceLen(SliceLocation::Parameter(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_str_parameter_len_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func size(text: &str): usize {
+    return text.len()
+}
+"#,
+        "size",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "size".to_string(),
+            target: crate::ir::CallTarget::same_file("size".to_string()),
+            return_type: Type::Usize,
+            instructions: vec![
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: UsizeValue::StrLen(StrLocation::Parameter(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_str_literal_len_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func size(): usize {
+    return "Nocter".len()
+}
+"#,
+        "size",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "size".to_string(),
+            target: crate::ir::CallTarget::same_file("size".to_string()),
+            return_type: Type::Usize,
+            instructions: vec![
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: UsizeValue::Const(6),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_entry_i32_let_initializer_normal_call_addition() {
     let ir = lower_text(
         r#"func main(): i32 {

@@ -15,7 +15,9 @@ use super::environments::{
     environment_for_parameters_with_self_type, environment_for_pattern_conditional_arm,
     environment_for_switch_arm, environment_for_while_let_binding, impl_self_type,
 };
-use super::expressions::{check_error_member_expression, expression_type};
+use super::expressions::{
+    check_error_member_expression, collection_len_call_type, expression_type,
+};
 use super::fallible::check_force_unwrap_operand;
 use super::model::{TypeEnvironment, binding_kind_is_mutable};
 use super::operations::{
@@ -555,7 +557,18 @@ fn check_expression_tree(
             );
         }
         Expr::Call(expression) => {
-            if let Some(method) = method_member_for_call(expression)
+            if collection_len_call_type(expression, resolved, environment).is_some() {
+                if let Some(method) = method_member_for_call(expression) {
+                    check_expression_tree(
+                        sources,
+                        &method.object,
+                        resolved,
+                        diagnostics,
+                        environment,
+                        loop_depth,
+                    );
+                }
+            } else if let Some(method) = method_member_for_call(expression)
                 && resolved_method_for_call(resolved, expression, environment).is_some()
             {
                 check_expression_tree(

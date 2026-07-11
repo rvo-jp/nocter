@@ -883,6 +883,62 @@ mod tests {
     }
 
     #[test]
+    fn generates_str_len_value_from_hand_built_ir() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "size".to_string(),
+                target: crate::ir::CallTarget::same_file("size".to_string()),
+                return_type: Type::Usize,
+                instructions: vec![
+                    Instruction::SetUsize {
+                        destination: UsizeLocation::Return,
+                        value: UsizeValue::StrLen(StrLocation::Parameter(0)),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0xe0, 0x03, 0x01, 0xaa])); // mov x0, x1
+    }
+
+    #[test]
+    fn generates_slice_len_value_from_hand_built_ir() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "size".to_string(),
+                target: crate::ir::CallTarget::same_file("size".to_string()),
+                return_type: Type::Usize,
+                instructions: vec![
+                    Instruction::SetUsize {
+                        destination: UsizeLocation::Return,
+                        value: UsizeValue::SliceLen(SliceLocation::Parameter(0)),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0xe0, 0x03, 0x01, 0xaa])); // mov x0, x1
+    }
+
+    #[test]
     fn normal_i32_call_spills_and_reloads_scalar_locals() {
         let module = IrModule::new(vec![
             Function {
