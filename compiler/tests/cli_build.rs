@@ -398,6 +398,102 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_lowers_imported_alias_i32_call() {
+    let project = TempProject::new("cli-build-imported-alias-call");
+    project.write_nocter_home_file(
+        "std/math.nct",
+        r#"pub func answer(): i32 {
+    return 42
+}
+"#,
+    );
+    let source = project.write_source(
+        "imported_alias_call.nct",
+        r#"from std/math import answer as imported_answer
+
+func main(): i32 {
+    return imported_answer()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+    let status = Command::new(&executable).status().unwrap();
+    assert_eq!(status.code(), Some(42));
+}
+
+#[test]
+fn build_command_lowers_imported_bool_condition() {
+    let project = TempProject::new("cli-build-imported-bool-condition");
+    project.write_nocter_home_file(
+        "std/flags.nct",
+        r#"pub func ready(): bool {
+    return true
+}
+"#,
+    );
+    let source = project.write_source(
+        "imported_bool_condition.nct",
+        r#"from std/flags import ready
+
+func main(): i32 {
+    if ready() {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+    let status = Command::new(&executable).status().unwrap();
+    assert_eq!(status.code(), Some(42));
+}
+
+#[test]
+fn build_command_lowers_imported_nested_argument() {
+    let project = TempProject::new("cli-build-imported-nested-argument");
+    project.write_nocter_home_file(
+        "std/math.nct",
+        r#"pub func base(): i32 {
+    return 41
+}
+
+pub func add_one(value: i32): i32 {
+    return value + 1
+}
+"#,
+    );
+    let source = project.write_source(
+        "imported_nested_argument.nct",
+        r#"from std/math import add_one
+from std/math import base
+
+func main(): i32 {
+    return add_one(base())
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+    let status = Command::new(&executable).status().unwrap();
+    assert_eq!(status.code(), Some(42));
+}
+
+#[test]
 fn build_command_lowers_terminal_if_i32_equality() {
     let project = TempProject::new("cli-build-terminal-if-equality");
     let source = project.write_source(
