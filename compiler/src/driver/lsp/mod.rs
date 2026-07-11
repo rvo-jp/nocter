@@ -354,6 +354,7 @@ mod tests {
     use super::*;
     use std::io::Cursor;
     use std::path::{Path, PathBuf};
+    use std::sync::{Mutex, MutexGuard};
 
     #[test]
     fn decodes_file_uri_percent_encoding() {
@@ -648,7 +649,8 @@ mod tests {
     #[test]
     fn returns_documented_hover_for_imported_function_reference() {
         let project = TempProject::new("lsp-hover-import");
-        project.write_nocter_home();
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
         let app = project.write_source(
             "app.nct",
             "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
@@ -776,7 +778,8 @@ mod tests {
     #[test]
     fn returns_definition_for_imported_function_reference() {
         let project = TempProject::new("lsp-definition-import");
-        project.write_nocter_home();
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
         let app = project.write_source(
             "app.nct",
             "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
@@ -923,7 +926,8 @@ mod tests {
     #[test]
     fn returns_completion_items_for_imported_symbols() {
         let project = TempProject::new("lsp-completion-import");
-        project.write_nocter_home();
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
         let app = project.write_source(
             "app.nct",
             "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
@@ -1187,6 +1191,40 @@ mod tests {
         items
             .iter()
             .find(|item| item.get("label").and_then(Value::as_str) == Some(label))
+    }
+
+    static NOCTER_HOME_ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    struct NocterHomeEnv {
+        previous: Option<std::ffi::OsString>,
+        _guard: MutexGuard<'static, ()>,
+    }
+
+    impl NocterHomeEnv {
+        fn set(home: &Path) -> Self {
+            let guard = NOCTER_HOME_ENV_LOCK.lock().unwrap();
+            let previous = std::env::var_os("NOCTER_HOME");
+            // Exercise the same process-level home resolution path as the CLI.
+            unsafe {
+                std::env::set_var("NOCTER_HOME", home);
+            }
+            Self {
+                previous,
+                _guard: guard,
+            }
+        }
+    }
+
+    impl Drop for NocterHomeEnv {
+        fn drop(&mut self) {
+            // Restore the process environment before releasing the test lock.
+            unsafe {
+                match &self.previous {
+                    Some(value) => std::env::set_var("NOCTER_HOME", value),
+                    None => std::env::remove_var("NOCTER_HOME"),
+                }
+            }
+        }
     }
 
     struct TempProject {

@@ -5,7 +5,6 @@ use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::source::{SourceId, SourceMap};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
 
 pub(super) struct LspWorkspaceAnalysis {
     pub(super) sources: SourceMap,
@@ -102,25 +101,28 @@ fn source_map_for_documents(
     source_by_uri
 }
 
-fn frontend_options_for_document(document: &OpenDocument) -> FrontendOptions {
-    FrontendOptions {
-        nocter_home: document
-            .absolute_path
-            .as_deref()
-            .and_then(find_nearest_nocter_home),
-        ..FrontendOptions::default()
-    }
+fn frontend_options_for_document(_document: &OpenDocument) -> FrontendOptions {
+    FrontendOptions::default()
 }
 
-fn find_nearest_nocter_home(path: &Path) -> Option<PathBuf> {
-    let mut directory = path.parent();
-    while let Some(current) = directory {
-        let home = current.join(".nocter");
-        if home.is_dir() {
-            return Some(home);
-        }
-        directory = current.parent();
-    }
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    None
+    #[test]
+    fn frontend_options_do_not_override_nocter_home_from_document_path() {
+        let document = OpenDocument {
+            uri: "file:///tmp/project/app.nct".to_string(),
+            version: Some(1),
+            display_path: "/tmp/project/app.nct".to_string(),
+            absolute_path: Some(std::path::PathBuf::from("/tmp/project/app.nct")),
+            text: "func main(): i32 { return 0 }".to_string(),
+        };
+
+        assert!(
+            frontend_options_for_document(&document)
+                .nocter_home
+                .is_none()
+        );
+    }
 }
