@@ -1658,6 +1658,98 @@ func size(): usize {
 }
 
 #[test]
+fn lowers_u8_slice_call_result_len_return() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func size(bytes: &[u8]): usize {
+    return identity(bytes).len()
+}
+
+func identity(bytes: &[u8]): &[u8] {
+    return bytes
+}
+"#,
+        "size",
+        function_signatures(vec![(
+            "identity",
+            readonly_u8_slice_type(),
+            vec![readonly_u8_slice_type()],
+        )]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "size".to_string(),
+            target: crate::ir::CallTarget::same_file("size".to_string()),
+            return_type: Type::Usize,
+            instructions: vec![
+                call_slice(
+                    SliceLocation::Local(0),
+                    "identity",
+                    vec![ScalarArgument::Slice(SliceValue::Location(
+                        SliceLocation::Parameter(0),
+                    ))],
+                ),
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: UsizeValue::SliceLen(SliceLocation::Local(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_str_call_result_len_return() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func size(text: &str): usize {
+    return identity(text).len()
+}
+
+func identity(text: &str): &str {
+    return text
+}
+"#,
+        "size",
+        function_signatures(vec![("identity", Type::Str, vec![Type::Str])]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "size".to_string(),
+            target: crate::ir::CallTarget::same_file("size".to_string()),
+            return_type: Type::Usize,
+            instructions: vec![
+                call_str(
+                    StrLocation::Local(0),
+                    "identity",
+                    vec![ScalarArgument::Str(StrValue::Location(
+                        StrLocation::Parameter(0),
+                    ))],
+                ),
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: UsizeValue::StrLen(StrLocation::Local(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_u8_slice_index_return() {
     let function = lower_named_function(
         r#"func main(): i32 {
@@ -1785,6 +1877,159 @@ func first(): u8 {
                     value: U8Value::StaticStrIndex {
                         bytes: b"Nocter".to_vec(),
                         index: usize_const(3),
+                    },
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_u8_slice_call_result_index_return() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func first(bytes: &[u8]): u8 {
+    return identity(bytes)[0]
+}
+
+func identity(bytes: &[u8]): &[u8] {
+    return bytes
+}
+"#,
+        "first",
+        function_signatures(vec![(
+            "identity",
+            readonly_u8_slice_type(),
+            vec![readonly_u8_slice_type()],
+        )]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "first".to_string(),
+            target: crate::ir::CallTarget::same_file("first".to_string()),
+            return_type: Type::U8,
+            instructions: vec![
+                call_slice(
+                    SliceLocation::Local(0),
+                    "identity",
+                    vec![ScalarArgument::Slice(SliceValue::Location(
+                        SliceLocation::Parameter(0),
+                    ))],
+                ),
+                Instruction::SetU8 {
+                    destination: U8Location::Return,
+                    value: U8Value::SliceIndex {
+                        source: SliceLocation::Local(0),
+                        index: usize_const(0),
+                    },
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_str_call_result_index_return() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func first(text: &str): u8 {
+    return identity(text)[0]
+}
+
+func identity(text: &str): &str {
+    return text
+}
+"#,
+        "first",
+        function_signatures(vec![("identity", Type::Str, vec![Type::Str])]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "first".to_string(),
+            target: crate::ir::CallTarget::same_file("first".to_string()),
+            return_type: Type::U8,
+            instructions: vec![
+                call_str(
+                    StrLocation::Local(0),
+                    "identity",
+                    vec![ScalarArgument::Str(StrValue::Location(
+                        StrLocation::Parameter(0),
+                    ))],
+                ),
+                Instruction::SetU8 {
+                    destination: U8Location::Return,
+                    value: U8Value::StrIndex {
+                        source: StrLocation::Local(0),
+                        index: usize_const(0),
+                    },
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_u8_slice_call_result_index_bool_return_comparison() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func check(bytes: &[u8]): bool {
+    return identity(bytes)[0] == 1
+}
+
+func identity(bytes: &[u8]): &[u8] {
+    return bytes
+}
+"#,
+        "check",
+        function_signatures(vec![(
+            "identity",
+            readonly_u8_slice_type(),
+            vec![readonly_u8_slice_type()],
+        )]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "check".to_string(),
+            target: crate::ir::CallTarget::same_file("check".to_string()),
+            return_type: Type::Bool,
+            instructions: vec![
+                call_slice(
+                    SliceLocation::Local(0),
+                    "identity",
+                    vec![ScalarArgument::Slice(SliceValue::Location(
+                        SliceLocation::Parameter(0),
+                    ))],
+                ),
+                Instruction::SetBool {
+                    destination: BoolLocation::Return,
+                    value: BoolValue::I32Comparison {
+                        operator: I32ComparisonOperator::Equal,
+                        left: I32Value::U8ZeroExtend(Box::new(U8Value::SliceIndex {
+                            source: SliceLocation::Local(0),
+                            index: usize_const(0),
+                        })),
+                        right: I32Value::U8ZeroExtend(Box::new(u8_const(1))),
                     },
                 },
                 Instruction::Return,

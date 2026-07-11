@@ -374,6 +374,15 @@ fn expression_is_lowerable_byte_index_object(expression: &Expr, context: &Loweri
             context.str_location(&identifier.name).is_some()
                 || context.slice_location(&identifier.name).is_some()
         }
+        Expr::Call(call) => {
+            let Expr::Identifier(identifier) = call.callee.as_ref() else {
+                return false;
+            };
+            matches!(
+                context.call_return_type(&context.call_target(call, &identifier.name)),
+                Some(Type::Str | Type::Slice { .. })
+            )
+        }
         Expr::Group(group) => expression_is_lowerable_byte_index_object(&group.expression, context),
         _ => false,
     }

@@ -7,7 +7,7 @@ mod predicates;
 mod temporaries;
 
 use crate::ast::{
-    BinaryExpr, BinaryOperator, Expr, IndexExpr, TypeConversionExpr, TypeExpr, UnaryExpr,
+    BinaryExpr, BinaryOperator, CallExpr, Expr, IndexExpr, TypeConversionExpr, TypeExpr, UnaryExpr,
     UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
@@ -122,11 +122,17 @@ pub(super) fn lower_usize_expression_to_location(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => {
-            if let Some(value) = lower_builtin_len_call_value(call, context) {
-                return value.map(|value| vec![Instruction::SetUsize { destination, value }]);
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            if let Some(value) = lower_builtin_len_call_to_value(call, context, &mut temporaries) {
+                let lowered = value?;
+                let mut instructions = lowered.instructions;
+                instructions.push(Instruction::SetUsize {
+                    destination,
+                    value: lowered.value,
+                });
+                return Ok(instructions);
             }
 
-            let mut temporaries = TemporaryAllocator::new(context)?;
             lower_usize_normal_call(call, destination, context, &mut temporaries)
         }
         Expr::Binary(binary) if is_usize_binary_operator(binary.operator) => {
@@ -365,11 +371,8 @@ fn lower_usize_expression_to_value(
 ) -> Result<LoweredUsizeValue, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => {
-            if let Some(value) = lower_builtin_len_call_value(call, context) {
-                return Ok(LoweredUsizeValue {
-                    instructions: Vec::new(),
-                    value: value?,
-                });
+            if let Some(value) = lower_builtin_len_call_to_value(call, context, temporaries) {
+                return value;
             }
 
             let temporary = temporaries.next_usize()?;
@@ -604,9 +607,14 @@ pub(super) fn lower_usize_return_expression(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => {
-            if lower_builtin_len_call_value(call, context).is_some() {
-                let mut instructions =
-                    lower_usize_expression_to_location(expression, UsizeLocation::Return, context)?;
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            if let Some(value) = lower_builtin_len_call_to_value(call, context, &mut temporaries) {
+                let lowered = value?;
+                let mut instructions = lowered.instructions;
+                instructions.push(Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: lowered.value,
+                });
                 instructions.push(Instruction::Return);
                 return Ok(instructions);
             }
@@ -1185,59 +1193,135 @@ fn lower_u8_index_expression_to_value(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredU8Value, Vec<Diagnostic>> {
+    let source =
+        lower_byte_collection_expression_to_value(&expression.object, context, temporaries)?;
     let index = lower_usize_expression_to_value(&expression.index, context, temporaries)?;
-    if let Ok(value) = lower_str_value(&expression.object, context) {
-        return Ok(LoweredU8Value {
-            instructions: index.instructions,
-            value: match value {
-                StrValue::StaticBytes(bytes) => U8Value::StaticStrIndex {
-                    bytes,
-                    index: index.value,
+
+    match source {
+        LoweredByteCollectionValue::Str(source) => {
+            let mut instructions = source.instructions;
+            instructions.extend(index.instructions);
+            Ok(LoweredU8Value {
+                instructions,
+                value: match source.value {
+                    StrValue::StaticBytes(bytes) => U8Value::StaticStrIndex {
+                        bytes,
+                        index: index.value,
+                    },
+                    StrValue::Location(source) => U8Value::StrIndex {
+                        source,
+                        index: index.value,
+                    },
                 },
-                StrValue::Location(source) => U8Value::StrIndex {
+            })
+        }
+        LoweredByteCollectionValue::Slice(source) => {
+            let mut instructions = source.instructions;
+            let SliceValue::Location(source) = source.value;
+            instructions.extend(index.instructions);
+            Ok(LoweredU8Value {
+                instructions,
+                value: U8Value::SliceIndex {
                     source,
                     index: index.value,
                 },
-            },
-        });
+            })
+        }
     }
-
-    if let Ok(SliceValue::Location(source)) = lower_slice_value(&expression.object, context) {
-        return Ok(LoweredU8Value {
-            instructions: index.instructions,
-            value: U8Value::SliceIndex {
-                source,
-                index: index.value,
-            },
-        });
-    }
-
-    Err(unsupported_u8_expression_diagnostic())
 }
 
-fn lower_builtin_len_call_value(
-    call: &crate::ast::CallExpr,
+enum ByteCollectionKind {
+    Str,
+    Slice,
+}
+
+enum LoweredByteCollectionValue {
+    Str(LoweredStrValue),
+    Slice(LoweredSliceValue),
+}
+
+fn lower_byte_collection_expression_to_value(
+    expression: &Expr,
     context: &LoweringContext,
-) -> Option<Result<UsizeValue, Vec<Diagnostic>>> {
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredByteCollectionValue, Vec<Diagnostic>> {
+    match byte_collection_expression_kind(expression, context) {
+        Some(ByteCollectionKind::Str) => {
+            lower_str_expression_to_value(expression, context, temporaries)
+                .map(LoweredByteCollectionValue::Str)
+        }
+        Some(ByteCollectionKind::Slice) => {
+            lower_slice_expression_to_value(expression, context, temporaries)
+                .map(LoweredByteCollectionValue::Slice)
+        }
+        None => Err(unsupported_u8_expression_diagnostic()),
+    }
+}
+
+fn byte_collection_expression_kind(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Option<ByteCollectionKind> {
+    match expression {
+        Expr::StringLiteral(_) => Some(ByteCollectionKind::Str),
+        Expr::Identifier(identifier) => {
+            if context.str_location(&identifier.name).is_some() {
+                Some(ByteCollectionKind::Str)
+            } else if context.slice_location(&identifier.name).is_some() {
+                Some(ByteCollectionKind::Slice)
+            } else {
+                None
+            }
+        }
+        Expr::Call(call) => {
+            let Expr::Identifier(identifier) = call.callee.as_ref() else {
+                return None;
+            };
+            let target = context.call_target(call, &identifier.name);
+            match context.call_return_type(&target) {
+                Some(Type::Str) => Some(ByteCollectionKind::Str),
+                Some(Type::Slice { .. }) => Some(ByteCollectionKind::Slice),
+                _ => None,
+            }
+        }
+        Expr::Group(group) => byte_collection_expression_kind(&group.expression, context),
+        _ => None,
+    }
+}
+
+fn lower_builtin_len_call_to_value(
+    call: &CallExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Option<Result<LoweredUsizeValue, Vec<Diagnostic>>> {
     let Expr::Member(member) = call.callee.as_ref() else {
         return None;
     };
     if member.member != "len" || !call.arguments.is_empty() {
         return None;
     }
+    byte_collection_expression_kind(&member.object, context)?;
 
-    if let Ok(value) = lower_str_value(&member.object, context) {
-        return Some(Ok(match value {
-            StrValue::StaticBytes(bytes) => UsizeValue::Const(bytes.len() as u64),
-            StrValue::Location(location) => UsizeValue::StrLen(location),
-        }));
-    }
-
-    if let Ok(SliceValue::Location(location)) = lower_slice_value(&member.object, context) {
-        return Some(Ok(UsizeValue::SliceLen(location)));
-    }
-
-    None
+    Some(
+        lower_byte_collection_expression_to_value(&member.object, context, temporaries).map(
+            |source| match source {
+                LoweredByteCollectionValue::Str(source) => LoweredUsizeValue {
+                    instructions: source.instructions,
+                    value: match source.value {
+                        StrValue::StaticBytes(bytes) => UsizeValue::Const(bytes.len() as u64),
+                        StrValue::Location(location) => UsizeValue::StrLen(location),
+                    },
+                },
+                LoweredByteCollectionValue::Slice(source) => {
+                    let SliceValue::Location(location) = source.value;
+                    LoweredUsizeValue {
+                        instructions: source.instructions,
+                        value: UsizeValue::SliceLen(location),
+                    }
+                }
+            },
+        ),
+    )
 }
 
 pub(super) fn lower_bool_value(
