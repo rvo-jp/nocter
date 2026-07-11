@@ -3,7 +3,7 @@ use super::context::{FunctionNames, FunctionSignatures, LoweringContext};
 use super::control_flow::{lower_terminal_bool_if_statement, lower_terminal_i32_if_statement};
 use super::expressions::{
     lower_bool_return_expression, lower_i32_return_expression, lower_never_return_expression,
-    lower_usize_return_expression,
+    lower_str_return_expression, lower_usize_return_expression,
 };
 use crate::ast::{FunctionDecl, Parameter, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
@@ -149,12 +149,13 @@ fn lower_function_return_type(ty: &TypeExpr, name: &str) -> Result<Type, Vec<Dia
         TypeExpr::Reference(reference) if reference.name == "i32" => Ok(Type::I32),
         TypeExpr::Reference(reference) if reference.name == "usize" => Ok(Type::Usize),
         TypeExpr::Reference(reference) if reference.name == "bool" => Ok(Type::Bool),
+        TypeExpr::Reference(reference) if reference.name == "str" => Ok(Type::Str),
         TypeExpr::Reference(reference) if reference.name == "void" => Ok(Type::Void),
         TypeExpr::Reference(reference) if reference.name == "never" => Ok(Type::Never),
         _ => Err(vec![Diagnostic::error(
             "E8007",
             format!(
-                "IR v0 can only lower function `{name}` return type `i32`, `usize`, `bool`, `void`, or `never`"
+                "IR v0 can only lower function `{name}` return type `i32`, `usize`, `bool`, `str`, `void`, or `never`"
             ),
         )]),
     }
@@ -195,7 +196,7 @@ fn lower_function_body(
                 (Type::Bool, Some(expression)) => {
                     lower_bool_return_expression(expression, context, "E8007")
                 }
-                (Type::Str, _) => unreachable!("str return type is not lowered in v0"),
+                (Type::Str, Some(expression)) => lower_str_return_expression(expression, context),
                 (Type::Never, Some(_)) => Err(vec![Diagnostic::error(
                     "E8007",
                     format!(
@@ -229,6 +230,13 @@ fn lower_function_body(
                     "E8007",
                     format!(
                         "IR v0 cannot lower bare returns from bool function `{}`",
+                        function.name
+                    ),
+                )]),
+                (Type::Str, None) => Err(vec![Diagnostic::error(
+                    "E8007",
+                    format!(
+                        "IR v0 cannot lower bare returns from str function `{}`",
                         function.name
                     ),
                 )]),

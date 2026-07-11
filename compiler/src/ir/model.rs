@@ -53,6 +53,10 @@ pub(crate) enum Instruction {
         destination: BoolLocation,
         value: BoolValue,
     },
+    SetStr {
+        destination: StrLocation,
+        value: StrValue,
+    },
     AddI32 {
         destination: I32Location,
         left: I32Value,
@@ -170,6 +174,7 @@ pub(crate) enum StrValue {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum StrLocation {
+    Return,
     Parameter(usize),
 }
 

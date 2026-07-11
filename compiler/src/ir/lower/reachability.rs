@@ -31,6 +31,7 @@ fn collect_reachable_call_targets(
             | Instruction::SetI32 { .. }
             | Instruction::SetUsize { .. }
             | Instruction::SetBool { .. }
+            | Instruction::SetStr { .. }
             | Instruction::AddI32 { .. }
             | Instruction::SubtractI32 { .. }
             | Instruction::MultiplyI32 { .. }

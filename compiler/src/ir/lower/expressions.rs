@@ -6,8 +6,8 @@ use crate::ast::{
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, CallTarget,
-    I32ComparisonOperator, I32Location, I32Value, Instruction, ScalarArgument, StrValue, Type,
-    UsizeLocation, UsizeValue,
+    I32ComparisonOperator, I32Location, I32Value, Instruction, ScalarArgument, StrLocation,
+    StrValue, Type, UsizeLocation, UsizeValue,
 };
 
 pub(super) fn lower_i32_expression(
@@ -53,6 +53,21 @@ pub(super) fn lower_usize_expression_to_location(
         }
         _ => lower_usize_value(expression, context)
             .map(|value| vec![Instruction::SetUsize { destination, value }]),
+    }
+}
+
+pub(super) fn lower_str_expression_to_location(
+    expression: &Expr,
+    destination: StrLocation,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(_) => Err(unsupported_non_tail_call_diagnostic()),
+        Expr::Group(group) => {
+            lower_str_expression_to_location(&group.expression, destination, context)
+        }
+        _ => lower_str_value(expression, context)
+            .map(|value| vec![Instruction::SetStr { destination, value }]),
     }
 }
 
@@ -313,6 +328,22 @@ pub(super) fn lower_usize_return_expression(
         _ => {
             let mut instructions =
                 lower_usize_expression_to_location(expression, UsizeLocation::Return, context)?;
+            instructions.push(Instruction::Return);
+            Ok(instructions)
+        }
+    }
+}
+
+pub(super) fn lower_str_return_expression(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(call) => lower_direct_tail_call(call, context),
+        Expr::Group(group) => lower_str_return_expression(&group.expression, context),
+        _ => {
+            let mut instructions =
+                lower_str_expression_to_location(expression, StrLocation::Return, context)?;
             instructions.push(Instruction::Return);
             Ok(instructions)
         }

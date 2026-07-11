@@ -176,6 +176,7 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::SetI32 { .. }
         | Instruction::SetUsize { .. }
         | Instruction::SetBool { .. }
+        | Instruction::SetStr { .. }
         | Instruction::AddI32 { .. }
         | Instruction::SubtractI32 { .. }
         | Instruction::MultiplyI32 { .. }
@@ -220,6 +221,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::SetI32 { .. }
         | Instruction::SetUsize { .. }
         | Instruction::SetBool { .. }
+        | Instruction::SetStr { .. }
         | Instruction::AddI32 { .. }
         | Instruction::SubtractI32 { .. }
         | Instruction::MultiplyI32 { .. }
@@ -264,6 +266,7 @@ fn record_instruction_scalar_locals(
             record_bool_location(*destination, highest_local_index);
             record_bool_value(value, highest_local_index);
         }
+        Instruction::SetStr { .. } => {}
         Instruction::AddI32 {
             destination,
             left,

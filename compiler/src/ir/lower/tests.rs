@@ -980,6 +980,102 @@ func consume(name: str, code: i32): i32 {
 }
 
 #[test]
+fn lowers_str_literal_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func title(): str {
+    return "Nocter"
+}
+"#,
+        "title",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "title".to_string(),
+            target: crate::ir::CallTarget::same_file("title".to_string()),
+            return_type: Type::Str,
+            instructions: vec![
+                Instruction::SetStr {
+                    destination: StrLocation::Return,
+                    value: str_static_value(b"Nocter"),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_str_parameter_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func echo(name: str): str {
+    return name
+}
+"#,
+        "echo",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "echo".to_string(),
+            target: crate::ir::CallTarget::same_file("echo".to_string()),
+            return_type: Type::Str,
+            instructions: vec![
+                Instruction::SetStr {
+                    destination: StrLocation::Return,
+                    value: StrValue::Location(StrLocation::Parameter(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_str_tail_call_return() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func alias(): str {
+    return title()
+}
+
+func title(): str {
+    return "Nocter"
+}
+"#,
+        "alias",
+        context::FunctionSignatures::new(HashMap::from([("title".to_string(), Type::Str)])),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "alias".to_string(),
+            target: crate::ir::CallTarget::same_file("alias".to_string()),
+            return_type: Type::Str,
+            instructions: vec![Instruction::TailCall {
+                target: CallTarget::same_file("title"),
+                arguments: vec![],
+            }],
+        }
+    );
+}
+
+#[test]
 fn lowers_entry_i32_let_initializer_normal_call_addition() {
     let ir = lower_text(
         r#"func main(): i32 {
@@ -3852,7 +3948,11 @@ fn usize_param(index: usize) -> UsizeValue {
 }
 
 fn str_static(bytes: &[u8]) -> ScalarArgument {
-    ScalarArgument::Str(StrValue::StaticBytes(bytes.to_vec()))
+    ScalarArgument::Str(str_static_value(bytes))
+}
+
+fn str_static_value(bytes: &[u8]) -> StrValue {
+    StrValue::StaticBytes(bytes.to_vec())
 }
 
 fn usize_local(index: usize) -> UsizeValue {

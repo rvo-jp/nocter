@@ -171,7 +171,7 @@ Currently buildable:
 - static string literals and `str` parameters as call arguments, passed as `ptr,len` ABI word pairs
 - up to 8 ABI argument words across scalar `i32`/`usize`/`bool` and `str` parameters/call arguments for lowered functions and calls
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
-- non-entry functions returning `bool` or `usize`
+- non-entry functions returning `bool`, `usize`, or direct `str` literal/parameter/tail-call values
 - `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; addition, subtraction, and multiplication trap on signed overflow, and division and remainder trap on zero divisors and signed division overflow
 - `i32` shifts with `<<` and `>>` used in lowerable `i32` expressions; shift counts trap when negative or greater than or equal to 32
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` or `usize` comparisons used in lowerable bool expressions
@@ -187,7 +187,7 @@ Currently not buildable even when it may be checkable:
 - general `if`, `while`, `loop`, range `for`, and `match`
 - unloaded imported function placeholders
 - `usize` arithmetic and `usize` entry return values
-- `str` returns, `str` locals, `str` member operations, and view/byte iteration
+- `str` normal-call results, `str` locals, `str` member operations, and view/byte iteration
 - interpolated string construction
 - optional values
 - aggregate values, arrays, views, pointers, methods, traits, generics, ownership lowering, and drop glue
@@ -201,7 +201,7 @@ The `arm64-darwin` backend v0 uses a deliberately small register-only convention
 - `str` values are represented as two 64-bit ABI words, `ptr` then byte `len`
 - `bool` is encoded as `0` for false and `1` for true
 - lowered `i32` and `bool` function arguments are passed in `w0` through `w7`, lowered `usize` function arguments are passed in `x0` through `x7`, and lowered `str` arguments consume two consecutive `x` argument registers at the same ABI word indexes
-- lowered function return values are produced in `w0` for `i32`/`bool` and `x0` for `usize`
+- lowered function return values are produced in `w0` for `i32`/`bool`, `x0` for `usize`, and `x0,x1` for `str`
 - scalar local bindings use `w9` through `w15` for `i32`/`bool` and `x9` through `x15` for `usize`; framed functions spill scalar locals through 8-byte stack slots
 - `w16`/`w17` and `x16`/`x17` are backend scratch registers and may be clobbered by code generation
 
@@ -209,6 +209,7 @@ Tail calls are lowered by loading the callee arguments into `w0` through `w7` or
 The source-level scalar call subset lowers same-file and loaded imported non-generic `i32` calls in `let` initializers, `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, `i32` comparison operands, nested normal-call arguments, and nested tail-call arguments, evaluating staged calls left to right into distinct temporary locals.
 It also lowers same-file and loaded imported non-generic calls returning `usize` in annotated `let` initializers and `usize` comparison operands, including calls whose parameter list contains `usize`.
 Calls in the current buildable subset can receive static string literals or existing `str` parameters as `str` arguments, with each `str` occupying two ABI argument words.
+Non-entry functions can directly return static string literals, `str` parameters, or tail calls to `str` functions, with `str` returns occupying `x0,x1`.
 The frame, spill/reload, and normal-call implementation order is tracked in `backend-v0.md`.
 `backend/frame.rs` owns the fixed v0 frame layout planner: frame size, saved `x30` offset, and scalar spill-slot offsets.
 Codegen emits framed prologue/epilogue sequences and normal calls with conservative scalar spill/reload plus stack-backed argument staging.

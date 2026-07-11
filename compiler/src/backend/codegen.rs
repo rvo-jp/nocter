@@ -121,6 +121,9 @@ impl EntryEmitter {
             Instruction::SetBool { destination, value } => {
                 self.emit_set_bool(*destination, value)?;
             }
+            Instruction::SetStr { destination, value } => {
+                self.emit_set_str(*destination, value)?;
+            }
             Instruction::AddI32 {
                 destination,
                 left,
@@ -802,6 +805,15 @@ impl EntryEmitter {
         self.emit_bool_value_to_w(value, destination)
     }
 
+    fn emit_set_str(
+        &mut self,
+        destination: StrLocation,
+        value: &StrValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let (ptr_destination, len_destination) = self.str_location_registers(destination)?;
+        self.emit_str_value_to_x_pair(value, ptr_destination, len_destination)
+    }
+
     fn emit_add_i32(
         &mut self,
         destination: I32Location,
@@ -1127,6 +1139,7 @@ impl EntryEmitter {
         location: StrLocation,
     ) -> Result<(XReg, XReg), Vec<Diagnostic>> {
         match location {
+            StrLocation::Return => Ok((XReg::X0, XReg::X1)),
             StrLocation::Parameter(index) => {
                 let ptr = XReg::argument(index).ok_or_else(|| {
                     vec![Diagnostic::error(
@@ -1382,6 +1395,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::SetI32 { .. }
             | Instruction::SetUsize { .. }
             | Instruction::SetBool { .. }
+            | Instruction::SetStr { .. }
             | Instruction::AddI32 { .. }
             | Instruction::SubtractI32 { .. }
             | Instruction::MultiplyI32 { .. }
@@ -1711,6 +1725,34 @@ mod tests {
                 0x00, 0x00, 0x20, 0xd4, // brk #0
             ]
         );
+    }
+
+    #[test]
+    fn emits_static_str_return_data() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "title".to_string(),
+                target: crate::ir::CallTarget::same_file("title".to_string()),
+                return_type: Type::Str,
+                instructions: vec![
+                    Instruction::SetStr {
+                        destination: StrLocation::Return,
+                        value: StrValue::StaticBytes(b"Nocter".to_vec()),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert_eq!(code.read_only_data, b"Nocter");
     }
 
     #[test]

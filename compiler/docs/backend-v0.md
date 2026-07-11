@@ -27,7 +27,7 @@ The backend v0 uses a deliberately small register-only convention while the IR h
 - `str` values are represented as two 64-bit ARM64 `x` registers: pointer, then byte length
 - `bool` is encoded as `0` for false and `1` for true
 - lowered `i32` and `bool` function arguments are passed in `w0` through `w7`; lowered `usize` function arguments are passed in `x0` through `x7`; lowered `str` arguments consume two consecutive `x` registers at the same ABI word indexes
-- lowered function return values are produced in `w0` for `i32`/`bool` and `x0` for `usize`
+- lowered function return values are produced in `w0` for `i32`/`bool`, `x0` for `usize`, and `x0,x1` for `str`
 - scalar local bindings use `w9` through `w15` for `i32`/`bool` and `x9` through `x15` for `usize`
 - framed functions spill scalar locals through 8-byte stack slots so the same frame layout can preserve 32-bit and 64-bit locals
 - `w16`/`w17` and `x16`/`x17` are backend scratch registers and may be clobbered by code generation
@@ -50,6 +50,7 @@ The first implementation should keep the user-visible subset small:
 - scalar `i32`/`usize`/`bool` arguments and `str` view arguments only
 - `i32` return values in lowerable `i32` expressions, `let` initializers, and `i32` comparison operands
 - `bool` return values in `let` initializers, unary-not bool expressions, bool equality/inequality operands, short-circuit bool value expressions, direct terminal-if conditions, and terminal-if short-circuit conditions
+- direct `str` return values from static string literals, `str` parameters, and tail calls
 - up to 8 ABI argument words, passed in `w0`/`x0` through `w7`/`x7`
 - no aggregate arguments, aggregate returns, owned strings, optionals, ownership/drop lowering, or calls in broader control-flow
 
@@ -233,6 +234,7 @@ Implement normal calls in this order:
 24. Done: type call arguments as scalar `i32`/`usize` IR values, lower `usize` parameters, and stage ARM64 call arguments through W or X registers according to each ABI argument index.
 25. Done: extend typed scalar call arguments and parameter lowering to `bool`, using W registers at the same ABI argument index.
 26. Done: lower static string literals and `str` parameters as `str` call arguments, represented as `ptr,len` ABI word pairs in consecutive X argument registers.
+27. Done: lower direct non-entry `str` returns from static string literals, `str` parameters, and tail calls, returning `ptr,len` in `x0,x1`.
 
 ### Non-Goals For This Phase
 

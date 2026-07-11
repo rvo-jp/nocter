@@ -21,7 +21,7 @@ This file describes implementation state only.
 | `usize` scalar values | yes | yes | yes | partial | partial | Build supports annotated `usize` locals, non-entry `usize` literal/local/call returns, same-file and loaded imported scalar calls with `usize` parameters/arguments, and `usize` comparisons in lowerable bool positions. |
 | `void` entry | yes | yes | yes | yes | yes | Empty body and bare `return` are buildable. |
 | `bool` expressions | yes | yes | yes | partial | yes | Build supports literals, locals, parameters, `!`, `&&`, `||`, `i32` and `usize` comparisons, bool equality/inequality over literal/local operands, and bool call arguments in lowerable positions. |
-| String literals and interpolation | yes | yes | partial | partial | partial | Single-line and multi-line string literals are tokenized, parsed, typed as `str`, and buildable as `str` call arguments. Interpolation is parsed as an explicit expression and checked as `String!` with limited supported part types. The initial `std/string` and `std/fmt` API boundary exists, but owned/interpolated string construction is not lowerable. |
+| String literals and interpolation | yes | yes | partial | partial | partial | Single-line and multi-line string literals are tokenized, parsed, typed as `str`, buildable as `str` call arguments, and buildable as direct non-entry `str` returns. Interpolation is parsed as an explicit expression and checked as `String!` with limited supported part types. The initial `std/string` and `std/fmt` API boundary exists, but owned/interpolated string construction is not lowerable. |
 | Immutable `let` bindings | yes | yes | yes | partial | yes | Build supports lowerable `i32`, annotated `usize`, and `bool` initializers. |
 | `var` and reassignment | yes | yes | partial | no | no | Backend has no general local storage yet. |
 | Same-file function calls | yes | yes | yes | partial | partial | Build supports non-generic tail calls with scalar `i32`/`usize`/`bool` arguments plus `str` view arguments when the total register ABI footprint is at most 8 words, `bool` tail returns, and a narrow scalar normal-call subset. |
@@ -76,7 +76,7 @@ Currently buildable:
 - static string literals and `str` parameters as call arguments, passed as `ptr,len` ABI word pairs
 - up to 8 ABI argument words across scalar `i32`/`usize`/`bool` and `str` parameters/call arguments for lowered functions and calls
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
-- non-entry functions returning `bool` or `usize`
+- non-entry functions returning `bool`, `usize`, or direct `str` literal/parameter/tail-call values
 - `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; addition, subtraction, and multiplication emit signed-overflow trap checks, and division and remainder emit zero-divisor plus signed-overflow trap checks
 - `i32` shifts with `<<` and `>>` used in lowerable `i32` expressions; shift counts trap when negative or greater than or equal to 32
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` or `usize` comparisons used in lowerable bool expressions
@@ -93,7 +93,7 @@ Currently not buildable even when it may be checkable:
 - unloaded imported function placeholders
 - compound bool equality operands with calls such as `(ready() && other()) == true`
 - `usize` arithmetic and `usize` entry return values
-- `str` returns, `str` locals, `str` member operations, and view/byte iteration
+- `str` normal-call results, `str` locals, `str` member operations, and view/byte iteration
 - interpolated string construction
 - optional values
 - aggregate values, arrays, views, pointers, methods, traits, generics, ownership lowering, and drop glue
