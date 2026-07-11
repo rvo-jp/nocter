@@ -3,7 +3,7 @@ use super::context::{FunctionNames, FunctionSignatures, LoweringContext};
 use super::control_flow::{lower_terminal_bool_if_statement, lower_terminal_i32_if_statement};
 use super::expressions::{
     lower_bool_return_expression, lower_i32_return_expression, lower_never_return_expression,
-    lower_str_return_expression, lower_usize_return_expression,
+    lower_slice_return_expression, lower_str_return_expression, lower_usize_return_expression,
 };
 use crate::ast::{FunctionDecl, Parameter, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
@@ -39,6 +39,7 @@ pub(super) fn lower_function(
         parameters.usize,
         parameters.bool,
         parameters.str,
+        parameters.slice,
     )
     .with_call_resolution(root_source, resolved, function_names);
     let instructions = lower_function_body(function, &return_type, &mut context)?;
@@ -56,6 +57,7 @@ struct LoweredScalarParameters {
     usize: Vec<Option<String>>,
     bool: Vec<Option<String>>,
     str: Vec<Option<String>>,
+    slice: Vec<Option<String>>,
 }
 
 fn lower_scalar_parameters(
@@ -65,6 +67,7 @@ fn lower_scalar_parameters(
     let mut usize_parameters = Vec::new();
     let mut bool_parameters = Vec::new();
     let mut str_parameters = Vec::new();
+    let mut slice_parameters = Vec::new();
     for parameter in &function.parameters.parameters {
         match lower_scalar_parameter_kind(parameter, &function.name)? {
             ScalarParameterKind::I32 => {
@@ -72,28 +75,45 @@ fn lower_scalar_parameters(
                 usize_parameters.push(None);
                 bool_parameters.push(None);
                 str_parameters.push(None);
+                slice_parameters.push(None);
             }
             ScalarParameterKind::Usize => {
                 i32_parameters.push(None);
                 usize_parameters.push(Some(parameter.name.clone()));
                 bool_parameters.push(None);
                 str_parameters.push(None);
+                slice_parameters.push(None);
             }
             ScalarParameterKind::Bool => {
                 i32_parameters.push(None);
                 usize_parameters.push(None);
                 bool_parameters.push(Some(parameter.name.clone()));
                 str_parameters.push(None);
+                slice_parameters.push(None);
             }
             ScalarParameterKind::Str => {
                 i32_parameters.push(None);
                 usize_parameters.push(None);
                 bool_parameters.push(None);
                 str_parameters.push(Some(parameter.name.clone()));
+                slice_parameters.push(None);
                 i32_parameters.push(None);
                 usize_parameters.push(None);
                 bool_parameters.push(None);
                 str_parameters.push(None);
+                slice_parameters.push(None);
+            }
+            ScalarParameterKind::Slice => {
+                i32_parameters.push(None);
+                usize_parameters.push(None);
+                bool_parameters.push(None);
+                str_parameters.push(None);
+                slice_parameters.push(Some(parameter.name.clone()));
+                i32_parameters.push(None);
+                usize_parameters.push(None);
+                bool_parameters.push(None);
+                str_parameters.push(None);
+                slice_parameters.push(None);
             }
         }
 
@@ -113,6 +133,7 @@ fn lower_scalar_parameters(
         usize: usize_parameters,
         bool: bool_parameters,
         str: str_parameters,
+        slice: slice_parameters,
     })
 }
 
@@ -122,6 +143,7 @@ enum ScalarParameterKind {
     Usize,
     Bool,
     Str,
+    Slice,
 }
 
 fn lower_scalar_parameter_kind(
@@ -140,10 +162,13 @@ fn lower_scalar_parameter_kind(
         {
             Ok(ScalarParameterKind::Str)
         }
+        TypeExpr::Borrow(borrow) if is_u8_slice_data_type(&borrow.inner) => {
+            Ok(ScalarParameterKind::Slice)
+        }
         _ => Err(vec![Diagnostic::error(
             "E8007",
             format!(
-                "IR v0 can only lower `i32`, `usize`, `bool`, and `&str` parameters for function `{function_name}`"
+                "IR v0 can only lower `i32`, `usize`, `bool`, `&str`, `&[u8]`, and `&+[u8]` parameters for function `{function_name}`"
             ),
         )]),
     }
@@ -160,15 +185,27 @@ fn lower_function_return_type(ty: &TypeExpr, name: &str) -> Result<Type, Vec<Dia
         {
             Ok(Type::Str)
         }
+        TypeExpr::Borrow(borrow) if is_u8_slice_data_type(&borrow.inner) => Ok(Type::Slice {
+            is_readwrite: borrow.is_readwrite,
+        }),
         TypeExpr::Reference(reference) if reference.name == "void" => Ok(Type::Void),
         TypeExpr::Reference(reference) if reference.name == "never" => Ok(Type::Never),
         _ => Err(vec![Diagnostic::error(
             "E8007",
             format!(
-                "IR v0 can only lower function `{name}` return type `i32`, `usize`, `bool`, `&str`, `void`, or `never`"
+                "IR v0 can only lower function `{name}` return type `i32`, `usize`, `bool`, `&str`, `&[u8]`, `&+[u8]`, `void`, or `never`"
             ),
         )]),
     }
+}
+
+fn is_u8_slice_data_type(ty: &TypeExpr) -> bool {
+    matches!(
+        ty,
+        TypeExpr::View(view)
+            if !view.is_readwrite
+                && matches!(view.element.as_ref(), TypeExpr::Reference(reference) if reference.name == "u8")
+    )
 }
 
 fn lower_function_body(
@@ -207,6 +244,9 @@ fn lower_function_body(
                     lower_bool_return_expression(expression, context, "E8007")
                 }
                 (Type::Str, Some(expression)) => lower_str_return_expression(expression, context),
+                (Type::Slice { .. }, Some(expression)) => {
+                    lower_slice_return_expression(expression, context)
+                }
                 (Type::Never, Some(_)) => Err(vec![Diagnostic::error(
                     "E8007",
                     format!(
@@ -247,6 +287,13 @@ fn lower_function_body(
                     "E8007",
                     format!(
                         "IR v0 cannot lower bare returns from str function `{}`",
+                        function.name
+                    ),
+                )]),
+                (Type::Slice { .. }, None) => Err(vec![Diagnostic::error(
+                    "E8007",
+                    format!(
+                        "IR v0 cannot lower bare returns from slice function `{}`",
                         function.name
                     ),
                 )]),

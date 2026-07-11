@@ -298,6 +298,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::SetUsize { .. }
             | Instruction::SetBool { .. }
             | Instruction::SetStr { .. }
+            | Instruction::SetSlice { .. }
             | Instruction::AddI32 { .. }
             | Instruction::SubtractI32 { .. }
             | Instruction::MultiplyI32 { .. }
@@ -315,7 +316,8 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::CallI32 { .. }
             | Instruction::CallUsize { .. }
             | Instruction::CallBool { .. }
-            | Instruction::CallStr { .. },
+            | Instruction::CallStr { .. }
+            | Instruction::CallSlice { .. },
         )
         | None => false,
     }

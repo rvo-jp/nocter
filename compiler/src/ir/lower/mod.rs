@@ -83,6 +83,9 @@ fn lower_signature_return_type(ty: &TypeExpr) -> Option<Type> {
         {
             Some(Type::Str)
         }
+        TypeExpr::Borrow(borrow) if is_u8_slice_data_type(&borrow.inner) => Some(Type::Slice {
+            is_readwrite: borrow.is_readwrite,
+        }),
         TypeExpr::Reference(reference) if reference.name == "void" => Some(Type::Void),
         TypeExpr::Reference(reference) if reference.name == "never" => Some(Type::Never),
         TypeExpr::Fallible(fallible) => lower_signature_return_type(&fallible.success)
@@ -102,8 +105,20 @@ fn lower_signature_parameter_type(ty: &TypeExpr) -> Option<Type> {
         {
             Some(Type::Str)
         }
+        TypeExpr::Borrow(borrow) if is_u8_slice_data_type(&borrow.inner) => Some(Type::Slice {
+            is_readwrite: borrow.is_readwrite,
+        }),
         _ => None,
     }
+}
+
+fn is_u8_slice_data_type(ty: &TypeExpr) -> bool {
+    matches!(
+        ty,
+        TypeExpr::View(view)
+            if !view.is_readwrite
+                && matches!(view.element.as_ref(), TypeExpr::Reference(reference) if reference.name == "u8")
+    )
 }
 
 fn lower_reachable_functions(

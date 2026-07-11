@@ -1,8 +1,8 @@
 use super::{EntryEmitter, I32_BIT_WIDTH, USIZE_BIT_WIDTH, emit_mov_i32_to_w, emit_mov_u64_to_x};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolLocation, BoolValue, I32Location, I32Value, StrLocation, StrValue, UsizeLocation,
-    UsizeValue,
+    BoolLocation, BoolValue, I32Location, I32Value, SliceLocation, SliceValue, StrLocation,
+    StrValue, UsizeLocation, UsizeValue,
 };
 use crate::target::arm64::{BranchCondition, WReg, XReg};
 
@@ -41,6 +41,15 @@ impl EntryEmitter {
     ) -> Result<(), Vec<Diagnostic>> {
         let (ptr_destination, len_destination) = self.str_location_registers(destination)?;
         self.emit_str_value_to_x_pair(value, ptr_destination, len_destination)
+    }
+
+    pub(super) fn emit_set_slice(
+        &mut self,
+        destination: SliceLocation,
+        value: &SliceValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let (ptr_destination, len_destination) = self.slice_location_registers(destination)?;
+        self.emit_slice_value_to_x_pair(value, ptr_destination, len_destination)
     }
 
     pub(super) fn emit_add_i32(
@@ -448,6 +457,27 @@ impl EntryEmitter {
             }
             StrValue::Location(location) => {
                 let (ptr_source, len_source) = self.str_location_registers(*location)?;
+                if ptr_source != ptr_destination {
+                    self.encoder.emit_mov_x(ptr_destination, ptr_source);
+                }
+                if len_source != len_destination {
+                    self.encoder.emit_mov_x(len_destination, len_source);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub(super) fn emit_slice_value_to_x_pair(
+        &mut self,
+        value: &SliceValue,
+        ptr_destination: XReg,
+        len_destination: XReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match value {
+            SliceValue::Location(location) => {
+                let (ptr_source, len_source) = self.slice_location_registers(*location)?;
                 if ptr_source != ptr_destination {
                     self.encoder.emit_mov_x(ptr_destination, ptr_source);
                 }

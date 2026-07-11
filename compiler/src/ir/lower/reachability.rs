@@ -17,6 +17,7 @@ fn collect_reachable_call_targets(
             | Instruction::CallUsize { target, .. }
             | Instruction::CallBool { target, .. }
             | Instruction::CallStr { target, .. }
+            | Instruction::CallSlice { target, .. }
             | Instruction::TailCall { target, .. } => {
                 targets.push_back(target.clone());
             }
@@ -33,6 +34,7 @@ fn collect_reachable_call_targets(
             | Instruction::SetUsize { .. }
             | Instruction::SetBool { .. }
             | Instruction::SetStr { .. }
+            | Instruction::SetSlice { .. }
             | Instruction::AddI32 { .. }
             | Instruction::SubtractI32 { .. }
             | Instruction::MultiplyI32 { .. }

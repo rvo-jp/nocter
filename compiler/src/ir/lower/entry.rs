@@ -104,6 +104,7 @@ fn lower_entry_body(
                 (Type::I32, Some(expression)) => lower_i32_return_expression(expression, &context),
                 (Type::Usize, _) => unreachable!("usize entry type is not lowered in v0"),
                 (Type::Str, _) => unreachable!("str entry type is not lowered in v0"),
+                (Type::Slice { .. }, _) => unreachable!("slice entry type is not lowered in v0"),
                 (Type::Void, None) => Ok(vec![Instruction::Return]),
                 (Type::Void, Some(_)) => Err(vec![Diagnostic::error(
                     "E8002",

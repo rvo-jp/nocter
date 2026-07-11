@@ -1,7 +1,9 @@
 use super::{EntryEmitter, FunctionCallPatch, FunctionSymbol};
 use crate::backend::frame::{ArgumentStagingSlot, FrameLayout};
 use crate::diagnostics::Diagnostic;
-use crate::ir::{BoolLocation, I32Location, ScalarArgument, StrLocation, UsizeLocation};
+use crate::ir::{
+    BoolLocation, I32Location, ScalarArgument, SliceLocation, StrLocation, UsizeLocation,
+};
 use crate::target::arm64::{WReg, XReg};
 
 impl EntryEmitter {
@@ -132,6 +134,28 @@ impl EntryEmitter {
         self.emit_call_result_to_str_location(destination)
     }
 
+    pub(super) fn emit_call_slice(
+        &mut self,
+        destination: SliceLocation,
+        function: FunctionSymbol,
+        arguments: &[ScalarArgument],
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "normal slice call emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_staged_scalar_arguments(arguments, frame)?;
+
+        self.emit_call(function);
+        self.emit_scalar_reloads(frame)?;
+        self.emit_call_result_to_slice_location(destination)
+    }
+
     fn emit_staged_scalar_arguments(
         &mut self,
         arguments: &[ScalarArgument],
@@ -162,6 +186,14 @@ impl EntryEmitter {
                     let ptr_slot = staging_slot(frame, abi_word_index)?;
                     let len_slot = staging_slot(frame, abi_word_index + 1)?;
                     self.emit_str_value_to_x_pair(value, XReg::X16, XReg::X17)?;
+                    self.encoder.emit_str_x_sp(XReg::X16, ptr_slot.offset());
+                    self.encoder.emit_str_x_sp(XReg::X17, len_slot.offset());
+                    abi_word_index += 2;
+                }
+                ScalarArgument::Slice(value) => {
+                    let ptr_slot = staging_slot(frame, abi_word_index)?;
+                    let len_slot = staging_slot(frame, abi_word_index + 1)?;
+                    self.emit_slice_value_to_x_pair(value, XReg::X16, XReg::X17)?;
                     self.encoder.emit_str_x_sp(XReg::X16, ptr_slot.offset());
                     self.encoder.emit_str_x_sp(XReg::X17, len_slot.offset());
                     abi_word_index += 2;
@@ -198,7 +230,7 @@ impl EntryEmitter {
                     self.encoder.emit_ldr_x_sp(register, slot.offset());
                     abi_word_index += 1;
                 }
-                ScalarArgument::Str(_) => {
+                ScalarArgument::Str(_) | ScalarArgument::Slice(_) => {
                     let Some(ptr_register) = XReg::argument(abi_word_index) else {
                         return Err(vec![Diagnostic::error(
                             "E9003",
@@ -307,6 +339,32 @@ impl EntryEmitter {
         }
 
         let (ptr_destination, len_destination) = self.str_location_registers(destination)?;
+        let len_source = if ptr_destination == XReg::X1 {
+            self.encoder.emit_mov_x(XReg::X16, XReg::X1);
+            XReg::X16
+        } else {
+            XReg::X1
+        };
+
+        if ptr_destination != XReg::X0 {
+            self.encoder.emit_mov_x(ptr_destination, XReg::X0);
+        }
+        if len_destination != len_source {
+            self.encoder.emit_mov_x(len_destination, len_source);
+        }
+
+        Ok(())
+    }
+
+    fn emit_call_result_to_slice_location(
+        &mut self,
+        destination: SliceLocation,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if destination == SliceLocation::Return {
+            return Ok(());
+        }
+
+        let (ptr_destination, len_destination) = self.slice_location_registers(destination)?;
         let len_source = if ptr_destination == XReg::X1 {
             self.encoder.emit_mov_x(XReg::X16, XReg::X1);
             XReg::X16

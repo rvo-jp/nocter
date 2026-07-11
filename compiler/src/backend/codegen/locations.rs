@@ -1,6 +1,6 @@
 use super::EntryEmitter;
 use crate::diagnostics::Diagnostic;
-use crate::ir::{BoolLocation, I32Location, StrLocation, UsizeLocation};
+use crate::ir::{BoolLocation, I32Location, SliceLocation, StrLocation, UsizeLocation};
 use crate::target::arm64::{WReg, XReg};
 
 impl EntryEmitter {
@@ -90,6 +90,51 @@ impl EntryEmitter {
                 Ok((ptr, len))
             }
             StrLocation::Local(index) => {
+                let ptr = XReg::local(index).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9004",
+                        format!(
+                            "codegen supports at most 7 local ABI words, got local word {index}"
+                        ),
+                    )]
+                })?;
+                let len_index = index + 1;
+                let len = XReg::local(len_index).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9004",
+                        format!(
+                            "codegen supports at most 7 local ABI words, got local word {len_index}"
+                        ),
+                    )]
+                })?;
+                Ok((ptr, len))
+            }
+        }
+    }
+
+    pub(super) fn slice_location_registers(
+        &self,
+        location: SliceLocation,
+    ) -> Result<(XReg, XReg), Vec<Diagnostic>> {
+        match location {
+            SliceLocation::Return => Ok((XReg::X0, XReg::X1)),
+            SliceLocation::Parameter(index) => {
+                let ptr = XReg::argument(index).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9003",
+                        format!("codegen supports at most 8 ABI parameter words, got parameter word {index}"),
+                    )]
+                })?;
+                let len_index = index + 1;
+                let len = XReg::argument(len_index).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9003",
+                        format!("codegen supports at most 8 ABI parameter words, got parameter word {len_index}"),
+                    )]
+                })?;
+                Ok((ptr, len))
+            }
+            SliceLocation::Local(index) => {
                 let ptr = XReg::local(index).ok_or_else(|| {
                     vec![Diagnostic::error(
                         "E9004",

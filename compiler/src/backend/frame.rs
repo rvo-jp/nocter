@@ -1,7 +1,7 @@
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolLocation, BoolValue, Function, I32Location, I32Value, Instruction, ScalarArgument,
-    StrLocation, StrValue, UsizeLocation, UsizeValue,
+    SliceLocation, SliceValue, StrLocation, StrValue, UsizeLocation, UsizeValue,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -171,13 +171,15 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         Instruction::CallI32 { .. }
         | Instruction::CallUsize { .. }
         | Instruction::CallBool { .. }
-        | Instruction::CallStr { .. } => true,
+        | Instruction::CallStr { .. }
+        | Instruction::CallSlice { .. } => true,
         Instruction::TailCall { arguments, .. } => !arguments.is_empty(),
         Instruction::WriteStaticStderr(_)
         | Instruction::SetI32 { .. }
         | Instruction::SetUsize { .. }
         | Instruction::SetBool { .. }
         | Instruction::SetStr { .. }
+        | Instruction::SetSlice { .. }
         | Instruction::AddI32 { .. }
         | Instruction::SubtractI32 { .. }
         | Instruction::MultiplyI32 { .. }
@@ -217,6 +219,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::CallUsize { arguments, .. }
         | Instruction::CallBool { arguments, .. }
         | Instruction::CallStr { arguments, .. }
+        | Instruction::CallSlice { arguments, .. }
         | Instruction::TailCall { arguments, .. } => {
             arguments.iter().map(ScalarArgument::abi_word_count).sum()
         }
@@ -231,6 +234,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::SetUsize { .. }
         | Instruction::SetBool { .. }
         | Instruction::SetStr { .. }
+        | Instruction::SetSlice { .. }
         | Instruction::AddI32 { .. }
         | Instruction::SubtractI32 { .. }
         | Instruction::MultiplyI32 { .. }
@@ -285,6 +289,10 @@ fn record_instruction_scalar_locals(
         Instruction::SetStr { destination, value } => {
             record_str_location(*destination, highest_local_index);
             record_str_value(value, highest_local_index);
+        }
+        Instruction::SetSlice { destination, value } => {
+            record_slice_location(*destination, highest_local_index);
+            record_slice_value(value, highest_local_index);
         }
         Instruction::AddI32 {
             destination,
@@ -404,6 +412,16 @@ fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
+        Instruction::CallSlice {
+            destination,
+            arguments,
+            ..
+        } => {
+            record_slice_location(*destination, highest_local_index);
+            for argument in arguments {
+                record_scalar_argument(argument, highest_local_index);
+            }
+        }
         Instruction::If {
             condition,
             then_instructions,
@@ -429,6 +447,7 @@ fn record_scalar_argument(argument: &ScalarArgument, highest_local_index: &mut O
         ScalarArgument::Usize(value) => record_usize_value(value, highest_local_index),
         ScalarArgument::Bool(value) => record_bool_value(value, highest_local_index),
         ScalarArgument::Str(value) => record_str_value(value, highest_local_index),
+        ScalarArgument::Slice(value) => record_slice_value(value, highest_local_index),
     }
 }
 
@@ -495,6 +514,19 @@ fn record_str_location(location: StrLocation, highest_local_index: &mut Option<u
     }
 }
 
+fn record_slice_value(value: &SliceValue, highest_local_index: &mut Option<usize>) {
+    match value {
+        SliceValue::Location(location) => record_slice_location(*location, highest_local_index),
+    }
+}
+
+fn record_slice_location(location: SliceLocation, highest_local_index: &mut Option<usize>) {
+    if let SliceLocation::Local(index) = location {
+        record_scalar_local(index, highest_local_index);
+        record_scalar_local(index + 1, highest_local_index);
+    }
+}
+
 fn record_scalar_local(index: usize, highest_local_index: &mut Option<usize>) {
     *highest_local_index = Some(highest_local_index.map_or(index, |highest| highest.max(index)));
 }
@@ -521,7 +553,10 @@ const LDR_STR_X_SP_MAX_BYTE_OFFSET: u32 = 0x0fff * 8;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{BoolComparisonOperator, CallTarget, ScalarArgument, StrValue, Type};
+    use crate::ir::{
+        BoolComparisonOperator, CallTarget, ScalarArgument, SliceLocation, SliceValue, StrValue,
+        Type,
+    };
 
     #[test]
     fn plans_current_ir_functions_as_frameless() {
@@ -702,6 +737,29 @@ mod tests {
                 target: CallTarget::same_file("answer"),
                 arguments: vec![
                     ScalarArgument::Str(StrValue::StaticBytes(b"Nocter".to_vec())),
+                    ScalarArgument::I32(I32Value::Const(42)),
+                ],
+            }],
+        };
+
+        let frame = plan_function_frame(&function).unwrap();
+
+        assert_eq!(
+            frame,
+            FunctionFrame::Framed(FrameLayout::for_slot_counts(0, 3).unwrap())
+        );
+    }
+
+    #[test]
+    fn tail_call_with_slice_argument_counts_two_argument_staging_slots() {
+        let function = Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![Instruction::TailCall {
+                target: CallTarget::same_file("answer"),
+                arguments: vec![
+                    ScalarArgument::Slice(SliceValue::Location(SliceLocation::Parameter(0))),
                     ScalarArgument::I32(I32Value::Const(42)),
                 ],
             }],

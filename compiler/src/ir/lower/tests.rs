@@ -5,7 +5,7 @@ use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::ir::{
     BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, CallTarget, Function,
     I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule, ScalarArgument,
-    StrLocation, StrValue, Type, UsizeLocation, UsizeValue,
+    SliceLocation, SliceValue, StrLocation, StrValue, Type, UsizeLocation, UsizeValue,
 };
 use crate::source::SourceMap;
 use crate::target::DEFAULT_TARGET;
@@ -905,6 +905,29 @@ func main(): i32 {
 }
 
 #[test]
+fn indexes_slice_function_signature_parameter_types() {
+    let analysis = analyze_text_with_entry(
+        r#"func main(): i32 {
+    return 0
+}
+
+func consume(bytes: &[u8], scratch: &+[u8]): i32 {
+    return 0
+}
+"#,
+        crate::entry::DEFAULT_ENTRY_NAME,
+    );
+    let root = analysis.root_file().unwrap();
+    let index = FunctionIndex::new(&analysis, root.ast.span.source);
+    let signatures = index.signatures();
+
+    assert_eq!(
+        signatures.parameter_types(&CallTarget::same_file("consume")),
+        Some(vec![readonly_u8_slice_type(), readwrite_u8_slice_type()].as_slice())
+    );
+}
+
+#[test]
 fn lowers_imported_i32_call_target_when_boundary_is_bypassed() {
     let analysis = analyze_text_with_entry_and_nocter_home_files(
         r#"from std/math import answer
@@ -1371,6 +1394,139 @@ func title(): &str {
                     value: StrValue::Location(StrLocation::Local(0)),
                 },
                 Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_u8_slice_parameter_forwarding_call_argument() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func wrapper(bytes: &[u8]): i32 {
+    return consume(bytes, 42)
+}
+
+func consume(bytes: &[u8], code: i32): i32 {
+    return code
+}
+"#,
+        "wrapper",
+        function_signatures(vec![(
+            "consume",
+            Type::I32,
+            vec![readonly_u8_slice_type(), Type::I32],
+        )]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "wrapper".to_string(),
+            target: crate::ir::CallTarget::same_file("wrapper".to_string()),
+            return_type: Type::I32,
+            instructions: vec![Instruction::TailCall {
+                target: CallTarget::same_file("consume"),
+                arguments: vec![
+                    ScalarArgument::Slice(SliceValue::Location(SliceLocation::Parameter(0))),
+                    ScalarArgument::I32(I32Value::Const(42)),
+                ],
+            }],
+        }
+    );
+}
+
+#[test]
+fn lowers_readwrite_u8_slice_parameter_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func echo(bytes: &+[u8]): &+[u8] {
+    return bytes
+}
+"#,
+        "echo",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "echo".to_string(),
+            target: crate::ir::CallTarget::same_file("echo".to_string()),
+            return_type: readwrite_u8_slice_type(),
+            instructions: vec![
+                Instruction::SetSlice {
+                    destination: SliceLocation::Return,
+                    value: SliceValue::Location(SliceLocation::Parameter(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_u8_slice_normal_call_result_as_call_argument() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func wrapper(bytes: &[u8]): i32 {
+    return consume(identity(bytes), 42)
+}
+
+func identity(bytes: &[u8]): &[u8] {
+    return bytes
+}
+
+func consume(bytes: &[u8], code: i32): i32 {
+    return code
+}
+"#,
+        "wrapper",
+        function_signatures(vec![
+            (
+                "identity",
+                readonly_u8_slice_type(),
+                vec![readonly_u8_slice_type()],
+            ),
+            (
+                "consume",
+                Type::I32,
+                vec![readonly_u8_slice_type(), Type::I32],
+            ),
+        ]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "wrapper".to_string(),
+            target: crate::ir::CallTarget::same_file("wrapper".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                call_slice(
+                    SliceLocation::Local(0),
+                    "identity",
+                    vec![ScalarArgument::Slice(SliceValue::Location(
+                        SliceLocation::Parameter(0),
+                    ))],
+                ),
+                Instruction::TailCall {
+                    target: CallTarget::same_file("consume"),
+                    arguments: vec![
+                        ScalarArgument::Slice(SliceValue::Location(SliceLocation::Local(0))),
+                        ScalarArgument::I32(I32Value::Const(42)),
+                    ],
+                },
             ],
         }
     );
@@ -4234,6 +4390,45 @@ fn call_str(
         target: CallTarget::same_file(function),
         arguments,
     }
+}
+
+fn call_slice(
+    destination: SliceLocation,
+    function: &str,
+    arguments: Vec<ScalarArgument>,
+) -> Instruction {
+    Instruction::CallSlice {
+        destination,
+        target: CallTarget::same_file(function),
+        arguments,
+    }
+}
+
+fn function_signatures(signatures: Vec<(&str, Type, Vec<Type>)>) -> context::FunctionSignatures {
+    context::FunctionSignatures::from_call_targets(
+        signatures
+            .into_iter()
+            .map(|(name, return_type, parameter_types)| {
+                (
+                    CallTarget::same_file(name),
+                    context::FunctionSignature {
+                        return_type,
+                        parameter_types: Some(parameter_types),
+                    },
+                )
+            })
+            .collect(),
+    )
+}
+
+fn readonly_u8_slice_type() -> Type {
+    Type::Slice {
+        is_readwrite: false,
+    }
+}
+
+fn readwrite_u8_slice_type() -> Type {
+    Type::Slice { is_readwrite: true }
 }
 
 fn i32_arguments(arguments: Vec<I32Value>) -> Vec<ScalarArgument> {

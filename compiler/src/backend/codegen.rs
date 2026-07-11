@@ -125,6 +125,9 @@ impl EntryEmitter {
             Instruction::SetStr { destination, value } => {
                 self.emit_set_str(*destination, value)?;
             }
+            Instruction::SetSlice { destination, value } => {
+                self.emit_set_slice(*destination, value)?;
+            }
             Instruction::AddI32 {
                 destination,
                 left,
@@ -265,6 +268,18 @@ impl EntryEmitter {
                 arguments,
             } => {
                 self.emit_call_str(
+                    *destination,
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    frame,
+                )?;
+            }
+            Instruction::CallSlice {
+                destination,
+                target,
+                arguments,
+            } => {
+                self.emit_call_slice(
                     *destination,
                     FunctionSymbol::from_call_target(target),
                     arguments,
@@ -521,7 +536,8 @@ mod tests {
     use super::*;
     use crate::ir::{
         BoolLocation, BoolValue, CallTarget, Function, I32ComparisonOperator, I32Location,
-        I32Value, ScalarArgument, StrLocation, StrValue, Type, UsizeLocation, UsizeValue,
+        I32Value, ScalarArgument, SliceLocation, SliceValue, StrLocation, StrValue, Type,
+        UsizeLocation, UsizeValue,
     };
     use crate::source::SourceId;
     use crate::target::arm64::BranchCondition;
@@ -821,6 +837,49 @@ mod tests {
                 0xc0, 0x03, 0x5f, 0xd6, // ret
             ]
         );
+    }
+
+    #[test]
+    fn generates_slice_normal_call_from_hand_built_ir() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "wrapper".to_string(),
+                target: crate::ir::CallTarget::same_file("wrapper".to_string()),
+                return_type: readonly_u8_slice_type(),
+                instructions: vec![
+                    Instruction::CallSlice {
+                        destination: SliceLocation::Return,
+                        target: CallTarget::same_file("identity"),
+                        arguments: vec![ScalarArgument::Slice(SliceValue::Location(
+                            SliceLocation::Parameter(0),
+                        ))],
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "identity".to_string(),
+                target: crate::ir::CallTarget::same_file("identity".to_string()),
+                return_type: readonly_u8_slice_type(),
+                instructions: vec![
+                    Instruction::SetSlice {
+                        destination: SliceLocation::Return,
+                        value: SliceValue::Location(SliceLocation::Parameter(0)),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(!code.text.is_empty());
     }
 
     #[test]
@@ -1928,6 +1987,12 @@ mod tests {
 
     fn i32_local(index: usize) -> I32Value {
         I32Value::Location(I32Location::Local(index))
+    }
+
+    fn readonly_u8_slice_type() -> Type {
+        Type::Slice {
+            is_readwrite: false,
+        }
     }
 
     fn usize_const(value: u64) -> UsizeValue {

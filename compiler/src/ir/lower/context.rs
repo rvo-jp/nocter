@@ -1,6 +1,8 @@
 use crate::ast::CallExpr;
 use crate::diagnostics::Diagnostic;
-use crate::ir::{BoolLocation, CallTarget, I32Location, StrLocation, Type, UsizeLocation};
+use crate::ir::{
+    BoolLocation, CallTarget, I32Location, SliceLocation, StrLocation, Type, UsizeLocation,
+};
 use crate::resolve::{ResolveOutput, SymbolKind};
 use crate::source::{ByteSpan, SourceId};
 use std::collections::HashMap;
@@ -15,6 +17,7 @@ pub(super) struct LoweringContext<'a> {
     usize_parameters: Vec<Option<String>>,
     bool_parameters: Vec<Option<String>>,
     str_parameters: Vec<Option<String>>,
+    slice_parameters: Vec<Option<String>>,
     locals: Vec<LocalBinding>,
 }
 
@@ -34,6 +37,7 @@ impl<'a> LoweringContext<'a> {
             usize_parameters: Vec::new(),
             bool_parameters: Vec::new(),
             str_parameters: Vec::new(),
+            slice_parameters: Vec::new(),
             locals: Vec::new(),
         }
     }
@@ -46,6 +50,7 @@ impl<'a> LoweringContext<'a> {
         usize_parameters: Vec<Option<String>>,
         bool_parameters: Vec<Option<String>>,
         str_parameters: Vec<Option<String>>,
+        slice_parameters: Vec<Option<String>>,
     ) -> Self {
         Self {
             function_name,
@@ -57,6 +62,7 @@ impl<'a> LoweringContext<'a> {
             usize_parameters,
             bool_parameters,
             str_parameters,
+            slice_parameters,
             locals: Vec::new(),
         }
     }
@@ -145,6 +151,10 @@ impl<'a> LoweringContext<'a> {
         self.next_local_index(2).map(StrLocation::Local)
     }
 
+    pub(super) fn next_slice_local_location(&self) -> Result<SliceLocation, Vec<Diagnostic>> {
+        self.next_local_index(2).map(SliceLocation::Local)
+    }
+
     pub(super) fn define_i32_local(&mut self, name: String) {
         self.define_local(name, LocalKind::I32);
     }
@@ -159,6 +169,10 @@ impl<'a> LoweringContext<'a> {
 
     pub(super) fn define_str_local(&mut self, name: String) {
         self.define_local(name, LocalKind::Str);
+    }
+
+    pub(super) fn define_slice_local(&mut self, name: String) {
+        self.define_local(name, LocalKind::Slice);
     }
 
     pub(super) fn i32_location(&self, name: &str) -> Option<I32Location> {
@@ -210,6 +224,19 @@ impl<'a> LoweringContext<'a> {
                     .iter()
                     .position(|parameter| parameter.as_deref() == Some(name))
                     .map(StrLocation::Parameter)
+            })
+    }
+
+    pub(super) fn slice_location(&self, name: &str) -> Option<SliceLocation> {
+        self.locals
+            .iter()
+            .find(|local| local.name == name && local.kind == LocalKind::Slice)
+            .map(|local| SliceLocation::Local(local.index))
+            .or_else(|| {
+                self.slice_parameters
+                    .iter()
+                    .position(|parameter| parameter.as_deref() == Some(name))
+                    .map(SliceLocation::Parameter)
             })
     }
 
@@ -319,13 +346,14 @@ enum LocalKind {
     Usize,
     Bool,
     Str,
+    Slice,
 }
 
 impl LocalKind {
     fn abi_word_count(self) -> usize {
         match self {
             Self::I32 | Self::Usize | Self::Bool => 1,
-            Self::Str => 2,
+            Self::Str | Self::Slice => 2,
         }
     }
 }

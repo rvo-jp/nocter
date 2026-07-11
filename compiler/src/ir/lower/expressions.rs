@@ -8,11 +8,12 @@ use crate::ast::{BinaryExpr, BinaryOperator, Expr, UnaryExpr, UnaryOperator};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, I32ComparisonOperator,
-    I32Location, I32Value, Instruction, StrLocation, StrValue, Type, UsizeLocation, UsizeValue,
+    I32Location, I32Value, Instruction, SliceLocation, SliceValue, StrLocation, StrValue, Type,
+    UsizeLocation, UsizeValue,
 };
 use calls::{
     lower_bool_normal_call, lower_call_arguments, lower_direct_tail_call, lower_i32_normal_call,
-    lower_str_normal_call, lower_usize_normal_call, primitive_trap_call,
+    lower_slice_normal_call, lower_str_normal_call, lower_usize_normal_call, primitive_trap_call,
 };
 use predicates::{
     bool_comparison_contains_call, expressions_are_lowerable_bool_comparison_operands,
@@ -24,7 +25,9 @@ pub(super) use predicates::{
     expression_contains_call, expression_contains_interpolated_string,
     expression_is_lowerable_bool_binding, expression_is_unsupported_bool_comparison_binding,
 };
-use temporaries::{LoweredI32Value, LoweredStrValue, LoweredUsizeValue, TemporaryAllocator};
+use temporaries::{
+    LoweredI32Value, LoweredSliceValue, LoweredStrValue, LoweredUsizeValue, TemporaryAllocator,
+};
 
 pub(super) fn lower_i32_expression(
     expression: &Expr,
@@ -90,6 +93,24 @@ pub(super) fn lower_str_expression_to_location(
         }
         _ => lower_str_value(expression, context)
             .map(|value| vec![Instruction::SetStr { destination, value }]),
+    }
+}
+
+pub(super) fn lower_slice_expression_to_location(
+    expression: &Expr,
+    destination: SliceLocation,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(call) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            lower_slice_normal_call(call, destination, context, &mut temporaries)
+        }
+        Expr::Group(group) => {
+            lower_slice_expression_to_location(&group.expression, destination, context)
+        }
+        _ => lower_slice_value(expression, context)
+            .map(|value| vec![Instruction::SetSlice { destination, value }]),
     }
 }
 
@@ -248,6 +269,29 @@ fn lower_str_expression_to_value(
         _ => Ok(LoweredStrValue {
             instructions: Vec::new(),
             value: lower_str_value(expression, context)?,
+        }),
+    }
+}
+
+fn lower_slice_expression_to_value(
+    expression: &Expr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredSliceValue, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(call) => {
+            let temporary = temporaries.next_slice()?;
+            Ok(LoweredSliceValue {
+                instructions: lower_slice_normal_call(call, temporary, context, temporaries)?,
+                value: SliceValue::Location(temporary),
+            })
+        }
+        Expr::Group(group) => {
+            lower_slice_expression_to_value(&group.expression, context, temporaries)
+        }
+        _ => Ok(LoweredSliceValue {
+            instructions: Vec::new(),
+            value: lower_slice_value(expression, context)?,
         }),
     }
 }
@@ -411,6 +455,22 @@ pub(super) fn lower_str_return_expression(
         _ => {
             let mut instructions =
                 lower_str_expression_to_location(expression, StrLocation::Return, context)?;
+            instructions.push(Instruction::Return);
+            Ok(instructions)
+        }
+    }
+}
+
+pub(super) fn lower_slice_return_expression(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(call) => lower_direct_tail_call(call, context),
+        Expr::Group(group) => lower_slice_return_expression(&group.expression, context),
+        _ => {
+            let mut instructions =
+                lower_slice_expression_to_location(expression, SliceLocation::Return, context)?;
             instructions.push(Instruction::Return);
             Ok(instructions)
         }
@@ -819,6 +879,20 @@ fn lower_str_value(
     }
 }
 
+fn lower_slice_value(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Result<SliceValue, Vec<Diagnostic>> {
+    match expression {
+        Expr::Identifier(identifier) => context
+            .slice_location(&identifier.name)
+            .map(SliceValue::Location)
+            .ok_or_else(unsupported_slice_expression_diagnostic),
+        Expr::Group(group) => lower_slice_value(&group.expression, context),
+        _ => Err(unsupported_slice_expression_diagnostic()),
+    }
+}
+
 pub(super) fn lower_i32_value(
     expression: &Expr,
     context: &LoweringContext,
@@ -1045,7 +1119,14 @@ fn unsupported_usize_expression_diagnostic() -> Vec<Diagnostic> {
 fn unsupported_str_expression_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8006",
-        "IR v0 can only lower string literals and `str` parameters as `str` values",
+        "IR v0 can only lower string literals and `&str` parameters as `&str` values",
+    )]
+}
+
+fn unsupported_slice_expression_diagnostic() -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8006",
+        "IR v0 can only lower slice parameters and locals as slice values",
     )]
 }
 

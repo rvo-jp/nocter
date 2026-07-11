@@ -57,6 +57,10 @@ pub(crate) enum Instruction {
         destination: StrLocation,
         value: StrValue,
     },
+    SetSlice {
+        destination: SliceLocation,
+        value: SliceValue,
+    },
     AddI32 {
         destination: I32Location,
         left: I32Value,
@@ -151,6 +155,12 @@ pub(crate) enum Instruction {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
     },
+    #[allow(dead_code)]
+    CallSlice {
+        destination: SliceLocation,
+        target: CallTarget,
+        arguments: Vec<ScalarArgument>,
+    },
     TailCall {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
@@ -196,13 +206,14 @@ pub(crate) enum ScalarArgument {
     Usize(UsizeValue),
     Bool(BoolValue),
     Str(StrValue),
+    Slice(SliceValue),
 }
 
 impl ScalarArgument {
     pub(crate) fn abi_word_count(&self) -> usize {
         match self {
             Self::I32(_) | Self::Usize(_) | Self::Bool(_) => 1,
-            Self::Str(_) => 2,
+            Self::Str(_) | Self::Slice(_) => 2,
         }
     }
 }
@@ -215,6 +226,18 @@ pub(crate) enum StrValue {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum StrLocation {
+    Return,
+    Parameter(usize),
+    Local(usize),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum SliceValue {
+    Location(SliceLocation),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SliceLocation {
     Return,
     Parameter(usize),
     Local(usize),
@@ -282,6 +305,7 @@ pub(crate) enum Type {
     Usize,
     Bool,
     Str,
+    Slice { is_readwrite: bool },
     Void,
     Never,
     Fallible(Box<Type>),
@@ -291,7 +315,13 @@ impl Type {
     pub(crate) fn success_type(&self) -> &Type {
         match self {
             Self::Fallible(success) => success,
-            Self::I32 | Self::Usize | Self::Bool | Self::Str | Self::Void | Self::Never => self,
+            Self::I32
+            | Self::Usize
+            | Self::Bool
+            | Self::Str
+            | Self::Slice { .. }
+            | Self::Void
+            | Self::Never => self,
         }
     }
 }

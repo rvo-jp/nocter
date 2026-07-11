@@ -2,8 +2,8 @@ use super::context::LoweringContext;
 use super::expressions::{
     expression_contains_interpolated_string, expression_is_lowerable_bool_binding,
     expression_is_unsupported_bool_comparison_binding, lower_bool_expression_to_location,
-    lower_i32_expression_to_location, lower_str_expression_to_location,
-    lower_usize_expression_to_location,
+    lower_i32_expression_to_location, lower_slice_expression_to_location,
+    lower_str_expression_to_location, lower_usize_expression_to_location,
 };
 use crate::ast::{BinaryOperator, BindingKind, BindingStmt, Expr, TypeExpr, UnaryOperator};
 use crate::diagnostics::Diagnostic;
@@ -34,6 +34,7 @@ pub(super) fn lower_let_binding(
         ScalarBindingKind::Usize => lower_usize_let_binding(statement, context),
         ScalarBindingKind::Bool => lower_bool_let_binding(statement, context),
         ScalarBindingKind::Str => lower_str_let_binding(statement, context),
+        ScalarBindingKind::Slice => lower_slice_let_binding(statement, context),
     }
 }
 
@@ -81,6 +82,17 @@ fn lower_str_let_binding(
     Ok(instructions)
 }
 
+fn lower_slice_let_binding(
+    statement: &BindingStmt,
+    context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let destination = context.next_slice_local_location()?;
+    let instructions =
+        lower_slice_expression_to_location(&statement.initializer, destination, context)?;
+    context.define_slice_local(statement.name.clone());
+    Ok(instructions)
+}
+
 fn scalar_binding_kind(
     statement: &BindingStmt,
     context: &LoweringContext,
@@ -90,8 +102,9 @@ fn scalar_binding_kind(
         Some(ty) if is_usize_type(ty) => Ok(ScalarBindingKind::Usize),
         Some(ty) if is_bool_type(ty) => Ok(ScalarBindingKind::Bool),
         Some(ty) if is_str_type(ty) => Ok(ScalarBindingKind::Str),
+        Some(ty) if is_u8_slice_type(ty) => Ok(ScalarBindingKind::Slice),
         Some(_) => Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower local bindings annotated as `i32`, `usize`, `bool`, or `str`",
+            "IR v0 can only lower local bindings annotated as `i32`, `usize`, `bool`, `&str`, `&[u8]`, or `&+[u8]`",
         )),
         None if expression_is_lowerable_bool_binding(&statement.initializer, context) => {
             Ok(ScalarBindingKind::Bool)
@@ -162,6 +175,19 @@ fn is_str_type(ty: &TypeExpr) -> bool {
     )
 }
 
+fn is_u8_slice_type(ty: &TypeExpr) -> bool {
+    matches!(
+        ty,
+        TypeExpr::Borrow(borrow)
+            if matches!(
+                borrow.inner.as_ref(),
+                TypeExpr::View(view)
+                    if !view.is_readwrite
+                        && matches!(view.element.as_ref(), TypeExpr::Reference(reference) if reference.name == "u8")
+            )
+    )
+}
+
 fn unsupported_binding_diagnostic(message: &'static str) -> Vec<Diagnostic> {
     vec![Diagnostic::error("E8008", message)]
 }
@@ -178,4 +204,5 @@ enum ScalarBindingKind {
     Usize,
     Bool,
     Str,
+    Slice,
 }
