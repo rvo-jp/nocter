@@ -23,11 +23,13 @@ SourceMap
 The backend v0 uses a deliberately small register-only convention while the IR has no stack frame, spill slots, or ABI-complete call lowering.
 
 - scalar `i32` and `bool` values are represented in 32-bit ARM64 `w` registers
+- scalar `usize` values are represented in 64-bit ARM64 `x` registers
 - `bool` is encoded as `0` for false and `1` for true
-- lowered function arguments are passed in `w0` through `w7`
-- lowered function return values are produced in `w0`
-- scalar local bindings use `w9` through `w15` across both `i32` and `bool`
-- `w16` and `w17` are backend scratch registers and may be clobbered by code generation
+- lowered `i32` function arguments are passed in `w0` through `w7`; `usize` parameters are still outside the buildable subset
+- lowered function return values are produced in `w0` for `i32`/`bool` and `x0` for `usize`
+- scalar local bindings use `w9` through `w15` for `i32`/`bool` and `x9` through `x15` for `usize`
+- framed functions spill scalar locals through 8-byte stack slots so the same frame layout can preserve 32-bit and 64-bit locals
+- `w16`/`w17` and `x16`/`x17` are backend scratch registers and may be clobbered by code generation
 
 Tail calls are lowered by staging callee arguments, loading `w0` through `w7`, and branching directly to the target function.
 Normal calls are buildable only for the narrow same-file scalar subset described below.

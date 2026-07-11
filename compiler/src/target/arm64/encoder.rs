@@ -22,6 +22,10 @@ impl Encoder {
         self.emit_word(ORR_W_BASE | (rm.bits() << 16) | (WZR_BITS << 5) | rd.bits());
     }
 
+    pub(crate) fn emit_mov_x(&mut self, rd: XReg, rm: XReg) {
+        self.emit_word(ORR_X_BASE | (rm.bits() << 16) | (XZR_BITS << 5) | rd.bits());
+    }
+
     #[allow(dead_code)]
     pub(crate) fn emit_add_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
         self.emit_word(ADD_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
@@ -299,7 +303,11 @@ impl WReg {
 pub(crate) enum BranchCondition {
     Eq,
     Ne,
+    Cs,
+    Cc,
     Vc,
+    Hi,
+    Ls,
     Lt,
     Le,
     Gt,
@@ -311,7 +319,11 @@ impl BranchCondition {
         match self {
             Self::Eq => 0,
             Self::Ne => 1,
+            Self::Cs => 2,
+            Self::Cc => 3,
             Self::Vc => 7,
+            Self::Hi => 8,
+            Self::Ls => 9,
             Self::Ge => 10,
             Self::Lt => 11,
             Self::Gt => 12,
@@ -325,6 +337,18 @@ pub(crate) enum XReg {
     X0,
     X1,
     X2,
+    X3,
+    X4,
+    X5,
+    X6,
+    X7,
+    X9,
+    X10,
+    X11,
+    X12,
+    X13,
+    X14,
+    X15,
     X16,
     X17,
     #[allow(dead_code)]
@@ -332,11 +356,50 @@ pub(crate) enum XReg {
 }
 
 impl XReg {
+    pub(crate) fn argument(index: usize) -> Option<Self> {
+        match index {
+            0 => Some(Self::X0),
+            1 => Some(Self::X1),
+            2 => Some(Self::X2),
+            3 => Some(Self::X3),
+            4 => Some(Self::X4),
+            5 => Some(Self::X5),
+            6 => Some(Self::X6),
+            7 => Some(Self::X7),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn local(index: usize) -> Option<Self> {
+        match index {
+            0 => Some(Self::X9),
+            1 => Some(Self::X10),
+            2 => Some(Self::X11),
+            3 => Some(Self::X12),
+            4 => Some(Self::X13),
+            5 => Some(Self::X14),
+            6 => Some(Self::X15),
+            _ => None,
+        }
+    }
+
     const fn bits(self) -> u32 {
         match self {
             Self::X0 => 0,
             Self::X1 => 1,
             Self::X2 => 2,
+            Self::X3 => 3,
+            Self::X4 => 4,
+            Self::X5 => 5,
+            Self::X6 => 6,
+            Self::X7 => 7,
+            Self::X9 => 9,
+            Self::X10 => 10,
+            Self::X11 => 11,
+            Self::X12 => 12,
+            Self::X13 => 13,
+            Self::X14 => 14,
+            Self::X15 => 15,
             Self::X16 => 16,
             Self::X17 => 17,
             Self::X30 => 30,
@@ -370,6 +433,7 @@ impl MoveWideShift {
 const MOVZ_W_BASE: u32 = 0x5280_0000;
 const MOVK_W_BASE: u32 = 0x7280_0000;
 const ORR_W_BASE: u32 = 0x2a00_0000;
+const ORR_X_BASE: u32 = 0xaa00_0000;
 #[allow(dead_code)]
 const ADD_W_BASE: u32 = 0x0b00_0000;
 const ADDS_W_BASE: u32 = 0x2b00_0000;
@@ -416,6 +480,7 @@ const B_COND_MAX_BYTE_OFFSET: i32 = (1 << 20) - 4;
 #[allow(dead_code)]
 const SP_BITS: u32 = 31;
 const WZR_BITS: u32 = 31;
+const XZR_BITS: u32 = 31;
 
 const fn move_wide_fields(rd: u32, imm16: u16, shift: MoveWideShift) -> u32 {
     (shift.hw() << 21) | ((imm16 as u32) << 5) | rd
@@ -511,6 +576,15 @@ mod tests {
         encoder.emit_mov_w(WReg::W0, WReg::W1);
 
         assert_eq!(encoder.finish(), vec![0xe0, 0x03, 0x01, 0x2a]);
+    }
+
+    #[test]
+    fn encodes_mov_x9_x0() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_mov_x(XReg::X9, XReg::X0);
+
+        assert_eq!(encoder.finish(), vec![0xe9, 0x03, 0x00, 0xaa]);
     }
 
     #[test]
@@ -799,6 +873,24 @@ mod tests {
         encoder.emit_b_cond(BranchCondition::Vc, 8);
 
         assert_eq!(encoder.finish(), vec![0x47, 0x00, 0x00, 0x54]);
+    }
+
+    #[test]
+    fn encodes_b_cc_positive_offset() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_b_cond(BranchCondition::Cc, 8);
+
+        assert_eq!(encoder.finish(), vec![0x43, 0x00, 0x00, 0x54]);
+    }
+
+    #[test]
+    fn encodes_b_hi_positive_offset() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_b_cond(BranchCondition::Hi, 8);
+
+        assert_eq!(encoder.finish(), vec![0x48, 0x00, 0x00, 0x54]);
     }
 
     #[test]

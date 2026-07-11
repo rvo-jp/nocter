@@ -2,7 +2,8 @@ use crate::backend::frame::{FrameLayout, FunctionFrame, plan_function_frame};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, CallTarget, Function,
-    I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule, Type,
+    I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule, Type, UsizeLocation,
+    UsizeValue,
 };
 use crate::target::arm64::{BranchCondition, Encoder, MoveWideShift, WReg, XReg};
 use std::collections::HashMap;
@@ -114,6 +115,9 @@ impl EntryEmitter {
             Instruction::SetI32 { destination, value } => {
                 self.emit_set_i32(*destination, value)?;
             }
+            Instruction::SetUsize { destination, value } => {
+                self.emit_set_usize(*destination, value)?;
+            }
             Instruction::SetBool { destination, value } => {
                 self.emit_set_bool(*destination, value)?;
             }
@@ -172,6 +176,18 @@ impl EntryEmitter {
                 arguments,
             } => {
                 self.emit_call_i32(
+                    *destination,
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    frame,
+                )?;
+            }
+            Instruction::CallUsize {
+                destination,
+                target,
+                arguments,
+            } => {
+                self.emit_call_usize(
                     *destination,
                     FunctionSymbol::from_call_target(target),
                     arguments,
@@ -284,6 +300,18 @@ impl EntryEmitter {
                     branch_condition_for_false_comparison(*operator),
                 )])
             }
+            BoolValue::UsizeComparison {
+                operator,
+                left,
+                right,
+            } => {
+                self.emit_usize_value_to_x(left, XReg::X16)?;
+                self.emit_usize_value_to_x(right, XReg::X17)?;
+                self.encoder.emit_cmp_x(XReg::X16, XReg::X17);
+                Ok(vec![self.emit_cond_branch_placeholder(
+                    branch_condition_for_false_unsigned_comparison(*operator),
+                )])
+            }
             BoolValue::BoolComparison {
                 operator,
                 left,
@@ -342,6 +370,18 @@ impl EntryEmitter {
                 self.encoder.emit_cmp_w(WReg::W16, WReg::W17);
                 Ok(vec![self.emit_cond_branch_placeholder(
                     branch_condition_for_true_comparison(*operator),
+                )])
+            }
+            BoolValue::UsizeComparison {
+                operator,
+                left,
+                right,
+            } => {
+                self.emit_usize_value_to_x(left, XReg::X16)?;
+                self.emit_usize_value_to_x(right, XReg::X17)?;
+                self.encoder.emit_cmp_x(XReg::X16, XReg::X17);
+                Ok(vec![self.emit_cond_branch_placeholder(
+                    branch_condition_for_true_unsigned_comparison(*operator),
                 )])
             }
             BoolValue::BoolComparison {
@@ -522,6 +562,28 @@ impl EntryEmitter {
         self.emit_call_result_to_i32_location(destination)
     }
 
+    fn emit_call_usize(
+        &mut self,
+        destination: UsizeLocation,
+        function: FunctionSymbol,
+        arguments: &[I32Value],
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "normal usize call emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_staged_i32_arguments(arguments, frame)?;
+
+        self.emit_call(function);
+        self.emit_scalar_reloads(frame)?;
+        self.emit_call_result_to_usize_location(destination)
+    }
+
     fn emit_call_bool(
         &mut self,
         destination: BoolLocation,
@@ -579,7 +641,7 @@ impl EntryEmitter {
 
     fn emit_scalar_spills(&mut self, frame: &FrameLayout) -> Result<(), Vec<Diagnostic>> {
         for slot in frame.scalar_spill_slots() {
-            let register = WReg::local(slot.local_index()).ok_or_else(|| {
+            let register = XReg::local(slot.local_index()).ok_or_else(|| {
                 vec![Diagnostic::error(
                     "E9004",
                     format!(
@@ -588,7 +650,7 @@ impl EntryEmitter {
                     ),
                 )]
             })?;
-            self.encoder.emit_str_w_sp(register, slot.offset());
+            self.encoder.emit_str_x_sp(register, slot.offset());
         }
 
         Ok(())
@@ -596,7 +658,7 @@ impl EntryEmitter {
 
     fn emit_scalar_reloads(&mut self, frame: &FrameLayout) -> Result<(), Vec<Diagnostic>> {
         for slot in frame.scalar_spill_slots() {
-            let register = WReg::local(slot.local_index()).ok_or_else(|| {
+            let register = XReg::local(slot.local_index()).ok_or_else(|| {
                 vec![Diagnostic::error(
                     "E9004",
                     format!(
@@ -605,7 +667,7 @@ impl EntryEmitter {
                     ),
                 )]
             })?;
-            self.encoder.emit_ldr_w_sp(register, slot.offset());
+            self.encoder.emit_ldr_x_sp(register, slot.offset());
         }
 
         Ok(())
@@ -618,6 +680,18 @@ impl EntryEmitter {
         let destination = self.i32_location_register(destination)?;
         if destination != WReg::W0 {
             self.encoder.emit_mov_w(destination, WReg::W0);
+        }
+
+        Ok(())
+    }
+
+    fn emit_call_result_to_usize_location(
+        &mut self,
+        destination: UsizeLocation,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let destination = self.usize_location_register(destination)?;
+        if destination != XReg::X0 {
+            self.encoder.emit_mov_x(destination, XReg::X0);
         }
 
         Ok(())
@@ -642,6 +716,15 @@ impl EntryEmitter {
     ) -> Result<(), Vec<Diagnostic>> {
         let destination = self.i32_location_register(destination)?;
         self.emit_i32_value_to_w(value, destination)
+    }
+
+    fn emit_set_usize(
+        &mut self,
+        destination: UsizeLocation,
+        value: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let destination = self.usize_location_register(destination)?;
+        self.emit_usize_value_to_x(value, destination)
     }
 
     fn emit_set_bool(
@@ -838,6 +921,24 @@ impl EntryEmitter {
         Ok(())
     }
 
+    fn emit_usize_value_to_x(
+        &mut self,
+        value: &UsizeValue,
+        destination: XReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match value {
+            UsizeValue::Const(value) => emit_mov_u64_to_x(&mut self.encoder, destination, *value),
+            UsizeValue::Location(location) => {
+                let source = self.usize_location_register(*location)?;
+                if source != destination {
+                    self.encoder.emit_mov_x(destination, source);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     fn emit_bool_value_to_w(
         &mut self,
         value: &BoolValue,
@@ -856,6 +957,7 @@ impl EntryEmitter {
             BoolValue::Not(_)
             | BoolValue::Logical { .. }
             | BoolValue::I32Comparison { .. }
+            | BoolValue::UsizeComparison { .. }
             | BoolValue::BoolComparison { .. } => {
                 let branches_to_false = self.emit_bool_false_branch_placeholders(value)?;
                 emit_mov_i32_to_w(&mut self.encoder, destination, 1);
@@ -888,6 +990,24 @@ impl EntryEmitter {
                 vec![Diagnostic::error(
                     "E9004",
                     format!("codegen supports at most 7 i32 locals, got local {index}"),
+                )]
+            }),
+        }
+    }
+
+    fn usize_location_register(&self, location: UsizeLocation) -> Result<XReg, Vec<Diagnostic>> {
+        match location {
+            UsizeLocation::Return => Ok(XReg::X0),
+            UsizeLocation::Parameter(index) => XReg::argument(index).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "E9003",
+                    format!("codegen supports at most 8 usize parameters, got parameter {index}"),
+                )]
+            }),
+            UsizeLocation::Local(index) => XReg::local(index).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "E9004",
+                    format!("codegen supports at most 7 usize locals, got local {index}"),
                 )]
             }),
         }
@@ -1113,6 +1233,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
         Some(
             Instruction::WriteStaticStderr(_)
             | Instruction::SetI32 { .. }
+            | Instruction::SetUsize { .. }
             | Instruction::SetBool { .. }
             | Instruction::AddI32 { .. }
             | Instruction::SubtractI32 { .. }
@@ -1122,6 +1243,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::ShiftLeftI32 { .. }
             | Instruction::ShiftRightI32 { .. }
             | Instruction::CallI32 { .. }
+            | Instruction::CallUsize { .. }
             | Instruction::CallBool { .. },
         )
         | None => false,
@@ -1147,6 +1269,32 @@ fn branch_condition_for_false_comparison(operator: I32ComparisonOperator) -> Bra
         I32ComparisonOperator::LessEqual => BranchCondition::Gt,
         I32ComparisonOperator::Greater => BranchCondition::Le,
         I32ComparisonOperator::GreaterEqual => BranchCondition::Lt,
+    }
+}
+
+fn branch_condition_for_true_unsigned_comparison(
+    operator: I32ComparisonOperator,
+) -> BranchCondition {
+    match operator {
+        I32ComparisonOperator::Equal => BranchCondition::Eq,
+        I32ComparisonOperator::NotEqual => BranchCondition::Ne,
+        I32ComparisonOperator::Less => BranchCondition::Cc,
+        I32ComparisonOperator::LessEqual => BranchCondition::Ls,
+        I32ComparisonOperator::Greater => BranchCondition::Hi,
+        I32ComparisonOperator::GreaterEqual => BranchCondition::Cs,
+    }
+}
+
+fn branch_condition_for_false_unsigned_comparison(
+    operator: I32ComparisonOperator,
+) -> BranchCondition {
+    match operator {
+        I32ComparisonOperator::Equal => BranchCondition::Ne,
+        I32ComparisonOperator::NotEqual => BranchCondition::Eq,
+        I32ComparisonOperator::Less => BranchCondition::Cs,
+        I32ComparisonOperator::LessEqual => BranchCondition::Hi,
+        I32ComparisonOperator::Greater => BranchCondition::Ls,
+        I32ComparisonOperator::GreaterEqual => BranchCondition::Cc,
     }
 }
 
@@ -1487,14 +1635,14 @@ mod tests {
                 0xff, 0x83, 0x00, 0xd1, // sub sp, sp, #32
                 0xfe, 0x0f, 0x00, 0xf9, // str x30, [sp, #24]
                 0x09, 0x05, 0x80, 0x52, // movz w9, #40
-                0xe9, 0x03, 0x00, 0xb9, // str w9, [sp, #0]
-                0xea, 0x07, 0x00, 0xb9, // str w10, [sp, #4]
+                0xe9, 0x03, 0x00, 0xf9, // str x9, [sp, #0]
+                0xea, 0x07, 0x00, 0xf9, // str x10, [sp, #8]
                 0xf0, 0x03, 0x09, 0x2a, // mov w16, w9
-                0xf0, 0x0b, 0x00, 0xb9, // str w16, [sp, #8]
-                0xe0, 0x0b, 0x40, 0xb9, // ldr w0, [sp, #8]
+                0xf0, 0x13, 0x00, 0xb9, // str w16, [sp, #16]
+                0xe0, 0x13, 0x40, 0xb9, // ldr w0, [sp, #16]
                 0x0c, 0x00, 0x00, 0x94, // bl add_two
-                0xe9, 0x03, 0x40, 0xb9, // ldr w9, [sp, #0]
-                0xea, 0x07, 0x40, 0xb9, // ldr w10, [sp, #4]
+                0xe9, 0x03, 0x40, 0xf9, // ldr x9, [sp, #0]
+                0xea, 0x07, 0x40, 0xf9, // ldr x10, [sp, #8]
                 0xea, 0x03, 0x00, 0x2a, // mov w10, w0
                 0xf0, 0x03, 0x09, 0x2a, // mov w16, w9
                 0xe0, 0x03, 0x0a, 0x2a, // mov w0, w10
@@ -1700,16 +1848,16 @@ mod tests {
                 0x30, 0x00, 0x80, 0x52, // movz w16, #1
                 0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
                 0x01, 0x10, 0x00, 0xd4, // svc #0x80
-                0xff, 0x43, 0x00, 0xd1, // sub sp, sp, #16
-                0xfe, 0x07, 0x00, 0xf9, // str x30, [sp, #8]
+                0xff, 0x83, 0x00, 0xd1, // sub sp, sp, #32
+                0xfe, 0x0f, 0x00, 0xf9, // str x30, [sp, #24]
                 0x90, 0x02, 0x80, 0x52, // movz w16, #20
                 0xf0, 0x03, 0x00, 0xb9, // str w16, [sp, #0]
                 0xd0, 0x02, 0x80, 0x52, // movz w16, #22
-                0xf0, 0x07, 0x00, 0xb9, // str w16, [sp, #4]
+                0xf0, 0x0b, 0x00, 0xb9, // str w16, [sp, #8]
                 0xe0, 0x03, 0x40, 0xb9, // ldr w0, [sp, #0]
-                0xe1, 0x07, 0x40, 0xb9, // ldr w1, [sp, #4]
-                0xfe, 0x07, 0x40, 0xf9, // ldr x30, [sp, #8]
-                0xff, 0x43, 0x00, 0x91, // add sp, sp, #16
+                0xe1, 0x0b, 0x40, 0xb9, // ldr w1, [sp, #8]
+                0xfe, 0x0f, 0x40, 0xf9, // ldr x30, [sp, #24]
+                0xff, 0x83, 0x00, 0x91, // add sp, sp, #32
                 0x01, 0x00, 0x00, 0x14, // b add
                 0xf0, 0x03, 0x00, 0x2a, // mov w16, w0
                 0xe0, 0x03, 0x01, 0x2a, // mov w0, w1

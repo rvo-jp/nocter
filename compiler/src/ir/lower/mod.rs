@@ -75,6 +75,7 @@ pub(crate) fn lower_executable_with_entry(
 fn lower_signature_return_type(ty: &TypeExpr) -> Option<Type> {
     match ty {
         TypeExpr::Reference(reference) if reference.name == "i32" => Some(Type::I32),
+        TypeExpr::Reference(reference) if reference.name == "usize" => Some(Type::Usize),
         TypeExpr::Reference(reference) if reference.name == "bool" => Some(Type::Bool),
         TypeExpr::Reference(reference) if reference.name == "void" => Some(Type::Void),
         TypeExpr::Fallible(fallible) => lower_signature_return_type(&fallible.success)

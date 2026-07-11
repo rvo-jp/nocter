@@ -18,10 +18,11 @@ This file describes implementation state only.
 |---|---:|---:|---:|---:|---:|---|
 | Root `main` / `--entry` selection | yes | yes | yes | yes | yes | Entry function must be in the root file. |
 | `i32` return values | yes | yes | yes | yes | yes | Literal returns and lowerable expressions are supported. |
+| `usize` scalar values | yes | yes | yes | partial | partial | Build supports annotated `usize` locals, non-entry `usize` literal returns, same-file and loaded imported normal calls returning `usize`, and `usize` comparisons in lowerable bool positions. |
 | `void` entry | yes | yes | yes | yes | yes | Empty body and bare `return` are buildable. |
-| `bool` expressions | yes | yes | yes | partial | yes | Build supports literals, locals, `!`, `&&`, `||`, `i32` comparisons, and bool equality/inequality over literal/local operands in lowerable positions. |
+| `bool` expressions | yes | yes | yes | partial | yes | Build supports literals, locals, `!`, `&&`, `||`, `i32` and `usize` comparisons, and bool equality/inequality over literal/local operands in lowerable positions. |
 | String literals and interpolation | yes | yes | partial | partial | partial | Single-line and multi-line string literals are tokenized, parsed, and typed as `str`; interpolation is parsed as an explicit expression and checked as `String!` with limited supported part types. The initial `std/string` and `std/fmt` API boundary exists, but build currently consumes only static string literals as `make_error` messages; interpolated string construction is not lowerable. |
-| Immutable `let` bindings | yes | yes | yes | partial | yes | Build supports lowerable `i32` and `bool` initializers. |
+| Immutable `let` bindings | yes | yes | yes | partial | yes | Build supports lowerable `i32`, annotated `usize`, and `bool` initializers. |
 | `var` and reassignment | yes | yes | partial | no | no | Backend has no general local storage yet. |
 | Same-file function calls | yes | yes | yes | partial | partial | Build supports non-generic `i32` tail calls with up to 8 `i32` arguments, `bool` tail returns, and a narrow scalar normal-call subset. |
 | Imported function calls | yes | yes | yes | partial | partial | Build supports loaded imported non-generic scalar calls through the same narrow scalar call subset as same-file calls. Unloaded imported placeholders still diagnose before backend lowering. |
@@ -50,12 +51,15 @@ Currently buildable:
 - root-file `main` or `--entry <name>`
 - entry return types `i32`, `i32!`, and `void`
 - literal `i32` returns
-- immutable local `let` bindings whose initializer is lowerable as `i32` or `bool`
+- immutable local `let` bindings whose initializer is lowerable as `i32`, annotated `usize`, or `bool`
 - `void` entry with an empty body or bare `return`
 - same-file and loaded imported non-generic tail calls returning `i32` or `bool`
 - same-file and loaded imported non-generic normal calls returning `i32` in `let` initializers
 - same-file and loaded imported non-generic normal calls returning `i32` in `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, evaluated left to right with distinct temporary locals
 - same-file and loaded imported non-generic normal calls returning `i32` as `i32` comparison operands such as `if answer() == 42`, `let matched = left() <= right()`, and `return left() < right()`
+- same-file and loaded imported non-generic normal calls returning `usize` in annotated `let` initializers
+- non-entry functions returning `usize` literal/local/call values in lowerable positions
+- `usize` comparisons over literals, locals, and same-file or loaded imported normal calls in lowerable bool expressions and terminal `if` conditions
 - same-file and loaded imported non-generic normal calls returning `bool` in `let` initializers
 - same-file and loaded imported non-generic normal calls returning `bool` under unary `!` in `let` initializers and bool return expressions
 - same-file and loaded imported non-generic normal calls returning `bool` as atomic bool equality/inequality operands such as `ready() == true` and `left() != right()`
@@ -67,11 +71,11 @@ Currently buildable:
 - nested `i32` tail-call arguments such as `return outer(inner())`
 - up to 8 `i32` parameters for lowered functions and calls
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
-- non-entry functions returning `bool`
+- non-entry functions returning `bool` or `usize`
 - `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; addition, subtraction, and multiplication emit signed-overflow trap checks, and division and remainder emit zero-divisor plus signed-overflow trap checks
 - `i32` shifts with `<<` and `>>` used in lowerable `i32` expressions; shift counts trap when negative or greater than or equal to 32
-- bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` comparisons used in lowerable bool expressions
-- terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over literal/local operands, or `i32` comparison conditions and direct `i32` or non-entry `bool` returns in both branches
+- bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` or `usize` comparisons used in lowerable bool expressions
+- terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over literal/local operands, or `i32`/`usize` comparison conditions and direct `i32` or non-entry `bool` returns in both branches
 - simple fallible entry success
 - simple fallible entry failure through `return make_error("code", <static string message>)`, where the message may be a single-line or multi-line string literal
 
@@ -81,6 +85,7 @@ Currently not buildable even when it may be checkable:
 - general `if`, `while`, `loop`, range `for`, `match`, and pattern conditional `?{}`
 - unloaded imported function placeholders
 - compound bool equality operands with calls such as `(ready() && other()) == true`
+- `usize` parameters, `usize` arithmetic, and `usize` entry return values
 - `str` values beyond static fallible failure messages
 - interpolated string construction
 - optional values

@@ -1,6 +1,6 @@
 use crate::ast::CallExpr;
 use crate::diagnostics::Diagnostic;
-use crate::ir::{BoolLocation, CallTarget, I32Location, Type};
+use crate::ir::{BoolLocation, CallTarget, I32Location, Type, UsizeLocation};
 use crate::resolve::{ResolveOutput, SymbolKind};
 use crate::source::{ByteSpan, SourceId};
 use std::collections::HashMap;
@@ -12,6 +12,7 @@ pub(super) struct LoweringContext<'a> {
     call_resolution: Option<CallResolution<'a>>,
     function_names: FunctionNames,
     i32_parameters: Vec<String>,
+    usize_parameters: Vec<String>,
     locals: Vec<LocalBinding>,
 }
 
@@ -28,6 +29,7 @@ impl<'a> LoweringContext<'a> {
             call_resolution: None,
             function_names: FunctionNames::default(),
             i32_parameters: Vec::new(),
+            usize_parameters: Vec::new(),
             locals: Vec::new(),
         }
     }
@@ -37,6 +39,7 @@ impl<'a> LoweringContext<'a> {
         return_type: Type,
         function_signatures: FunctionSignatures,
         i32_parameters: Vec<String>,
+        usize_parameters: Vec<String>,
     ) -> Self {
         Self {
             function_name,
@@ -45,6 +48,7 @@ impl<'a> LoweringContext<'a> {
             call_resolution: None,
             function_names: FunctionNames::default(),
             i32_parameters,
+            usize_parameters,
             locals: Vec::new(),
         }
     }
@@ -104,6 +108,10 @@ impl<'a> LoweringContext<'a> {
         self.next_local_index().map(I32Location::Local)
     }
 
+    pub(super) fn next_usize_local_location(&self) -> Result<UsizeLocation, Vec<Diagnostic>> {
+        self.next_local_index().map(UsizeLocation::Local)
+    }
+
     pub(super) fn first_temporary_local_index(&self) -> Result<usize, Vec<Diagnostic>> {
         self.next_local_index()
     }
@@ -114,6 +122,10 @@ impl<'a> LoweringContext<'a> {
 
     pub(super) fn define_i32_local(&mut self, name: String) {
         self.define_local(name, LocalKind::I32);
+    }
+
+    pub(super) fn define_usize_local(&mut self, name: String) {
+        self.define_local(name, LocalKind::Usize);
     }
 
     pub(super) fn define_bool_local(&mut self, name: String) {
@@ -130,6 +142,19 @@ impl<'a> LoweringContext<'a> {
                     .iter()
                     .position(|parameter| parameter == name)
                     .map(I32Location::Parameter)
+            })
+    }
+
+    pub(super) fn usize_location(&self, name: &str) -> Option<UsizeLocation> {
+        self.locals
+            .iter()
+            .find(|local| local.name == name && local.kind == LocalKind::Usize)
+            .map(|local| UsizeLocation::Local(local.index))
+            .or_else(|| {
+                self.usize_parameters
+                    .iter()
+                    .position(|parameter| parameter == name)
+                    .map(UsizeLocation::Parameter)
             })
     }
 
@@ -216,6 +241,7 @@ struct LocalBinding {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LocalKind {
     I32,
+    Usize,
     Bool,
 }
 

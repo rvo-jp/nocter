@@ -1,5 +1,8 @@
 use crate::diagnostics::Diagnostic;
-use crate::ir::{BoolLocation, BoolValue, Function, I32Location, I32Value, Instruction};
+use crate::ir::{
+    BoolLocation, BoolValue, Function, I32Location, I32Value, Instruction, UsizeLocation,
+    UsizeValue,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum FunctionFrame {
@@ -70,9 +73,9 @@ impl FrameLayout {
         let mut scalar_spill_slots = Vec::with_capacity(scalar_spill_count);
         for local_index in 0..scalar_spill_count {
             let offset = local_index * SCALAR_SLOT_SIZE;
-            if offset > LDR_STR_W_SP_MAX_BYTE_OFFSET as usize {
+            if offset > LDR_STR_X_SP_MAX_BYTE_OFFSET as usize {
                 return Err(frame_too_large_diagnostic(
-                    "scalar spill slot exceeds ARM64 w-register load/store immediate range",
+                    "scalar spill slot exceeds ARM64 x-register load/store immediate range",
                 ));
             }
             scalar_spill_slots.push(ScalarSpillSlot {
@@ -165,10 +168,13 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         } => {
             function_requires_frame(then_instructions) || function_requires_frame(else_instructions)
         }
-        Instruction::CallI32 { .. } | Instruction::CallBool { .. } => true,
+        Instruction::CallI32 { .. }
+        | Instruction::CallUsize { .. }
+        | Instruction::CallBool { .. } => true,
         Instruction::TailCall { arguments, .. } => !arguments.is_empty(),
         Instruction::WriteStaticStderr(_)
         | Instruction::SetI32 { .. }
+        | Instruction::SetUsize { .. }
         | Instruction::SetBool { .. }
         | Instruction::AddI32 { .. }
         | Instruction::SubtractI32 { .. }
@@ -198,6 +204,7 @@ fn max_call_argument_count(instructions: &[Instruction]) -> usize {
 fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
     match instruction {
         Instruction::CallI32 { arguments, .. }
+        | Instruction::CallUsize { arguments, .. }
         | Instruction::CallBool { arguments, .. }
         | Instruction::TailCall { arguments, .. } => arguments.len(),
         Instruction::If {
@@ -208,6 +215,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
             .max(max_call_argument_count(else_instructions)),
         Instruction::WriteStaticStderr(_)
         | Instruction::SetI32 { .. }
+        | Instruction::SetUsize { .. }
         | Instruction::SetBool { .. }
         | Instruction::AddI32 { .. }
         | Instruction::SubtractI32 { .. }
@@ -243,6 +251,10 @@ fn record_instruction_scalar_locals(
         Instruction::SetI32 { destination, value } => {
             record_i32_location(*destination, highest_local_index);
             record_i32_value(value, highest_local_index);
+        }
+        Instruction::SetUsize { destination, value } => {
+            record_usize_location(*destination, highest_local_index);
+            record_usize_value(value, highest_local_index);
         }
         Instruction::SetBool { destination, value } => {
             record_bool_location(*destination, highest_local_index);
@@ -297,6 +309,16 @@ fn record_instruction_scalar_locals(
                 record_i32_value(argument, highest_local_index);
             }
         }
+        Instruction::CallUsize {
+            destination,
+            arguments,
+            ..
+        } => {
+            record_usize_location(*destination, highest_local_index);
+            for argument in arguments {
+                record_i32_value(argument, highest_local_index);
+            }
+        }
         Instruction::CallBool {
             destination,
             arguments,
@@ -332,6 +354,19 @@ fn record_i32_location(location: I32Location, highest_local_index: &mut Option<u
     }
 }
 
+fn record_usize_value(value: &UsizeValue, highest_local_index: &mut Option<usize>) {
+    match value {
+        UsizeValue::Const(_) => {}
+        UsizeValue::Location(location) => record_usize_location(*location, highest_local_index),
+    }
+}
+
+fn record_usize_location(location: UsizeLocation, highest_local_index: &mut Option<usize>) {
+    if let UsizeLocation::Local(index) = location {
+        record_scalar_local(index, highest_local_index);
+    }
+}
+
 fn record_bool_value(value: &BoolValue, highest_local_index: &mut Option<usize>) {
     match value {
         BoolValue::Const(_) => {}
@@ -344,6 +379,10 @@ fn record_bool_value(value: &BoolValue, highest_local_index: &mut Option<usize>)
         BoolValue::I32Comparison { left, right, .. } => {
             record_i32_value(left, highest_local_index);
             record_i32_value(right, highest_local_index);
+        }
+        BoolValue::UsizeComparison { left, right, .. } => {
+            record_usize_value(left, highest_local_index);
+            record_usize_value(right, highest_local_index);
         }
         BoolValue::BoolComparison { left, right, .. } => {
             record_bool_value(left, highest_local_index);
@@ -375,7 +414,7 @@ fn frame_too_large_diagnostic(reason: &str) -> Vec<Diagnostic> {
 }
 
 const STACK_ALIGNMENT: usize = 16;
-const SCALAR_SLOT_SIZE: usize = 4;
+const SCALAR_SLOT_SIZE: usize = 8;
 const SAVED_X30_SLOT_SIZE: usize = 8;
 const ADD_SUB_SP_IMM_MAX: u32 = 0x00ff_f000;
 const LDR_STR_W_SP_MAX_BYTE_OFFSET: u32 = 0x0fff * 4;
@@ -429,11 +468,11 @@ mod tests {
                 },
                 ScalarSpillSlot {
                     local_index: 1,
-                    offset: 4
+                    offset: 8
                 },
                 ScalarSpillSlot {
                     local_index: 2,
-                    offset: 8
+                    offset: 16
                 },
             ]
         );
@@ -443,22 +482,22 @@ mod tests {
     fn computes_argument_staging_slots_above_scalar_spills() {
         let layout = FrameLayout::for_slot_counts(2, 3).unwrap();
 
-        assert_eq!(layout.frame_size(), 32);
-        assert_eq!(layout.saved_x30_offset(), 24);
+        assert_eq!(layout.frame_size(), 48);
+        assert_eq!(layout.saved_x30_offset(), 40);
         assert_eq!(
             layout.argument_staging_slots(),
             &[
                 ArgumentStagingSlot {
                     argument_index: 0,
-                    offset: 8
+                    offset: 16
                 },
                 ArgumentStagingSlot {
                     argument_index: 1,
-                    offset: 12
+                    offset: 24
                 },
                 ArgumentStagingSlot {
                     argument_index: 2,
-                    offset: 16
+                    offset: 32
                 },
             ]
         );

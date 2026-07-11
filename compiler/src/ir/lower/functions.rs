@@ -1,7 +1,9 @@
 use super::bindings::lower_let_binding;
 use super::context::{FunctionNames, FunctionSignatures, LoweringContext};
 use super::control_flow::{lower_terminal_bool_if_statement, lower_terminal_i32_if_statement};
-use super::expressions::{lower_bool_return_expression, lower_i32_return_expression};
+use super::expressions::{
+    lower_bool_return_expression, lower_i32_return_expression, lower_usize_return_expression,
+};
 use crate::ast::{FunctionDecl, Parameter, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{CallTarget, Function, Instruction, Type};
@@ -33,6 +35,7 @@ pub(super) fn lower_function(
         return_type.clone(),
         function_signatures,
         parameters,
+        Vec::new(),
     )
     .with_call_resolution(root_source, resolved, function_names);
     let instructions = lower_function_body(function, &return_type, &mut context)?;
@@ -80,11 +83,14 @@ fn lower_i32_parameter(
 fn lower_function_return_type(ty: &TypeExpr, name: &str) -> Result<Type, Vec<Diagnostic>> {
     match ty {
         TypeExpr::Reference(reference) if reference.name == "i32" => Ok(Type::I32),
+        TypeExpr::Reference(reference) if reference.name == "usize" => Ok(Type::Usize),
         TypeExpr::Reference(reference) if reference.name == "bool" => Ok(Type::Bool),
         TypeExpr::Reference(reference) if reference.name == "void" => Ok(Type::Void),
         _ => Err(vec![Diagnostic::error(
             "E8007",
-            format!("IR v0 can only lower function `{name}` return type `i32`, `bool`, or `void`"),
+            format!(
+                "IR v0 can only lower function `{name}` return type `i32`, `usize`, `bool`, or `void`"
+            ),
         )]),
     }
 }
@@ -110,6 +116,9 @@ fn lower_function_body(
         Stmt::Return(statement) => {
             let return_instructions = match (return_type, &statement.expression) {
                 (Type::I32, Some(expression)) => lower_i32_return_expression(expression, context),
+                (Type::Usize, Some(expression)) => {
+                    lower_usize_return_expression(expression, context)
+                }
                 (Type::Bool, Some(expression)) => {
                     lower_bool_return_expression(expression, context, "E8007")
                 }
@@ -125,6 +134,13 @@ fn lower_function_body(
                     "E8007",
                     format!(
                         "IR v0 cannot lower bare returns from i32 function `{}`",
+                        function.name
+                    ),
+                )]),
+                (Type::Usize, None) => Err(vec![Diagnostic::error(
+                    "E8007",
+                    format!(
+                        "IR v0 cannot lower bare returns from usize function `{}`",
                         function.name
                     ),
                 )]),

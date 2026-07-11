@@ -45,6 +45,10 @@ pub(crate) enum Instruction {
         destination: I32Location,
         value: I32Value,
     },
+    SetUsize {
+        destination: UsizeLocation,
+        value: UsizeValue,
+    },
     SetBool {
         destination: BoolLocation,
         value: BoolValue,
@@ -91,6 +95,12 @@ pub(crate) enum Instruction {
         arguments: Vec<I32Value>,
     },
     #[allow(dead_code)]
+    CallUsize {
+        destination: UsizeLocation,
+        target: CallTarget,
+        arguments: Vec<I32Value>,
+    },
+    #[allow(dead_code)]
     CallBool {
         destination: BoolLocation,
         target: CallTarget,
@@ -122,6 +132,19 @@ pub(crate) enum I32Value {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum UsizeLocation {
+    Return,
+    Parameter(usize),
+    Local(usize),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum UsizeValue {
+    Const(u64),
+    Location(UsizeLocation),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BoolLocation {
     Return,
     Local(usize),
@@ -141,6 +164,11 @@ pub(crate) enum BoolValue {
         operator: I32ComparisonOperator,
         left: I32Value,
         right: I32Value,
+    },
+    UsizeComparison {
+        operator: I32ComparisonOperator,
+        left: UsizeValue,
+        right: UsizeValue,
     },
     BoolComparison {
         operator: BoolComparisonOperator,
@@ -174,6 +202,7 @@ pub(crate) enum BoolComparisonOperator {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Type {
     I32,
+    Usize,
     Bool,
     Void,
     Fallible(Box<Type>),
@@ -183,7 +212,7 @@ impl Type {
     pub(crate) fn success_type(&self) -> &Type {
         match self {
             Self::Fallible(success) => success,
-            Self::I32 | Self::Bool | Self::Void => self,
+            Self::I32 | Self::Usize | Self::Bool | Self::Void => self,
         }
     }
 }

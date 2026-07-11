@@ -281,6 +281,75 @@ func second(a: i32, b: i32): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_usize_condition_exit_code() {
+    let project = TempProject::new("cli-run-usize-condition");
+    let source = project.write_source(
+        "usize_condition.nct",
+        r#"func main(): i32 {
+    let value: usize = size()
+    if value >= 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+
+func size(): usize {
+    return 42
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_imported_usize_condition_exit_code() {
+    let project = TempProject::new("cli-run-imported-usize-condition");
+    project.write_nocter_home_file(
+        "std/sizes.nct",
+        r#"pub func size(): usize {
+    return 42
+}
+"#,
+    );
+    let source = project.write_source(
+        "imported_usize_condition.nct",
+        r#"from std/sizes import size
+
+func main(): i32 {
+    let value: usize = size()
+    if value == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_reordered_i32_tail_call_exit_code() {
     let project = TempProject::new("cli-run-reordered-tail-call");
     let source = project.write_source(

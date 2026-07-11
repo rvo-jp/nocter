@@ -14,6 +14,7 @@ fn collect_reachable_call_targets(
     for instruction in instructions {
         match instruction {
             Instruction::CallI32 { target, .. }
+            | Instruction::CallUsize { target, .. }
             | Instruction::CallBool { target, .. }
             | Instruction::TailCall { target, .. } => {
                 targets.push_back(target.clone());
@@ -28,6 +29,7 @@ fn collect_reachable_call_targets(
             }
             Instruction::WriteStaticStderr(_)
             | Instruction::SetI32 { .. }
+            | Instruction::SetUsize { .. }
             | Instruction::SetBool { .. }
             | Instruction::AddI32 { .. }
             | Instruction::SubtractI32 { .. }

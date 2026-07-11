@@ -19,11 +19,15 @@ Adopted user decisions:
 Recommended next implementation order:
 
 1. Design the interpolation allocator source and exact lowering shape around explicit `std/string` construction plus `std/fmt.append_*` calls.
-2. Lower interpolated strings only after the remaining backend prerequisites exist: aggregate `String` storage, mutable local mutation through `&+String`, and fallible propagation from append calls. Loaded imported scalar calls are now buildable.
+2. Lower interpolated strings only after the remaining backend prerequisites exist: `usize` parameter/call-argument support where the explicit APIs require it, aggregate `String` storage, mutable local mutation through `&+String`, and fallible propagation from append calls. Loaded imported scalar calls and `usize` locals/returns/comparisons are now buildable.
 3. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
+- Current checkpoint: add backend usize scalar foundation
+  - adds IR and ARM64 lowering for annotated `usize` locals, non-entry `usize` returns, same-file and loaded imported normal calls returning `usize`, and `usize` comparisons in lowerable bool/terminal-if positions
+  - widens framed scalar spill slots to 8 bytes so `i32`/`bool` and `usize` locals share the same conservative spill/reload path
+  - adds CLI build/run coverage for same-file and imported `usize` call conditions
 - Current checkpoint: cover imported scalar build variants
   - adds `nocter build` coverage for loaded imported alias calls, imported bool conditions, and imported nested arguments
   - verifies each generated executable returns the expected status code
@@ -282,9 +286,20 @@ Do not stage, revert, or modify unrelated files unless the user explicitly asks.
 
 Current uncommitted compiler work:
 
-- None expected after committing `Cover imported scalar build variants`.
+- None expected after committing `Add backend usize scalar foundation`.
 
 ## Verification Already Run
+
+For the backend `usize` scalar foundation, from `compiler/`:
+
+```sh
+cargo check --quiet
+cargo test --quiet usize -- --nocapture
+cargo test --quiet imported_usize -- --nocapture
+cargo test --quiet --lib
+cargo test --quiet
+./scripts/verify.sh
+```
 
 For imported scalar alias/bool/nested coverage, from `compiler/`:
 

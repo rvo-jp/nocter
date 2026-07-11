@@ -1,12 +1,12 @@
 use super::context::LoweringContext;
-use super::literals::lower_i32_literal;
+use super::literals::{lower_i32_literal, lower_usize_literal};
 use crate::ast::{
     BinaryExpr, BinaryOperator, CallExpr, Expr, InterpolatedStringPart, UnaryExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, CallTarget,
-    I32ComparisonOperator, I32Location, I32Value, Instruction, Type,
+    I32ComparisonOperator, I32Location, I32Value, Instruction, Type, UsizeLocation, UsizeValue,
 };
 
 pub(super) fn lower_i32_expression(
@@ -34,6 +34,24 @@ pub(super) fn lower_i32_expression_to_location(
         }
         _ => lower_i32_value(expression, context)
             .map(|value| vec![Instruction::SetI32 { destination, value }]),
+    }
+}
+
+pub(super) fn lower_usize_expression_to_location(
+    expression: &Expr,
+    destination: UsizeLocation,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(call) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            lower_usize_normal_call(call, destination, context, &mut temporaries)
+        }
+        Expr::Group(group) => {
+            lower_usize_expression_to_location(&group.expression, destination, context)
+        }
+        _ => lower_usize_value(expression, context)
+            .map(|value| vec![Instruction::SetUsize { destination, value }]),
     }
 }
 
@@ -105,6 +123,29 @@ fn lower_i32_expression_to_value(
     }
 }
 
+fn lower_usize_expression_to_value(
+    expression: &Expr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredUsizeValue, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(call) => {
+            let temporary = temporaries.next_usize()?;
+            Ok(LoweredUsizeValue {
+                instructions: lower_usize_normal_call(call, temporary, context, temporaries)?,
+                value: UsizeValue::Location(temporary),
+            })
+        }
+        Expr::Group(group) => {
+            lower_usize_expression_to_value(&group.expression, context, temporaries)
+        }
+        _ => Ok(LoweredUsizeValue {
+            instructions: Vec::new(),
+            value: lower_usize_value(expression, context)?,
+        }),
+    }
+}
+
 fn i32_binary_instruction(
     operator: BinaryOperator,
     destination: I32Location,
@@ -156,6 +197,11 @@ struct LoweredI32Value {
     value: I32Value,
 }
 
+struct LoweredUsizeValue {
+    instructions: Vec<Instruction>,
+    value: UsizeValue,
+}
+
 struct TemporaryAllocator {
     next_index: usize,
 }
@@ -178,6 +224,21 @@ impl TemporaryAllocator {
         }
 
         let location = I32Location::Local(self.next_index);
+        self.next_index += 1;
+        Ok(location)
+    }
+
+    fn next_usize(&mut self) -> Result<UsizeLocation, Vec<Diagnostic>> {
+        if self.next_index >= MAX_TEMPORARY_SCALAR_LOCALS {
+            return Err(vec![Diagnostic::error(
+                "E8008",
+                format!(
+                    "IR v0 can only lower up to {MAX_TEMPORARY_SCALAR_LOCALS} local scalar bindings"
+                ),
+            )]);
+        }
+
+        let location = UsizeLocation::Local(self.next_index);
         self.next_index += 1;
         Ok(location)
     }
@@ -209,6 +270,22 @@ pub(super) fn lower_i32_return_expression(
         Expr::Group(group) => lower_i32_return_expression(&group.expression, context),
         _ => {
             let mut instructions = lower_i32_expression(expression, context)?;
+            instructions.push(Instruction::Return);
+            Ok(instructions)
+        }
+    }
+}
+
+pub(super) fn lower_usize_return_expression(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(call) => lower_direct_tail_call(call, context),
+        Expr::Group(group) => lower_usize_return_expression(&group.expression, context),
+        _ => {
+            let mut instructions =
+                lower_usize_expression_to_location(expression, UsizeLocation::Return, context)?;
             instructions.push(Instruction::Return);
             Ok(instructions)
         }
@@ -556,6 +633,14 @@ fn lower_bool_expression_to_value_with_temporaries(
                 temporaries,
             )
         }
+        Expr::Binary(binary) if usize_comparison_contains_call(binary, context) => {
+            lower_usize_comparison_to_value_with_temporaries(
+                binary,
+                context,
+                diagnostic_code,
+                temporaries,
+            )
+        }
         Expr::Call(call) => {
             let temporary = temporaries.next_bool()?;
             Ok(LoweredBoolValue {
@@ -693,6 +778,33 @@ fn i32_comparison_contains_call(binary: &BinaryExpr, context: &LoweringContext) 
         && expressions_are_lowerable_i32_values_with_calls(&binary.left, &binary.right, context)
 }
 
+fn lower_usize_comparison_to_value_with_temporaries(
+    binary: &BinaryExpr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
+    let operator = i32_comparison_operator(binary.operator, diagnostic_code)?;
+    let left = lower_usize_expression_to_value(&binary.left, context, temporaries)?;
+    let right = lower_usize_expression_to_value(&binary.right, context, temporaries)?;
+
+    let mut instructions = left.instructions;
+    instructions.extend(right.instructions);
+    Ok(LoweredBoolValue {
+        instructions,
+        value: BoolValue::UsizeComparison {
+            operator,
+            left: left.value,
+            right: right.value,
+        },
+    })
+}
+
+fn usize_comparison_contains_call(binary: &BinaryExpr, context: &LoweringContext) -> bool {
+    is_i32_comparison_operator(binary.operator)
+        && expressions_are_lowerable_usize_values_with_calls(&binary.left, &binary.right, context)
+}
+
 fn lower_i32_normal_call(
     call: &CallExpr,
     destination: I32Location,
@@ -715,6 +827,35 @@ fn lower_i32_normal_call(
     }
 
     instructions.push(Instruction::CallI32 {
+        destination,
+        target,
+        arguments,
+    });
+    Ok(instructions)
+}
+
+fn lower_usize_normal_call(
+    call: &CallExpr,
+    destination: UsizeLocation,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Err(unsupported_non_tail_call_diagnostic());
+    };
+
+    let target = context.call_target(call, &identifier.name);
+    validate_usize_normal_call_return_type(&target, &identifier.name, context)?;
+
+    let mut instructions = Vec::new();
+    let mut arguments = Vec::new();
+    for argument in &call.arguments {
+        let argument = lower_i32_expression_to_value(argument, context, temporaries)?;
+        instructions.extend(argument.instructions);
+        arguments.push(argument.value);
+    }
+
+    instructions.push(Instruction::CallUsize {
         destination,
         target,
         arguments,
@@ -800,6 +941,28 @@ fn validate_normal_call_return_type(
     )])
 }
 
+fn validate_usize_normal_call_return_type(
+    target: &CallTarget,
+    callee_name: &str,
+    context: &LoweringContext,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(callee_return_type) = context.call_return_type(target) else {
+        return Ok(());
+    };
+
+    if callee_return_type == &Type::Usize {
+        return Ok(());
+    }
+
+    Err(vec![Diagnostic::error(
+        "E8006",
+        format!(
+            "IR v0 can only lower normal calls returning `usize`, got function `{callee_name}` returning `{}`",
+            describe_type(callee_return_type),
+        ),
+    )])
+}
+
 fn validate_bool_normal_call_return_type(
     target: &CallTarget,
     callee_name: &str,
@@ -849,10 +1012,12 @@ fn validate_tail_call_return_type(
 fn describe_type(ty: &Type) -> &'static str {
     match ty {
         Type::I32 => "i32",
+        Type::Usize => "usize",
         Type::Bool => "bool",
         Type::Void => "void",
         Type::Fallible(success) => match success.as_ref() {
             Type::I32 => "i32!",
+            Type::Usize => "usize!",
             Type::Bool => "bool!",
             Type::Void => "void!",
             Type::Fallible(_) => "fallible",
@@ -872,6 +1037,21 @@ pub(super) fn lower_i32_value(
             .ok_or_else(unsupported_i32_expression_diagnostic),
         Expr::Group(group) => lower_i32_value(&group.expression, context),
         _ => lower_i32_literal(expression).map(I32Value::Const),
+    }
+}
+
+pub(super) fn lower_usize_value(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Result<UsizeValue, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(_) => Err(unsupported_non_tail_call_diagnostic()),
+        Expr::Identifier(identifier) => context
+            .usize_location(&identifier.name)
+            .map(UsizeValue::Location)
+            .ok_or_else(unsupported_usize_expression_diagnostic),
+        Expr::Group(group) => lower_usize_value(&group.expression, context),
+        _ => lower_usize_literal(expression).map(UsizeValue::Const),
     }
 }
 
@@ -981,6 +1161,9 @@ fn lower_bool_binary_value(
                 diagnostic_code,
             ))
         }
+        _ if expressions_are_lowerable_usize_values(&binary.left, &binary.right, context) => {
+            lower_usize_comparison_condition(binary, context, diagnostic_code)
+        }
         _ => lower_i32_comparison_condition(binary, context, diagnostic_code),
     }
 }
@@ -1065,6 +1248,20 @@ fn lower_i32_comparison_condition(
     })
 }
 
+fn lower_usize_comparison_condition(
+    binary: &BinaryExpr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<BoolValue, Vec<Diagnostic>> {
+    let operator = i32_comparison_operator(binary.operator, diagnostic_code)?;
+
+    Ok(BoolValue::UsizeComparison {
+        operator,
+        left: lower_usize_value(&binary.left, context)?,
+        right: lower_usize_value(&binary.right, context)?,
+    })
+}
+
 fn i32_comparison_operator(
     operator: BinaryOperator,
     diagnostic_code: &'static str,
@@ -1120,6 +1317,17 @@ fn expression_is_lowerable_comparison_binding(
         return true;
     }
 
+    if is_i32_comparison_operator(binary.operator)
+        && (expressions_are_lowerable_usize_values(&binary.left, &binary.right, context)
+            || expressions_are_lowerable_usize_values_with_calls(
+                &binary.left,
+                &binary.right,
+                context,
+            ))
+    {
+        return true;
+    }
+
     matches!(
         binary.operator,
         BinaryOperator::Equal | BinaryOperator::NotEqual
@@ -1148,6 +1356,52 @@ fn expressions_are_lowerable_i32_values_with_calls(
     expression_is_lowerable_i32_expression_with_calls(left, context)
         && expression_is_lowerable_i32_expression_with_calls(right, context)
         && (expression_contains_call(left) || expression_contains_call(right))
+}
+
+fn expressions_are_lowerable_usize_values(
+    left: &Expr,
+    right: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    expression_is_lowerable_usize_value(left, context)
+        && expression_is_lowerable_usize_value(right, context)
+}
+
+fn expressions_are_lowerable_usize_values_with_calls(
+    left: &Expr,
+    right: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    expression_is_lowerable_usize_expression_with_calls(left, context)
+        && expression_is_lowerable_usize_expression_with_calls(right, context)
+        && (expression_contains_call(left) || expression_contains_call(right))
+}
+
+fn expression_is_lowerable_usize_expression_with_calls(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    match expression {
+        Expr::Call(call) => {
+            let Expr::Identifier(identifier) = call.callee.as_ref() else {
+                return false;
+            };
+            context.call_return_type(&context.call_target(call, &identifier.name))
+                == Some(&Type::Usize)
+        }
+        Expr::Group(group) => {
+            expression_is_lowerable_usize_expression_with_calls(&group.expression, context)
+        }
+        _ => expression_is_lowerable_usize_value(expression, context),
+    }
+}
+
+fn expression_is_lowerable_usize_value(expression: &Expr, context: &LoweringContext) -> bool {
+    match expression {
+        Expr::Identifier(identifier) => context.usize_location(&identifier.name).is_some(),
+        Expr::Group(group) => expression_is_lowerable_usize_value(&group.expression, context),
+        _ => lower_usize_literal(expression).is_ok(),
+    }
 }
 
 fn expression_is_lowerable_i32_expression_with_calls(
@@ -1263,6 +1517,13 @@ fn unsupported_i32_expression_diagnostic() -> Vec<Diagnostic> {
     )]
 }
 
+fn unsupported_usize_expression_diagnostic() -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8006",
+        "IR v0 can only lower usize literals, parameters, and direct tail calls",
+    )]
+}
+
 fn unsupported_non_tail_call_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8006",
@@ -1282,6 +1543,6 @@ fn unsupported_bool_comparison_operand_diagnostic(
 fn unsupported_bool_expression_diagnostic(diagnostic_code: &'static str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         diagnostic_code,
-        "IR v0 can only lower bool literals, bool locals, bool operators, i32 comparisons, and bool equality/inequality over bool literals or bool locals",
+        "IR v0 can only lower bool literals, bool locals, bool operators, i32 or usize comparisons, and bool equality/inequality over bool literals or bool locals",
     )]
 }

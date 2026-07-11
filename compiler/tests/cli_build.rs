@@ -197,6 +197,65 @@ func answer(): i32 {
 }
 
 #[test]
+fn build_command_lowers_usize_let_and_condition() {
+    let project = TempProject::new("cli-build-usize-let-condition");
+    let source = project.write_source(
+        "usize_condition.nct",
+        r#"func main(): i32 {
+    let value: usize = size()
+    if value >= 42 {
+        return 0
+    } else {
+        return 1
+    }
+}
+
+func size(): usize {
+    return 42
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_lowers_imported_usize_call_condition() {
+    let project = TempProject::new("cli-build-imported-usize-condition");
+    project.write_nocter_home_file(
+        "std/sizes.nct",
+        r#"pub func size(): usize {
+    return 42
+}
+"#,
+    );
+    let source = project.write_source(
+        "imported_usize_condition.nct",
+        r#"from std/sizes import size
+
+func main(): i32 {
+    let value: usize = size()
+    if value == 42 {
+        return 0
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_terminal_if() {
     let project = TempProject::new("cli-build-terminal-if");
     let source = project.write_source(
