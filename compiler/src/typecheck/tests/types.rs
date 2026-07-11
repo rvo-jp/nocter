@@ -111,6 +111,52 @@ fn diagnoses_unsized_conversion_target_without_conversion_cascade() {
 }
 
 #[test]
+fn diagnoses_unsized_str_optional_payload() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func maybe_title(): str? {
+    return none
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0380");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("function `maybe_title` return type")
+    );
+    assert!(diagnostics[0].message.contains("str?"));
+}
+
+#[test]
+fn diagnoses_unsized_array_fallible_success_payload() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func read_bytes(): [u8]! {
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0380");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("function `read_bytes` return type")
+    );
+    assert!(diagnostics[0].message.contains("[u8]!"));
+    assert!(diagnostics[0].help.as_ref().unwrap().contains("&[u8]"));
+}
+
+#[test]
 fn diagnoses_unsized_array_struct_field() {
     let diagnostics = check_text(
         r#"struct Packet {
@@ -153,6 +199,54 @@ func main(): i32 {
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].code, "E0380");
     assert!(diagnostics[0].message.contains("Text"));
+}
+
+#[test]
+fn diagnoses_unsized_generic_argument_under_borrow() {
+    let diagnostics = check_text(
+        r#"struct Config {
+    values: &Vec<str>
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0380");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("struct field `Config.values`")
+    );
+    assert!(diagnostics[0].message.contains("&Vec<str>"));
+    assert!(diagnostics[0].help.as_ref().unwrap().contains("&str"));
+}
+
+#[test]
+fn diagnoses_unsized_generic_argument_under_slice() {
+    let diagnostics = check_text(
+        r#"struct Config {
+    values: &[Vec<str>]
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0380");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("struct field `Config.values`")
+    );
+    assert!(diagnostics[0].message.contains("&[Vec<str>]"));
+    assert!(diagnostics[0].help.as_ref().unwrap().contains("&str"));
 }
 
 #[test]

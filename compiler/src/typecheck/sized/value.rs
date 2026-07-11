@@ -48,6 +48,13 @@ fn first_unsized_generic_argument(
             .iter()
             .find_map(|argument| first_unsized_value_part(argument, resolved, self_type)),
         TypeExpr::Array(array) => first_unsized_value_part(&array.element, resolved, self_type),
+        TypeExpr::Pointer(pointer) => {
+            first_unsized_generic_argument(&pointer.inner, resolved, self_type)
+        }
+        TypeExpr::Borrow(borrow) => {
+            first_unsized_generic_argument(&borrow.inner, resolved, self_type)
+        }
+        TypeExpr::View(view) => first_unsized_generic_argument(&view.element, resolved, self_type),
         TypeExpr::Optional(optional) => {
             first_unsized_value_part(&optional.inner, resolved, self_type)
         }
@@ -55,8 +62,6 @@ fn first_unsized_generic_argument(
             first_unsized_value_part(&fallible.success, resolved, self_type)
                 .or_else(|| first_unsized_value_part(&fallible.error, resolved, self_type))
         }
-        TypeExpr::Reference(_) | TypeExpr::Pointer(_) | TypeExpr::Borrow(_) | TypeExpr::View(_) => {
-            None
-        }
+        TypeExpr::Reference(_) => None,
     }
 }

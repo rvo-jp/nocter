@@ -492,7 +492,7 @@ The closed compiler primitive set stays small. For the initial `arm64-darwin` ta
 Target overlays may define narrower typed wrappers around those primitives:
 
 ```nct
-pub(nocter) func write_fd(fd: FileDescriptor, bytes: [u8]): void! {
+pub(nocter) func write_fd(fd: FileDescriptor, bytes: &[u8]): void! {
     ...
 }
 ```
@@ -500,7 +500,7 @@ pub(nocter) func write_fd(fd: FileDescriptor, bytes: [u8]): void! {
 User-facing modules then expose safe ordinary APIs:
 
 ```nct
-pub method (file: &+File).write(bytes: [u8]): void! {
+pub method (file: &+File).write(bytes: &[u8]): void! {
     ...
 }
 ```

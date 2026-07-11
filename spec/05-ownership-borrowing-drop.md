@@ -522,7 +522,7 @@ func greeting(): &str {
 ```
 
 ```nct
-func first_byte(bytes: [u8]): u8? {
+func first_byte(bytes: &[u8]): u8? {
     if bytes.len() == 0 {
         return none
     }
