@@ -1363,15 +1363,23 @@ fn run_command_reports_fallible_entry_failure() {
     project.write_nocter_home_file(
         "std/error.nct",
         r#"pub type ErrorCode = str
-pub primitive new_error(code: ErrorCode, message: str): error
+pub type Error = error
+
+pub(nocter) primitive new_error(code: str, message: str): error
+
+impl Error {
+    pub func new(code: ErrorCode, message: str): Error {
+        return new_error(code, message)
+    }
+}
 "#,
     );
     let source = project.write_source(
         "fail.nct",
-        r#"from std/error import new_error as fail
+        r#"from std/error import Error
 
 func main(): i32! {
-    return fail("app.failed", "failed")
+    return Error.new("app.failed", "failed")
 }
 "#,
     );
@@ -1390,15 +1398,23 @@ fn run_command_reports_fallible_entry_failure_multi_line_message() {
     project.write_nocter_home_file(
         "std/error.nct",
         r#"pub type ErrorCode = str
-pub primitive new_error(code: ErrorCode, message: str): error
+pub type Error = error
+
+pub(nocter) primitive new_error(code: str, message: str): error
+
+impl Error {
+    pub func new(code: ErrorCode, message: str): Error {
+        return new_error(code, message)
+    }
+}
 "#,
     );
     let source = project.write_source(
         "fail.nct",
-        r#"from std/error import new_error as fail
+        r#"from std/error import Error
 
 func main(): i32! {
-    return fail("app.failed", """
+    return Error.new("app.failed", """
         failed
         later
         """)

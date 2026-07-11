@@ -6,6 +6,7 @@ use super::signatures::{
     alias_type_symbol, associated_function_signatures, duplicate_inherent_member_name_diagnostics,
     enum_type_symbol, function_signature, impl_target_type_name, method_signatures,
     nominal_type_symbol, primitive_signature, struct_type_symbol,
+    type_symbol_accepts_inherent_impl,
 };
 use super::{Resolver, SymbolKind, TypeSymbol, TypeSymbolKind};
 use crate::ast::{AstFile, FunctionDecl, ImplDecl, Item, PrimitiveDecl};
@@ -142,10 +143,7 @@ impl Resolver<'_> {
                 return;
             };
 
-            if !matches!(
-                type_symbol.kind,
-                TypeSymbolKind::Struct | TypeSymbolKind::Enum
-            ) {
+            if !type_symbol_accepts_inherent_impl(type_symbol) {
                 return;
             }
 

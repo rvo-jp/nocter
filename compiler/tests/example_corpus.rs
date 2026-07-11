@@ -394,7 +394,13 @@ impl TempProject {
             concat!(
                 "pub type ErrorCode = str\n",
                 "pub type Error = error\n",
-                "pub(nocter) primitive make_error(code: ErrorCode, message: str): error\n",
+                "pub(nocter) primitive new_error(code: str, message: str): error\n",
+                "\n",
+                "impl Error {\n",
+                "    pub func new(code: ErrorCode, message: str): Error {\n",
+                "        return new_error(code, message)\n",
+                "    }\n",
+                "}\n",
             ),
         )
         .unwrap();
@@ -415,10 +421,8 @@ impl TempProject {
         fs::write(
             home.join("targets/arm64-darwin/std/process.nct"),
             concat!(
-                "pub(nocter) primitive env_impl(name: str): (str?)!\n",
-                "\n",
                 "pub func env(name: str): (str?)! {\n",
-                "    return env_impl(name)?\n",
+                "    return none\n",
                 "}\n",
             ),
         )

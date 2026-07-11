@@ -1,6 +1,7 @@
 use super::model::{Type, TypeEnvironment};
 use crate::ast::TypeExpr;
 use crate::resolve::ResolveOutput;
+use std::collections::HashSet;
 
 pub(super) fn type_expr_to_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Type {
     type_expr_to_type_with_self_type(ty, resolved, None)
@@ -19,6 +20,15 @@ pub(super) fn type_expr_to_type_with_self_type(
     resolved: &ResolveOutput,
     self_type: Option<&Type>,
 ) -> Type {
+    type_expr_to_type_inner(ty, resolved, self_type, &mut HashSet::new())
+}
+
+fn type_expr_to_type_inner(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    self_type: Option<&Type>,
+    resolving_aliases: &mut HashSet<String>,
+) -> Type {
     match ty {
         TypeExpr::Reference(reference) => match reference.name.as_str() {
             "Self" => self_type
@@ -34,7 +44,23 @@ pub(super) fn type_expr_to_type_with_self_type(
             "never" => Type::Never,
             name => resolved
                 .type_symbol_by_name(name)
-                .map(|symbol| Type::Named(symbol.canonical_name.clone()))
+                .map(|symbol| {
+                    let Some(alias_target) = &symbol.alias_target else {
+                        return Type::Named(symbol.canonical_name.clone());
+                    };
+                    let canonical_name = symbol.canonical_name.clone();
+                    if !resolving_aliases.insert(canonical_name.clone()) {
+                        return Type::Named(canonical_name);
+                    }
+                    let resolved_alias = type_expr_to_type_inner(
+                        alias_target,
+                        resolved,
+                        self_type,
+                        resolving_aliases,
+                    );
+                    resolving_aliases.remove(&canonical_name);
+                    resolved_alias
+                })
                 .unwrap_or_else(|| Type::Unresolved(name.to_string())),
         },
         TypeExpr::Generic(_) | TypeExpr::Pointer(_) | TypeExpr::Borrow(_) => {
@@ -44,31 +70,40 @@ pub(super) fn type_expr_to_type_with_self_type(
         }
         TypeExpr::View(ty) => Type::View {
             is_readwrite: ty.is_readwrite,
-            element: Box::new(type_expr_to_type_with_self_type(
+            element: Box::new(type_expr_to_type_inner(
                 &ty.element,
                 resolved,
                 self_type,
+                resolving_aliases,
             )),
         },
         TypeExpr::Array(ty) => Type::Array {
-            element: Box::new(type_expr_to_type_with_self_type(
+            element: Box::new(type_expr_to_type_inner(
                 &ty.element,
                 resolved,
                 self_type,
+                resolving_aliases,
             )),
             length: ty.length.value.clone(),
         },
-        TypeExpr::Optional(ty) => Type::Optional(Box::new(type_expr_to_type_with_self_type(
-            &ty.inner, resolved, self_type,
+        TypeExpr::Optional(ty) => Type::Optional(Box::new(type_expr_to_type_inner(
+            &ty.inner,
+            resolved,
+            self_type,
+            resolving_aliases,
         ))),
         TypeExpr::Fallible(ty) => Type::Fallible {
-            success: Box::new(type_expr_to_type_with_self_type(
+            success: Box::new(type_expr_to_type_inner(
                 &ty.success,
                 resolved,
                 self_type,
+                resolving_aliases,
             )),
-            error: Box::new(type_expr_to_type_with_self_type(
-                &ty.error, resolved, self_type,
+            error: Box::new(type_expr_to_type_inner(
+                &ty.error,
+                resolved,
+                self_type,
+                resolving_aliases,
             )),
         },
     }

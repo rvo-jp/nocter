@@ -1559,10 +1559,10 @@ fn lowers_fallible_entry_returning_i32_literal() {
 #[test]
 fn lowers_fallible_entry_return_static_error_constructor() {
     let ir = lower_text_with_std_error(
-        r#"from std/error import new_error as fail
+        r#"from std/error import Error
 
 func main(): i32! {
-    return fail("app.failed", "failed")
+    return Error.new("app.failed", "failed")
 }
 "#,
     );
@@ -1585,10 +1585,10 @@ func main(): i32! {
 #[test]
 fn lowers_fallible_entry_return_static_error_constructor_with_multi_line_message() {
     let ir = lower_text_with_std_error(
-        r#"from std/error import new_error as fail
+        r#"from std/error import Error
 
 func main(): i32! {
-    return fail("app.failed", """
+    return Error.new("app.failed", """
         failed
         later
         """)
@@ -1609,10 +1609,10 @@ func main(): i32! {
 #[test]
 fn lowers_fallible_entry_return_error_message_without_duplicate_newline() {
     let ir = lower_text_with_std_error(
-        r#"from std/error import new_error as fail
+        r#"from std/error import Error
 
 func main(): i32! {
-    return fail("app.failed", "failed\n")
+    return Error.new("app.failed", "failed\n")
 }
 "#,
     );
@@ -1630,10 +1630,10 @@ func main(): i32! {
 #[test]
 fn reports_unsupported_fail_payload() {
     let diagnostics = lower_text_diagnostics_with_std_error(
-        r#"from std/error import new_error as fail
+        r#"from std/error import Error
 
 func main(): i32! {
-    return fail("app.failed", dynamic())
+    return Error.new("app.failed", dynamic())
 }
 
 func dynamic(): str {
@@ -3579,7 +3579,15 @@ fn std_error_file() -> (&'static str, &'static str) {
     (
         "std/error.nct",
         r#"pub type ErrorCode = str
-pub primitive new_error(code: ErrorCode, message: str): error
+pub type Error = error
+
+pub(nocter) primitive new_error(code: str, message: str): error
+
+impl Error {
+    pub func new(code: ErrorCode, message: str): Error {
+        return new_error(code, message)
+    }
+}
 "#,
     )
 }

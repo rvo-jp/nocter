@@ -14,10 +14,14 @@ use crate::diagnostics::Diagnostic;
 use crate::resolve::{ImportSource, ImportSourceMap};
 use crate::source::{SourceId, SourceMap};
 use crate::target::DEFAULT_TARGET;
+use crate::target::primitive::validate_primitive_declaration;
 use std::collections::{HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 
-use diagnostics::{import_source_diagnostic, primitive_outside_nocter_home_diagnostic};
+use diagnostics::{
+    import_source_diagnostic, primitive_outside_nocter_home_diagnostic,
+    primitive_registry_diagnostic,
+};
 use imports::{
     active_nocter_home, canonicalize_existing, import_access_for_source, import_paths,
     resolve_import_path,
@@ -158,23 +162,25 @@ fn validate_primitive_declarations(
     options: &FrontendOptions,
     resolved_nocter_home: &mut Option<Result<PathBuf, String>>,
 ) -> Vec<Diagnostic> {
-    let primitive_spans = ast
+    let primitives = ast
         .items
         .iter()
         .filter_map(|item| match item {
-            Item::Primitive(primitive) => Some(primitive.span),
+            Item::Primitive(primitive) => Some(primitive),
             _ => None,
         })
         .collect::<Vec<_>>();
 
-    if primitive_spans.is_empty() {
+    if primitives.is_empty() {
         return Vec::new();
     }
 
     let Ok(home) = active_nocter_home(options, resolved_nocter_home) else {
-        return primitive_spans
+        return primitives
             .into_iter()
-            .map(|span| primitive_outside_nocter_home_diagnostic(sources, span, &options.target))
+            .map(|primitive| {
+                primitive_outside_nocter_home_diagnostic(sources, primitive.span, &options.target)
+            })
             .collect();
     };
 
@@ -183,26 +189,60 @@ fn validate_primitive_declarations(
         .and_then(|file| file.absolute_path())
         .map(|path| canonicalize_existing(path))
     else {
-        return primitive_spans
+        return primitives
             .into_iter()
-            .map(|span| primitive_outside_nocter_home_diagnostic(sources, span, &options.target))
+            .map(|primitive| {
+                primitive_outside_nocter_home_diagnostic(sources, primitive.span, &options.target)
+            })
             .collect();
     };
 
-    if primitive_source_is_allowed(&source_path, &home, &options.target) {
-        return Vec::new();
-    }
+    let Some(module_path) = primitive_module_path(&source_path, &home, &options.target) else {
+        return primitives
+            .into_iter()
+            .map(|primitive| {
+                primitive_outside_nocter_home_diagnostic(sources, primitive.span, &options.target)
+            })
+            .collect();
+    };
 
-    primitive_spans
+    primitives
         .into_iter()
-        .map(|span| primitive_outside_nocter_home_diagnostic(sources, span, &options.target))
+        .filter_map(|primitive| {
+            validate_primitive_declaration(&module_path, &options.target, primitive)
+                .err()
+                .map(|error| {
+                    primitive_registry_diagnostic(
+                        sources,
+                        primitive.span,
+                        error.message,
+                        error.help,
+                    )
+                })
+        })
         .collect()
 }
 
-fn primitive_source_is_allowed(source_path: &Path, home: &Path, target: &str) -> bool {
+fn primitive_module_path(source_path: &Path, home: &Path, target: &str) -> Option<String> {
     let home = canonicalize_existing(home);
     let common_std = home.join("std");
     let target_std = home.join("targets").join(target).join("std");
 
-    source_path.starts_with(common_std) || source_path.starts_with(target_std)
+    source_path
+        .strip_prefix(target_std)
+        .ok()
+        .or_else(|| source_path.strip_prefix(common_std).ok())
+        .and_then(std_relative_module_path)
+}
+
+fn std_relative_module_path(relative_path: &Path) -> Option<String> {
+    let mut segments = relative_path
+        .iter()
+        .map(|segment| segment.to_str().map(str::to_string))
+        .collect::<Option<Vec<_>>>()?;
+    let file = segments.last_mut()?;
+    let stem = file.strip_suffix(".nct")?;
+    *file = stem.to_string();
+
+    Some(format!("std/{}", segments.join("/")))
 }

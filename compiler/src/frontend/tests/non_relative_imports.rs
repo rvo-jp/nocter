@@ -83,7 +83,13 @@ func main(): i32 {
         r#"pub type ErrorCode = str
 pub type Error = error
 
-pub(nocter) primitive make_error(code: ErrorCode, message: str): error
+pub(nocter) primitive new_error(code: str, message: str): error
+
+impl Error {
+    pub func new(code: ErrorCode, message: str): Error {
+        return new_error(code, message)
+    }
+}
 "#,
     )
     .unwrap();
@@ -109,7 +115,7 @@ pub struct String {
     .unwrap();
     fs::write(
         home.join("std/fmt.nct"),
-        r#"from std/error import make_error
+        r#"from std/error import Error
 from std/string import String
 
 pub func append_i32(out: &+String, value: i32): void! {
@@ -117,7 +123,7 @@ pub func append_i32(out: &+String, value: i32): void! {
 }
 
 pub func unsupported(): error {
-    return make_error("std.fmt.unsupported", "value cannot be formatted")
+    return Error.new("std.fmt.unsupported", "value cannot be formatted")
 }
 "#,
     )
@@ -291,6 +297,30 @@ func main(): i32 {
     assert_eq!(diagnostics[0].code, "E0414");
     assert!(
         diagnostics[0].message.contains("primitive"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn check_rejects_unregistered_primitive_declaration_inside_nocter_home_std() {
+    let root = make_temp_project("unregistered-primitive");
+    let home = make_nocter_home(&root);
+    fs::write(
+        home.join("std/error.nct"),
+        r#"primitive not_registered(): error
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(home.join("std/error.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].code, "E0415");
+    assert!(
+        diagnostics[0].message.contains("not_registered"),
         "{diagnostics:?}"
     );
 }

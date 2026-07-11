@@ -7,7 +7,7 @@ use super::signatures::{
     function_signature, nominal_type_symbol, primitive_signature, struct_type_symbol,
 };
 use super::{ImportAccess, ImportedSymbol, Resolver, SymbolKind, TypeSymbol, TypeSymbolKind};
-use crate::ast::{AstFile, FromImportItem, ImportItem, Item, UseItem, Visibility};
+use crate::ast::{AstFile, FromImportItem, ImportItem, Item, TypeAliasDecl, UseItem, Visibility};
 use crate::source::ByteSpan;
 
 impl Resolver<'_> {
@@ -142,11 +142,9 @@ impl Resolver<'_> {
                     );
                 }
                 Item::TypeAlias(alias) => {
-                    let imported = type_importable_symbol(
-                        alias.span,
-                        alias.visibility,
-                        alias_type_symbol(alias.name.clone(), alias.target.clone()),
-                    );
+                    let symbol = type_alias_symbol_with_impl_members(ast, alias);
+                    let imported = type_importable_symbol(alias.span, alias.visibility, symbol);
+                    let imported = filter_importable_symbol_for_access(imported, access);
                     let imported = qualify_imported_symbol(imported, module_path, &alias.name);
                     self.collect_public_export(
                         alias.name.clone(),
@@ -322,11 +320,10 @@ fn direct_importable_symbol(ast: &AstFile, name: &str) -> Option<ImportableSymbo
             visibility: primitive.visibility,
             kind: SymbolKind::Function(primitive_signature(primitive)),
         }),
-        Item::TypeAlias(alias) if alias.name == name => Some(type_importable_symbol(
-            alias.span,
-            alias.visibility,
-            alias_type_symbol(alias.name.clone(), alias.target.clone()),
-        )),
+        Item::TypeAlias(alias) if alias.name == name => {
+            let symbol = type_alias_symbol_with_impl_members(ast, alias);
+            Some(type_importable_symbol(alias.span, alias.visibility, symbol))
+        }
         Item::Struct(struct_) if struct_.name == name => {
             let mut symbol = struct_type_symbol(struct_.name.clone(), &struct_.fields);
             attach_inherent_impl_members_to_symbol(&mut symbol, ast, &struct_.name);
@@ -348,6 +345,12 @@ fn direct_importable_symbol(ast: &AstFile, name: &str) -> Option<ImportableSymbo
         )),
         _ => None,
     })
+}
+
+fn type_alias_symbol_with_impl_members(ast: &AstFile, alias: &TypeAliasDecl) -> TypeSymbol {
+    let mut symbol = alias_type_symbol(alias.name.clone(), alias.target.clone());
+    attach_inherent_impl_members_to_symbol(&mut symbol, ast, &alias.name);
+    symbol
 }
 
 fn type_importable_symbol(

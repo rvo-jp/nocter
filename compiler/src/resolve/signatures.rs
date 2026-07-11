@@ -17,7 +17,7 @@ pub(super) fn attach_inherent_impl_members_to_symbol(
     ast: &AstFile,
     type_name: &str,
 ) {
-    if !matches!(symbol.kind, TypeSymbolKind::Struct | TypeSymbolKind::Enum) {
+    if !type_symbol_accepts_inherent_impl(symbol) {
         return;
     }
 
@@ -34,6 +34,22 @@ pub(super) fn attach_inherent_impl_members_to_symbol(
             .extend(associated_function_signatures(impl_));
         symbol.methods.extend(method_signatures(impl_));
     }
+}
+
+pub(super) fn type_symbol_accepts_inherent_impl(symbol: &TypeSymbol) -> bool {
+    matches!(symbol.kind, TypeSymbolKind::Struct | TypeSymbolKind::Enum)
+        || type_symbol_is_error_alias(symbol)
+}
+
+fn type_symbol_is_error_alias(symbol: &TypeSymbol) -> bool {
+    if !matches!(symbol.kind, TypeSymbolKind::Alias) {
+        return false;
+    }
+
+    matches!(
+        symbol.alias_target.as_ref(),
+        Some(TypeExpr::Reference(reference)) if reference.name == "error"
+    )
 }
 
 pub(super) fn associated_function_signatures(

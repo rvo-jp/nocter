@@ -139,11 +139,9 @@ fn diagnoses_error_success_type_in_fallible_function() {
     return 0
 }
 
-func run(): error! {
-    return make_error()
+func run(error: error): error! {
+    return error
 }
-
-primitive make_error(): error
 "#,
     );
 

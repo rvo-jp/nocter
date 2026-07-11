@@ -112,11 +112,24 @@ impl Error {
 }
 ```
 
+Initial standard-library implementation boundary:
+
+```nct
+pub(nocter) primitive new_error(code: str, message: str): error
+
+impl Error {
+    pub func new(code: ErrorCode, message: str): Error {
+        return new_error(code, message)
+    }
+}
+```
+
 Rules:
 
 - `error` is the compiler built-in payload type.
 - `Error` and `ErrorCode` are ordinary standard-library names.
 - The compiler does not know the name `ErrorCode`. `ErrorCode` is an open string classification alias, and `Error.new` converts that string value into the built-in `error` payload's primitive code representation.
+- `new_error` is a `pub(nocter)` standard-library implementation primitive in `std/error`; user project modules must call `Error.new` instead of importing it.
 - Standard-library codes use dotted names such as `"std.io.not_found"`, `"std.mem.out_of_memory"`, `"std.string.capacity_overflow"`, `"std.fmt.unsupported"`, and `"std.process.invalid_encoding"`. User and package code may use their own prefixes, such as `"app.config.missing_key"`.
 - Standard-library modules should fail with `error`, not domain-specific fallible error type parameters.
 - Domain-specific detail is represented by `ErrorCode`, `message`, and, where needed later, additional standard-library helper APIs.
@@ -404,13 +417,22 @@ pub(nocter) primitive name(params): ReturnType
 Initial primitive files:
 
 ```text
+~/.nocter/std/error.nct
 ~/.nocter/std/ptr.nct
 ~/.nocter/targets/arm64-darwin/std/os/macos.nct
 ```
 
+`std/error.nct` contains the target-independent built-in error payload construction primitive used by `Error.new`.
+
 `std/ptr.nct` contains target-independent core pointer primitive declarations. These are required for raw pointer address conversion and borrow-to-pointer conversion.
 
 `std/os/macos.nct` is target-specific for `arm64-darwin` and is loaded from the `arm64-darwin` target overlay. Future OS targets should add separate target overlays instead of changing the language-level primitive syntax.
+
+Initial core error primitive set:
+
+```nct
+pub(nocter) primitive new_error(code: str, message: str): error
+```
 
 Initial core pointer primitive set:
 

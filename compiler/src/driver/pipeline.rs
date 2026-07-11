@@ -405,17 +405,25 @@ func add(a: i32, b: i32): i32 {
         fs::write(
             nocter_home.join("std/error.nct"),
             r#"pub type ErrorCode = str
-pub primitive new_error(code: ErrorCode, message: str): error
+pub type Error = error
+
+pub(nocter) primitive new_error(code: str, message: str): error
+
+impl Error {
+    pub func new(code: ErrorCode, message: str): Error {
+        return new_error(code, message)
+    }
+}
 "#,
         )
         .unwrap();
         let source = root.join("fallible_fail.nct");
         fs::write(
             &source,
-            r#"from std/error import new_error as fail
+            r#"from std/error import Error
 
 func main(): i32! {
-    return fail("app.failed", "failed")
+    return Error.new("app.failed", "failed")
 }
 "#,
         )

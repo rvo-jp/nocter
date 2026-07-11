@@ -104,3 +104,15 @@ pub(super) fn primitive_outside_nocter_home_diagnostic(
     ));
     diagnostic
 }
+
+pub(super) fn primitive_registry_diagnostic(
+    sources: &SourceMap,
+    span: ByteSpan,
+    message: impl Into<String>,
+    help: Option<String>,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error("E0415", message);
+    diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+    diagnostic.help = help;
+    diagnostic
+}
