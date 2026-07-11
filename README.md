@@ -91,13 +91,6 @@ compiler/
     src/
         コンパイラ本体の実装
 
-tools/
-    vscode-nocter/
-        VS Code 拡張機能
-        TextMate grammar
-        language configuration
-        LSP client
-
 .nocter/
     nocter
     VERSION
@@ -1870,19 +1863,18 @@ v0 では、source-level compiler error に `E0000` 形式の error code を付�
 
 VS Code 拡張機能は初期段階では TextMate grammar による構文ハイライト、comment toggle、bracket matching、auto closing などの薄い表示層として扱います。言語仕様の正は `spec/13-lexical-grammar.md` と各仕様章に置き、拡張機能側で独自の名前解決、型推論、borrow check、import 解決を実装しません。hover などの semantic editor feature は、compiler / LSP が `///`、`/** ... */`、`//!`、`/*! ... */` の doc comment を解析して提供します。
 
-配置方針:
+VS Code 拡張機能は別リポジトリ `vscode-nocter` で開発します。想定する拡張機能側の構成は次の通りです。
 
 ```text
-tools/
-    vscode-nocter/
-        package.json
-        language-configuration.json
-        syntaxes/
-            nocter.tmLanguage.json
-        snippets/
-            nocter.code-snippets
-        src/
-            extension.ts
+vscode-nocter/
+    package.json
+    language-configuration.json
+    syntaxes/
+        nocter.tmLanguage.json
+    snippets/
+        nocter.code-snippets
+    src/
+        extension.ts
 ```
 
 `nocter check app.nct --format json` は machine-readable diagnostics を出し、VS Code Problems や AI tool が利用できます。formatter は `nocter fmt` を正とし、VS Code 拡張機能や AI tool は独自 formatter を持たず compiler toolchain を呼び出します。JSON stdout は `schema: "nocter.diagnostics"`、`version: 1`、`ok`、`command`、`target`、`root`、`root_absolute_path`、`diagnostics` を持つ単一 object です。各 span は人間向けの `file` と、editor / LSP 用の canonical absolute path である `absolute_path` を持ちます。`nocter lsp` v0 は initialize、shutdown、full-document sync、publishDiagnostics を提供します。VS Code 拡張機能はこれを LSP client として使い、hover / definition / completion は LSP 側の後続機能として追加します。

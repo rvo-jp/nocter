@@ -11,19 +11,18 @@ The compiler is the source of truth for language semantics. Editor extensions ma
 
 AI-assisted coding tools follow the same rule. They may generate, format, inspect, and repair Nocter code, but they should use compiler-owned formatting, diagnostics, token dumps, and AST dumps instead of maintaining a separate interpretation of the language.
 
-Initial VS Code extension layout:
+The VS Code extension is developed outside the compiler/spec repository, in a separate `vscode-nocter` repository. Expected extension-side layout:
 
 ```text
-tools/
-    vscode-nocter/
-        package.json
-        language-configuration.json
-        syntaxes/
-            nocter.tmLanguage.json
-        snippets/
-            nocter.code-snippets
-        src/
-            extension.ts
+vscode-nocter/
+    package.json
+    language-configuration.json
+    syntaxes/
+        nocter.tmLanguage.json
+    snippets/
+        nocter.code-snippets
+    src/
+        extension.ts
 ```
 
 ## TextMate Stage
