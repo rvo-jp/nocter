@@ -1,0 +1,411 @@
+use super::super::context::LoweringContext;
+use super::super::literals::{lower_i32_literal, lower_usize_literal};
+use crate::ast::{BinaryExpr, BinaryOperator, Expr, InterpolatedStringPart, UnaryOperator};
+use crate::ir::Type;
+
+pub(super) fn short_circuit_bool_expression_contains_call(binary: &BinaryExpr) -> bool {
+    matches!(
+        binary.operator,
+        BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
+    ) && (expression_contains_call(&binary.left) || expression_contains_call(&binary.right))
+}
+
+pub(in crate::ir::lower) fn expression_contains_call(expression: &Expr) -> bool {
+    match expression {
+        Expr::Call(_) => true,
+        Expr::Unary(unary) => expression_contains_call(&unary.operand),
+        Expr::Binary(binary) => {
+            expression_contains_call(&binary.left) || expression_contains_call(&binary.right)
+        }
+        Expr::Group(group) => expression_contains_call(&group.expression),
+        Expr::TypeConversion(conversion) => expression_contains_call(&conversion.expression),
+        Expr::Propagate(propagation) => expression_contains_call(&propagation.expression),
+        Expr::Force(force) => expression_contains_call(&force.expression),
+        Expr::Catch(catch) => expression_contains_call(&catch.expression),
+        Expr::Member(member) => expression_contains_call(&member.object),
+        Expr::Index(index) => {
+            expression_contains_call(&index.object) || expression_contains_call(&index.index)
+        }
+        Expr::ArrayLiteral(array) => array.elements.iter().any(expression_contains_call),
+        Expr::StructLiteral(struct_literal) => struct_literal
+            .fields
+            .iter()
+            .any(|field| expression_contains_call(&field.value)),
+        Expr::InterpolatedString(interpolated) => interpolated.parts.iter().any(|part| {
+            matches!(
+                part,
+                InterpolatedStringPart::Expression(part)
+                    if expression_contains_call(&part.expression)
+            )
+        }),
+        Expr::OptionalDefault(optional_default) => {
+            expression_contains_call(&optional_default.value)
+                || expression_contains_call(&optional_default.default)
+        }
+        Expr::PatternConditional(pattern_conditional) => {
+            expression_contains_call(&pattern_conditional.target)
+                || pattern_conditional
+                    .arms
+                    .iter()
+                    .any(|arm| expression_contains_call(&arm.expression))
+                || expression_contains_call(&pattern_conditional.fallback)
+        }
+        _ => false,
+    }
+}
+
+pub(in crate::ir::lower) fn expression_contains_interpolated_string(expression: &Expr) -> bool {
+    match expression {
+        Expr::InterpolatedString(_) => true,
+        Expr::Unary(unary) => expression_contains_interpolated_string(&unary.operand),
+        Expr::Binary(binary) => {
+            expression_contains_interpolated_string(&binary.left)
+                || expression_contains_interpolated_string(&binary.right)
+        }
+        Expr::Group(group) => expression_contains_interpolated_string(&group.expression),
+        Expr::TypeConversion(conversion) => {
+            expression_contains_interpolated_string(&conversion.expression)
+        }
+        Expr::Propagate(propagation) => {
+            expression_contains_interpolated_string(&propagation.expression)
+        }
+        Expr::Force(force) => expression_contains_interpolated_string(&force.expression),
+        Expr::Catch(catch) => expression_contains_interpolated_string(&catch.expression),
+        Expr::Call(call) => {
+            expression_contains_interpolated_string(&call.callee)
+                || call
+                    .arguments
+                    .iter()
+                    .any(expression_contains_interpolated_string)
+        }
+        Expr::Member(member) => expression_contains_interpolated_string(&member.object),
+        Expr::Index(index) => {
+            expression_contains_interpolated_string(&index.object)
+                || expression_contains_interpolated_string(&index.index)
+        }
+        Expr::ArrayLiteral(array) => array
+            .elements
+            .iter()
+            .any(expression_contains_interpolated_string),
+        Expr::StructLiteral(struct_literal) => struct_literal
+            .fields
+            .iter()
+            .any(|field| expression_contains_interpolated_string(&field.value)),
+        Expr::OptionalDefault(optional_default) => {
+            expression_contains_interpolated_string(&optional_default.value)
+                || expression_contains_interpolated_string(&optional_default.default)
+        }
+        Expr::PatternConditional(pattern_conditional) => {
+            expression_contains_interpolated_string(&pattern_conditional.target)
+                || pattern_conditional
+                    .arms
+                    .iter()
+                    .any(|arm| expression_contains_interpolated_string(&arm.expression))
+                || expression_contains_interpolated_string(&pattern_conditional.fallback)
+        }
+        _ => false,
+    }
+}
+
+pub(super) fn bool_comparison_contains_call(
+    binary: &BinaryExpr,
+    context: &LoweringContext,
+) -> bool {
+    matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) && expressions_are_lowerable_bool_comparison_operands_with_calls(
+        &binary.left,
+        &binary.right,
+        context,
+    )
+}
+
+pub(super) fn i32_comparison_contains_call(binary: &BinaryExpr, context: &LoweringContext) -> bool {
+    is_i32_comparison_operator(binary.operator)
+        && expressions_are_lowerable_i32_values_with_calls(&binary.left, &binary.right, context)
+}
+
+pub(super) fn usize_comparison_contains_call(
+    binary: &BinaryExpr,
+    context: &LoweringContext,
+) -> bool {
+    is_i32_comparison_operator(binary.operator)
+        && expressions_are_lowerable_usize_values_with_calls(&binary.left, &binary.right, context)
+}
+
+pub(in crate::ir::lower) fn expression_is_lowerable_bool_binding(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    match expression {
+        Expr::BoolLiteral(_) => true,
+        Expr::Identifier(identifier) => context.bool_location(&identifier.name).is_some(),
+        Expr::Unary(unary) => {
+            unary.operator == UnaryOperator::LogicalNot
+                && expression_is_lowerable_bool_binding(&unary.operand, context)
+        }
+        Expr::Binary(binary) => {
+            expression_is_lowerable_comparison_binding(binary, context)
+                || (is_bool_logical_operator(binary.operator)
+                    && expression_is_lowerable_bool_binding(&binary.left, context)
+                    && expression_is_lowerable_bool_binding(&binary.right, context))
+        }
+        Expr::Group(group) => expression_is_lowerable_bool_binding(&group.expression, context),
+        _ => false,
+    }
+}
+
+pub(in crate::ir::lower) fn expression_is_unsupported_bool_comparison_binding(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    match expression {
+        Expr::Binary(binary) => {
+            is_bool_equality_operator(binary.operator)
+                && expressions_are_lowerable_bool_values(&binary.left, &binary.right, context)
+                && !expressions_are_lowerable_bool_comparison_operands(
+                    &binary.left,
+                    &binary.right,
+                    context,
+                )
+        }
+        Expr::Group(group) => {
+            expression_is_unsupported_bool_comparison_binding(&group.expression, context)
+        }
+        _ => false,
+    }
+}
+
+pub(super) fn expressions_are_lowerable_bool_comparison_operands(
+    left: &Expr,
+    right: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    expression_is_lowerable_bool_comparison_operand(left, context)
+        && expression_is_lowerable_bool_comparison_operand(right, context)
+}
+
+pub(super) fn expressions_are_lowerable_bool_values(
+    left: &Expr,
+    right: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    expression_is_lowerable_bool_binding(left, context)
+        && expression_is_lowerable_bool_binding(right, context)
+}
+
+pub(super) fn expressions_are_lowerable_usize_values(
+    left: &Expr,
+    right: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    expression_is_lowerable_usize_value(left, context)
+        && expression_is_lowerable_usize_value(right, context)
+}
+
+pub(super) fn is_i32_binary_operator(operator: BinaryOperator) -> bool {
+    matches!(
+        operator,
+        BinaryOperator::Add
+            | BinaryOperator::Subtract
+            | BinaryOperator::Multiply
+            | BinaryOperator::Divide
+            | BinaryOperator::Remainder
+            | BinaryOperator::ShiftLeft
+            | BinaryOperator::ShiftRight
+    )
+}
+
+fn is_i32_comparison_operator(operator: BinaryOperator) -> bool {
+    matches!(
+        operator,
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterEqual
+    )
+}
+
+fn expression_is_lowerable_comparison_binding(
+    binary: &BinaryExpr,
+    context: &LoweringContext,
+) -> bool {
+    if is_i32_comparison_operator(binary.operator)
+        && (expressions_are_lowerable_i32_values(&binary.left, &binary.right, context)
+            || expressions_are_lowerable_i32_values_with_calls(
+                &binary.left,
+                &binary.right,
+                context,
+            ))
+    {
+        return true;
+    }
+
+    if is_i32_comparison_operator(binary.operator)
+        && (expressions_are_lowerable_usize_values(&binary.left, &binary.right, context)
+            || expressions_are_lowerable_usize_values_with_calls(
+                &binary.left,
+                &binary.right,
+                context,
+            ))
+    {
+        return true;
+    }
+
+    matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) && (expressions_are_lowerable_bool_comparison_operands(&binary.left, &binary.right, context)
+        || expressions_are_lowerable_bool_comparison_operands_with_calls(
+            &binary.left,
+            &binary.right,
+            context,
+        ))
+}
+
+fn expressions_are_lowerable_i32_values(
+    left: &Expr,
+    right: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    expression_is_lowerable_i32_value(left, context)
+        && expression_is_lowerable_i32_value(right, context)
+}
+
+fn expressions_are_lowerable_i32_values_with_calls(
+    left: &Expr,
+    right: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    expression_is_lowerable_i32_expression_with_calls(left, context)
+        && expression_is_lowerable_i32_expression_with_calls(right, context)
+        && (expression_contains_call(left) || expression_contains_call(right))
+}
+
+fn expressions_are_lowerable_usize_values_with_calls(
+    left: &Expr,
+    right: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    expression_is_lowerable_usize_expression_with_calls(left, context)
+        && expression_is_lowerable_usize_expression_with_calls(right, context)
+        && (expression_contains_call(left) || expression_contains_call(right))
+}
+
+fn expression_is_lowerable_usize_expression_with_calls(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    match expression {
+        Expr::Call(call) => {
+            let Expr::Identifier(identifier) = call.callee.as_ref() else {
+                return false;
+            };
+            context.call_return_type(&context.call_target(call, &identifier.name))
+                == Some(&Type::Usize)
+        }
+        Expr::Group(group) => {
+            expression_is_lowerable_usize_expression_with_calls(&group.expression, context)
+        }
+        _ => expression_is_lowerable_usize_value(expression, context),
+    }
+}
+
+fn expression_is_lowerable_usize_value(expression: &Expr, context: &LoweringContext) -> bool {
+    match expression {
+        Expr::Identifier(identifier) => context.usize_location(&identifier.name).is_some(),
+        Expr::Group(group) => expression_is_lowerable_usize_value(&group.expression, context),
+        _ => lower_usize_literal(expression).is_ok(),
+    }
+}
+
+fn expression_is_lowerable_i32_expression_with_calls(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    match expression {
+        Expr::Call(call) => {
+            let Expr::Identifier(identifier) = call.callee.as_ref() else {
+                return false;
+            };
+            context.call_return_type(&context.call_target(call, &identifier.name))
+                == Some(&Type::I32)
+        }
+        Expr::Binary(binary) if is_i32_binary_operator(binary.operator) => {
+            expression_is_lowerable_i32_expression_with_calls(&binary.left, context)
+                && expression_is_lowerable_i32_expression_with_calls(&binary.right, context)
+        }
+        Expr::Group(group) => {
+            expression_is_lowerable_i32_expression_with_calls(&group.expression, context)
+        }
+        _ => expression_is_lowerable_i32_value(expression, context),
+    }
+}
+
+fn expression_is_lowerable_i32_value(expression: &Expr, context: &LoweringContext) -> bool {
+    match expression {
+        Expr::Identifier(identifier) => context.i32_location(&identifier.name).is_some(),
+        Expr::Group(group) => expression_is_lowerable_i32_value(&group.expression, context),
+        _ => lower_i32_literal(expression).is_ok(),
+    }
+}
+
+fn expression_is_lowerable_bool_comparison_operand(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    match expression {
+        Expr::BoolLiteral(_) => true,
+        Expr::Identifier(identifier) => context.bool_location(&identifier.name).is_some(),
+        Expr::Group(group) => {
+            expression_is_lowerable_bool_comparison_operand(&group.expression, context)
+        }
+        _ => false,
+    }
+}
+
+fn expressions_are_lowerable_bool_comparison_operands_with_calls(
+    left: &Expr,
+    right: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    expression_is_lowerable_bool_comparison_operand_or_call(left, context)
+        && expression_is_lowerable_bool_comparison_operand_or_call(right, context)
+        && (expression_contains_call(left) || expression_contains_call(right))
+}
+
+fn expression_is_lowerable_bool_comparison_operand_or_call(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    expression_is_lowerable_bool_comparison_operand(expression, context)
+        || expression_is_direct_bool_returning_call(expression, context)
+}
+
+fn expression_is_direct_bool_returning_call(expression: &Expr, context: &LoweringContext) -> bool {
+    match expression {
+        Expr::Call(call) => {
+            let Expr::Identifier(identifier) = call.callee.as_ref() else {
+                return false;
+            };
+            context.call_return_type(&context.call_target(call, &identifier.name))
+                == Some(&Type::Bool)
+        }
+        Expr::Group(group) => expression_is_direct_bool_returning_call(&group.expression, context),
+        _ => false,
+    }
+}
+
+fn is_bool_logical_operator(operator: BinaryOperator) -> bool {
+    matches!(
+        operator,
+        BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
+    )
+}
+
+fn is_bool_equality_operator(operator: BinaryOperator) -> bool {
+    matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual)
+}
