@@ -1,7 +1,7 @@
 use crate::backend::frame::{FrameLayout, FunctionFrame, plan_function_frame};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{CallTarget, Function, I32Value, Instruction, IrModule, StrValue, Type};
-use crate::target::arm64::{Encoder, MoveWideShift, WReg, XReg};
+use crate::target::arm64::{BranchCondition, Encoder, MoveWideShift, WReg, XReg};
 use std::collections::HashMap;
 
 mod calls;
@@ -58,7 +58,7 @@ impl EntryEmitter {
             )]);
         };
 
-        self.emit_process_entry(entry);
+        self.emit_process_entry(entry)?;
 
         for function in &module.functions {
             self.emit_function(function)?;
@@ -67,12 +67,19 @@ impl EntryEmitter {
         Ok(())
     }
 
-    fn emit_process_entry(&mut self, entry: &Function) {
+    fn emit_process_entry(&mut self, entry: &Function) -> Result<(), Vec<Diagnostic>> {
         self.emit_call(FunctionSymbol::from_function(entry));
-        if matches!(entry.return_type.success_type(), Type::Void) {
+
+        if let Type::Fallible(success_type) = &entry.return_type {
+            self.emit_fallible_process_exit(success_type)?;
+            return Ok(());
+        }
+
+        if matches!(entry.return_type, Type::Void) {
             emit_mov_i32_to_w0(&mut self.encoder, 0);
         }
         emit_darwin_exit_syscall(&mut self.encoder);
+        Ok(())
     }
 
     fn emit_function(&mut self, function: &Function) -> Result<(), Vec<Diagnostic>> {
@@ -98,7 +105,7 @@ impl EntryEmitter {
         };
 
         for instruction in &function.instructions {
-            self.emit_instruction(instruction, frame)?;
+            self.emit_instruction(instruction, frame, &function.return_type)?;
         }
 
         Ok(())
@@ -108,11 +115,9 @@ impl EntryEmitter {
         &mut self,
         instruction: &Instruction,
         frame: Option<&FrameLayout>,
+        return_type: &Type,
     ) -> Result<(), Vec<Diagnostic>> {
         match instruction {
-            Instruction::WriteStaticStderr(bytes) => {
-                self.emit_write_static_stderr(bytes);
-            }
             Instruction::WriteStr { fd, text } => {
                 self.emit_write_str(fd, text, frame)?;
             }
@@ -307,6 +312,13 @@ impl EntryEmitter {
             Instruction::CallVoid { target, arguments } => {
                 self.emit_call_void(FunctionSymbol::from_call_target(target), arguments, frame)?;
             }
+            Instruction::CallFallibleVoid { target, arguments } => {
+                self.emit_call_fallible_void(
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    frame,
+                )?;
+            }
             Instruction::TailCall { target, arguments } => {
                 self.emit_tail_call(FunctionSymbol::from_call_target(target), arguments, frame)?;
             }
@@ -318,7 +330,22 @@ impl EntryEmitter {
                 then_instructions,
                 else_instructions,
             } => {
-                self.emit_if(condition, then_instructions, else_instructions, frame)?;
+                self.emit_if(
+                    condition,
+                    then_instructions,
+                    else_instructions,
+                    frame,
+                    return_type,
+                )?;
+            }
+            Instruction::PropagateFailure => {
+                self.emit_propagate_failure(frame)?;
+            }
+            Instruction::ReturnFallibleSuccess => {
+                self.emit_return_fallible_success(return_type, frame)?;
+            }
+            Instruction::ReturnFallibleFailure { code, message } => {
+                self.emit_return_fallible_failure(code, message, frame)?;
             }
             Instruction::Return => {
                 self.emit_return(frame);
@@ -326,6 +353,123 @@ impl EntryEmitter {
         }
 
         Ok(())
+    }
+
+    fn emit_fallible_process_exit(&mut self, success_type: &Type) -> Result<(), Vec<Diagnostic>> {
+        self.encoder.emit_cmp_x_zero(XReg::X0);
+        let failure_branch = self.emit_cond_branch_placeholder(BranchCondition::Ne);
+
+        match success_type {
+            Type::I32 => {
+                self.encoder.emit_mov_w(WReg::W0, WReg::W1);
+            }
+            Type::Void => {
+                emit_mov_i32_to_w0(&mut self.encoder, 0);
+            }
+            _ => {
+                return Err(vec![Diagnostic::error(
+                    "E9002",
+                    "codegen only supports `i32!` and `void!` executable entry returns",
+                )]);
+            }
+        }
+        emit_darwin_exit_syscall(&mut self.encoder);
+
+        self.patch_branch_placeholder_to_current(failure_branch, "fallible entry failure target")?;
+        self.emit_fallible_entry_failure_report();
+        emit_mov_i32_to_w0(&mut self.encoder, 1);
+        emit_darwin_exit_syscall(&mut self.encoder);
+        Ok(())
+    }
+
+    fn emit_fallible_entry_failure_report(&mut self) {
+        self.encoder.emit_sub_sp_imm(FALLIBLE_REPORT_FRAME_SIZE);
+        self.encoder.emit_str_x_sp(XReg::X1, 0);
+        self.encoder.emit_str_x_sp(XReg::X2, 8);
+        self.encoder.emit_str_x_sp(XReg::X3, 16);
+        self.encoder.emit_str_x_sp(XReg::X4, 24);
+
+        self.emit_stack_str_to_stderr(0, 8);
+        self.emit_write_static_stderr(b": ");
+        self.emit_stack_str_to_stderr(16, 24);
+        self.emit_write_static_stderr(b"\n");
+
+        self.encoder.emit_add_sp_imm(FALLIBLE_REPORT_FRAME_SIZE);
+    }
+
+    fn emit_stack_str_to_stderr(&mut self, ptr_offset: u32, len_offset: u32) {
+        emit_mov_u64_to_x(&mut self.encoder, XReg::X0, STDERR_FILENO);
+        self.encoder.emit_ldr_x_sp(XReg::X1, ptr_offset);
+        self.encoder.emit_ldr_x_sp(XReg::X2, len_offset);
+        emit_darwin_write_syscall(&mut self.encoder);
+    }
+
+    fn emit_return_fallible_success(
+        &mut self,
+        return_type: &Type,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Type::Fallible(success_type) = return_type else {
+            return Err(vec![Diagnostic::error(
+                "E9002",
+                "`ReturnFallibleSuccess` requires a fallible function return type",
+            )]);
+        };
+
+        self.emit_fallible_success_payload(success_type)?;
+        emit_mov_i32_to_w0(&mut self.encoder, 0);
+        self.emit_return(frame);
+        Ok(())
+    }
+
+    fn emit_fallible_success_payload(
+        &mut self,
+        success_type: &Type,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match success_type {
+            Type::I32 | Type::U8 | Type::Bool => {
+                self.encoder.emit_mov_w(WReg::W1, WReg::W0);
+            }
+            Type::Usize => {
+                self.encoder.emit_mov_x(XReg::X1, XReg::X0);
+            }
+            Type::Str | Type::Slice { .. } => {
+                self.encoder.emit_mov_x(XReg::X2, XReg::X1);
+                self.encoder.emit_mov_x(XReg::X1, XReg::X0);
+            }
+            Type::Void => {}
+            Type::Never | Type::Fallible(_) => {
+                return Err(vec![Diagnostic::error(
+                    "E9002",
+                    "invalid fallible success payload type for codegen",
+                )]);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn emit_return_fallible_failure(
+        &mut self,
+        code: &StrValue,
+        message: &StrValue,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_str_value_to_x_pair(code, XReg::X1, XReg::X2)?;
+        self.emit_str_value_to_x_pair(message, XReg::X3, XReg::X4)?;
+        emit_mov_i32_to_w0(&mut self.encoder, 1);
+        self.emit_return(frame);
+        Ok(())
+    }
+
+    fn emit_propagate_failure(
+        &mut self,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.encoder.emit_cmp_x_zero(XReg::X0);
+        let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+        self.emit_return(frame);
+        self.patch_branch_placeholder_to_current(success_branch, "fallible success target")
     }
 
     fn emit_prologue(&mut self, frame: &FrameLayout) {
@@ -378,6 +522,24 @@ impl EntryEmitter {
         self.encoder.emit_mov_x(XReg::X2, XReg::X4);
         emit_darwin_write_syscall(&mut self.encoder);
         self.emit_scalar_reloads(frame)?;
+        let failure_branch = self.emit_cond_branch_placeholder(BranchCondition::Cs);
+        emit_mov_i32_to_w0(&mut self.encoder, 0);
+        let end_branch = self.emit_branch_placeholder();
+
+        self.patch_branch_placeholder_to_current(failure_branch, "write syscall failure target")?;
+        self.emit_str_value_to_x_pair(
+            &StrValue::StaticBytes(WRITE_FAILURE_CODE.to_vec()),
+            XReg::X1,
+            XReg::X2,
+        )?;
+        self.emit_str_value_to_x_pair(
+            &StrValue::StaticBytes(WRITE_FAILURE_MESSAGE.to_vec()),
+            XReg::X3,
+            XReg::X4,
+        )?;
+        emit_mov_i32_to_w0(&mut self.encoder, 1);
+
+        self.patch_branch_placeholder_to_current(end_branch, "write syscall end target")?;
         Ok(())
     }
 
@@ -564,6 +726,9 @@ fn align_usize(value: usize, alignment: usize) -> usize {
 }
 
 const STDERR_FILENO: u64 = 2;
+const FALLIBLE_REPORT_FRAME_SIZE: u32 = 32;
+const WRITE_FAILURE_CODE: &[u8] = b"std.io.write_failed";
+const WRITE_FAILURE_MESSAGE: &[u8] = b"write failed";
 const ADR_MIN_BYTE_OFFSET: i64 = -(1 << 20);
 const ADR_MAX_BYTE_OFFSET: i64 = (1 << 20) - 1;
 const BRANCH_MIN_BYTE_OFFSET: i64 = -(1 << 27);
@@ -715,19 +880,18 @@ mod tests {
             name: "main".to_string(),
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::Fallible(Box::new(Type::I32)),
-            instructions: vec![set_return_i32(7), Instruction::Return],
+            instructions: vec![set_return_i32(7), Instruction::ReturnFallibleSuccess],
         }]);
 
         let code = generate_arm64_darwin_entry(&module, "main").unwrap();
 
+        assert_eq!(code.read_only_data, b": \n");
         assert_eq!(
-            code.text,
+            code.text[code.text.len() - 16..],
             vec![
-                0x04, 0x00, 0x00, 0x94, // bl main
-                0x30, 0x00, 0x80, 0x52, // movz w16, #1
-                0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
-                0x01, 0x10, 0x00, 0xd4, // svc #0x80
                 0xe0, 0x00, 0x80, 0x52, // movz w0, #7
+                0xe1, 0x03, 0x00, 0x2a, // mov w1, w0
+                0x00, 0x00, 0x80, 0x52, // movz w0, #0
                 0xc0, 0x03, 0x5f, 0xd6, // ret
             ]
         );
@@ -2097,69 +2261,6 @@ mod tests {
             branch_condition_for_true_comparison(I32ComparisonOperator::GreaterEqual),
             BranchCondition::Ge
         );
-    }
-
-    #[test]
-    fn generates_static_stderr_write_with_data_reference() {
-        let module = IrModule::new(vec![Function {
-            name: "main".to_string(),
-            target: crate::ir::CallTarget::same_file("main".to_string()),
-            return_type: Type::I32,
-            instructions: vec![
-                Instruction::WriteStaticStderr(b"error\n".to_vec()),
-                set_return_i32(1),
-                Instruction::Return,
-            ],
-        }]);
-
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
-
-        assert_eq!(code.read_only_data, b"error\n");
-        assert_eq!(
-            code.text,
-            vec![
-                0x04, 0x00, 0x00, 0x94, // bl main
-                0x30, 0x00, 0x80, 0x52, // movz w16, #1
-                0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
-                0x01, 0x10, 0x00, 0xd4, // svc #0x80
-                0x40, 0x00, 0x80, 0xd2, // movz x0, #2
-                0xe1, 0x00, 0x00, 0x10, // adr x1, #28
-                0xc2, 0x00, 0x80, 0xd2, // movz x2, #6
-                0x90, 0x00, 0x80, 0x52, // movz w16, #4
-                0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
-                0x01, 0x10, 0x00, 0xd4, // svc #0x80
-                0x20, 0x00, 0x80, 0x52, // movz w0, #1
-                0xc0, 0x03, 0x5f, 0xd6, // ret
-            ]
-        );
-    }
-
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    #[test]
-    fn generated_static_stderr_write_runs() {
-        let module = IrModule::new(vec![Function {
-            name: "main".to_string(),
-            target: crate::ir::CallTarget::same_file("main".to_string()),
-            return_type: Type::I32,
-            instructions: vec![
-                Instruction::WriteStaticStderr(b"failed\n".to_vec()),
-                set_return_i32(3),
-                Instruction::Return,
-            ],
-        }]);
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
-        let image = crate::target::macho::write_arm64_macos_executable_with_data(
-            &code.text,
-            &code.read_only_data,
-        );
-        let executable = write_temp_executable("codegen-stderr-runs", &image.bytes);
-
-        let output = std::process::Command::new(&executable).output().unwrap();
-        let _ = std::fs::remove_file(executable);
-
-        assert_eq!(output.status.code(), Some(3));
-        assert!(output.stdout.is_empty());
-        assert_eq!(output.stderr, b"failed\n");
     }
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

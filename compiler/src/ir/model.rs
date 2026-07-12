@@ -40,7 +40,6 @@ impl CallTarget {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Instruction {
-    WriteStaticStderr(Vec<u8>),
     WriteStr {
         fd: I32Value,
         text: StrValue,
@@ -179,6 +178,10 @@ pub(crate) enum Instruction {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
     },
+    CallFallibleVoid {
+        target: CallTarget,
+        arguments: Vec<ScalarArgument>,
+    },
     TailCall {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
@@ -188,6 +191,12 @@ pub(crate) enum Instruction {
         condition: BoolValue,
         then_instructions: Vec<Instruction>,
         else_instructions: Vec<Instruction>,
+    },
+    PropagateFailure,
+    ReturnFallibleSuccess,
+    ReturnFallibleFailure {
+        code: StrValue,
+        message: StrValue,
     },
     Return,
 }

@@ -3,6 +3,7 @@ use crate::backend::frame::FrameLayout;
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolComparisonOperator, BoolLogicalOperator, BoolValue, I32ComparisonOperator, Instruction,
+    Type,
 };
 use crate::target::arm64::{BranchCondition, WReg, XReg};
 
@@ -13,11 +14,12 @@ impl EntryEmitter {
         then_instructions: &[Instruction],
         else_instructions: &[Instruction],
         frame: Option<&FrameLayout>,
+        return_type: &Type,
     ) -> Result<(), Vec<Diagnostic>> {
         let branches_to_else = self.emit_bool_false_branch_placeholders(condition)?;
 
         for instruction in then_instructions {
-            self.emit_instruction(instruction, frame)?;
+            self.emit_instruction(instruction, frame, return_type)?;
         }
 
         let branch_to_end =
@@ -30,7 +32,7 @@ impl EntryEmitter {
         self.patch_branch_placeholders_to_current(branches_to_else, "if branch target")?;
 
         for instruction in else_instructions {
-            self.emit_instruction(instruction, frame)?;
+            self.emit_instruction(instruction, frame, return_type)?;
         }
 
         if let Some(branch) = branch_to_end {
@@ -282,7 +284,13 @@ pub(super) enum BranchPatch {
 
 fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
     match instructions.last() {
-        Some(Instruction::Return | Instruction::TailCall { .. } | Instruction::Trap) => true,
+        Some(
+            Instruction::Return
+            | Instruction::ReturnFallibleSuccess
+            | Instruction::ReturnFallibleFailure { .. }
+            | Instruction::TailCall { .. }
+            | Instruction::Trap,
+        ) => true,
         Some(Instruction::If {
             then_instructions,
             else_instructions,
@@ -293,8 +301,8 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
                 && instruction_list_ends_execution(else_instructions)
         }
         Some(
-            Instruction::WriteStaticStderr(_)
-            | Instruction::WriteStr { .. }
+            Instruction::WriteStr { .. }
+            | Instruction::PropagateFailure
             | Instruction::SetI32 { .. }
             | Instruction::SetU8 { .. }
             | Instruction::SetUsize { .. }
@@ -321,7 +329,8 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::CallBool { .. }
             | Instruction::CallStr { .. }
             | Instruction::CallSlice { .. }
-            | Instruction::CallVoid { .. },
+            | Instruction::CallVoid { .. }
+            | Instruction::CallFallibleVoid { .. },
         )
         | None => false,
     }

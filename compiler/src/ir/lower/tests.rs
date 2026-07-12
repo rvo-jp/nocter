@@ -3262,7 +3262,7 @@ fn lowers_fallible_entry_returning_i32_literal() {
             name: "main".to_string(),
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::Fallible(Box::new(Type::I32)),
-            instructions: vec![set_return_i32(7), Instruction::Return],
+            instructions: vec![set_return_i32(7), Instruction::ReturnFallibleSuccess],
         }])
     );
 }
@@ -3287,7 +3287,7 @@ func run(): void! {
             name: "run".to_string(),
             target: crate::ir::CallTarget::same_file("run".to_string()),
             return_type: Type::Fallible(Box::new(Type::Void)),
-            instructions: vec![Instruction::Return],
+            instructions: vec![Instruction::ReturnFallibleSuccess],
         }
     );
 }
@@ -3312,8 +3312,38 @@ func answer(): i32! {
             name: "answer".to_string(),
             target: crate::ir::CallTarget::same_file("answer".to_string()),
             return_type: Type::Fallible(Box::new(Type::I32)),
-            instructions: vec![set_return_i32(42), Instruction::Return],
+            instructions: vec![set_return_i32(42), Instruction::ReturnFallibleSuccess],
         }
+    );
+}
+
+#[test]
+fn lowers_fallible_void_function_static_error_failure() {
+    let ir = lower_text_with_std_error(
+        r#"from std/error import Error
+
+func main(): void! {
+    fail()?
+}
+
+func fail(): void! {
+    return Error.new("app.inner", "inner failed")
+}
+"#,
+    );
+
+    let fail = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "fail")
+        .unwrap();
+
+    assert_eq!(
+        fail.instructions,
+        vec![Instruction::ReturnFallibleFailure {
+            code: StrValue::StaticBytes(b"app.inner".to_vec()),
+            message: StrValue::StaticBytes(b"inner failed".to_vec()),
+        }]
     );
 }
 
@@ -3334,11 +3364,10 @@ func main(): i32! {
             name: "main".to_string(),
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::Fallible(Box::new(Type::I32)),
-            instructions: vec![
-                Instruction::WriteStaticStderr(b"app.failed: failed\n".to_vec()),
-                set_return_i32(1),
-                Instruction::Return,
-            ],
+            instructions: vec![Instruction::ReturnFallibleFailure {
+                code: StrValue::StaticBytes(b"app.failed".to_vec()),
+                message: StrValue::StaticBytes(b"failed".to_vec()),
+            }],
         }])
     );
 }
@@ -3359,11 +3388,10 @@ func main(): i32! {
 
     assert_eq!(
         ir.functions[0].instructions,
-        vec![
-            Instruction::WriteStaticStderr(b"app.failed: failed\nlater\n".to_vec()),
-            set_return_i32(1),
-            Instruction::Return,
-        ]
+        vec![Instruction::ReturnFallibleFailure {
+            code: StrValue::StaticBytes(b"app.failed".to_vec()),
+            message: StrValue::StaticBytes(b"failed\nlater".to_vec()),
+        }]
     );
 }
 
@@ -3380,11 +3408,10 @@ func main(): i32! {
 
     assert_eq!(
         ir.functions[0].instructions,
-        vec![
-            Instruction::WriteStaticStderr(b"app.failed: failed\n".to_vec()),
-            set_return_i32(1),
-            Instruction::Return,
-        ]
+        vec![Instruction::ReturnFallibleFailure {
+            code: StrValue::StaticBytes(b"app.failed".to_vec()),
+            message: StrValue::StaticBytes(b"failed\n".to_vec()),
+        }]
     );
 }
 
@@ -3556,8 +3583,8 @@ func main(): void! {
 
     assert_eq!(main.return_type, Type::Fallible(Box::new(Type::Void)));
     let [
-        Instruction::CallVoid { target, arguments },
-        Instruction::Return,
+        Instruction::CallFallibleVoid { target, arguments },
+        Instruction::ReturnFallibleSuccess,
     ] = main.instructions.as_slice()
     else {
         panic!("unexpected main instructions: {:?}", main.instructions);
@@ -3577,7 +3604,8 @@ func main(): void! {
                 fd: I32Value::Const(1),
                 text: StrValue::Location(StrLocation::Parameter(0)),
             },
-            Instruction::Return,
+            Instruction::PropagateFailure,
+            Instruction::ReturnFallibleSuccess,
         ]
     );
 }
@@ -5598,7 +5626,7 @@ fn std_io_file() -> (&'static str, &'static str) {
         r#"from std/io_impl import write_text_raw
 
 pub func print(text: &str): void! {
-    write_text_raw(1, text)
+    write_text_raw(1, text)?
     return
 }
 "#,
@@ -5608,7 +5636,7 @@ pub func print(text: &str): void! {
 fn std_io_impl_file() -> (&'static str, &'static str) {
     (
         "targets/arm64-darwin/std/io_impl.nct",
-        r#"pub(nocter) primitive write_text_raw(fd: i32, text: &str): void
+        r#"pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     )
 }

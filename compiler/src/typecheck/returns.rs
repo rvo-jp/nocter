@@ -754,6 +754,17 @@ fn check_return_statement(
         (None, Type::Unknown) | (None, Type::Unresolved(_)) => {}
         (None, _) => diagnostics.push(missing_return_value_diagnostic(sources, statement, context)),
         (Some(expression), Type::Void) => {
+            let actual = expression_type(expression, resolved, environment);
+            if return_expression_is_fallible_failure(
+                expression,
+                &actual,
+                context,
+                resolved,
+                environment,
+            ) {
+                return;
+            }
+
             diagnostics.push(unexpected_return_value_diagnostic(
                 sources, expression, context,
             ));

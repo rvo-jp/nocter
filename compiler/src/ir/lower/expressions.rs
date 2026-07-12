@@ -204,9 +204,7 @@ pub(super) fn lower_void_expression_statement(
                 return Ok(None);
             };
             let target = context.call_target(call, &identifier.name);
-            if context.call_return_type(&target) != Some(&Type::Void)
-                && !primitive_write_text_raw_call(call, context)
-            {
+            if context.call_return_type(&target) != Some(&Type::Void) {
                 return Ok(None);
             }
 
@@ -231,10 +229,12 @@ fn lower_fallible_void_expression_statement(
                 return Ok(None);
             };
             let target = context.call_target(call, &identifier.name);
-            if !matches!(
-                context.call_return_type(&target),
-                Some(Type::Fallible(success)) if success.as_ref() == &Type::Void
-            ) {
+            if !primitive_write_text_raw_call(call, context)
+                && !matches!(
+                    context.call_return_type(&target),
+                    Some(Type::Fallible(success)) if success.as_ref() == &Type::Void
+                )
+            {
                 return Ok(None);
             }
 
@@ -610,6 +610,44 @@ pub(super) fn lower_i32_return_expression(
             Ok(instructions)
         }
     }
+}
+
+pub(super) fn success_return_instruction(return_type: &Type) -> Instruction {
+    if matches!(return_type, Type::Fallible(_)) {
+        Instruction::ReturnFallibleSuccess
+    } else {
+        Instruction::Return
+    }
+}
+
+pub(super) fn mark_fallible_success_returns(
+    return_type: &Type,
+    instructions: Vec<Instruction>,
+) -> Vec<Instruction> {
+    if !matches!(return_type, Type::Fallible(_)) {
+        return instructions;
+    }
+
+    replace_success_returns(instructions)
+}
+
+fn replace_success_returns(instructions: Vec<Instruction>) -> Vec<Instruction> {
+    instructions
+        .into_iter()
+        .map(|instruction| match instruction {
+            Instruction::Return => Instruction::ReturnFallibleSuccess,
+            Instruction::If {
+                condition,
+                then_instructions,
+                else_instructions,
+            } => Instruction::If {
+                condition,
+                then_instructions: replace_success_returns(then_instructions),
+                else_instructions: replace_success_returns(else_instructions),
+            },
+            instruction => instruction,
+        })
+        .collect()
 }
 
 pub(super) fn lower_u8_return_expression(

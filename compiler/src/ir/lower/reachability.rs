@@ -20,6 +20,7 @@ fn collect_reachable_call_targets(
             | Instruction::CallStr { target, .. }
             | Instruction::CallSlice { target, .. }
             | Instruction::CallVoid { target, .. }
+            | Instruction::CallFallibleVoid { target, .. }
             | Instruction::TailCall { target, .. } => {
                 targets.push_back(target.clone());
             }
@@ -31,8 +32,10 @@ fn collect_reachable_call_targets(
                 collect_reachable_call_targets(then_instructions, targets);
                 collect_reachable_call_targets(else_instructions, targets);
             }
-            Instruction::WriteStaticStderr(_)
-            | Instruction::WriteStr { .. }
+            Instruction::WriteStr { .. }
+            | Instruction::PropagateFailure
+            | Instruction::ReturnFallibleSuccess
+            | Instruction::ReturnFallibleFailure { .. }
             | Instruction::SetI32 { .. }
             | Instruction::SetU8 { .. }
             | Instruction::SetUsize { .. }

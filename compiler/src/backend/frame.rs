@@ -176,9 +176,12 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::CallStr { .. }
         | Instruction::CallSlice { .. }
         | Instruction::CallVoid { .. }
+        | Instruction::CallFallibleVoid { .. }
         | Instruction::WriteStr { .. } => true,
         Instruction::TailCall { arguments, .. } => !arguments.is_empty(),
-        Instruction::WriteStaticStderr(_)
+        Instruction::PropagateFailure
+        | Instruction::ReturnFallibleSuccess
+        | Instruction::ReturnFallibleFailure { .. }
         | Instruction::SetI32 { .. }
         | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
@@ -227,6 +230,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::CallStr { arguments, .. }
         | Instruction::CallSlice { arguments, .. }
         | Instruction::CallVoid { arguments, .. }
+        | Instruction::CallFallibleVoid { arguments, .. }
         | Instruction::TailCall { arguments, .. } => {
             arguments.iter().map(ScalarArgument::abi_word_count).sum()
         }
@@ -236,7 +240,9 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
             ..
         } => max_call_argument_count(then_instructions)
             .max(max_call_argument_count(else_instructions)),
-        Instruction::WriteStaticStderr(_) => 0,
+        Instruction::PropagateFailure
+        | Instruction::ReturnFallibleSuccess
+        | Instruction::ReturnFallibleFailure { .. } => 0,
         Instruction::WriteStr { .. }
         | Instruction::SetI32 { .. }
         | Instruction::SetU8 { .. }
@@ -277,7 +283,14 @@ fn record_instruction_scalar_locals(
     highest_local_index: &mut Option<usize>,
 ) {
     match instruction {
-        Instruction::WriteStaticStderr(_) | Instruction::Trap | Instruction::Return => {}
+        Instruction::PropagateFailure
+        | Instruction::ReturnFallibleSuccess
+        | Instruction::Trap
+        | Instruction::Return => {}
+        Instruction::ReturnFallibleFailure { code, message } => {
+            record_str_value(code, highest_local_index);
+            record_str_value(message, highest_local_index);
+        }
         Instruction::WriteStr { fd, text } => {
             record_i32_value(fd, highest_local_index);
             record_str_value(text, highest_local_index);
@@ -449,7 +462,8 @@ fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
-        Instruction::CallVoid { arguments, .. } => {
+        Instruction::CallVoid { arguments, .. }
+        | Instruction::CallFallibleVoid { arguments, .. } => {
             for argument in arguments {
                 record_scalar_argument(argument, highest_local_index);
             }
@@ -772,6 +786,28 @@ mod tests {
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![Instruction::CallVoid {
+                target: CallTarget::same_file("effect"),
+                arguments: vec![ScalarArgument::I32(I32Value::Location(I32Location::Local(
+                    1,
+                )))],
+            }],
+        };
+
+        let frame = plan_function_frame(&function).unwrap();
+
+        assert_eq!(
+            frame,
+            FunctionFrame::Framed(FrameLayout::for_slot_counts(2, 1).unwrap())
+        );
+    }
+
+    #[test]
+    fn call_fallible_void_requires_frame_and_counts_argument_locals() {
+        let function = Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Fallible(Box::new(Type::Void)),
+            instructions: vec![Instruction::CallFallibleVoid {
                 target: CallTarget::same_file("effect"),
                 arguments: vec![ScalarArgument::I32(I32Value::Location(I32Location::Local(
                     1,

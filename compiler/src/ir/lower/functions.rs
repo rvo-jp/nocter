@@ -1,10 +1,12 @@
 use super::bindings::lower_let_binding;
 use super::context::{FunctionNames, FunctionSignatures, LoweringContext};
 use super::control_flow::{lower_terminal_bool_if_statement, lower_terminal_i32_if_statement};
+use super::errors::{StaticErrorPayload, lower_static_error_payload};
 use super::expressions::{
     lower_bool_return_expression, lower_i32_return_expression, lower_never_return_expression,
     lower_slice_return_expression, lower_str_return_expression, lower_u8_return_expression,
-    lower_usize_return_expression, lower_void_expression_statement,
+    lower_usize_return_expression, lower_void_expression_statement, mark_fallible_success_returns,
+    success_return_instruction,
 };
 use crate::ast::{FunctionDecl, Parameter, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
@@ -45,7 +47,8 @@ pub(super) fn lower_function(
         parameters.slice,
     )
     .with_call_resolution(root_source, resolved, function_names);
-    let instructions = lower_function_body(function, &return_type, &mut context)?;
+    let instructions =
+        lower_function_body(function, &return_type, root_source, resolved, &mut context)?;
 
     Ok(Function {
         name: function.name.clone(),
@@ -237,13 +240,15 @@ fn is_u8_slice_data_type(ty: &TypeExpr) -> bool {
 fn lower_function_body(
     function: &FunctionDecl,
     return_type: &Type,
+    root_source: SourceId,
+    resolved: &ResolveOutput,
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let success_type = return_type.success_type();
     let statements = function.body.statements.as_slice();
 
     if statements.is_empty() && *success_type == Type::Void {
-        return Ok(vec![Instruction::Return]);
+        return Ok(vec![success_return_instruction(return_type)]);
     }
 
     let Some((last, leading)) = statements.split_last() else {
@@ -259,6 +264,15 @@ fn lower_function_body(
                     lower_never_return_expression(expression, context)?
             {
                 instructions.extend(return_instructions);
+                return Ok(instructions);
+            }
+
+            if let Some(expression) = &statement.expression
+                && matches!(return_type, Type::Fallible(_))
+                && let Some(payload) =
+                    lower_static_error_payload(expression, resolved, root_source)?
+            {
+                instructions.extend(lower_fallible_failure(payload));
                 return Ok(instructions);
             }
 
@@ -343,25 +357,28 @@ fn lower_function_body(
                     unreachable!("fallible success type must be unwrapped")
                 }
             }?;
-            instructions.extend(return_instructions);
+            instructions.extend(mark_fallible_success_returns(
+                return_type,
+                return_instructions,
+            ));
             Ok(instructions)
         }
         Stmt::If(statement) if success_type == &Type::I32 => {
-            instructions.extend(lower_terminal_i32_if_statement(
-                statement,
-                context,
-                "E8007",
-                "functions",
-            )?);
+            let branch_instructions =
+                lower_terminal_i32_if_statement(statement, context, "E8007", "functions")?;
+            instructions.extend(mark_fallible_success_returns(
+                return_type,
+                branch_instructions,
+            ));
             Ok(instructions)
         }
         Stmt::If(statement) if success_type == &Type::Bool => {
-            instructions.extend(lower_terminal_bool_if_statement(
-                statement,
-                context,
-                "E8007",
-                "functions",
-            )?);
+            let branch_instructions =
+                lower_terminal_bool_if_statement(statement, context, "E8007", "functions")?;
+            instructions.extend(mark_fallible_success_returns(
+                return_type,
+                branch_instructions,
+            ));
             Ok(instructions)
         }
         Stmt::Expression(statement) => {
@@ -373,7 +390,7 @@ fn lower_function_body(
                         lower_void_expression_statement(&statement.expression, context)?
                 {
                     instructions.extend(void_instructions);
-                    instructions.push(Instruction::Return);
+                    instructions.push(success_return_instruction(return_type));
                     return Ok(instructions);
                 }
 
@@ -418,6 +435,11 @@ fn lower_leading_bindings(
     }
 
     Ok(instructions)
+}
+
+fn lower_fallible_failure(payload: StaticErrorPayload) -> Vec<Instruction> {
+    let (code, message) = payload.into_str_values();
+    vec![Instruction::ReturnFallibleFailure { code, message }]
 }
 
 fn unsupported_function_body_diagnostic(function_name: &str) -> Vec<Diagnostic> {

@@ -64,7 +64,7 @@ impl File {
 }
 
 pub func print(text: &str): void! {
-    write_text_raw(1, text)
+    write_text_raw(1, text)?
     return
 }
 

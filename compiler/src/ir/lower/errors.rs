@@ -1,5 +1,6 @@
 use crate::ast::{CallExpr, Expr, TypeExpr};
 use crate::diagnostics::Diagnostic;
+use crate::ir::StrValue;
 use crate::literals::decode_string_literal_bytes;
 use crate::resolve::{FunctionSignature, ResolveOutput, SymbolKind};
 use crate::source::SourceId;
@@ -10,12 +11,11 @@ pub(super) struct StaticErrorPayload {
 }
 
 impl StaticErrorPayload {
-    pub(super) fn report_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        bytes.extend_from_slice(&self.code);
-        bytes.extend_from_slice(b": ");
-        bytes.extend_from_slice(&self.message);
-        with_trailing_newline(bytes)
+    pub(super) fn into_str_values(self) -> (StrValue, StrValue) {
+        (
+            StrValue::StaticBytes(self.code),
+            StrValue::StaticBytes(self.message),
+        )
     }
 }
 
@@ -40,13 +40,6 @@ pub(super) fn lower_static_error_payload(
     let message = decode_static_error_string(&call.arguments[1], "message")?;
 
     Ok(Some(StaticErrorPayload { code, message }))
-}
-
-pub(super) fn with_trailing_newline(mut bytes: Vec<u8>) -> Vec<u8> {
-    if !bytes.ends_with(b"\n") {
-        bytes.push(b'\n');
-    }
-    bytes
 }
 
 fn is_static_error_constructor_call(

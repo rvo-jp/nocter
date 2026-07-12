@@ -706,6 +706,58 @@ func main(): i32! {
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     #[test]
+    fn build_file_output_propagates_fallible_void_call_failure() {
+        let root = make_temp_project("build-run-fallible-void-propagation");
+        let nocter_home = make_nocter_home(&root);
+        fs::write(
+            nocter_home.join("std/error.nct"),
+            r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+impl Error {
+    pub func new(code: ErrorCode, message: &str): Error {
+        return new_error(code, message)
+    }
+}
+"#,
+        )
+        .unwrap();
+        let source = root.join("fallible_void_fail.nct");
+        fs::write(
+            &source,
+            r#"from std/error import Error
+
+func main(): void! {
+    fail()?
+}
+
+func fail(): void! {
+    return Error.new("app.inner", "inner failed")
+}
+"#,
+        )
+        .unwrap();
+
+        let executable = default_executable_path(&source);
+        let output = build_file_to_path_with_options(
+            &source,
+            &executable,
+            &frontend_options(nocter_home),
+            DEFAULT_ENTRY_NAME,
+        );
+
+        assert_diagnostics_empty(&output.diagnostics);
+        assert_eq!(output.output_path, executable);
+        let output = std::process::Command::new(&executable).output().unwrap();
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        assert_eq!(output.stderr, b"app.inner: inner failed\n");
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
     fn build_file_output_runs_void_entry_with_zero_exit_code() {
         let root = make_temp_project("build-run-void");
         let nocter_home = make_nocter_home(&root);
@@ -742,7 +794,8 @@ func main(): i32! {
             r#"from std/io_impl import write_text_raw
 
 pub func print(text: &str): void! {
-    write_text_raw(1, text)
+    let marker = 1
+    write_text_raw(1, text)?
     return
 }
 "#,
@@ -750,7 +803,7 @@ pub func print(text: &str): void! {
         .unwrap();
         fs::write(
             nocter_home.join("targets/arm64-darwin/std/io_impl.nct"),
-            r#"pub(nocter) primitive write_text_raw(fd: i32, text: &str): void
+            r#"pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
         )
         .unwrap();
@@ -760,6 +813,7 @@ pub func print(text: &str): void! {
             r#"from std/io import print
 
 func main(): void! {
+    let marker = 1
     print("Hello, world!\n")?
 }
 "#,

@@ -166,10 +166,6 @@ pub(super) fn lower_void_normal_call(
         return Err(unsupported_non_tail_call_diagnostic());
     };
 
-    if primitive_write_text_raw_call(call, context) {
-        return lower_write_text_raw_primitive_call(call, context, temporaries);
-    }
-
     let target = context.call_target(call, &identifier.name);
     validate_void_normal_call_return_type(&target, &identifier.name, context)?;
 
@@ -189,13 +185,19 @@ pub(super) fn lower_fallible_void_normal_call(
         return Err(unsupported_non_tail_call_diagnostic());
     };
 
+    if primitive_write_text_raw_call(call, context) {
+        let mut instructions = lower_write_text_raw_primitive_call(call, context, temporaries)?;
+        instructions.push(Instruction::PropagateFailure);
+        return Ok(instructions);
+    }
+
     let target = context.call_target(call, &identifier.name);
     validate_fallible_void_normal_call_return_type(&target, &identifier.name, context)?;
 
     let (mut instructions, arguments) =
         lower_call_arguments(call, &target, &identifier.name, context, temporaries)?;
 
-    instructions.push(Instruction::CallVoid { target, arguments });
+    instructions.push(Instruction::CallFallibleVoid { target, arguments });
     Ok(instructions)
 }
 

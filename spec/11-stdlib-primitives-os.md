@@ -426,12 +426,15 @@ Initial primitive files:
 ```text
 ~/.nocter/std/error.nct
 ~/.nocter/std/ptr.nct
+~/.nocter/targets/arm64-darwin/std/io_impl.nct
 ~/.nocter/targets/arm64-darwin/std/os/macos.nct
 ```
 
 `std/error.nct` contains the target-independent built-in error payload construction primitive used by `Error.new`.
 
 `std/ptr.nct` contains target-independent core pointer primitive declarations. These are required for raw pointer address conversion and borrow-to-pointer conversion.
+
+`std/io_impl.nct` contains the initial `arm64-darwin` narrow text-write bootstrap primitive used by `std/io.print`. It is `pub(nocter)` and is not part of the user-facing I/O API.
 
 `std/os/macos.nct` is target-specific for `arm64-darwin` and is loaded from the `arm64-darwin` target overlay. Future OS targets should add separate target overlays instead of changing the language-level primitive syntax.
 
@@ -469,6 +472,7 @@ pub(nocter) primitive syscall5(number: usize, a0: usize, a1: usize, a2: usize, a
 pub(nocter) primitive syscall6(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize): SyscallResult
 pub(nocter) primitive trap(): never
 pub(nocter) primitive unreachable(): never
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 ```
 
 `SyscallResult.errno == 0` means success. `SyscallResult.errno != 0` means the syscall failed with an OS error value. The meaning of `value` is syscall-specific.
@@ -477,17 +481,18 @@ The compiler recognizes these declarations only at their target-overlay module p
 
 ```text
 std/os/macos
+std/io_impl
 ```
 
 An ordinary function named `syscall3` elsewhere is not primitive.
 
-`syscall0` through `syscall6` are a bootstrap boundary for the initial macOS standard library. Longer term, target overlays may replace direct syscall exposure with narrower typed wrappers. Those wrappers are standard-library APIs, not compiler primitives.
+`syscall0` through `syscall6` are a bootstrap boundary for the initial macOS standard library. `write_text_raw` is a narrower bootstrap boundary for text output before the compiler can lower the ordinary `SyscallResult`-based wrapper path used by the full I/O API. Longer term, target overlays may replace direct syscall exposure and `write_text_raw` with narrower typed wrappers. Those wrappers are standard-library APIs, not compiler primitives.
 
 ### Typed Primitive Wrappers
 
 Adopted: typed wrappers over low-level target operations are standard-library APIs, not compiler primitives.
 
-The closed compiler primitive set stays small. For the initial `arm64-darwin` target, the OS primitive boundary is `syscall0` through `syscall6`, `trap`, and `unreachable`; separately, `std/ptr` owns the target-independent core pointer primitive set.
+The closed compiler primitive set stays small. For the initial `arm64-darwin` target, the OS primitive boundary is `syscall0` through `syscall6`, `trap`, `unreachable`, and the temporary `std/io_impl.write_text_raw`; separately, `std/ptr` owns the target-independent core pointer primitive set.
 
 Target overlays may define narrower typed wrappers around those primitives:
 
@@ -508,6 +513,7 @@ pub method (file: &+File).write(bytes: &[u8]): void! {
 Rules:
 
 - Adding a file API, process API, allocator API, string API, buffer API, or OS wrapper must not require adding a compiler primitive.
+- The existing `std/io_impl.write_text_raw` primitive is a v0 bootstrap exception for executable text output, not a precedent for adding one primitive per standard-library API.
 - Target-specific syscall numbers, raw OS handles, errno-like values, and calling conventions belong in the target overlay, not in the compiler's general language semantics.
 - The compiler validates the existing primitive declarations by module path, name, and exact signature.
 - An ordinary wrapper name such as `open_file_raw`, `write_fd_raw`, `mmap_raw`, or `exit_process` has no compiler-defined behavior.

@@ -446,7 +446,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             name: "write_text_raw",
             generics: &[],
             parameters: WRITE_TEXT_RAW_PARAMETERS,
-            return_type: "void",
+            return_type: "void!",
         },
     ]
 }

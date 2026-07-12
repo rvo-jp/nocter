@@ -4,10 +4,11 @@ use super::control_flow::lower_terminal_i32_if_statement;
 use super::errors::{StaticErrorPayload, lower_static_error_payload};
 use super::expressions::{
     lower_i32_return_expression, lower_never_return_expression, lower_void_expression_statement,
+    mark_fallible_success_returns, success_return_instruction,
 };
 use crate::ast::{FunctionDecl, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
-use crate::ir::{CallTarget, Function, I32Location, I32Value, Instruction, Type};
+use crate::ir::{CallTarget, Function, Instruction, Type};
 use crate::resolve::ResolveOutput;
 use crate::source::SourceId;
 
@@ -67,8 +68,8 @@ fn lower_entry_body(
     let success_type = return_type.success_type();
     let statements = function.body.statements.as_slice();
 
-    if statements.is_empty() && *return_type == Type::Void {
-        return Ok(vec![Instruction::Return]);
+    if statements.is_empty() && *success_type == Type::Void {
+        return Ok(vec![success_return_instruction(return_type)]);
     }
 
     let Some((last, leading)) = statements.split_last() else {
@@ -93,13 +94,13 @@ fn lower_entry_body(
                 return Ok(instructions);
             }
 
-            if leading.is_empty()
-                && let Some(expression) = &statement.expression
-                && return_type_is_lowerable_i32_fallible(return_type)
+            if let Some(expression) = &statement.expression
+                && matches!(return_type, Type::Fallible(_))
                 && let Some(payload) =
                     lower_static_error_payload(expression, resolved, root_source)?
             {
-                return Ok(lower_i32_fallible_failure(payload));
+                instructions.extend(lower_fallible_failure(payload));
+                return Ok(instructions);
             }
 
             let return_instructions = match (success_type, &statement.expression) {
@@ -121,16 +122,19 @@ fn lower_entry_body(
                 (Type::Never, _) => unreachable!("never entry type is not lowered in v0"),
                 (Type::Fallible(_), _) => unreachable!("fallible success type must be unwrapped"),
             }?;
-            instructions.extend(return_instructions);
+            instructions.extend(mark_fallible_success_returns(
+                return_type,
+                return_instructions,
+            ));
             Ok(instructions)
         }
         Stmt::If(statement) if success_type == &Type::I32 => {
-            instructions.extend(lower_terminal_i32_if_statement(
-                statement,
-                &context,
-                "E8002",
-                "entry functions",
-            )?);
+            let branch_instructions =
+                lower_terminal_i32_if_statement(statement, &context, "E8002", "entry functions")?;
+            instructions.extend(mark_fallible_success_returns(
+                return_type,
+                branch_instructions,
+            ));
             Ok(instructions)
         }
         Stmt::Expression(statement) => {
@@ -142,7 +146,7 @@ fn lower_entry_body(
                         lower_void_expression_statement(&statement.expression, &context)?
                 {
                     instructions.extend(void_instructions);
-                    instructions.push(Instruction::Return);
+                    instructions.push(success_return_instruction(return_type));
                     return Ok(instructions);
                 }
 
@@ -155,19 +159,9 @@ fn lower_entry_body(
     }
 }
 
-fn return_type_is_lowerable_i32_fallible(return_type: &Type) -> bool {
-    matches!(return_type, Type::Fallible(success) if success.as_ref() == &Type::I32)
-}
-
-fn lower_i32_fallible_failure(payload: StaticErrorPayload) -> Vec<Instruction> {
-    vec![
-        Instruction::WriteStaticStderr(payload.report_bytes()),
-        Instruction::SetI32 {
-            destination: I32Location::Return,
-            value: I32Value::Const(1),
-        },
-        Instruction::Return,
-    ]
+fn lower_fallible_failure(payload: StaticErrorPayload) -> Vec<Instruction> {
+    let (code, message) = payload.into_str_values();
+    vec![Instruction::ReturnFallibleFailure { code, message }]
 }
 
 fn lower_leading_bindings(

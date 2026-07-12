@@ -5,7 +5,7 @@ use crate::ir::{
     BoolLocation, I32Location, ScalarArgument, SliceLocation, StrLocation, U8Location,
     UsizeLocation,
 };
-use crate::target::arm64::{WReg, XReg};
+use crate::target::arm64::{BranchCondition, WReg, XReg};
 
 impl EntryEmitter {
     pub(super) fn emit_call(&mut self, function: FunctionSymbol) {
@@ -64,6 +64,31 @@ impl EntryEmitter {
         self.emit_staged_scalar_arguments(arguments, frame)?;
 
         self.emit_call(function);
+        self.emit_scalar_reloads(frame)?;
+        Ok(())
+    }
+
+    pub(super) fn emit_call_fallible_void(
+        &mut self,
+        function: FunctionSymbol,
+        arguments: &[ScalarArgument],
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "fallible void call emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_staged_scalar_arguments(arguments, frame)?;
+
+        self.emit_call(function);
+        self.encoder.emit_cmp_x_zero(XReg::X0);
+        let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+        self.emit_return(Some(frame));
+        self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
         self.emit_scalar_reloads(frame)?;
         Ok(())
     }

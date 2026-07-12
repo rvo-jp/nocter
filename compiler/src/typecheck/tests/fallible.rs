@@ -33,6 +33,22 @@ func run(error: error): i32! {
 }
 
 #[test]
+fn accepts_error_return_in_void_fallible_function() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func run(error: error): void! {
+    return error
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn accepts_error_code_and_message_fields() {
     let diagnostics = check_text(
         r#"func main(): i32 {
