@@ -86,3 +86,48 @@ fn diagnoses_assignment_type_mismatch() {
     assert!(diagnostics[0].message.contains("i32"));
     assert!(diagnostics[0].message.contains("&str"));
 }
+
+#[test]
+fn diagnoses_assignment_from_non_copy_struct_binding() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    var source = Text{ start: 1, len: 2, capacity: 3 }
+    var target = Text{ start: 4, len: 5, capacity: 6 }
+    target = source
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0384");
+    assert!(diagnostics[0].message.contains("Text"));
+    assert!(diagnostics[0].message.contains("source"));
+}
+
+#[test]
+fn accepts_assignment_from_copy_struct_binding() {
+    let diagnostics = check_text(
+        r#"copy struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    var source = Text{ start: 1, len: 2, capacity: 3 }
+    var target = Text{ start: 4, len: 5, capacity: 6 }
+    target = source
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}

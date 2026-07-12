@@ -10,7 +10,8 @@ use super::controls::{
 };
 use super::diagnostics::{
     assignment_type_mismatch_diagnostic, immutable_assignment_diagnostic,
-    loop_control_outside_loop_diagnostic, readwrite_borrow_requires_writable_place_diagnostic,
+    loop_control_outside_loop_diagnostic, non_copy_struct_assignment_diagnostic,
+    readwrite_borrow_requires_writable_place_diagnostic,
 };
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_if_is_binding,
@@ -22,7 +23,7 @@ use super::expressions::{
     check_error_member_expression, collection_len_call_type, expression_type,
 };
 use super::fallible::check_force_unwrap_operand;
-use super::model::{TypeEnvironment, binding_kind_is_mutable};
+use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
 use super::operations::{
     check_binary_expression, check_type_conversion_expression, check_unary_expression,
     is_expression_assignable,
@@ -37,7 +38,7 @@ use crate::ast::{
     AssignmentStmt, AstFile, Block, Expr, ImplDecl, ImplMember, InterpolatedStringPart, Item, Stmt,
 };
 use crate::diagnostics::Diagnostic;
-use crate::resolve::ResolveOutput;
+use crate::resolve::{ResolveOutput, TypeSymbolKind};
 use crate::source::SourceMap;
 
 pub(super) fn check_body_expressions(
@@ -506,7 +507,47 @@ fn check_assignment_statement(
             &target_type,
             &value_type,
         ));
+        return;
     }
+
+    if let Some((source_name, type_name)) =
+        non_copy_struct_identifier_assignment(&statement.value, resolved, environment)
+    {
+        diagnostics.push(non_copy_struct_assignment_diagnostic(
+            sources,
+            statement,
+            source_name,
+            type_name,
+        ));
+    }
+}
+
+fn non_copy_struct_identifier_assignment<'a>(
+    expression: &'a Expr,
+    resolved: &'a ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<(&'a str, &'a str)> {
+    match expression {
+        Expr::Identifier(identifier) => {
+            let value_type = expression_type(expression, resolved, environment);
+            non_copy_struct_type_name(&value_type, resolved)
+                .map(|type_name| (identifier.name.as_str(), type_name))
+        }
+        Expr::Group(group) => {
+            non_copy_struct_identifier_assignment(&group.expression, resolved, environment)
+        }
+        _ => None,
+    }
+}
+
+fn non_copy_struct_type_name<'a>(ty: &Type, resolved: &'a ResolveOutput) -> Option<&'a str> {
+    let Type::Named(canonical_name) = ty else {
+        return None;
+    };
+    resolved
+        .type_symbol_by_canonical_name(canonical_name)
+        .filter(|symbol| symbol.kind == TypeSymbolKind::Struct && !symbol.is_copy)
+        .map(|symbol| symbol.canonical_name.as_str())
 }
 
 fn check_expression_tree(

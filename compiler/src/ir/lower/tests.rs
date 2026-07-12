@@ -2060,34 +2060,36 @@ func use_text(): i32 {
 }
 
 #[test]
-fn rejects_non_copy_aggregate_slot_assignment() {
-    let aggregate_type = Type::Aggregate {
-        layout: ValueLayout::new(24, 8),
+fn lowers_copy_aggregate_alias_slot_assignment() {
+    let aggregate_type = Type::DirectAggregate {
+        layout: ValueLayout::new(16, 8),
+        words: 2,
     };
-    let diagnostics = lower_named_function_diagnostics_with_signatures(
-        r#"struct Text {
-    start: usize
-    len: usize
-    capacity: usize
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Pair {
+    left: usize
+    right: usize
 }
+
+type PairAlias = Pair
 
 func main(): i32 {
     return 0
 }
 
-func touch(value: &+Text): void {
+func touch(value: &+Pair): void {
     return
 }
 
-func use_text(): i32 {
-    var source = Text{ start: 1, len: 2, capacity: 3 }
-    var target = Text{ start: 4, len: 5, capacity: 6 }
+func use_pair(): i32 {
+    var source = PairAlias{ left: 1, right: 2 }
+    var target = PairAlias{ left: 3, right: 4 }
     target = source
     touch(&+target)
     return 0
 }
 "#,
-        "use_text",
+        "use_pair",
         function_signatures(vec![(
             "touch",
             Type::Void,
@@ -2096,14 +2098,14 @@ func use_text(): i32 {
                 inner: Box::new(aggregate_type),
             }],
         )]),
-    );
+    )
+    .unwrap();
 
-    assert_eq!(diagnostics.len(), 1);
-    assert_eq!(diagnostics[0].code, "E8008");
-    assert_eq!(
-        diagnostics[0].message,
-        "IR v0 can only lower simple `=` assignment to scalar local bindings or aggregate slots"
-    );
+    assert!(function.instructions.contains(&Instruction::CopyAggregate {
+        destination: AggregateLocation::Slot(1),
+        source: AggregateLocation::Slot(0),
+        layout: ValueLayout::new(16, 8),
+    }));
 }
 
 #[test]

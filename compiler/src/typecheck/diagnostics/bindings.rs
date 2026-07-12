@@ -81,6 +81,26 @@ pub(in crate::typecheck) fn assignment_type_mismatch_diagnostic(
     diagnostic
 }
 
+pub(in crate::typecheck) fn non_copy_struct_assignment_diagnostic(
+    sources: &SourceMap,
+    statement: &AssignmentStmt,
+    source_name: &str,
+    type_name: &str,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0384",
+        format!("cannot implicitly copy non-copy struct `{type_name}` from `{source_name}`"),
+    );
+    diagnostic.primary_span = sources
+        .span_to_json(statement.value.span())
+        .ok()
+        .map(Box::new);
+    diagnostic.help = Some(format!(
+        "declare `{type_name}` with `copy struct` or use an explicit move once move assignment is supported"
+    ));
+    diagnostic
+}
+
 pub(in crate::typecheck) fn readwrite_borrow_requires_writable_place_diagnostic(
     sources: &SourceMap,
     expression: &BorrowExpr,

@@ -18,6 +18,7 @@ use crate::ir::{
     StrLocation, Type, U8Location, UsizeLocation,
 };
 use crate::resolve::{ResolveOutput, TypeSymbolKind};
+use std::collections::HashSet;
 
 pub(super) fn lower_local_binding(
     statement: &BindingStmt,
@@ -631,11 +632,37 @@ fn call_success_type_is_copy_struct(call: &CallExpr, context: &LoweringContext) 
 }
 
 fn type_expr_is_copy_struct(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    type_expr_is_copy_struct_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn type_expr_is_copy_struct_inner(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> bool {
     match ty {
-        TypeExpr::Reference(reference) => resolved
-            .type_symbol_by_name(&reference.name)
-            .is_some_and(|symbol| symbol.kind == TypeSymbolKind::Struct && symbol.is_copy),
-        TypeExpr::Fallible(fallible) => type_expr_is_copy_struct(&fallible.success, resolved),
+        TypeExpr::Reference(reference) => {
+            let Some(symbol) = resolved.type_symbol_by_name(&reference.name) else {
+                return false;
+            };
+            match symbol.kind {
+                TypeSymbolKind::Struct => symbol.is_copy,
+                TypeSymbolKind::Alias => {
+                    if !resolving_names.insert(symbol.canonical_name.clone()) {
+                        return false;
+                    }
+                    let is_copy = symbol.alias_target.as_ref().is_some_and(|target| {
+                        type_expr_is_copy_struct_inner(target, resolved, resolving_names)
+                    });
+                    resolving_names.remove(&symbol.canonical_name);
+                    is_copy
+                }
+                TypeSymbolKind::Enum | TypeSymbolKind::Trait => false,
+            }
+        }
+        TypeExpr::Fallible(fallible) => {
+            type_expr_is_copy_struct_inner(&fallible.success, resolved, resolving_names)
+        }
         _ => false,
     }
 }

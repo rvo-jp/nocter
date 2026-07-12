@@ -27,10 +27,14 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: diagnose implicit non-copy struct assignment
+  - type-checks `target = source` as an implicit copy when `source` is another struct binding
+  - rejects ordinary structs and aliases to ordinary structs, while allowing `copy struct` and aliases to copy structs
+  - keeps full move assignment, use-after-move, replacement drop, moved-value drop suppression, and drop glue disabled
 - Current checkpoint: lower copy aggregate slot assignment
   - records copyability on reserved aggregate locals created from struct literals and aggregate call results
   - lowers `target = source` between matching copy struct aggregate slots to `CopyAggregate { destination: Slot, source: Slot }`
-  - keeps ordinary structs, aliases, owned source-level aggregate moves, use-after-move checks, replacement drop, and drop glue disabled
+  - keeps ordinary structs, aliases to ordinary structs, owned source-level aggregate moves, use-after-move checks, replacement drop, and drop glue disabled
 - Current checkpoint: track copy struct metadata in resolver
   - records AST `copy struct` declarations on resolver `TypeSymbol` for local and imported struct symbols
   - keeps alias, enum, trait, and ordinary struct symbols non-copy at this metadata layer
