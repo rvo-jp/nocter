@@ -27,6 +27,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: expose ABI passing counts
+  - adds ABI helper methods for parameter passing and return passing over the existing direct/indirect value classification
+  - counts indirect parameters as one ABI pointer word and detects when parameter ABI words exceed the eight-register window
+  - exposes indirect-return detection so later aggregate return lowering can reserve caller storage and pass the result pointer through the ABI-defined hidden return register
 - Current checkpoint: classify function signatures for ABI planning
   - adds `AbiValue`, `AbiParameter`, `AbiReturn`, and `FunctionAbi` wrappers over ABI type, layout, and direct/indirect classification
   - adds `function_abi_from_signature` so later IR/backend planning can classify parameters and return values without duplicating type/layout logic

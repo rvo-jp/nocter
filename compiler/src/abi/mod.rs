@@ -5,6 +5,7 @@ use crate::resolve::{FunctionSignature, ResolveOutput, TypeSymbol, TypeSymbolKin
 use std::collections::HashSet;
 
 pub const ABI_WORD_SIZE: u64 = 8;
+pub const ARGUMENT_REGISTER_COUNT: usize = 8;
 pub const DIRECT_VALUE_MAX_SIZE: u64 = 16;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,6 +75,29 @@ pub enum ValueClassification {
     Indirect,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParameterPassing {
+    Direct { words: usize },
+    IndirectPointer,
+}
+
+impl ParameterPassing {
+    pub fn abi_word_count(self) -> usize {
+        match self {
+            Self::Direct { words } => words,
+            Self::IndirectPointer => 1,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReturnPassing {
+    Void,
+    Never,
+    Direct { words: usize },
+    IndirectPointer,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbiValue {
     pub ty: AbiType,
@@ -91,6 +115,21 @@ impl AbiValue {
             classification,
         })
     }
+
+    pub fn parameter_passing(&self) -> ParameterPassing {
+        match self.classification {
+            ValueClassification::Direct { words } => ParameterPassing::Direct { words },
+            ValueClassification::Indirect => ParameterPassing::IndirectPointer,
+        }
+    }
+
+    pub fn parameter_abi_word_count(&self) -> usize {
+        self.parameter_passing().abi_word_count()
+    }
+
+    pub fn is_indirect(&self) -> bool {
+        self.classification == ValueClassification::Indirect
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -106,10 +145,44 @@ pub enum AbiReturn {
     Value(AbiValue),
 }
 
+impl AbiReturn {
+    pub fn passing(&self) -> ReturnPassing {
+        match self {
+            Self::Void => ReturnPassing::Void,
+            Self::Never => ReturnPassing::Never,
+            Self::Value(value) => match value.classification {
+                ValueClassification::Direct { words } => ReturnPassing::Direct { words },
+                ValueClassification::Indirect => ReturnPassing::IndirectPointer,
+            },
+        }
+    }
+
+    pub fn uses_indirect_pointer(&self) -> bool {
+        self.passing() == ReturnPassing::IndirectPointer
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionAbi {
     pub parameters: Vec<AbiParameter>,
     pub return_value: AbiReturn,
+}
+
+impl FunctionAbi {
+    pub fn parameter_abi_word_count(&self) -> usize {
+        self.parameters
+            .iter()
+            .map(|parameter| parameter.value.parameter_abi_word_count())
+            .sum()
+    }
+
+    pub fn parameters_fit_registers(&self) -> bool {
+        self.parameter_abi_word_count() <= ARGUMENT_REGISTER_COUNT
+    }
+
+    pub fn uses_indirect_return_pointer(&self) -> bool {
+        self.return_value.uses_indirect_pointer()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -394,8 +467,9 @@ fn type_expr_display_lossy(ty: &TypeExpr) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        AbiField, AbiReturn, AbiType, ValueClassification, ValueLayout, abi_type_from_type_expr,
-        classify_value, function_abi_from_signature, layout_of, layout_struct,
+        AbiField, AbiReturn, AbiType, ParameterPassing, ReturnPassing, ValueClassification,
+        ValueLayout, abi_type_from_type_expr, classify_value, function_abi_from_signature,
+        layout_of, layout_struct,
     };
     use crate::ast::Item;
     use crate::lexer::lex;
@@ -536,11 +610,19 @@ func passthrough(text: Text, view: &str, count: usize): Text {
         assert_eq!(abi.parameters[0].name, "text");
         assert_eq!(abi.parameters[0].value.layout, ValueLayout::new(24, 8));
         assert_eq!(
+            abi.parameters[0].value.parameter_passing(),
+            ParameterPassing::IndirectPointer
+        );
+        assert_eq!(
             abi.parameters[0].value.classification,
             ValueClassification::Indirect
         );
         assert_eq!(abi.parameters[1].name, "view");
         assert_eq!(abi.parameters[1].value.ty, AbiType::StrView);
+        assert_eq!(
+            abi.parameters[1].value.parameter_passing(),
+            ParameterPassing::Direct { words: 2 }
+        );
         assert_eq!(
             abi.parameters[1].value.classification,
             ValueClassification::Direct { words: 2 }
@@ -550,6 +632,10 @@ func passthrough(text: Text, view: &str, count: usize): Text {
             abi.parameters[2].value.classification,
             ValueClassification::Direct { words: 1 }
         );
+        assert_eq!(abi.parameter_abi_word_count(), 4);
+        assert!(abi.parameters_fit_registers());
+        assert!(abi.uses_indirect_return_pointer());
+        assert_eq!(abi.return_value.passing(), ReturnPassing::IndirectPointer);
         assert!(matches!(
             abi.return_value,
             AbiReturn::Value(ref value)
@@ -577,6 +663,31 @@ func done(): void {
 
         assert_eq!(stop.return_value, AbiReturn::Never);
         assert_eq!(done.return_value, AbiReturn::Void);
+        assert_eq!(stop.return_value.passing(), ReturnPassing::Never);
+        assert_eq!(done.return_value.passing(), ReturnPassing::Void);
+        assert!(!stop.uses_indirect_return_pointer());
+        assert!(!done.uses_indirect_return_pointer());
+    }
+
+    #[test]
+    fn detects_when_parameters_exceed_register_window() {
+        let (_ast, resolved) = parse_and_resolve(
+            r#"func many(
+    a: &str,
+    b: &str,
+    c: &str,
+    d: &str,
+    e: usize,
+): void {
+}
+"#,
+        );
+        let signature = resolved_function_signature(&resolved, "many");
+
+        let abi = function_abi_from_signature(signature, &resolved).unwrap();
+
+        assert_eq!(abi.parameter_abi_word_count(), 9);
+        assert!(!abi.parameters_fit_registers());
     }
 
     fn parse_and_resolve(text: &str) -> (crate::ast::AstFile, crate::resolve::ResolveOutput) {
