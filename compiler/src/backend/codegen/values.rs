@@ -41,6 +41,7 @@ impl EntryEmitter {
                 self.encoder.emit_str_x_imm(XReg::X16, XReg::X8, offset);
                 Ok(())
             }
+            AggregateLocation::DirectReturn => self.emit_x_to_direct_aggregate_return(offset),
             AggregateLocation::Slot(slot_index) => {
                 let Some(frame) = frame else {
                     return Err(vec![Diagnostic::error(
@@ -88,11 +89,9 @@ impl EntryEmitter {
             ));
         }
 
-        let (AggregateLocation::Return, AggregateLocation::Slot(source_slot_index)) =
-            (destination, source)
-        else {
+        let AggregateLocation::Slot(source_slot_index) = source else {
             return Err(aggregate_copy_diagnostic(
-                "backend v0 can only copy aggregate slots to the indirect return destination",
+                "backend v0 can only copy aggregate slots to return destinations",
             ));
         };
         let Some(frame) = frame else {
@@ -115,20 +114,60 @@ impl EntryEmitter {
             ));
         }
 
-        let mut offset = 0_u32;
-        while u64::from(offset) < layout.size {
-            let source_offset = source_slot
-                .offset()
-                .checked_add(offset)
-                .ok_or_else(|| aggregate_copy_diagnostic("source offset overflows"))?;
-            self.encoder.emit_ldr_x_sp(XReg::X16, source_offset);
-            self.encoder.emit_str_x_imm(XReg::X16, XReg::X8, offset);
-            offset = offset
-                .checked_add(AGGREGATE_USIZE_STORE_BYTES)
-                .ok_or_else(|| aggregate_copy_diagnostic("copy offset overflows"))?;
+        match destination {
+            AggregateLocation::Return => {
+                let mut offset = 0_u32;
+                while u64::from(offset) < layout.size {
+                    let source_offset = source_slot
+                        .offset()
+                        .checked_add(offset)
+                        .ok_or_else(|| aggregate_copy_diagnostic("source offset overflows"))?;
+                    self.encoder.emit_ldr_x_sp(XReg::X16, source_offset);
+                    self.encoder.emit_str_x_imm(XReg::X16, XReg::X8, offset);
+                    offset = offset
+                        .checked_add(AGGREGATE_USIZE_STORE_BYTES)
+                        .ok_or_else(|| aggregate_copy_diagnostic("copy offset overflows"))?;
+                }
+            }
+            AggregateLocation::DirectReturn => {
+                if layout.size > 16 {
+                    return Err(aggregate_copy_diagnostic(
+                        "direct aggregate return copy exceeds two ABI words",
+                    ));
+                }
+                let source_offset = source_slot.offset();
+                self.encoder.emit_ldr_x_sp(XReg::X0, source_offset);
+                if layout.size > 8 {
+                    let second_offset = source_offset
+                        .checked_add(8)
+                        .ok_or_else(|| aggregate_copy_diagnostic("source offset overflows"))?;
+                    self.encoder.emit_ldr_x_sp(XReg::X1, second_offset);
+                }
+            }
+            AggregateLocation::Slot(_) => {
+                return Err(aggregate_copy_diagnostic(
+                    "backend v0 can only copy aggregate slots to return destinations",
+                ));
+            }
         }
 
         Ok(())
+    }
+
+    fn emit_x_to_direct_aggregate_return(&mut self, offset: u32) -> Result<(), Vec<Diagnostic>> {
+        match offset {
+            0 => {
+                self.encoder.emit_mov_x(XReg::X0, XReg::X16);
+                Ok(())
+            }
+            8 => {
+                self.encoder.emit_mov_x(XReg::X1, XReg::X16);
+                Ok(())
+            }
+            _ => Err(aggregate_store_offset_diagnostic(
+                "direct aggregate return offset must be 0 or 8",
+            )),
+        }
     }
 
     pub(super) fn emit_set_u8(

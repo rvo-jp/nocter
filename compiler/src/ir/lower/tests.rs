@@ -961,6 +961,37 @@ func make(): Text {
 }
 
 #[test]
+fn indexes_direct_aggregate_function_signature_return_type() {
+    let analysis = analyze_text_with_entry(
+        r#"struct Allocator {
+    state: usize
+    kind: u64
+}
+
+func main(): i32 {
+    return 0
+}
+
+func page_allocator(): Allocator {
+    return Allocator{ state: 0, kind: 0 }
+}
+"#,
+        crate::entry::DEFAULT_ENTRY_NAME,
+    );
+    let root = analysis.root_file().unwrap();
+    let index = FunctionIndex::new(&analysis, root.ast.span.source);
+    let signatures = index.signatures();
+
+    assert_eq!(
+        signatures.return_type(&CallTarget::same_file("page_allocator")),
+        Some(&Type::DirectAggregate {
+            layout: ValueLayout::new(16, 8),
+            words: 2,
+        })
+    );
+}
+
+#[test]
 fn lowers_indirect_aggregate_usize_struct_literal_return() {
     let function = lower_named_function(
         r#"struct Text {
@@ -1427,8 +1458,8 @@ func touch(allocator: &+Allocator): void {
 }
 
 #[test]
-fn reports_unsupported_direct_aggregate_return_signature() {
-    let diagnostics = lower_named_function_with_signatures(
+fn lowers_direct_aggregate_usize_struct_literal_return() {
+    let function = lower_named_function(
         r#"struct Pair {
     first: usize
     second: usize
@@ -1443,15 +1474,161 @@ func make(): Pair {
 }
 "#,
         "make",
-        function_signatures(vec![]),
-    )
-    .unwrap_err();
+    );
 
-    assert_eq!(diagnostics[0].code, "E8007");
-    assert!(
-        diagnostics[0].message.contains("indirect aggregates"),
-        "expected unsupported return type diagnostic, got: {}",
-        diagnostics[0].message
+    assert_eq!(
+        function,
+        Function {
+            name: "make".to_string(),
+            target: CallTarget::same_file("make"),
+            return_type: Type::DirectAggregate {
+                layout: ValueLayout::new(16, 8),
+                words: 2,
+            },
+            instructions: vec![
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::DirectReturn,
+                    offset: 0,
+                    value: usize_const(1),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::DirectReturn,
+                    offset: 8,
+                    value: usize_const(2),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_direct_aggregate_struct_literal_binding_return() {
+    let function = lower_named_function(
+        r#"struct Allocator {
+    state: usize
+    kind: u64
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Allocator {
+    let allocator = Allocator{ state: 1, kind: 2 }
+    return allocator
+}
+"#,
+        "make",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "make".to_string(),
+            target: CallTarget::same_file("make"),
+            return_type: Type::DirectAggregate {
+                layout: ValueLayout::new(16, 8),
+                words: 2,
+            },
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: usize_const(1),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 8,
+                    value: usize_const(2),
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::DirectReturn,
+                    source: AggregateLocation::Slot(0),
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_direct_aggregate_call_binding_borrow_argument() {
+    let aggregate_type = Type::DirectAggregate {
+        layout: ValueLayout::new(16, 8),
+        words: 2,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct Allocator {
+    state: usize
+    kind: u64
+}
+
+func main(): i32 {
+    return 0
+}
+
+func page_allocator(): Allocator {
+    return Allocator{ state: 0, kind: 0 }
+}
+
+func touch(allocator: &+Allocator): void {
+    return
+}
+
+func use_allocator(): i32 {
+    var allocator = page_allocator()
+    touch(&+allocator)
+    return 0
+}
+"#,
+        "use_allocator",
+        function_signatures(vec![
+            ("page_allocator", aggregate_type.clone(), vec![]),
+            (
+                "touch",
+                Type::Void,
+                vec![Type::Borrow {
+                    is_readwrite: true,
+                    inner: Box::new(aggregate_type.clone()),
+                }],
+            ),
+        ]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "use_allocator".to_string(),
+            target: CallTarget::same_file("use_allocator"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::CallDirectAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    target: CallTarget::same_file("page_allocator"),
+                    arguments: vec![],
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::CallVoid {
+                    target: CallTarget::same_file("touch"),
+                    arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateSlot(0),
+                    })],
+                },
+                set_return_i32(0),
+                Instruction::Return,
+            ],
+        }
     );
 }
 

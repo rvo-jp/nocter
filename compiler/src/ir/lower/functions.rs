@@ -9,7 +9,9 @@ use super::expressions::{
     lower_str_return_expression, lower_u8_return_expression, lower_usize_return_expression,
     lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
 };
-use crate::abi::{ARGUMENT_REGISTER_COUNT, AbiType, abi_value_from_type_expr};
+use crate::abi::{
+    ARGUMENT_REGISTER_COUNT, AbiType, AbiValue, ValueClassification, abi_value_from_type_expr,
+};
 use crate::ast::{Expr, FunctionDecl, Parameter, Stmt, StructLiteralExpr, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{AggregateLocation, CallTarget, Function, Instruction, Type};
@@ -270,20 +272,15 @@ fn lower_aggregate_function_return_type(
 ) -> Result<Type, Vec<Diagnostic>> {
     let value = abi_value_from_type_expr(ty, resolved)
         .map_err(|_error| unsupported_function_return_type_diagnostic(name))?;
-    if value.is_indirect() {
-        return Ok(Type::Aggregate {
-            layout: value.layout,
-        });
-    }
-
-    Err(unsupported_function_return_type_diagnostic(name))
+    aggregate_type_from_abi_value(&value)
+        .ok_or_else(|| unsupported_function_return_type_diagnostic(name))
 }
 
 fn unsupported_function_return_type_diagnostic(name: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8007",
         format!(
-            "IR v0 can only lower function `{name}` return type `i32`, `u8`, `usize`, `bool`, `&str`, `&[u8]`, `&+[u8]`, `void`, `never`, indirect aggregates, or a fallible form of those types"
+            "IR v0 can only lower function `{name}` return type `i32`, `u8`, `usize`, `bool`, `&str`, `&[u8]`, `&+[u8]`, `void`, `never`, aggregates, or a fallible form of those types"
         ),
     )]
 }
@@ -310,9 +307,23 @@ fn borrow_inner_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {
     }
 
     let value = abi_value_from_type_expr(ty, resolved).ok()?;
-    matches!(value.ty, AbiType::Struct(_)).then_some(Type::Aggregate {
-        layout: value.layout,
-    })
+    aggregate_type_from_abi_value(&value)
+}
+
+fn aggregate_type_from_abi_value(value: &AbiValue) -> Option<Type> {
+    if !matches!(value.ty, AbiType::Struct(_)) {
+        return None;
+    }
+
+    match value.classification {
+        ValueClassification::Indirect => Some(Type::Aggregate {
+            layout: value.layout,
+        }),
+        ValueClassification::Direct { words } => Some(Type::DirectAggregate {
+            layout: value.layout,
+            words,
+        }),
+    }
 }
 
 fn lower_function_body(
@@ -367,13 +378,15 @@ fn lower_function_body(
                 (Type::Slice { .. }, Some(expression)) => {
                     lower_slice_return_expression(expression, context)
                 }
-                (Type::Aggregate { .. }, Some(expression)) => lower_aggregate_return_expression(
-                    expression,
-                    success_type,
-                    &function.name,
-                    resolved,
-                    context,
-                ),
+                (Type::Aggregate { .. } | Type::DirectAggregate { .. }, Some(expression)) => {
+                    lower_aggregate_return_expression(
+                        expression,
+                        success_type,
+                        &function.name,
+                        resolved,
+                        context,
+                    )
+                }
                 (Type::Never, Some(_)) => Err(vec![Diagnostic::error(
                     "E8007",
                     format!(
@@ -431,13 +444,15 @@ fn lower_function_body(
                         function.name
                     ),
                 )]),
-                (Type::Aggregate { .. }, None) => Err(vec![Diagnostic::error(
-                    "E8007",
-                    format!(
-                        "IR v0 cannot lower bare returns from aggregate function `{}`",
-                        function.name
-                    ),
-                )]),
+                (Type::Aggregate { .. } | Type::DirectAggregate { .. }, None) => {
+                    Err(vec![Diagnostic::error(
+                        "E8007",
+                        format!(
+                            "IR v0 cannot lower bare returns from aggregate function `{}`",
+                            function.name
+                        ),
+                    )])
+                }
                 (Type::Borrow { .. }, _) => Err(vec![Diagnostic::error(
                     "E8007",
                     format!(
@@ -575,22 +590,17 @@ fn lower_aggregate_local_return(
     function_name: &str,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let Type::Aggregate {
-        layout: expected_layout,
-    } = return_type
-    else {
-        unreachable!("aggregate local return lowering requires aggregate return type")
-    };
+    let (expected_layout, destination) = aggregate_return_layout_and_destination(return_type);
     let Some((slot_index, layout)) = context.aggregate_slot(name) else {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     };
-    if layout != *expected_layout || !layout.size.is_multiple_of(8) {
+    if layout != expected_layout || !layout.size.is_multiple_of(8) {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     }
 
     Ok(vec![
         Instruction::CopyAggregate {
-            destination: AggregateLocation::Return,
+            destination,
             source: AggregateLocation::Slot(slot_index),
             layout,
         },
@@ -608,26 +618,33 @@ fn lower_aggregate_call_return(
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     };
     let target = context.call_target(call, &identifier.name);
-    let Some(Type::Aggregate { layout }) = context.call_return_type(&target) else {
+    let Some(callee_return_type) = context.call_return_type(&target) else {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     };
-    let Type::Aggregate {
-        layout: expected_layout,
-    } = return_type
-    else {
-        unreachable!("aggregate call return lowering requires aggregate return type")
-    };
-    if layout != expected_layout {
+    if callee_return_type != return_type {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     }
 
     let (mut instructions, arguments) =
         lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
-    instructions.push(Instruction::CallAggregate {
-        destination: AggregateLocation::Return,
-        target,
-        arguments,
-    });
+    match return_type {
+        Type::Aggregate { .. } => {
+            instructions.push(Instruction::CallAggregate {
+                destination: AggregateLocation::Return,
+                target,
+                arguments,
+            });
+        }
+        Type::DirectAggregate { layout, .. } => {
+            instructions.push(Instruction::CallDirectAggregate {
+                destination: AggregateLocation::DirectReturn,
+                target,
+                arguments,
+                layout: *layout,
+            });
+        }
+        _ => unreachable!("aggregate call return lowering requires aggregate return type"),
+    }
     instructions.push(Instruction::Return);
     Ok(instructions)
 }
@@ -639,18 +656,13 @@ fn lower_aggregate_struct_literal_return(
     resolved: &ResolveOutput,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let Type::Aggregate {
-        layout: expected_layout,
-    } = return_type
-    else {
-        unreachable!("aggregate return lowering requires aggregate return type")
-    };
+    let (expected_layout, destination) = aggregate_return_layout_and_destination(return_type);
 
     let subject = format!("returns from function `{function_name}`");
     let mut instructions = lower_aggregate_struct_literal_to_location(
         literal,
-        *expected_layout,
-        AggregateLocation::Return,
+        expected_layout,
+        destination,
         "E8007",
         &subject,
         resolved,
@@ -658,6 +670,16 @@ fn lower_aggregate_struct_literal_return(
     )?;
     instructions.push(Instruction::Return);
     Ok(instructions)
+}
+
+fn aggregate_return_layout_and_destination(
+    return_type: &Type,
+) -> (crate::abi::ValueLayout, AggregateLocation) {
+    match return_type {
+        Type::Aggregate { layout } => (*layout, AggregateLocation::Return),
+        Type::DirectAggregate { layout, .. } => (*layout, AggregateLocation::DirectReturn),
+        _ => unreachable!("aggregate return lowering requires aggregate return type"),
+    }
 }
 
 fn unsupported_aggregate_return_diagnostic(function_name: &str) -> Vec<Diagnostic> {

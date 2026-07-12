@@ -14,7 +14,7 @@ mod reachability;
 mod tests;
 
 use super::{CallTarget, Function, IrModule};
-use crate::abi::{AbiType, abi_value_from_type_expr};
+use crate::abi::{AbiType, AbiValue, ValueClassification, abi_value_from_type_expr};
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{FunctionDecl, Item, TypeExpr};
 use crate::diagnostics::Diagnostic;
@@ -99,9 +99,7 @@ fn lower_signature_return_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Optio
 
 fn lower_aggregate_signature_return_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {
     let value = abi_value_from_type_expr(ty, resolved).ok()?;
-    value.is_indirect().then_some(Type::Aggregate {
-        layout: value.layout,
-    })
+    aggregate_type_from_abi_value(&value)
 }
 
 fn lower_signature_parameter_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {
@@ -151,9 +149,23 @@ fn borrow_inner_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {
     }
 
     let value = abi_value_from_type_expr(ty, resolved).ok()?;
-    matches!(value.ty, AbiType::Struct(_)).then_some(Type::Aggregate {
-        layout: value.layout,
-    })
+    aggregate_type_from_abi_value(&value)
+}
+
+fn aggregate_type_from_abi_value(value: &AbiValue) -> Option<Type> {
+    if !matches!(value.ty, AbiType::Struct(_)) {
+        return None;
+    }
+
+    match value.classification {
+        ValueClassification::Indirect => Some(Type::Aggregate {
+            layout: value.layout,
+        }),
+        ValueClassification::Direct { words } => Some(Type::DirectAggregate {
+            layout: value.layout,
+            words,
+        }),
+    }
 }
 
 fn lower_reachable_functions(

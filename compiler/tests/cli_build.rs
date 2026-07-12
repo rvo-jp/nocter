@@ -765,6 +765,45 @@ func touch(value: &+Text): void! {
 }
 
 #[test]
+fn build_command_lowers_std_page_allocator_direct_aggregate_binding_and_borrow_argument() {
+    let project = TempProject::new("cli-build-page-allocator-borrow");
+    project.write_nocter_home_file(
+        "std/mem.nct",
+        r#"pub struct Allocator {
+    state: usize
+    kind: u64
+}
+
+pub func page_allocator(): Allocator {
+    return Allocator{ state: 0, kind: 0 }
+}
+"#,
+    );
+    let source = project.write_source(
+        "page_allocator_borrow.nct",
+        r#"from std/mem import Allocator
+from std/mem import page_allocator
+
+func main(): i32 {
+    var allocator = page_allocator()
+    touch(&+allocator)
+    return 0
+}
+
+func touch(allocator: &+Allocator): void {
+    return
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_terminal_if_i32_equality() {
     let project = TempProject::new("cli-build-terminal-if-equality");
     let source = project.write_source(

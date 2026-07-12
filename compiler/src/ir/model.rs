@@ -234,6 +234,13 @@ pub(crate) enum Instruction {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
     },
+    #[allow(dead_code)]
+    CallDirectAggregate {
+        destination: AggregateLocation,
+        target: CallTarget,
+        arguments: Vec<ScalarArgument>,
+        layout: ValueLayout,
+    },
     CallFallibleAggregate {
         destination: AggregateLocation,
         target: CallTarget,
@@ -287,6 +294,7 @@ pub(crate) enum FallibleFailureMode {
 #[allow(dead_code)]
 pub(crate) enum AggregateLocation {
     Return,
+    DirectReturn,
     Slot(usize),
 }
 
@@ -473,6 +481,10 @@ pub(crate) enum Type {
     Aggregate {
         layout: ValueLayout,
     },
+    DirectAggregate {
+        layout: ValueLayout,
+        words: usize,
+    },
     Borrow {
         is_readwrite: bool,
         inner: Box<Type>,
@@ -493,6 +505,7 @@ impl Type {
             | Self::Str
             | Self::Slice { .. }
             | Self::Aggregate { .. }
+            | Self::DirectAggregate { .. }
             | Self::Borrow { .. }
             | Self::Void
             | Self::Never => self,

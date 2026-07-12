@@ -113,6 +113,9 @@ fn lower_entry_body(
                 (Type::Aggregate { .. }, _) => {
                     unreachable!("aggregate entry type is not lowered in v0")
                 }
+                (Type::DirectAggregate { .. }, _) => {
+                    unreachable!("direct aggregate entry type is not lowered in v0")
+                }
                 (Type::Void, None) => Ok(vec![Instruction::Return]),
                 (Type::Void, Some(_)) => Err(vec![Diagnostic::error(
                     "E8002",

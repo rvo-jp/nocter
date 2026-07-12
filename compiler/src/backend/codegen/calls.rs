@@ -118,6 +118,30 @@ impl EntryEmitter {
         Ok(())
     }
 
+    pub(super) fn emit_call_direct_aggregate(
+        &mut self,
+        destination: AggregateLocation,
+        function: FunctionSymbol,
+        arguments: &[ScalarArgument],
+        layout: crate::abi::ValueLayout,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "direct aggregate call emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_staged_scalar_arguments(arguments, frame)?;
+
+        self.emit_call(function);
+        self.emit_direct_aggregate_result_to_location(destination, layout, frame)?;
+        self.emit_scalar_reloads(frame)?;
+        Ok(())
+    }
+
     pub(super) fn emit_call_fallible_aggregate(
         &mut self,
         destination: AggregateLocation,
@@ -145,6 +169,59 @@ impl EntryEmitter {
         self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
         self.emit_scalar_reloads(frame)?;
         Ok(())
+    }
+
+    fn emit_direct_aggregate_result_to_location(
+        &mut self,
+        destination: AggregateLocation,
+        layout: crate::abi::ValueLayout,
+        frame: &FrameLayout,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match destination {
+            AggregateLocation::DirectReturn => Ok(()),
+            AggregateLocation::Slot(slot_index) => {
+                let slot = frame.aggregate_slot(slot_index).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9005",
+                        format!("direct aggregate destination slot {slot_index} is not reserved"),
+                    )]
+                })?;
+                let layout_size = u32::try_from(layout.size).map_err(|_error| {
+                    vec![Diagnostic::error(
+                        "E9005",
+                        "direct aggregate size exceeds u32 range",
+                    )]
+                })?;
+                if slot.size() != layout_size {
+                    return Err(vec![Diagnostic::error(
+                        "E9005",
+                        "direct aggregate destination slot size does not match layout",
+                    )]);
+                }
+                if layout.size > 16 || !layout.size.is_multiple_of(8) {
+                    return Err(vec![Diagnostic::error(
+                        "E9005",
+                        "direct aggregate call result must be one or two ABI words",
+                    )]);
+                }
+
+                self.encoder.emit_str_x_sp(XReg::X0, slot.offset());
+                if layout.size > 8 {
+                    let second_offset = slot.offset().checked_add(8).ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "E9005",
+                            "direct aggregate destination offset overflows",
+                        )]
+                    })?;
+                    self.encoder.emit_str_x_sp(XReg::X1, second_offset);
+                }
+                Ok(())
+            }
+            AggregateLocation::Return => Err(vec![Diagnostic::error(
+                "E9005",
+                "direct aggregate call cannot target indirect return storage",
+            )]),
+        }
     }
 
     pub(super) fn emit_call_i32(
@@ -634,6 +711,10 @@ impl EntryEmitter {
     ) -> Result<(), Vec<Diagnostic>> {
         match destination {
             AggregateLocation::Return => Ok(()),
+            AggregateLocation::DirectReturn => Err(vec![Diagnostic::error(
+                "E9005",
+                "indirect aggregate call cannot target direct return registers",
+            )]),
             AggregateLocation::Slot(slot_index) => {
                 self.emit_aggregate_slot_address_to_x(slot_index, XReg::X8, frame)
             }

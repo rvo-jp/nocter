@@ -428,6 +428,20 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
+            Instruction::CallDirectAggregate {
+                destination,
+                target,
+                arguments,
+                layout,
+            } => {
+                self.emit_call_direct_aggregate(
+                    *destination,
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    *layout,
+                    frame,
+                )?;
+            }
             Instruction::CallFallibleAggregate {
                 destination,
                 target,
@@ -584,6 +598,21 @@ impl EntryEmitter {
                 self.encoder.emit_mov_x(XReg::X1, XReg::X0);
             }
             Type::Aggregate { .. } => {}
+            Type::DirectAggregate { words, .. } => match words {
+                1 => {
+                    self.encoder.emit_mov_x(XReg::X1, XReg::X0);
+                }
+                2 => {
+                    self.encoder.emit_mov_x(XReg::X2, XReg::X1);
+                    self.encoder.emit_mov_x(XReg::X1, XReg::X0);
+                }
+                _ => {
+                    return Err(vec![Diagnostic::error(
+                        "E9002",
+                        "invalid direct aggregate fallible success payload width",
+                    )]);
+                }
+            },
             Type::Void => {}
             Type::Borrow { .. } | Type::Never | Type::Fallible(_) => {
                 return Err(vec![Diagnostic::error(

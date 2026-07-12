@@ -21,22 +21,27 @@ Recommended next implementation order:
 
 1. Follow `compiler/docs/interpolation-lowering.md`: keep bare interpolation lowering disabled until an explicit allocator source is designed, and first make explicit `std/string` construction plus `std/fmt.append_*` calls buildable.
 2. Use the resolved-type function ABI helper from IR/backend planning before adding aggregate storage code.
-3. Add only the remaining backend prerequisites needed by the explicit string path: aggregate reassignment, direct aggregate values where the std surface still requires them, aggregate storage outside the supported call-result/struct-literal slot paths, and owned aggregate return/move handling. Loaded imported scalar calls, scalar/view arguments, local scalar and aggregate slot borrow arguments, scalar/view `var` plus simple assignment, ABI-indirect struct-literal local slots, narrow aggregate call-result `let`/`var` slots, and fallible propagation for the current scalar/view/void plus aggregate call-result subset are already buildable.
+3. Add only the remaining backend prerequisites needed by the explicit string path: aggregate reassignment, aggregate storage outside the supported call-result/struct-literal slot paths, and owned aggregate return/move handling. Loaded imported scalar calls, scalar/view arguments, local scalar and aggregate slot borrow arguments, scalar/view `var` plus simple assignment, aggregate struct-literal local slots, direct aggregate normal call-result slots, narrow indirect aggregate call-result `let`/`var` slots, and fallible propagation for the current scalar/view/void plus indirect aggregate call-result subset are already buildable.
 4. Lower interpolated strings only after the explicit standard-library construction path builds.
 5. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
+- Current checkpoint: lower direct aggregate return slots
+  - tracks 16-byte-or-smaller struct returns as `Type::DirectAggregate { layout, words }`
+  - lowers direct aggregate struct literal returns into `x0,x1` through the shared aggregate field-store path
+  - lowers direct aggregate normal call results into reserved aggregate slots and passes those slots as `&T`/`&+T` borrow arguments
+  - keeps fallible direct aggregate call-result staging, aggregate by-value arguments, aggregate reassignment, source-level aggregate moves, and drop glue disabled
 - Current checkpoint: lower aggregate struct-literal local slots
   - shares aggregate struct-literal field-store lowering between indirect return storage and reserved local slots
-  - lowers ABI-indirect `let`/`var value = Text{ ... }` bindings when stored fields are `usize` or `std/ptr.from_addr` pointer fields
+  - lowers `let`/`var value = Text{ ... }` bindings when stored fields are 8-byte integers or `std/ptr.from_addr` pointer fields
   - allows those struct-literal slots to be borrowed as `&T`/`&+T` arguments and returned by name through the existing slot-to-return copy path
-  - keeps aggregate reassignment, by-value aggregate arguments, direct aggregate values of 16 bytes or smaller, source-level aggregate moves, and drop glue disabled
+  - keeps aggregate reassignment, by-value aggregate arguments, source-level aggregate moves, and drop glue disabled
 - Current checkpoint: lower aggregate call-result slots with aggregate borrows
   - lowers normal and propagated fallible ABI-indirect aggregate call results into reserved `let`/`var` aggregate slots
   - passes reserved aggregate slot addresses as one-word `&T`/`&+T` borrow arguments to normal/fallible calls
   - copies aggregate slots into the current indirect return destination for return-by-name, including fallible success returns
-  - keeps aggregate reassignment, by-value aggregate arguments, direct aggregate values of 16 bytes or smaller, source-level aggregate moves, and drop glue disabled
+  - keeps aggregate reassignment, by-value aggregate arguments, fallible direct aggregate call-result staging, source-level aggregate moves, and drop glue disabled
 - Current checkpoint: lower direct aggregate return calls
   - changes `CallAggregate` to target `AggregateLocation::{Return, Slot}` instead of only reserved slots
   - keeps `x8` unchanged for aggregate calls that directly fill the caller-provided return storage, while preserving slot-address setup for `Slot(n)`
@@ -1043,7 +1048,7 @@ The scalar `i32` and `usize` backend subsets now have runtime safety checks for 
 Recommended next small task for the next session:
 
 1. Follow `compiler/docs/interpolation-lowering.md`: keep bare interpolation lowering disabled until an explicit allocator source is designed, and first make explicit `std/string` construction plus `std/fmt.append_*` calls buildable.
-2. Add only the remaining backend prerequisites needed by that explicit path: aggregate reassignment, direct aggregate values where the std surface still requires them, aggregate storage outside the supported call-result/struct-literal slot paths, and owned aggregate returns/moves.
+2. Add only the remaining backend prerequisites needed by that explicit path: aggregate reassignment, aggregate storage outside the supported call-result/struct-literal slot paths, and owned aggregate returns/moves.
 3. Consider broader terminal control-flow only after its lowering rules are designed.
 4. Keep unrelated imported calls, aggregates, ownership/drop lowering, general mutable storage, and broader control-flow disabled until their ABI, storage, and join rules are designed.
 5. Add CLI build/run coverage for any newly buildable source subset.

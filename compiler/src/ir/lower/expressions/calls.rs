@@ -474,7 +474,11 @@ pub(super) fn lower_call_arguments(
                     context,
                 )?));
             }
-            Type::Aggregate { .. } | Type::Void | Type::Never | Type::Fallible(_) => {
+            Type::Aggregate { .. }
+            | Type::DirectAggregate { .. }
+            | Type::Void
+            | Type::Never
+            | Type::Fallible(_) => {
                 return Err(vec![Diagnostic::error(
                     "E8006",
                     format!(
@@ -563,6 +567,10 @@ fn lower_borrow_argument(
         },
         Type::Aggregate {
             layout: expected_layout,
+        }
+        | Type::DirectAggregate {
+            layout: expected_layout,
+            ..
         } => match context.aggregate_slot(&identifier.name) {
             Some((slot_index, layout)) if layout == *expected_layout => {
                 BorrowSource::AggregateSlot(slot_index)
@@ -1043,6 +1051,7 @@ fn describe_type(ty: &Type) -> &'static str {
         } => "&[u8]",
         Type::Slice { is_readwrite: true } => "&+[u8]",
         Type::Aggregate { .. } => "aggregate",
+        Type::DirectAggregate { .. } => "aggregate",
         Type::Borrow {
             is_readwrite: false,
             inner,
@@ -1052,6 +1061,7 @@ fn describe_type(ty: &Type) -> &'static str {
             Type::Usize => "&usize",
             Type::Bool => "&bool",
             Type::Aggregate { .. } => "&aggregate",
+            Type::DirectAggregate { .. } => "&aggregate",
             _ => "borrow",
         },
         Type::Borrow {
@@ -1063,6 +1073,7 @@ fn describe_type(ty: &Type) -> &'static str {
             Type::Usize => "&+usize",
             Type::Bool => "&+bool",
             Type::Aggregate { .. } => "&+aggregate",
+            Type::DirectAggregate { .. } => "&+aggregate",
             _ => "borrow",
         },
         Type::Void => "void",
@@ -1078,6 +1089,7 @@ fn describe_type(ty: &Type) -> &'static str {
             } => "&[u8]!",
             Type::Slice { is_readwrite: true } => "&+[u8]!",
             Type::Aggregate { .. } => "aggregate!",
+            Type::DirectAggregate { .. } => "aggregate!",
             Type::Borrow {
                 is_readwrite: false,
                 inner,
@@ -1087,6 +1099,7 @@ fn describe_type(ty: &Type) -> &'static str {
                 Type::Usize => "&usize!",
                 Type::Bool => "&bool!",
                 Type::Aggregate { .. } => "&aggregate!",
+                Type::DirectAggregate { .. } => "&aggregate!",
                 _ => "borrow!",
             },
             Type::Borrow {
@@ -1098,6 +1111,7 @@ fn describe_type(ty: &Type) -> &'static str {
                 Type::Usize => "&+usize!",
                 Type::Bool => "&+bool!",
                 Type::Aggregate { .. } => "&+aggregate!",
+                Type::DirectAggregate { .. } => "&+aggregate!",
                 _ => "borrow!",
             },
             Type::Void => "void!",

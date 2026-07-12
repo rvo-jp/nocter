@@ -53,7 +53,7 @@ The first implementation should keep the user-visible subset small:
 - direct `&str` return values from static string literals, `&str` parameters, `&str` locals, and tail calls
 - `&str` return values in annotated `&str` `let` initializers and as `&str` call arguments
 - up to 8 ABI argument words, passed in `w0`/`x0` through `w7`/`x7`
-- no aggregate by-value arguments, general aggregate values, owned strings, optionals, ownership/drop lowering, or calls in broader control-flow; only the narrow ABI-indirect aggregate return/call-result slot and aggregate borrow-argument paths described in `architecture.md` are enabled
+- no aggregate by-value arguments, general aggregate values, owned strings, optionals, ownership/drop lowering, or calls in broader control-flow; only the narrow ABI-indirect aggregate return/call-result slot, direct aggregate normal call-result slot, and aggregate borrow-argument paths described in `architecture.md` are enabled
 
 ### Frame Shape
 

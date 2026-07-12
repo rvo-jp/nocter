@@ -68,11 +68,6 @@ fn lower_aggregate_struct_literal_binding(
             "IR v0 can only lower local aggregate bindings whose initializer has an ABI layout",
         )
     })?;
-    if !value.is_indirect() {
-        return Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower indirect aggregate struct literal local bindings",
-        ));
-    }
     validate_aggregate_binding_layout(value.layout)?;
 
     let slot_index = context.define_aggregate_local(statement.name.clone(), value.layout);
@@ -118,21 +113,42 @@ fn lower_aggregate_normal_call_binding(
     call: &CallExpr,
     context: &mut LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
-    let Some((target, callee_name, layout)) = aggregate_call_return(call, context)? else {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
         return Ok(None);
     };
-    let layout = *layout;
+
+    let target = context.call_target(call, &identifier.name);
+    let Some(return_type) = context.call_return_type(&target).cloned() else {
+        return Ok(None);
+    };
+    let layout = match &return_type {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => return Ok(None),
+    };
     validate_aggregate_binding_layout(layout)?;
 
     let (mut instructions, arguments) =
-        lower_call_arguments_to_scalar_arguments(call, &target, callee_name, context)?;
+        lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
     let slot_index = context.define_aggregate_local(statement.name.clone(), layout);
     instructions.insert(0, Instruction::ReserveAggregateSlot { slot_index, layout });
-    instructions.push(Instruction::CallAggregate {
-        destination: AggregateLocation::Slot(slot_index),
-        target,
-        arguments,
-    });
+    match return_type {
+        Type::Aggregate { .. } => {
+            instructions.push(Instruction::CallAggregate {
+                destination: AggregateLocation::Slot(slot_index),
+                target,
+                arguments,
+            });
+        }
+        Type::DirectAggregate { .. } => {
+            instructions.push(Instruction::CallDirectAggregate {
+                destination: AggregateLocation::Slot(slot_index),
+                target,
+                arguments,
+                layout,
+            });
+        }
+        _ => unreachable!("aggregate call binding requires aggregate return type"),
+    }
     Ok(Some(instructions))
 }
 
@@ -167,22 +183,6 @@ fn lower_aggregate_fallible_call_binding(
         failure_mode,
     });
     Ok(Some(instructions))
-}
-
-fn aggregate_call_return<'a>(
-    call: &'a CallExpr,
-    context: &'a LoweringContext,
-) -> Result<Option<(crate::ir::CallTarget, &'a str, &'a crate::abi::ValueLayout)>, Vec<Diagnostic>>
-{
-    let Expr::Identifier(identifier) = call.callee.as_ref() else {
-        return Ok(None);
-    };
-
-    let target = context.call_target(call, &identifier.name);
-    let Some(Type::Aggregate { layout }) = context.call_return_type(&target) else {
-        return Ok(None);
-    };
-    Ok(Some((target, &identifier.name, layout)))
 }
 
 fn validate_aggregate_binding_layout(

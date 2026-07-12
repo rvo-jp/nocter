@@ -19,7 +19,7 @@ pub(super) fn lower_aggregate_struct_literal_to_location(
     let value = abi_value_from_type_expr(&literal.ty, resolved).map_err(|_error| {
         unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
     })?;
-    if !value.is_indirect() || value.layout != expected_layout {
+    if value.layout != expected_layout {
         return Err(unsupported_aggregate_struct_literal_diagnostic(
             diagnostic_code,
             subject,
@@ -78,7 +78,7 @@ fn lower_aggregate_word_field_value(
     context: &LoweringContext,
 ) -> Result<(Vec<Instruction>, UsizeValue), Vec<Diagnostic>> {
     match field_type {
-        AbiType::Usize => lower_usize_expression_to_word(expression, context),
+        AbiType::U64 | AbiType::Usize => lower_usize_expression_to_word(expression, context),
         AbiType::Pointer => {
             lower_aggregate_pointer_field_value(expression, diagnostic_code, subject, context)
         }
@@ -122,7 +122,7 @@ pub(super) fn unsupported_aggregate_struct_literal_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower aggregate {subject} when the expression is an indirect struct literal with `usize` fields or `std/ptr.from_addr` pointer fields"
+            "IR v0 can only lower aggregate {subject} when the expression is a struct literal with 8-byte integer fields or `std/ptr.from_addr` pointer fields"
         ),
     )]
 }

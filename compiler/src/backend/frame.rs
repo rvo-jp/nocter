@@ -270,6 +270,7 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::CallSlice { .. }
         | Instruction::CallFallibleSlice { .. }
         | Instruction::CallAggregate { .. }
+        | Instruction::CallDirectAggregate { .. }
         | Instruction::CallFallibleAggregate { .. }
         | Instruction::CallVoid { .. }
         | Instruction::CallFallibleVoid { .. }
@@ -340,6 +341,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::CallStr { arguments, .. }
         | Instruction::CallSlice { arguments, .. }
         | Instruction::CallAggregate { arguments, .. }
+        | Instruction::CallDirectAggregate { arguments, .. }
         | Instruction::CallVoid { arguments, .. }
         | Instruction::TailCall { arguments, .. } => {
             arguments.iter().map(ScalarArgument::abi_word_count).sum()
@@ -522,6 +524,7 @@ fn record_instruction_aggregate_slot_requests(
         | Instruction::CallStr { .. }
         | Instruction::CallSlice { .. }
         | Instruction::CallAggregate { .. }
+        | Instruction::CallDirectAggregate { .. }
         | Instruction::CallVoid { .. }
         | Instruction::TailCall { .. }
         | Instruction::Trap
@@ -852,7 +855,8 @@ fn record_instruction_scalar_locals(
             }
             record_failure_mode_scalar_locals(failure_mode, highest_local_index);
         }
-        Instruction::CallAggregate { arguments, .. } => {
+        Instruction::CallAggregate { arguments, .. }
+        | Instruction::CallDirectAggregate { arguments, .. } => {
             for argument in arguments {
                 record_scalar_argument(argument, highest_local_index);
             }
