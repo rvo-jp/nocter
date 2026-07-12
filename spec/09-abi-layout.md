@@ -198,7 +198,7 @@ Composed optional and fallible values use the same layout rules recursively. For
 Source syntax:
 
 ```nct
-drop(value: &+Self) {
+drop value: &+Self {
     ...
 }
 ```

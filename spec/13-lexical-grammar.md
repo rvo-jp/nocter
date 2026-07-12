@@ -69,6 +69,7 @@ Rules:
 - Unicode letters are not accepted in identifiers in v0.
 - Reserved keywords are not identifiers.
 - `nocter` is not a reserved keyword except as the contextual visibility scope in `pub(nocter)`.
+- `drop` is not a reserved keyword. It is emitted as an identifier token; the parser recognizes destructor members and explicit drop statements only by their source form.
 - `Self` has identifier spelling but is reserved as contextual type syntax in `impl` and `trait` type positions. It is not a valid binding, declaration, field, variant, module, type parameter, or import alias name.
 - `error` is not a reserved keyword. In type positions, the exact spelling `error` is compiler built-in type syntax. In value positions, it is an ordinary identifier, so `catch error { ... }` binds a local value named `error`.
 - A single `_` is reserved for a future discard or wildcard design and is not a valid binding, declaration, field, variant, type parameter, or import alias name in v0.
@@ -132,6 +133,7 @@ Keyword rules:
 
 - Reserved keywords are emitted as keyword tokens.
 - `nocter` is emitted as an identifier token; parser and resolver treat it contextually in `pub(nocter)`.
+- `drop` is emitted as an identifier token; the parser treats `drop name: &+Self { ... }` in an inherent `impl` block and `drop name` in statement position as contextual source forms.
 - `Self` may be emitted as an identifier-shaped token by the lexer, but the parser treats that exact spelling contextually as type syntax only where [Values and Types](02-values-types.md#self-type-syntax) allows it.
 - `error` is emitted as an identifier token; the parser treats it contextually as built-in type syntax only in type positions.
 - `ok`, `some`, `unsafe`, and `trusted` are not reserved in v0 and are emitted as identifier tokens.

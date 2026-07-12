@@ -52,6 +52,16 @@ impl Resolver<'_> {
                     self.define_parameters(&method.parameters.parameters, &mut scope);
                     self.resolve_block(body, &mut scope);
                 }
+                ImplMember::Drop(drop_) => {
+                    let mut scope = Scope::new();
+                    self.define_local_name(
+                        drop_.binding.name.clone(),
+                        drop_.binding.name_span,
+                        LocalSymbolKind::Parameter,
+                        &mut scope,
+                    );
+                    self.resolve_block(&drop_.body, &mut scope);
+                }
             }
         }
     }
@@ -190,6 +200,13 @@ impl Resolver<'_> {
                 self.resolve_block(&statement.body, &mut body_scope);
             }
             Stmt::Break(_) | Stmt::Continue(_) => {}
+            Stmt::Drop(statement) => {
+                if let Some(local_id) = scope.resolve(&statement.name) {
+                    self.output
+                        .local_identifier_targets
+                        .insert(statement.name_span, local_id);
+                }
+            }
             Stmt::Expression(statement) => self.resolve_expression(&statement.expression, scope),
         }
     }

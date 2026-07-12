@@ -1,8 +1,9 @@
 use super::Formatter;
 use crate::ast::{
-    AstFile, EnumDecl, EnumVariant, FromImportItem, FunctionDecl, GenericParam, GenericParamList,
-    ImplDecl, ImplMember, ImportItem, ImportedName, Item, MethodDecl, Parameter, ParameterList,
-    PrimitiveDecl, StructDecl, StructField, TraitDecl, TypeAliasDecl, UseItem, Visibility,
+    AstFile, DropDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl, GenericParam,
+    GenericParamList, ImplDecl, ImplMember, ImportItem, ImportedName, Item, MethodDecl, Parameter,
+    ParameterList, PrimitiveDecl, StructDecl, StructField, TraitDecl, TypeAliasDecl, UseItem,
+    Visibility,
 };
 
 impl Formatter {
@@ -196,7 +197,15 @@ impl Formatter {
         match member {
             ImplMember::Function(function) => self.format_function_decl(function),
             ImplMember::Method(method) => self.format_method_decl(method),
+            ImplMember::Drop(drop_) => self.format_drop_decl(drop_),
         }
+    }
+
+    fn format_drop_decl(&mut self, item: &DropDecl) {
+        self.write("drop ");
+        self.format_parameter(&item.binding);
+        self.write(" ");
+        self.format_block(&item.body);
     }
 
     fn format_method_decl(&mut self, item: &MethodDecl) {

@@ -188,8 +188,19 @@ impl Parser<'_> {
         matches!(self.current().kind, TokenKind::Keyword(actual) if actual == keyword)
     }
 
+    pub(super) fn at_identifier_text(&self, text: &str) -> bool {
+        self.current().kind == TokenKind::Identifier && self.lexeme(self.current()) == text
+    }
+
     pub(super) fn at_punctuation(&self, punctuation: &str) -> bool {
         matches!(self.current().kind, TokenKind::Punctuation(actual) if actual == punctuation)
+    }
+
+    pub(super) fn next_is_identifier(&self) -> bool {
+        matches!(
+            self.tokens.get(self.index + 1).map(|token| token.kind),
+            Some(TokenKind::Identifier)
+        )
     }
 
     pub(super) fn next_is_punctuation(&self, punctuation: &str) -> bool {

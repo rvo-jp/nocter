@@ -814,7 +814,7 @@ impl File {
     pub method (file: &+Self).write(bytes: [u8]): void!
     pub method (file: &+Self).write_text(text: str): void!
 
-    drop File(file: &+Self) {
+    drop file: &+Self {
         ...
     }
 }
@@ -828,7 +828,7 @@ pub func print(text: str): void!
 
 `read(buffer)` は読み込んだ byte 数を返し、通常ファイルでは `0` が EOF です。`write(bytes)` は byte view 全体を書き切るか `error` で失敗します。`write_text(text)` は `str` の UTF-8 bytes をそのまま書きます。`print(text)` は `stdout()` へ text を書き、改行は追加しません。
 
-`File` は内部的に owned handle と borrowed process standard stream を区別します。`File.open(path)` で得た `File` の drop は handle を閉じますが、`stdout()` / `stderr()` で得た `File` の drop は process の標準出力 / 標準エラーを閉じません。`drop File` は失敗できないため、close error は v0 では無視します。将来必要なら明示的な `close` API を追加します。
+`File` は内部的に owned handle と borrowed process standard stream を区別します。`File.open(path)` で得た `File` の drop は handle を閉じますが、`stdout()` / `stderr()` で得た `File` の drop は process の標準出力 / 標準エラーを閉じません。`File` の drop member は失敗できないため、close error は v0 では無視します。将来必要なら明示的な `close` API を追加します。
 
 `std/io` は共通の user-facing module です。raw file descriptor や syscall との接続は active target overlay の `std/io_impl` に置き、`pub(nocter)` helper として `std/io` からだけ使います。利用者は `std/io_impl` を import せず、`File`、`stdout`、`stderr`、`print`、`File.open/read/write/write_text` を通じて I/O を扱います。
 
@@ -1150,13 +1150,13 @@ let p1 = Point{x: 1, y: 2}
 let p2 = p1
 ```
 
-所有値の破棄はスコープ終了時に自動で行います。破棄処理の定義には、trait ではなく `impl` 内の専用 `drop` member を使います。`drop` member は戻り値型を書かず、`pub` も付けません。明示的に早く破棄したい場合は `drop name` 文を使います。
+所有値の破棄はスコープ終了時に自動で行います。破棄処理の定義には、trait ではなく inherent `impl` 内の専用 `drop name: &+Self { ... }` member を使います。`drop` は予約語ではなく、lexer は identifier token として扱います。`drop` member は戻り値型を書かず、`pub` も付けません。明示的に早く破棄したい場合は `drop name` 文を使います。
 
 ```nct
 import std/os as os
 
 impl File {
-    drop(file: &+Self) {
+    drop file: &+Self {
         os.close(file.fd).ignore()
     }
 }

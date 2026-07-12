@@ -76,6 +76,10 @@ impl Counter {
     pub method (counter: &+Self).add(value: i32): void {
         return
     }
+
+    drop counter: &+Self {
+        return
+    }
 }
 
 pub trait Writer {
@@ -119,6 +123,14 @@ func main(): i32 {
     assert_eq!(method.name, "add");
     assert!(method.body.is_some());
     assert!(matches!(&method.receiver.ty, TypeExpr::Borrow(_)));
+    let ImplMember::Drop(drop_) = &inherent_impl.members[2] else {
+        panic!("expected drop member");
+    };
+    assert_eq!(drop_.binding.name, "counter");
+    assert!(matches!(
+        &drop_.binding.ty,
+        TypeExpr::Borrow(borrow) if borrow.is_readwrite
+    ));
 
     let Item::Trait(trait_) = &ast.items[2] else {
         panic!("expected trait");
@@ -147,6 +159,23 @@ func main(): i32 {
         &function.generics.parameters[0].bound,
         Some(TypeExpr::Reference(reference)) if reference.name == "Writer"
     ));
+}
+
+#[test]
+fn parses_drop_as_ordinary_function_name() {
+    let output = parse_text(
+        r#"func drop(): void {
+    return
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function");
+    };
+    assert_eq!(function.name, "drop");
 }
 
 #[test]

@@ -6,8 +6,9 @@ use super::protocol::{
 use super::semantic::{SEMANTIC_DECLARATION_MODIFIER, classified_identifiers};
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    AstFile, BindingStmt, Block, EnumDecl, Expr, FunctionDecl, ImplMember, InterpolatedStringPart,
-    Item, MethodDecl, Parameter, PrimitiveDecl, Stmt, StructDecl, StructField, TraitDecl,
+    AstFile, BindingStmt, Block, EnumDecl, Expr, FunctionDecl, IdentifierExpr, ImplMember,
+    InterpolatedStringPart, Item, MethodDecl, Parameter, PrimitiveDecl, Stmt, StructDecl,
+    StructField, TraitDecl,
 };
 use crate::comments::{DocumentationTarget, attach_documentation};
 use crate::lexer::lex;
@@ -259,6 +260,14 @@ fn collect_item_resolved_hover_symbols(
                             );
                         }
                     }
+                    ImplMember::Drop(drop_) => {
+                        collect_block_resolved_hover_symbols(
+                            &drop_.body,
+                            resolved,
+                            offset,
+                            candidates,
+                        );
+                    }
                 }
             }
         }
@@ -416,6 +425,20 @@ fn collect_statement_resolved_hover_symbols(
         }
         Stmt::Loop(statement) => {
             collect_block_resolved_hover_symbols(&statement.body, resolved, offset, candidates);
+        }
+        Stmt::Drop(statement) => {
+            if span_contains(statement.name_span, offset) {
+                let identifier = IdentifierExpr {
+                    span: statement.name_span,
+                    name: statement.name.clone(),
+                };
+                if let Some(symbol) = resolved.local_symbol_for_identifier(&identifier) {
+                    candidates.push((
+                        statement.name_span,
+                        ResolvedReference::Local(symbol.clone()),
+                    ));
+                }
+            }
         }
         Stmt::Expression(statement) => {
             collect_expression_resolved_hover_symbols(
@@ -689,6 +712,7 @@ fn collect_item_hover_symbols(text: &str, item: &Item, symbols: &mut Vec<HoverSy
                     ImplMember::Method(method) => {
                         collect_method_hover_symbols(text, method, symbols)
                     }
+                    ImplMember::Drop(drop_) => collect_drop_hover_symbols(text, drop_, symbols),
                 }
             }
         }
@@ -745,6 +769,22 @@ fn collect_trait_hover_symbols(text: &str, trait_: &TraitDecl, symbols: &mut Vec
     for method in &trait_.methods {
         collect_method_hover_symbols(text, method, symbols);
     }
+}
+
+fn collect_drop_hover_symbols(
+    text: &str,
+    drop_: &crate::ast::DropDecl,
+    symbols: &mut Vec<HoverSymbol>,
+) {
+    push_hover_symbol(
+        text,
+        drop_.binding.name_span,
+        drop_.span.start,
+        function_like_header(text, drop_.span, Some(drop_.body.span.start)),
+        symbols,
+    );
+    collect_parameter_hover_symbols(text, std::slice::from_ref(&drop_.binding), symbols);
+    collect_block_hover_symbols(text, &drop_.body, symbols);
 }
 
 fn collect_method_hover_symbols(text: &str, method: &MethodDecl, symbols: &mut Vec<HoverSymbol>) {
@@ -912,6 +952,7 @@ fn collect_statement_hover_symbols(text: &str, statement: &Stmt, symbols: &mut V
             collect_block_hover_symbols(text, &statement.body, symbols);
         }
         Stmt::Loop(statement) => collect_block_hover_symbols(text, &statement.body, symbols),
+        Stmt::Drop(_) => {}
         Stmt::Expression(statement) => {
             collect_expression_hover_symbols(text, &statement.expression, symbols);
         }

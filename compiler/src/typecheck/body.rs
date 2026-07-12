@@ -107,6 +107,21 @@ fn check_impl_member_expressions(
                 let mut environment = environment_for_method(method, resolved, self_type.clone());
                 check_block_expressions(sources, body, resolved, diagnostics, &mut environment, 0);
             }
+            ImplMember::Drop(drop_) => {
+                let mut environment = environment_for_parameters_with_self_type(
+                    std::slice::from_ref(&drop_.binding),
+                    resolved,
+                    self_type.clone(),
+                );
+                check_block_expressions(
+                    sources,
+                    &drop_.body,
+                    resolved,
+                    diagnostics,
+                    &mut environment,
+                    0,
+                );
+            }
         }
     }
 }
@@ -442,6 +457,7 @@ fn check_statement_expressions(
                 ));
             }
         }
+        Stmt::Drop(_) => {}
         Stmt::Expression(statement) => {
             check_expression_tree(
                 sources,

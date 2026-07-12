@@ -87,7 +87,7 @@ fn collect_statement(
         Stmt::Expression(statement) => {
             collect_expression(&statement.expression, root_source, resolved, targets);
         }
-        Stmt::Break(_) | Stmt::Continue(_) => {}
+        Stmt::Break(_) | Stmt::Continue(_) | Stmt::Drop(_) => {}
     }
 }
 

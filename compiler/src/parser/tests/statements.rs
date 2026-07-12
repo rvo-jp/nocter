@@ -94,6 +94,34 @@ fn parses_assignment_and_compound_assignment_statements() {
 }
 
 #[test]
+fn parses_drop_statement_without_reserving_drop_identifier() {
+    let output = parse_text(
+        r#"func main(): void {
+    var file = open()
+    drop file
+    drop(file)
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
+    };
+
+    let Stmt::Drop(drop_) = &function.body.statements[1] else {
+        panic!("expected drop statement");
+    };
+    assert_eq!(drop_.name, "file");
+
+    let Stmt::Expression(call_statement) = &function.body.statements[2] else {
+        panic!("expected expression statement");
+    };
+    assert!(matches!(call_statement.expression, Expr::Call(_)));
+}
+
+#[test]
 fn rejects_non_place_assignment_target() {
     let output = parse_text(
         r#"func main(): i32 {

@@ -116,6 +116,26 @@ fn check_impl_member_return_types(
                     &mut environment,
                 );
             }
+            ImplMember::Drop(drop_) => {
+                let context = ReturnContext::new(
+                    CallableKind::Drop(impl_member_name(impl_, "drop")),
+                    Type::Void,
+                    drop_.binding.ty.span(),
+                );
+                let mut environment = environment_for_parameters_with_self_type(
+                    std::slice::from_ref(&drop_.binding),
+                    resolved,
+                    self_type.clone(),
+                );
+                check_block_returns(
+                    sources,
+                    &drop_.body,
+                    &context,
+                    resolved,
+                    diagnostics,
+                    &mut environment,
+                );
+            }
         }
     }
 }
@@ -459,7 +479,7 @@ fn check_statement_returns(
                 &mut body_environment,
             );
         }
-        Stmt::Break(_) | Stmt::Continue(_) => {}
+        Stmt::Break(_) | Stmt::Continue(_) | Stmt::Drop(_) => {}
         Stmt::Expression(statement) => {
             check_expression_for_nested_returns(
                 sources,
@@ -902,6 +922,7 @@ fn statement_guarantees_return(statement: &Stmt) -> bool {
         | Stmt::WhileLet(_)
         | Stmt::Break(_)
         | Stmt::Continue(_)
+        | Stmt::Drop(_)
         | Stmt::Expression(_) => false,
     }
 }

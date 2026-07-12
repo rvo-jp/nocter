@@ -89,6 +89,10 @@ impl Formatter {
             }
             Stmt::Break(_) => self.write("break"),
             Stmt::Continue(_) => self.write("continue"),
+            Stmt::Drop(statement) => {
+                self.write("drop ");
+                self.write(&statement.name);
+            }
             Stmt::Expression(statement) => self.format_expression(&statement.expression),
         }
     }

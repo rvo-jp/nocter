@@ -1,6 +1,6 @@
 use super::{ParseResult, Parser};
 use crate::ast::{
-    AstFile, EnumDecl, EnumVariant, FromImportItem, FunctionDecl, ImplDecl, ImplMember,
+    AstFile, DropDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl, ImplDecl, ImplMember,
     ImportAlias, ImportItem, ImportedName, Item, MethodDecl, ModulePath, Parameter, ParameterList,
     PrimitiveDecl, StructDecl, StructField, TraitDecl, TypeAliasDecl, UseItem, Visibility,
 };
@@ -433,6 +433,7 @@ impl Parser<'_> {
         };
         let open = self.expect_punctuation("{", "`{`")?;
         let mut members = Vec::new();
+        let mut has_drop_member = false;
         self.skip_newlines();
 
         while !self.at_punctuation("}") {
@@ -450,8 +451,23 @@ impl Parser<'_> {
                 members.push(ImplMember::Method(
                     self.parse_method_decl(visibility, true)?,
                 ));
+            } else if self.at_identifier_text("drop") {
+                if visibility != Visibility::Private {
+                    self.error_current("drop member cannot be marked pub");
+                    return Err(());
+                }
+                if trait_ty.is_some() {
+                    self.error_current("drop member cannot appear in a trait impl");
+                    return Err(());
+                }
+                if has_drop_member {
+                    self.error_current("impl block cannot define more than one drop member");
+                    return Err(());
+                }
+                has_drop_member = true;
+                members.push(ImplMember::Drop(self.parse_drop_decl()?));
             } else {
-                self.error_current("expected `func` or `method` in impl block");
+                self.error_current("expected `func`, `method`, or `drop` in impl block");
                 return Err(());
             }
 
@@ -465,6 +481,26 @@ impl Parser<'_> {
             target_ty,
             members,
         }))
+    }
+
+    pub(super) fn parse_drop_decl(&mut self) -> ParseResult<DropDecl> {
+        let start = self.bump();
+        let name = self.expect_identifier("expected drop binding name")?;
+        self.expect_punctuation(":", "`:`")?;
+        let ty = self.parse_type()?;
+        let binding = Parameter {
+            span: self.span(name.span.start, ty.span().end),
+            name: name.value,
+            name_span: name.span,
+            ty,
+        };
+        let body = self.parse_block()?;
+
+        Ok(DropDecl {
+            span: self.span(start.span.start, body.span.end),
+            binding,
+            body,
+        })
     }
 
     pub(super) fn parse_method_decl(

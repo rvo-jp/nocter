@@ -149,6 +149,7 @@ impl Writer for File{pub method(file:&+Self).write(text:&str):void!{let bytes=[1
 var point=Point{x:1,y:2}
 while var item=next(){print(item)}
 }}
+impl File{drop file:&+Self{drop file}}
 "#,
         concat!(
             "from std/io import print as write, File\n",
@@ -162,6 +163,12 @@ while var item=next(){print(item)}
             "        while var item = next() {\n",
             "            print(item)\n",
             "        }\n",
+            "    }\n",
+            "}\n",
+            "\n",
+            "impl File {\n",
+            "    drop file: &+Self {\n",
+            "        drop file\n",
             "    }\n",
             "}\n",
         ),

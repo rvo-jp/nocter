@@ -189,7 +189,7 @@ impl File {
     pub method (file: &+Self).write(bytes: &[u8]): void!
     pub method (file: &+Self).write_text(text: &str): void!
 
-    drop File(file: &+Self) {
+    drop file: &+Self {
         ...
     }
 }
@@ -216,7 +216,7 @@ Rules:
 - `File` internally distinguishes owned handles from borrowed process standard streams.
 - Dropping a `File` returned by `File.open(path)` closes the owned handle.
 - Dropping a `File` returned by `stdout()` or `stderr()` must not close the process standard stream.
-- `drop File` cannot fail. Close errors are ignored in v0 unless a future explicit close API is adopted.
+- The `File` drop member cannot fail. Close errors are ignored in v0 unless a future explicit close API is adopted.
 - Unexpected OS errors are converted to `"std.os.unexpected_os_error"` with a message that preserves useful target context.
 
 Physical placement:
@@ -553,7 +553,6 @@ is
 catch
 none
 move
-drop
 as
 region
 using
@@ -563,6 +562,8 @@ never
 ```
 
 `nocter` is not a reserved keyword. It is recognized only as the contextual visibility scope in `pub(nocter)`.
+
+`drop` is not a reserved keyword. It is emitted as an identifier token and is recognized only by the contextual inherent destructor member form and explicit drop statement form specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#drop).
 
 `@` is reserved for possible future attribute-like syntax, but attributes are not part of v0. A source-level `@` outside string literals, byte literals, or comments is invalid in v0.
 

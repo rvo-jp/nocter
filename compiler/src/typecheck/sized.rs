@@ -148,6 +148,23 @@ fn check_impl(
                     diagnostics,
                 );
             }
+            ImplMember::Drop(drop_) => {
+                check_value_type(
+                    sources,
+                    &drop_.binding.ty,
+                    "drop binding type",
+                    resolved,
+                    Some(&self_type),
+                    diagnostics,
+                );
+                check_block(
+                    sources,
+                    &drop_.body,
+                    resolved,
+                    Some(&self_type),
+                    diagnostics,
+                );
+            }
         }
     }
 }

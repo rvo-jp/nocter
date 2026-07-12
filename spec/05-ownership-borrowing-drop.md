@@ -231,32 +231,37 @@ func invalid_rebind(value: &+Counter, other: &+Counter): void {
 
 ## Drop
 
-Adopted: resource destruction uses a dedicated `drop` member inside `impl`, not a `Drop` trait.
+Adopted: resource destruction uses a dedicated `drop` member inside an inherent `impl`, not a `Drop` trait.
 
 ```nct
 import std/os as os
 
 impl File {
-    drop(file: &+Self) {
+    drop file: &+Self {
         os.close(file.fd).ignore()
     }
 }
 ```
 
-`drop` is not a normal function name. It is a reserved keyword with two syntactic roles: a destructor member inside an `impl` block, and an explicit `drop name` statement.
+The destructor member is the contextual `drop name: &+Self { ... }` member form. `drop` is not a reserved keyword. The lexer emits `drop` as an identifier token, and the parser recognizes the two exact source forms for destruction: a destructor member inside an inherent `impl` block, and an explicit `drop name` statement. Outside those forms, `drop` is an ordinary identifier.
+
+A declaration such as `func drop(...)` or `method (value: &Self).drop(...)` declares an ordinary function or method named `drop`. It does not define destruction behavior.
 
 Rules:
 
 - A type may define at most one `drop` member.
-- `drop` has no return type annotation.
-- `drop` always returns no value.
-- `drop` cannot be fallible.
-- `drop` cannot be marked `pub`.
-- The first parameter must be `&+Self`.
-- `drop` cannot be called as a normal associated function or method.
-- `file.drop()` is invalid.
-- `File.drop(&+file)` is invalid.
-- `drop` cannot report cleanup failure through fallible return.
+- A `drop` member has the source form `drop name: &+Self { ... }`.
+- The binding name after `drop` is ordinary and scoped to the drop body.
+- The drop binding type must be exactly `&+Self`.
+- A `drop` member cannot appear in a trait declaration or trait impl.
+- A `drop` member has no return type annotation.
+- A `drop` member always returns no value.
+- A `drop` member cannot be fallible.
+- A `drop` member cannot be marked `pub`.
+- A destructor member cannot be called as a normal associated function or method.
+- `file.drop()` is an ordinary method call if an ordinary method named `drop` exists; it is not a destructor call.
+- `File.drop(&+file)` is an ordinary associated function call if an ordinary function named `drop` exists; it is not a destructor call.
+- A `drop` member cannot report cleanup failure through fallible return.
 - If an operation inside `drop` can fail, the `drop` body must ignore that failure, record it in already-owned state before destruction, or terminate with `trap` / `abort`.
 - Terminating with `trap` or `abort` from inside `drop` does not unwind remaining caller scopes.
 - Owned values are automatically dropped at scope end.
@@ -285,7 +290,7 @@ Rules:
 
 - `drop name` is a statement.
 - In v0, the operand of `drop` must be a local binding name or parameter binding name.
-- `drop` is a reserved keyword, not an ordinary function.
+- `drop` is not a reserved keyword and is not an ordinary function call in this statement form.
 - The operand must be initialized.
 - The operand must be a move-only owned binding.
 - Copy types cannot be explicitly dropped.

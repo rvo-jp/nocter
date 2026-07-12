@@ -166,7 +166,7 @@ fn check_statement(
                 diagnostics,
             );
         }
-        Stmt::Break(_) | Stmt::Continue(_) => {}
+        Stmt::Break(_) | Stmt::Continue(_) | Stmt::Drop(_) => {}
     }
 }
 

@@ -71,6 +71,10 @@ fn collect_impl_member_targets(
                 collect_block_targets(text, body, targets);
             }
         }
+        ImplMember::Drop(drop_) => {
+            push_target(text, drop_.span, targets);
+            collect_block_targets(text, &drop_.body, targets);
+        }
     }
 }
 
@@ -142,7 +146,7 @@ fn collect_statement_targets(text: &str, statement: &Stmt, targets: &mut Vec<Doc
             collect_block_targets(text, &statement.body, targets);
         }
         Stmt::Loop(statement) => collect_block_targets(text, &statement.body, targets),
-        Stmt::Break(_) | Stmt::Continue(_) => {}
+        Stmt::Break(_) | Stmt::Continue(_) | Stmt::Drop(_) => {}
         Stmt::Expression(statement) => {
             collect_expression_targets(text, &statement.expression, targets);
         }

@@ -169,6 +169,14 @@ pub struct ImplDecl {
 pub enum ImplMember {
     Function(FunctionDecl),
     Method(MethodDecl),
+    Drop(DropDecl),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DropDecl {
+    pub span: ByteSpan,
+    pub binding: Parameter,
+    pub body: Block,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -303,6 +311,7 @@ pub enum Stmt {
     Loop(LoopStmt),
     Break(BreakStmt),
     Continue(ContinueStmt),
+    Drop(DropStmt),
     Expression(ExpressionStmt),
 }
 
@@ -454,6 +463,13 @@ pub struct BreakStmt {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContinueStmt {
     pub span: ByteSpan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DropStmt {
+    pub span: ByteSpan,
+    pub name: String,
+    pub name_span: ByteSpan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -763,6 +779,7 @@ impl Stmt {
             Stmt::Loop(statement) => statement.span,
             Stmt::Break(statement) => statement.span,
             Stmt::Continue(statement) => statement.span,
+            Stmt::Drop(statement) => statement.span,
             Stmt::Expression(statement) => statement.span,
         }
     }

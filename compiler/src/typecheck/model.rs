@@ -220,6 +220,7 @@ impl ReturnContext {
             CallableKind::Function(name) => format!("function `{name}`"),
             CallableKind::AssociatedFunction(name) => format!("associated function `{name}`"),
             CallableKind::Method(name) => format!("method `{name}`"),
+            CallableKind::Drop(name) => format!("drop member `{name}`"),
         }
     }
 }
@@ -229,6 +230,7 @@ pub(super) enum CallableKind {
     Function(String),
     AssociatedFunction(String),
     Method(String),
+    Drop(String),
 }
 
 pub(super) fn binding_kind_is_mutable(kind: BindingKind) -> bool {

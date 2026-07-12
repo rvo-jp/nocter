@@ -2,8 +2,9 @@ use super::support::ParsedEnumPattern;
 use super::{ParseResult, Parser};
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, BindingKind, BindingStmt, Block, BreakStmt, ContinueStmt,
-    Expr, ExpressionStmt, ForRangeStmt, IfIsStmt, IfLetStmt, IfStmt, LoopStmt, ReturnStmt, Stmt,
-    SwitchArm, SwitchElseArm, SwitchPayloadBinding, SwitchStmt, WhileLetStmt, WhileStmt,
+    DropStmt, Expr, ExpressionStmt, ForRangeStmt, IfIsStmt, IfLetStmt, IfStmt, LoopStmt,
+    ReturnStmt, Stmt, SwitchArm, SwitchElseArm, SwitchPayloadBinding, SwitchStmt, WhileLetStmt,
+    WhileStmt,
 };
 use crate::lexer::{Keyword, TokenKind};
 
@@ -69,6 +70,10 @@ impl Parser<'_> {
             return self.parse_binding_statement();
         }
 
+        if self.at_identifier_text("drop") && self.next_is_identifier() {
+            return self.parse_drop_statement();
+        }
+
         self.parse_expression_statement()
     }
 
@@ -122,6 +127,18 @@ impl Parser<'_> {
             ty,
             initializer,
             else_block,
+        }))
+    }
+
+    pub(super) fn parse_drop_statement(&mut self) -> ParseResult<Stmt> {
+        let start = self.bump();
+        let name = self.expect_identifier("expected binding name after `drop`")?;
+        self.expect_statement_end("expected end of drop statement after binding name")?;
+
+        Ok(Stmt::Drop(DropStmt {
+            span: self.span(start.span.start, name.span.end),
+            name: name.value,
+            name_span: name.span,
         }))
     }
 

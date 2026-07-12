@@ -303,6 +303,12 @@ impl ImplMember {
                 ],
             ),
             ImplMember::Method(method) => method.to_json(sources),
+            ImplMember::Drop(drop_) => JsonAstNode::with_value(
+                "drop_decl",
+                drop_.binding.name.clone(),
+                json_span(sources, drop_.span),
+                vec![drop_.binding.to_json(sources), drop_.body.to_json(sources)],
+            ),
         }
     }
 }
@@ -650,6 +656,12 @@ impl Stmt {
             ),
             Stmt::Continue(statement) => JsonAstNode::new(
                 "continue_statement",
+                json_span(sources, statement.span),
+                Vec::new(),
+            ),
+            Stmt::Drop(statement) => JsonAstNode::with_value(
+                "drop_statement",
+                statement.name.clone(),
                 json_span(sources, statement.span),
                 Vec::new(),
             ),

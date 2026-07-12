@@ -143,6 +143,14 @@ fn impl_member_document_symbol(text: &str, member: &ImplMember) -> Value {
             Vec::new(),
         ),
         ImplMember::Method(method) => method_document_symbol(text, method),
+        ImplMember::Drop(drop_) => document_symbol(
+            text,
+            "drop",
+            LSP_SYMBOL_KIND_METHOD,
+            drop_.span,
+            drop_.binding.name_span,
+            Vec::new(),
+        ),
     }
 }
 

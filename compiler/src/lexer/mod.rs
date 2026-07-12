@@ -70,7 +70,6 @@ pub enum Keyword {
     True,
     False,
     Move,
-    Drop,
     As,
     Region,
     Using,
@@ -849,7 +848,6 @@ fn keyword(text: &str) -> Option<Keyword> {
         "true" => Keyword::True,
         "false" => Keyword::False,
         "move" => Keyword::Move,
-        "drop" => Keyword::Drop,
         "as" => Keyword::As,
         "region" => Keyword::Region,
         "using" => Keyword::Using,
@@ -903,10 +901,22 @@ mod tests {
     }
 
     #[test]
+    fn lexes_drop_as_identifier() {
+        let mut sources = SourceMap::new();
+        let id = sources.add_source("app.nct", None, "drop file");
+        let output = lex(&sources, id);
+
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        assert_eq!(output.tokens[0].kind, TokenKind::Identifier);
+        assert_eq!(output.tokens[1].kind, TokenKind::Identifier);
+    }
+
+    #[test]
     fn validates_identifier_names() {
         assert!(is_valid_identifier_name("main"));
         assert!(is_valid_identifier_name("_entry2"));
         assert!(is_valid_identifier_name("program"));
+        assert!(is_valid_identifier_name("drop"));
         assert!(!is_valid_identifier_name(""));
         assert!(!is_valid_identifier_name("2main"));
         assert!(!is_valid_identifier_name("main-entry"));

@@ -63,14 +63,14 @@ pub(super) fn associated_function_signatures(
             is_accessible: true,
             signature: function_signature(function),
         }),
-        ImplMember::Method(_) => None,
+        ImplMember::Method(_) | ImplMember::Drop(_) => None,
     })
 }
 
 pub(super) fn method_signatures(impl_: &ImplDecl) -> impl Iterator<Item = MethodSignature> + '_ {
     impl_.members.iter().filter_map(|member| match member {
         ImplMember::Method(method) => Some(method_signature(method)),
-        ImplMember::Function(_) => None,
+        ImplMember::Function(_) | ImplMember::Drop(_) => None,
     })
 }
 
@@ -94,6 +94,7 @@ pub(super) fn duplicate_inherent_member_name_diagnostics(
         let (name, span) = match member {
             ImplMember::Function(function) => (function.name.as_str(), function.name_span),
             ImplMember::Method(method) => (method.name.as_str(), method.name_span),
+            ImplMember::Drop(_) => continue,
         };
         match seen.entry(name) {
             std::collections::hash_map::Entry::Occupied(first) => {
