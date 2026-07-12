@@ -26,6 +26,16 @@ pub(super) struct LoweringContext<'a> {
     locals: Vec<LocalBinding>,
 }
 
+#[derive(Default)]
+pub(super) struct LoweringParameterSlots {
+    pub(super) i32: Vec<Option<String>>,
+    pub(super) u8: Vec<Option<String>>,
+    pub(super) usize: Vec<Option<String>>,
+    pub(super) bool: Vec<Option<String>>,
+    pub(super) str: Vec<Option<String>>,
+    pub(super) slice: Vec<Option<String>>,
+}
+
 impl<'a> LoweringContext<'a> {
     pub(super) fn empty(
         function_name: String,
@@ -54,12 +64,7 @@ impl<'a> LoweringContext<'a> {
         function_name: String,
         return_type: Type,
         function_signatures: FunctionSignatures,
-        i32_parameters: Vec<Option<String>>,
-        u8_parameters: Vec<Option<String>>,
-        usize_parameters: Vec<Option<String>>,
-        bool_parameters: Vec<Option<String>>,
-        str_parameters: Vec<Option<String>>,
-        slice_parameters: Vec<Option<String>>,
+        parameters: LoweringParameterSlots,
     ) -> Self {
         Self {
             function_name,
@@ -68,12 +73,12 @@ impl<'a> LoweringContext<'a> {
             function_signatures,
             call_resolution: None,
             function_names: FunctionNames::default(),
-            i32_parameters,
-            u8_parameters,
-            usize_parameters,
-            bool_parameters,
-            str_parameters,
-            slice_parameters,
+            i32_parameters: parameters.i32,
+            u8_parameters: parameters.u8,
+            usize_parameters: parameters.usize,
+            bool_parameters: parameters.bool,
+            str_parameters: parameters.str,
+            slice_parameters: parameters.slice,
             reserved_local_abi_words: 0,
             locals: Vec::new(),
         }

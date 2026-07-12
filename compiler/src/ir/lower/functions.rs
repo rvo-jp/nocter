@@ -1,5 +1,5 @@
 use super::bindings::lower_let_binding;
-use super::context::{FunctionNames, FunctionSignatures, LoweringContext};
+use super::context::{FunctionNames, FunctionSignatures, LoweringContext, LoweringParameterSlots};
 use super::control_flow::{lower_terminal_bool_if_statement, lower_terminal_i32_if_statement};
 use super::errors::{ErrorPayload, lower_error_payload};
 use super::expressions::{
@@ -39,12 +39,7 @@ pub(super) fn lower_function(
         function.name.clone(),
         success_type,
         function_signatures,
-        parameters.i32,
-        parameters.u8,
-        parameters.usize,
-        parameters.bool,
-        parameters.str,
-        parameters.slice,
+        parameters,
     )
     .with_function_return_type(return_type.clone())
     .with_call_resolution(root_source, resolved, function_names);
@@ -59,18 +54,9 @@ pub(super) fn lower_function(
     })
 }
 
-struct LoweredScalarParameters {
-    i32: Vec<Option<String>>,
-    u8: Vec<Option<String>>,
-    usize: Vec<Option<String>>,
-    bool: Vec<Option<String>>,
-    str: Vec<Option<String>>,
-    slice: Vec<Option<String>>,
-}
-
 fn lower_scalar_parameters(
     function: &FunctionDecl,
-) -> Result<LoweredScalarParameters, Vec<Diagnostic>> {
+) -> Result<LoweringParameterSlots, Vec<Diagnostic>> {
     let mut i32_parameters = Vec::new();
     let mut u8_parameters = Vec::new();
     let mut usize_parameters = Vec::new();
@@ -152,7 +138,7 @@ fn lower_scalar_parameters(
         }
     }
 
-    Ok(LoweredScalarParameters {
+    Ok(LoweringParameterSlots {
         i32: i32_parameters,
         u8: u8_parameters,
         usize: usize_parameters,
