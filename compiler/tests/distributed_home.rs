@@ -56,6 +56,60 @@ func main(): i32 {
 }
 
 #[test]
+fn distributed_std_string_empty_passes_check() {
+    let project = TempProject::new("distributed-home-string-empty");
+    let source = project.write_source(
+        "string_empty.nct",
+        r#"from std/string import empty, view
+
+func main(): i32 {
+    let text = empty()
+    let slice = view(&text)
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+    assert_success(&output);
+}
+
+#[test]
+fn distributed_std_string_representation_is_private() {
+    let project = TempProject::new("distributed-home-string-private");
+    let source = project.write_source(
+        "string_private.nct",
+        r#"from std/string import String
+
+func main(): i32 {
+    let text = String{ len: 0 }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(
+        output.stdout.is_empty(),
+        "expected empty stdout, got:\n{}",
+        text(&output.stdout)
+    );
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("E0377") && stderr.contains("not visible here"),
+        "expected private String field diagnostic, got:\n{stderr}"
+    );
+}
+
+#[test]
 fn distributed_io_file_methods_pass_check() {
     let project = TempProject::new("distributed-home-io-file-methods");
     let source = project.write_source(

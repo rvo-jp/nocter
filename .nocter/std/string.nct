@@ -2,8 +2,8 @@
 //
 // `str` is the compiler built-in unsized UTF-8 data type. `&str` is the
 // non-owning UTF-8 string slice type and the type of string literals. String is
-// the future owning string type; its storage details are intentionally not
-// exposed here.
+// the future owning string type. Its storage details are intentionally not
+// exposed outside std/string.
 //
 // The initial public functions are ordinary standard-library APIs. Owning
 // allocation is reported as unsupported until target-backed allocation and
@@ -11,13 +11,21 @@
 
 from std/error import Error
 from std/mem import Allocator
+from std/ptr import from_addr
 
 pub struct String {
+    ptr: *u8
     len: usize
+    capacity: usize
 }
 
 pub func empty(): String {
-    return String { len: 0 }
+    // Empty strings never dereference the raw pointer.
+    return String {
+        ptr: from_addr(1),
+        len: 0,
+        capacity: 0,
+    }
 }
 
 pub func with_capacity(allocator: &+Allocator, capacity: usize): String! {

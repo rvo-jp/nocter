@@ -11,7 +11,7 @@ Adopted user decisions:
 - Keep runtime safety checks always enabled; remove them only when the compiler can prove they cannot trap.
 - Treat ordinary allocation failure as recoverable failure, not implicit abort.
 - Use an owned `String` direction based on pointer, length, and capacity, implemented as an ordinary standard-library type.
-- `.nocter/std/string.nct` is still a narrow `len`-only skeleton; switch it to `ptr`, `len`, and `capacity` only after the compiler can construct or otherwise represent a valid empty raw pointer value without special-casing `String`.
+- `.nocter/std/string.nct` now uses the ordinary `ptr`, `len`, and `capacity` representation with private fields; allocation-backed mutation remains unsupported until target allocation and aggregate lowering are in place.
 - Do not add a runtime GC.
 - Lower generics through monomorphization.
 - Prefer static trait dispatch; require an explicit dynamic-dispatch design if it is added later.
@@ -27,6 +27,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: move std String to pointer/length/capacity
+  - changes `.nocter/std/string.nct` from the temporary `len`-only skeleton to private `ptr`, `len`, and `capacity` fields
+  - constructs `empty()` through the restricted `std/ptr.from_addr` primitive instead of compiler-special-casing `String`
+  - adds distributed std check coverage for the public `empty`/`view` path and confirms user modules cannot construct `String` by hidden fields
 - Current checkpoint: reserve aggregate frame slots
   - extends `backend/frame.rs` with optional aggregate stack slot requests based on ABI `ValueLayout`
   - keeps existing scalar spill and argument staging placement unchanged
