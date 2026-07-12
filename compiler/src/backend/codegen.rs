@@ -1,6 +1,8 @@
 use crate::backend::frame::{FrameLayout, FunctionFrame, plan_function_frame};
 use crate::diagnostics::Diagnostic;
-use crate::ir::{CallTarget, Function, I32Value, Instruction, IrModule, StrValue, Type};
+use crate::ir::{
+    CallTarget, FallibleFailureMode, Function, I32Value, Instruction, IrModule, StrValue, Type,
+};
 use crate::target::arm64::{BranchCondition, Encoder, MoveWideShift, WReg, XReg};
 use std::collections::HashMap;
 
@@ -253,12 +255,14 @@ impl EntryEmitter {
                 destination,
                 target,
                 arguments,
+                failure_mode,
             } => {
                 self.emit_call_fallible_i32(
                     *destination,
                     FunctionSymbol::from_call_target(target),
                     arguments,
                     frame,
+                    *failure_mode,
                 )?;
             }
             Instruction::CallU8 {
@@ -277,12 +281,14 @@ impl EntryEmitter {
                 destination,
                 target,
                 arguments,
+                failure_mode,
             } => {
                 self.emit_call_fallible_u8(
                     *destination,
                     FunctionSymbol::from_call_target(target),
                     arguments,
                     frame,
+                    *failure_mode,
                 )?;
             }
             Instruction::CallUsize {
@@ -301,12 +307,14 @@ impl EntryEmitter {
                 destination,
                 target,
                 arguments,
+                failure_mode,
             } => {
                 self.emit_call_fallible_usize(
                     *destination,
                     FunctionSymbol::from_call_target(target),
                     arguments,
                     frame,
+                    *failure_mode,
                 )?;
             }
             Instruction::CallBool {
@@ -325,12 +333,14 @@ impl EntryEmitter {
                 destination,
                 target,
                 arguments,
+                failure_mode,
             } => {
                 self.emit_call_fallible_bool(
                     *destination,
                     FunctionSymbol::from_call_target(target),
                     arguments,
                     frame,
+                    *failure_mode,
                 )?;
             }
             Instruction::CallStr {
@@ -349,12 +359,14 @@ impl EntryEmitter {
                 destination,
                 target,
                 arguments,
+                failure_mode,
             } => {
                 self.emit_call_fallible_str(
                     *destination,
                     FunctionSymbol::from_call_target(target),
                     arguments,
                     frame,
+                    *failure_mode,
                 )?;
             }
             Instruction::CallSlice {
@@ -373,22 +385,29 @@ impl EntryEmitter {
                 destination,
                 target,
                 arguments,
+                failure_mode,
             } => {
                 self.emit_call_fallible_slice(
                     *destination,
                     FunctionSymbol::from_call_target(target),
                     arguments,
                     frame,
+                    *failure_mode,
                 )?;
             }
             Instruction::CallVoid { target, arguments } => {
                 self.emit_call_void(FunctionSymbol::from_call_target(target), arguments, frame)?;
             }
-            Instruction::CallFallibleVoid { target, arguments } => {
+            Instruction::CallFallibleVoid {
+                target,
+                arguments,
+                failure_mode,
+            } => {
                 self.emit_call_fallible_void(
                     FunctionSymbol::from_call_target(target),
                     arguments,
                     frame,
+                    *failure_mode,
                 )?;
             }
             Instruction::TailCall { target, arguments } => {
@@ -412,6 +431,9 @@ impl EntryEmitter {
             }
             Instruction::PropagateFailure => {
                 self.emit_propagate_failure(frame)?;
+            }
+            Instruction::TrapOnFailure => {
+                self.emit_trap_on_failure()?;
             }
             Instruction::ReturnFallibleSuccess => {
                 self.emit_return_fallible_success(return_type, frame)?;
@@ -542,6 +564,24 @@ impl EntryEmitter {
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
         self.emit_return(frame);
         self.patch_branch_placeholder_to_current(success_branch, "fallible success target")
+    }
+
+    fn emit_trap_on_failure(&mut self) -> Result<(), Vec<Diagnostic>> {
+        self.encoder.emit_cmp_x_zero(XReg::X0);
+        let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+        self.emit_trap();
+        self.patch_branch_placeholder_to_current(success_branch, "fallible force success target")
+    }
+
+    fn emit_fallible_failure_action(
+        &mut self,
+        failure_mode: FallibleFailureMode,
+        frame: Option<&FrameLayout>,
+    ) {
+        match failure_mode {
+            FallibleFailureMode::Propagate => self.emit_return(frame),
+            FallibleFailureMode::Trap => self.emit_trap(),
+        }
     }
 
     fn emit_prologue(&mut self, frame: &FrameLayout) {

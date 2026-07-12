@@ -148,6 +148,7 @@ pub(crate) enum Instruction {
         destination: I32Location,
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
+        failure_mode: FallibleFailureMode,
     },
     #[allow(dead_code)]
     CallU8 {
@@ -159,6 +160,7 @@ pub(crate) enum Instruction {
         destination: U8Location,
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
+        failure_mode: FallibleFailureMode,
     },
     #[allow(dead_code)]
     CallUsize {
@@ -170,6 +172,7 @@ pub(crate) enum Instruction {
         destination: UsizeLocation,
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
+        failure_mode: FallibleFailureMode,
     },
     #[allow(dead_code)]
     CallBool {
@@ -181,6 +184,7 @@ pub(crate) enum Instruction {
         destination: BoolLocation,
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
+        failure_mode: FallibleFailureMode,
     },
     #[allow(dead_code)]
     CallStr {
@@ -192,6 +196,7 @@ pub(crate) enum Instruction {
         destination: StrLocation,
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
+        failure_mode: FallibleFailureMode,
     },
     #[allow(dead_code)]
     CallSlice {
@@ -203,6 +208,7 @@ pub(crate) enum Instruction {
         destination: SliceLocation,
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
+        failure_mode: FallibleFailureMode,
     },
     CallVoid {
         target: CallTarget,
@@ -211,6 +217,7 @@ pub(crate) enum Instruction {
     CallFallibleVoid {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
+        failure_mode: FallibleFailureMode,
     },
     TailCall {
         target: CallTarget,
@@ -223,12 +230,19 @@ pub(crate) enum Instruction {
         else_instructions: Vec<Instruction>,
     },
     PropagateFailure,
+    TrapOnFailure,
     ReturnFallibleSuccess,
     ReturnFallibleFailure {
         code: StrValue,
         message: StrValue,
     },
     Return,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FallibleFailureMode {
+    Propagate,
+    Trap,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

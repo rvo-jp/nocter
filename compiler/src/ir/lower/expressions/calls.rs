@@ -9,8 +9,8 @@ use crate::ast::{CallExpr, Expr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::StrLocation;
 use crate::ir::{
-    BoolLocation, CallTarget, I32Location, Instruction, ScalarArgument, SliceLocation, Type,
-    U8Location, UsizeLocation,
+    BoolLocation, CallTarget, FallibleFailureMode, I32Location, Instruction, ScalarArgument,
+    SliceLocation, Type, U8Location, UsizeLocation,
 };
 
 pub(super) fn lower_i32_normal_call(
@@ -42,6 +42,7 @@ pub(super) fn lower_fallible_i32_normal_call(
     destination: I32Location,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
+    failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Expr::Identifier(identifier) = call.callee.as_ref() else {
         return Err(unsupported_non_tail_call_diagnostic());
@@ -57,6 +58,7 @@ pub(super) fn lower_fallible_i32_normal_call(
         destination,
         target,
         arguments,
+        failure_mode,
     });
     Ok(instructions)
 }
@@ -90,6 +92,7 @@ pub(super) fn lower_fallible_usize_normal_call(
     destination: UsizeLocation,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
+    failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Expr::Identifier(identifier) = call.callee.as_ref() else {
         return Err(unsupported_non_tail_call_diagnostic());
@@ -105,6 +108,7 @@ pub(super) fn lower_fallible_usize_normal_call(
         destination,
         target,
         arguments,
+        failure_mode,
     });
     Ok(instructions)
 }
@@ -138,6 +142,7 @@ pub(super) fn lower_fallible_u8_normal_call(
     destination: U8Location,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
+    failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Expr::Identifier(identifier) = call.callee.as_ref() else {
         return Err(unsupported_non_tail_call_diagnostic());
@@ -153,6 +158,7 @@ pub(super) fn lower_fallible_u8_normal_call(
         destination,
         target,
         arguments,
+        failure_mode,
     });
     Ok(instructions)
 }
@@ -186,6 +192,7 @@ pub(super) fn lower_fallible_bool_normal_call(
     destination: BoolLocation,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
+    failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Expr::Identifier(identifier) = call.callee.as_ref() else {
         return Err(unsupported_non_tail_call_diagnostic());
@@ -201,6 +208,7 @@ pub(super) fn lower_fallible_bool_normal_call(
         destination,
         target,
         arguments,
+        failure_mode,
     });
     Ok(instructions)
 }
@@ -234,6 +242,7 @@ pub(super) fn lower_fallible_str_normal_call(
     destination: StrLocation,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
+    failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Expr::Identifier(identifier) = call.callee.as_ref() else {
         return Err(unsupported_non_tail_call_diagnostic());
@@ -249,6 +258,7 @@ pub(super) fn lower_fallible_str_normal_call(
         destination,
         target,
         arguments,
+        failure_mode,
     });
     Ok(instructions)
 }
@@ -282,6 +292,7 @@ pub(super) fn lower_fallible_slice_normal_call(
     destination: SliceLocation,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
+    failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Expr::Identifier(identifier) = call.callee.as_ref() else {
         return Err(unsupported_non_tail_call_diagnostic());
@@ -297,6 +308,7 @@ pub(super) fn lower_fallible_slice_normal_call(
         destination,
         target,
         arguments,
+        failure_mode,
     });
     Ok(instructions)
 }
@@ -324,6 +336,7 @@ pub(super) fn lower_fallible_void_normal_call(
     call: &CallExpr,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
+    failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Expr::Identifier(identifier) = call.callee.as_ref() else {
         return Err(unsupported_non_tail_call_diagnostic());
@@ -331,7 +344,10 @@ pub(super) fn lower_fallible_void_normal_call(
 
     if primitive_write_text_raw_call(call, context) {
         let mut instructions = lower_write_text_raw_primitive_call(call, context, temporaries)?;
-        instructions.push(Instruction::PropagateFailure);
+        instructions.push(match failure_mode {
+            FallibleFailureMode::Propagate => Instruction::PropagateFailure,
+            FallibleFailureMode::Trap => Instruction::TrapOnFailure,
+        });
         return Ok(instructions);
     }
 
@@ -341,7 +357,11 @@ pub(super) fn lower_fallible_void_normal_call(
     let (mut instructions, arguments) =
         lower_call_arguments(call, &target, &identifier.name, context, temporaries)?;
 
-    instructions.push(Instruction::CallFallibleVoid { target, arguments });
+    instructions.push(Instruction::CallFallibleVoid {
+        target,
+        arguments,
+        failure_mode,
+    });
     Ok(instructions)
 }
 

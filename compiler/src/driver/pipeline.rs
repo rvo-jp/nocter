@@ -953,6 +953,42 @@ func message(): &str! {
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     #[test]
+    fn build_file_output_runs_fallible_force_unwrap_success() {
+        let root = make_temp_project("build-run-fallible-force-success");
+        let nocter_home = make_nocter_home(&root);
+        let source = root.join("fallible_force_success.nct");
+        fs::write(
+            &source,
+            r#"func main(): i32 {
+    let value = answer()!
+    return value
+}
+
+func answer(): i32! {
+    return 42
+}
+"#,
+        )
+        .unwrap();
+
+        let executable = default_executable_path(&source);
+        let output = build_file_to_path_with_options(
+            &source,
+            &executable,
+            &frontend_options(nocter_home),
+            DEFAULT_ENTRY_NAME,
+        );
+
+        assert_diagnostics_empty(&output.diagnostics);
+        assert_eq!(output.output_path, executable);
+        let output = std::process::Command::new(&executable).output().unwrap();
+        assert_eq!(output.status.code(), Some(42));
+        assert!(output.stdout.is_empty());
+        assert!(output.stderr.is_empty());
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
     fn build_file_output_runs_void_entry_with_zero_exit_code() {
         let root = make_temp_project("build-run-void");
         let nocter_home = make_nocter_home(&root);

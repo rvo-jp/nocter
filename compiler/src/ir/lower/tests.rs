@@ -3,10 +3,10 @@ use crate::analysis::{CompileUnit, analyze_compile_unit_with_entry};
 use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::ir::{
-    BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, CallTarget, Function,
-    I32ComparisonOperator, I32Location, I32Value, Instruction, IrModule, ScalarArgument,
-    SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation,
-    UsizeValue,
+    BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, CallTarget,
+    FallibleFailureMode, Function, I32ComparisonOperator, I32Location, I32Value, Instruction,
+    IrModule, ScalarArgument, SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location,
+    U8Value, UsizeLocation, UsizeValue,
 };
 use crate::source::SourceMap;
 use crate::target::DEFAULT_TARGET;
@@ -3341,6 +3341,7 @@ func answer(): i32! {
                     destination: I32Location::Return,
                     target: CallTarget::same_file("answer"),
                     arguments: vec![],
+                    failure_mode: FallibleFailureMode::Propagate,
                 },
                 Instruction::ReturnFallibleSuccess,
             ],
@@ -3378,6 +3379,7 @@ func answer(): i32! {
                     destination: I32Location::Local(1),
                     target: CallTarget::same_file("answer"),
                     arguments: vec![],
+                    failure_mode: FallibleFailureMode::Propagate,
                 },
                 Instruction::AddI32 {
                     destination: I32Location::Return,
@@ -3505,6 +3507,71 @@ func maybe_bytes(bytes: &[u8]): &[u8]! {
             ..
         }
     ));
+}
+
+#[test]
+fn lowers_fallible_force_unwrap_call_as_trapping_fallible_call() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let value = answer()!
+    return value
+}
+
+func answer(): i32! {
+    return 42
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0],
+        Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::CallFallibleI32 {
+                    destination: I32Location::Local(0),
+                    target: CallTarget::same_file("answer"),
+                    arguments: vec![],
+                    failure_mode: FallibleFailureMode::Trap,
+                },
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: I32Value::Location(I32Location::Local(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_fallible_void_force_unwrap_statement_as_trapping_fallible_call() {
+    let ir = lower_text(
+        r#"func main(): void {
+    effect()!
+    return
+}
+
+func effect(): void! {
+    return
+}
+"#,
+    );
+
+    assert_eq!(ir.functions[0].return_type, Type::Void);
+    let [
+        Instruction::CallFallibleVoid { failure_mode, .. },
+        Instruction::Return,
+    ] = ir.functions[0].instructions.as_slice()
+    else {
+        panic!(
+            "unexpected main instructions: {:?}",
+            ir.functions[0].instructions
+        );
+    };
+    assert_eq!(*failure_mode, FallibleFailureMode::Trap);
 }
 
 #[test]
@@ -3773,7 +3840,9 @@ func main(): void! {
 
     assert_eq!(main.return_type, Type::Fallible(Box::new(Type::Void)));
     let [
-        Instruction::CallFallibleVoid { target, arguments },
+        Instruction::CallFallibleVoid {
+            target, arguments, ..
+        },
         Instruction::ReturnFallibleSuccess,
     ] = main.instructions.as_slice()
     else {

@@ -40,6 +40,7 @@ fn collect_reachable_call_targets(
             }
             Instruction::WriteStr { .. }
             | Instruction::PropagateFailure
+            | Instruction::TrapOnFailure
             | Instruction::ReturnFallibleSuccess
             | Instruction::ReturnFallibleFailure { .. }
             | Instruction::SetI32 { .. }

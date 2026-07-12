@@ -12,9 +12,9 @@ use crate::ast::{
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, I32ComparisonOperator,
-    I32Location, I32Value, Instruction, SliceLocation, SliceValue, StrLocation, StrValue, Type,
-    U8Location, U8Value, UsizeLocation, UsizeValue,
+    BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, FallibleFailureMode,
+    I32ComparisonOperator, I32Location, I32Value, Instruction, SliceLocation, SliceValue,
+    StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use calls::{
     lower_bool_normal_call, lower_call_arguments, lower_direct_tail_call,
@@ -58,9 +58,18 @@ pub(super) fn lower_i32_expression_to_location(
             let mut temporaries = TemporaryAllocator::new(context)?;
             lower_i32_normal_call(call, destination, context, &mut temporaries)
         }
-        Expr::Propagate(propagation) => {
-            lower_i32_fallible_expression_to_location(&propagation.expression, destination, context)
-        }
+        Expr::Propagate(propagation) => lower_i32_fallible_expression_to_location(
+            &propagation.expression,
+            destination,
+            context,
+            FallibleFailureMode::Propagate,
+        ),
+        Expr::Force(force) => lower_i32_fallible_expression_to_location(
+            &force.expression,
+            destination,
+            context,
+            FallibleFailureMode::Trap,
+        ),
         Expr::Binary(binary) if is_i32_binary_operator(binary.operator) => {
             lower_i32_binary_expression_to_location(binary, destination, context)
         }
@@ -93,9 +102,18 @@ pub(super) fn lower_u8_expression_to_location(
             let mut temporaries = TemporaryAllocator::new(context)?;
             lower_u8_normal_call(call, destination, context, &mut temporaries)
         }
-        Expr::Propagate(propagation) => {
-            lower_u8_fallible_expression_to_location(&propagation.expression, destination, context)
-        }
+        Expr::Propagate(propagation) => lower_u8_fallible_expression_to_location(
+            &propagation.expression,
+            destination,
+            context,
+            FallibleFailureMode::Propagate,
+        ),
+        Expr::Force(force) => lower_u8_fallible_expression_to_location(
+            &force.expression,
+            destination,
+            context,
+            FallibleFailureMode::Trap,
+        ),
         Expr::Index(index) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             let lowered = lower_u8_index_expression_to_value(index, context, &mut temporaries)?;
@@ -149,6 +167,13 @@ pub(super) fn lower_usize_expression_to_location(
             &propagation.expression,
             destination,
             context,
+            FallibleFailureMode::Propagate,
+        ),
+        Expr::Force(force) => lower_usize_fallible_expression_to_location(
+            &force.expression,
+            destination,
+            context,
+            FallibleFailureMode::Trap,
         ),
         Expr::Binary(binary) if is_usize_binary_operator(binary.operator) => {
             lower_usize_binary_expression_to_location(binary, destination, context)
@@ -182,9 +207,18 @@ pub(super) fn lower_str_expression_to_location(
             let mut temporaries = TemporaryAllocator::new(context)?;
             lower_str_normal_call(call, destination, context, &mut temporaries)
         }
-        Expr::Propagate(propagation) => {
-            lower_str_fallible_expression_to_location(&propagation.expression, destination, context)
-        }
+        Expr::Propagate(propagation) => lower_str_fallible_expression_to_location(
+            &propagation.expression,
+            destination,
+            context,
+            FallibleFailureMode::Propagate,
+        ),
+        Expr::Force(force) => lower_str_fallible_expression_to_location(
+            &force.expression,
+            destination,
+            context,
+            FallibleFailureMode::Trap,
+        ),
         Expr::Group(group) => {
             lower_str_expression_to_location(&group.expression, destination, context)
         }
@@ -207,6 +241,13 @@ pub(super) fn lower_slice_expression_to_location(
             &propagation.expression,
             destination,
             context,
+            FallibleFailureMode::Propagate,
+        ),
+        Expr::Force(force) => lower_slice_fallible_expression_to_location(
+            &force.expression,
+            destination,
+            context,
+            FallibleFailureMode::Trap,
         ),
         Expr::Group(group) => {
             lower_slice_expression_to_location(&group.expression, destination, context)
@@ -234,9 +275,16 @@ pub(super) fn lower_void_expression_statement(
             lower_void_normal_call(call, context, &mut temporaries).map(Some)
         }
         Expr::Group(group) => lower_void_expression_statement(&group.expression, context),
-        Expr::Propagate(propagation) => {
-            lower_fallible_void_expression_statement(&propagation.expression, context)
-        }
+        Expr::Propagate(propagation) => lower_fallible_void_expression_statement(
+            &propagation.expression,
+            context,
+            FallibleFailureMode::Propagate,
+        ),
+        Expr::Force(force) => lower_fallible_void_expression_statement(
+            &force.expression,
+            context,
+            FallibleFailureMode::Trap,
+        ),
         _ => Ok(None),
     }
 }
@@ -244,6 +292,7 @@ pub(super) fn lower_void_expression_statement(
 fn lower_fallible_void_expression_statement(
     expression: &Expr,
     context: &LoweringContext,
+    failure_mode: FallibleFailureMode,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => {
@@ -261,9 +310,11 @@ fn lower_fallible_void_expression_statement(
             }
 
             let mut temporaries = TemporaryAllocator::new(context)?;
-            lower_fallible_void_normal_call(call, context, &mut temporaries).map(Some)
+            lower_fallible_void_normal_call(call, context, &mut temporaries, failure_mode).map(Some)
         }
-        Expr::Group(group) => lower_fallible_void_expression_statement(&group.expression, context),
+        Expr::Group(group) => {
+            lower_fallible_void_expression_statement(&group.expression, context, failure_mode)
+        }
         _ => Ok(None),
     }
 }
@@ -272,15 +323,25 @@ fn lower_i32_fallible_expression_to_location(
     expression: &Expr,
     destination: I32Location,
     context: &LoweringContext,
+    failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
-            lower_fallible_i32_normal_call(call, destination, context, &mut temporaries)
+            lower_fallible_i32_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                failure_mode,
+            )
         }
-        Expr::Group(group) => {
-            lower_i32_fallible_expression_to_location(&group.expression, destination, context)
-        }
+        Expr::Group(group) => lower_i32_fallible_expression_to_location(
+            &group.expression,
+            destination,
+            context,
+            failure_mode,
+        ),
         _ => Err(unsupported_i32_expression_diagnostic()),
     }
 }
@@ -289,15 +350,25 @@ fn lower_u8_fallible_expression_to_location(
     expression: &Expr,
     destination: U8Location,
     context: &LoweringContext,
+    failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
-            lower_fallible_u8_normal_call(call, destination, context, &mut temporaries)
+            lower_fallible_u8_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                failure_mode,
+            )
         }
-        Expr::Group(group) => {
-            lower_u8_fallible_expression_to_location(&group.expression, destination, context)
-        }
+        Expr::Group(group) => lower_u8_fallible_expression_to_location(
+            &group.expression,
+            destination,
+            context,
+            failure_mode,
+        ),
         _ => Err(unsupported_u8_expression_diagnostic()),
     }
 }
@@ -306,15 +377,25 @@ fn lower_usize_fallible_expression_to_location(
     expression: &Expr,
     destination: UsizeLocation,
     context: &LoweringContext,
+    failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
-            lower_fallible_usize_normal_call(call, destination, context, &mut temporaries)
+            lower_fallible_usize_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                failure_mode,
+            )
         }
-        Expr::Group(group) => {
-            lower_usize_fallible_expression_to_location(&group.expression, destination, context)
-        }
+        Expr::Group(group) => lower_usize_fallible_expression_to_location(
+            &group.expression,
+            destination,
+            context,
+            failure_mode,
+        ),
         _ => Err(unsupported_usize_expression_diagnostic()),
     }
 }
@@ -323,15 +404,25 @@ fn lower_str_fallible_expression_to_location(
     expression: &Expr,
     destination: StrLocation,
     context: &LoweringContext,
+    failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
-            lower_fallible_str_normal_call(call, destination, context, &mut temporaries)
+            lower_fallible_str_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                failure_mode,
+            )
         }
-        Expr::Group(group) => {
-            lower_str_fallible_expression_to_location(&group.expression, destination, context)
-        }
+        Expr::Group(group) => lower_str_fallible_expression_to_location(
+            &group.expression,
+            destination,
+            context,
+            failure_mode,
+        ),
         _ => Err(unsupported_str_expression_diagnostic()),
     }
 }
@@ -340,15 +431,25 @@ fn lower_slice_fallible_expression_to_location(
     expression: &Expr,
     destination: SliceLocation,
     context: &LoweringContext,
+    failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
-            lower_fallible_slice_normal_call(call, destination, context, &mut temporaries)
+            lower_fallible_slice_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                failure_mode,
+            )
         }
-        Expr::Group(group) => {
-            lower_slice_fallible_expression_to_location(&group.expression, destination, context)
-        }
+        Expr::Group(group) => lower_slice_fallible_expression_to_location(
+            &group.expression,
+            destination,
+            context,
+            failure_mode,
+        ),
         _ => Err(unsupported_slice_expression_diagnostic()),
     }
 }
@@ -406,6 +507,19 @@ fn lower_i32_expression_to_value(
                     &propagation.expression,
                     temporary,
                     context,
+                    FallibleFailureMode::Propagate,
+                )?,
+                value: I32Value::Location(temporary),
+            })
+        }
+        Expr::Force(force) => {
+            let temporary = temporaries.next_i32()?;
+            Ok(LoweredI32Value {
+                instructions: lower_i32_fallible_expression_to_location(
+                    &force.expression,
+                    temporary,
+                    context,
+                    FallibleFailureMode::Trap,
                 )?,
                 value: I32Value::Location(temporary),
             })
@@ -455,6 +569,19 @@ fn lower_u8_expression_to_value(
                     &propagation.expression,
                     temporary,
                     context,
+                    FallibleFailureMode::Propagate,
+                )?,
+                value: U8Value::Location(temporary),
+            })
+        }
+        Expr::Force(force) => {
+            let temporary = temporaries.next_u8()?;
+            Ok(LoweredU8Value {
+                instructions: lower_u8_fallible_expression_to_location(
+                    &force.expression,
+                    temporary,
+                    context,
+                    FallibleFailureMode::Trap,
                 )?,
                 value: U8Value::Location(temporary),
             })
@@ -570,6 +697,19 @@ fn lower_usize_expression_to_value(
                     &propagation.expression,
                     temporary,
                     context,
+                    FallibleFailureMode::Propagate,
+                )?,
+                value: UsizeValue::Location(temporary),
+            })
+        }
+        Expr::Force(force) => {
+            let temporary = temporaries.next_usize()?;
+            Ok(LoweredUsizeValue {
+                instructions: lower_usize_fallible_expression_to_location(
+                    &force.expression,
+                    temporary,
+                    context,
+                    FallibleFailureMode::Trap,
                 )?,
                 value: UsizeValue::Location(temporary),
             })
@@ -619,6 +759,19 @@ fn lower_str_expression_to_value(
                     &propagation.expression,
                     temporary,
                     context,
+                    FallibleFailureMode::Propagate,
+                )?,
+                value: StrValue::Location(temporary),
+            })
+        }
+        Expr::Force(force) => {
+            let temporary = temporaries.next_str()?;
+            Ok(LoweredStrValue {
+                instructions: lower_str_fallible_expression_to_location(
+                    &force.expression,
+                    temporary,
+                    context,
+                    FallibleFailureMode::Trap,
                 )?,
                 value: StrValue::Location(temporary),
             })
@@ -653,6 +806,19 @@ fn lower_slice_expression_to_value(
                     &propagation.expression,
                     temporary,
                     context,
+                    FallibleFailureMode::Propagate,
+                )?,
+                value: SliceValue::Location(temporary),
+            })
+        }
+        Expr::Force(force) => {
+            let temporary = temporaries.next_slice()?;
+            Ok(LoweredSliceValue {
+                instructions: lower_slice_fallible_expression_to_location(
+                    &force.expression,
+                    temporary,
+                    context,
+                    FallibleFailureMode::Trap,
                 )?,
                 value: SliceValue::Location(temporary),
             })
@@ -1008,6 +1174,14 @@ pub(super) fn lower_bool_expression_to_location(
             destination,
             context,
             diagnostic_code,
+            FallibleFailureMode::Propagate,
+        ),
+        Expr::Force(force) => lower_bool_fallible_expression_to_location(
+            &force.expression,
+            destination,
+            context,
+            diagnostic_code,
+            FallibleFailureMode::Trap,
         ),
         Expr::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
             let mut temporaries = TemporaryAllocator::new(context)?;
@@ -1042,17 +1216,25 @@ fn lower_bool_fallible_expression_to_location(
     destination: BoolLocation,
     context: &LoweringContext,
     diagnostic_code: &'static str,
+    failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
-            lower_fallible_bool_normal_call(call, destination, context, &mut temporaries)
+            lower_fallible_bool_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                failure_mode,
+            )
         }
         Expr::Group(group) => lower_bool_fallible_expression_to_location(
             &group.expression,
             destination,
             context,
             diagnostic_code,
+            failure_mode,
         ),
         _ => Err(unsupported_bool_expression_diagnostic(diagnostic_code)),
     }
@@ -1226,6 +1408,20 @@ fn lower_bool_expression_to_value_with_temporaries(
                     temporary,
                     context,
                     diagnostic_code,
+                    FallibleFailureMode::Propagate,
+                )?,
+                value: BoolValue::Location(temporary),
+            })
+        }
+        Expr::Force(force) => {
+            let temporary = temporaries.next_bool()?;
+            Ok(LoweredBoolValue {
+                instructions: lower_bool_fallible_expression_to_location(
+                    &force.expression,
+                    temporary,
+                    context,
+                    diagnostic_code,
+                    FallibleFailureMode::Trap,
                 )?,
                 value: BoolValue::Location(temporary),
             })

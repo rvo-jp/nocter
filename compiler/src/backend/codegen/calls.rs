@@ -2,8 +2,8 @@ use super::{EntryEmitter, FunctionCallPatch, FunctionSymbol};
 use crate::backend::frame::{ArgumentStagingSlot, FrameLayout};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolLocation, I32Location, ScalarArgument, SliceLocation, StrLocation, U8Location,
-    UsizeLocation,
+    BoolLocation, FallibleFailureMode, I32Location, ScalarArgument, SliceLocation, StrLocation,
+    U8Location, UsizeLocation,
 };
 use crate::target::arm64::{BranchCondition, WReg, XReg};
 
@@ -73,6 +73,7 @@ impl EntryEmitter {
         function: FunctionSymbol,
         arguments: &[ScalarArgument],
         frame: Option<&FrameLayout>,
+        failure_mode: FallibleFailureMode,
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(frame) = frame else {
             return Err(vec![Diagnostic::error(
@@ -87,7 +88,7 @@ impl EntryEmitter {
         self.emit_call(function);
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
-        self.emit_return(Some(frame));
+        self.emit_fallible_failure_action(failure_mode, Some(frame));
         self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
         self.emit_scalar_reloads(frame)?;
         Ok(())
@@ -121,6 +122,7 @@ impl EntryEmitter {
         function: FunctionSymbol,
         arguments: &[ScalarArgument],
         frame: Option<&FrameLayout>,
+        failure_mode: FallibleFailureMode,
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(frame) = frame else {
             return Err(vec![Diagnostic::error(
@@ -135,7 +137,7 @@ impl EntryEmitter {
         self.emit_call(function);
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
-        self.emit_return(Some(frame));
+        self.emit_fallible_failure_action(failure_mode, Some(frame));
         self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
         self.encoder.emit_mov_w(WReg::W16, WReg::W1);
         self.emit_scalar_reloads(frame)?;
@@ -170,6 +172,7 @@ impl EntryEmitter {
         function: FunctionSymbol,
         arguments: &[ScalarArgument],
         frame: Option<&FrameLayout>,
+        failure_mode: FallibleFailureMode,
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(frame) = frame else {
             return Err(vec![Diagnostic::error(
@@ -184,7 +187,7 @@ impl EntryEmitter {
         self.emit_call(function);
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
-        self.emit_return(Some(frame));
+        self.emit_fallible_failure_action(failure_mode, Some(frame));
         self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
         self.encoder.emit_mov_x(XReg::X16, XReg::X1);
         self.emit_scalar_reloads(frame)?;
@@ -219,6 +222,7 @@ impl EntryEmitter {
         function: FunctionSymbol,
         arguments: &[ScalarArgument],
         frame: Option<&FrameLayout>,
+        failure_mode: FallibleFailureMode,
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(frame) = frame else {
             return Err(vec![Diagnostic::error(
@@ -233,7 +237,7 @@ impl EntryEmitter {
         self.emit_call(function);
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
-        self.emit_return(Some(frame));
+        self.emit_fallible_failure_action(failure_mode, Some(frame));
         self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
         self.encoder.emit_mov_w(WReg::W16, WReg::W1);
         self.emit_scalar_reloads(frame)?;
@@ -268,6 +272,7 @@ impl EntryEmitter {
         function: FunctionSymbol,
         arguments: &[ScalarArgument],
         frame: Option<&FrameLayout>,
+        failure_mode: FallibleFailureMode,
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(frame) = frame else {
             return Err(vec![Diagnostic::error(
@@ -282,7 +287,7 @@ impl EntryEmitter {
         self.emit_call(function);
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
-        self.emit_return(Some(frame));
+        self.emit_fallible_failure_action(failure_mode, Some(frame));
         self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
         self.encoder.emit_mov_w(WReg::W16, WReg::W1);
         self.emit_scalar_reloads(frame)?;
@@ -317,6 +322,7 @@ impl EntryEmitter {
         function: FunctionSymbol,
         arguments: &[ScalarArgument],
         frame: Option<&FrameLayout>,
+        failure_mode: FallibleFailureMode,
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(frame) = frame else {
             return Err(vec![Diagnostic::error(
@@ -331,7 +337,7 @@ impl EntryEmitter {
         self.emit_call(function);
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
-        self.emit_return(Some(frame));
+        self.emit_fallible_failure_action(failure_mode, Some(frame));
         self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
         self.encoder.emit_mov_x(XReg::X16, XReg::X1);
         self.encoder.emit_mov_x(XReg::X17, XReg::X2);
@@ -367,6 +373,7 @@ impl EntryEmitter {
         function: FunctionSymbol,
         arguments: &[ScalarArgument],
         frame: Option<&FrameLayout>,
+        failure_mode: FallibleFailureMode,
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(frame) = frame else {
             return Err(vec![Diagnostic::error(
@@ -381,7 +388,7 @@ impl EntryEmitter {
         self.emit_call(function);
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
-        self.emit_return(Some(frame));
+        self.emit_fallible_failure_action(failure_mode, Some(frame));
         self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
         self.encoder.emit_mov_x(XReg::X16, XReg::X1);
         self.encoder.emit_mov_x(XReg::X17, XReg::X2);

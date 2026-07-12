@@ -186,6 +186,7 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::WriteStr { .. } => true,
         Instruction::TailCall { arguments, .. } => !arguments.is_empty(),
         Instruction::PropagateFailure
+        | Instruction::TrapOnFailure
         | Instruction::ReturnFallibleSuccess
         | Instruction::ReturnFallibleFailure { .. }
         | Instruction::SetI32 { .. }
@@ -253,6 +254,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         } => max_call_argument_count(then_instructions)
             .max(max_call_argument_count(else_instructions)),
         Instruction::PropagateFailure
+        | Instruction::TrapOnFailure
         | Instruction::ReturnFallibleSuccess
         | Instruction::ReturnFallibleFailure { .. } => 0,
         Instruction::WriteStr { .. }
@@ -296,6 +298,7 @@ fn record_instruction_scalar_locals(
 ) {
     match instruction {
         Instruction::PropagateFailure
+        | Instruction::TrapOnFailure
         | Instruction::ReturnFallibleSuccess
         | Instruction::Trap
         | Instruction::Return => {}
@@ -671,8 +674,8 @@ const LDR_STR_X_SP_MAX_BYTE_OFFSET: u32 = 0x0fff * 8;
 mod tests {
     use super::*;
     use crate::ir::{
-        BoolComparisonOperator, CallTarget, ScalarArgument, SliceLocation, SliceValue, StrValue,
-        Type,
+        BoolComparisonOperator, CallTarget, FallibleFailureMode, ScalarArgument, SliceLocation,
+        SliceValue, StrValue, Type,
     };
 
     #[test]
@@ -833,6 +836,7 @@ mod tests {
                 arguments: vec![ScalarArgument::I32(I32Value::Location(I32Location::Local(
                     1,
                 )))],
+                failure_mode: FallibleFailureMode::Propagate,
             }],
         };
 
@@ -877,6 +881,7 @@ mod tests {
                 arguments: vec![ScalarArgument::I32(I32Value::Location(I32Location::Local(
                     1,
                 )))],
+                failure_mode: FallibleFailureMode::Propagate,
             }],
         };
 
