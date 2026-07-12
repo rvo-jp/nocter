@@ -1,4 +1,4 @@
-use super::bindings::lower_let_binding;
+use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{FunctionNames, FunctionSignatures, LoweringContext, LoweringParameterSlots};
 use super::control_flow::{lower_terminal_bool_if_statement, lower_terminal_i32_if_statement};
 use super::errors::{ErrorPayload, lower_error_payload};
@@ -399,7 +399,10 @@ fn lower_leading_bindings(
     for statement in statements {
         match statement {
             Stmt::Binding(statement) => {
-                instructions.extend(lower_let_binding(statement, context)?);
+                instructions.extend(lower_local_binding(statement, context)?);
+            }
+            Stmt::Assignment(statement) => {
+                instructions.extend(lower_assignment(statement, context)?);
             }
             Stmt::Expression(statement) => {
                 let Some(void_instructions) =
@@ -407,7 +410,7 @@ fn lower_leading_bindings(
                 else {
                     return Err(vec![Diagnostic::error(
                         "E8007",
-                        "IR v0 can only lower leading scalar `let` bindings or void call statements before `return`",
+                        "IR v0 can only lower leading scalar local bindings, scalar assignments, or void call statements before `return`",
                     )]);
                 };
                 instructions.extend(void_instructions);
@@ -415,7 +418,7 @@ fn lower_leading_bindings(
             _ => {
                 return Err(vec![Diagnostic::error(
                     "E8007",
-                    "IR v0 can only lower leading scalar `let` bindings or void call statements before `return`",
+                    "IR v0 can only lower leading scalar local bindings, scalar assignments, or void call statements before `return`",
                 )]);
             }
         };
@@ -433,7 +436,7 @@ fn unsupported_function_body_diagnostic(function_name: &str) -> Vec<Diagnostic> 
     vec![Diagnostic::error(
         "E8007",
         format!(
-            "IR v0 can only lower function `{function_name}` bodies containing leading scalar `let` bindings or void call statements followed by `return`"
+            "IR v0 can only lower function `{function_name}` bodies containing leading scalar local bindings, scalar assignments, or void call statements followed by `return`"
         ),
     )]
 }

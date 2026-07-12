@@ -249,6 +249,90 @@ func first(a: i32, b: i32): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_scalar_var_assignment_exit_code() {
+    let project = TempProject::new("cli-run-scalar-var-assignment");
+    let source = project.write_source(
+        "scalar_var_assignment.nct",
+        r#"func main(): i32 {
+    var count = 1
+    count = count + 39
+    var byte: u8 = 1
+    byte = 2
+    var size: usize = 0
+    size = 40
+    var flag: bool = false
+    flag = ready()
+    if flag && size == 40 {
+        return count + (byte as i32)
+    } else {
+        return 1
+    }
+}
+
+func ready(): bool {
+    return true
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_writes_reassigned_str_local() {
+    let project = TempProject::new("cli-run-str-var-assignment");
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"from std/io_impl import write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "targets/arm64-darwin/std/io_impl.nct",
+        r#"pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "str_var_assignment.nct",
+        r#"from std/io import write
+
+func main(): i32! {
+    var text: &str = "wrong"
+    text = "Hello"
+    write(text)?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"Hello");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_reordered_i32_normal_call_exit_code() {
     let project = TempProject::new("cli-run-reordered-normal-call");
     let source = project.write_source(

@@ -51,11 +51,12 @@ Already buildable in the narrow scalar subset:
 - `&str` normal-call result staging for annotated `&str` locals and nested `&str` call arguments
 - scalar call-result staging and scalar tail-call staging
 - fallible propagation for non-entry functions and ordinary calls returning `T!` in the current scalar/view/void call subset
+- stack-backed scalar/view `var` bindings and simple whole-binding `=` assignment
 
 Still required before explicit string construction can build:
 
 - aggregate storage for `String`, `Allocator`, and `RawBuffer`
-- stack-backed `var` bindings and reassignment for mutable owned values
+- aggregate stack-backed `var` bindings and reassignment for mutable owned values
 - borrow argument lowering for `&T` and `&+T`
 - explicit move/return handling for owned aggregate results
 

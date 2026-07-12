@@ -19,11 +19,15 @@ Adopted user decisions:
 Recommended next implementation order:
 
 1. Follow `compiler/docs/interpolation-lowering.md`: keep bare interpolation lowering disabled until an explicit allocator source is designed, and first make explicit `std/string` construction plus `std/fmt.append_*` calls buildable.
-2. Lower interpolated strings only after the remaining backend prerequisites exist: aggregate `String`/`Allocator`/`RawBuffer` storage, stack-backed `var`, borrow argument lowering for `&T` and `&+T`, and owned aggregate return/move handling. Loaded imported scalar calls, scalar/view arguments, and fallible propagation for the current scalar/view/void call subset are now buildable.
+2. Lower interpolated strings only after the remaining backend prerequisites exist: aggregate `String`/`Allocator`/`RawBuffer` storage, aggregate stack-backed `var`, borrow argument lowering for `&T` and `&+T`, and owned aggregate return/move handling. Loaded imported scalar calls, scalar/view arguments, scalar/view `var` plus simple assignment, and fallible propagation for the current scalar/view/void call subset are now buildable.
 3. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
+- Current checkpoint: lower scalar var assignment
+  - type-checks assignment to immutable `let` bindings and parameters, plus assignment value type mismatches
+  - lowers stack-backed scalar/view `var` bindings and simple whole-binding `=` assignment for `i32`, `u8`, `usize`, `bool`, `&str`, and slices in the current leading-statement subset
+  - adds `nocter run` coverage for scalar assignment and reassigned `&str` output through `write_text_raw`
 - Current checkpoint: execute Hello through distributed std
   - verifies `from std/io import print` plus `print("Hello")?` with the real distributed `.nocter/std` and `arm64-darwin` target overlay
   - covers the current Hello path end to end through `nocter run`, `std/io.print`, `std/io_impl.write_text_raw`, fallible `?`, and generated executable stdout
@@ -43,7 +47,7 @@ Recent committed work:
 - Current checkpoint: document interpolation lowering direction
   - records that bare interpolation still cannot lower without an explicit source-level allocator
   - sets the next implementation path as explicit `std/string` construction plus `std/fmt.append_*` calls before lowering bare interpolation syntax
-  - lists the remaining backend prerequisites: aggregate storage, stack-backed `var`, borrow arguments, and owned aggregate returns/moves
+  - lists the remaining backend prerequisites: aggregate storage, aggregate stack-backed `var`, borrow arguments, and owned aggregate returns/moves
 - Current checkpoint: add bool scalar call arguments
   - lowers `bool` parameters and calls whose arguments include `bool`, preserving ABI argument indexes for mixed scalar parameter lists
   - extends typed IR call arguments and ARM64 staging so `i32`/`bool` use W registers and `usize` uses X registers
@@ -951,7 +955,7 @@ The scalar `i32` and `usize` backend subsets now have runtime safety checks for 
 Recommended next small task for the next session:
 
 1. Follow `compiler/docs/interpolation-lowering.md`: keep bare interpolation lowering disabled until an explicit allocator source is designed, and first make explicit `std/string` construction plus `std/fmt.append_*` calls buildable.
-2. Add only the backend prerequisites needed by that explicit path: aggregate `String`/`Allocator`/`RawBuffer` storage, stack-backed `var`, borrow argument lowering, and owned aggregate returns/moves.
+2. Add only the backend prerequisites needed by that explicit path: aggregate `String`/`Allocator`/`RawBuffer` storage, aggregate stack-backed `var`, borrow argument lowering, and owned aggregate returns/moves.
 3. Consider broader terminal control-flow only after its lowering rules are designed.
 4. Keep unrelated imported calls, aggregates, ownership/drop lowering, general mutable storage, and broader control-flow disabled until their ABI, storage, and join rules are designed.
 5. Add CLI build/run coverage for any newly buildable source subset.

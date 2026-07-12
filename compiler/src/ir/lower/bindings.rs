@@ -6,23 +6,22 @@ use super::expressions::{
     lower_str_expression_to_location, lower_u8_expression_to_location,
     lower_usize_expression_to_location,
 };
-use crate::ast::{BinaryOperator, BindingKind, BindingStmt, Expr, TypeExpr, UnaryOperator};
+use crate::ast::{
+    AssignmentOperator, AssignmentStmt, BinaryOperator, BindingStmt, Expr, TypeExpr, UnaryOperator,
+};
 use crate::diagnostics::Diagnostic;
-use crate::ir::{Instruction, Type};
+use crate::ir::{
+    BoolLocation, I32Location, Instruction, SliceLocation, StrLocation, Type, U8Location,
+    UsizeLocation,
+};
 
-pub(super) fn lower_let_binding(
+pub(super) fn lower_local_binding(
     statement: &BindingStmt,
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    if statement.kind != BindingKind::Let {
-        return Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower immutable `let` bindings",
-        ));
-    }
-
     if statement.else_block.is_some() {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 cannot lower optional `let ... else` bindings",
+            "IR v0 cannot lower optional `let ... else` or `var ... else` bindings",
         ));
     }
 
@@ -31,16 +30,73 @@ pub(super) fn lower_let_binding(
     }
 
     match scalar_binding_kind(statement, context)? {
-        ScalarBindingKind::I32 => lower_i32_let_binding(statement, context),
-        ScalarBindingKind::U8 => lower_u8_let_binding(statement, context),
-        ScalarBindingKind::Usize => lower_usize_let_binding(statement, context),
-        ScalarBindingKind::Bool => lower_bool_let_binding(statement, context),
-        ScalarBindingKind::Str => lower_str_let_binding(statement, context),
-        ScalarBindingKind::Slice => lower_slice_let_binding(statement, context),
+        ScalarBindingKind::I32 => lower_i32_local_binding(statement, context),
+        ScalarBindingKind::U8 => lower_u8_local_binding(statement, context),
+        ScalarBindingKind::Usize => lower_usize_local_binding(statement, context),
+        ScalarBindingKind::Bool => lower_bool_local_binding(statement, context),
+        ScalarBindingKind::Str => lower_str_local_binding(statement, context),
+        ScalarBindingKind::Slice => lower_slice_local_binding(statement, context),
     }
 }
 
-fn lower_i32_let_binding(
+pub(super) fn lower_assignment(
+    statement: &AssignmentStmt,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if statement.operator != AssignmentOperator::Assign {
+        return Err(unsupported_assignment_diagnostic());
+    }
+
+    let Expr::Identifier(identifier) = &statement.target else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+
+    if let Some(destination) = context.i32_location(&identifier.name) {
+        let I32Location::Local(_) = destination else {
+            return Err(unsupported_assignment_diagnostic());
+        };
+        return lower_i32_expression_to_location(&statement.value, destination, context);
+    }
+
+    if let Some(destination) = context.u8_location(&identifier.name) {
+        let U8Location::Local(_) = destination else {
+            return Err(unsupported_assignment_diagnostic());
+        };
+        return lower_u8_expression_to_location(&statement.value, destination, context);
+    }
+
+    if let Some(destination) = context.usize_location(&identifier.name) {
+        let UsizeLocation::Local(_) = destination else {
+            return Err(unsupported_assignment_diagnostic());
+        };
+        return lower_usize_expression_to_location(&statement.value, destination, context);
+    }
+
+    if let Some(destination) = context.bool_location(&identifier.name) {
+        let BoolLocation::Local(_) = destination else {
+            return Err(unsupported_assignment_diagnostic());
+        };
+        return lower_bool_expression_to_location(&statement.value, destination, context, "E8008");
+    }
+
+    if let Some(destination) = context.str_location(&identifier.name) {
+        let StrLocation::Local(_) = destination else {
+            return Err(unsupported_assignment_diagnostic());
+        };
+        return lower_str_expression_to_location(&statement.value, destination, context);
+    }
+
+    if let Some(destination) = context.slice_location(&identifier.name) {
+        let SliceLocation::Local(_) = destination else {
+            return Err(unsupported_assignment_diagnostic());
+        };
+        return lower_slice_expression_to_location(&statement.value, destination, context);
+    }
+
+    Err(unsupported_assignment_diagnostic())
+}
+
+fn lower_i32_local_binding(
     statement: &BindingStmt,
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -51,7 +107,7 @@ fn lower_i32_let_binding(
     Ok(instructions)
 }
 
-fn lower_u8_let_binding(
+fn lower_u8_local_binding(
     statement: &BindingStmt,
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -62,7 +118,7 @@ fn lower_u8_let_binding(
     Ok(instructions)
 }
 
-fn lower_usize_let_binding(
+fn lower_usize_local_binding(
     statement: &BindingStmt,
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -73,7 +129,7 @@ fn lower_usize_let_binding(
     Ok(instructions)
 }
 
-fn lower_bool_let_binding(
+fn lower_bool_local_binding(
     statement: &BindingStmt,
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -84,7 +140,7 @@ fn lower_bool_let_binding(
     Ok(instructions)
 }
 
-fn lower_str_let_binding(
+fn lower_str_local_binding(
     statement: &BindingStmt,
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -95,7 +151,7 @@ fn lower_str_let_binding(
     Ok(instructions)
 }
 
-fn lower_slice_let_binding(
+fn lower_slice_local_binding(
     statement: &BindingStmt,
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -208,6 +264,13 @@ fn is_u8_slice_type(ty: &TypeExpr) -> bool {
 
 fn unsupported_binding_diagnostic(message: &'static str) -> Vec<Diagnostic> {
     vec![Diagnostic::error("E8008", message)]
+}
+
+fn unsupported_assignment_diagnostic() -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8008",
+        "IR v0 can only lower simple `=` assignment to scalar local bindings",
+    )]
 }
 
 fn unsupported_interpolated_string_diagnostic() -> Vec<Diagnostic> {

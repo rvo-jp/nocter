@@ -1,4 +1,4 @@
-use super::bindings::lower_let_binding;
+use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{FunctionNames, FunctionSignatures, LoweringContext};
 use super::control_flow::lower_terminal_i32_if_statement;
 use super::errors::{ErrorPayload, lower_error_payload};
@@ -174,7 +174,10 @@ fn lower_leading_bindings(
     for statement in statements {
         match statement {
             Stmt::Binding(statement) => {
-                instructions.extend(lower_let_binding(statement, context)?);
+                instructions.extend(lower_local_binding(statement, context)?);
+            }
+            Stmt::Assignment(statement) => {
+                instructions.extend(lower_assignment(statement, context)?);
             }
             Stmt::Expression(statement) => {
                 let Some(void_instructions) =
@@ -194,6 +197,6 @@ fn lower_leading_bindings(
 fn unsupported_entry_body_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8002",
-        "IR v0 can only lower entry function bodies containing leading scalar `let` bindings or void call statements followed by `return`, a static error constructor failure return, or a void return",
+        "IR v0 can only lower entry function bodies containing leading scalar local bindings, scalar assignments, or void call statements followed by `return`, a static error constructor failure return, or a void return",
     )]
 }

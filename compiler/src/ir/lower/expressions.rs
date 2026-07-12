@@ -1,4 +1,4 @@
-use super::bindings::lower_let_binding;
+use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::LoweringContext;
 use super::errors::{ErrorPayload, lower_error_payload};
 use super::literals::{
@@ -488,7 +488,10 @@ fn lower_catch_leading_statements(
     for statement in statements {
         match statement {
             Stmt::Binding(statement) => {
-                instructions.extend(lower_let_binding(statement, context)?);
+                instructions.extend(lower_local_binding(statement, context)?);
+            }
+            Stmt::Assignment(statement) => {
+                instructions.extend(lower_assignment(statement, context)?);
             }
             Stmt::Expression(statement) => {
                 let Some(void_instructions) =
@@ -545,7 +548,7 @@ fn slice_destination_reserved_abi_words(destination: SliceLocation) -> usize {
 fn unsupported_catch_block_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8007",
-        "IR v0 can only lower catch blocks containing leading scalar `let` bindings or void call statements followed by `return`",
+        "IR v0 can only lower catch blocks containing leading scalar local bindings, scalar assignments, or void call statements followed by `return`",
     )]
 }
 

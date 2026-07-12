@@ -13,14 +13,14 @@ The current LSP feature modules should present compiler analysis results, not gr
 Recommended next small task:
 
 1. Follow `interpolation-lowering.md`: keep bare interpolation lowering disabled until an explicit allocator source is designed, and first make explicit `std/string` construction plus `std/fmt.append_*` calls buildable.
-2. Add only the remaining backend prerequisites needed by that explicit path: aggregate `String`/`Allocator`/`RawBuffer` storage, stack-backed `var`, borrow argument lowering for `&T` and `&+T`, and owned aggregate return/move handling. Loaded imported scalar calls, scalar parameters/call arguments, `&str` call arguments, direct `&str` returns, annotated `&str` locals, narrow `&str` normal-call result staging, and ordinary fallible propagation for the current scalar/view/void call subset are already buildable.
+2. Add only the remaining backend prerequisites needed by that explicit path: aggregate `String`/`Allocator`/`RawBuffer` storage, aggregate stack-backed `var`, borrow argument lowering for `&T` and `&+T`, and owned aggregate return/move handling. Loaded imported scalar calls, scalar parameters/call arguments, `&str` call arguments, direct `&str` returns, annotated `&str` locals, narrow `&str` normal-call result staging, scalar/view stack-backed `var` plus simple `=` assignment, and ordinary fallible propagation for the current scalar/view/void call subset are already buildable.
 3. Consider broader terminal control-flow only after its lowering rules are designed.
 4. Keep aggregate values beyond the explicit `String` path, ownership/drop lowering, and general mutable storage disabled until their ABI and storage rules are designed.
 
 ## Near-Term Constraints
 
 - Keep broader control-flow disabled until lowering can represent non-terminal effects and joins safely.
-- Avoid broad `if`, `while`, `loop`, `match`, `var`, reassignment, and aggregate lowering until backend storage and ABI rules are ready.
+- Avoid broad `if`, `while`, `loop`, `match`, non-scalar `var`, compound reassignment, and aggregate lowering until backend storage and ABI rules are ready.
 - Prefer small user-visible build features with integration tests.
 - Prefer behavior-preserving LSP refactors before adding new LSP capabilities.
 

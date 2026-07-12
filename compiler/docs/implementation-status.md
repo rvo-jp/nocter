@@ -22,8 +22,8 @@ This file describes implementation state only.
 | `void` entry | yes | yes | yes | yes | yes | Empty body and bare `return` are buildable. |
 | `bool` expressions | yes | yes | yes | partial | yes | Build supports literals, locals, parameters, `!`, `&&`, `||`, `i32` and `usize` comparisons, bool equality/inequality over literal/local operands, and bool call arguments in lowerable positions. |
 | String literals and interpolation | yes | yes | partial | partial | partial | Single-line and multi-line string literals are tokenized, parsed, typed as `&str`, buildable as `&str` call arguments, buildable as direct non-entry `&str` returns, and buildable through annotated `&str` locals plus narrow `&str` normal-call result staging. Interpolation is parsed as an explicit expression and checked as `String!` with limited supported part types. The initial `std/string` and `std/fmt` API boundary exists, but owned/interpolated string construction is not lowerable. |
-| Immutable `let` bindings | yes | yes | yes | partial | yes | Build supports lowerable `i32`, annotated `usize`, `bool`, and annotated `&str` initializers. |
-| `var` and reassignment | yes | yes | partial | no | no | Backend has no general local storage yet. |
+| Immutable `let` bindings | yes | yes | yes | partial | yes | Build supports lowerable `i32`, annotated `u8`, annotated `usize`, `bool`, annotated `&str`, and annotated slice initializers. |
+| `var` and reassignment | yes | yes | partial | partial | partial | Build supports stack-backed scalar/view `var` initializers and simple whole-binding `=` assignment in the current straight-line leading-statement subset. Aggregate mutable storage, field/index assignment, compound assignment, reinitialization, and drop-aware replacement are not buildable. |
 | Same-file function calls | yes | yes | yes | partial | partial | Build supports non-generic tail calls with scalar `i32`/`usize`/`bool` arguments plus `&str` slice arguments when the total register ABI footprint is at most 8 words, `bool` tail returns, and a narrow scalar/view normal-call subset. |
 | Imported function calls | yes | yes | yes | partial | partial | Build supports loaded imported non-generic calls through the same narrow call subset as same-file calls. Unloaded imported placeholders still diagnose before backend lowering. |
 | General non-tail calls | yes | yes | yes | partial | partial | Build supports non-generic scalar/view normal calls in selected expression positions, including `&str` results staged into annotated `&str` locals or `&str` call arguments. Unsupported shapes still report IR lowering diagnostics. |
@@ -54,7 +54,8 @@ Currently buildable:
 - explicit `--target arm64-darwin` selection for `build`, `run`, and `check`; reserved future targets are recognized but rejected as unimplemented
 - entry return types `i32`, `i32!`, and `void`
 - literal `i32` returns
-- immutable local `let` bindings whose initializer is lowerable as `i32`, annotated `usize`, `bool`, or annotated `&str`
+- local `let` and `var` bindings whose initializer is lowerable as `i32`, annotated `u8`, annotated `usize`, `bool`, annotated `&str`, or annotated `&[u8]`/`&+[u8]`
+- simple whole-binding `=` assignment to stack-backed scalar/view local bindings in leading statement position
 - `void` entry with an empty body or bare `return`
 - same-file and loaded imported non-generic tail calls returning `i32` or `bool`
 - same-file and loaded imported calls returning `never` in terminal return or expression-statement position
@@ -94,7 +95,7 @@ Currently buildable:
 
 Currently not buildable even when it may be checkable:
 
-- `var`, reassignment, and general local storage
+- compound assignment, field/index assignment, reinitialization after move/drop, drop-aware assignment replacement, aggregate mutable storage, and general local storage beyond the current scalar/view subset
 - general `if`, `while`, `loop`, range `for`, `match`, and pattern conditional `?{}`
 - unloaded imported function placeholders
 - compound bool equality operands with calls such as `(ready() && other()) == true`

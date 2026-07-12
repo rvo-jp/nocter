@@ -8,7 +8,10 @@ use super::controls::{
     check_for_range_bounds, check_if_condition, check_if_let_initializer, check_while_condition,
     check_while_let_initializer,
 };
-use super::diagnostics::loop_control_outside_loop_diagnostic;
+use super::diagnostics::{
+    assignment_type_mismatch_diagnostic, immutable_assignment_diagnostic,
+    loop_control_outside_loop_diagnostic,
+};
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_if_is_binding,
     environment_for_if_let_binding, environment_for_method, environment_for_parameters,
@@ -22,6 +25,7 @@ use super::fallible::check_force_unwrap_operand;
 use super::model::{TypeEnvironment, binding_kind_is_mutable};
 use super::operations::{
     check_binary_expression, check_type_conversion_expression, check_unary_expression,
+    is_expression_assignable,
 };
 use super::strings::check_interpolated_string_expression;
 use super::structs::{check_struct_literal_expression, check_struct_member_expression};
@@ -29,7 +33,9 @@ use super::variants::{
     check_enum_variant_call, check_enum_variant_member, check_if_is_statement,
     check_pattern_conditional_expression, check_switch_statement, is_enum_variant_call,
 };
-use crate::ast::{AstFile, Block, Expr, ImplDecl, ImplMember, InterpolatedStringPart, Item, Stmt};
+use crate::ast::{
+    AssignmentStmt, AstFile, Block, Expr, ImplDecl, ImplMember, InterpolatedStringPart, Item, Stmt,
+};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
 use crate::source::SourceMap;
@@ -200,6 +206,7 @@ fn check_statement_expressions(
                 environment,
                 loop_depth,
             );
+            check_assignment_statement(sources, statement, resolved, diagnostics, environment);
         }
         Stmt::If(statement) => {
             check_expression_tree(
@@ -445,6 +452,44 @@ fn check_statement_expressions(
                 loop_depth,
             );
         }
+    }
+}
+
+fn check_assignment_statement(
+    sources: &SourceMap,
+    statement: &AssignmentStmt,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+    environment: &TypeEnvironment,
+) {
+    if let Expr::Identifier(identifier) = &statement.target
+        && environment.get(&identifier.name).is_some()
+        && !environment.is_mutable_binding(&identifier.name)
+    {
+        diagnostics.push(immutable_assignment_diagnostic(
+            sources,
+            statement,
+            &identifier.name,
+        ));
+    }
+
+    let target_type = expression_type(&statement.target, resolved, environment);
+    if target_type.is_unknown_or_unresolved() || target_type.first_unsized_part().is_some() {
+        return;
+    }
+
+    let value_type = expression_type(&statement.value, resolved, environment);
+    if value_type.is_unknown_or_unresolved() {
+        return;
+    }
+
+    if !is_expression_assignable(&target_type, &statement.value, resolved, environment) {
+        diagnostics.push(assignment_type_mismatch_diagnostic(
+            sources,
+            statement,
+            &target_type,
+            &value_type,
+        ));
     }
 }
 
