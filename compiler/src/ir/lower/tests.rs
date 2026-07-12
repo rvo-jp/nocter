@@ -1058,6 +1058,100 @@ func forward(): Text {
 }
 
 #[test]
+fn lowers_indirect_aggregate_call_binding_return() {
+    let aggregate_type = Type::Aggregate {
+        layout: ValueLayout::new(24, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Text {
+    return Text{ start: 1, len: 2, capacity: 3 }
+}
+
+func forward(): Text {
+    let value = make()
+    return value
+}
+"#,
+        "forward",
+        function_signatures(vec![("make", aggregate_type.clone(), vec![])]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "forward".to_string(),
+            target: CallTarget::same_file("forward"),
+            return_type: aggregate_type,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::CallAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    target: CallTarget::same_file("make"),
+                    arguments: vec![],
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Return,
+                    source: AggregateLocation::Slot(0),
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn reports_unsupported_mutable_indirect_aggregate_call_binding() {
+    let aggregate_type = Type::Aggregate {
+        layout: ValueLayout::new(24, 8),
+    };
+    let diagnostics = lower_named_function_with_signatures(
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Text {
+    return Text{ start: 1, len: 2, capacity: 3 }
+}
+
+func forward(): Text {
+    var value = make()
+    return value
+}
+"#,
+        "forward",
+        function_signatures(vec![("make", aggregate_type, vec![])]),
+    )
+    .unwrap_err();
+
+    assert_eq!(diagnostics[0].code, "E8008");
+    assert_eq!(
+        diagnostics[0].message,
+        "IR v0 can only lower aggregate call bindings as immutable `let` bindings"
+    );
+}
+
+#[test]
 fn lowers_pointer_from_addr_aggregate_field_return() {
     let function = lower_imported_named_function_with_nocter_home_files(
         r#"from std/text import make

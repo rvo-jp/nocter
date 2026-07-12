@@ -149,6 +149,13 @@ impl EntryEmitter {
             } => {
                 self.emit_store_aggregate_usize(*destination, *offset, value, frame)?;
             }
+            Instruction::CopyAggregate {
+                destination,
+                source,
+                layout,
+            } => {
+                self.emit_copy_aggregate(*destination, *source, *layout, frame)?;
+            }
             Instruction::AddI32 {
                 destination,
                 left,
@@ -1666,6 +1673,63 @@ mod tests {
         let code = generate_arm64_darwin_entry(&module, "main").unwrap();
 
         assert!(!contains_instruction(&code.text, [0xe8, 0x03, 0x00, 0x91])); // add x8, sp, #0
+        assert!(contains_instruction(&code.text, [0x10, 0x09, 0x00, 0xf9])); // str x16, [x8, #16]
+    }
+
+    #[test]
+    fn aggregate_copy_from_slot_to_return_copies_words_to_x8_destination() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "forward".to_string(),
+                target: crate::ir::CallTarget::same_file("forward".to_string()),
+                return_type: Type::Aggregate {
+                    layout: ValueLayout::new(24, 8),
+                },
+                instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(24, 8),
+                    },
+                    Instruction::CallAggregate {
+                        destination: AggregateLocation::Slot(0),
+                        target: CallTarget::same_file("make"),
+                        arguments: vec![],
+                    },
+                    Instruction::CopyAggregate {
+                        destination: AggregateLocation::Return,
+                        source: AggregateLocation::Slot(0),
+                        layout: ValueLayout::new(24, 8),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "make".to_string(),
+                target: crate::ir::CallTarget::same_file("make".to_string()),
+                return_type: Type::Aggregate {
+                    layout: ValueLayout::new(24, 8),
+                },
+                instructions: vec![
+                    Instruction::StoreAggregateUsize {
+                        destination: AggregateLocation::Return,
+                        offset: 0,
+                        value: UsizeValue::Const(7),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0xf0, 0x03, 0x40, 0xf9])); // ldr x16, [sp, #0]
+        assert!(contains_instruction(&code.text, [0x10, 0x01, 0x00, 0xf9])); // str x16, [x8, #0]
         assert!(contains_instruction(&code.text, [0x10, 0x09, 0x00, 0xf9])); // str x16, [x8, #16]
     }
 

@@ -1,3 +1,4 @@
+use crate::abi::ValueLayout;
 use crate::ast::CallExpr;
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -221,6 +222,16 @@ impl<'a> LoweringContext<'a> {
         self.define_local(name, LocalKind::Slice);
     }
 
+    pub(super) fn define_aggregate_local(&mut self, name: String, layout: ValueLayout) -> usize {
+        let slot_index = self.next_aggregate_slot_index();
+        self.locals.push(LocalBinding {
+            name,
+            kind: LocalKind::Aggregate { layout, slot_index },
+            index: 0,
+        });
+        slot_index
+    }
+
     pub(super) fn define_error_local(
         &mut self,
         name: String,
@@ -326,6 +337,17 @@ impl<'a> LoweringContext<'a> {
             .map(|local| StrLocation::Local(local.index + 2))
     }
 
+    pub(super) fn aggregate_slot(&self, name: &str) -> Option<(usize, ValueLayout)> {
+        self.locals.iter().find_map(|local| {
+            if local.name == name
+                && let LocalKind::Aggregate { layout, slot_index } = local.kind
+            {
+                return Some((slot_index, layout));
+            }
+            None
+        })
+    }
+
     fn next_local_index(&self, required_words: usize) -> Result<usize, Vec<Diagnostic>> {
         let index = self.used_local_abi_words();
         if index + required_words > MAX_LOCAL_ABI_WORDS {
@@ -350,6 +372,13 @@ impl<'a> LoweringContext<'a> {
                 .iter()
                 .map(|local| local.kind.abi_word_count())
                 .sum::<usize>()
+    }
+
+    fn next_aggregate_slot_index(&self) -> usize {
+        self.locals
+            .iter()
+            .filter(|local| matches!(local.kind, LocalKind::Aggregate { .. }))
+            .count()
     }
 }
 
@@ -439,6 +468,10 @@ enum LocalKind {
     Str,
     Slice,
     Error,
+    Aggregate {
+        layout: ValueLayout,
+        slot_index: usize,
+    },
 }
 
 impl LocalKind {
@@ -447,6 +480,7 @@ impl LocalKind {
             Self::I32 | Self::U8 | Self::Usize | Self::Bool => 1,
             Self::Str | Self::Slice => 2,
             Self::Error => 4,
+            Self::Aggregate { .. } => 0,
         }
     }
 }

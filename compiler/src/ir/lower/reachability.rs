@@ -76,6 +76,7 @@ fn collect_reachable_call_targets(
             Instruction::WriteStr { .. }
             | Instruction::ReserveAggregateSlot { .. }
             | Instruction::StoreAggregateUsize { .. }
+            | Instruction::CopyAggregate { .. }
             | Instruction::PropagateFailure
             | Instruction::TrapOnFailure
             | Instruction::ReturnFallibleSuccess

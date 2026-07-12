@@ -2,17 +2,18 @@ use super::context::LoweringContext;
 use super::expressions::{
     expression_contains_interpolated_string, expression_is_lowerable_bool_binding,
     expression_is_unsupported_bool_comparison_binding, lower_bool_expression_to_location,
-    lower_i32_expression_to_location, lower_slice_expression_to_location,
-    lower_str_expression_to_location, lower_u8_expression_to_location,
-    lower_usize_expression_to_location,
+    lower_call_arguments_to_scalar_arguments, lower_i32_expression_to_location,
+    lower_slice_expression_to_location, lower_str_expression_to_location,
+    lower_u8_expression_to_location, lower_usize_expression_to_location,
 };
 use crate::ast::{
-    AssignmentOperator, AssignmentStmt, BinaryOperator, BindingStmt, Expr, TypeExpr, UnaryOperator,
+    AssignmentOperator, AssignmentStmt, BinaryOperator, BindingKind, BindingStmt, Expr, TypeExpr,
+    UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolLocation, I32Location, Instruction, SliceLocation, StrLocation, Type, U8Location,
-    UsizeLocation,
+    AggregateLocation, BoolLocation, I32Location, Instruction, SliceLocation, StrLocation, Type,
+    U8Location, UsizeLocation,
 };
 
 pub(super) fn lower_local_binding(
@@ -29,6 +30,10 @@ pub(super) fn lower_local_binding(
         return Err(unsupported_interpolated_string_diagnostic());
     }
 
+    if let Some(instructions) = lower_aggregate_call_binding(statement, context)? {
+        return Ok(instructions);
+    }
+
     match scalar_binding_kind(statement, context)? {
         ScalarBindingKind::I32 => lower_i32_local_binding(statement, context),
         ScalarBindingKind::U8 => lower_u8_local_binding(statement, context),
@@ -37,6 +42,45 @@ pub(super) fn lower_local_binding(
         ScalarBindingKind::Str => lower_str_local_binding(statement, context),
         ScalarBindingKind::Slice => lower_slice_local_binding(statement, context),
     }
+}
+
+fn lower_aggregate_call_binding(
+    statement: &BindingStmt,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Expr::Call(call) = &statement.initializer else {
+        return Ok(None);
+    };
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Ok(None);
+    };
+
+    let target = context.call_target(call, &identifier.name);
+    let Some(Type::Aggregate { layout }) = context.call_return_type(&target) else {
+        return Ok(None);
+    };
+    if statement.kind != BindingKind::Let {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 can only lower aggregate call bindings as immutable `let` bindings",
+        ));
+    }
+    let layout = *layout;
+    if !layout.size.is_multiple_of(8) {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 can only lower aggregate call bindings whose ABI size is a multiple of 8 bytes",
+        ));
+    }
+
+    let (mut instructions, arguments) =
+        lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
+    let slot_index = context.define_aggregate_local(statement.name.clone(), layout);
+    instructions.insert(0, Instruction::ReserveAggregateSlot { slot_index, layout });
+    instructions.push(Instruction::CallAggregate {
+        destination: AggregateLocation::Slot(slot_index),
+        target,
+        arguments,
+    });
+    Ok(Some(instructions))
 }
 
 pub(super) fn lower_assignment(

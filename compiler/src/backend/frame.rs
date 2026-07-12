@@ -274,6 +274,14 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::CallFallibleVoid { .. }
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::WriteStr { .. } => true,
+        Instruction::CopyAggregate {
+            destination,
+            source,
+            ..
+        } => {
+            matches!(destination, AggregateLocation::Slot(_))
+                || matches!(source, AggregateLocation::Slot(_))
+        }
         Instruction::StoreAggregateUsize { destination, .. } => {
             matches!(destination, AggregateLocation::Slot(_))
         }
@@ -390,6 +398,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         Instruction::WriteStr { .. }
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::StoreAggregateUsize { .. }
+        | Instruction::CopyAggregate { .. }
         | Instruction::SetI32 { .. }
         | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
@@ -441,6 +450,19 @@ fn record_instruction_aggregate_slot_requests(
     match instruction {
         Instruction::ReserveAggregateSlot { slot_index, layout } => {
             record_aggregate_slot_request(*slot_index, *layout, requests)
+        }
+        Instruction::CopyAggregate {
+            destination,
+            source,
+            layout,
+        } => {
+            if let AggregateLocation::Slot(slot_index) = destination {
+                record_aggregate_slot_request(*slot_index, *layout, requests)?;
+            }
+            if let AggregateLocation::Slot(slot_index) = source {
+                record_aggregate_slot_request(*slot_index, *layout, requests)?;
+            }
+            Ok(())
         }
         Instruction::If {
             then_instructions,
@@ -567,6 +589,7 @@ fn record_instruction_scalar_locals(
         | Instruction::TrapOnFailure
         | Instruction::ReturnFallibleSuccess
         | Instruction::ReserveAggregateSlot { .. }
+        | Instruction::CopyAggregate { .. }
         | Instruction::Trap
         | Instruction::Return => {}
         Instruction::CheckFailure { failure_mode } => {
@@ -1387,6 +1410,39 @@ mod tests {
             FunctionFrame::Framed(
                 FrameLayout::for_slot_counts_with_aggregate_slots(
                     2,
+                    0,
+                    &[AggregateSlotRequest::new(0, ValueLayout::new(24, 8))]
+                )
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn aggregate_copy_requires_frame_and_reserves_source_slot() {
+        let function = Function {
+            name: "forward".to_string(),
+            target: crate::ir::CallTarget::same_file("forward".to_string()),
+            return_type: Type::Aggregate {
+                layout: ValueLayout::new(24, 8),
+            },
+            instructions: vec![
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Return,
+                    source: AggregateLocation::Slot(0),
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::Return,
+            ],
+        };
+
+        let frame = plan_function_frame(&function).unwrap();
+
+        assert_eq!(
+            frame,
+            FunctionFrame::Framed(
+                FrameLayout::for_slot_counts_with_aggregate_slots(
+                    0,
                     0,
                     &[AggregateSlotRequest::new(0, ValueLayout::new(24, 8))]
                 )

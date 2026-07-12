@@ -547,6 +547,9 @@ fn lower_aggregate_return_expression(
             context,
         ),
         Expr::Call(call) => lower_aggregate_call_return(call, return_type, function_name, context),
+        Expr::Identifier(identifier) => {
+            lower_aggregate_local_return(&identifier.name, return_type, function_name, context)
+        }
         Expr::Group(group) => lower_aggregate_return_expression(
             &group.expression,
             return_type,
@@ -556,6 +559,35 @@ fn lower_aggregate_return_expression(
         ),
         _ => Err(unsupported_aggregate_return_diagnostic(function_name)),
     }
+}
+
+fn lower_aggregate_local_return(
+    name: &str,
+    return_type: &Type,
+    function_name: &str,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Type::Aggregate {
+        layout: expected_layout,
+    } = return_type
+    else {
+        unreachable!("aggregate local return lowering requires aggregate return type")
+    };
+    let Some((slot_index, layout)) = context.aggregate_slot(name) else {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    };
+    if layout != *expected_layout || !layout.size.is_multiple_of(8) {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    }
+
+    Ok(vec![
+        Instruction::CopyAggregate {
+            destination: AggregateLocation::Return,
+            source: AggregateLocation::Slot(slot_index),
+            layout,
+        },
+        Instruction::Return,
+    ])
 }
 
 fn lower_aggregate_call_return(

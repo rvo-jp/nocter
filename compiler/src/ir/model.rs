@@ -80,6 +80,12 @@ pub(crate) enum Instruction {
         offset: u32,
         value: UsizeValue,
     },
+    #[allow(dead_code)]
+    CopyAggregate {
+        destination: AggregateLocation,
+        source: AggregateLocation,
+        layout: ValueLayout,
+    },
     AddI32 {
         destination: I32Location,
         left: I32Value,

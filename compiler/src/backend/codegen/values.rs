@@ -72,6 +72,65 @@ impl EntryEmitter {
         }
     }
 
+    pub(super) fn emit_copy_aggregate(
+        &mut self,
+        destination: AggregateLocation,
+        source: AggregateLocation,
+        layout: crate::abi::ValueLayout,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if !layout
+            .size
+            .is_multiple_of(AGGREGATE_USIZE_STORE_BYTES.into())
+        {
+            return Err(aggregate_copy_diagnostic(
+                "aggregate size is not a multiple of 8 bytes",
+            ));
+        }
+
+        let (AggregateLocation::Return, AggregateLocation::Slot(source_slot_index)) =
+            (destination, source)
+        else {
+            return Err(aggregate_copy_diagnostic(
+                "backend v0 can only copy aggregate slots to the indirect return destination",
+            ));
+        };
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "aggregate copy emission requires a stack frame",
+            )]);
+        };
+        let source_slot = frame.aggregate_slot(source_slot_index).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "E9005",
+                format!("aggregate copy source slot {source_slot_index} is not reserved"),
+            )]
+        })?;
+        let layout_size = u32::try_from(layout.size)
+            .map_err(|_error| aggregate_copy_diagnostic("aggregate size exceeds u32 range"))?;
+        if source_slot.size() != layout_size {
+            return Err(aggregate_copy_diagnostic(
+                "source slot size does not match aggregate layout",
+            ));
+        }
+
+        let mut offset = 0_u32;
+        while u64::from(offset) < layout.size {
+            let source_offset = source_slot
+                .offset()
+                .checked_add(offset)
+                .ok_or_else(|| aggregate_copy_diagnostic("source offset overflows"))?;
+            self.encoder.emit_ldr_x_sp(XReg::X16, source_offset);
+            self.encoder.emit_str_x_imm(XReg::X16, XReg::X8, offset);
+            offset = offset
+                .checked_add(AGGREGATE_USIZE_STORE_BYTES)
+                .ok_or_else(|| aggregate_copy_diagnostic("copy offset overflows"))?;
+        }
+
+        Ok(())
+    }
+
     pub(super) fn emit_set_u8(
         &mut self,
         destination: U8Location,
@@ -643,6 +702,13 @@ fn aggregate_store_offset_diagnostic(reason: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E9005",
         format!("aggregate usize store offset is invalid: {reason}"),
+    )]
+}
+
+fn aggregate_copy_diagnostic(reason: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E9005",
+        format!("aggregate copy is invalid: {reason}"),
     )]
 }
 
