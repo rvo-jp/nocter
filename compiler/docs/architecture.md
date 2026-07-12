@@ -53,7 +53,7 @@ The distributable archive root for the initial host is:
             std/
 ```
 
-Users normally install that archive root as `~/.nocter/`. `compiler/src/` contains the implementation used to build the `nocter` compiler. `.nocter/` contains the current development host package for the user-facing compiler binary and standard library. It is generated output and is not committed to git.
+Users normally install that archive root as `~/.nocter/`. `compiler/src/` contains the implementation used to build the `nocter` compiler. `.nocter/` contains the current development host package for the user-facing compiler binary and standard library. The package metadata and standard-library sources are tracked in git; the generated `.nocter/nocter` compiler binary is ignored.
 
 The Nocter home root must contain `VERSION` and `MANIFEST.json`. `VERSION` is the single-line release version. `MANIFEST.json` records the manifest schema, release, host, default target, implemented targets, compiler path, standard-library path, and archive name. Manifest v1 does not include checksum metadata.
 
@@ -91,6 +91,14 @@ Standard verification from the repository root:
 ```
 
 The script runs `cargo check`, `cargo test`, `cargo fmt --check`, and `cargo clippy --all-targets -- -D warnings` inside `compiler/`.
+
+To refresh the repository-local development install, build the release binary and copy it into `.nocter/nocter`:
+
+```sh
+./compiler/scripts/install-local-release.sh
+```
+
+The script runs `cargo build --release`, installs `compiler/target/release/nocter` as `.nocter/nocter`, then runs `.nocter/nocter doctor` without setting `NOCTER_HOME`. This exercises the installed-layout home resolution path where the executable parent directory is the active Nocter home.
 
 Crate policy:
 

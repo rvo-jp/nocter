@@ -33,6 +33,54 @@ fn distributed_nocter_home_passes_doctor() {
 }
 
 #[test]
+fn installed_nocter_uses_executable_parent_as_home_without_env() {
+    let install = TempProject::new("distributed-home-installed-layout");
+    let home = install.root();
+    fs::write(
+        home.join("VERSION"),
+        fs::read_to_string(distributed_home().join("VERSION")).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        home.join("MANIFEST.json"),
+        fs::read_to_string(distributed_home().join("MANIFEST.json")).unwrap(),
+    )
+    .unwrap();
+    fs::create_dir_all(home.join("std")).unwrap();
+    fs::create_dir_all(home.join("targets/arm64-darwin/std")).unwrap();
+
+    let installed = home.join("nocter");
+    fs::copy(NOCTER, &installed).unwrap();
+    fs::set_permissions(&installed, fs::metadata(NOCTER).unwrap().permissions()).unwrap();
+
+    let output = Command::new(&installed)
+        .arg("doctor")
+        .env_remove("NOCTER_HOME")
+        .output()
+        .unwrap();
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    let stdout = text(&output.stdout);
+    let expected_home = home.canonicalize().unwrap();
+    assert!(
+        stdout.contains(&format!("Nocter home: {}", expected_home.display()))
+            && stdout.contains("ok"),
+        "doctor stdout should report executable-parent home and ok:\n{stdout}"
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
+    );
+}
+
+#[test]
 fn distributed_std_public_api_passes_check() {
     let project = TempProject::new("distributed-home-smoke");
     let source = project.write_source(
