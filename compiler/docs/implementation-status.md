@@ -35,7 +35,7 @@ This file describes implementation state only.
 | Structs and enums | yes | yes | partial | no | no | Type checking exists for several cases; aggregate layout/lowering is not buildable. |
 | Arrays, views, and pointers | yes | yes | partial | no | no | Compiler-owned layout and provenance rules are still future work. |
 | Methods, traits, and generics | yes | yes | partial | no | no | Parser and selected diagnostics exist; monomorphization/lowering do not. |
-| Ownership, borrowing, move, drop | yes | partial | partial | no | no | Design exists; full semantic checking and drop glue are not implemented. |
+| Ownership, borrowing, move, drop | yes | partial | partial | partial | partial | Explicit scalar borrow expressions are parsed and checked, `&+` requires a writable `var` binding, and local scalar borrow arguments are buildable for normal calls. Full semantic checking, dereference, escapes, and drop glue are not implemented. |
 | Standard library API names | yes | yes | partial | partial | partial | `.nocter/std` includes initial prelude, error, memory, owning string, formatting, pointer, OS, and I/O declarations with the initial `File` method surface and private close-on-drop state; the active target overlay provides `std/io_impl` raw file-descriptor helpers and `std/process`. Many bodies are placeholders or primitive boundaries. |
 | `check --format json` | yes | n/a | yes | n/a | yes | JSON diagnostics are used by corpus tests. |
 | `tokens --format json` and `ast --format json` | yes | yes | n/a | n/a | yes | Tooling aids, not stable language compatibility promises. |
@@ -74,9 +74,10 @@ Currently buildable:
 - short-circuit bool expressions that combine `i32` call comparisons with bool calls, such as `if answer() == 42 && ready()` and `let matched = answer() == 42 && ready()`
 - nested scalar normal-call arguments such as `let value = outer(inner())`, for `i32`, `usize`, and `bool` parameter positions
 - nested scalar tail-call arguments such as `return outer(inner())`, for `i32`, `usize`, and `bool` parameter positions
+- explicit local scalar borrow arguments such as `let result = choose(&value, 42)` and `touch(&+value)`, for `i32`, `u8`, `usize`, and `bool` normal-call parameter positions
 - static string literals and `&str` parameters as call arguments, passed as `ptr,len` ABI word pairs
 - same-file and loaded imported non-generic normal calls returning `&str` in annotated `&str` `let` initializers and as `&str` call or tail-call arguments, with results staged into two local ABI words
-- up to 8 ABI argument words across scalar `i32`/`usize`/`bool` and `&str` parameters/call arguments for lowered functions and calls
+- up to 8 ABI argument words across scalar `i32`/`usize`/`bool`, local scalar borrow, and `&str` parameters/call arguments for lowered functions and calls
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
 - non-entry functions returning `bool`, `usize`, or direct `&str` literal/parameter/local/tail-call values
 - `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; addition, subtraction, and multiplication emit signed-overflow trap checks, and division and remainder emit zero-divisor plus signed-overflow trap checks
@@ -98,6 +99,7 @@ Currently not buildable even when it may be checkable:
 - compound assignment, field/index assignment, reinitialization after move/drop, drop-aware assignment replacement, aggregate mutable storage, and general local storage beyond the current scalar/view subset
 - general `if`, `while`, `loop`, range `for`, `match`, and pattern conditional `?{}`
 - unloaded imported function placeholders
+- tail calls with borrow arguments, borrow arguments from parameters or non-local places, and dereferencing scalar borrow parameters
 - compound bool equality operands with calls such as `(ready() && other()) == true`
 - `usize` entry return values
 - `&str` member operations and view/byte iteration

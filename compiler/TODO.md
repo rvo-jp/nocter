@@ -19,11 +19,16 @@ Adopted user decisions:
 Recommended next implementation order:
 
 1. Follow `compiler/docs/interpolation-lowering.md`: keep bare interpolation lowering disabled until an explicit allocator source is designed, and first make explicit `std/string` construction plus `std/fmt.append_*` calls buildable.
-2. Lower interpolated strings only after the remaining backend prerequisites exist: aggregate `String`/`Allocator`/`RawBuffer` storage, aggregate stack-backed `var`, borrow argument lowering for `&T` and `&+T`, and owned aggregate return/move handling. Loaded imported scalar calls, scalar/view arguments, scalar/view `var` plus simple assignment, and fallible propagation for the current scalar/view/void call subset are now buildable.
+2. Lower interpolated strings only after the remaining backend prerequisites exist: aggregate `String`/`Allocator`/`RawBuffer` storage, aggregate stack-backed `var`, and owned aggregate return/move handling. Loaded imported scalar calls, scalar/view arguments, local scalar borrow arguments, scalar/view `var` plus simple assignment, and fallible propagation for the current scalar/view/void call subset are now buildable.
 3. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
+- Current checkpoint: implement borrow argument lowering
+  - adds explicit `&expr` / `&+expr` AST nodes, parser support, formatting, JSON AST output, resolver traversal, LSP hover traversal, and type-checking
+  - requires `&+` operands to be writable local `var` bindings in the current narrow checker
+  - lowers local scalar borrow arguments for normal calls as one ABI word by passing the address of the caller spill slot
+  - keeps tail calls with borrow arguments disabled to avoid passing addresses into a caller frame that has already been released
 - Current checkpoint: lower scalar var assignment
   - type-checks assignment to immutable `let` bindings and parameters, plus assignment value type mismatches
   - lowers stack-backed scalar/view `var` bindings and simple whole-binding `=` assignment for `i32`, `u8`, `usize`, `bool`, `&str`, and slices in the current leading-statement subset
