@@ -269,6 +269,36 @@ func main(): i32 {
     assert_macho_executable(&executable);
 }
 
+#[test]
+fn distributed_std_explicit_string_construction_builds_to_macho() {
+    let project = TempProject::new("distributed-home-explicit-string-build");
+    let source = project.write_source(
+        "explicit_string_app.nct",
+        r#"from std/fmt import append_str
+from std/mem import page_allocator
+from std/string import with_capacity
+
+func make(): String! {
+    var allocator = page_allocator()
+    var out = with_capacity(&+allocator, 8)?
+    append_str(&+out, "hello")?
+    return move out
+}
+
+func main(): i32! {
+    var text = make()?
+    return 0
+}
+"#,
+    );
+    let executable = project.root().join("explicit_string_app");
+
+    let output = nocter_build(&project, &source, &executable);
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn distributed_std_print_hello_runs() {

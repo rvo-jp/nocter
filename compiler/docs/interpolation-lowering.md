@@ -10,7 +10,7 @@ An interpolated string expression such as `"hello ${name}"?` has type `String!`,
 The specification also forbids silently choosing a process-global allocator.
 
 Therefore the compiler must keep bare interpolation lowering disabled until the language or standard-library surface provides an explicit allocator source.
-The backend should first make the explicit standard-library construction path buildable:
+The backend can now build the explicit standard-library construction shape through the current stub `std/string` and `std/fmt` APIs:
 
 ```nct
 var out = string.with_capacity(&+allocator, capacity)?
@@ -21,6 +21,7 @@ return move out
 ```
 
 This keeps allocation, mutation, formatting, and failure visible in ordinary Nocter code.
+The current standard-library bodies still report allocation as unsupported, so this path is buildable but not allocation-backed runtime string construction yet.
 
 ## Lowering Shape
 
@@ -61,11 +62,12 @@ Already buildable in the narrow scalar subset:
 - local aggregate slot borrow argument lowering for `&T` and `&+T` normal-call parameters
 - return-by-name from reserved aggregate slots
 - `return move name` from reserved aggregate slots, without ownership-state or drop tracking
+- distributed `std/mem.page_allocator`, `std/string.with_capacity`, `std/fmt.append_str`, and `return move out` in the explicit construction shape build to Mach-O with the current stub standard-library bodies
 
-Still required before explicit string construction can build:
+Still required before allocation-backed string construction can run:
 
-- aggregate storage outside the supported call-result and struct-literal local-slot paths
 - owned aggregate move/drop state tracking beyond reserved-slot `return move name`
+- target-backed allocation and mutation in `std/mem`, `std/string`, and `std/fmt`
 
 ## Open Language Decision
 

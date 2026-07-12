@@ -19,14 +19,18 @@ Adopted user decisions:
 
 Recommended next implementation order:
 
-1. Follow `compiler/docs/interpolation-lowering.md`: keep bare interpolation lowering disabled until an explicit allocator source is designed, and first make explicit `std/string` construction plus `std/fmt.append_*` calls buildable.
-2. Use the resolved-type function ABI helper from IR/backend planning before adding aggregate storage code.
-3. Add only the remaining backend prerequisites needed by the explicit string path: aggregate storage outside the supported call-result/struct-literal slot paths and owned aggregate move/drop state tracking. Loaded imported scalar calls, scalar/view arguments, local scalar and aggregate slot borrow arguments, scalar/view `var` plus simple assignment, aggregate struct-literal local slots, direct and narrow indirect aggregate normal call-result `let`/`var` slots, fallible direct aggregate call-result slots, supported aggregate slot reassignment, reserved aggregate slot `return move name`, and fallible propagation for the current scalar/view/void plus aggregate call-result subset are already buildable.
-4. Lower interpolated strings only after the explicit standard-library construction path builds.
+1. Keep bare interpolation lowering disabled until an explicit allocator source is designed. The explicit `std/mem.page_allocator` + `std/string.with_capacity` + `std/fmt.append_str` + `return move out` shape now builds to Mach-O through the current stub standard-library bodies.
+2. Add the next runtime prerequisites for allocation-backed `String`: owned aggregate move/drop state tracking beyond reserved-slot `return move name`, then target-backed allocation and mutation in `std/mem`, `std/string`, and `std/fmt`.
+3. Use the resolved-type function ABI helper from IR/backend planning before adding broader aggregate storage code. Loaded imported scalar calls, scalar/view arguments, local scalar and aggregate slot borrow arguments, scalar/view `var` plus simple assignment, aggregate struct-literal local slots, direct and narrow indirect aggregate normal call-result `let`/`var` slots, fallible direct aggregate call-result slots, supported aggregate slot reassignment, reserved aggregate slot `return move name`, and fallible propagation for the current scalar/view/void plus aggregate call-result subset are already buildable.
+4. Lower interpolated strings only after the explicit standard-library construction path has a real allocator source and runtime mutation behavior.
 5. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
+- Current checkpoint: cover explicit String construction build path
+  - adds distributed-home build coverage for `page_allocator`, `with_capacity(&+allocator, ...)`, `append_str(&+out, ...)`, and `return move out`
+  - confirms the explicit `std/string` + `std/fmt` construction shape reaches Mach-O with the current stub standard-library bodies
+  - keeps bare interpolation lowering disabled and target-backed allocation/mutation plus full owned aggregate move/drop tracking as the next runtime prerequisites
 - Current checkpoint: show local reference documentation in LSP hover
   - makes `///` attached to local `let`/`var` declarations appear when hovering later references to that binding
   - reuses the existing hover symbol/documentation attachment path for both open-document fallback and workspace analysis hover
