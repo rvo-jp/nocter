@@ -30,7 +30,7 @@ This file describes implementation state only.
 | Terminal `if` / `else` | yes | yes | yes | partial | yes | Build supports terminal branches returning direct `i32` or non-entry `bool`. |
 | `never` termination | yes | yes | partial | partial | yes | Type checking accepts terminal expression statements whose type is `never` and rejects `return` in `never` functions. Build supports lowerable calls returning `never`, including `std/os/macos.trap` and `unreachable` as ARM64 traps. |
 | General `if`, `while`, `loop`, `for`, `match`, `?{}` | yes | yes | partial | no | no | Several forms are checkable; backend lowering remains intentionally narrow. |
-| Fallible entry success/failure | yes | yes | partial | partial | partial | Build supports simple success and static `error` constructor failure returns, reporting `code: message` on stderr. |
+| Fallible entry success/failure | yes | yes | partial | partial | partial | Build supports success, static `error` constructor failure returns, and propagated/caught failures through the current scalar/view/void call subset, reporting `code: message` on stderr. |
 | Optional values | yes | yes | yes | no | no | Check examples cover optionals; backend and runtime layout are not implemented. |
 | Structs and enums | yes | yes | partial | no | no | Type checking exists for several cases; aggregate layout/lowering is not buildable. |
 | Arrays, views, and pointers | yes | yes | partial | no | no | Compiler-owned layout and provenance rules are still future work. |
@@ -88,6 +88,9 @@ Currently buildable:
 - the `std/os/macos.trap` and `std/os/macos.unreachable` target primitives as ARM64 `brk #0`
 - simple fallible entry success
 - simple fallible entry failure through a loaded static `error` constructor call with string code and message literals, where the message may be single-line or multi-line
+- fallible `?`, `!`, and `catch` lowering for the current scalar/view/void normal-call subset: `i32`, `u8`, `usize`, `bool`, `&str`, slices, and `void`
+- `catch` blocks that contain leading scalar/view `let` bindings or void call statements followed by a terminating `return`, including `error.code` and `error.message` payload access
+- distributed `std/io.print` execution through the target-overlay `std/io_impl.write_text_raw` bootstrap primitive
 
 Currently not buildable even when it may be checkable:
 

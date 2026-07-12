@@ -167,6 +167,38 @@ func main(): i32 {
     assert_macho_executable(&executable);
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_print_hello_runs() {
+    let project = TempProject::new("distributed-home-print-hello-run");
+    let source = project.write_source(
+        "hello.nct",
+        r#"from std/io import print
+
+func main(): i32! {
+    print("Hello")?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"Hello");
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
+    );
+}
+
 #[test]
 fn distributed_std_sources_do_not_reintroduce_removed_placeholders() {
     let mut files = Vec::new();
@@ -212,6 +244,15 @@ fn nocter_build(project: &TempProject, source: &Path, executable: &Path) -> Outp
             "-o",
             executable.to_str().unwrap(),
         ])
+        .current_dir(project.root())
+        .env("NOCTER_HOME", distributed_home())
+        .output()
+        .unwrap()
+}
+
+fn nocter_run(project: &TempProject, source: &Path) -> Output {
+    Command::new(NOCTER)
+        .args(["run", source.to_str().unwrap()])
         .current_dir(project.root())
         .env("NOCTER_HOME", distributed_home())
         .output()
