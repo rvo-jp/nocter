@@ -1,13 +1,13 @@
-// Nocter standard library memory API.
-//
-// This file is the initial public surface for std.mem. The compiler must not
-// special-case the names Allocator, Layout, RawBuffer, alloc, free, or
-// page_allocator. Region-specific behavior is tracked through
-// allocator provenance from the `region ... using ...` language construct.
-//
-// The public functions below are ordinary standard-library APIs. Allocation is
-// not part of the compiler primitive set in v0. Allocation is reported as
-// unsupported until target-backed allocation wrappers are implemented.
+//! Nocter standard library memory API.
+//!
+//! This file is the initial public surface for `std/mem`. The compiler must not
+//! special-case the names Allocator, Layout, RawBuffer, alloc, free, or
+//! page_allocator. Region-specific behavior is tracked through allocator
+//! provenance from the `region ... using ...` language construct.
+//!
+//! The public functions below are ordinary standard-library APIs. Allocation is
+//! not part of the compiler primitive set in v0. Allocation is reported as
+//! unsupported until target-backed allocation wrappers are implemented.
 
 from std/error import Error
 

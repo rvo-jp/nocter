@@ -397,6 +397,10 @@ AST JSON rules:
 
 `lsp` starts the language server.
 
+Hover contents use LSP Markdown markup. Item documentation comes from `///` and
+`/** ... */`; module-path hover documentation comes from the resolved file's
+`//!` or `/*! ... */` source-file documentation when that module is loaded.
+
 ```sh
 nocter lsp
 ```

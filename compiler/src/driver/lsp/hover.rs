@@ -7,8 +7,8 @@ use super::semantic::{SEMANTIC_DECLARATION_MODIFIER, classified_identifiers};
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
     AstFile, BindingStmt, Block, EnumDecl, Expr, FunctionDecl, IdentifierExpr, ImplMember,
-    InterpolatedStringPart, Item, MethodDecl, Parameter, PrimitiveDecl, Stmt, StructDecl,
-    StructField, TraitDecl,
+    InterpolatedStringPart, Item, MethodDecl, ModulePath, Parameter, PrimitiveDecl, Stmt,
+    StructDecl, StructField, TraitDecl,
 };
 use crate::comments::{DocumentationTarget, attach_documentation};
 use crate::lexer::lex;
@@ -83,6 +83,10 @@ pub(super) fn hover_for_file_analysis(
     let text = source_file.text();
     let symbols = hover_symbols_for_ast(text, &file.ast);
     let documentation = documentation_for_hover_symbols(file.ast.span.source, text, &symbols);
+
+    if let Some(hover) = module_path_hover_for_ast(sources, analysis, file, text, offset) {
+        return Some(hover);
+    }
 
     if let Some(symbol) = symbols
         .iter()
@@ -195,6 +199,48 @@ fn documented_hover_for_document(document: &OpenDocument, offset: usize) -> Opti
             })
         },
     )
+}
+
+fn module_path_hover_for_ast(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    file: &FileAnalysis,
+    text: &str,
+    offset: usize,
+) -> Option<Value> {
+    let path = module_path_at_offset(&file.ast, offset)?;
+    let import_source = analysis.import_sources.get(&path.span)?;
+    let imported_file = analysis.file_by_source(import_source.source)?;
+    let imported_source = sources.get(imported_file.ast.span.source)?;
+    let imported_text = imported_source.text();
+    let docs = attach_documentation(imported_file.ast.span.source, imported_text, &[]);
+
+    Some(json!({
+        "contents": {
+            "kind": "markdown",
+            "value": hover_markdown(&format!("module {}", path.value), docs.file())
+        },
+        "range": range_for_byte_span(text, path.span)
+    }))
+}
+
+fn module_path_at_offset(ast: &AstFile, offset: usize) -> Option<&ModulePath> {
+    ast.items.iter().find_map(|item| {
+        let path = match item {
+            Item::Use(item) => &item.path,
+            Item::Import(item) => &item.path,
+            Item::FromImport(item) => &item.path,
+            Item::Function(_)
+            | Item::Primitive(_)
+            | Item::TypeAlias(_)
+            | Item::Struct(_)
+            | Item::Enum(_)
+            | Item::Trait(_)
+            | Item::Impl(_) => return None,
+        };
+
+        (path.span.start <= offset && offset < path.span.end).then_some(path)
+    })
 }
 
 fn documentation_for_hover_symbols(

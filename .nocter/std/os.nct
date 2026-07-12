@@ -1,8 +1,8 @@
-// Common OS error model.
-//
-// Target overlays convert their raw platform error values into OSError. User
-// facing modules convert OSError into the built-in `error` payload instead of
-// exposing raw syscall results or platform errno values.
+//! Common OS error model.
+//!
+//! Target overlays convert their raw platform error values into OSError. User
+//! facing modules convert OSError into the built-in `error` payload instead of
+//! exposing raw syscall results or platform errno values.
 
 pub enum Platform {
     macos

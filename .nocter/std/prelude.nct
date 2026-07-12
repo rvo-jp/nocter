@@ -1,8 +1,8 @@
-// Synthetic user prelude.
-//
-// User project modules behave as if the compiler inserted `use std/prelude`
-// at the beginning of the file. This module must remain small: core aliases
-// and ubiquitous standard-library types only.
+//! Synthetic user prelude.
+//!
+//! User project modules behave as if the compiler inserted `use std/prelude`
+//! at the beginning of the file. This module must remain small: core aliases
+//! and ubiquitous standard-library types only.
 
 pub type Int = i32
 

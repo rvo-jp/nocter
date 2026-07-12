@@ -1,8 +1,8 @@
-// Common user-facing I/O API.
-//
-// std.io exposes ordinary file and text APIs. Fallible functions return `T!`
-// and fail with the compiler built-in `error` payload. Target-specific syscall
-// results and errno wrappers stay inside target overlays.
+//! Common user-facing I/O API.
+//!
+//! `std/io` exposes ordinary file and text APIs. Fallible functions return `T!`
+//! and fail with the compiler built-in `error` payload. Target-specific syscall
+//! results and errno wrappers stay inside target overlays.
 
 from std/error import Error
 from std/io_impl import FileDescriptor

@@ -84,9 +84,11 @@ Rules:
 
 - `///` and `/** ... */` document the next declaration, field, enum variant, method, function, or local binding that the compiler marks as documentable.
 - `//!` and `/*! ... */` document the source file/module itself.
+- Documentation comment bodies are Markdown. LSP hover and generated API documentation should pass that Markdown through as documentation text instead of inventing a separate Nocter documentation format.
 - `//` and `/* ... */` are normal comments and must not appear in hover text.
 - Empty lines break attachment between a doc comment and the following construct.
 - Multiple adjacent doc comments are concatenated in source order.
+- Hovering an import module path such as `std/io` should show the resolved module's file documentation when the module is loaded.
 - `nocter ast app.nct --format json` may expose attached doc text through AST node `documentation` fields for tooling and tests.
 - The VS Code extension must request hover data from `nocter lsp` once LSP support exists.
 - Before LSP exists, the TextMate extension may highlight doc comments but must not infer hover text independently.

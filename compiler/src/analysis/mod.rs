@@ -31,11 +31,18 @@ impl CompileUnit {
 #[derive(Debug, Clone)]
 pub(crate) struct CompileUnitAnalysis {
     pub(crate) files: Vec<FileAnalysis>,
+    pub(crate) import_sources: ImportSourceMap,
 }
 
 impl CompileUnitAnalysis {
     pub(crate) fn root_file(&self) -> Option<&FileAnalysis> {
         self.files.iter().find(|file| file.is_root)
+    }
+
+    pub(crate) fn file_by_source(&self, source: crate::source::SourceId) -> Option<&FileAnalysis> {
+        self.files
+            .iter()
+            .find(|file| file.ast.span.source == source)
     }
 
     pub(crate) fn diagnostics(&self) -> Vec<Diagnostic> {
@@ -101,7 +108,10 @@ pub(crate) fn analyze_compile_unit_with_entry(
         })
         .collect();
 
-    CompileUnitAnalysis { files }
+    CompileUnitAnalysis {
+        files,
+        import_sources: unit.import_sources.clone(),
+    }
 }
 
 fn compare_diagnostics(

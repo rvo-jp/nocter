@@ -1,13 +1,13 @@
-// Common owning string type.
-//
-// `str` is the compiler built-in unsized UTF-8 data type. `&str` is the
-// non-owning UTF-8 string slice type and the type of string literals. String is
-// the future owning string type. Its storage details are intentionally not
-// exposed outside std/string.
-//
-// The initial public functions are ordinary standard-library APIs. Owning
-// allocation is reported as unsupported until target-backed allocation and
-// string storage are implemented.
+//! Common owning string type.
+//!
+//! `str` is the compiler built-in unsized UTF-8 data type. `&str` is the
+//! non-owning UTF-8 string slice type and the type of string literals. String is
+//! the future owning string type. Its storage details are intentionally not
+//! exposed outside `std/string`.
+//!
+//! The initial public functions are ordinary standard-library APIs. Owning
+//! allocation is reported as unsupported until target-backed allocation and
+//! string storage are implemented.
 
 from std/error import Error
 from std/mem import Allocator

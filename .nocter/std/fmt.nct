@@ -1,3 +1,9 @@
+//! Formatting append API for owned strings.
+//!
+//! Functions in this module append formatted values into an existing
+//! `std/string.String`. They are ordinary fallible standard-library functions,
+//! not compiler formatting primitives.
+
 from std/error import Error
 from std/string import String
 

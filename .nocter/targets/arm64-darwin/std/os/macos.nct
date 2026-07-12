@@ -1,11 +1,11 @@
-// macOS-specific primitive boundary for Nocter's initial arm64-macos target.
-//
-// This file lives in the active target overlay:
-// .nocter/targets/arm64-darwin/std/os/macos.nct
-//
-// These declarations are the narrow low-level bridge used by the standard
-// library. They are not ordinary function bodies and they are not inline
-// assembly. The compiler lowers them directly for the active target backend.
+//! macOS-specific primitive boundary for Nocter's initial arm64-macos target.
+//!
+//! This file lives in the active target overlay:
+//! `.nocter/targets/arm64-darwin/std/os/macos.nct`
+//!
+//! These declarations are the narrow low-level bridge used by the standard
+//! library. They are not ordinary function bodies and they are not inline
+//! assembly. The compiler lowers them directly for the active target backend.
 
 from std/os import OSError, OSErrorKind, Platform
 

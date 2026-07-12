@@ -543,7 +543,7 @@ mod tests {
         let document = open_document(
             uri.clone(),
             Some(1),
-            "/// Computes the answer.\nfunc answer(path: &str): i32 {\n    return 0\n}\n"
+            "/// **Computes** the answer.\nfunc answer(path: &str): i32 {\n    return 0\n}\n"
                 .to_string(),
         );
         let server = LspServer {
@@ -568,10 +568,61 @@ mod tests {
 
         assert_eq!(
             response["result"]["contents"]["value"],
-            json!("```nocter\nfunc answer(path: &str): i32\n```\n\nComputes the answer.")
+            json!("```nocter\nfunc answer(path: &str): i32\n```\n\n**Computes** the answer.")
         );
         assert_eq!(response["result"]["range"]["start"]["line"], json!(1));
         assert_eq!(response["result"]["range"]["start"]["character"], json!(5));
+    }
+
+    #[test]
+    fn returns_markdown_hover_for_import_module_path() {
+        let project = TempProject::new("lsp-hover-import-module");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        std::fs::write(
+            home.join("std/io.nct"),
+            "//! **I/O** module.\n//!\n//! Provides file and text APIs.\n\npub func print(text: &str): void! {\n    return\n}\n",
+        )
+        .unwrap();
+        let app = project.write_source(
+            "app.nct",
+            "from std/io import print\n\nfunc main(): i32 {\n    return 0\n}\n",
+        );
+        let app_uri = file_uri(&app);
+        let server = LspServer {
+            documents: HashMap::from([(
+                app_uri.clone(),
+                open_document(
+                    app_uri.clone(),
+                    Some(1),
+                    "from std/io import print\n\nfunc main(): i32 {\n    return 0\n}\n".to_string(),
+                ),
+            )]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.hover_response(
+            json!(6),
+            Some(&json!({
+                "textDocument": {
+                    "uri": app_uri
+                },
+                "position": {
+                    "line": 0,
+                    "character": 7
+                }
+            })),
+        );
+
+        assert_eq!(
+            response["result"]["contents"]["value"],
+            json!("```nocter\nmodule std/io\n```\n\n**I/O** module.\nProvides file and text APIs.")
+        );
+        assert_eq!(response["result"]["range"]["start"]["line"], json!(0));
+        assert_eq!(response["result"]["range"]["start"]["character"], json!(5));
+        assert_eq!(response["result"]["range"]["end"]["character"], json!(11));
     }
 
     #[test]

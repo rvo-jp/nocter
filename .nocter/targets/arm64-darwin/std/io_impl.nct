@@ -1,8 +1,8 @@
-// macOS raw file-descriptor helpers behind the user-facing std/io API.
-//
-// These helpers are target-overlay standard-library functions, not compiler
-// primitives. std/io owns the public File API and keeps this module internal to
-// the active Nocter home with pub(nocter).
+//! macOS raw file-descriptor helpers behind the user-facing `std/io` API.
+//!
+//! These helpers are target-overlay standard-library functions, not compiler
+//! primitives. `std/io` owns the public File API and keeps this module internal
+//! to the active Nocter home with `pub(nocter)`.
 
 from std/error import Error
 

@@ -1,8 +1,8 @@
-// Common owning variable-length array type.
-//
-// `[T]` is the compiler built-in unsized array data type. `&[T]` and `&+[T]`
-// are non-owning array slice types. Vec<T> is the future owning variable-length
-// array type; its storage details are intentionally not exposed here.
+//! Common owning variable-length array type.
+//!
+//! `[T]` is the compiler built-in unsized array data type. `&[T]` and `&+[T]`
+//! are non-owning array slice types. Vec<T> is the future owning variable-length
+//! array type; its storage details are intentionally not exposed here.
 
 pub struct Vec<T> {
     len: usize

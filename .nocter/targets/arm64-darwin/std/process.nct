@@ -1,8 +1,8 @@
-// macOS implementation of the user-facing std/process API.
-//
-// exit is a standard-library API, not a compiler primitive. The target-specific
-// implementation will call the active target boundary and trap if the platform
-// exit operation unexpectedly returns.
+//! macOS implementation of the user-facing `std/process` API.
+//!
+//! exit is a standard-library API, not a compiler primitive. The target-specific
+//! implementation will call the active target boundary and trap if the platform
+//! exit operation unexpectedly returns.
 
 from std/error import Error
 from std/os/macos import trap
