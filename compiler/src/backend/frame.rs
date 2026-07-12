@@ -172,8 +172,11 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         Instruction::CallI32 { .. }
         | Instruction::CallFallibleI32 { .. }
         | Instruction::CallU8 { .. }
+        | Instruction::CallFallibleU8 { .. }
         | Instruction::CallUsize { .. }
+        | Instruction::CallFallibleUsize { .. }
         | Instruction::CallBool { .. }
+        | Instruction::CallFallibleBool { .. }
         | Instruction::CallStr { .. }
         | Instruction::CallSlice { .. }
         | Instruction::CallVoid { .. }
@@ -227,8 +230,11 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         Instruction::CallI32 { arguments, .. }
         | Instruction::CallFallibleI32 { arguments, .. }
         | Instruction::CallU8 { arguments, .. }
+        | Instruction::CallFallibleU8 { arguments, .. }
         | Instruction::CallUsize { arguments, .. }
+        | Instruction::CallFallibleUsize { arguments, .. }
         | Instruction::CallBool { arguments, .. }
+        | Instruction::CallFallibleBool { arguments, .. }
         | Instruction::CallStr { arguments, .. }
         | Instruction::CallSlice { arguments, .. }
         | Instruction::CallVoid { arguments, .. }
@@ -423,6 +429,11 @@ fn record_instruction_scalar_locals(
             destination,
             arguments,
             ..
+        }
+        | Instruction::CallFallibleU8 {
+            destination,
+            arguments,
+            ..
         } => {
             record_u8_location(*destination, highest_local_index);
             for argument in arguments {
@@ -433,6 +444,11 @@ fn record_instruction_scalar_locals(
             destination,
             arguments,
             ..
+        }
+        | Instruction::CallFallibleUsize {
+            destination,
+            arguments,
+            ..
         } => {
             record_usize_location(*destination, highest_local_index);
             for argument in arguments {
@@ -440,6 +456,11 @@ fn record_instruction_scalar_locals(
             }
         }
         Instruction::CallBool {
+            destination,
+            arguments,
+            ..
+        }
+        | Instruction::CallFallibleBool {
             destination,
             arguments,
             ..

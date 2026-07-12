@@ -3391,6 +3391,59 @@ func answer(): i32! {
 }
 
 #[test]
+fn lowers_fallible_scalar_let_propagation() {
+    let ir = lower_text(
+        r#"func main(): i32! {
+    let byte_value: u8 = make_byte()?
+    let size_value: usize = make_size()?
+    let flag_value: bool = make_flag()?
+    if flag_value && size_value == 40 {
+        return byte_value as i32
+    } else {
+        return 1
+    }
+}
+
+func make_byte(): u8! {
+    return 42
+}
+
+func make_size(): usize! {
+    return 40
+}
+
+func make_flag(): bool! {
+    return true
+}
+"#,
+    );
+
+    let main = &ir.functions[0];
+    assert_eq!(main.return_type, Type::Fallible(Box::new(Type::I32)));
+    assert!(matches!(
+        main.instructions[0],
+        Instruction::CallFallibleU8 {
+            destination: U8Location::Local(0),
+            ..
+        }
+    ));
+    assert!(matches!(
+        main.instructions[1],
+        Instruction::CallFallibleUsize {
+            destination: UsizeLocation::Local(1),
+            ..
+        }
+    ));
+    assert!(matches!(
+        main.instructions[2],
+        Instruction::CallFallibleBool {
+            destination: BoolLocation::Local(2),
+            ..
+        }
+    ));
+}
+
+#[test]
 fn lowers_fallible_void_function_static_error_failure() {
     let ir = lower_text_with_std_error(
         r#"from std/error import Error

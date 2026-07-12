@@ -164,6 +164,33 @@ impl EntryEmitter {
         self.emit_call_result_to_usize_location(destination)
     }
 
+    pub(super) fn emit_call_fallible_usize(
+        &mut self,
+        destination: UsizeLocation,
+        function: FunctionSymbol,
+        arguments: &[ScalarArgument],
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "fallible usize call emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_staged_scalar_arguments(arguments, frame)?;
+
+        self.emit_call(function);
+        self.encoder.emit_cmp_x_zero(XReg::X0);
+        let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+        self.emit_return(Some(frame));
+        self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
+        self.encoder.emit_mov_x(XReg::X16, XReg::X1);
+        self.emit_scalar_reloads(frame)?;
+        self.emit_x_to_usize_location(XReg::X16, destination)
+    }
+
     pub(super) fn emit_call_u8(
         &mut self,
         destination: U8Location,
@@ -186,6 +213,33 @@ impl EntryEmitter {
         self.emit_call_result_to_u8_location(destination)
     }
 
+    pub(super) fn emit_call_fallible_u8(
+        &mut self,
+        destination: U8Location,
+        function: FunctionSymbol,
+        arguments: &[ScalarArgument],
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "fallible u8 call emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_staged_scalar_arguments(arguments, frame)?;
+
+        self.emit_call(function);
+        self.encoder.emit_cmp_x_zero(XReg::X0);
+        let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+        self.emit_return(Some(frame));
+        self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
+        self.encoder.emit_mov_w(WReg::W16, WReg::W1);
+        self.emit_scalar_reloads(frame)?;
+        self.emit_w_to_u8_location(WReg::W16, destination)
+    }
+
     pub(super) fn emit_call_bool(
         &mut self,
         destination: BoolLocation,
@@ -206,6 +260,33 @@ impl EntryEmitter {
         self.emit_call(function);
         self.emit_scalar_reloads(frame)?;
         self.emit_call_result_to_bool_location(destination)
+    }
+
+    pub(super) fn emit_call_fallible_bool(
+        &mut self,
+        destination: BoolLocation,
+        function: FunctionSymbol,
+        arguments: &[ScalarArgument],
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "fallible bool call emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_staged_scalar_arguments(arguments, frame)?;
+
+        self.emit_call(function);
+        self.encoder.emit_cmp_x_zero(XReg::X0);
+        let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+        self.emit_return(Some(frame));
+        self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
+        self.encoder.emit_mov_w(WReg::W16, WReg::W1);
+        self.emit_scalar_reloads(frame)?;
+        self.emit_w_to_bool_location(WReg::W16, destination)
     }
 
     pub(super) fn emit_call_str(
@@ -426,9 +507,17 @@ impl EntryEmitter {
         &mut self,
         destination: UsizeLocation,
     ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_x_to_usize_location(XReg::X0, destination)
+    }
+
+    fn emit_x_to_usize_location(
+        &mut self,
+        source: XReg,
+        destination: UsizeLocation,
+    ) -> Result<(), Vec<Diagnostic>> {
         let destination = self.usize_location_register(destination)?;
-        if destination != XReg::X0 {
-            self.encoder.emit_mov_x(destination, XReg::X0);
+        if destination != source {
+            self.encoder.emit_mov_x(destination, source);
         }
 
         Ok(())
@@ -438,9 +527,17 @@ impl EntryEmitter {
         &mut self,
         destination: U8Location,
     ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_w_to_u8_location(WReg::W0, destination)
+    }
+
+    fn emit_w_to_u8_location(
+        &mut self,
+        source: WReg,
+        destination: U8Location,
+    ) -> Result<(), Vec<Diagnostic>> {
         let destination = self.u8_location_register(destination)?;
-        if destination != WReg::W0 {
-            self.encoder.emit_mov_w(destination, WReg::W0);
+        if destination != source {
+            self.encoder.emit_mov_w(destination, source);
         }
 
         Ok(())
@@ -450,9 +547,17 @@ impl EntryEmitter {
         &mut self,
         destination: BoolLocation,
     ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_w_to_bool_location(WReg::W0, destination)
+    }
+
+    fn emit_w_to_bool_location(
+        &mut self,
+        source: WReg,
+        destination: BoolLocation,
+    ) -> Result<(), Vec<Diagnostic>> {
         let destination = self.bool_location_register(destination)?;
-        if destination != WReg::W0 {
-            self.encoder.emit_mov_w(destination, WReg::W0);
+        if destination != source {
+            self.encoder.emit_mov_w(destination, source);
         }
 
         Ok(())

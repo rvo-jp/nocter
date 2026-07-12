@@ -273,6 +273,18 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
+            Instruction::CallFallibleU8 {
+                destination,
+                target,
+                arguments,
+            } => {
+                self.emit_call_fallible_u8(
+                    *destination,
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    frame,
+                )?;
+            }
             Instruction::CallUsize {
                 destination,
                 target,
@@ -285,12 +297,36 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
+            Instruction::CallFallibleUsize {
+                destination,
+                target,
+                arguments,
+            } => {
+                self.emit_call_fallible_usize(
+                    *destination,
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    frame,
+                )?;
+            }
             Instruction::CallBool {
                 destination,
                 target,
                 arguments,
             } => {
                 self.emit_call_bool(
+                    *destination,
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    frame,
+                )?;
+            }
+            Instruction::CallFallibleBool {
+                destination,
+                target,
+                arguments,
+            } => {
+                self.emit_call_fallible_bool(
                     *destination,
                     FunctionSymbol::from_call_target(target),
                     arguments,

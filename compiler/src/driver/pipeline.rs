@@ -847,6 +847,56 @@ func fail(): i32! {
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     #[test]
+    fn build_file_output_runs_fallible_scalar_call_success_propagation() {
+        let root = make_temp_project("build-run-fallible-scalar-success-propagation");
+        let nocter_home = make_nocter_home(&root);
+        let source = root.join("fallible_scalar_success.nct");
+        fs::write(
+            &source,
+            r#"func main(): i32! {
+    let byte_value: u8 = make_byte()?
+    let size_value: usize = make_size()?
+    let flag_value: bool = make_flag()?
+    if flag_value && size_value == 40 {
+        return byte_value as i32
+    } else {
+        return 1
+    }
+}
+
+func make_byte(): u8! {
+    return 42
+}
+
+func make_size(): usize! {
+    return 40
+}
+
+func make_flag(): bool! {
+    return true
+}
+"#,
+        )
+        .unwrap();
+
+        let executable = default_executable_path(&source);
+        let output = build_file_to_path_with_options(
+            &source,
+            &executable,
+            &frontend_options(nocter_home),
+            DEFAULT_ENTRY_NAME,
+        );
+
+        assert_diagnostics_empty(&output.diagnostics);
+        assert_eq!(output.output_path, executable);
+        let output = std::process::Command::new(&executable).output().unwrap();
+        assert_eq!(output.status.code(), Some(42));
+        assert!(output.stdout.is_empty());
+        assert!(output.stderr.is_empty());
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
     fn build_file_output_runs_void_entry_with_zero_exit_code() {
         let root = make_temp_project("build-run-void");
         let nocter_home = make_nocter_home(&root);

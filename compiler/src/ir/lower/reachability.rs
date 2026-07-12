@@ -16,8 +16,11 @@ fn collect_reachable_call_targets(
             Instruction::CallI32 { target, .. }
             | Instruction::CallFallibleI32 { target, .. }
             | Instruction::CallU8 { target, .. }
+            | Instruction::CallFallibleU8 { target, .. }
             | Instruction::CallUsize { target, .. }
+            | Instruction::CallFallibleUsize { target, .. }
             | Instruction::CallBool { target, .. }
+            | Instruction::CallFallibleBool { target, .. }
             | Instruction::CallStr { target, .. }
             | Instruction::CallSlice { target, .. }
             | Instruction::CallVoid { target, .. }

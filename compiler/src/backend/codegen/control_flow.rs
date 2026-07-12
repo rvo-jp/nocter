@@ -326,8 +326,11 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::CallI32 { .. }
             | Instruction::CallFallibleI32 { .. }
             | Instruction::CallU8 { .. }
+            | Instruction::CallFallibleU8 { .. }
             | Instruction::CallUsize { .. }
+            | Instruction::CallFallibleUsize { .. }
             | Instruction::CallBool { .. }
+            | Instruction::CallFallibleBool { .. }
             | Instruction::CallStr { .. }
             | Instruction::CallSlice { .. }
             | Instruction::CallVoid { .. }
