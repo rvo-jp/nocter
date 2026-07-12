@@ -27,6 +27,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: align LSP keyword completions with lexer keywords
+  - exposes the lexer keyword lexeme list for LSP completion instead of maintaining a stale LSP-only list
+  - adds completion coverage for newer keywords such as `loop`, `primitive`, and `void`
+  - keeps `drop` out of keyword completions because it lexes as an ordinary identifier
 - Current checkpoint: lower aggregate slot assignment
   - lowers simple `=` assignment into existing aggregate slots from supported struct literals, normal indirect aggregate calls, normal direct aggregate calls, and propagated fallible indirect aggregate calls
   - reuses the existing aggregate slot store and call destination paths; no new backend storage primitive is introduced

@@ -913,6 +913,10 @@ mod tests {
             .expect("expected completion items");
 
         assert!(completion_item_with_label(items, "return").is_some());
+        assert!(completion_item_with_label(items, "loop").is_some());
+        assert!(completion_item_with_label(items, "primitive").is_some());
+        assert!(completion_item_with_label(items, "void").is_some());
+        assert!(completion_item_with_label(items, "drop").is_none());
         assert_eq!(
             completion_item_with_label(items, "answer").and_then(|item| item["kind"].as_u64()),
             Some(LSP_COMPLETION_ITEM_KIND_FUNCTION as u64)

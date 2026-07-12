@@ -1,7 +1,7 @@
 use super::documents::OpenDocument;
 use super::hover::resolve_single_file_for_hover;
 use crate::analysis::FileAnalysis;
-use crate::lexer::lex;
+use crate::lexer::{KEYWORD_LEXEMES, lex};
 use crate::parser::parse;
 use crate::resolve::{ResolveOutput, Symbol, SymbolKind, TypeSymbolKind};
 use crate::source::SourceMap;
@@ -15,11 +15,6 @@ const LSP_COMPLETION_ITEM_KIND_MODULE: u8 = 9;
 const LSP_COMPLETION_ITEM_KIND_ENUM: u8 = 13;
 const LSP_COMPLETION_ITEM_KIND_KEYWORD: u8 = 14;
 pub(super) const LSP_COMPLETION_ITEM_KIND_STRUCT: u8 = 22;
-
-const KEYWORD_COMPLETIONS: [&str; 22] = [
-    "from", "import", "use", "func", "pub", "type", "copy", "struct", "enum", "trait", "impl",
-    "method", "let", "var", "return", "if", "else", "for", "in", "while", "match", "catch",
-];
 
 pub(super) fn completion_items_for_file_analysis(file: &FileAnalysis) -> Vec<Value> {
     completion_items_for_resolved_symbols(&file.resolved)
@@ -43,7 +38,7 @@ pub(super) fn completion_items_for_document(document: &OpenDocument) -> Option<V
 
 fn completion_items_for_resolved_symbols(resolved: &ResolveOutput) -> Vec<Value> {
     let mut items = keyword_completion_items();
-    let mut seen = KEYWORD_COMPLETIONS
+    let mut seen = KEYWORD_LEXEMES
         .iter()
         .map(|keyword| (*keyword).to_string())
         .collect::<HashSet<_>>();
@@ -66,7 +61,7 @@ fn completion_items_for_resolved_symbols(resolved: &ResolveOutput) -> Vec<Value>
 }
 
 pub(super) fn keyword_completion_items() -> Vec<Value> {
-    KEYWORD_COMPLETIONS
+    KEYWORD_LEXEMES
         .iter()
         .map(|keyword| {
             completion_item(

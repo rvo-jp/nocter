@@ -78,6 +78,45 @@ pub enum Keyword {
     Never,
 }
 
+pub(crate) const KEYWORD_LEXEMES: &[&str] = &[
+    "from",
+    "import",
+    "use",
+    "func",
+    "pub",
+    "type",
+    "copy",
+    "struct",
+    "enum",
+    "trait",
+    "impl",
+    "method",
+    "let",
+    "var",
+    "return",
+    "if",
+    "else",
+    "for",
+    "in",
+    "while",
+    "loop",
+    "break",
+    "continue",
+    "match",
+    "is",
+    "catch",
+    "none",
+    "true",
+    "false",
+    "move",
+    "as",
+    "region",
+    "using",
+    "primitive",
+    "void",
+    "never",
+];
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LexOutput {
     pub tokens: Vec<Token>,
@@ -909,6 +948,22 @@ mod tests {
         assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
         assert_eq!(output.tokens[0].kind, TokenKind::Identifier);
         assert_eq!(output.tokens[1].kind, TokenKind::Identifier);
+    }
+
+    #[test]
+    fn keyword_lexemes_match_lexer_keywords() {
+        for keyword_text in KEYWORD_LEXEMES {
+            let mut sources = SourceMap::new();
+            let id = sources.add_source("app.nct", None, (*keyword_text).to_string());
+            let output = lex(&sources, id);
+            assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+            assert!(
+                matches!(output.tokens[0].kind, TokenKind::Keyword(_)),
+                "`{keyword_text}` should lex as a keyword"
+            );
+        }
+
+        assert!(!KEYWORD_LEXEMES.contains(&"drop"));
     }
 
     #[test]
