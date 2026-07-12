@@ -27,6 +27,11 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: lower usize-field aggregate returns
+  - lowers non-entry indirect aggregate `return Struct{ ... }` expressions when every stored field is a `usize` ABI field
+  - emits `StoreAggregateUsize { destination: Return, offset, value }` in source field order using ABI-computed struct field offsets, followed by `Return`
+  - reuses existing `usize` expression lowering for field values, so constants, locals, arithmetic, and lowerable `usize` calls can feed aggregate return fields
+  - keeps pointer fields, `std/ptr.from_addr`, aggregate call-result slots from source, aggregate-backed `var`, aggregate load/copy, and owned aggregate moves disabled
 - Current checkpoint: track indirect aggregate return types in IR signatures
   - adds `Type::Aggregate { layout }` as an IR return/signature type for ABI-indirect source values
   - makes function signature indexing reuse resolved ABI classification so 24-byte structs stay visible as indirect aggregate returns instead of being dropped from `FunctionSignatures`

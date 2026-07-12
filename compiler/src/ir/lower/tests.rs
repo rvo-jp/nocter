@@ -4,10 +4,10 @@ use crate::analysis::{CompileUnit, analyze_compile_unit_with_entry};
 use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::ir::{
-    BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, BorrowArgument,
-    BorrowSource, CallTarget, FallibleFailureMode, Function, I32ComparisonOperator, I32Location,
-    I32Value, Instruction, IrModule, ScalarArgument, SliceLocation, SliceValue, StrLocation,
-    StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
+    AggregateLocation, BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue,
+    BorrowArgument, BorrowSource, CallTarget, FallibleFailureMode, Function, I32ComparisonOperator,
+    I32Location, I32Value, Instruction, IrModule, ScalarArgument, SliceLocation, SliceValue,
+    StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use crate::source::SourceMap;
 use crate::target::DEFAULT_TARGET;
@@ -957,6 +957,56 @@ func make(): Text {
         Some(&Type::Aggregate {
             layout: ValueLayout::new(24, 8),
         })
+    );
+}
+
+#[test]
+fn lowers_indirect_aggregate_usize_struct_literal_return() {
+    let function = lower_named_function(
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Text {
+    return Text{ start: 1, len: 2, capacity: 3 }
+}
+"#,
+        "make",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "make".to_string(),
+            target: CallTarget::same_file("make"),
+            return_type: Type::Aggregate {
+                layout: ValueLayout::new(24, 8),
+            },
+            instructions: vec![
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Return,
+                    offset: 0,
+                    value: usize_const(1),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Return,
+                    offset: 8,
+                    value: usize_const(2),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Return,
+                    offset: 16,
+                    value: usize_const(3),
+                },
+                Instruction::Return,
+            ],
+        }
     );
 }
 

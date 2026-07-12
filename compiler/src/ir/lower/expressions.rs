@@ -2147,6 +2147,15 @@ fn byte_collection_expression_kind(
     }
 }
 
+pub(super) fn lower_usize_expression_to_word(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Result<(Vec<Instruction>, UsizeValue), Vec<Diagnostic>> {
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let lowered = lower_usize_expression_to_value(expression, context, &mut temporaries)?;
+    Ok((lowered.instructions, lowered.value))
+}
+
 fn lower_builtin_len_call_to_value(
     call: &CallExpr,
     context: &LoweringContext,
