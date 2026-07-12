@@ -1799,6 +1799,75 @@ mod tests {
     }
 
     #[test]
+    fn aggregate_copy_from_slot_to_slot_copies_words_between_stack_slots() {
+        let layout = ValueLayout::new(24, 8);
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout,
+                },
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 1,
+                    layout,
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(1),
+                    offset: 0,
+                    value: UsizeValue::Const(7),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(1),
+                    offset: 8,
+                    value: UsizeValue::Const(8),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(1),
+                    offset: 16,
+                    value: UsizeValue::Const(9),
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    source: AggregateLocation::Slot(1),
+                    layout,
+                },
+                set_return_i32(0),
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_sp(XReg::X16, 24)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_x_sp(XReg::X16, 0)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_sp(XReg::X16, 32)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_x_sp(XReg::X16, 8)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_sp(XReg::X16, 40)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_x_sp(XReg::X16, 16)
+        ));
+    }
+
+    #[test]
     fn aggregate_borrow_argument_passes_slot_address() {
         let module = IrModule::new(vec![
             Function {
@@ -2971,5 +3040,21 @@ mod tests {
 
     fn contains_instruction(text: &[u8], instruction: [u8; 4]) -> bool {
         text.windows(4).any(|window| window == instruction)
+    }
+
+    fn encoded_ldr_x_sp(register: XReg, offset: u32) -> [u8; 4] {
+        let mut encoder = Encoder::new();
+        encoder.emit_ldr_x_sp(register, offset);
+        encoded_instruction(encoder)
+    }
+
+    fn encoded_str_x_sp(register: XReg, offset: u32) -> [u8; 4] {
+        let mut encoder = Encoder::new();
+        encoder.emit_str_x_sp(register, offset);
+        encoded_instruction(encoder)
+    }
+
+    fn encoded_instruction(encoder: Encoder) -> [u8; 4] {
+        encoder.finish().try_into().unwrap()
     }
 }

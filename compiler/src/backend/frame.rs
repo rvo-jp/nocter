@@ -1458,7 +1458,7 @@ mod tests {
     }
 
     #[test]
-    fn aggregate_copy_requires_frame_and_reserves_source_slot() {
+    fn aggregate_copy_requires_frame_and_reserves_slots() {
         let function = Function {
             name: "forward".to_string(),
             target: crate::ir::CallTarget::same_file("forward".to_string()),
@@ -1467,7 +1467,7 @@ mod tests {
             },
             instructions: vec![
                 Instruction::CopyAggregate {
-                    destination: AggregateLocation::Return,
+                    destination: AggregateLocation::Slot(1),
                     source: AggregateLocation::Slot(0),
                     layout: ValueLayout::new(24, 8),
                 },
@@ -1483,7 +1483,10 @@ mod tests {
                 FrameLayout::for_slot_counts_with_aggregate_slots(
                     0,
                     0,
-                    &[AggregateSlotRequest::new(0, ValueLayout::new(24, 8))]
+                    &[
+                        AggregateSlotRequest::new(1, ValueLayout::new(24, 8)),
+                        AggregateSlotRequest::new(0, ValueLayout::new(24, 8)),
+                    ]
                 )
                 .unwrap()
             )

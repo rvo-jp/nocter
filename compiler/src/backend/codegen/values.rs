@@ -144,10 +144,40 @@ impl EntryEmitter {
                     self.encoder.emit_ldr_x_sp(XReg::X1, second_offset);
                 }
             }
-            AggregateLocation::Slot(_) => {
-                return Err(aggregate_copy_diagnostic(
-                    "backend v0 can only copy aggregate slots to return destinations",
-                ));
+            AggregateLocation::Slot(destination_slot_index) => {
+                let destination_slot =
+                    frame
+                        .aggregate_slot(destination_slot_index)
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "E9005",
+                                format!(
+                                    "aggregate copy destination slot {destination_slot_index} is not reserved"
+                                ),
+                            )]
+                        })?;
+                if destination_slot.size() != layout_size {
+                    return Err(aggregate_copy_diagnostic(
+                        "destination slot size does not match aggregate layout",
+                    ));
+                }
+
+                let mut offset = 0_u32;
+                while u64::from(offset) < layout.size {
+                    let source_offset = source_slot
+                        .offset()
+                        .checked_add(offset)
+                        .ok_or_else(|| aggregate_copy_diagnostic("source offset overflows"))?;
+                    let destination_offset = destination_slot
+                        .offset()
+                        .checked_add(offset)
+                        .ok_or_else(|| aggregate_copy_diagnostic("destination offset overflows"))?;
+                    self.encoder.emit_ldr_x_sp(XReg::X16, source_offset);
+                    self.encoder.emit_str_x_sp(XReg::X16, destination_offset);
+                    offset = offset
+                        .checked_add(AGGREGATE_USIZE_STORE_BYTES)
+                        .ok_or_else(|| aggregate_copy_diagnostic("copy offset overflows"))?;
+                }
             }
         }
 

@@ -27,6 +27,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: copy aggregate slots to aggregate slots in backend
+  - extends backend `CopyAggregate` emission from slot-to-return copies to slot-to-slot 8-byte chunk copies
+  - keeps source-level aggregate move/assignment lowering disabled until ownership state and drop replacement rules are designed
+  - adds frame and codegen unit coverage for reserving both source/destination slots and copying all aggregate words between stack slots
 - Current checkpoint: cover explicit String construction build path
   - adds distributed-home build coverage for `page_allocator`, `with_capacity(&+allocator, ...)`, `append_str(&+out, ...)`, and `return move out`
   - confirms the explicit `std/string` + `std/fmt` construction shape reaches Mach-O with the current stub standard-library bodies
