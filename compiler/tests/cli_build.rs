@@ -828,6 +828,43 @@ func touch(value: &+Text): void! {
 }
 
 #[test]
+fn build_command_lowers_imported_copy_aggregate_slot_assignment_and_borrow_argument() {
+    let project = TempProject::new("cli-build-imported-copy-aggregate-slot-assignment-borrow");
+    project.write_nocter_home_file(
+        "std/text.nct",
+        r#"pub copy struct Text {
+    pub start: usize
+    pub len: usize
+    pub capacity: usize
+}
+"#,
+    );
+    let source = project.write_source(
+        "imported_copy_aggregate_slot_assignment_borrow.nct",
+        r#"from std/text import Text
+
+func main(): i32! {
+    var source = Text{ start: 1, len: 2, capacity: 3 }
+    var target = Text{ start: 4, len: 5, capacity: 6 }
+    target = source
+    touch(&+target)?
+    return 0
+}
+
+func touch(value: &+Text): void! {
+    return
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_direct_aggregate_call_assignment_and_borrow_argument() {
     let project = TempProject::new("cli-build-direct-aggregate-call-assignment-borrow");
     let source = project.write_source(

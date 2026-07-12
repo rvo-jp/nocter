@@ -1970,6 +1970,96 @@ func use_text(): i32 {
 }
 
 #[test]
+fn lowers_copy_aggregate_call_result_assignment_borrow_argument() {
+    let aggregate_type = Type::Aggregate {
+        layout: ValueLayout::new(24, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Text {
+    return Text{ start: 1, len: 2, capacity: 3 }
+}
+
+func touch(value: &+Text): void {
+    return
+}
+
+func use_text(): i32 {
+    var source = make()
+    var target = make()
+    target = source
+    touch(&+target)
+    return 0
+}
+"#,
+        "use_text",
+        function_signatures(vec![
+            ("make", aggregate_type.clone(), vec![]),
+            (
+                "touch",
+                Type::Void,
+                vec![Type::Borrow {
+                    is_readwrite: true,
+                    inner: Box::new(aggregate_type),
+                }],
+            ),
+        ]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "use_text".to_string(),
+            target: CallTarget::same_file("use_text"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::CallAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    target: CallTarget::same_file("make"),
+                    arguments: vec![],
+                },
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 1,
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::CallAggregate {
+                    destination: AggregateLocation::Slot(1),
+                    target: CallTarget::same_file("make"),
+                    arguments: vec![],
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Slot(1),
+                    source: AggregateLocation::Slot(0),
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::CallVoid {
+                    target: CallTarget::same_file("touch"),
+                    arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateSlot(1),
+                    })],
+                },
+                set_return_i32(0),
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn rejects_non_copy_aggregate_slot_assignment() {
     let aggregate_type = Type::Aggregate {
         layout: ValueLayout::new(24, 8),
