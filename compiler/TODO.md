@@ -27,6 +27,11 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: lower from_addr pointer aggregate fields
+  - lowers aggregate struct literal return fields whose ABI type is `Pointer` when the source value is the closed `std/ptr.from_addr(usize)` primitive
+  - stores the lowered address word through the existing `StoreAggregateUsize` return-storage path, matching pointer-sized ABI fields
+  - adds imported Nocter-home lowering coverage so `pub(nocter)` pointer construction is tested from a std module instead of user app code
+  - keeps general pointer expressions, aggregate call-result slots from source, aggregate-backed `var`, aggregate load/copy, and owned aggregate moves disabled
 - Current checkpoint: lower usize-field aggregate returns
   - lowers non-entry indirect aggregate `return Struct{ ... }` expressions when every stored field is a `usize` ABI field
   - emits `StoreAggregateUsize { destination: Return, offset, value }` in source field order using ABI-computed struct field offsets, followed by `Return`

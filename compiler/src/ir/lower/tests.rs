@@ -1011,6 +1011,74 @@ func make(): Text {
 }
 
 #[test]
+fn lowers_pointer_from_addr_aggregate_field_return() {
+    let function = lower_imported_named_function_with_nocter_home_files(
+        r#"from std/text import make
+
+func main(): i32 {
+    return 0
+}
+"#,
+        "make",
+        &[
+            (
+                "std/ptr.nct",
+                r#"pub(nocter) primitive from_addr<T>(address: usize): *T
+"#,
+            ),
+            (
+                "std/text.nct",
+                r#"from std/ptr import from_addr
+
+pub struct Text {
+    ptr: *u8
+    len: usize
+    capacity: usize
+}
+
+pub func make(): Text {
+    return Text{ ptr: from_addr(1), len: 2, capacity: 3 }
+}
+"#,
+            ),
+        ],
+    );
+
+    assert_eq!(function.name, "make");
+    assert!(matches!(
+        function.target,
+        CallTarget::Imported { ref name, .. } if name == "make"
+    ));
+    assert_eq!(
+        function.return_type,
+        Type::Aggregate {
+            layout: ValueLayout::new(24, 8),
+        }
+    );
+    assert_eq!(
+        function.instructions,
+        vec![
+            Instruction::StoreAggregateUsize {
+                destination: AggregateLocation::Return,
+                offset: 0,
+                value: usize_const(1),
+            },
+            Instruction::StoreAggregateUsize {
+                destination: AggregateLocation::Return,
+                offset: 8,
+                value: usize_const(2),
+            },
+            Instruction::StoreAggregateUsize {
+                destination: AggregateLocation::Return,
+                offset: 16,
+                value: usize_const(3),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn rejects_function_with_more_than_eight_abi_parameter_words() {
     let diagnostics = lower_named_function_diagnostics_with_signatures(
         r#"func main(): i32 {
@@ -5980,6 +6048,43 @@ fn lower_named_function_with_signatures(
         root.ast.span.source,
         &root.resolved,
     )
+}
+
+fn lower_imported_named_function_with_nocter_home_files(
+    text: &str,
+    function_name: &str,
+    home_files: &[(&str, &str)],
+) -> Function {
+    let analysis = analyze_text_with_entry_and_nocter_home_files(
+        text,
+        crate::entry::DEFAULT_ENTRY_NAME,
+        home_files,
+    );
+    let root = analysis.root_file().unwrap();
+    let imported_source = analysis
+        .files
+        .iter()
+        .find(|file| {
+            !file.is_root
+                && file.ast.items.iter().any(|item| {
+                    matches!(item, crate::ast::Item::Function(function) if function.name == function_name)
+                })
+        })
+        .map(|file| file.ast.span.source)
+        .unwrap();
+    let target = CallTarget::imported(imported_source, function_name);
+    let index = FunctionIndex::new(&analysis, root.ast.span.source);
+    let function = index.definition(&target).unwrap();
+
+    functions::lower_function(
+        function.declaration,
+        target,
+        index.signatures(),
+        index.names(),
+        root.ast.span.source,
+        function.resolved,
+    )
+    .unwrap()
 }
 
 fn lower_named_function_diagnostics_with_signatures(

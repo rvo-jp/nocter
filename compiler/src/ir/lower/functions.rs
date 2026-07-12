@@ -595,7 +595,7 @@ fn lower_aggregate_struct_literal_return(
         let offset = u32::try_from(*offset)
             .map_err(|_error| unsupported_aggregate_return_diagnostic(function_name))?;
         let (mut field_instructions, value) =
-            lower_aggregate_usize_field_value(field_type, &field.value, function_name, context)?;
+            lower_aggregate_word_field_value(field_type, &field.value, function_name, context)?;
         instructions.append(&mut field_instructions);
         instructions.push(Instruction::StoreAggregateUsize {
             destination: AggregateLocation::Return,
@@ -607,7 +607,7 @@ fn lower_aggregate_struct_literal_return(
     Ok(instructions)
 }
 
-fn lower_aggregate_usize_field_value(
+fn lower_aggregate_word_field_value(
     field_type: &AbiType,
     expression: &Expr,
     function_name: &str,
@@ -615,6 +615,26 @@ fn lower_aggregate_usize_field_value(
 ) -> Result<(Vec<Instruction>, UsizeValue), Vec<Diagnostic>> {
     match field_type {
         AbiType::Usize => lower_usize_expression_to_word(expression, context),
+        AbiType::Pointer => lower_aggregate_pointer_field_value(expression, function_name, context),
+        _ => Err(unsupported_aggregate_return_diagnostic(function_name)),
+    }
+}
+
+fn lower_aggregate_pointer_field_value(
+    expression: &Expr,
+    function_name: &str,
+    context: &LoweringContext,
+) -> Result<(Vec<Instruction>, UsizeValue), Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(call)
+            if context.primitive_name_for_call(call) == Some("from_addr")
+                && call.arguments.len() == 1 =>
+        {
+            lower_usize_expression_to_word(&call.arguments[0], context)
+        }
+        Expr::Group(group) => {
+            lower_aggregate_pointer_field_value(&group.expression, function_name, context)
+        }
         _ => Err(unsupported_aggregate_return_diagnostic(function_name)),
     }
 }
@@ -623,7 +643,7 @@ fn unsupported_aggregate_return_diagnostic(function_name: &str) -> Vec<Diagnosti
     vec![Diagnostic::error(
         "E8007",
         format!(
-            "IR v0 can only lower aggregate returns from function `{function_name}` when the return expression is a struct literal with `usize` fields"
+            "IR v0 can only lower aggregate returns from function `{function_name}` when the return expression is a struct literal with `usize` fields or `std/ptr.from_addr` pointer fields"
         ),
     )]
 }
