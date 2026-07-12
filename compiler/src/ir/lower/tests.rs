@@ -3318,6 +3318,79 @@ func answer(): i32! {
 }
 
 #[test]
+fn lowers_fallible_i32_return_propagation() {
+    let ir = lower_text(
+        r#"func main(): i32! {
+    return answer()?
+}
+
+func answer(): i32! {
+    return 42
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0],
+        Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![
+                Instruction::CallFallibleI32 {
+                    destination: I32Location::Return,
+                    target: CallTarget::same_file("answer"),
+                    arguments: vec![],
+                },
+                Instruction::ReturnFallibleSuccess,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_fallible_i32_let_propagation() {
+    let ir = lower_text(
+        r#"func main(): i32! {
+    let base = 2
+    let value = answer()?
+    return base + value
+}
+
+func answer(): i32! {
+    return 40
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0],
+        Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![
+                Instruction::SetI32 {
+                    destination: I32Location::Local(0),
+                    value: I32Value::Const(2),
+                },
+                Instruction::CallFallibleI32 {
+                    destination: I32Location::Local(1),
+                    target: CallTarget::same_file("answer"),
+                    arguments: vec![],
+                },
+                Instruction::AddI32 {
+                    destination: I32Location::Return,
+                    left: I32Value::Location(I32Location::Local(0)),
+                    right: I32Value::Location(I32Location::Local(1)),
+                },
+                Instruction::ReturnFallibleSuccess,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_fallible_void_function_static_error_failure() {
     let ir = lower_text_with_std_error(
         r#"from std/error import Error

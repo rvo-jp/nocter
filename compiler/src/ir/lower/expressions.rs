@@ -18,9 +18,9 @@ use crate::ir::{
 };
 use calls::{
     lower_bool_normal_call, lower_call_arguments, lower_direct_tail_call,
-    lower_fallible_void_normal_call, lower_i32_normal_call, lower_slice_normal_call,
-    lower_str_normal_call, lower_u8_normal_call, lower_usize_normal_call, lower_void_normal_call,
-    primitive_trap_call, primitive_write_text_raw_call,
+    lower_fallible_i32_normal_call, lower_fallible_void_normal_call, lower_i32_normal_call,
+    lower_slice_normal_call, lower_str_normal_call, lower_u8_normal_call, lower_usize_normal_call,
+    lower_void_normal_call, primitive_trap_call, primitive_write_text_raw_call,
 };
 use predicates::{
     bool_comparison_contains_call, expressions_are_lowerable_bool_comparison_operands,
@@ -54,6 +54,9 @@ pub(super) fn lower_i32_expression_to_location(
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             lower_i32_normal_call(call, destination, context, &mut temporaries)
+        }
+        Expr::Propagate(propagation) => {
+            lower_i32_fallible_expression_to_location(&propagation.expression, destination, context)
         }
         Expr::Binary(binary) if is_i32_binary_operator(binary.operator) => {
             lower_i32_binary_expression_to_location(binary, destination, context)
@@ -246,6 +249,23 @@ fn lower_fallible_void_expression_statement(
     }
 }
 
+fn lower_i32_fallible_expression_to_location(
+    expression: &Expr,
+    destination: I32Location,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(call) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            lower_fallible_i32_normal_call(call, destination, context, &mut temporaries)
+        }
+        Expr::Group(group) => {
+            lower_i32_fallible_expression_to_location(&group.expression, destination, context)
+        }
+        _ => Err(unsupported_i32_expression_diagnostic()),
+    }
+}
+
 fn lower_i32_binary_expression_to_location(
     binary: &BinaryExpr,
     destination: I32Location,
@@ -289,6 +309,17 @@ fn lower_i32_expression_to_value(
             let temporary = temporaries.next_i32()?;
             Ok(LoweredI32Value {
                 instructions: lower_i32_normal_call(call, temporary, context, temporaries)?,
+                value: I32Value::Location(temporary),
+            })
+        }
+        Expr::Propagate(propagation) => {
+            let temporary = temporaries.next_i32()?;
+            Ok(LoweredI32Value {
+                instructions: lower_i32_fallible_expression_to_location(
+                    &propagation.expression,
+                    temporary,
+                    context,
+                )?,
                 value: I32Value::Location(temporary),
             })
         }

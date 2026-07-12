@@ -758,6 +758,95 @@ func fail(): void! {
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     #[test]
+    fn build_file_output_runs_fallible_i32_call_success_propagation() {
+        let root = make_temp_project("build-run-fallible-i32-success-propagation");
+        let nocter_home = make_nocter_home(&root);
+        let source = root.join("fallible_i32_success.nct");
+        fs::write(
+            &source,
+            r#"func main(): i32! {
+    let base = 2
+    let value = answer()?
+    return base + value
+}
+
+func answer(): i32! {
+    return 40
+}
+"#,
+        )
+        .unwrap();
+
+        let executable = default_executable_path(&source);
+        let output = build_file_to_path_with_options(
+            &source,
+            &executable,
+            &frontend_options(nocter_home),
+            DEFAULT_ENTRY_NAME,
+        );
+
+        assert_diagnostics_empty(&output.diagnostics);
+        assert_eq!(output.output_path, executable);
+        let output = std::process::Command::new(&executable).output().unwrap();
+        assert_eq!(output.status.code(), Some(42));
+        assert!(output.stdout.is_empty());
+        assert!(output.stderr.is_empty());
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
+    fn build_file_output_propagates_fallible_i32_call_failure() {
+        let root = make_temp_project("build-run-fallible-i32-failure-propagation");
+        let nocter_home = make_nocter_home(&root);
+        fs::write(
+            nocter_home.join("std/error.nct"),
+            r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+impl Error {
+    pub func new(code: ErrorCode, message: &str): Error {
+        return new_error(code, message)
+    }
+}
+"#,
+        )
+        .unwrap();
+        let source = root.join("fallible_i32_fail.nct");
+        fs::write(
+            &source,
+            r#"from std/error import Error
+
+func main(): i32! {
+    return fail()?
+}
+
+func fail(): i32! {
+    return Error.new("app.number", "number failed")
+}
+"#,
+        )
+        .unwrap();
+
+        let executable = default_executable_path(&source);
+        let output = build_file_to_path_with_options(
+            &source,
+            &executable,
+            &frontend_options(nocter_home),
+            DEFAULT_ENTRY_NAME,
+        );
+
+        assert_diagnostics_empty(&output.diagnostics);
+        assert_eq!(output.output_path, executable);
+        let output = std::process::Command::new(&executable).output().unwrap();
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        assert_eq!(output.stderr, b"app.number: number failed\n");
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
     fn build_file_output_runs_void_entry_with_zero_exit_code() {
         let root = make_temp_project("build-run-void");
         let nocter_home = make_nocter_home(&root);

@@ -37,6 +37,30 @@ pub(super) fn lower_i32_normal_call(
     Ok(instructions)
 }
 
+pub(super) fn lower_fallible_i32_normal_call(
+    call: &CallExpr,
+    destination: I32Location,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Err(unsupported_non_tail_call_diagnostic());
+    };
+
+    let target = context.call_target(call, &identifier.name);
+    validate_fallible_i32_normal_call_return_type(&target, &identifier.name, context)?;
+
+    let (mut instructions, arguments) =
+        lower_call_arguments(call, &target, &identifier.name, context, temporaries)?;
+
+    instructions.push(Instruction::CallFallibleI32 {
+        destination,
+        target,
+        arguments,
+    });
+    Ok(instructions)
+}
+
 pub(super) fn lower_usize_normal_call(
     call: &CallExpr,
     destination: UsizeLocation,
@@ -507,6 +531,33 @@ fn validate_fallible_void_normal_call_return_type(
         "E8006",
         format!(
             "IR v0 can only lower propagated call statements returning `void!`, got function `{callee_name}` returning `{}`",
+            describe_type(callee_return_type),
+        ),
+    )])
+}
+
+fn validate_fallible_i32_normal_call_return_type(
+    target: &CallTarget,
+    callee_name: &str,
+    context: &LoweringContext,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(callee_return_type) = context.call_return_type(target) else {
+        return Err(vec![Diagnostic::error(
+            "E8006",
+            format!(
+                "IR v0 can only lower propagated calls with known `i32!` return type, got function `{callee_name}`"
+            ),
+        )]);
+    };
+
+    if matches!(callee_return_type, Type::Fallible(success) if success.as_ref() == &Type::I32) {
+        return Ok(());
+    }
+
+    Err(vec![Diagnostic::error(
+        "E8006",
+        format!(
+            "IR v0 can only lower propagated calls returning `i32!`, got function `{callee_name}` returning `{}`",
             describe_type(callee_return_type),
         ),
     )])

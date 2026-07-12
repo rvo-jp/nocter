@@ -144,6 +144,11 @@ pub(crate) enum Instruction {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
     },
+    CallFallibleI32 {
+        destination: I32Location,
+        target: CallTarget,
+        arguments: Vec<ScalarArgument>,
+    },
     #[allow(dead_code)]
     CallU8 {
         destination: U8Location,

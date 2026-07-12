@@ -249,6 +249,18 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
+            Instruction::CallFallibleI32 {
+                destination,
+                target,
+                arguments,
+            } => {
+                self.emit_call_fallible_i32(
+                    *destination,
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    frame,
+                )?;
+            }
             Instruction::CallU8 {
                 destination,
                 target,

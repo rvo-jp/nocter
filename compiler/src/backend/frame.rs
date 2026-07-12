@@ -170,6 +170,7 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
             function_requires_frame(then_instructions) || function_requires_frame(else_instructions)
         }
         Instruction::CallI32 { .. }
+        | Instruction::CallFallibleI32 { .. }
         | Instruction::CallU8 { .. }
         | Instruction::CallUsize { .. }
         | Instruction::CallBool { .. }
@@ -224,6 +225,7 @@ fn max_call_argument_count(instructions: &[Instruction]) -> usize {
 fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
     match instruction {
         Instruction::CallI32 { arguments, .. }
+        | Instruction::CallFallibleI32 { arguments, .. }
         | Instruction::CallU8 { arguments, .. }
         | Instruction::CallUsize { arguments, .. }
         | Instruction::CallBool { arguments, .. }
@@ -403,6 +405,11 @@ fn record_instruction_scalar_locals(
             record_usize_value(right, highest_local_index);
         }
         Instruction::CallI32 {
+            destination,
+            arguments,
+            ..
+        }
+        | Instruction::CallFallibleI32 {
             destination,
             arguments,
             ..
@@ -765,6 +772,29 @@ mod tests {
             instructions: vec![Instruction::CallBool {
                 destination: BoolLocation::Local(2),
                 target: CallTarget::same_file("ready"),
+                arguments: vec![ScalarArgument::I32(I32Value::Location(I32Location::Local(
+                    1,
+                )))],
+            }],
+        };
+
+        let frame = plan_function_frame(&function).unwrap();
+
+        assert_eq!(
+            frame,
+            FunctionFrame::Framed(FrameLayout::for_slot_counts(3, 1).unwrap())
+        );
+    }
+
+    #[test]
+    fn call_fallible_i32_requires_frame_and_counts_destination_and_argument_locals() {
+        let function = Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![Instruction::CallFallibleI32 {
+                destination: I32Location::Local(2),
+                target: CallTarget::same_file("answer"),
                 arguments: vec![ScalarArgument::I32(I32Value::Location(I32Location::Local(
                     1,
                 )))],

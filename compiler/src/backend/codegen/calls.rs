@@ -115,6 +115,33 @@ impl EntryEmitter {
         self.emit_call_result_to_i32_location(destination)
     }
 
+    pub(super) fn emit_call_fallible_i32(
+        &mut self,
+        destination: I32Location,
+        function: FunctionSymbol,
+        arguments: &[ScalarArgument],
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "fallible i32 call emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_staged_scalar_arguments(arguments, frame)?;
+
+        self.emit_call(function);
+        self.encoder.emit_cmp_x_zero(XReg::X0);
+        let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+        self.emit_return(Some(frame));
+        self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
+        self.encoder.emit_mov_w(WReg::W16, WReg::W1);
+        self.emit_scalar_reloads(frame)?;
+        self.emit_w_to_i32_location(WReg::W16, destination)
+    }
+
     pub(super) fn emit_call_usize(
         &mut self,
         destination: UsizeLocation,
@@ -379,9 +406,17 @@ impl EntryEmitter {
         &mut self,
         destination: I32Location,
     ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_w_to_i32_location(WReg::W0, destination)
+    }
+
+    fn emit_w_to_i32_location(
+        &mut self,
+        source: WReg,
+        destination: I32Location,
+    ) -> Result<(), Vec<Diagnostic>> {
         let destination = self.i32_location_register(destination)?;
-        if destination != WReg::W0 {
-            self.encoder.emit_mov_w(destination, WReg::W0);
+        if destination != source {
+            self.encoder.emit_mov_w(destination, source);
         }
 
         Ok(())

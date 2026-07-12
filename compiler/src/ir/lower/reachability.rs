@@ -14,6 +14,7 @@ fn collect_reachable_call_targets(
     for instruction in instructions {
         match instruction {
             Instruction::CallI32 { target, .. }
+            | Instruction::CallFallibleI32 { target, .. }
             | Instruction::CallU8 { target, .. }
             | Instruction::CallUsize { target, .. }
             | Instruction::CallBool { target, .. }
