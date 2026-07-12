@@ -23,6 +23,7 @@ pub(super) enum Type {
         element: Box<Type>,
         length: String,
     },
+    Pointer(Box<Type>),
     Optional(Box<Type>),
     Fallible {
         success: Box<Type>,
@@ -54,6 +55,7 @@ impl Type {
                 element,
             } => format!("&[{}]", element.display()),
             Type::Array { element, length } => format!("[{}; {}]", element.display(), length),
+            Type::Pointer(inner) => format!("*{}", inner.display()),
             Type::Optional(inner) => format!("{}?", inner.display()),
             Type::Fallible { success, .. } => format!("{}!", success.display()),
             Type::Named(name) => name.clone(),
@@ -72,6 +74,7 @@ impl Type {
             Type::ArrayData { element } => element.is_unknown_or_unresolved(),
             Type::View { element, .. } => element.is_unknown_or_unresolved(),
             Type::Array { element, .. } => element.is_unknown_or_unresolved(),
+            Type::Pointer(inner) => inner.is_unknown_or_unresolved(),
             Type::Optional(inner) => inner.is_unknown_or_unresolved(),
             Type::Fallible { success, error } => {
                 success.is_unknown_or_unresolved() || error.is_unknown_or_unresolved()
@@ -94,6 +97,7 @@ impl Type {
             Type::View { element, .. } | Type::Array { element, .. } => {
                 element.first_unsized_part()
             }
+            Type::Pointer(_) => None,
             Type::Optional(inner) => inner.first_unsized_part(),
             Type::Fallible { success, error } => success
                 .first_unsized_part()

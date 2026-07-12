@@ -77,11 +77,15 @@ fn type_expr_to_type_inner(
                     .unwrap_or_else(|| Type::Unresolved(type_expr_display_lossy(ty))),
             }
         }
-        TypeExpr::Generic(_) | TypeExpr::Pointer(_) => {
-            type_expr_display_with_self_type(ty, resolved, self_type)
-                .map(Type::Named)
-                .unwrap_or_else(|| Type::Unresolved(type_expr_display_lossy(ty)))
-        }
+        TypeExpr::Generic(_) => type_expr_display_with_self_type(ty, resolved, self_type)
+            .map(Type::Named)
+            .unwrap_or_else(|| Type::Unresolved(type_expr_display_lossy(ty))),
+        TypeExpr::Pointer(pointer) => Type::Pointer(Box::new(type_expr_to_type_inner(
+            &pointer.inner,
+            resolved,
+            self_type,
+            resolving_aliases,
+        ))),
         TypeExpr::View(ty) => Type::ArrayData {
             element: Box::new(type_expr_to_type_inner(
                 &ty.element,

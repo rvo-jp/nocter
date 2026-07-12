@@ -11,6 +11,7 @@ Adopted user decisions:
 - Keep runtime safety checks always enabled; remove them only when the compiler can prove they cannot trap.
 - Treat ordinary allocation failure as recoverable failure, not implicit abort.
 - Use an owned `String` direction based on pointer, length, and capacity, implemented as an ordinary standard-library type.
+- `.nocter/std/string.nct` is still a narrow `len`-only skeleton; switch it to `ptr`, `len`, and `capacity` only after the compiler can construct or otherwise represent a valid empty raw pointer value without special-casing `String`.
 - Do not add a runtime GC.
 - Lower generics through monomorphization.
 - Prefer static trait dispatch; require an explicit dynamic-dispatch design if it is added later.
@@ -19,11 +20,19 @@ Adopted user decisions:
 Recommended next implementation order:
 
 1. Follow `compiler/docs/interpolation-lowering.md`: keep bare interpolation lowering disabled until an explicit allocator source is designed, and first make explicit `std/string` construction plus `std/fmt.append_*` calls buildable.
-2. Lower interpolated strings only after the remaining backend prerequisites exist: aggregate `String`/`Allocator`/`RawBuffer` storage, aggregate stack-backed `var`, and owned aggregate return/move handling. Loaded imported scalar calls, scalar/view arguments, local scalar borrow arguments, scalar/view `var` plus simple assignment, and fallible propagation for the current scalar/view/void call subset are now buildable.
-3. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
+2. Connect the new `abi` layout/classification helper to resolved Nocter types, starting with primitives, raw pointers, borrows, `&str`, slices, and non-generic structs.
+3. Add only the backend prerequisites needed by the explicit string path: aggregate `String`/`Allocator`/`RawBuffer` storage, aggregate stack-backed `var`, and owned aggregate return/move handling. Loaded imported scalar calls, scalar/view arguments, local scalar borrow arguments, scalar/view `var` plus simple assignment, and fallible propagation for the current scalar/view/void call subset are already buildable.
+4. Lower interpolated strings only after the explicit standard-library construction path builds.
+5. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
+- Current checkpoint: add ABI layout foundation
+  - adds initial `abi` helpers for scalar, pointer, borrow, `&str`, slice, and struct value layouts
+  - classifies values as direct when they are at most 16 bytes and indirect when larger, matching the Nocter ABI v0 rule
+  - confirms a `String`-like `ptr`/`len`/`capacity` struct is 24 bytes and therefore indirect
+  - represents raw pointer type expressions as explicit type-checker pointer types instead of lossy named strings
+  - adds type-checker coverage for raw pointer value types and pointer argument mismatches
 - Current checkpoint: implement borrow argument lowering
   - adds explicit `&expr` / `&+expr` AST nodes, parser support, formatting, JSON AST output, resolver traversal, LSP hover traversal, and type-checking
   - requires `&+` operands to be writable local `var` bindings in the current narrow checker

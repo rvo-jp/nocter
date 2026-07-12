@@ -271,6 +271,51 @@ func main(): i32 {
 }
 
 #[test]
+fn accepts_raw_pointer_value_types() {
+    let diagnostics = check_text(
+        r#"from std/ptr import addr
+
+struct Buffer {
+    ptr: *u8
+    len: usize
+}
+
+func pointer_address(pointer: *u8): usize {
+    return addr(pointer)
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_raw_pointer_type_mismatch() {
+    let diagnostics = check_text(
+        r#"func consume(pointer: *u8): void {
+}
+
+func call_consume(pointer: *i32): void {
+    consume(pointer)
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0321");
+    assert!(diagnostics[0].message.contains("*i32"));
+    assert!(diagnostics[0].message.contains("*u8"));
+}
+
+#[test]
 fn accepts_borrow_of_unsized_alias_as_slice() {
     let diagnostics = check_text(
         r#"type Text = str
