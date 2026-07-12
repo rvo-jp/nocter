@@ -262,7 +262,8 @@ impl EntryEmitter {
                     FunctionSymbol::from_call_target(target),
                     arguments,
                     frame,
-                    *failure_mode,
+                    failure_mode,
+                    return_type,
                 )?;
             }
             Instruction::CallU8 {
@@ -288,7 +289,8 @@ impl EntryEmitter {
                     FunctionSymbol::from_call_target(target),
                     arguments,
                     frame,
-                    *failure_mode,
+                    failure_mode,
+                    return_type,
                 )?;
             }
             Instruction::CallUsize {
@@ -314,7 +316,8 @@ impl EntryEmitter {
                     FunctionSymbol::from_call_target(target),
                     arguments,
                     frame,
-                    *failure_mode,
+                    failure_mode,
+                    return_type,
                 )?;
             }
             Instruction::CallBool {
@@ -340,7 +343,8 @@ impl EntryEmitter {
                     FunctionSymbol::from_call_target(target),
                     arguments,
                     frame,
-                    *failure_mode,
+                    failure_mode,
+                    return_type,
                 )?;
             }
             Instruction::CallStr {
@@ -366,7 +370,8 @@ impl EntryEmitter {
                     FunctionSymbol::from_call_target(target),
                     arguments,
                     frame,
-                    *failure_mode,
+                    failure_mode,
+                    return_type,
                 )?;
             }
             Instruction::CallSlice {
@@ -392,7 +397,8 @@ impl EntryEmitter {
                     FunctionSymbol::from_call_target(target),
                     arguments,
                     frame,
-                    *failure_mode,
+                    failure_mode,
+                    return_type,
                 )?;
             }
             Instruction::CallVoid { target, arguments } => {
@@ -407,7 +413,8 @@ impl EntryEmitter {
                     FunctionSymbol::from_call_target(target),
                     arguments,
                     frame,
-                    *failure_mode,
+                    failure_mode,
+                    return_type,
                 )?;
             }
             Instruction::TailCall { target, arguments } => {
@@ -434,6 +441,9 @@ impl EntryEmitter {
             }
             Instruction::TrapOnFailure => {
                 self.emit_trap_on_failure()?;
+            }
+            Instruction::CheckFailure { failure_mode } => {
+                self.emit_check_failure(failure_mode, frame, return_type)?;
             }
             Instruction::ReturnFallibleSuccess => {
                 self.emit_return_fallible_success(return_type, frame)?;
@@ -573,14 +583,58 @@ impl EntryEmitter {
         self.patch_branch_placeholder_to_current(success_branch, "fallible force success target")
     }
 
-    fn emit_fallible_failure_action(
+    fn emit_check_failure(
         &mut self,
-        failure_mode: FallibleFailureMode,
+        failure_mode: &FallibleFailureMode,
         frame: Option<&FrameLayout>,
-    ) {
+        return_type: &Type,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.encoder.emit_cmp_x_zero(XReg::X0);
+        let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
         match failure_mode {
             FallibleFailureMode::Propagate => self.emit_return(frame),
             FallibleFailureMode::Trap => self.emit_trap(),
+            FallibleFailureMode::Catch { .. } => {
+                let Some(frame) = frame else {
+                    return Err(vec![Diagnostic::error(
+                        "E9005",
+                        "catch failure emission requires a stack frame",
+                    )]);
+                };
+                self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
+            }
+        }
+        self.patch_branch_placeholder_to_current(success_branch, "fallible success target")
+    }
+
+    fn emit_fallible_failure_action(
+        &mut self,
+        failure_mode: &FallibleFailureMode,
+        frame: &FrameLayout,
+        return_type: &Type,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match failure_mode {
+            FallibleFailureMode::Propagate => {
+                self.emit_return(Some(frame));
+                Ok(())
+            }
+            FallibleFailureMode::Trap => {
+                self.emit_trap();
+                Ok(())
+            }
+            FallibleFailureMode::Catch {
+                code,
+                message,
+                instructions,
+            } => {
+                self.emit_scalar_reloads(frame)?;
+                self.emit_x_pair_to_str_location(XReg::X1, XReg::X2, *code)?;
+                self.emit_x_pair_to_str_location(XReg::X3, XReg::X4, *message)?;
+                for instruction in instructions {
+                    self.emit_instruction(instruction, Some(frame), return_type)?;
+                }
+                Ok(())
+            }
         }
     }
 

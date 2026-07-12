@@ -231,6 +231,9 @@ pub(crate) enum Instruction {
     },
     PropagateFailure,
     TrapOnFailure,
+    CheckFailure {
+        failure_mode: FallibleFailureMode,
+    },
     ReturnFallibleSuccess,
     ReturnFallibleFailure {
         code: StrValue,
@@ -239,10 +242,15 @@ pub(crate) enum Instruction {
     Return,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum FallibleFailureMode {
     Propagate,
     Trap,
+    Catch {
+        code: StrLocation,
+        message: StrLocation,
+        instructions: Vec<Instruction>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

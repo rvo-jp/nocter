@@ -3605,6 +3605,110 @@ func fail(): void! {
 }
 
 #[test]
+fn lowers_fallible_i32_catch_failure_return() {
+    let ir = lower_text_with_std_error(
+        r#"from std/error import Error
+
+func main(): i32! {
+    let value = answer() catch error {
+        return Error.new("app.answer", error.message)
+    }
+    return value
+}
+
+func answer(): i32! {
+    return Error.new("app.inner", "inner failed")
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0],
+        Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![
+                Instruction::CallFallibleI32 {
+                    destination: I32Location::Local(0),
+                    target: CallTarget::same_file("answer"),
+                    arguments: vec![],
+                    failure_mode: FallibleFailureMode::Catch {
+                        code: StrLocation::Local(1),
+                        message: StrLocation::Local(3),
+                        instructions: vec![Instruction::ReturnFallibleFailure {
+                            code: StrValue::StaticBytes(b"app.answer".to_vec()),
+                            message: StrValue::Location(StrLocation::Local(3)),
+                        }],
+                    },
+                },
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: I32Value::Location(I32Location::Local(0)),
+                },
+                Instruction::ReturnFallibleSuccess,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_fallible_write_text_raw_catch_failure_return() {
+    let ir = lower_text_with_nocter_home_files(
+        r#"from std/io_catch import print_catch
+
+func main(): void! {
+    print_catch("hello\n")?
+}
+"#,
+        &[
+            std_error_file(),
+            std_io_impl_file(),
+            (
+                "std/io_catch.nct",
+                r#"from std/error import Error
+from std/io_impl import write_text_raw
+
+pub func print_catch(text: &str): void! {
+    write_text_raw(1, text) catch error {
+        return Error.new("app.write", error.message)
+    }
+    return
+}
+"#,
+            ),
+        ],
+    );
+
+    let print = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "print_catch")
+        .unwrap();
+
+    assert_eq!(
+        print.instructions,
+        vec![
+            Instruction::WriteStr {
+                fd: I32Value::Const(1),
+                text: StrValue::Location(StrLocation::Parameter(0)),
+            },
+            Instruction::CheckFailure {
+                failure_mode: FallibleFailureMode::Catch {
+                    code: StrLocation::Local(0),
+                    message: StrLocation::Local(2),
+                    instructions: vec![Instruction::ReturnFallibleFailure {
+                        code: StrValue::StaticBytes(b"app.write".to_vec()),
+                        message: StrValue::Location(StrLocation::Local(2)),
+                    }],
+                },
+            },
+            Instruction::ReturnFallibleSuccess,
+        ]
+    );
+}
+
+#[test]
 fn lowers_fallible_entry_return_static_error_constructor() {
     let ir = lower_text_with_std_error(
         r#"from std/error import Error

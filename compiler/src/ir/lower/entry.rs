@@ -1,7 +1,7 @@
 use super::bindings::lower_let_binding;
 use super::context::{FunctionNames, FunctionSignatures, LoweringContext};
 use super::control_flow::lower_terminal_i32_if_statement;
-use super::errors::{StaticErrorPayload, lower_static_error_payload};
+use super::errors::{ErrorPayload, lower_error_payload};
 use super::expressions::{
     lower_i32_return_expression, lower_never_return_expression, lower_void_expression_statement,
     mark_fallible_success_returns, success_return_instruction,
@@ -81,6 +81,7 @@ fn lower_entry_body(
         success_type.clone(),
         function_signatures,
     )
+    .with_function_return_type(return_type.clone())
     .with_call_resolution(root_source, resolved, function_names);
     let mut instructions = lower_leading_bindings(leading, &mut context)?;
 
@@ -97,7 +98,7 @@ fn lower_entry_body(
             if let Some(expression) = &statement.expression
                 && matches!(return_type, Type::Fallible(_))
                 && let Some(payload) =
-                    lower_static_error_payload(expression, resolved, root_source)?
+                    lower_error_payload(expression, resolved, root_source, Some(&context))?
             {
                 instructions.extend(lower_fallible_failure(payload));
                 return Ok(instructions);
@@ -159,7 +160,7 @@ fn lower_entry_body(
     }
 }
 
-fn lower_fallible_failure(payload: StaticErrorPayload) -> Vec<Instruction> {
+fn lower_fallible_failure(payload: ErrorPayload) -> Vec<Instruction> {
     let (code, message) = payload.into_str_values();
     vec![Instruction::ReturnFallibleFailure { code, message }]
 }

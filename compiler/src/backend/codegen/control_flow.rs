@@ -304,6 +304,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             Instruction::WriteStr { .. }
             | Instruction::PropagateFailure
             | Instruction::TrapOnFailure
+            | Instruction::CheckFailure { .. }
             | Instruction::SetI32 { .. }
             | Instruction::SetU8 { .. }
             | Instruction::SetUsize { .. }

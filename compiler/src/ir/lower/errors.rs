@@ -1,3 +1,4 @@
+use super::context::LoweringContext;
 use crate::ast::{CallExpr, Expr, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::StrValue;
@@ -5,30 +6,28 @@ use crate::literals::decode_string_literal_bytes;
 use crate::resolve::{FunctionSignature, ResolveOutput, SymbolKind};
 use crate::source::SourceId;
 
-pub(super) struct StaticErrorPayload {
-    code: Vec<u8>,
-    message: Vec<u8>,
+pub(super) struct ErrorPayload {
+    code: StrValue,
+    message: StrValue,
 }
 
-impl StaticErrorPayload {
+impl ErrorPayload {
     pub(super) fn into_str_values(self) -> (StrValue, StrValue) {
-        (
-            StrValue::StaticBytes(self.code),
-            StrValue::StaticBytes(self.message),
-        )
+        (self.code, self.message)
     }
 }
 
-pub(super) fn lower_static_error_payload(
+pub(super) fn lower_error_payload(
     expression: &Expr,
     resolved: &ResolveOutput,
     root_source: SourceId,
-) -> Result<Option<StaticErrorPayload>, Vec<Diagnostic>> {
+    context: Option<&LoweringContext>,
+) -> Result<Option<ErrorPayload>, Vec<Diagnostic>> {
     let Expr::Call(call) = expression else {
         return Ok(None);
     };
 
-    if !is_static_error_constructor_call(call, resolved, root_source) {
+    if !is_error_constructor_call(call, resolved, root_source) {
         return Ok(None);
     }
 
@@ -36,13 +35,13 @@ pub(super) fn lower_static_error_payload(
         return Err(unsupported_fail_payload_diagnostic());
     };
 
-    let code = decode_static_error_string(&call.arguments[0], "code")?;
-    let message = decode_static_error_string(&call.arguments[1], "message")?;
+    let code = lower_error_string_value(&call.arguments[0], "code", context)?;
+    let message = lower_error_string_value(&call.arguments[1], "message", context)?;
 
-    Ok(Some(StaticErrorPayload { code, message }))
+    Ok(Some(ErrorPayload { code, message }))
 }
 
-fn is_static_error_constructor_call(
+fn is_error_constructor_call(
     call: &CallExpr,
     resolved: &ResolveOutput,
     root_source: SourceId,
@@ -85,22 +84,50 @@ fn type_expr_resolves_to_error(ty: &TypeExpr, resolved: &ResolveOutput) -> bool 
         .is_some_and(|target| type_expr_resolves_to_error(target, resolved))
 }
 
-fn decode_static_error_string(expression: &Expr, field: &str) -> Result<Vec<u8>, Vec<Diagnostic>> {
-    let Expr::StringLiteral(literal) = expression else {
-        return Err(unsupported_fail_payload_diagnostic());
-    };
+fn lower_error_string_value(
+    expression: &Expr,
+    field: &str,
+    context: Option<&LoweringContext>,
+) -> Result<StrValue, Vec<Diagnostic>> {
+    match expression {
+        Expr::StringLiteral(literal) => decode_string_literal_bytes(&literal.value)
+            .map(StrValue::StaticBytes)
+            .map_err(|message| {
+                vec![Diagnostic::error(
+                    "E8005",
+                    format!("IR v0 cannot decode failure {field} literal: {message}"),
+                )]
+            }),
+        Expr::Identifier(identifier) => context
+            .and_then(|context| context.str_location(&identifier.name))
+            .map(StrValue::Location)
+            .ok_or_else(unsupported_fail_payload_diagnostic),
+        Expr::Member(member) => {
+            let Some(context) = context else {
+                return Err(unsupported_fail_payload_diagnostic());
+            };
+            let Expr::Identifier(identifier) = member.object.as_ref() else {
+                return Err(unsupported_fail_payload_diagnostic());
+            };
 
-    decode_string_literal_bytes(&literal.value).map_err(|message| {
-        vec![Diagnostic::error(
-            "E8005",
-            format!("IR v0 cannot decode failure {field} literal: {message}"),
-        )]
-    })
+            let location = match member.member.as_str() {
+                "code" => context.error_code_location(&identifier.name),
+                "message" => context.error_message_location(&identifier.name),
+                _ => None,
+            };
+
+            location
+                .map(StrValue::Location)
+                .ok_or_else(unsupported_fail_payload_diagnostic)
+        }
+        Expr::Group(group) => lower_error_string_value(&group.expression, field, context),
+        _ => Err(unsupported_fail_payload_diagnostic()),
+    }
 }
 
 fn unsupported_fail_payload_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8004",
-        "IR v0 can only lower fallible entry failure returns through a loaded static error constructor call with string code and message",
+        "IR v0 can only lower fallible failure returns through a loaded error constructor call with string code and message",
     )]
 }

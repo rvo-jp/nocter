@@ -1,4 +1,4 @@
-use crate::ir::{CallTarget, Function, Instruction};
+use crate::ir::{CallTarget, FallibleFailureMode, Function, Instruction};
 use std::collections::VecDeque;
 
 pub(super) fn reachable_call_targets(function: &Function) -> VecDeque<CallTarget> {
@@ -14,21 +14,52 @@ fn collect_reachable_call_targets(
     for instruction in instructions {
         match instruction {
             Instruction::CallI32 { target, .. }
-            | Instruction::CallFallibleI32 { target, .. }
             | Instruction::CallU8 { target, .. }
-            | Instruction::CallFallibleU8 { target, .. }
             | Instruction::CallUsize { target, .. }
-            | Instruction::CallFallibleUsize { target, .. }
             | Instruction::CallBool { target, .. }
-            | Instruction::CallFallibleBool { target, .. }
             | Instruction::CallStr { target, .. }
-            | Instruction::CallFallibleStr { target, .. }
             | Instruction::CallSlice { target, .. }
-            | Instruction::CallFallibleSlice { target, .. }
             | Instruction::CallVoid { target, .. }
-            | Instruction::CallFallibleVoid { target, .. }
             | Instruction::TailCall { target, .. } => {
                 targets.push_back(target.clone());
+            }
+            Instruction::CallFallibleI32 {
+                target,
+                failure_mode,
+                ..
+            }
+            | Instruction::CallFallibleU8 {
+                target,
+                failure_mode,
+                ..
+            }
+            | Instruction::CallFallibleUsize {
+                target,
+                failure_mode,
+                ..
+            }
+            | Instruction::CallFallibleBool {
+                target,
+                failure_mode,
+                ..
+            }
+            | Instruction::CallFallibleStr {
+                target,
+                failure_mode,
+                ..
+            }
+            | Instruction::CallFallibleSlice {
+                target,
+                failure_mode,
+                ..
+            }
+            | Instruction::CallFallibleVoid {
+                target,
+                failure_mode,
+                ..
+            } => {
+                targets.push_back(target.clone());
+                collect_failure_mode_reachable_call_targets(failure_mode, targets);
             }
             Instruction::If {
                 then_instructions,
@@ -37,6 +68,9 @@ fn collect_reachable_call_targets(
             } => {
                 collect_reachable_call_targets(then_instructions, targets);
                 collect_reachable_call_targets(else_instructions, targets);
+            }
+            Instruction::CheckFailure { failure_mode } => {
+                collect_failure_mode_reachable_call_targets(failure_mode, targets);
             }
             Instruction::WriteStr { .. }
             | Instruction::PropagateFailure
@@ -69,11 +103,24 @@ fn collect_reachable_call_targets(
     }
 }
 
+fn collect_failure_mode_reachable_call_targets(
+    failure_mode: &FallibleFailureMode,
+    targets: &mut VecDeque<CallTarget>,
+) {
+    match failure_mode {
+        FallibleFailureMode::Propagate | FallibleFailureMode::Trap => {}
+        FallibleFailureMode::Catch { instructions, .. } => {
+            collect_reachable_call_targets(instructions, targets);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ir::{
-        BoolValue, CallTarget, Function, I32Location, I32Value, Instruction, ScalarArgument, Type,
+        BoolValue, CallTarget, FallibleFailureMode, Function, I32Location, I32Value, Instruction,
+        ScalarArgument, StrLocation, Type,
     };
 
     #[test]
@@ -134,6 +181,39 @@ mod tests {
                 .into_iter()
                 .collect::<Vec<_>>(),
             vec![CallTarget::imported(source, "answer")]
+        );
+    }
+
+    #[test]
+    fn collects_reachable_call_targets_from_catch_failure_mode() {
+        let function = Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![Instruction::CallFallibleI32 {
+                destination: I32Location::Return,
+                target: CallTarget::same_file("answer"),
+                arguments: vec![],
+                failure_mode: FallibleFailureMode::Catch {
+                    code: StrLocation::Local(0),
+                    message: StrLocation::Local(2),
+                    instructions: vec![Instruction::CallI32 {
+                        destination: I32Location::Return,
+                        target: CallTarget::same_file("recover"),
+                        arguments: vec![],
+                    }],
+                },
+            }],
+        };
+
+        assert_eq!(
+            reachable_call_targets(&function)
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec![
+                CallTarget::same_file("answer"),
+                CallTarget::same_file("recover"),
+            ]
         );
     }
 }

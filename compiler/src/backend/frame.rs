@@ -1,8 +1,8 @@
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolLocation, BoolValue, Function, I32Location, I32Value, Instruction, ScalarArgument,
-    SliceLocation, SliceValue, StrLocation, StrValue, U8Location, U8Value, UsizeLocation,
-    UsizeValue,
+    BoolLocation, BoolValue, FallibleFailureMode, Function, I32Location, I32Value, Instruction,
+    ScalarArgument, SliceLocation, SliceValue, StrLocation, StrValue, U8Location, U8Value,
+    UsizeLocation, UsizeValue,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -185,6 +185,7 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::CallFallibleVoid { .. }
         | Instruction::WriteStr { .. } => true,
         Instruction::TailCall { arguments, .. } => !arguments.is_empty(),
+        Instruction::CheckFailure { failure_mode } => failure_mode_requires_frame(failure_mode),
         Instruction::PropagateFailure
         | Instruction::TrapOnFailure
         | Instruction::ReturnFallibleSuccess
@@ -231,28 +232,63 @@ fn max_call_argument_count(instructions: &[Instruction]) -> usize {
 fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
     match instruction {
         Instruction::CallI32 { arguments, .. }
-        | Instruction::CallFallibleI32 { arguments, .. }
         | Instruction::CallU8 { arguments, .. }
-        | Instruction::CallFallibleU8 { arguments, .. }
         | Instruction::CallUsize { arguments, .. }
-        | Instruction::CallFallibleUsize { arguments, .. }
         | Instruction::CallBool { arguments, .. }
-        | Instruction::CallFallibleBool { arguments, .. }
         | Instruction::CallStr { arguments, .. }
-        | Instruction::CallFallibleStr { arguments, .. }
         | Instruction::CallSlice { arguments, .. }
-        | Instruction::CallFallibleSlice { arguments, .. }
         | Instruction::CallVoid { arguments, .. }
-        | Instruction::CallFallibleVoid { arguments, .. }
         | Instruction::TailCall { arguments, .. } => {
             arguments.iter().map(ScalarArgument::abi_word_count).sum()
         }
+        Instruction::CallFallibleI32 {
+            arguments,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallFallibleU8 {
+            arguments,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallFallibleUsize {
+            arguments,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallFallibleBool {
+            arguments,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallFallibleStr {
+            arguments,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallFallibleSlice {
+            arguments,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallFallibleVoid {
+            arguments,
+            failure_mode,
+            ..
+        } => arguments
+            .iter()
+            .map(ScalarArgument::abi_word_count)
+            .sum::<usize>()
+            .max(failure_mode_max_call_argument_count(failure_mode)),
         Instruction::If {
             then_instructions,
             else_instructions,
             ..
         } => max_call_argument_count(then_instructions)
             .max(max_call_argument_count(else_instructions)),
+        Instruction::CheckFailure { failure_mode } => {
+            failure_mode_max_call_argument_count(failure_mode)
+        }
         Instruction::PropagateFailure
         | Instruction::TrapOnFailure
         | Instruction::ReturnFallibleSuccess
@@ -283,6 +319,20 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
     }
 }
 
+fn failure_mode_max_call_argument_count(failure_mode: &FallibleFailureMode) -> usize {
+    match failure_mode {
+        FallibleFailureMode::Propagate | FallibleFailureMode::Trap => 0,
+        FallibleFailureMode::Catch { instructions, .. } => max_call_argument_count(instructions),
+    }
+}
+
+fn failure_mode_requires_frame(failure_mode: &FallibleFailureMode) -> bool {
+    match failure_mode {
+        FallibleFailureMode::Propagate | FallibleFailureMode::Trap => false,
+        FallibleFailureMode::Catch { .. } => true,
+    }
+}
+
 fn record_instruction_list_scalar_locals(
     instructions: &[Instruction],
     highest_local_index: &mut Option<usize>,
@@ -302,6 +352,9 @@ fn record_instruction_scalar_locals(
         | Instruction::ReturnFallibleSuccess
         | Instruction::Trap
         | Instruction::Return => {}
+        Instruction::CheckFailure { failure_mode } => {
+            record_failure_mode_scalar_locals(failure_mode, highest_local_index);
+        }
         Instruction::ReturnFallibleFailure { code, message } => {
             record_str_value(code, highest_local_index);
             record_str_value(message, highest_local_index);
@@ -421,23 +474,25 @@ fn record_instruction_scalar_locals(
             destination,
             arguments,
             ..
-        }
-        | Instruction::CallFallibleI32 {
-            destination,
-            arguments,
-            ..
         } => {
             record_i32_location(*destination, highest_local_index);
             for argument in arguments {
                 record_scalar_argument(argument, highest_local_index);
             }
         }
-        Instruction::CallU8 {
+        Instruction::CallFallibleI32 {
             destination,
             arguments,
+            failure_mode,
             ..
+        } => {
+            record_i32_location(*destination, highest_local_index);
+            for argument in arguments {
+                record_scalar_argument(argument, highest_local_index);
+            }
+            record_failure_mode_scalar_locals(failure_mode, highest_local_index);
         }
-        | Instruction::CallFallibleU8 {
+        Instruction::CallU8 {
             destination,
             arguments,
             ..
@@ -447,12 +502,19 @@ fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
-        Instruction::CallUsize {
+        Instruction::CallFallibleU8 {
             destination,
             arguments,
+            failure_mode,
             ..
+        } => {
+            record_u8_location(*destination, highest_local_index);
+            for argument in arguments {
+                record_scalar_argument(argument, highest_local_index);
+            }
+            record_failure_mode_scalar_locals(failure_mode, highest_local_index);
         }
-        | Instruction::CallFallibleUsize {
+        Instruction::CallUsize {
             destination,
             arguments,
             ..
@@ -462,12 +524,19 @@ fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
-        Instruction::CallBool {
+        Instruction::CallFallibleUsize {
             destination,
             arguments,
+            failure_mode,
             ..
+        } => {
+            record_usize_location(*destination, highest_local_index);
+            for argument in arguments {
+                record_scalar_argument(argument, highest_local_index);
+            }
+            record_failure_mode_scalar_locals(failure_mode, highest_local_index);
         }
-        | Instruction::CallFallibleBool {
+        Instruction::CallBool {
             destination,
             arguments,
             ..
@@ -477,12 +546,19 @@ fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
-        Instruction::CallStr {
+        Instruction::CallFallibleBool {
             destination,
             arguments,
+            failure_mode,
             ..
+        } => {
+            record_bool_location(*destination, highest_local_index);
+            for argument in arguments {
+                record_scalar_argument(argument, highest_local_index);
+            }
+            record_failure_mode_scalar_locals(failure_mode, highest_local_index);
         }
-        | Instruction::CallFallibleStr {
+        Instruction::CallStr {
             destination,
             arguments,
             ..
@@ -492,12 +568,19 @@ fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
-        Instruction::CallSlice {
+        Instruction::CallFallibleStr {
             destination,
             arguments,
+            failure_mode,
             ..
+        } => {
+            record_str_location(*destination, highest_local_index);
+            for argument in arguments {
+                record_scalar_argument(argument, highest_local_index);
+            }
+            record_failure_mode_scalar_locals(failure_mode, highest_local_index);
         }
-        | Instruction::CallFallibleSlice {
+        Instruction::CallSlice {
             destination,
             arguments,
             ..
@@ -507,11 +590,32 @@ fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
-        Instruction::CallVoid { arguments, .. }
-        | Instruction::CallFallibleVoid { arguments, .. } => {
+        Instruction::CallFallibleSlice {
+            destination,
+            arguments,
+            failure_mode,
+            ..
+        } => {
+            record_slice_location(*destination, highest_local_index);
             for argument in arguments {
                 record_scalar_argument(argument, highest_local_index);
             }
+            record_failure_mode_scalar_locals(failure_mode, highest_local_index);
+        }
+        Instruction::CallVoid { arguments, .. } => {
+            for argument in arguments {
+                record_scalar_argument(argument, highest_local_index);
+            }
+        }
+        Instruction::CallFallibleVoid {
+            arguments,
+            failure_mode,
+            ..
+        } => {
+            for argument in arguments {
+                record_scalar_argument(argument, highest_local_index);
+            }
+            record_failure_mode_scalar_locals(failure_mode, highest_local_index);
         }
         Instruction::If {
             condition,
@@ -521,6 +625,24 @@ fn record_instruction_scalar_locals(
             record_bool_value(condition, highest_local_index);
             record_instruction_list_scalar_locals(then_instructions, highest_local_index);
             record_instruction_list_scalar_locals(else_instructions, highest_local_index);
+        }
+    }
+}
+
+fn record_failure_mode_scalar_locals(
+    failure_mode: &FallibleFailureMode,
+    highest_local_index: &mut Option<usize>,
+) {
+    match failure_mode {
+        FallibleFailureMode::Propagate | FallibleFailureMode::Trap => {}
+        FallibleFailureMode::Catch {
+            code,
+            message,
+            instructions,
+        } => {
+            record_str_location(*code, highest_local_index);
+            record_str_location(*message, highest_local_index);
+            record_instruction_list_scalar_locals(instructions, highest_local_index);
         }
     }
 }

@@ -8,9 +8,11 @@ use crate::resolve::{ResolveOutput, SymbolKind};
 use crate::source::{ByteSpan, SourceId};
 use std::collections::HashMap;
 
+#[derive(Clone)]
 pub(super) struct LoweringContext<'a> {
     function_name: String,
     return_type: Type,
+    function_return_type: Type,
     function_signatures: FunctionSignatures,
     call_resolution: Option<CallResolution<'a>>,
     function_names: FunctionNames,
@@ -20,6 +22,7 @@ pub(super) struct LoweringContext<'a> {
     bool_parameters: Vec<Option<String>>,
     str_parameters: Vec<Option<String>>,
     slice_parameters: Vec<Option<String>>,
+    reserved_local_abi_words: usize,
     locals: Vec<LocalBinding>,
 }
 
@@ -31,6 +34,7 @@ impl<'a> LoweringContext<'a> {
     ) -> Self {
         Self {
             function_name,
+            function_return_type: return_type.clone(),
             return_type,
             function_signatures,
             call_resolution: None,
@@ -41,6 +45,7 @@ impl<'a> LoweringContext<'a> {
             bool_parameters: Vec::new(),
             str_parameters: Vec::new(),
             slice_parameters: Vec::new(),
+            reserved_local_abi_words: 0,
             locals: Vec::new(),
         }
     }
@@ -58,6 +63,7 @@ impl<'a> LoweringContext<'a> {
     ) -> Self {
         Self {
             function_name,
+            function_return_type: return_type.clone(),
             return_type,
             function_signatures,
             call_resolution: None,
@@ -68,6 +74,7 @@ impl<'a> LoweringContext<'a> {
             bool_parameters,
             str_parameters,
             slice_parameters,
+            reserved_local_abi_words: 0,
             locals: Vec::new(),
         }
     }
@@ -86,12 +93,21 @@ impl<'a> LoweringContext<'a> {
         self
     }
 
+    pub(super) fn with_function_return_type(mut self, return_type: Type) -> Self {
+        self.function_return_type = return_type;
+        self
+    }
+
     pub(super) fn function_name(&self) -> &str {
         &self.function_name
     }
 
     pub(super) fn return_type(&self) -> &Type {
         &self.return_type
+    }
+
+    pub(super) fn function_return_type(&self) -> &Type {
+        &self.function_return_type
     }
 
     pub(super) fn call_return_type(&self, target: &CallTarget) -> Option<&Type> {
@@ -136,6 +152,12 @@ impl<'a> LoweringContext<'a> {
         }
     }
 
+    pub(super) fn resolved_calls(&self) -> Option<(SourceId, &ResolveOutput)> {
+        self.call_resolution
+            .as_ref()
+            .map(|resolution| (resolution.root_source, resolution.resolved))
+    }
+
     pub(super) fn next_i32_local_location(&self) -> Result<I32Location, Vec<Diagnostic>> {
         self.next_local_index(1).map(I32Location::Local)
     }
@@ -164,6 +186,12 @@ impl<'a> LoweringContext<'a> {
         self.next_local_index(2).map(SliceLocation::Local)
     }
 
+    pub(super) fn with_reserved_local_abi_words(&self, words: usize) -> Self {
+        let mut context = self.clone();
+        context.reserved_local_abi_words += words;
+        context
+    }
+
     pub(super) fn define_i32_local(&mut self, name: String) {
         self.define_local(name, LocalKind::I32);
     }
@@ -186,6 +214,19 @@ impl<'a> LoweringContext<'a> {
 
     pub(super) fn define_slice_local(&mut self, name: String) {
         self.define_local(name, LocalKind::Slice);
+    }
+
+    pub(super) fn define_error_local(
+        &mut self,
+        name: String,
+    ) -> Result<(StrLocation, StrLocation), Vec<Diagnostic>> {
+        let index = self.next_local_index(LocalKind::Error.abi_word_count())?;
+        self.locals.push(LocalBinding {
+            name,
+            kind: LocalKind::Error,
+            index,
+        });
+        Ok((StrLocation::Local(index), StrLocation::Local(index + 2)))
     }
 
     pub(super) fn i32_location(&self, name: &str) -> Option<I32Location> {
@@ -266,6 +307,20 @@ impl<'a> LoweringContext<'a> {
             })
     }
 
+    pub(super) fn error_code_location(&self, name: &str) -> Option<StrLocation> {
+        self.locals
+            .iter()
+            .find(|local| local.name == name && local.kind == LocalKind::Error)
+            .map(|local| StrLocation::Local(local.index))
+    }
+
+    pub(super) fn error_message_location(&self, name: &str) -> Option<StrLocation> {
+        self.locals
+            .iter()
+            .find(|local| local.name == name && local.kind == LocalKind::Error)
+            .map(|local| StrLocation::Local(local.index + 2))
+    }
+
     fn next_local_index(&self, required_words: usize) -> Result<usize, Vec<Diagnostic>> {
         let index = self.used_local_abi_words();
         if index + required_words > MAX_LOCAL_ABI_WORDS {
@@ -284,13 +339,16 @@ impl<'a> LoweringContext<'a> {
     }
 
     fn used_local_abi_words(&self) -> usize {
-        self.locals
-            .iter()
-            .map(|local| local.kind.abi_word_count())
-            .sum()
+        self.reserved_local_abi_words
+            + self
+                .locals
+                .iter()
+                .map(|local| local.kind.abi_word_count())
+                .sum::<usize>()
     }
 }
 
+#[derive(Clone)]
 struct CallResolution<'a> {
     root_source: SourceId,
     resolved: &'a ResolveOutput,
@@ -360,6 +418,7 @@ pub(super) struct FunctionSignature {
     pub(super) parameter_types: Option<Vec<Type>>,
 }
 
+#[derive(Clone)]
 struct LocalBinding {
     name: String,
     kind: LocalKind,
@@ -374,6 +433,7 @@ enum LocalKind {
     Bool,
     Str,
     Slice,
+    Error,
 }
 
 impl LocalKind {
@@ -381,6 +441,7 @@ impl LocalKind {
         match self {
             Self::I32 | Self::U8 | Self::Usize | Self::Bool => 1,
             Self::Str | Self::Slice => 2,
+            Self::Error => 4,
         }
     }
 }

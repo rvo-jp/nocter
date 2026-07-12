@@ -347,6 +347,7 @@ pub(super) fn lower_fallible_void_normal_call(
         instructions.push(match failure_mode {
             FallibleFailureMode::Propagate => Instruction::PropagateFailure,
             FallibleFailureMode::Trap => Instruction::TrapOnFailure,
+            FallibleFailureMode::Catch { .. } => Instruction::CheckFailure { failure_mode },
         });
         return Ok(instructions);
     }

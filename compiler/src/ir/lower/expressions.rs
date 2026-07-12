@@ -1,4 +1,6 @@
+use super::bindings::lower_let_binding;
 use super::context::LoweringContext;
+use super::errors::{ErrorPayload, lower_error_payload};
 use super::literals::{
     lower_i32_literal, lower_str_literal, lower_u8_literal, lower_usize_literal,
 };
@@ -7,8 +9,8 @@ mod predicates;
 mod temporaries;
 
 use crate::ast::{
-    BinaryExpr, BinaryOperator, CallExpr, Expr, IndexExpr, TypeConversionExpr, TypeExpr, UnaryExpr,
-    UnaryOperator,
+    BinaryExpr, BinaryOperator, Block, CallExpr, CatchExpr, Expr, IndexExpr, Stmt,
+    TypeConversionExpr, TypeExpr, UnaryExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -70,6 +72,16 @@ pub(super) fn lower_i32_expression_to_location(
             context,
             FallibleFailureMode::Trap,
         ),
+        Expr::Catch(catch) => lower_i32_fallible_expression_to_location(
+            &catch.expression,
+            destination,
+            context,
+            lower_catch_failure_mode(
+                catch,
+                context,
+                i32_destination_reserved_abi_words(destination),
+            )?,
+        ),
         Expr::Binary(binary) if is_i32_binary_operator(binary.operator) => {
             lower_i32_binary_expression_to_location(binary, destination, context)
         }
@@ -113,6 +125,16 @@ pub(super) fn lower_u8_expression_to_location(
             destination,
             context,
             FallibleFailureMode::Trap,
+        ),
+        Expr::Catch(catch) => lower_u8_fallible_expression_to_location(
+            &catch.expression,
+            destination,
+            context,
+            lower_catch_failure_mode(
+                catch,
+                context,
+                u8_destination_reserved_abi_words(destination),
+            )?,
         ),
         Expr::Index(index) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
@@ -175,6 +197,16 @@ pub(super) fn lower_usize_expression_to_location(
             context,
             FallibleFailureMode::Trap,
         ),
+        Expr::Catch(catch) => lower_usize_fallible_expression_to_location(
+            &catch.expression,
+            destination,
+            context,
+            lower_catch_failure_mode(
+                catch,
+                context,
+                usize_destination_reserved_abi_words(destination),
+            )?,
+        ),
         Expr::Binary(binary) if is_usize_binary_operator(binary.operator) => {
             lower_usize_binary_expression_to_location(binary, destination, context)
         }
@@ -219,6 +251,16 @@ pub(super) fn lower_str_expression_to_location(
             context,
             FallibleFailureMode::Trap,
         ),
+        Expr::Catch(catch) => lower_str_fallible_expression_to_location(
+            &catch.expression,
+            destination,
+            context,
+            lower_catch_failure_mode(
+                catch,
+                context,
+                str_destination_reserved_abi_words(destination),
+            )?,
+        ),
         Expr::Group(group) => {
             lower_str_expression_to_location(&group.expression, destination, context)
         }
@@ -248,6 +290,16 @@ pub(super) fn lower_slice_expression_to_location(
             destination,
             context,
             FallibleFailureMode::Trap,
+        ),
+        Expr::Catch(catch) => lower_slice_fallible_expression_to_location(
+            &catch.expression,
+            destination,
+            context,
+            lower_catch_failure_mode(
+                catch,
+                context,
+                slice_destination_reserved_abi_words(destination),
+            )?,
         ),
         Expr::Group(group) => {
             lower_slice_expression_to_location(&group.expression, destination, context)
@@ -285,6 +337,11 @@ pub(super) fn lower_void_expression_statement(
             context,
             FallibleFailureMode::Trap,
         ),
+        Expr::Catch(catch) => lower_fallible_void_expression_statement(
+            &catch.expression,
+            context,
+            lower_catch_failure_mode(catch, context, 0)?,
+        ),
         _ => Ok(None),
     }
 }
@@ -317,6 +374,179 @@ fn lower_fallible_void_expression_statement(
         }
         _ => Ok(None),
     }
+}
+
+fn lower_catch_failure_mode(
+    catch: &CatchExpr,
+    context: &LoweringContext,
+    reserved_abi_words: usize,
+) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
+    let mut catch_context = context.with_reserved_local_abi_words(reserved_abi_words);
+    let (code, message) = catch_context.define_error_local(catch.error_name.clone())?;
+    let instructions = lower_catch_block(&catch.catch_block, &mut catch_context)?;
+
+    Ok(FallibleFailureMode::Catch {
+        code,
+        message,
+        instructions,
+    })
+}
+
+fn lower_catch_block(
+    block: &Block,
+    context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some((last, leading)) = block.statements.split_last() else {
+        return Err(unsupported_catch_block_diagnostic());
+    };
+
+    let mut instructions = lower_catch_leading_statements(leading, context)?;
+    let function_return_type = context.function_return_type().clone();
+    let success_type = function_return_type.success_type().clone();
+
+    match last {
+        Stmt::Return(statement) => {
+            if let Some(expression) = &statement.expression
+                && let Some(return_instructions) =
+                    lower_never_return_expression(expression, context)?
+            {
+                instructions.extend(return_instructions);
+                return Ok(instructions);
+            }
+
+            if let Some(expression) = &statement.expression
+                && matches!(function_return_type, Type::Fallible(_))
+                && let Some((root_source, resolved)) = context.resolved_calls()
+                && let Some(payload) =
+                    lower_error_payload(expression, resolved, root_source, Some(context))?
+            {
+                instructions.extend(lower_fallible_failure(payload));
+                return Ok(instructions);
+            }
+
+            let return_instructions = match (&success_type, &statement.expression) {
+                (Type::I32, Some(expression)) => lower_i32_return_expression(expression, context),
+                (Type::U8, Some(expression)) => lower_u8_return_expression(expression, context),
+                (Type::Usize, Some(expression)) => {
+                    lower_usize_return_expression(expression, context)
+                }
+                (Type::Bool, Some(expression)) => {
+                    lower_bool_return_expression(expression, context, "E8007")
+                }
+                (Type::Str, Some(expression)) => lower_str_return_expression(expression, context),
+                (Type::Slice { .. }, Some(expression)) => {
+                    lower_slice_return_expression(expression, context)
+                }
+                (Type::Void, None) => Ok(vec![Instruction::Return]),
+                (Type::Void, Some(_)) => Err(unsupported_catch_block_diagnostic()),
+                (Type::Never, Some(_)) => Err(unsupported_catch_block_diagnostic()),
+                (Type::I32, None)
+                | (Type::U8, None)
+                | (Type::Usize, None)
+                | (Type::Bool, None)
+                | (Type::Str, None)
+                | (Type::Slice { .. }, None)
+                | (Type::Never, None) => Err(unsupported_catch_block_diagnostic()),
+                (Type::Fallible(_), _) => {
+                    unreachable!("fallible success type must be unwrapped")
+                }
+            }?;
+            instructions.extend(mark_fallible_success_returns(
+                &function_return_type,
+                return_instructions,
+            ));
+            Ok(instructions)
+        }
+        Stmt::Expression(statement) => {
+            let Some(terminating_instructions) =
+                lower_never_return_expression(&statement.expression, context)?
+            else {
+                if success_type == Type::Void
+                    && let Some(void_instructions) =
+                        lower_void_expression_statement(&statement.expression, context)?
+                {
+                    instructions.extend(void_instructions);
+                    instructions.push(success_return_instruction(&function_return_type));
+                    return Ok(instructions);
+                }
+
+                return Err(unsupported_catch_block_diagnostic());
+            };
+            instructions.extend(terminating_instructions);
+            Ok(instructions)
+        }
+        _ => Err(unsupported_catch_block_diagnostic()),
+    }
+}
+
+fn lower_catch_leading_statements(
+    statements: &[Stmt],
+    context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut instructions = Vec::new();
+
+    for statement in statements {
+        match statement {
+            Stmt::Binding(statement) => {
+                instructions.extend(lower_let_binding(statement, context)?);
+            }
+            Stmt::Expression(statement) => {
+                let Some(void_instructions) =
+                    lower_void_expression_statement(&statement.expression, context)?
+                else {
+                    return Err(unsupported_catch_block_diagnostic());
+                };
+                instructions.extend(void_instructions);
+            }
+            _ => return Err(unsupported_catch_block_diagnostic()),
+        }
+    }
+
+    Ok(instructions)
+}
+
+fn lower_fallible_failure(payload: ErrorPayload) -> Vec<Instruction> {
+    let (code, message) = payload.into_str_values();
+    vec![Instruction::ReturnFallibleFailure { code, message }]
+}
+
+fn i32_destination_reserved_abi_words(destination: I32Location) -> usize {
+    usize::from(matches!(destination, I32Location::Local(_)))
+}
+
+fn u8_destination_reserved_abi_words(destination: U8Location) -> usize {
+    usize::from(matches!(destination, U8Location::Local(_)))
+}
+
+fn usize_destination_reserved_abi_words(destination: UsizeLocation) -> usize {
+    usize::from(matches!(destination, UsizeLocation::Local(_)))
+}
+
+fn bool_destination_reserved_abi_words(destination: BoolLocation) -> usize {
+    usize::from(matches!(destination, BoolLocation::Local(_)))
+}
+
+fn str_destination_reserved_abi_words(destination: StrLocation) -> usize {
+    if matches!(destination, StrLocation::Local(_)) {
+        2
+    } else {
+        0
+    }
+}
+
+fn slice_destination_reserved_abi_words(destination: SliceLocation) -> usize {
+    if matches!(destination, SliceLocation::Local(_)) {
+        2
+    } else {
+        0
+    }
+}
+
+fn unsupported_catch_block_diagnostic() -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8007",
+        "IR v0 can only lower catch blocks containing leading scalar `let` bindings or void call statements followed by `return`",
+    )]
 }
 
 fn lower_i32_fallible_expression_to_location(
@@ -524,6 +754,22 @@ fn lower_i32_expression_to_value(
                 value: I32Value::Location(temporary),
             })
         }
+        Expr::Catch(catch) => {
+            let temporary = temporaries.next_i32()?;
+            Ok(LoweredI32Value {
+                instructions: lower_i32_fallible_expression_to_location(
+                    &catch.expression,
+                    temporary,
+                    context,
+                    lower_catch_failure_mode(
+                        catch,
+                        context,
+                        i32_destination_reserved_abi_words(temporary),
+                    )?,
+                )?,
+                value: I32Value::Location(temporary),
+            })
+        }
         Expr::Binary(binary) if is_i32_binary_operator(binary.operator) => {
             let temporary = temporaries.next_i32()?;
             Ok(LoweredI32Value {
@@ -582,6 +828,22 @@ fn lower_u8_expression_to_value(
                     temporary,
                     context,
                     FallibleFailureMode::Trap,
+                )?,
+                value: U8Value::Location(temporary),
+            })
+        }
+        Expr::Catch(catch) => {
+            let temporary = temporaries.next_u8()?;
+            Ok(LoweredU8Value {
+                instructions: lower_u8_fallible_expression_to_location(
+                    &catch.expression,
+                    temporary,
+                    context,
+                    lower_catch_failure_mode(
+                        catch,
+                        context,
+                        u8_destination_reserved_abi_words(temporary),
+                    )?,
                 )?,
                 value: U8Value::Location(temporary),
             })
@@ -714,6 +976,22 @@ fn lower_usize_expression_to_value(
                 value: UsizeValue::Location(temporary),
             })
         }
+        Expr::Catch(catch) => {
+            let temporary = temporaries.next_usize()?;
+            Ok(LoweredUsizeValue {
+                instructions: lower_usize_fallible_expression_to_location(
+                    &catch.expression,
+                    temporary,
+                    context,
+                    lower_catch_failure_mode(
+                        catch,
+                        context,
+                        usize_destination_reserved_abi_words(temporary),
+                    )?,
+                )?,
+                value: UsizeValue::Location(temporary),
+            })
+        }
         Expr::Binary(binary) if is_usize_binary_operator(binary.operator) => {
             let temporary = temporaries.next_usize()?;
             Ok(LoweredUsizeValue {
@@ -776,6 +1054,22 @@ fn lower_str_expression_to_value(
                 value: StrValue::Location(temporary),
             })
         }
+        Expr::Catch(catch) => {
+            let temporary = temporaries.next_str()?;
+            Ok(LoweredStrValue {
+                instructions: lower_str_fallible_expression_to_location(
+                    &catch.expression,
+                    temporary,
+                    context,
+                    lower_catch_failure_mode(
+                        catch,
+                        context,
+                        str_destination_reserved_abi_words(temporary),
+                    )?,
+                )?,
+                value: StrValue::Location(temporary),
+            })
+        }
         Expr::Group(group) => {
             lower_str_expression_to_value(&group.expression, context, temporaries)
         }
@@ -819,6 +1113,22 @@ fn lower_slice_expression_to_value(
                     temporary,
                     context,
                     FallibleFailureMode::Trap,
+                )?,
+                value: SliceValue::Location(temporary),
+            })
+        }
+        Expr::Catch(catch) => {
+            let temporary = temporaries.next_slice()?;
+            Ok(LoweredSliceValue {
+                instructions: lower_slice_fallible_expression_to_location(
+                    &catch.expression,
+                    temporary,
+                    context,
+                    lower_catch_failure_mode(
+                        catch,
+                        context,
+                        slice_destination_reserved_abi_words(temporary),
+                    )?,
                 )?,
                 value: SliceValue::Location(temporary),
             })
@@ -1183,6 +1493,17 @@ pub(super) fn lower_bool_expression_to_location(
             diagnostic_code,
             FallibleFailureMode::Trap,
         ),
+        Expr::Catch(catch) => lower_bool_fallible_expression_to_location(
+            &catch.expression,
+            destination,
+            context,
+            diagnostic_code,
+            lower_catch_failure_mode(
+                catch,
+                context,
+                bool_destination_reserved_abi_words(destination),
+            )?,
+        ),
         Expr::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             let operand = lower_bool_expression_to_value_with_temporaries(
@@ -1426,6 +1747,23 @@ fn lower_bool_expression_to_value_with_temporaries(
                 value: BoolValue::Location(temporary),
             })
         }
+        Expr::Catch(catch) => {
+            let temporary = temporaries.next_bool()?;
+            Ok(LoweredBoolValue {
+                instructions: lower_bool_fallible_expression_to_location(
+                    &catch.expression,
+                    temporary,
+                    context,
+                    diagnostic_code,
+                    lower_catch_failure_mode(
+                        catch,
+                        context,
+                        bool_destination_reserved_abi_words(temporary),
+                    )?,
+                )?,
+                value: BoolValue::Location(temporary),
+            })
+        }
         Expr::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
             let operand = lower_bool_expression_to_value_with_temporaries(
                 &unary.operand,
@@ -1612,6 +1950,21 @@ fn lower_str_value(
             .str_location(&identifier.name)
             .map(StrValue::Location)
             .ok_or_else(unsupported_str_expression_diagnostic),
+        Expr::Member(member) => {
+            let Expr::Identifier(identifier) = member.object.as_ref() else {
+                return Err(unsupported_str_expression_diagnostic());
+            };
+
+            let location = match member.member.as_str() {
+                "code" => context.error_code_location(&identifier.name),
+                "message" => context.error_message_location(&identifier.name),
+                _ => None,
+            };
+
+            location
+                .map(StrValue::Location)
+                .ok_or_else(unsupported_str_expression_diagnostic)
+        }
         Expr::Group(group) => lower_str_value(&group.expression, context),
         _ => lower_str_literal(expression),
     }
