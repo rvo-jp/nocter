@@ -250,6 +250,35 @@ func choose(value: &i32, code: i32): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_i32_normal_call_with_readwrite_borrow_argument_exit_code() {
+    let project = TempProject::new("cli-run-readwrite-borrow-normal-call");
+    let source = project.write_source(
+        "readwrite_borrow_arg.nct",
+        r#"func main(): i32 {
+    var value = 7
+    let result = choose(&+value, 42)
+    return result
+}
+
+func choose(value: &+i32, code: i32): i32 {
+    return code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_i32_normal_call_exit_code() {
     let project = TempProject::new("cli-run-normal-call");
     let source = project.write_source(
