@@ -1,9 +1,9 @@
 use crate::abi::ValueLayout;
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolLocation, BoolValue, BorrowSource, FallibleFailureMode, Function, I32Location, I32Value,
-    Instruction, ScalarArgument, SliceLocation, SliceValue, StrLocation, StrValue, U8Location,
-    U8Value, UsizeLocation, UsizeValue,
+    AggregateLocation, BoolLocation, BoolValue, BorrowSource, FallibleFailureMode, Function,
+    I32Location, I32Value, Instruction, ScalarArgument, SliceLocation, SliceValue, StrLocation,
+    StrValue, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -274,6 +274,9 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::CallFallibleVoid { .. }
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::WriteStr { .. } => true,
+        Instruction::StoreAggregateUsize { destination, .. } => {
+            matches!(destination, AggregateLocation::Slot(_))
+        }
         Instruction::TailCall { arguments, .. } => !arguments.is_empty(),
         Instruction::CheckFailure { failure_mode } => failure_mode_requires_frame(failure_mode),
         Instruction::PropagateFailure
@@ -386,6 +389,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::ReturnFallibleFailure { .. } => 0,
         Instruction::WriteStr { .. }
         | Instruction::ReserveAggregateSlot { .. }
+        | Instruction::StoreAggregateUsize { .. }
         | Instruction::SetI32 { .. }
         | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
@@ -462,6 +466,7 @@ fn record_instruction_aggregate_slot_requests(
         | Instruction::ReturnFallibleFailure { .. }
         | Instruction::WriteStr { .. }
         | Instruction::SetI32 { .. }
+        | Instruction::StoreAggregateUsize { .. }
         | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
         | Instruction::SetBool { .. }
@@ -570,6 +575,9 @@ fn record_instruction_scalar_locals(
         Instruction::ReturnFallibleFailure { code, message } => {
             record_str_value(code, highest_local_index);
             record_str_value(message, highest_local_index);
+        }
+        Instruction::StoreAggregateUsize { value, .. } => {
+            record_usize_value(value, highest_local_index);
         }
         Instruction::WriteStr { fd, text } => {
             record_i32_value(fd, highest_local_index);
@@ -1323,6 +1331,63 @@ mod tests {
                 FrameLayout::for_slot_counts_with_aggregate_slots(
                     2,
                     1,
+                    &[AggregateSlotRequest::new(0, ValueLayout::new(24, 8))]
+                )
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn aggregate_return_store_does_not_require_frame() {
+        let function = Function {
+            name: "make".to_string(),
+            target: crate::ir::CallTarget::same_file("make".to_string()),
+            return_type: Type::Void,
+            instructions: vec![
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Return,
+                    offset: 8,
+                    value: UsizeValue::Const(3),
+                },
+                Instruction::Return,
+            ],
+        };
+
+        assert_eq!(
+            plan_function_frame(&function).unwrap(),
+            FunctionFrame::Frameless
+        );
+    }
+
+    #[test]
+    fn aggregate_slot_store_requires_frame_and_counts_value_locals() {
+        let function = Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Void,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 8,
+                    value: UsizeValue::Location(UsizeLocation::Local(1)),
+                },
+                Instruction::Return,
+            ],
+        };
+
+        let frame = plan_function_frame(&function).unwrap();
+
+        assert_eq!(
+            frame,
+            FunctionFrame::Framed(
+                FrameLayout::for_slot_counts_with_aggregate_slots(
+                    2,
+                    0,
                     &[AggregateSlotRequest::new(0, ValueLayout::new(24, 8))]
                 )
                 .unwrap()

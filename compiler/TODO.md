@@ -27,6 +27,12 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: store aggregate usize fields
+  - adds `AggregateLocation::{Return, Slot}` and `StoreAggregateUsize` for 8-byte field writes into indirect return storage or reserved aggregate slots
+  - adds ARM64 unsigned-offset `str xN, [xM, #imm]` encoding for aggregate return storage writes through `x8`
+  - validates aggregate slot field offsets for 8-byte alignment and slot bounds before emitting stack stores
+  - covers aggregate return stores, aggregate slot stores, and the `x8` return-storage write path in backend tests
+  - keeps source lowering for struct literals, aggregate constructors, aggregate load/copy, aggregate-backed `var`, and owned aggregate returns/moves disabled
 - Current checkpoint: add aggregate indirect-return call emission
   - adds a normal `CallAggregate { destination_slot, target, arguments }` IR instruction for calls that return indirect aggregate values
   - emits the reserved aggregate destination slot address into Nocter ABI register `x8` before the call

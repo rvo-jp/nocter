@@ -74,6 +74,12 @@ pub(crate) enum Instruction {
         slot_index: usize,
         layout: ValueLayout,
     },
+    #[allow(dead_code)]
+    StoreAggregateUsize {
+        destination: AggregateLocation,
+        offset: u32,
+        value: UsizeValue,
+    },
     AddI32 {
         destination: I32Location,
         left: I32Value,
@@ -263,6 +269,13 @@ pub(crate) enum FallibleFailureMode {
         message: StrLocation,
         instructions: Vec<Instruction>,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
+pub(crate) enum AggregateLocation {
+    Return,
+    Slot(usize),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

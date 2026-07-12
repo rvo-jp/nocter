@@ -1,8 +1,9 @@
 use super::{EntryEmitter, I32_BIT_WIDTH, USIZE_BIT_WIDTH, emit_mov_i32_to_w, emit_mov_u64_to_x};
+use crate::backend::frame::FrameLayout;
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolLocation, BoolValue, I32Location, I32Value, SliceLocation, SliceValue, StrLocation,
-    StrValue, U8Location, U8Value, UsizeLocation, UsizeValue,
+    AggregateLocation, BoolLocation, BoolValue, I32Location, I32Value, SliceLocation, SliceValue,
+    StrLocation, StrValue, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use crate::target::arm64::{BranchCondition, WReg, XReg};
 
@@ -23,6 +24,52 @@ impl EntryEmitter {
     ) -> Result<(), Vec<Diagnostic>> {
         let destination = self.usize_location_register(destination)?;
         self.emit_usize_value_to_x(value, destination)
+    }
+
+    pub(super) fn emit_store_aggregate_usize(
+        &mut self,
+        destination: AggregateLocation,
+        offset: u32,
+        value: &UsizeValue,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        validate_aggregate_usize_field_offset(offset)?;
+        self.emit_usize_value_to_x(value, XReg::X16)?;
+
+        match destination {
+            AggregateLocation::Return => {
+                self.encoder.emit_str_x_imm(XReg::X16, XReg::X8, offset);
+                Ok(())
+            }
+            AggregateLocation::Slot(slot_index) => {
+                let Some(frame) = frame else {
+                    return Err(vec![Diagnostic::error(
+                        "E9005",
+                        "aggregate slot store emission requires a stack frame",
+                    )]);
+                };
+                let slot = frame.aggregate_slot(slot_index).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9005",
+                        format!("aggregate store destination slot {slot_index} is not reserved"),
+                    )]
+                })?;
+                let field_end = offset
+                    .checked_add(AGGREGATE_USIZE_STORE_BYTES)
+                    .ok_or_else(|| aggregate_store_offset_diagnostic("field end overflows"))?;
+                if field_end > slot.size() {
+                    return Err(aggregate_store_offset_diagnostic(
+                        "field exceeds aggregate slot size",
+                    ));
+                }
+                let absolute_offset = slot
+                    .offset()
+                    .checked_add(offset)
+                    .ok_or_else(|| aggregate_store_offset_diagnostic("stack offset overflows"))?;
+                self.encoder.emit_str_x_sp(XReg::X16, absolute_offset);
+                Ok(())
+            }
+        }
     }
 
     pub(super) fn emit_set_u8(
@@ -581,3 +628,22 @@ impl EntryEmitter {
         Ok(())
     }
 }
+
+fn validate_aggregate_usize_field_offset(offset: u32) -> Result<(), Vec<Diagnostic>> {
+    if !offset.is_multiple_of(AGGREGATE_USIZE_STORE_BYTES) {
+        return Err(aggregate_store_offset_diagnostic(
+            "usize field offset is not 8-byte aligned",
+        ));
+    }
+
+    Ok(())
+}
+
+fn aggregate_store_offset_diagnostic(reason: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E9005",
+        format!("aggregate usize store offset is invalid: {reason}"),
+    )]
+}
+
+const AGGREGATE_USIZE_STORE_BYTES: u32 = 8;

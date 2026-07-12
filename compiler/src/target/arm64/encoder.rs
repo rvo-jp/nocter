@@ -197,6 +197,27 @@ impl Encoder {
         ));
     }
 
+    #[allow(dead_code)]
+    pub(crate) fn emit_str_w_imm(&mut self, rt: WReg, rn: XReg, byte_offset: u32) {
+        self.emit_word(load_store_unsigned_word(
+            STR_W_UNSIGNED_BASE,
+            rt.bits(),
+            rn.bits(),
+            byte_offset,
+            4,
+        ));
+    }
+
+    pub(crate) fn emit_str_x_imm(&mut self, rt: XReg, rn: XReg, byte_offset: u32) {
+        self.emit_word(load_store_unsigned_word(
+            STR_X_UNSIGNED_BASE,
+            rt.bits(),
+            rn.bits(),
+            byte_offset,
+            8,
+        ));
+    }
+
     pub(crate) fn emit_ldrb_w_reg(&mut self, rt: WReg, rn: XReg, rm: XReg) {
         self.emit_word(LDRB_W_REG_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rt.bits());
     }
@@ -521,6 +542,9 @@ const LDR_W_SP_UNSIGNED_BASE: u32 = 0xb940_0000;
 const STR_X_SP_UNSIGNED_BASE: u32 = 0xf900_0000;
 #[allow(dead_code)]
 const LDR_X_SP_UNSIGNED_BASE: u32 = 0xf940_0000;
+#[allow(dead_code)]
+const STR_W_UNSIGNED_BASE: u32 = 0xb900_0000;
+const STR_X_UNSIGNED_BASE: u32 = 0xf900_0000;
 const LDRB_W_REG_BASE: u32 = 0x3860_6800;
 const B_BASE: u32 = 0x1400_0000;
 const B_COND_BASE: u32 = 0x5400_0000;
@@ -580,11 +604,21 @@ fn add_x_sp_imm_word(rd: XReg, byte_count: u32) -> u32 {
 
 #[allow(dead_code)]
 fn load_store_sp_word(base: u32, rt: u32, byte_offset: u32, access_size: u32) -> u32 {
+    load_store_unsigned_word(base, rt, SP_BITS, byte_offset, access_size)
+}
+
+fn load_store_unsigned_word(
+    base: u32,
+    rt: u32,
+    rn: u32,
+    byte_offset: u32,
+    access_size: u32,
+) -> u32 {
     debug_assert_eq!(byte_offset % access_size, 0);
     let scaled_offset = byte_offset / access_size;
     debug_assert!(scaled_offset <= 0x0fff);
 
-    base | (scaled_offset << 10) | (SP_BITS << 5) | rt
+    base | (scaled_offset << 10) | (rn << 5) | rt
 }
 
 fn bl_word(byte_offset: i32) -> u32 {
@@ -970,6 +1004,15 @@ mod tests {
         encoder.emit_ldr_w_sp(WReg::W15, 28);
 
         assert_eq!(encoder.finish(), vec![0xef, 0x1f, 0x40, 0xb9]);
+    }
+
+    #[test]
+    fn encodes_str_x16_x8_offset() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_str_x_imm(XReg::X16, XReg::X8, 16);
+
+        assert_eq!(encoder.finish(), vec![0x10, 0x09, 0x00, 0xf9]);
     }
 
     #[test]

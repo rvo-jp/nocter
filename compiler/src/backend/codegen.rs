@@ -142,6 +142,13 @@ impl EntryEmitter {
                 self.emit_set_slice(*destination, value)?;
             }
             Instruction::ReserveAggregateSlot { .. } => {}
+            Instruction::StoreAggregateUsize {
+                destination,
+                offset,
+                value,
+            } => {
+                self.emit_store_aggregate_usize(*destination, *offset, value, frame)?;
+            }
             Instruction::AddI32 {
                 destination,
                 left,
@@ -924,9 +931,9 @@ mod tests {
     use super::*;
     use crate::abi::ValueLayout;
     use crate::ir::{
-        BoolLocation, BoolValue, CallTarget, Function, I32ComparisonOperator, I32Location,
-        I32Value, ScalarArgument, SliceLocation, SliceValue, StrLocation, StrValue, Type,
-        U8Location, U8Value, UsizeLocation, UsizeValue,
+        AggregateLocation, BoolLocation, BoolValue, CallTarget, Function, I32ComparisonOperator,
+        I32Location, I32Value, ScalarArgument, SliceLocation, SliceValue, StrLocation, StrValue,
+        Type, U8Location, U8Value, UsizeLocation, UsizeValue,
     };
     use crate::source::SourceId;
     use crate::target::arm64::BranchCondition;
@@ -1600,13 +1607,21 @@ mod tests {
                 name: "make".to_string(),
                 target: crate::ir::CallTarget::same_file("make".to_string()),
                 return_type: Type::Void,
-                instructions: vec![Instruction::Return],
+                instructions: vec![
+                    Instruction::StoreAggregateUsize {
+                        destination: AggregateLocation::Return,
+                        offset: 16,
+                        value: UsizeValue::Const(7),
+                    },
+                    Instruction::Return,
+                ],
             },
         ]);
 
         let code = generate_arm64_darwin_entry(&module, "main").unwrap();
 
         assert!(contains_instruction(&code.text, [0xe8, 0x03, 0x00, 0x91])); // add x8, sp, #0
+        assert!(contains_instruction(&code.text, [0x10, 0x09, 0x00, 0xf9])); // str x16, [x8, #16]
     }
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
