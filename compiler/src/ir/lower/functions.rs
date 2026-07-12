@@ -34,7 +34,7 @@ pub(super) fn lower_function(
     }
 
     let parameters = lower_scalar_parameters(function, resolved)?;
-    let return_type = lower_function_return_type(&function.return_type, &function.name)?;
+    let return_type = lower_function_return_type(&function.return_type, &function.name, resolved)?;
     let success_type = return_type.success_type().clone();
     let mut context = LoweringContext::new(
         function.name.clone(),
@@ -232,7 +232,11 @@ fn lower_scalar_parameter_kind(
     }
 }
 
-fn lower_function_return_type(ty: &TypeExpr, name: &str) -> Result<Type, Vec<Diagnostic>> {
+fn lower_function_return_type(
+    ty: &TypeExpr,
+    name: &str,
+    resolved: &ResolveOutput,
+) -> Result<Type, Vec<Diagnostic>> {
     match ty {
         TypeExpr::Reference(reference) if reference.name == "i32" => Ok(Type::I32),
         TypeExpr::Reference(reference) if reference.name == "u8" => Ok(Type::U8),
@@ -249,15 +253,37 @@ fn lower_function_return_type(ty: &TypeExpr, name: &str) -> Result<Type, Vec<Dia
         }),
         TypeExpr::Reference(reference) if reference.name == "void" => Ok(Type::Void),
         TypeExpr::Reference(reference) if reference.name == "never" => Ok(Type::Never),
-        TypeExpr::Fallible(fallible) => lower_function_return_type(&fallible.success, name)
-            .map(|success| Type::Fallible(Box::new(success))),
-        _ => Err(vec![Diagnostic::error(
-            "E8007",
-            format!(
-                "IR v0 can only lower function `{name}` return type `i32`, `u8`, `usize`, `bool`, `&str`, `&[u8]`, `&+[u8]`, `void`, `never`, or a fallible form of those types"
-            ),
-        )]),
+        TypeExpr::Fallible(fallible) => {
+            lower_function_return_type(&fallible.success, name, resolved)
+                .map(|success| Type::Fallible(Box::new(success)))
+        }
+        _ => lower_aggregate_function_return_type(ty, name, resolved),
     }
+}
+
+fn lower_aggregate_function_return_type(
+    ty: &TypeExpr,
+    name: &str,
+    resolved: &ResolveOutput,
+) -> Result<Type, Vec<Diagnostic>> {
+    let value = abi_value_from_type_expr(ty, resolved)
+        .map_err(|_error| unsupported_function_return_type_diagnostic(name))?;
+    if value.is_indirect() {
+        return Ok(Type::Aggregate {
+            layout: value.layout,
+        });
+    }
+
+    Err(unsupported_function_return_type_diagnostic(name))
+}
+
+fn unsupported_function_return_type_diagnostic(name: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8007",
+        format!(
+            "IR v0 can only lower function `{name}` return type `i32`, `u8`, `usize`, `bool`, `&str`, `&[u8]`, `&+[u8]`, `void`, `never`, indirect aggregates, or a fallible form of those types"
+        ),
+    )]
 }
 
 fn is_u8_slice_data_type(ty: &TypeExpr) -> bool {
@@ -331,6 +357,13 @@ fn lower_function_body(
                 (Type::Slice { .. }, Some(expression)) => {
                     lower_slice_return_expression(expression, context)
                 }
+                (Type::Aggregate { .. }, Some(_)) => Err(vec![Diagnostic::error(
+                    "E8007",
+                    format!(
+                        "IR v0 cannot lower aggregate value returns from function `{}` yet",
+                        function.name
+                    ),
+                )]),
                 (Type::Never, Some(_)) => Err(vec![Diagnostic::error(
                     "E8007",
                     format!(
@@ -385,6 +418,13 @@ fn lower_function_body(
                     "E8007",
                     format!(
                         "IR v0 cannot lower bare returns from slice function `{}`",
+                        function.name
+                    ),
+                )]),
+                (Type::Aggregate { .. }, None) => Err(vec![Diagnostic::error(
+                    "E8007",
+                    format!(
+                        "IR v0 cannot lower bare returns from aggregate function `{}`",
                         function.name
                     ),
                 )]),

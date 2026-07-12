@@ -457,6 +457,9 @@ pub(crate) enum Type {
     Slice {
         is_readwrite: bool,
     },
+    Aggregate {
+        layout: ValueLayout,
+    },
     Borrow {
         is_readwrite: bool,
         inner: Box<Type>,
@@ -476,6 +479,7 @@ impl Type {
             | Self::Bool
             | Self::Str
             | Self::Slice { .. }
+            | Self::Aggregate { .. }
             | Self::Borrow { .. }
             | Self::Void
             | Self::Never => self,

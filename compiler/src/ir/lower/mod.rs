@@ -13,6 +13,7 @@ mod reachability;
 mod tests;
 
 use super::{CallTarget, Function, IrModule};
+use crate::abi::abi_value_from_type_expr;
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{FunctionDecl, Item, TypeExpr};
 use crate::diagnostics::Diagnostic;
@@ -72,7 +73,7 @@ pub(crate) fn lower_executable_with_entry(
     Ok(IrModule::new(functions))
 }
 
-fn lower_signature_return_type(ty: &TypeExpr) -> Option<Type> {
+fn lower_signature_return_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {
     match ty {
         TypeExpr::Reference(reference) if reference.name == "i32" => Some(Type::I32),
         TypeExpr::Reference(reference) if reference.name == "u8" => Some(Type::U8),
@@ -89,10 +90,17 @@ fn lower_signature_return_type(ty: &TypeExpr) -> Option<Type> {
         }),
         TypeExpr::Reference(reference) if reference.name == "void" => Some(Type::Void),
         TypeExpr::Reference(reference) if reference.name == "never" => Some(Type::Never),
-        TypeExpr::Fallible(fallible) => lower_signature_return_type(&fallible.success)
+        TypeExpr::Fallible(fallible) => lower_signature_return_type(&fallible.success, resolved)
             .map(|success| Type::Fallible(Box::new(success))),
-        _ => None,
+        _ => lower_aggregate_signature_return_type(ty, resolved),
     }
+}
+
+fn lower_aggregate_signature_return_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {
+    let value = abi_value_from_type_expr(ty, resolved).ok()?;
+    value.is_indirect().then_some(Type::Aggregate {
+        layout: value.layout,
+    })
 }
 
 fn lower_signature_parameter_type(ty: &TypeExpr) -> Option<Type> {
@@ -222,25 +230,27 @@ impl<'a> FunctionIndex<'a> {
             self.definitions
                 .iter()
                 .filter_map(|(target, function)| {
-                    lower_signature_return_type(&function.declaration.return_type).map(
-                        |return_type| {
-                            let parameter_types = function
-                                .declaration
-                                .parameters
-                                .parameters
-                                .iter()
-                                .map(|parameter| lower_signature_parameter_type(&parameter.ty))
-                                .collect::<Option<Vec<_>>>();
-
-                            (
-                                target.clone(),
-                                FunctionSignature {
-                                    return_type,
-                                    parameter_types,
-                                },
-                            )
-                        },
+                    lower_signature_return_type(
+                        &function.declaration.return_type,
+                        function.resolved,
                     )
+                    .map(|return_type| {
+                        let parameter_types = function
+                            .declaration
+                            .parameters
+                            .parameters
+                            .iter()
+                            .map(|parameter| lower_signature_parameter_type(&parameter.ty))
+                            .collect::<Option<Vec<_>>>();
+
+                        (
+                            target.clone(),
+                            FunctionSignature {
+                                return_type,
+                                parameter_types,
+                            },
+                        )
+                    })
                 })
                 .collect(),
         )

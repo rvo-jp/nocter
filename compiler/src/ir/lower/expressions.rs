@@ -446,6 +446,7 @@ fn lower_catch_block(
                 | (Type::Bool, None)
                 | (Type::Str, None)
                 | (Type::Slice { .. }, None)
+                | (Type::Aggregate { .. }, _)
                 | (Type::Borrow { .. }, _)
                 | (Type::Never, None) => Err(unsupported_catch_block_diagnostic()),
                 (Type::Fallible(_), _) => {

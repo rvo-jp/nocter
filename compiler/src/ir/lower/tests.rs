@@ -1,4 +1,5 @@
 use super::*;
+use crate::abi::ValueLayout;
 use crate::analysis::{CompileUnit, analyze_compile_unit_with_entry};
 use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
@@ -925,6 +926,37 @@ func consume(bytes: &[u8], scratch: &+[u8]): i32 {
     assert_eq!(
         signatures.parameter_types(&CallTarget::same_file("consume")),
         Some(vec![readonly_u8_slice_type(), readwrite_u8_slice_type()].as_slice())
+    );
+}
+
+#[test]
+fn indexes_indirect_aggregate_function_signature_return_type() {
+    let analysis = analyze_text_with_entry(
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Text {
+    return Text{ start: 0, len: 0, capacity: 0 }
+}
+"#,
+        crate::entry::DEFAULT_ENTRY_NAME,
+    );
+    let root = analysis.root_file().unwrap();
+    let index = FunctionIndex::new(&analysis, root.ast.span.source);
+    let signatures = index.signatures();
+
+    assert_eq!(
+        signatures.return_type(&CallTarget::same_file("make")),
+        Some(&Type::Aggregate {
+            layout: ValueLayout::new(24, 8),
+        })
     );
 }
 

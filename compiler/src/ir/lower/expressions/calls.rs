@@ -474,7 +474,7 @@ pub(super) fn lower_call_arguments(
                     context,
                 )?));
             }
-            Type::Void | Type::Never | Type::Fallible(_) => {
+            Type::Aggregate { .. } | Type::Void | Type::Never | Type::Fallible(_) => {
                 return Err(vec![Diagnostic::error(
                     "E8006",
                     format!(
@@ -1029,6 +1029,7 @@ fn describe_type(ty: &Type) -> &'static str {
             is_readwrite: false,
         } => "&[u8]",
         Type::Slice { is_readwrite: true } => "&+[u8]",
+        Type::Aggregate { .. } => "aggregate",
         Type::Borrow {
             is_readwrite: false,
             inner,
@@ -1061,6 +1062,7 @@ fn describe_type(ty: &Type) -> &'static str {
                 is_readwrite: false,
             } => "&[u8]!",
             Type::Slice { is_readwrite: true } => "&+[u8]!",
+            Type::Aggregate { .. } => "aggregate!",
             Type::Borrow {
                 is_readwrite: false,
                 inner,

@@ -27,6 +27,11 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: track indirect aggregate return types in IR signatures
+  - adds `Type::Aggregate { layout }` as an IR return/signature type for ABI-indirect source values
+  - makes function signature indexing reuse resolved ABI classification so 24-byte structs stay visible as indirect aggregate returns instead of being dropped from `FunctionSignatures`
+  - allows non-entry function return-type lowering to identify indirect aggregates, then reports explicit aggregate-body diagnostics because source aggregate value return lowering is still disabled
+  - keeps aggregate constructors, aggregate call-result slots from source, aggregate-backed `var`, aggregate load/copy, and owned aggregate returns/moves disabled
 - Current checkpoint: store aggregate usize fields
   - adds `AggregateLocation::{Return, Slot}` and `StoreAggregateUsize` for 8-byte field writes into indirect return storage or reserved aggregate slots
   - adds ARM64 unsigned-offset `str xN, [xM, #imm]` encoding for aggregate return storage writes through `x8`
