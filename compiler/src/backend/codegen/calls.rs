@@ -1,4 +1,5 @@
 use super::{EntryEmitter, FunctionCallPatch, FunctionSymbol};
+use crate::abi::ValueLayout;
 use crate::backend::frame::{ArgumentStagingSlot, FrameLayout};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -6,6 +7,13 @@ use crate::ir::{
     ScalarArgument, SliceLocation, StrLocation, Type, U8Location, UsizeLocation,
 };
 use crate::target::arm64::{BranchCondition, WReg, XReg};
+
+pub(super) struct FallibleDirectAggregateCall<'a> {
+    pub(super) destination: AggregateLocation,
+    pub(super) function: FunctionSymbol,
+    pub(super) arguments: &'a [ScalarArgument],
+    pub(super) layout: ValueLayout,
+}
 
 impl EntryEmitter {
     pub(super) fn emit_call(&mut self, function: FunctionSymbol) {
@@ -171,10 +179,41 @@ impl EntryEmitter {
         Ok(())
     }
 
+    pub(super) fn emit_call_fallible_direct_aggregate(
+        &mut self,
+        call: FallibleDirectAggregateCall<'_>,
+        frame: Option<&FrameLayout>,
+        failure_mode: &FallibleFailureMode,
+        return_type: &Type,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "fallible direct aggregate call emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_staged_scalar_arguments(call.arguments, frame)?;
+
+        self.emit_call(call.function);
+        self.encoder.emit_cmp_x_zero(XReg::X0);
+        let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+        self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
+        self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
+        self.emit_fallible_direct_aggregate_result_to_location(
+            call.destination,
+            call.layout,
+            frame,
+        )?;
+        self.emit_scalar_reloads(frame)?;
+        Ok(())
+    }
+
     fn emit_direct_aggregate_result_to_location(
         &mut self,
         destination: AggregateLocation,
-        layout: crate::abi::ValueLayout,
+        layout: ValueLayout,
         frame: &FrameLayout,
     ) -> Result<(), Vec<Diagnostic>> {
         match destination {
@@ -220,6 +259,68 @@ impl EntryEmitter {
             AggregateLocation::Return => Err(vec![Diagnostic::error(
                 "E9005",
                 "direct aggregate call cannot target indirect return storage",
+            )]),
+        }
+    }
+
+    fn emit_fallible_direct_aggregate_result_to_location(
+        &mut self,
+        destination: AggregateLocation,
+        layout: ValueLayout,
+        frame: &FrameLayout,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if layout.size > 16 || !layout.size.is_multiple_of(8) {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "fallible direct aggregate call result must be one or two ABI words",
+            )]);
+        }
+
+        match destination {
+            AggregateLocation::DirectReturn => {
+                self.encoder.emit_mov_x(XReg::X0, XReg::X1);
+                if layout.size > 8 {
+                    self.encoder.emit_mov_x(XReg::X1, XReg::X2);
+                }
+                Ok(())
+            }
+            AggregateLocation::Slot(slot_index) => {
+                let slot = frame.aggregate_slot(slot_index).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9005",
+                        format!(
+                            "fallible direct aggregate destination slot {slot_index} is not reserved"
+                        ),
+                    )]
+                })?;
+                let layout_size = u32::try_from(layout.size).map_err(|_error| {
+                    vec![Diagnostic::error(
+                        "E9005",
+                        "fallible direct aggregate size exceeds u32 range",
+                    )]
+                })?;
+                if slot.size() != layout_size {
+                    return Err(vec![Diagnostic::error(
+                        "E9005",
+                        "fallible direct aggregate destination slot size does not match layout",
+                    )]);
+                }
+
+                self.encoder.emit_str_x_sp(XReg::X1, slot.offset());
+                if layout.size > 8 {
+                    let second_offset = slot.offset().checked_add(8).ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "E9005",
+                            "fallible direct aggregate destination offset overflows",
+                        )]
+                    })?;
+                    self.encoder.emit_str_x_sp(XReg::X2, second_offset);
+                }
+                Ok(())
+            }
+            AggregateLocation::Return => Err(vec![Diagnostic::error(
+                "E9005",
+                "fallible direct aggregate call cannot target indirect return storage",
             )]),
         }
     }

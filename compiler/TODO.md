@@ -21,12 +21,16 @@ Recommended next implementation order:
 
 1. Follow `compiler/docs/interpolation-lowering.md`: keep bare interpolation lowering disabled until an explicit allocator source is designed, and first make explicit `std/string` construction plus `std/fmt.append_*` calls buildable.
 2. Use the resolved-type function ABI helper from IR/backend planning before adding aggregate storage code.
-3. Add only the remaining backend prerequisites needed by the explicit string path: aggregate storage outside the supported call-result/struct-literal slot paths and owned aggregate return/move handling. Loaded imported scalar calls, scalar/view arguments, local scalar and aggregate slot borrow arguments, scalar/view `var` plus simple assignment, aggregate struct-literal local slots, direct and narrow indirect aggregate normal call-result `let`/`var` slots, supported aggregate slot reassignment, and fallible propagation for the current scalar/view/void plus indirect aggregate call-result subset are already buildable.
+3. Add only the remaining backend prerequisites needed by the explicit string path: aggregate storage outside the supported call-result/struct-literal slot paths and owned aggregate return/move handling. Loaded imported scalar calls, scalar/view arguments, local scalar and aggregate slot borrow arguments, scalar/view `var` plus simple assignment, aggregate struct-literal local slots, direct and narrow indirect aggregate normal call-result `let`/`var` slots, fallible direct aggregate call-result slots, supported aggregate slot reassignment, and fallible propagation for the current scalar/view/void plus aggregate call-result subset are already buildable.
 4. Lower interpolated strings only after the explicit standard-library construction path builds.
 5. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
+- Current checkpoint: lower fallible direct aggregate slots
+  - adds `CallFallibleDirectAggregate` for fallible calls whose success payload is a 16-byte-or-smaller direct aggregate returned in `x1,x2` after the status word
+  - lowers `var value = make()?` and `value = make()?` into existing aggregate slots for direct aggregate success payloads
+  - keeps slot-to-slot aggregate moves, by-value aggregate arguments, owned source-level aggregate moves, and drop glue disabled
 - Current checkpoint: align LSP keyword completions with lexer keywords
   - exposes the lexer keyword lexeme list for LSP completion instead of maintaining a stale LSP-only list
   - adds completion coverage for newer keywords such as `loop`, `primitive`, and `void`
@@ -1056,7 +1060,7 @@ The scalar `i32` and `usize` backend subsets now have runtime safety checks for 
 Recommended next small task for the next session:
 
 1. Follow `compiler/docs/interpolation-lowering.md`: keep bare interpolation lowering disabled until an explicit allocator source is designed, and first make explicit `std/string` construction plus `std/fmt.append_*` calls buildable.
-2. Add only the remaining backend prerequisites needed by that explicit path: aggregate reassignment, aggregate storage outside the supported call-result/struct-literal slot paths, and owned aggregate returns/moves.
+2. Add only the remaining backend prerequisites needed by that explicit path: aggregate storage outside the supported call-result/struct-literal slot paths and owned aggregate returns/moves.
 3. Consider broader terminal control-flow only after its lowering rules are designed.
 4. Keep unrelated imported calls, aggregates, ownership/drop lowering, general mutable storage, and broader control-flow disabled until their ABI, storage, and join rules are designed.
 5. Add CLI build/run coverage for any newly buildable source subset.

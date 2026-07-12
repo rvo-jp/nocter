@@ -241,6 +241,13 @@ pub(crate) enum Instruction {
         arguments: Vec<ScalarArgument>,
         layout: ValueLayout,
     },
+    CallFallibleDirectAggregate {
+        destination: AggregateLocation,
+        target: CallTarget,
+        arguments: Vec<ScalarArgument>,
+        layout: ValueLayout,
+        failure_mode: FallibleFailureMode,
+    },
     CallFallibleAggregate {
         destination: AggregateLocation,
         target: CallTarget,

@@ -30,6 +30,11 @@ fn collect_reachable_call_targets(
                 failure_mode,
                 ..
             }
+            | Instruction::CallFallibleDirectAggregate {
+                target,
+                failure_mode,
+                ..
+            }
             | Instruction::CallFallibleI32 {
                 target,
                 failure_mode,

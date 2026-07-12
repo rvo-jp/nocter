@@ -442,6 +442,25 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
+            Instruction::CallFallibleDirectAggregate {
+                destination,
+                target,
+                arguments,
+                layout,
+                failure_mode,
+            } => {
+                self.emit_call_fallible_direct_aggregate(
+                    calls::FallibleDirectAggregateCall {
+                        destination: *destination,
+                        function: FunctionSymbol::from_call_target(target),
+                        arguments,
+                        layout: *layout,
+                    },
+                    frame,
+                    failure_mode,
+                    return_type,
+                )?;
+            }
             Instruction::CallFallibleAggregate {
                 destination,
                 target,
@@ -1871,6 +1890,66 @@ mod tests {
         assert!(contains_instruction(&code.text, [0xe8, 0x03, 0x00, 0x91])); // add x8, sp, #0
         assert!(contains_instruction(&code.text, [0x1f, 0x00, 0x1f, 0xeb])); // cmp x0, xzr
         assert!(contains_instruction(&code.text, [0x10, 0x01, 0x00, 0xf9])); // str x16, [x8, #0]
+    }
+
+    #[test]
+    fn fallible_direct_aggregate_call_stores_success_payload_words() {
+        let aggregate = Type::DirectAggregate {
+            layout: ValueLayout::new(16, 8),
+            words: 2,
+        };
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "forward".to_string(),
+                target: crate::ir::CallTarget::same_file("forward".to_string()),
+                return_type: Type::Fallible(Box::new(Type::I32)),
+                instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(16, 8),
+                    },
+                    Instruction::CallFallibleDirectAggregate {
+                        destination: AggregateLocation::Slot(0),
+                        target: CallTarget::same_file("make"),
+                        arguments: vec![],
+                        layout: ValueLayout::new(16, 8),
+                        failure_mode: FallibleFailureMode::Propagate,
+                    },
+                    set_return_i32(0),
+                    Instruction::ReturnFallibleSuccess,
+                ],
+            },
+            Function {
+                name: "make".to_string(),
+                target: crate::ir::CallTarget::same_file("make".to_string()),
+                return_type: Type::Fallible(Box::new(aggregate)),
+                instructions: vec![
+                    Instruction::StoreAggregateUsize {
+                        destination: AggregateLocation::DirectReturn,
+                        offset: 0,
+                        value: UsizeValue::Const(7),
+                    },
+                    Instruction::StoreAggregateUsize {
+                        destination: AggregateLocation::DirectReturn,
+                        offset: 8,
+                        value: UsizeValue::Const(9),
+                    },
+                    Instruction::ReturnFallibleSuccess,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0x1f, 0x00, 0x1f, 0xeb])); // cmp x0, xzr
+        assert!(contains_instruction(&code.text, [0xe1, 0x03, 0x00, 0xf9])); // str x1, [sp, #0]
+        assert!(contains_instruction(&code.text, [0xe2, 0x07, 0x00, 0xf9])); // str x2, [sp, #8]
     }
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

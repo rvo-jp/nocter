@@ -271,6 +271,7 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::CallFallibleSlice { .. }
         | Instruction::CallAggregate { .. }
         | Instruction::CallDirectAggregate { .. }
+        | Instruction::CallFallibleDirectAggregate { .. }
         | Instruction::CallFallibleAggregate { .. }
         | Instruction::CallVoid { .. }
         | Instruction::CallFallibleVoid { .. }
@@ -372,6 +373,11 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
             ..
         }
         | Instruction::CallFallibleSlice {
+            arguments,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallFallibleDirectAggregate {
             arguments,
             failure_mode,
             ..
@@ -486,6 +492,7 @@ fn record_instruction_aggregate_slot_requests(
         | Instruction::CallFallibleBool { failure_mode, .. }
         | Instruction::CallFallibleStr { failure_mode, .. }
         | Instruction::CallFallibleSlice { failure_mode, .. }
+        | Instruction::CallFallibleDirectAggregate { failure_mode, .. }
         | Instruction::CallFallibleAggregate { failure_mode, .. }
         | Instruction::CallFallibleVoid { failure_mode, .. }
         | Instruction::CheckFailure { failure_mode } => {
@@ -860,6 +867,16 @@ fn record_instruction_scalar_locals(
             for argument in arguments {
                 record_scalar_argument(argument, highest_local_index);
             }
+        }
+        Instruction::CallFallibleDirectAggregate {
+            arguments,
+            failure_mode,
+            ..
+        } => {
+            for argument in arguments {
+                record_scalar_argument(argument, highest_local_index);
+            }
+            record_failure_mode_scalar_locals(failure_mode, highest_local_index);
         }
         Instruction::CallFallibleAggregate {
             arguments,

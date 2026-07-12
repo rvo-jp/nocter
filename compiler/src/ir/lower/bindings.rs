@@ -163,25 +163,39 @@ fn lower_aggregate_fallible_call_binding(
     };
 
     let target = context.call_target(call, &identifier.name);
-    let Some(Type::Fallible(success)) = context.call_return_type(&target) else {
+    let Some(Type::Fallible(success)) = context.call_return_type(&target).cloned() else {
         return Ok(None);
     };
-    let Type::Aggregate { layout } = success.as_ref() else {
-        return Ok(None);
+    let layout = match success.as_ref() {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => return Ok(None),
     };
-    let layout = *layout;
     validate_aggregate_binding_layout(layout)?;
 
     let (mut instructions, arguments) =
         lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
     let slot_index = context.define_aggregate_local(statement.name.clone(), layout);
     instructions.insert(0, Instruction::ReserveAggregateSlot { slot_index, layout });
-    instructions.push(Instruction::CallFallibleAggregate {
-        destination: AggregateLocation::Slot(slot_index),
-        target,
-        arguments,
-        failure_mode,
-    });
+    match success.as_ref() {
+        Type::Aggregate { .. } => {
+            instructions.push(Instruction::CallFallibleAggregate {
+                destination: AggregateLocation::Slot(slot_index),
+                target,
+                arguments,
+                failure_mode,
+            });
+        }
+        Type::DirectAggregate { .. } => {
+            instructions.push(Instruction::CallFallibleDirectAggregate {
+                destination: AggregateLocation::Slot(slot_index),
+                target,
+                arguments,
+                layout,
+                failure_mode,
+            });
+        }
+        _ => unreachable!("fallible aggregate binding requires aggregate success type"),
+    }
     Ok(Some(instructions))
 }
 
@@ -372,24 +386,36 @@ fn lower_aggregate_fallible_call_assignment(
     let Some(Type::Fallible(success)) = context.call_return_type(&target) else {
         return Err(unsupported_assignment_diagnostic());
     };
-    let Type::Aggregate {
-        layout: callee_layout,
-    } = success.as_ref()
-    else {
-        return Err(unsupported_assignment_diagnostic());
+    let callee_layout = match success.as_ref() {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => return Err(unsupported_assignment_diagnostic()),
     };
-    if *callee_layout != layout {
+    if callee_layout != layout {
         return Err(unsupported_assignment_diagnostic());
     }
 
     let (mut instructions, arguments) =
         lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
-    instructions.push(Instruction::CallFallibleAggregate {
-        destination: AggregateLocation::Slot(slot_index),
-        target,
-        arguments,
-        failure_mode,
-    });
+    match success.as_ref() {
+        Type::Aggregate { .. } => {
+            instructions.push(Instruction::CallFallibleAggregate {
+                destination: AggregateLocation::Slot(slot_index),
+                target,
+                arguments,
+                failure_mode,
+            });
+        }
+        Type::DirectAggregate { .. } => {
+            instructions.push(Instruction::CallFallibleDirectAggregate {
+                destination: AggregateLocation::Slot(slot_index),
+                target,
+                arguments,
+                layout,
+                failure_mode,
+            });
+        }
+        _ => unreachable!("fallible aggregate assignment requires aggregate success type"),
+    }
     Ok(instructions)
 }
 

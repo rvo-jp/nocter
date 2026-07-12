@@ -190,8 +190,8 @@ Currently buildable:
 - simple fallible entry success
 - simple fallible entry failure through a loaded static `error` constructor call with string code and message literals, where the message may be single-line or multi-line
 - scalar/view `var` bindings and simple `=` assignment for the lowerable scalar/view value subset
-- aggregate struct-literal local slots, direct and narrow indirect aggregate call-result local slots, and `&T`/`&+T` borrow arguments from those slots
-- simple aggregate slot reassignment from supported struct literals, direct or indirect normal aggregate calls, and propagated fallible indirect aggregate calls
+- aggregate struct-literal local slots, direct aggregate call-result local slots, narrow indirect aggregate call-result local slots, fallible direct aggregate call-result local slots, and `&T`/`&+T` borrow arguments from those slots
+- simple aggregate slot reassignment from supported struct literals, direct or indirect normal aggregate calls, propagated fallible direct aggregate calls, and propagated fallible indirect aggregate calls
 
 Currently not buildable even when it may be checkable:
 
@@ -228,6 +228,7 @@ Frame-only IR `ReserveAggregateSlot` markers carry ABI `ValueLayout` requests in
 IR function signatures preserve ABI-indirect aggregate returns as `Type::Aggregate { layout }`, direct aggregate returns as `Type::DirectAggregate { layout, words }`, and aggregate borrow parameters as one-word borrows, so lowering can distinguish owned aggregate return and borrow shapes before aggregate value construction is broadly buildable.
 IR `CallAggregate` and `CallFallibleAggregate` lower calls that return indirect aggregate values by passing either the current return-storage pointer or a reserved destination slot address in ABI register `x8`; source lowering emits them for indirect aggregate return calls, narrow indirect aggregate call result bindings, and supported aggregate slot assignments.
 IR `CallDirectAggregate` lowers calls that return 16-byte-or-smaller direct aggregate values in `x0,x1`, either leaving them in the direct return registers or storing them into a reserved aggregate slot.
+IR `CallFallibleDirectAggregate` lowers fallible calls whose success payload is a 16-byte-or-smaller direct aggregate value returned in `x1,x2` after the status word; source lowering stores that payload into a reserved aggregate slot for supported bindings and assignments.
 IR `StoreAggregateUsize` writes 8-byte fields into the current indirect return storage behind `x8`, direct return registers, or a reserved aggregate stack slot; source lowering emits it for non-entry aggregate struct literal returns, aggregate struct-literal local bindings, and aggregate struct-literal slot assignments whose stored fields are 8-byte integers or `std/ptr.from_addr` pointer fields.
 IR `CopyAggregate` copies 8-byte chunks from a reserved aggregate slot into the current indirect return storage or direct return registers; source lowering emits it for narrow aggregate `let`/`var` binding paths returned by name.
 Aggregate borrow arguments from reserved slots are passed as the slot address in a single ABI word, matching ordinary `&T`/`&+T` borrow ABI without special-casing source identifiers.

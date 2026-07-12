@@ -1633,6 +1633,86 @@ func use_allocator(): i32 {
 }
 
 #[test]
+fn lowers_fallible_direct_aggregate_call_binding_borrow_argument() {
+    let aggregate_type = Type::DirectAggregate {
+        layout: ValueLayout::new(16, 8),
+        words: 2,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct Allocator {
+    state: usize
+    kind: u64
+}
+
+func main(): i32 {
+    return 0
+}
+
+func page_allocator(): Allocator! {
+    return Allocator{ state: 0, kind: 0 }
+}
+
+func touch(allocator: &+Allocator): void {
+    return
+}
+
+func use_allocator(): i32! {
+    var allocator = page_allocator()?
+    touch(&+allocator)
+    return 0
+}
+"#,
+        "use_allocator",
+        function_signatures(vec![
+            (
+                "page_allocator",
+                Type::Fallible(Box::new(aggregate_type.clone())),
+                vec![],
+            ),
+            (
+                "touch",
+                Type::Void,
+                vec![Type::Borrow {
+                    is_readwrite: true,
+                    inner: Box::new(aggregate_type.clone()),
+                }],
+            ),
+        ]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "use_allocator".to_string(),
+            target: CallTarget::same_file("use_allocator"),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::CallFallibleDirectAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    target: CallTarget::same_file("page_allocator"),
+                    arguments: vec![],
+                    layout: ValueLayout::new(16, 8),
+                    failure_mode: FallibleFailureMode::Propagate,
+                },
+                Instruction::CallVoid {
+                    target: CallTarget::same_file("touch"),
+                    arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateSlot(0),
+                    })],
+                },
+                set_return_i32(0),
+                Instruction::ReturnFallibleSuccess,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_aggregate_struct_literal_assignment_borrow_argument() {
     let aggregate_type = Type::Aggregate {
         layout: ValueLayout::new(24, 8),
@@ -1807,6 +1887,98 @@ func use_allocator(): i32 {
                 },
                 set_return_i32(0),
                 Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_fallible_direct_aggregate_call_assignment_borrow_argument() {
+    let aggregate_type = Type::DirectAggregate {
+        layout: ValueLayout::new(16, 8),
+        words: 2,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct Allocator {
+    state: usize
+    kind: u64
+}
+
+func main(): i32 {
+    return 0
+}
+
+func page_allocator(): Allocator {
+    return Allocator{ state: 0, kind: 0 }
+}
+
+func reset_allocator(): Allocator! {
+    return Allocator{ state: 1, kind: 2 }
+}
+
+func touch(allocator: &+Allocator): void {
+    return
+}
+
+func use_allocator(): i32! {
+    var allocator = page_allocator()
+    allocator = reset_allocator()?
+    touch(&+allocator)
+    return 0
+}
+"#,
+        "use_allocator",
+        function_signatures(vec![
+            ("page_allocator", aggregate_type.clone(), vec![]),
+            (
+                "reset_allocator",
+                Type::Fallible(Box::new(aggregate_type.clone())),
+                vec![],
+            ),
+            (
+                "touch",
+                Type::Void,
+                vec![Type::Borrow {
+                    is_readwrite: true,
+                    inner: Box::new(aggregate_type.clone()),
+                }],
+            ),
+        ]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "use_allocator".to_string(),
+            target: CallTarget::same_file("use_allocator"),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::CallDirectAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    target: CallTarget::same_file("page_allocator"),
+                    arguments: vec![],
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::CallFallibleDirectAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    target: CallTarget::same_file("reset_allocator"),
+                    arguments: vec![],
+                    layout: ValueLayout::new(16, 8),
+                    failure_mode: FallibleFailureMode::Propagate,
+                },
+                Instruction::CallVoid {
+                    target: CallTarget::same_file("touch"),
+                    arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateSlot(0),
+                    })],
+                },
+                set_return_i32(0),
+                Instruction::ReturnFallibleSuccess,
             ],
         }
     );
