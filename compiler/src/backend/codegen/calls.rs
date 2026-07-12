@@ -95,6 +95,29 @@ impl EntryEmitter {
         Ok(())
     }
 
+    pub(super) fn emit_call_aggregate(
+        &mut self,
+        destination_slot: usize,
+        function: FunctionSymbol,
+        arguments: &[ScalarArgument],
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "normal aggregate call emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_staged_scalar_arguments(arguments, frame)?;
+        self.emit_aggregate_slot_address_to_x(destination_slot, XReg::X8, frame)?;
+
+        self.emit_call(function);
+        self.emit_scalar_reloads(frame)?;
+        Ok(())
+    }
+
     pub(super) fn emit_call_i32(
         &mut self,
         destination: I32Location,
@@ -557,6 +580,22 @@ impl EntryEmitter {
             self.encoder.emit_ldr_x_sp(register, slot.offset());
         }
 
+        Ok(())
+    }
+
+    fn emit_aggregate_slot_address_to_x(
+        &mut self,
+        slot_index: usize,
+        register: XReg,
+        frame: &FrameLayout,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let slot = frame.aggregate_slot(slot_index).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "E9005",
+                format!("aggregate call destination slot {slot_index} is not reserved"),
+            )]
+        })?;
+        self.encoder.emit_add_x_sp_imm(register, slot.offset());
         Ok(())
     }
 

@@ -269,6 +269,7 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::CallFallibleStr { .. }
         | Instruction::CallSlice { .. }
         | Instruction::CallFallibleSlice { .. }
+        | Instruction::CallAggregate { .. }
         | Instruction::CallVoid { .. }
         | Instruction::CallFallibleVoid { .. }
         | Instruction::ReserveAggregateSlot { .. }
@@ -326,6 +327,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::CallBool { arguments, .. }
         | Instruction::CallStr { arguments, .. }
         | Instruction::CallSlice { arguments, .. }
+        | Instruction::CallAggregate { arguments, .. }
         | Instruction::CallVoid { arguments, .. }
         | Instruction::TailCall { arguments, .. } => {
             arguments.iter().map(ScalarArgument::abi_word_count).sum()
@@ -485,6 +487,7 @@ fn record_instruction_aggregate_slot_requests(
         | Instruction::CallBool { .. }
         | Instruction::CallStr { .. }
         | Instruction::CallSlice { .. }
+        | Instruction::CallAggregate { .. }
         | Instruction::CallVoid { .. }
         | Instruction::TailCall { .. }
         | Instruction::Trap
@@ -810,6 +813,11 @@ fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
             record_failure_mode_scalar_locals(failure_mode, highest_local_index);
+        }
+        Instruction::CallAggregate { arguments, .. } => {
+            for argument in arguments {
+                record_scalar_argument(argument, highest_local_index);
+            }
         }
         Instruction::CallVoid { arguments, .. } => {
             for argument in arguments {
@@ -1282,6 +1290,43 @@ mod tests {
                     align: 16,
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn aggregate_call_requires_frame_and_counts_argument_slots() {
+        let function = Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Void,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::CallAggregate {
+                    destination_slot: 0,
+                    target: CallTarget::same_file("make"),
+                    arguments: vec![ScalarArgument::I32(I32Value::Location(I32Location::Local(
+                        1,
+                    )))],
+                },
+                Instruction::Return,
+            ],
+        };
+
+        let frame = plan_function_frame(&function).unwrap();
+
+        assert_eq!(
+            frame,
+            FunctionFrame::Framed(
+                FrameLayout::for_slot_counts_with_aggregate_slots(
+                    2,
+                    1,
+                    &[AggregateSlotRequest::new(0, ValueLayout::new(24, 8))]
+                )
+                .unwrap()
+            )
         );
     }
 

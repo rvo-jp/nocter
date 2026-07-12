@@ -27,6 +27,12 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: add aggregate indirect-return call emission
+  - adds a normal `CallAggregate { destination_slot, target, arguments }` IR instruction for calls that return indirect aggregate values
+  - emits the reserved aggregate destination slot address into Nocter ABI register `x8` before the call
+  - reuses existing scalar spill/reload and scalar argument staging around aggregate calls
+  - makes reachability collect aggregate call targets so callees are lowered and patched like other calls
+  - keeps source lowering for aggregate constructors, aggregate load/store, aggregate-backed `var`, and owned aggregate returns/moves disabled
 - Current checkpoint: connect aggregate frame reservations to IR
   - adds a frame-only `ReserveAggregateSlot { slot_index, layout }` IR marker carrying ABI `ValueLayout`
   - makes `backend/frame.rs` collect aggregate slot requests from top-level instructions, nested `if` branches, and catch failure handlers

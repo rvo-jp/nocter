@@ -19,6 +19,7 @@ fn collect_reachable_call_targets(
             | Instruction::CallBool { target, .. }
             | Instruction::CallStr { target, .. }
             | Instruction::CallSlice { target, .. }
+            | Instruction::CallAggregate { target, .. }
             | Instruction::CallVoid { target, .. }
             | Instruction::TailCall { target, .. } => {
                 targets.push_back(target.clone());
@@ -182,6 +183,27 @@ mod tests {
                 .into_iter()
                 .collect::<Vec<_>>(),
             vec![CallTarget::imported(source, "answer")]
+        );
+    }
+
+    #[test]
+    fn collects_reachable_call_targets_from_aggregate_calls() {
+        let function = Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Void,
+            instructions: vec![Instruction::CallAggregate {
+                destination_slot: 0,
+                target: CallTarget::same_file("make"),
+                arguments: vec![],
+            }],
+        };
+
+        assert_eq!(
+            reachable_call_targets(&function)
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec![CallTarget::same_file("make")]
         );
     }
 

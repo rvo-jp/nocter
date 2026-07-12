@@ -216,6 +216,12 @@ pub(crate) enum Instruction {
         arguments: Vec<ScalarArgument>,
         failure_mode: FallibleFailureMode,
     },
+    #[allow(dead_code)]
+    CallAggregate {
+        destination_slot: usize,
+        target: CallTarget,
+        arguments: Vec<ScalarArgument>,
+    },
     CallVoid {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,

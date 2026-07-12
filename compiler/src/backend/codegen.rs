@@ -402,6 +402,18 @@ impl EntryEmitter {
                     return_type,
                 )?;
             }
+            Instruction::CallAggregate {
+                destination_slot,
+                target,
+                arguments,
+            } => {
+                self.emit_call_aggregate(
+                    *destination_slot,
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    frame,
+                )?;
+            }
             Instruction::CallVoid { target, arguments } => {
                 self.emit_call_void(FunctionSymbol::from_call_target(target), arguments, frame)?;
             }
@@ -910,6 +922,7 @@ const USIZE_BIT_WIDTH: u64 = 64;
 mod tests {
     use super::control_flow::branch_condition_for_true_comparison;
     use super::*;
+    use crate::abi::ValueLayout;
     use crate::ir::{
         BoolLocation, BoolValue, CallTarget, Function, I32ComparisonOperator, I32Location,
         I32Value, ScalarArgument, SliceLocation, SliceValue, StrLocation, StrValue, Type,
@@ -1560,6 +1573,40 @@ mod tests {
                 0xc0, 0x03, 0x5f, 0xd6, // ret
             ]
         );
+    }
+
+    #[test]
+    fn aggregate_call_passes_destination_slot_in_x8() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(24, 8),
+                    },
+                    Instruction::CallAggregate {
+                        destination_slot: 0,
+                        target: CallTarget::same_file("make"),
+                        arguments: vec![],
+                    },
+                    set_return_i32(0),
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "make".to_string(),
+                target: crate::ir::CallTarget::same_file("make".to_string()),
+                return_type: Type::Void,
+                instructions: vec![Instruction::Return],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0xe8, 0x03, 0x00, 0x91])); // add x8, sp, #0
     }
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
