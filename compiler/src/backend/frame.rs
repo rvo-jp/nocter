@@ -1,3 +1,4 @@
+use crate::abi::ValueLayout;
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolLocation, BoolValue, BorrowSource, FallibleFailureMode, Function, I32Location, I32Value,
@@ -17,6 +18,7 @@ pub(super) struct FrameLayout {
     saved_x30_offset: u32,
     scalar_spill_slots: Vec<ScalarSpillSlot>,
     argument_staging_slots: Vec<ArgumentStagingSlot>,
+    aggregate_slots: Vec<AggregateSlot>,
 }
 
 impl FrameLayout {
@@ -43,9 +45,31 @@ impl FrameLayout {
         &self.argument_staging_slots
     }
 
+    #[allow(dead_code)]
+    pub(super) fn aggregate_slots(&self) -> &[AggregateSlot] {
+        &self.aggregate_slots
+    }
+
+    #[allow(dead_code)]
+    pub(super) fn aggregate_slot(&self, slot_index: usize) -> Option<AggregateSlot> {
+        self.aggregate_slots
+            .iter()
+            .copied()
+            .find(|slot| slot.slot_index == slot_index)
+    }
+
     pub(super) fn for_slot_counts(
         scalar_spill_count: usize,
         argument_staging_count: usize,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        Self::for_slot_counts_with_aggregate_slots(scalar_spill_count, argument_staging_count, &[])
+    }
+
+    #[allow(dead_code)]
+    pub(super) fn for_slot_counts_with_aggregate_slots(
+        scalar_spill_count: usize,
+        argument_staging_count: usize,
+        aggregate_slot_requests: &[AggregateSlotRequest],
     ) -> Result<Self, Vec<Diagnostic>> {
         let scalar_spill_bytes = scalar_spill_count
             .checked_mul(SCALAR_SLOT_SIZE)
@@ -60,7 +84,12 @@ impl FrameLayout {
         let scalar_slot_bytes = scalar_spill_bytes
             .checked_add(argument_staging_bytes)
             .ok_or_else(|| frame_too_large_diagnostic("scalar slot bytes overflow host usize"))?;
-        let unaligned_frame_size = scalar_slot_bytes
+        let (aggregate_slots, aggregate_slot_bytes) =
+            aggregate_slots(aggregate_slot_requests, scalar_slot_bytes)?;
+        let slot_bytes = scalar_slot_bytes
+            .checked_add(aggregate_slot_bytes)
+            .ok_or_else(|| frame_too_large_diagnostic("frame slot bytes overflow host usize"))?;
+        let unaligned_frame_size = slot_bytes
             .checked_add(SAVED_X30_SLOT_SIZE)
             .ok_or_else(|| frame_too_large_diagnostic("frame size overflows host usize"))?;
         let frame_size = align_usize(unaligned_frame_size, STACK_ALIGNMENT);
@@ -115,6 +144,7 @@ impl FrameLayout {
             saved_x30_offset: saved_x30_offset as u32,
             scalar_spill_slots,
             argument_staging_slots,
+            aggregate_slots,
         })
     }
 }
@@ -148,6 +178,48 @@ impl ArgumentStagingSlot {
 
     pub(super) fn offset(self) -> u32 {
         self.offset
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct AggregateSlotRequest {
+    slot_index: usize,
+    layout: ValueLayout,
+}
+
+#[allow(dead_code)]
+impl AggregateSlotRequest {
+    pub(super) fn new(slot_index: usize, layout: ValueLayout) -> Self {
+        Self { slot_index, layout }
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct AggregateSlot {
+    slot_index: usize,
+    offset: u32,
+    size: u32,
+    align: u32,
+}
+
+#[allow(dead_code)]
+impl AggregateSlot {
+    pub(super) fn slot_index(self) -> usize {
+        self.slot_index
+    }
+
+    pub(super) fn offset(self) -> u32 {
+        self.offset
+    }
+
+    pub(super) fn size(self) -> u32 {
+        self.size
+    }
+
+    pub(super) fn align(self) -> u32 {
+        self.align
     }
 }
 
@@ -792,6 +864,57 @@ fn record_scalar_local(index: usize, highest_local_index: &mut Option<usize>) {
     *highest_local_index = Some(highest_local_index.map_or(index, |highest| highest.max(index)));
 }
 
+fn aggregate_slots(
+    requests: &[AggregateSlotRequest],
+    base_offset: usize,
+) -> Result<(Vec<AggregateSlot>, usize), Vec<Diagnostic>> {
+    let mut slots = Vec::with_capacity(requests.len());
+    let mut next_offset = base_offset;
+
+    for request in requests {
+        let size = usize::try_from(request.layout.size).map_err(|_| {
+            frame_too_large_diagnostic("aggregate slot size exceeds host usize range")
+        })?;
+        let align = usize::try_from(request.layout.align).map_err(|_| {
+            frame_too_large_diagnostic("aggregate slot alignment exceeds host usize range")
+        })?;
+        if align == 0 || !align.is_power_of_two() || align > STACK_ALIGNMENT {
+            return Err(frame_too_large_diagnostic(
+                "aggregate slot alignment is not supported by backend v0",
+            ));
+        }
+
+        let offset = align_usize(next_offset, align);
+        if offset > LDR_STR_X_SP_MAX_BYTE_OFFSET as usize {
+            return Err(frame_too_large_diagnostic(
+                "aggregate slot offset exceeds ARM64 x-register load/store immediate range",
+            ));
+        }
+        if size > 0 {
+            let end_offset = offset.checked_add(size - 1).ok_or_else(|| {
+                frame_too_large_diagnostic("aggregate slot end overflows host usize")
+            })?;
+            if end_offset > LDR_STR_X_SP_MAX_BYTE_OFFSET as usize {
+                return Err(frame_too_large_diagnostic(
+                    "aggregate slot end exceeds ARM64 x-register load/store immediate range",
+                ));
+            }
+        }
+
+        slots.push(AggregateSlot {
+            slot_index: request.slot_index,
+            offset: offset as u32,
+            size: size as u32,
+            align: align as u32,
+        });
+        next_offset = offset.checked_add(size).ok_or_else(|| {
+            frame_too_large_diagnostic("aggregate slot offset overflows host usize")
+        })?;
+    }
+
+    Ok((slots, next_offset - base_offset))
+}
+
 fn align_usize(value: usize, alignment: usize) -> usize {
     debug_assert!(alignment.is_power_of_two());
     (value + alignment - 1) & !(alignment - 1)
@@ -895,6 +1018,52 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn computes_aggregate_slots_above_argument_staging_with_alignment() {
+        let layout = FrameLayout::for_slot_counts_with_aggregate_slots(
+            1,
+            1,
+            &[
+                AggregateSlotRequest::new(0, ValueLayout::new(24, 8)),
+                AggregateSlotRequest::new(1, ValueLayout::new(16, 16)),
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(layout.frame_size(), 80);
+        assert_eq!(layout.saved_x30_offset(), 72);
+        assert_eq!(
+            layout.aggregate_slots(),
+            &[
+                AggregateSlot {
+                    slot_index: 0,
+                    offset: 16,
+                    size: 24,
+                    align: 8,
+                },
+                AggregateSlot {
+                    slot_index: 1,
+                    offset: 48,
+                    size: 16,
+                    align: 16,
+                },
+            ]
+        );
+        assert_eq!(layout.aggregate_slot(1).unwrap().offset(), 48);
+    }
+
+    #[test]
+    fn rejects_unsupported_aggregate_slot_alignment() {
+        let error = FrameLayout::for_slot_counts_with_aggregate_slots(
+            0,
+            0,
+            &[AggregateSlotRequest::new(0, ValueLayout::new(8, 32))],
+        )
+        .unwrap_err();
+
+        assert_eq!(error[0].code, "E9005");
     }
 
     #[test]

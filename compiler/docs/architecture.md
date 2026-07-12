@@ -212,7 +212,7 @@ It also lowers same-file and loaded imported non-generic calls returning `usize`
 Calls in the current buildable subset can receive static string literals, existing `&str` parameters or locals, or staged `&str` normal-call results as `&str` arguments, with each `&str` occupying two ABI argument words.
 Non-entry functions can directly return static string literals, `&str` parameters, `&str` locals, or tail calls to `&str` functions, with `&str` returns occupying `x0,x1`.
 The frame, spill/reload, and normal-call implementation order is tracked in `backend-v0.md`.
-`backend/frame.rs` owns the fixed v0 frame layout planner: frame size, saved `x30` offset, and scalar spill-slot offsets.
+`backend/frame.rs` owns the fixed v0 frame layout planner: frame size, saved `x30` offset, scalar spill-slot offsets, stack-backed argument staging offsets, and reserved aggregate stack slots for the next aggregate lowering step.
 Codegen emits framed prologue/epilogue sequences and normal calls with conservative scalar spill/reload plus stack-backed argument staging.
 Backend call patching and function offset registration use an internal `FunctionSymbol` key rather than raw function-name strings, so same-file calls and imported calls use distinct symbol identities before Mach-O branch patching resolves offsets.
 Addition and subtraction emission uses ARM64 flag-setting arithmetic and traps on signed overflow.

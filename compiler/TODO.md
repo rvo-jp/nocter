@@ -27,6 +27,11 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: reserve aggregate frame slots
+  - extends `backend/frame.rs` with optional aggregate stack slot requests based on ABI `ValueLayout`
+  - keeps existing scalar spill and argument staging placement unchanged
+  - places aggregate slots above argument staging and below saved `x30`, preserving requested alignment up to the v0 16-byte stack alignment
+  - leaves the new aggregate slot API disconnected from IR lowering until aggregate locals/returns are introduced
 - Current checkpoint: connect ABI layout to resolved source types
   - adds `abi_type_from_type_expr` for resolved primitives, raw pointers, borrows, `&str`, slices, aliases, and non-generic structs
   - keeps fixed arrays, optionals, fallible layouts, enums, traits, and generics explicitly unsupported at this ABI helper boundary
