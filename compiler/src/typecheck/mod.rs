@@ -9,6 +9,7 @@ mod diagnostics;
 mod entry;
 mod environments;
 mod expressions;
+mod facts;
 mod fallible;
 mod model;
 mod numeric;
@@ -28,6 +29,8 @@ use body::*;
 use entry::*;
 use returns::*;
 use sized::*;
+
+pub(crate) use facts::{TypecheckFacts, collect_typecheck_facts};
 
 pub fn check(
     sources: &SourceMap,

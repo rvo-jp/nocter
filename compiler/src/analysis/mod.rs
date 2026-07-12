@@ -4,7 +4,7 @@ use crate::ast::AstFile;
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{ImportSourceMap, ResolveOutput, resolve_compile_unit};
 use crate::source::SourceMap;
-use crate::typecheck::{check, check_module};
+use crate::typecheck::{TypecheckFacts, check, check_module, collect_typecheck_facts};
 use std::cmp::Ordering;
 
 #[derive(Debug, Clone)]
@@ -76,6 +76,7 @@ impl CompileUnitAnalysis {
 pub(crate) struct FileAnalysis {
     pub(crate) ast: AstFile,
     pub(crate) resolved: ResolveOutput,
+    pub(crate) typecheck_facts: TypecheckFacts,
     pub(crate) diagnostics: Vec<Diagnostic>,
     pub(crate) is_root: bool,
 }
@@ -98,10 +99,12 @@ pub(crate) fn analyze_compile_unit_with_entry(
             } else {
                 diagnostics.extend(check_module(sources, file, &resolved));
             }
+            let typecheck_facts = collect_typecheck_facts(file, &resolved);
 
             FileAnalysis {
                 ast: file.clone(),
                 resolved,
+                typecheck_facts,
                 diagnostics,
                 is_root,
             }
@@ -127,10 +130,12 @@ pub(crate) fn analyze_compile_unit_as_modules(
             let resolved = resolve_compile_unit(sources, file, &unit.files, &unit.import_sources);
             let mut diagnostics = resolved.diagnostics.clone();
             diagnostics.extend(check_module(sources, file, &resolved));
+            let typecheck_facts = collect_typecheck_facts(file, &resolved);
 
             FileAnalysis {
                 ast: file.clone(),
                 resolved,
+                typecheck_facts,
                 diagnostics,
                 is_root,
             }

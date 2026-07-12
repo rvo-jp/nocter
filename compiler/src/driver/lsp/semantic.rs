@@ -1,7 +1,8 @@
 use super::documents::OpenDocument;
 use super::protocol::{LspPosition, byte_offset_to_lsp_position};
+use crate::analysis::FileAnalysis;
 use crate::lexer::{Keyword, Token, TokenKind, lex};
-use crate::source::SourceMap;
+use crate::source::{ByteSpan, SourceMap};
 
 pub(super) const SEMANTIC_TOKEN_TYPES: [&str; 6] = [
     "function",
@@ -65,7 +66,33 @@ pub(super) struct ClassifiedIdentifier {
 }
 
 pub(super) fn semantic_tokens_for_document(document: &OpenDocument) -> Vec<usize> {
-    let semantic_tokens = classified_identifiers(document)
+    encode_classified_identifiers(document, classified_identifiers(document))
+}
+
+pub(super) fn semantic_tokens_for_file_analysis(
+    document: &OpenDocument,
+    file: &FileAnalysis,
+) -> Vec<usize> {
+    encode_classified_identifiers(
+        document,
+        classified_identifiers_for_file_analysis(document, file),
+    )
+}
+
+pub(super) fn classified_identifiers_for_file_analysis(
+    document: &OpenDocument,
+    file: &FileAnalysis,
+) -> Vec<ClassifiedIdentifier> {
+    let mut identifiers = classified_identifiers(document);
+    apply_typecheck_semantic_facts(&mut identifiers, file);
+    identifiers
+}
+
+fn encode_classified_identifiers(
+    document: &OpenDocument,
+    identifiers: Vec<ClassifiedIdentifier>,
+) -> Vec<usize> {
+    let semantic_tokens = identifiers
         .into_iter()
         .filter_map(|identifier| {
             let length = utf16_len(&document.text, identifier.start_byte, identifier.end_byte);
@@ -79,6 +106,27 @@ pub(super) fn semantic_tokens_for_document(document: &OpenDocument) -> Vec<usize
         .collect::<Vec<_>>();
 
     encode_semantic_tokens(semantic_tokens)
+}
+
+fn apply_typecheck_semantic_facts(identifiers: &mut [ClassifiedIdentifier], file: &FileAnalysis) {
+    for identifier in identifiers {
+        let span = ByteSpan::new(
+            file.ast.span.source,
+            identifier.start_byte,
+            identifier.end_byte,
+        );
+        if file.typecheck_facts.method_call_target(span).is_some() {
+            identifier.kind = SemanticTokenKind::Method;
+            continue;
+        }
+        if file
+            .typecheck_facts
+            .type_reference_spans()
+            .any(|reference_span| reference_span == span)
+        {
+            identifier.kind = SemanticTokenKind::Type;
+        }
+    }
 }
 
 pub(super) fn classified_identifiers(document: &OpenDocument) -> Vec<ClassifiedIdentifier> {
@@ -186,13 +234,6 @@ fn classify_identifier(
         return SemanticTokenKind::Property;
     }
 
-    let lexeme = text
-        .get(token.span.start..token.span.end)
-        .unwrap_or_default();
-    if is_builtin_type_lexeme(lexeme) {
-        return SemanticTokenKind::Type;
-    }
-
     if matches!(
         next.map(|token| token.kind),
         Some(TokenKind::Punctuation("("))
@@ -207,6 +248,9 @@ fn classify_identifier(
         return SemanticTokenKind::Parameter;
     }
 
+    let lexeme = text
+        .get(token.span.start..token.span.end)
+        .unwrap_or_default();
     if lexeme
         .chars()
         .next()
@@ -260,25 +304,6 @@ fn is_method_declaration_name(tokens: &[&Token], index: usize) -> bool {
         };
         cursor = next_cursor;
     }
-}
-
-fn is_builtin_type_lexeme(lexeme: &str) -> bool {
-    matches!(
-        lexeme,
-        "Self"
-            | "i8"
-            | "i16"
-            | "i32"
-            | "i64"
-            | "u8"
-            | "u16"
-            | "u32"
-            | "u64"
-            | "usize"
-            | "bool"
-            | "str"
-            | "error"
-    )
 }
 
 fn encode_semantic_tokens(tokens: Vec<SemanticToken>) -> Vec<usize> {

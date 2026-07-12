@@ -81,7 +81,7 @@ pub(super) fn hover_for_file_analysis(
 ) -> Option<Value> {
     let source_file = sources.get(file.ast.span.source)?;
     let text = source_file.text();
-    let symbols = hover_symbols_for_ast(text, &file.ast);
+    let symbols = hover_symbols_for_file_analysis(text, file);
     let documentation = documentation_for_hover_symbols(file.ast.span.source, text, &symbols);
 
     if let Some(hover) = module_path_hover_for_ast(sources, analysis, file, text, offset) {
@@ -717,6 +717,35 @@ fn hover_symbols_for_ast(text: &str, ast: &AstFile) -> Vec<HoverSymbol> {
     symbols
 }
 
+fn hover_symbols_for_file_analysis(text: &str, file: &FileAnalysis) -> Vec<HoverSymbol> {
+    let mut symbols = hover_symbols_for_ast(text, &file.ast);
+    apply_typecheck_hover_facts(text, file, &mut symbols);
+    symbols
+}
+
+fn apply_typecheck_hover_facts(text: &str, file: &FileAnalysis, symbols: &mut [HoverSymbol]) {
+    for symbol in symbols {
+        let Some(ty) = file.typecheck_facts.binding_type_label(symbol.name_span) else {
+            continue;
+        };
+        let Some(kind) = binding_hover_label_kind(&symbol.label) else {
+            continue;
+        };
+        let name = source_fragment(text, symbol.name_span);
+        symbol.label = format!("{kind} {name}: {ty}");
+    }
+}
+
+fn binding_hover_label_kind(label: &str) -> Option<&'static str> {
+    if label.starts_with("let ") {
+        Some("let")
+    } else if label.starts_with("var ") {
+        Some("var")
+    } else {
+        None
+    }
+}
+
 fn collect_item_hover_symbols(text: &str, item: &Item, symbols: &mut Vec<HoverSymbol>) {
     match item {
         Item::Use(_) | Item::Import(_) | Item::FromImport(_) => {}
@@ -1011,9 +1040,6 @@ fn push_binding_hover_symbol(text: &str, statement: &BindingStmt, symbols: &mut 
         .ty
         .as_ref()
         .map(|ty| format!(": {}", source_fragment(text, ty.span())))
-        .or_else(|| {
-            inferred_binding_type_label(text, &statement.initializer).map(|ty| format!(": {ty}"))
-        })
         .unwrap_or_default();
     push_hover_symbol(
         text,
@@ -1027,29 +1053,6 @@ fn push_binding_hover_symbol(text: &str, statement: &BindingStmt, symbols: &mut 
         ),
         symbols,
     );
-}
-
-fn inferred_binding_type_label(text: &str, expression: &Expr) -> Option<String> {
-    match expression {
-        Expr::IntegerLiteral(_) => Some("i32".to_string()),
-        Expr::BoolLiteral(_) => Some("bool".to_string()),
-        Expr::StringLiteral(_) => Some("&str".to_string()),
-        Expr::StructLiteral(expression) => {
-            Some(source_fragment(text, expression.ty.span()).to_string())
-        }
-        Expr::TypeConversion(expression) => {
-            Some(source_fragment(text, expression.ty.span()).to_string())
-        }
-        Expr::Group(expression) => inferred_binding_type_label(text, &expression.expression),
-        Expr::Force(expression) => inferred_binding_type_label(text, &expression.expression),
-        Expr::Unary(expression)
-            if expression.operator == crate::ast::UnaryOperator::Negate
-                && matches!(expression.operand.as_ref(), Expr::IntegerLiteral(_)) =>
-        {
-            Some("i32".to_string())
-        }
-        _ => None,
-    }
 }
 
 fn collect_expression_hover_symbols(text: &str, expression: &Expr, symbols: &mut Vec<HoverSymbol>) {
@@ -1291,7 +1294,7 @@ fn resolved_local_symbol_hover_contents(
         .find(|file| file.ast.span.source == symbol.name_span.source)?;
     let source_file = sources.get(file.ast.span.source)?;
     let text = source_file.text();
-    let symbols = hover_symbols_for_ast(text, &file.ast);
+    let symbols = hover_symbols_for_file_analysis(text, file);
     let documentation = documentation_for_hover_symbols(file.ast.span.source, text, &symbols);
 
     Some(local_symbol_hover_contents(
@@ -1324,7 +1327,7 @@ fn resolved_symbol_hover_contents(
         .find(|file| file.ast.span.source == symbol.declaration_span.source)?;
     let source_file = sources.get(file.ast.span.source)?;
     let text = source_file.text();
-    let symbols = hover_symbols_for_ast(text, &file.ast);
+    let symbols = hover_symbols_for_file_analysis(text, file);
     let hover_symbol = symbols
         .iter()
         .find(|candidate| candidate.name_span == symbol.declaration_span)

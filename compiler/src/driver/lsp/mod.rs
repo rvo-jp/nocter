@@ -42,8 +42,11 @@ use semantic::SEMANTIC_DECLARATION_MODIFIER;
 #[cfg(test)]
 use semantic::SemanticTokenKind;
 #[cfg(test)]
-use semantic::classified_identifiers;
-use semantic::{SEMANTIC_TOKEN_MODIFIERS, SEMANTIC_TOKEN_TYPES, semantic_tokens_for_document};
+use semantic::classified_identifiers_for_file_analysis;
+use semantic::{
+    SEMANTIC_TOKEN_MODIFIERS, SEMANTIC_TOKEN_TYPES, semantic_tokens_for_document,
+    semantic_tokens_for_file_analysis,
+};
 use symbols::document_symbols_for_document;
 #[cfg(test)]
 use symbols::{
@@ -235,8 +238,10 @@ impl LspServer {
 
     fn semantic_tokens_response(&self, id: Value, params: Option<&Value>) -> Value {
         let data = document_uri_from_params(params)
-            .and_then(|uri| self.documents.get(&uri))
-            .map(semantic_tokens_for_document)
+            .and_then(|uri| {
+                self.workspace_semantic_tokens_for_uri(&uri)
+                    .or_else(|| self.documents.get(&uri).map(semantic_tokens_for_document))
+            })
             .unwrap_or_default();
         response(id, json!({ "data": data }))
     }
@@ -299,6 +304,14 @@ impl LspServer {
         let file = workspace.root_file()?;
 
         hover_for_file_analysis(&workspace.sources, &workspace.analysis, file, root_offset)
+    }
+
+    fn workspace_semantic_tokens_for_uri(&self, uri: &str) -> Option<Vec<usize>> {
+        let document = self.documents.get(uri)?;
+        let workspace = workspace_analysis_for_uri(uri, &self.documents)?;
+        let file = workspace.root_file()?;
+
+        Some(semantic_tokens_for_file_analysis(document, file))
     }
 
     fn workspace_definition_for_uri(&self, uri: &str, params: Option<&Value>) -> Option<Value> {
@@ -478,10 +491,19 @@ mod tests {
 
     #[test]
     fn classifies_builtin_types_and_methods_for_semantic_tokens() {
-        let uri = "file:///tmp/nocter-semantic-methods.nct".to_string();
-        let text = "struct File {\n    fd: i32\n}\n\nimpl File {\n    method (file: Self).read(buffer: &+[u8]): i32 {\n        return 0\n    }\n}\n\nfunc main(path: &str): i32 {\n    var file = File.open(path)\n    return file.read(&+[u8; 1])\n}\n";
-        let document = open_document(uri, Some(1), text.to_string());
-        let identifiers = classified_identifiers(&document);
+        let project = TempProject::new("lsp-semantic-methods");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        let text = "struct File {\n    fd: i32\n    byte: u8\n}\n\nimpl File {\n    method (file: Self).read(): i32 {\n        return 0\n    }\n}\n\nfunc main(path: &str): i32 {\n    var file = File{ fd: 0, byte: 0 as u8 }\n    return file.read()\n}\n";
+        let app = project.write_source("app.nct", text);
+        let uri = file_uri(&app);
+        let document = open_document(uri.clone(), Some(1), text.to_string());
+        let documents = HashMap::from([(uri.clone(), document)]);
+        let workspace =
+            workspace_analysis_for_uri(&uri, &documents).expect("expected workspace analysis");
+        let file = workspace.root_file().expect("expected analyzed file");
+        let identifiers =
+            classified_identifiers_for_file_analysis(documents.get(&uri).unwrap(), file);
 
         for name in ["i32", "Self", "u8", "str"] {
             assert!(
@@ -546,12 +568,13 @@ mod tests {
 
     #[test]
     fn returns_hover_for_local_reference() {
-        let uri = "file:///tmp/nocter-hover-local-reference.nct".to_string();
-        let document = open_document(
-            uri.clone(),
-            Some(1),
-            "func main(path: &str): i32 {\n    let code = 0\n    return code\n}\n".to_string(),
-        );
+        let project = TempProject::new("lsp-hover-local-reference");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        let text = "func main(path: &str): i32 {\n    let code = 0\n    return code\n}\n";
+        let app = project.write_source("app.nct", text);
+        let uri = file_uri(&app);
+        let document = open_document(uri.clone(), Some(1), text.to_string());
         let server = LspServer {
             documents: HashMap::from([(uri.clone(), document)]),
             published_diagnostic_uris: HashSet::new(),
@@ -740,12 +763,13 @@ mod tests {
 
     #[test]
     fn returns_inferred_hover_for_integer_binding() {
-        let uri = "file:///tmp/nocter-hover-inferred-binding.nct".to_string();
-        let document = open_document(
-            uri.clone(),
-            Some(1),
-            "func main(): i32 {\n    var count = 0\n    return count\n}\n".to_string(),
-        );
+        let project = TempProject::new("lsp-hover-inferred-binding");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        let text = "func main(): i32 {\n    var count = 0\n    return count\n}\n";
+        let app = project.write_source("app.nct", text);
+        let uri = file_uri(&app);
+        let document = open_document(uri.clone(), Some(1), text.to_string());
         let server = LspServer {
             documents: HashMap::from([(uri.clone(), document)]),
             published_diagnostic_uris: HashSet::new(),
@@ -1147,6 +1171,42 @@ mod tests {
         assert_eq!(response["result"]["range"]["start"]["line"], json!(0));
         assert_eq!(response["result"]["range"]["start"]["character"], json!(11));
         assert_eq!(response["result"]["range"]["end"]["character"], json!(17));
+    }
+
+    #[test]
+    fn returns_definition_for_method_call() {
+        let project = TempProject::new("lsp-definition-method-call");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        let text = "struct File {\n    fd: i32\n}\n\nimpl File {\n    method (file: Self).read(): i32 {\n        return 0\n    }\n}\n\nfunc main(): i32 {\n    let file = File{ fd: 1 }\n    return file.read()\n}\n";
+        let app = project.write_source("app.nct", text);
+        let app_uri = file_uri(&app);
+        let server = LspServer {
+            documents: HashMap::from([(
+                app_uri.clone(),
+                open_document(app_uri.clone(), Some(1), text.to_string()),
+            )]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.definition_response(
+            json!(9),
+            Some(&json!({
+                "textDocument": {
+                    "uri": app_uri
+                },
+                "position": {
+                    "line": 12,
+                    "character": 17
+                }
+            })),
+        );
+
+        assert_eq!(response["result"]["range"]["start"]["line"], json!(5));
+        assert_eq!(response["result"]["range"]["start"]["character"], json!(24));
+        assert_eq!(response["result"]["range"]["end"]["character"], json!(28));
     }
 
     #[test]
