@@ -1,5 +1,9 @@
 //! Nocter ABI lowering and layout rules.
 
+use crate::ast::TypeExpr;
+use crate::resolve::{ResolveOutput, TypeSymbol, TypeSymbolKind};
+use std::collections::HashSet;
+
 pub const ABI_WORD_SIZE: u64 = 8;
 pub const DIRECT_VALUE_MAX_SIZE: u64 = 16;
 
@@ -76,6 +80,21 @@ pub enum LayoutError {
     InvalidAlignment(u64),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AbiTypeError {
+    Layout(LayoutError),
+    RecursiveType(String),
+    UnsupportedType(String),
+    UnresolvedType(String),
+    UnsizedValue(String),
+}
+
+impl From<LayoutError> for AbiTypeError {
+    fn from(error: LayoutError) -> Self {
+        Self::Layout(error)
+    }
+}
+
 pub fn layout_of(ty: &AbiType) -> Result<ValueLayout, LayoutError> {
     match ty {
         AbiType::Bool | AbiType::U8 | AbiType::I8 => Ok(ValueLayout::new(1, 1)),
@@ -133,6 +152,17 @@ pub fn classify_value(ty: &AbiType) -> Result<ValueClassification, LayoutError> 
     }
 }
 
+pub fn abi_type_from_type_expr(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+) -> Result<AbiType, AbiTypeError> {
+    match abi_type_kind_from_type_expr(ty, resolved, &mut HashSet::new())? {
+        AbiTypeKind::Value(ty) => Ok(ty),
+        AbiTypeKind::UnsizedStr => Err(AbiTypeError::UnsizedValue("str".to_string())),
+        AbiTypeKind::UnsizedArray => Err(AbiTypeError::UnsizedValue(type_expr_display_lossy(ty))),
+    }
+}
+
 fn align_to(value: u64, align: u64) -> Result<u64, LayoutError> {
     if align == 0 || !align.is_power_of_two() {
         return Err(LayoutError::InvalidAlignment(align));
@@ -145,12 +175,155 @@ fn align_to(value: u64, align: u64) -> Result<u64, LayoutError> {
         .ok_or(LayoutError::SizeOverflow)
 }
 
+enum AbiTypeKind {
+    Value(AbiType),
+    UnsizedStr,
+    UnsizedArray,
+}
+
+fn abi_type_kind_from_type_expr(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> Result<AbiTypeKind, AbiTypeError> {
+    match ty {
+        TypeExpr::Reference(reference) => match reference.name.as_str() {
+            "bool" => Ok(AbiTypeKind::Value(AbiType::Bool)),
+            "u8" => Ok(AbiTypeKind::Value(AbiType::U8)),
+            "i8" => Ok(AbiTypeKind::Value(AbiType::I8)),
+            "u16" => Ok(AbiTypeKind::Value(AbiType::U16)),
+            "i16" => Ok(AbiTypeKind::Value(AbiType::I16)),
+            "u32" => Ok(AbiTypeKind::Value(AbiType::U32)),
+            "i32" => Ok(AbiTypeKind::Value(AbiType::I32)),
+            "u64" => Ok(AbiTypeKind::Value(AbiType::U64)),
+            "i64" => Ok(AbiTypeKind::Value(AbiType::I64)),
+            "usize" => Ok(AbiTypeKind::Value(AbiType::Usize)),
+            "isize" => Ok(AbiTypeKind::Value(AbiType::Isize)),
+            "str" => Ok(AbiTypeKind::UnsizedStr),
+            "void" | "never" | "error" => {
+                Err(AbiTypeError::UnsupportedType(reference.name.clone()))
+            }
+            name => {
+                let Some(symbol) = resolved.type_symbol_by_name(name) else {
+                    return Err(AbiTypeError::UnresolvedType(name.to_string()));
+                };
+                abi_type_kind_from_symbol(symbol, resolved, resolving_names)
+            }
+        },
+        TypeExpr::Generic(generic) => Err(AbiTypeError::UnsupportedType(format!(
+            "{}<...>",
+            generic.name
+        ))),
+        TypeExpr::Pointer(_) => Ok(AbiTypeKind::Value(AbiType::Pointer)),
+        TypeExpr::Borrow(borrow) => {
+            match abi_type_kind_from_type_expr(&borrow.inner, resolved, resolving_names)? {
+                AbiTypeKind::UnsizedStr => Ok(AbiTypeKind::Value(AbiType::StrView)),
+                AbiTypeKind::UnsizedArray => Ok(AbiTypeKind::Value(AbiType::SliceView)),
+                AbiTypeKind::Value(_) => Ok(AbiTypeKind::Value(AbiType::Borrow)),
+            }
+        }
+        TypeExpr::View(_) => Ok(AbiTypeKind::UnsizedArray),
+        TypeExpr::Array(array) => Err(AbiTypeError::UnsupportedType(format!(
+            "[{}; {}]",
+            type_expr_display_lossy(&array.element),
+            array.length.value
+        ))),
+        TypeExpr::Optional(optional) => Err(AbiTypeError::UnsupportedType(format!(
+            "{}?",
+            type_expr_display_lossy(&optional.inner)
+        ))),
+        TypeExpr::Fallible(fallible) => Err(AbiTypeError::UnsupportedType(format!(
+            "{}!",
+            type_expr_display_lossy(&fallible.success)
+        ))),
+    }
+}
+
+fn abi_type_kind_from_symbol(
+    symbol: &TypeSymbol,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> Result<AbiTypeKind, AbiTypeError> {
+    if !resolving_names.insert(symbol.canonical_name.clone()) {
+        return Err(AbiTypeError::RecursiveType(symbol.canonical_name.clone()));
+    }
+
+    let result = (|| match symbol.kind {
+        TypeSymbolKind::Alias => {
+            if let Some(target) = &symbol.alias_target {
+                abi_type_kind_from_type_expr(target, resolved, resolving_names)
+            } else {
+                Err(AbiTypeError::UnsupportedType(symbol.canonical_name.clone()))
+            }
+        }
+        TypeSymbolKind::Struct => {
+            let mut fields = Vec::with_capacity(symbol.fields.len());
+            for field in &symbol.fields {
+                let ty = match abi_type_kind_from_type_expr(&field.ty, resolved, resolving_names)? {
+                    AbiTypeKind::Value(ty) => ty,
+                    AbiTypeKind::UnsizedStr => {
+                        return Err(AbiTypeError::UnsizedValue("str".to_string()));
+                    }
+                    AbiTypeKind::UnsizedArray => {
+                        return Err(AbiTypeError::UnsizedValue(type_expr_display_lossy(
+                            &field.ty,
+                        )));
+                    }
+                };
+                fields.push(AbiField::new(field.name.clone(), ty));
+            }
+            Ok(AbiTypeKind::Value(AbiType::Struct(fields)))
+        }
+        TypeSymbolKind::Enum | TypeSymbolKind::Trait => {
+            Err(AbiTypeError::UnsupportedType(symbol.canonical_name.clone()))
+        }
+    })();
+
+    resolving_names.remove(&symbol.canonical_name);
+    result
+}
+
+fn type_expr_display_lossy(ty: &TypeExpr) -> String {
+    match ty {
+        TypeExpr::Reference(reference) => reference.name.clone(),
+        TypeExpr::Generic(generic) => {
+            let arguments = generic
+                .arguments
+                .iter()
+                .map(type_expr_display_lossy)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{}<{arguments}>", generic.name)
+        }
+        TypeExpr::Pointer(pointer) => format!("*{}", type_expr_display_lossy(&pointer.inner)),
+        TypeExpr::Borrow(borrow) if borrow.is_readwrite => {
+            format!("&+{}", type_expr_display_lossy(&borrow.inner))
+        }
+        TypeExpr::Borrow(borrow) => format!("&{}", type_expr_display_lossy(&borrow.inner)),
+        TypeExpr::View(view) => format!("[{}]", type_expr_display_lossy(&view.element)),
+        TypeExpr::Array(array) => {
+            format!(
+                "[{}; {}]",
+                type_expr_display_lossy(&array.element),
+                array.length.value
+            )
+        }
+        TypeExpr::Optional(optional) => format!("{}?", type_expr_display_lossy(&optional.inner)),
+        TypeExpr::Fallible(fallible) => format!("{}!", type_expr_display_lossy(&fallible.success)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        AbiField, AbiType, ValueClassification, ValueLayout, classify_value, layout_of,
-        layout_struct,
+        AbiField, AbiType, ValueClassification, ValueLayout, abi_type_from_type_expr,
+        classify_value, layout_of, layout_struct,
     };
+    use crate::ast::Item;
+    use crate::lexer::lex;
+    use crate::parser::parse;
+    use crate::resolve::resolve;
+    use crate::source::SourceMap;
 
     #[test]
     fn lays_out_scalar_and_view_values() {
@@ -210,5 +383,74 @@ mod tests {
             classify_value(&string_like).unwrap(),
             ValueClassification::Indirect
         );
+    }
+
+    #[test]
+    fn maps_resolved_struct_type_expr_to_abi_struct_layout() {
+        let (ast, resolved) = parse_and_resolve(
+            r#"struct Text {
+    ptr: *u8
+    len: usize
+    capacity: usize
+}
+
+func make(): Text {
+}
+"#,
+        );
+        let return_type = ast
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(function) if function.name == "make" => Some(&function.return_type),
+                _ => None,
+            })
+            .expect("expected make function");
+
+        let ty = abi_type_from_type_expr(return_type, &resolved).unwrap();
+
+        assert_eq!(layout_of(&ty).unwrap(), ValueLayout::new(24, 8));
+        assert_eq!(classify_value(&ty).unwrap(), ValueClassification::Indirect);
+    }
+
+    #[test]
+    fn maps_borrow_of_str_alias_to_str_view_layout() {
+        let (ast, resolved) = parse_and_resolve(
+            r#"type Text = str
+
+func view(text: &Text): &Text {
+}
+"#,
+        );
+        let return_type = ast
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(function) if function.name == "view" => Some(&function.return_type),
+                _ => None,
+            })
+            .expect("expected view function");
+
+        let ty = abi_type_from_type_expr(return_type, &resolved).unwrap();
+
+        assert_eq!(ty, AbiType::StrView);
+        assert_eq!(layout_of(&ty).unwrap(), ValueLayout::new(16, 8));
+    }
+
+    fn parse_and_resolve(text: &str) -> (crate::ast::AstFile, crate::resolve::ResolveOutput) {
+        let mut sources = SourceMap::new();
+        let source = sources.add_source("app.nct", None, text);
+        let lexed = lex(&sources, source);
+        assert!(lexed.diagnostics.is_empty(), "{:?}", lexed.diagnostics);
+        let parsed = parse(&sources, source, &lexed.tokens);
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let ast = parsed.ast.unwrap();
+        let resolved = resolve(&sources, &ast);
+        assert!(
+            resolved.diagnostics.is_empty(),
+            "{:?}",
+            resolved.diagnostics
+        );
+        (ast, resolved)
     }
 }

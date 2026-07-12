@@ -20,13 +20,18 @@ Adopted user decisions:
 Recommended next implementation order:
 
 1. Follow `compiler/docs/interpolation-lowering.md`: keep bare interpolation lowering disabled until an explicit allocator source is designed, and first make explicit `std/string` construction plus `std/fmt.append_*` calls buildable.
-2. Connect the new `abi` layout/classification helper to resolved Nocter types, starting with primitives, raw pointers, borrows, `&str`, slices, and non-generic structs.
+2. Use the resolved-type ABI layout/classification helper from IR/backend planning before adding aggregate storage code.
 3. Add only the backend prerequisites needed by the explicit string path: aggregate `String`/`Allocator`/`RawBuffer` storage, aggregate stack-backed `var`, and owned aggregate return/move handling. Loaded imported scalar calls, scalar/view arguments, local scalar borrow arguments, scalar/view `var` plus simple assignment, and fallible propagation for the current scalar/view/void call subset are already buildable.
 4. Lower interpolated strings only after the explicit standard-library construction path builds.
 5. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
+- Current checkpoint: connect ABI layout to resolved source types
+  - adds `abi_type_from_type_expr` for resolved primitives, raw pointers, borrows, `&str`, slices, aliases, and non-generic structs
+  - keeps fixed arrays, optionals, fallible layouts, enums, traits, and generics explicitly unsupported at this ABI helper boundary
+  - verifies resolved `ptr`/`len`/`capacity` structs classify as 24-byte indirect values
+  - verifies aliases to `str` under borrow lower to the two-word `&str` ABI view
 - Current checkpoint: add ABI layout foundation
   - adds initial `abi` helpers for scalar, pointer, borrow, `&str`, slice, and struct value layouts
   - classifies values as direct when they are at most 16 bytes and indirect when larger, matching the Nocter ABI v0 rule
