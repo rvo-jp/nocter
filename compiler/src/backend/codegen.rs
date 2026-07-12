@@ -428,6 +428,21 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
+            Instruction::CallFallibleAggregate {
+                destination,
+                target,
+                arguments,
+                failure_mode,
+            } => {
+                self.emit_call_fallible_aggregate(
+                    *destination,
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    frame,
+                    failure_mode,
+                    return_type,
+                )?;
+            }
             Instruction::CallVoid { target, arguments } => {
                 self.emit_call_void(FunctionSymbol::from_call_target(target), arguments, frame)?;
             }
@@ -568,8 +583,9 @@ impl EntryEmitter {
                 self.encoder.emit_mov_x(XReg::X2, XReg::X1);
                 self.encoder.emit_mov_x(XReg::X1, XReg::X0);
             }
+            Type::Aggregate { .. } => {}
             Type::Void => {}
-            Type::Aggregate { .. } | Type::Borrow { .. } | Type::Never | Type::Fallible(_) => {
+            Type::Borrow { .. } | Type::Never | Type::Fallible(_) => {
                 return Err(vec![Diagnostic::error(
                     "E9002",
                     "invalid fallible success payload type for codegen",
@@ -938,9 +954,10 @@ mod tests {
     use super::*;
     use crate::abi::ValueLayout;
     use crate::ir::{
-        AggregateLocation, BoolLocation, BoolValue, CallTarget, Function, I32ComparisonOperator,
-        I32Location, I32Value, ScalarArgument, SliceLocation, SliceValue, StrLocation, StrValue,
-        Type, U8Location, U8Value, UsizeLocation, UsizeValue,
+        AggregateLocation, BoolLocation, BoolValue, BorrowArgument, BorrowSource, CallTarget,
+        FallibleFailureMode, Function, I32ComparisonOperator, I32Location, I32Value,
+        ScalarArgument, SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location,
+        U8Value, UsizeLocation, UsizeValue,
     };
     use crate::source::SourceId;
     use crate::target::arm64::BranchCondition;
@@ -1731,6 +1748,100 @@ mod tests {
         assert!(contains_instruction(&code.text, [0xf0, 0x03, 0x40, 0xf9])); // ldr x16, [sp, #0]
         assert!(contains_instruction(&code.text, [0x10, 0x01, 0x00, 0xf9])); // str x16, [x8, #0]
         assert!(contains_instruction(&code.text, [0x10, 0x09, 0x00, 0xf9])); // str x16, [x8, #16]
+    }
+
+    #[test]
+    fn aggregate_borrow_argument_passes_slot_address() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(24, 8),
+                    },
+                    Instruction::CallVoid {
+                        target: CallTarget::same_file("touch"),
+                        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                            source: BorrowSource::AggregateSlot(0),
+                        })],
+                    },
+                    set_return_i32(0),
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "touch".to_string(),
+                target: crate::ir::CallTarget::same_file("touch".to_string()),
+                return_type: Type::Void,
+                instructions: vec![Instruction::Return],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0xf0, 0x23, 0x00, 0x91])); // add x16, sp, #8
+        assert!(contains_instruction(&code.text, [0xf0, 0x03, 0x00, 0xf9])); // str x16, [sp, #0]
+        assert!(contains_instruction(&code.text, [0xe0, 0x03, 0x40, 0xf9])); // ldr x0, [sp, #0]
+    }
+
+    #[test]
+    fn fallible_aggregate_call_passes_destination_slot_and_checks_status() {
+        let aggregate = Type::Aggregate {
+            layout: ValueLayout::new(24, 8),
+        };
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "forward".to_string(),
+                target: crate::ir::CallTarget::same_file("forward".to_string()),
+                return_type: Type::Fallible(Box::new(aggregate.clone())),
+                instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(24, 8),
+                    },
+                    Instruction::CallFallibleAggregate {
+                        destination: AggregateLocation::Slot(0),
+                        target: CallTarget::same_file("make"),
+                        arguments: vec![],
+                        failure_mode: FallibleFailureMode::Propagate,
+                    },
+                    Instruction::CopyAggregate {
+                        destination: AggregateLocation::Return,
+                        source: AggregateLocation::Slot(0),
+                        layout: ValueLayout::new(24, 8),
+                    },
+                    Instruction::ReturnFallibleSuccess,
+                ],
+            },
+            Function {
+                name: "make".to_string(),
+                target: crate::ir::CallTarget::same_file("make".to_string()),
+                return_type: Type::Fallible(Box::new(aggregate)),
+                instructions: vec![
+                    Instruction::StoreAggregateUsize {
+                        destination: AggregateLocation::Return,
+                        offset: 0,
+                        value: UsizeValue::Const(7),
+                    },
+                    Instruction::ReturnFallibleSuccess,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0xe8, 0x03, 0x00, 0x91])); // add x8, sp, #0
+        assert!(contains_instruction(&code.text, [0x1f, 0x00, 0x1f, 0xeb])); // cmp x0, xzr
+        assert!(contains_instruction(&code.text, [0x10, 0x01, 0x00, 0xf9])); // str x16, [x8, #0]
     }
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

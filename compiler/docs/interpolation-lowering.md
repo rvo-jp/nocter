@@ -53,12 +53,16 @@ Already buildable in the narrow scalar subset:
 - fallible propagation for non-entry functions and ordinary calls returning `T!` in the current scalar/view/void call subset
 - stack-backed scalar/view `var` bindings and simple whole-binding `=` assignment
 - local scalar borrow argument lowering for `&T` and `&+T` normal-call parameters
+- ABI-indirect aggregate call-result `let`/`var` slots, including propagated fallible aggregate calls
+- local aggregate slot borrow argument lowering for `&T` and `&+T` normal-call parameters
+- return-by-name from reserved aggregate slots
 
 Still required before explicit string construction can build:
 
-- aggregate storage for `String`, `Allocator`, and `RawBuffer`
-- aggregate stack-backed `var` bindings and reassignment for mutable owned values
-- explicit move/return handling for owned aggregate results
+- aggregate storage not initialized by ABI-indirect call results, including struct-literal local slots
+- direct aggregate value support for 16-byte-or-smaller standard-library values, or an explicit std surface that avoids requiring those values in the initial buildable path
+- aggregate reassignment for mutable owned values
+- explicit source-level move/return handling for owned aggregate results
 
 ## Open Language Decision
 

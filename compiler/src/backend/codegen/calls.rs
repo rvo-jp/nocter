@@ -118,6 +118,35 @@ impl EntryEmitter {
         Ok(())
     }
 
+    pub(super) fn emit_call_fallible_aggregate(
+        &mut self,
+        destination: AggregateLocation,
+        function: FunctionSymbol,
+        arguments: &[ScalarArgument],
+        frame: Option<&FrameLayout>,
+        failure_mode: &FallibleFailureMode,
+        return_type: &Type,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "fallible aggregate call emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_staged_scalar_arguments(arguments, frame)?;
+        self.emit_aggregate_destination_to_x8(destination, frame)?;
+
+        self.emit_call(function);
+        self.encoder.emit_cmp_x_zero(XReg::X0);
+        let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+        self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
+        self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
+        self.emit_scalar_reloads(frame)?;
+        Ok(())
+    }
+
     pub(super) fn emit_call_i32(
         &mut self,
         destination: I32Location,
@@ -476,8 +505,7 @@ impl EntryEmitter {
                 }
                 ScalarArgument::Borrow(argument) => {
                     let slot = staging_slot(frame, abi_word_index)?;
-                    let source_offset = borrow_source_spill_offset(argument.source, frame)?;
-                    self.encoder.emit_add_x_sp_imm(XReg::X16, source_offset);
+                    self.emit_borrow_source_address_to_x(argument.source, XReg::X16, frame)?;
                     self.encoder.emit_str_x_sp(XReg::X16, slot.offset());
                     abi_word_index += 1;
                 }
@@ -775,37 +803,47 @@ fn staging_slot(
     Ok(slot)
 }
 
-fn borrow_source_spill_offset(
-    source: BorrowSource,
-    frame: &FrameLayout,
-) -> Result<u32, Vec<Diagnostic>> {
-    let Some(local_index) = borrow_source_local_index(source) else {
-        return Err(vec![Diagnostic::error(
-            "E9005",
-            "borrow argument emission requires a scalar local source",
-        )]);
-    };
+impl EntryEmitter {
+    fn emit_borrow_source_address_to_x(
+        &mut self,
+        source: BorrowSource,
+        register: XReg,
+        frame: &FrameLayout,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let offset = match source {
+            BorrowSource::I32(I32Location::Local(index))
+            | BorrowSource::U8(U8Location::Local(index))
+            | BorrowSource::Usize(UsizeLocation::Local(index))
+            | BorrowSource::Bool(BoolLocation::Local(index)) => frame
+                .scalar_spill_slot(index)
+                .map(|slot| slot.offset())
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9005",
+                        format!("borrow argument source local {index} has no spill slot"),
+                    )]
+                })?,
+            BorrowSource::AggregateSlot(slot_index) => frame
+                .aggregate_slot(slot_index)
+                .map(|slot| slot.offset())
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9005",
+                        format!("borrow argument aggregate slot {slot_index} is not reserved"),
+                    )]
+                })?,
+            BorrowSource::I32(I32Location::Return | I32Location::Parameter(_))
+            | BorrowSource::U8(U8Location::Return | U8Location::Parameter(_))
+            | BorrowSource::Usize(UsizeLocation::Return | UsizeLocation::Parameter(_))
+            | BorrowSource::Bool(BoolLocation::Return | BoolLocation::Parameter(_)) => {
+                return Err(vec![Diagnostic::error(
+                    "E9005",
+                    "borrow argument emission requires a local source",
+                )]);
+            }
+        };
 
-    frame
-        .scalar_spill_slot(local_index)
-        .map(|slot| slot.offset())
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "E9005",
-                format!("borrow argument source local {local_index} has no spill slot"),
-            )]
-        })
-}
-
-fn borrow_source_local_index(source: BorrowSource) -> Option<usize> {
-    match source {
-        BorrowSource::I32(I32Location::Local(index)) => Some(index),
-        BorrowSource::U8(U8Location::Local(index)) => Some(index),
-        BorrowSource::Usize(UsizeLocation::Local(index)) => Some(index),
-        BorrowSource::Bool(BoolLocation::Local(index)) => Some(index),
-        BorrowSource::I32(I32Location::Return | I32Location::Parameter(_))
-        | BorrowSource::U8(U8Location::Return | U8Location::Parameter(_))
-        | BorrowSource::Usize(UsizeLocation::Return | UsizeLocation::Parameter(_))
-        | BorrowSource::Bool(BoolLocation::Return | BoolLocation::Parameter(_)) => None,
+        self.encoder.emit_add_x_sp_imm(register, offset);
+        Ok(())
     }
 }

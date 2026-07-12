@@ -341,6 +341,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::CallSlice { .. }
             | Instruction::CallFallibleSlice { .. }
             | Instruction::CallAggregate { .. }
+            | Instruction::CallFallibleAggregate { .. }
             | Instruction::CallVoid { .. }
             | Instruction::CallFallibleVoid { .. },
         )

@@ -561,6 +561,19 @@ fn lower_borrow_argument(
                 ));
             }
         },
+        Type::Aggregate {
+            layout: expected_layout,
+        } => match context.aggregate_slot(&identifier.name) {
+            Some((slot_index, layout)) if layout == *expected_layout => {
+                BorrowSource::AggregateSlot(slot_index)
+            }
+            _ => {
+                return Err(unsupported_borrow_argument_diagnostic(
+                    callee_name,
+                    parameter_type,
+                ));
+            }
+        },
         _ => {
             return Err(unsupported_borrow_argument_diagnostic(
                 callee_name,
@@ -1038,6 +1051,7 @@ fn describe_type(ty: &Type) -> &'static str {
             Type::U8 => "&u8",
             Type::Usize => "&usize",
             Type::Bool => "&bool",
+            Type::Aggregate { .. } => "&aggregate",
             _ => "borrow",
         },
         Type::Borrow {
@@ -1048,6 +1062,7 @@ fn describe_type(ty: &Type) -> &'static str {
             Type::U8 => "&+u8",
             Type::Usize => "&+usize",
             Type::Bool => "&+bool",
+            Type::Aggregate { .. } => "&+aggregate",
             _ => "borrow",
         },
         Type::Void => "void",
@@ -1071,6 +1086,7 @@ fn describe_type(ty: &Type) -> &'static str {
                 Type::U8 => "&u8!",
                 Type::Usize => "&usize!",
                 Type::Bool => "&bool!",
+                Type::Aggregate { .. } => "&aggregate!",
                 _ => "borrow!",
             },
             Type::Borrow {
@@ -1081,6 +1097,7 @@ fn describe_type(ty: &Type) -> &'static str {
                 Type::U8 => "&+u8!",
                 Type::Usize => "&+usize!",
                 Type::Bool => "&+bool!",
+                Type::Aggregate { .. } => "&+aggregate!",
                 _ => "borrow!",
             },
             Type::Void => "void!",

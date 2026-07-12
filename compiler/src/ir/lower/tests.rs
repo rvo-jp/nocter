@@ -1115,11 +1115,11 @@ func forward(): Text {
 }
 
 #[test]
-fn reports_unsupported_mutable_indirect_aggregate_call_binding() {
+fn lowers_readwrite_indirect_aggregate_call_binding_borrow_argument() {
     let aggregate_type = Type::Aggregate {
         layout: ValueLayout::new(24, 8),
     };
-    let diagnostics = lower_named_function_with_signatures(
+    let function = lower_named_function_with_signatures(
         r#"struct Text {
     start: usize
     len: usize
@@ -1134,20 +1134,182 @@ func make(): Text {
     return Text{ start: 1, len: 2, capacity: 3 }
 }
 
+func touch(value: &+Text): void {
+    return
+}
+
 func forward(): Text {
     var value = make()
+    touch(&+value)
     return value
 }
 "#,
         "forward",
-        function_signatures(vec![("make", aggregate_type, vec![])]),
+        function_signatures(vec![
+            ("make", aggregate_type.clone(), vec![]),
+            (
+                "touch",
+                Type::Void,
+                vec![Type::Borrow {
+                    is_readwrite: true,
+                    inner: Box::new(aggregate_type.clone()),
+                }],
+            ),
+        ]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "forward".to_string(),
+            target: CallTarget::same_file("forward"),
+            return_type: aggregate_type,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::CallAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    target: CallTarget::same_file("make"),
+                    arguments: vec![],
+                },
+                Instruction::CallVoid {
+                    target: CallTarget::same_file("touch"),
+                    arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateSlot(0),
+                    })],
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Return,
+                    source: AggregateLocation::Slot(0),
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_propagated_indirect_aggregate_call_binding_return() {
+    let aggregate_type = Type::Aggregate {
+        layout: ValueLayout::new(24, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Text! {
+    return Text{ start: 1, len: 2, capacity: 3 }
+}
+
+func forward(): Text! {
+    var value = make()?
+    return value
+}
+"#,
+        "forward",
+        function_signatures(vec![(
+            "make",
+            Type::Fallible(Box::new(aggregate_type.clone())),
+            vec![],
+        )]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "forward".to_string(),
+            target: CallTarget::same_file("forward"),
+            return_type: Type::Fallible(Box::new(aggregate_type)),
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::CallFallibleAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    target: CallTarget::same_file("make"),
+                    arguments: vec![],
+                    failure_mode: FallibleFailureMode::Propagate,
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Return,
+                    source: AggregateLocation::Slot(0),
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::ReturnFallibleSuccess,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_direct_aggregate_borrow_parameter_signature() {
+    let function = lower_named_function(
+        r#"struct Allocator {
+    state: usize
+    kind: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func touch(allocator: &+Allocator): void {
+    return
+}
+"#,
+        "touch",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "touch".to_string(),
+            target: CallTarget::same_file("touch"),
+            return_type: Type::Void,
+            instructions: vec![Instruction::Return],
+        }
+    );
+}
+
+#[test]
+fn reports_unsupported_direct_aggregate_return_signature() {
+    let diagnostics = lower_named_function_with_signatures(
+        r#"struct Pair {
+    first: usize
+    second: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Pair {
+    return Pair{ first: 1, second: 2 }
+}
+"#,
+        "make",
+        function_signatures(vec![]),
     )
     .unwrap_err();
 
-    assert_eq!(diagnostics[0].code, "E8008");
-    assert_eq!(
-        diagnostics[0].message,
-        "IR v0 can only lower aggregate call bindings as immutable `let` bindings"
+    assert_eq!(diagnostics[0].code, "E8007");
+    assert!(
+        diagnostics[0].message.contains("indirect aggregates"),
+        "expected unsupported return type diagnostic, got: {}",
+        diagnostics[0].message
     );
 }
 

@@ -270,6 +270,7 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::CallSlice { .. }
         | Instruction::CallFallibleSlice { .. }
         | Instruction::CallAggregate { .. }
+        | Instruction::CallFallibleAggregate { .. }
         | Instruction::CallVoid { .. }
         | Instruction::CallFallibleVoid { .. }
         | Instruction::ReserveAggregateSlot { .. }
@@ -369,6 +370,11 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
             ..
         }
         | Instruction::CallFallibleSlice {
+            arguments,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallFallibleAggregate {
             arguments,
             failure_mode,
             ..
@@ -478,6 +484,7 @@ fn record_instruction_aggregate_slot_requests(
         | Instruction::CallFallibleBool { failure_mode, .. }
         | Instruction::CallFallibleStr { failure_mode, .. }
         | Instruction::CallFallibleSlice { failure_mode, .. }
+        | Instruction::CallFallibleAggregate { failure_mode, .. }
         | Instruction::CallFallibleVoid { failure_mode, .. }
         | Instruction::CheckFailure { failure_mode } => {
             record_failure_mode_aggregate_slot_requests(failure_mode, requests)
@@ -850,6 +857,16 @@ fn record_instruction_scalar_locals(
                 record_scalar_argument(argument, highest_local_index);
             }
         }
+        Instruction::CallFallibleAggregate {
+            arguments,
+            failure_mode,
+            ..
+        } => {
+            for argument in arguments {
+                record_scalar_argument(argument, highest_local_index);
+            }
+            record_failure_mode_scalar_locals(failure_mode, highest_local_index);
+        }
         Instruction::CallVoid { arguments, .. } => {
             for argument in arguments {
                 record_scalar_argument(argument, highest_local_index);
@@ -923,6 +940,7 @@ fn record_borrow_source(source: BorrowSource, highest_local_index: &mut Option<u
         BorrowSource::U8(location) => record_u8_location(location, highest_local_index),
         BorrowSource::Usize(location) => record_usize_location(location, highest_local_index),
         BorrowSource::Bool(location) => record_bool_location(location, highest_local_index),
+        BorrowSource::AggregateSlot(_) => {}
     }
 }
 

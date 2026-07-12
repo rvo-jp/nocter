@@ -701,6 +701,40 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_lowers_fallible_aggregate_binding_and_borrow_argument() {
+    let project = TempProject::new("cli-build-fallible-aggregate-binding-borrow");
+    let source = project.write_source(
+        "aggregate_binding_borrow.nct",
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32! {
+    var value = make()?
+    touch(&+value)?
+    return 0
+}
+
+func make(): Text! {
+    return Text{ start: 1, len: 2, capacity: 3 }
+}
+
+func touch(value: &+Text): void! {
+    return
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_terminal_if_i32_equality() {
     let project = TempProject::new("cli-build-terminal-if-equality");
     let source = project.write_source(

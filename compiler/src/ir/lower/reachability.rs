@@ -24,7 +24,12 @@ fn collect_reachable_call_targets(
             | Instruction::TailCall { target, .. } => {
                 targets.push_back(target.clone());
             }
-            Instruction::CallFallibleI32 {
+            Instruction::CallFallibleAggregate {
+                target,
+                failure_mode,
+                ..
+            }
+            | Instruction::CallFallibleI32 {
                 target,
                 failure_mode,
                 ..

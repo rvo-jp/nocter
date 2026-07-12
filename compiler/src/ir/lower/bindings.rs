@@ -7,13 +7,13 @@ use super::expressions::{
     lower_u8_expression_to_location, lower_usize_expression_to_location,
 };
 use crate::ast::{
-    AssignmentOperator, AssignmentStmt, BinaryOperator, BindingKind, BindingStmt, Expr, TypeExpr,
+    AssignmentOperator, AssignmentStmt, BinaryOperator, BindingStmt, CallExpr, Expr, TypeExpr,
     UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    AggregateLocation, BoolLocation, I32Location, Instruction, SliceLocation, StrLocation, Type,
-    U8Location, UsizeLocation,
+    AggregateLocation, BoolLocation, FallibleFailureMode, I32Location, Instruction, SliceLocation,
+    StrLocation, Type, U8Location, UsizeLocation,
 };
 
 pub(super) fn lower_local_binding(
@@ -48,31 +48,36 @@ fn lower_aggregate_call_binding(
     statement: &BindingStmt,
     context: &mut LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
-    let Expr::Call(call) = &statement.initializer else {
-        return Ok(None);
-    };
-    let Expr::Identifier(identifier) = call.callee.as_ref() else {
-        return Ok(None);
-    };
+    match unwrap_group(&statement.initializer) {
+        Expr::Call(call) => lower_aggregate_normal_call_binding(statement, call, context),
+        Expr::Propagate(propagation) => {
+            let Expr::Call(call) = unwrap_group(&propagation.expression) else {
+                return Ok(None);
+            };
+            lower_aggregate_fallible_call_binding(
+                statement,
+                call,
+                FallibleFailureMode::Propagate,
+                context,
+            )
+        }
+        _ => Ok(None),
+    }
+}
 
-    let target = context.call_target(call, &identifier.name);
-    let Some(Type::Aggregate { layout }) = context.call_return_type(&target) else {
+fn lower_aggregate_normal_call_binding(
+    statement: &BindingStmt,
+    call: &CallExpr,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Some((target, callee_name, layout)) = aggregate_call_return(call, context)? else {
         return Ok(None);
     };
-    if statement.kind != BindingKind::Let {
-        return Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower aggregate call bindings as immutable `let` bindings",
-        ));
-    }
     let layout = *layout;
-    if !layout.size.is_multiple_of(8) {
-        return Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower aggregate call bindings whose ABI size is a multiple of 8 bytes",
-        ));
-    }
+    validate_aggregate_binding_layout(layout)?;
 
     let (mut instructions, arguments) =
-        lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
+        lower_call_arguments_to_scalar_arguments(call, &target, callee_name, context)?;
     let slot_index = context.define_aggregate_local(statement.name.clone(), layout);
     instructions.insert(0, Instruction::ReserveAggregateSlot { slot_index, layout });
     instructions.push(Instruction::CallAggregate {
@@ -81,6 +86,73 @@ fn lower_aggregate_call_binding(
         arguments,
     });
     Ok(Some(instructions))
+}
+
+fn lower_aggregate_fallible_call_binding(
+    statement: &BindingStmt,
+    call: &CallExpr,
+    failure_mode: FallibleFailureMode,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Ok(None);
+    };
+
+    let target = context.call_target(call, &identifier.name);
+    let Some(Type::Fallible(success)) = context.call_return_type(&target) else {
+        return Ok(None);
+    };
+    let Type::Aggregate { layout } = success.as_ref() else {
+        return Ok(None);
+    };
+    let layout = *layout;
+    validate_aggregate_binding_layout(layout)?;
+
+    let (mut instructions, arguments) =
+        lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
+    let slot_index = context.define_aggregate_local(statement.name.clone(), layout);
+    instructions.insert(0, Instruction::ReserveAggregateSlot { slot_index, layout });
+    instructions.push(Instruction::CallFallibleAggregate {
+        destination: AggregateLocation::Slot(slot_index),
+        target,
+        arguments,
+        failure_mode,
+    });
+    Ok(Some(instructions))
+}
+
+fn aggregate_call_return<'a>(
+    call: &'a CallExpr,
+    context: &'a LoweringContext,
+) -> Result<Option<(crate::ir::CallTarget, &'a str, &'a crate::abi::ValueLayout)>, Vec<Diagnostic>>
+{
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Ok(None);
+    };
+
+    let target = context.call_target(call, &identifier.name);
+    let Some(Type::Aggregate { layout }) = context.call_return_type(&target) else {
+        return Ok(None);
+    };
+    Ok(Some((target, &identifier.name, layout)))
+}
+
+fn validate_aggregate_binding_layout(
+    layout: crate::abi::ValueLayout,
+) -> Result<(), Vec<Diagnostic>> {
+    if !layout.size.is_multiple_of(8) {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 can only lower aggregate call bindings whose ABI size is a multiple of 8 bytes",
+        ));
+    }
+    Ok(())
+}
+
+fn unwrap_group(expression: &Expr) -> &Expr {
+    match expression {
+        Expr::Group(group) => unwrap_group(&group.expression),
+        _ => expression,
+    }
 }
 
 pub(super) fn lower_assignment(

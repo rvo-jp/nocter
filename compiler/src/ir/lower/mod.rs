@@ -13,7 +13,7 @@ mod reachability;
 mod tests;
 
 use super::{CallTarget, Function, IrModule};
-use crate::abi::abi_value_from_type_expr;
+use crate::abi::{AbiType, abi_value_from_type_expr};
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{FunctionDecl, Item, TypeExpr};
 use crate::diagnostics::Diagnostic;
@@ -103,7 +103,7 @@ fn lower_aggregate_signature_return_type(ty: &TypeExpr, resolved: &ResolveOutput
     })
 }
 
-fn lower_signature_parameter_type(ty: &TypeExpr) -> Option<Type> {
+fn lower_signature_parameter_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {
     match ty {
         TypeExpr::Reference(reference) if reference.name == "i32" => Some(Type::I32),
         TypeExpr::Reference(reference) if reference.name == "u8" => Some(Type::U8),
@@ -119,7 +119,7 @@ fn lower_signature_parameter_type(ty: &TypeExpr) -> Option<Type> {
             is_readwrite: borrow.is_readwrite,
         }),
         TypeExpr::Borrow(borrow) => {
-            scalar_borrow_inner_type(&borrow.inner).map(|inner| Type::Borrow {
+            borrow_inner_type(&borrow.inner, resolved).map(|inner| Type::Borrow {
                 is_readwrite: borrow.is_readwrite,
                 inner: Box::new(inner),
             })
@@ -137,14 +137,22 @@ fn is_u8_slice_data_type(ty: &TypeExpr) -> bool {
     )
 }
 
-fn scalar_borrow_inner_type(ty: &TypeExpr) -> Option<Type> {
-    match ty {
+fn borrow_inner_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {
+    let scalar = match ty {
         TypeExpr::Reference(reference) if reference.name == "i32" => Some(Type::I32),
         TypeExpr::Reference(reference) if reference.name == "u8" => Some(Type::U8),
         TypeExpr::Reference(reference) if reference.name == "usize" => Some(Type::Usize),
         TypeExpr::Reference(reference) if reference.name == "bool" => Some(Type::Bool),
         _ => None,
+    };
+    if scalar.is_some() {
+        return scalar;
     }
+
+    let value = abi_value_from_type_expr(ty, resolved).ok()?;
+    matches!(value.ty, AbiType::Struct(_)).then_some(Type::Aggregate {
+        layout: value.layout,
+    })
 }
 
 fn lower_reachable_functions(
@@ -240,7 +248,9 @@ impl<'a> FunctionIndex<'a> {
                             .parameters
                             .parameters
                             .iter()
-                            .map(|parameter| lower_signature_parameter_type(&parameter.ty))
+                            .map(|parameter| {
+                                lower_signature_parameter_type(&parameter.ty, function.resolved)
+                            })
                             .collect::<Option<Vec<_>>>();
 
                         (

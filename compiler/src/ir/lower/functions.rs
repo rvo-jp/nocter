@@ -68,7 +68,7 @@ fn lower_scalar_parameters(
     let mut str_parameters = Vec::new();
     let mut slice_parameters = Vec::new();
     for parameter in &function.parameters.parameters {
-        match lower_scalar_parameter_kind(parameter, &function.name)? {
+        match lower_scalar_parameter_kind(parameter, &function.name, resolved)? {
             ScalarParameterKind::I32 => {
                 i32_parameters.push(Some(parameter.name.clone()));
                 u8_parameters.push(None);
@@ -205,6 +205,7 @@ enum ScalarParameterKind {
 fn lower_scalar_parameter_kind(
     parameter: &Parameter,
     function_name: &str,
+    resolved: &ResolveOutput,
 ) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
     match &parameter.ty {
         TypeExpr::Reference(reference) if reference.name == "i32" => Ok(ScalarParameterKind::I32),
@@ -222,13 +223,13 @@ fn lower_scalar_parameter_kind(
         TypeExpr::Borrow(borrow) if is_u8_slice_data_type(&borrow.inner) => {
             Ok(ScalarParameterKind::Slice)
         }
-        TypeExpr::Borrow(borrow) if scalar_borrow_inner_type(&borrow.inner).is_some() => {
+        TypeExpr::Borrow(borrow) if borrow_inner_type(&borrow.inner, resolved).is_some() => {
             Ok(ScalarParameterKind::Borrow)
         }
         _ => Err(vec![Diagnostic::error(
             "E8007",
             format!(
-                "IR v0 can only lower `i32`, `u8`, `usize`, `bool`, `&str`, `&[u8]`, `&+[u8]`, and scalar borrow parameters for function `{function_name}`"
+                "IR v0 can only lower `i32`, `u8`, `usize`, `bool`, `&str`, `&[u8]`, `&+[u8]`, scalar borrow parameters, and aggregate borrow parameters for function `{function_name}`"
             ),
         )]),
     }
@@ -297,14 +298,22 @@ fn is_u8_slice_data_type(ty: &TypeExpr) -> bool {
     )
 }
 
-fn scalar_borrow_inner_type(ty: &TypeExpr) -> Option<Type> {
-    match ty {
+fn borrow_inner_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {
+    let scalar = match ty {
         TypeExpr::Reference(reference) if reference.name == "i32" => Some(Type::I32),
         TypeExpr::Reference(reference) if reference.name == "u8" => Some(Type::U8),
         TypeExpr::Reference(reference) if reference.name == "usize" => Some(Type::Usize),
         TypeExpr::Reference(reference) if reference.name == "bool" => Some(Type::Bool),
         _ => None,
+    };
+    if scalar.is_some() {
+        return scalar;
     }
+
+    let value = abi_value_from_type_expr(ty, resolved).ok()?;
+    matches!(value.ty, AbiType::Struct(_)).then_some(Type::Aggregate {
+        layout: value.layout,
+    })
 }
 
 fn lower_function_body(

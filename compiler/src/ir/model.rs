@@ -234,6 +234,12 @@ pub(crate) enum Instruction {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
     },
+    CallFallibleAggregate {
+        destination: AggregateLocation,
+        target: CallTarget,
+        arguments: Vec<ScalarArgument>,
+        failure_mode: FallibleFailureMode,
+    },
     CallVoid {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
@@ -370,6 +376,7 @@ pub(crate) enum BorrowSource {
     U8(U8Location),
     Usize(UsizeLocation),
     Bool(BoolLocation),
+    AggregateSlot(usize),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
