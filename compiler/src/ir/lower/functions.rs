@@ -3,10 +3,11 @@ use super::context::{FunctionNames, FunctionSignatures, LoweringContext, Lowerin
 use super::control_flow::{lower_terminal_bool_if_statement, lower_terminal_i32_if_statement};
 use super::errors::{ErrorPayload, lower_error_payload};
 use super::expressions::{
-    lower_bool_return_expression, lower_i32_return_expression, lower_never_return_expression,
-    lower_slice_return_expression, lower_str_return_expression, lower_u8_return_expression,
-    lower_usize_expression_to_word, lower_usize_return_expression, lower_void_expression_statement,
-    mark_fallible_success_returns, success_return_instruction,
+    lower_bool_return_expression, lower_call_arguments_to_scalar_arguments,
+    lower_i32_return_expression, lower_never_return_expression, lower_slice_return_expression,
+    lower_str_return_expression, lower_u8_return_expression, lower_usize_expression_to_word,
+    lower_usize_return_expression, lower_void_expression_statement, mark_fallible_success_returns,
+    success_return_instruction,
 };
 use crate::abi::{ARGUMENT_REGISTER_COUNT, AbiType, abi_value_from_type_expr, layout_struct};
 use crate::ast::{Expr, FunctionDecl, Parameter, Stmt, StructLiteralExpr, TypeExpr};
@@ -545,6 +546,7 @@ fn lower_aggregate_return_expression(
             resolved,
             context,
         ),
+        Expr::Call(call) => lower_aggregate_call_return(call, return_type, function_name, context),
         Expr::Group(group) => lower_aggregate_return_expression(
             &group.expression,
             return_type,
@@ -554,6 +556,40 @@ fn lower_aggregate_return_expression(
         ),
         _ => Err(unsupported_aggregate_return_diagnostic(function_name)),
     }
+}
+
+fn lower_aggregate_call_return(
+    call: &crate::ast::CallExpr,
+    return_type: &Type,
+    function_name: &str,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    };
+    let target = context.call_target(call, &identifier.name);
+    let Some(Type::Aggregate { layout }) = context.call_return_type(&target) else {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    };
+    let Type::Aggregate {
+        layout: expected_layout,
+    } = return_type
+    else {
+        unreachable!("aggregate call return lowering requires aggregate return type")
+    };
+    if layout != expected_layout {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    }
+
+    let (mut instructions, arguments) =
+        lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
+    instructions.push(Instruction::CallAggregate {
+        destination: AggregateLocation::Return,
+        target,
+        arguments,
+    });
+    instructions.push(Instruction::Return);
+    Ok(instructions)
 }
 
 fn lower_aggregate_struct_literal_return(

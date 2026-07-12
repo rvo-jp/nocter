@@ -224,7 +224,7 @@ pub(crate) enum Instruction {
     },
     #[allow(dead_code)]
     CallAggregate {
-        destination_slot: usize,
+        destination: AggregateLocation,
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
     },

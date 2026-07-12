@@ -1011,6 +1011,53 @@ func make(): Text {
 }
 
 #[test]
+fn lowers_indirect_aggregate_call_return() {
+    let aggregate_type = Type::Aggregate {
+        layout: ValueLayout::new(24, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Text {
+    return Text{ start: 1, len: 2, capacity: 3 }
+}
+
+func forward(): Text {
+    return make()
+}
+"#,
+        "forward",
+        function_signatures(vec![("make", aggregate_type.clone(), vec![])]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "forward".to_string(),
+            target: CallTarget::same_file("forward"),
+            return_type: aggregate_type,
+            instructions: vec![
+                Instruction::CallAggregate {
+                    destination: AggregateLocation::Return,
+                    target: CallTarget::same_file("make"),
+                    arguments: vec![],
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_pointer_from_addr_aggregate_field_return() {
     let function = lower_imported_named_function_with_nocter_home_files(
         r#"from std/text import make

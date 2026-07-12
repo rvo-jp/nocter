@@ -2,8 +2,8 @@ use super::{EntryEmitter, FunctionCallPatch, FunctionSymbol};
 use crate::backend::frame::{ArgumentStagingSlot, FrameLayout};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolLocation, BorrowSource, FallibleFailureMode, I32Location, ScalarArgument, SliceLocation,
-    StrLocation, Type, U8Location, UsizeLocation,
+    AggregateLocation, BoolLocation, BorrowSource, FallibleFailureMode, I32Location,
+    ScalarArgument, SliceLocation, StrLocation, Type, U8Location, UsizeLocation,
 };
 use crate::target::arm64::{BranchCondition, WReg, XReg};
 
@@ -97,7 +97,7 @@ impl EntryEmitter {
 
     pub(super) fn emit_call_aggregate(
         &mut self,
-        destination_slot: usize,
+        destination: AggregateLocation,
         function: FunctionSymbol,
         arguments: &[ScalarArgument],
         frame: Option<&FrameLayout>,
@@ -111,7 +111,7 @@ impl EntryEmitter {
 
         self.emit_scalar_spills(frame)?;
         self.emit_staged_scalar_arguments(arguments, frame)?;
-        self.emit_aggregate_slot_address_to_x(destination_slot, XReg::X8, frame)?;
+        self.emit_aggregate_destination_to_x8(destination, frame)?;
 
         self.emit_call(function);
         self.emit_scalar_reloads(frame)?;
@@ -597,6 +597,19 @@ impl EntryEmitter {
         })?;
         self.encoder.emit_add_x_sp_imm(register, slot.offset());
         Ok(())
+    }
+
+    fn emit_aggregate_destination_to_x8(
+        &mut self,
+        destination: AggregateLocation,
+        frame: &FrameLayout,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match destination {
+            AggregateLocation::Return => Ok(()),
+            AggregateLocation::Slot(slot_index) => {
+                self.emit_aggregate_slot_address_to_x(slot_index, XReg::X8, frame)
+            }
+        }
     }
 
     fn emit_call_result_to_i32_location(

@@ -1313,7 +1313,7 @@ mod tests {
                     layout: ValueLayout::new(24, 8),
                 },
                 Instruction::CallAggregate {
-                    destination_slot: 0,
+                    destination: AggregateLocation::Slot(0),
                     target: CallTarget::same_file("make"),
                     arguments: vec![ScalarArgument::I32(I32Value::Location(I32Location::Local(
                         1,

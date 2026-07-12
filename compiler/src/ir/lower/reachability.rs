@@ -194,7 +194,7 @@ mod tests {
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::Void,
             instructions: vec![Instruction::CallAggregate {
-                destination_slot: 0,
+                destination: crate::ir::AggregateLocation::Slot(0),
                 target: CallTarget::same_file("make"),
                 arguments: vec![],
             }],

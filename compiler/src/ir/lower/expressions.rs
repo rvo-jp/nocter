@@ -2156,6 +2156,16 @@ pub(super) fn lower_usize_expression_to_word(
     Ok((lowered.instructions, lowered.value))
 }
 
+pub(super) fn lower_call_arguments_to_scalar_arguments(
+    call: &CallExpr,
+    target: &crate::ir::CallTarget,
+    callee_name: &str,
+    context: &LoweringContext,
+) -> Result<(Vec<Instruction>, Vec<ScalarArgument>), Vec<Diagnostic>> {
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    lower_call_arguments(call, target, callee_name, context, &mut temporaries)
+}
+
 fn lower_builtin_len_call_to_value(
     call: &CallExpr,
     context: &LoweringContext,

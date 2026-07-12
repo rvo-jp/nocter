@@ -27,6 +27,11 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: lower direct aggregate return calls
+  - changes `CallAggregate` to target `AggregateLocation::{Return, Slot}` instead of only reserved slots
+  - keeps `x8` unchanged for aggregate calls that directly fill the caller-provided return storage, while preserving slot-address setup for `Slot(n)`
+  - lowers `return aggregate_call(...)` in non-entry aggregate functions into `CallAggregate { destination: Return, ... }` plus `Return`
+  - keeps aggregate call results into locals/slots from source, aggregate-backed `var`, aggregate load/copy, and owned aggregate moves disabled
 - Current checkpoint: lower from_addr pointer aggregate fields
   - lowers aggregate struct literal return fields whose ABI type is `Pointer` when the source value is the closed `std/ptr.from_addr(usize)` primitive
   - stores the lowered address word through the existing `StoreAggregateUsize` return-storage path, matching pointer-sized ABI fields
