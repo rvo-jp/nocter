@@ -8,6 +8,7 @@ use super::expressions::{
     lower_usize_return_expression, lower_void_expression_statement, mark_fallible_success_returns,
     success_return_instruction,
 };
+use crate::abi::{ARGUMENT_REGISTER_COUNT, abi_value_from_type_expr};
 use crate::ast::{FunctionDecl, Parameter, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{CallTarget, Function, Instruction, Type};
@@ -32,7 +33,7 @@ pub(super) fn lower_function(
         )]);
     }
 
-    let parameters = lower_scalar_parameters(function)?;
+    let parameters = lower_scalar_parameters(function, resolved)?;
     let return_type = lower_function_return_type(&function.return_type, &function.name)?;
     let success_type = return_type.success_type().clone();
     let mut context = LoweringContext::new(
@@ -56,6 +57,7 @@ pub(super) fn lower_function(
 
 fn lower_scalar_parameters(
     function: &FunctionDecl,
+    resolved: &ResolveOutput,
 ) -> Result<LoweringParameterSlots, Vec<Diagnostic>> {
     let mut i32_parameters = Vec::new();
     let mut u8_parameters = Vec::new();
@@ -134,16 +136,17 @@ fn lower_scalar_parameters(
                 slice_parameters.push(None);
             }
         }
+    }
 
-        if i32_parameters.len() > MAX_PARAMETER_ABI_WORDS {
-            return Err(vec![Diagnostic::error(
-                "E8007",
-                format!(
-                    "IR v0 can only lower up to {MAX_PARAMETER_ABI_WORDS} ABI parameter words for function `{}`",
-                    function.name
-                ),
-            )]);
-        }
+    let abi_word_count = lowered_parameter_abi_word_count(function, resolved)?;
+    if abi_word_count > ARGUMENT_REGISTER_COUNT {
+        return Err(vec![Diagnostic::error(
+            "E8007",
+            format!(
+                "IR v0 can only lower up to {ARGUMENT_REGISTER_COUNT} ABI parameter words for function `{}`",
+                function.name
+            ),
+        )]);
     }
 
     Ok(LoweringParameterSlots {
@@ -154,6 +157,36 @@ fn lower_scalar_parameters(
         str: str_parameters,
         slice: slice_parameters,
     })
+}
+
+fn lowered_parameter_abi_word_count(
+    function: &FunctionDecl,
+    resolved: &ResolveOutput,
+) -> Result<usize, Vec<Diagnostic>> {
+    let mut count = 0_usize;
+    for parameter in &function.parameters.parameters {
+        let value = abi_value_from_type_expr(&parameter.ty, resolved).map_err(|_error| {
+            vec![Diagnostic::error(
+                "E8007",
+                format!(
+                    "IR v0 cannot classify parameter `{}` of function `{}` as a supported ABI value",
+                    parameter.name, function.name
+                ),
+            )]
+        })?;
+        count = count
+            .checked_add(value.parameter_abi_word_count())
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "E8007",
+                    format!(
+                        "IR v0 parameter ABI word count overflows for function `{}`",
+                        function.name
+                    ),
+                )]
+            })?;
+    }
+    Ok(count)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -469,5 +502,3 @@ fn unsupported_function_body_diagnostic(function_name: &str) -> Vec<Diagnostic> 
         ),
     )]
 }
-
-const MAX_PARAMETER_ABI_WORDS: usize = 8;

@@ -929,6 +929,30 @@ func consume(bytes: &[u8], scratch: &+[u8]): i32 {
 }
 
 #[test]
+fn rejects_function_with_more_than_eight_abi_parameter_words() {
+    let diagnostics = lower_named_function_diagnostics_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func consume(a: &str, b: &str, c: &str, d: &str, e: usize): i32 {
+    return 0
+}
+"#,
+        "consume",
+        context::FunctionSignatures::new(HashMap::new()),
+    );
+
+    assert_eq!(diagnostics[0].code, "E8007");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("up to 8 ABI parameter words"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn lowers_imported_i32_call_target_when_boundary_is_bypassed() {
     let analysis = analyze_text_with_entry_and_nocter_home_files(
         r#"from std/math import answer

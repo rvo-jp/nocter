@@ -27,6 +27,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: use ABI counts for IR parameter planning
+  - changes IR function parameter lowering to count parameter ABI words through `abi_value_from_type_expr`
+  - shares the ABI module's eight-register argument window constant instead of maintaining a separate IR-only limit
+  - adds IR lowering coverage for rejecting a function whose direct `&str` and scalar parameters require nine ABI words
 - Current checkpoint: expose ABI passing counts
   - adds ABI helper methods for parameter passing and return passing over the existing direct/indirect value classification
   - counts indirect parameters as one ABI pointer word and detects when parameter ABI words exceed the eight-register window
