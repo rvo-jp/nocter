@@ -40,6 +40,8 @@ use semantic::ClassifiedIdentifier;
 #[cfg(test)]
 use semantic::SEMANTIC_DECLARATION_MODIFIER;
 #[cfg(test)]
+use semantic::SEMANTIC_READONLY_MODIFIER;
+#[cfg(test)]
 use semantic::SemanticTokenKind;
 #[cfg(test)]
 use semantic::classified_identifiers_for_file_analysis;
@@ -443,7 +445,7 @@ mod tests {
                 "property"
             ])
         );
-        assert_eq!(legend["tokenModifiers"], json!(["declaration"]));
+        assert_eq!(legend["tokenModifiers"], json!(["declaration", "readonly"]));
     }
 
     #[test]
@@ -527,6 +529,49 @@ mod tests {
                 identifier.kind == SemanticTokenKind::Method && identifier.modifiers == 0
             }),
             "expected method call name to be classified as a method"
+        );
+    }
+
+    #[test]
+    fn marks_readonly_bindings_for_semantic_tokens() {
+        let project = TempProject::new("lsp-semantic-readonly-bindings");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        let text = "func main(path: &str): i32 {\n    let alpha = 1\n    var beta = 2\n    return alpha + beta\n}\n";
+        let app = project.write_source("app.nct", text);
+        let uri = file_uri(&app);
+        let document = open_document(uri.clone(), Some(1), text.to_string());
+        let documents = HashMap::from([(uri.clone(), document)]);
+        let workspace =
+            workspace_analysis_for_uri(&uri, &documents).expect("expected workspace analysis");
+        let file = workspace.root_file().expect("expected analyzed file");
+        let identifiers =
+            classified_identifiers_for_file_analysis(documents.get(&uri).unwrap(), file);
+
+        for name in ["path", "alpha"] {
+            let identifiers = classified_identifier_with_lexeme(text, &identifiers, name);
+            assert!(
+                !identifiers.is_empty(),
+                "expected semantic tokens for `{name}`"
+            );
+            assert!(
+                identifiers
+                    .iter()
+                    .all(|identifier| identifier.modifiers & SEMANTIC_READONLY_MODIFIER != 0),
+                "expected `{name}` to be marked readonly"
+            );
+        }
+
+        let beta_identifiers = classified_identifier_with_lexeme(text, &identifiers, "beta");
+        assert!(
+            !beta_identifiers.is_empty(),
+            "expected semantic tokens for `beta`"
+        );
+        assert!(
+            beta_identifiers
+                .iter()
+                .all(|identifier| identifier.modifiers & SEMANTIC_READONLY_MODIFIER == 0),
+            "expected `beta` to remain mutable"
         );
     }
 

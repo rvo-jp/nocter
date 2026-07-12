@@ -22,6 +22,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Default)]
 pub(crate) struct TypecheckFacts {
     binding_type_labels: HashMap<ByteSpan, String>,
+    binding_readonly: HashMap<ByteSpan, bool>,
     type_references: Vec<TypeReferenceFact>,
     method_call_targets: HashMap<ByteSpan, ByteSpan>,
 }
@@ -29,6 +30,10 @@ pub(crate) struct TypecheckFacts {
 impl TypecheckFacts {
     pub(crate) fn binding_type_label(&self, name_span: ByteSpan) -> Option<&str> {
         self.binding_type_labels.get(&name_span).map(String::as_str)
+    }
+
+    pub(crate) fn binding_is_readonly(&self, name_span: ByteSpan) -> Option<bool> {
+        self.binding_readonly.get(&name_span).copied()
     }
 
     pub(crate) fn type_reference_at_offset(&self, offset: usize) -> Option<&TypeReferenceFact> {
@@ -147,6 +152,7 @@ impl TypecheckFactCollector<'_> {
             Item::Function(function) => {
                 let mut environment =
                     environment_for_parameters(&function.parameters.parameters, self.resolved);
+                self.record_parameter_bindings(&function.parameters.parameters, &environment);
                 self.collect_block_facts(&function.body, &mut environment);
             }
             Item::Impl(impl_) => self.collect_impl_member_body_facts(impl_),
@@ -172,6 +178,7 @@ impl TypecheckFactCollector<'_> {
                         self.resolved,
                         self_type.clone(),
                     );
+                    self.record_parameter_bindings(&function.parameters.parameters, &environment);
                     self.collect_block_facts(&function.body, &mut environment);
                 }
                 ImplMember::Method(method) => {
@@ -180,6 +187,11 @@ impl TypecheckFactCollector<'_> {
                     };
                     let mut environment =
                         environment_for_method(method, self.resolved, self_type.clone());
+                    self.record_parameter_bindings(
+                        std::slice::from_ref(&method.receiver),
+                        &environment,
+                    );
+                    self.record_parameter_bindings(&method.parameters.parameters, &environment);
                     self.collect_block_facts(body, &mut environment);
                 }
                 ImplMember::Drop(drop_) => {
@@ -187,6 +199,10 @@ impl TypecheckFactCollector<'_> {
                         std::slice::from_ref(&drop_.binding),
                         self.resolved,
                         self_type.clone(),
+                    );
+                    self.record_parameter_bindings(
+                        std::slice::from_ref(&drop_.binding),
+                        &environment,
                     );
                     self.collect_block_facts(&drop_.body, &mut environment);
                 }
@@ -231,7 +247,7 @@ impl TypecheckFactCollector<'_> {
                 let mut then_environment =
                     environment_for_if_is_binding(statement, self.resolved, environment);
                 if let Some(payload) = &statement.payload {
-                    self.record_payload_binding_type(payload, &then_environment);
+                    self.record_payload_binding(payload, &then_environment);
                 }
                 self.collect_block_facts(&statement.then_block, &mut then_environment);
                 if let Some(else_block) = &statement.else_block {
@@ -244,7 +260,7 @@ impl TypecheckFactCollector<'_> {
 
                 let mut then_environment =
                     environment_for_if_let_binding(statement, self.resolved, environment);
-                self.record_environment_binding_type(
+                self.record_environment_binding(
                     statement.name_span,
                     &statement.name,
                     &then_environment,
@@ -262,7 +278,7 @@ impl TypecheckFactCollector<'_> {
                     let mut arm_environment =
                         environment_for_switch_arm(arm, self.resolved, environment);
                     if let Some(payload) = &arm.payload {
-                        self.record_payload_binding_type(payload, &arm_environment);
+                        self.record_payload_binding(payload, &arm_environment);
                     }
                     self.collect_block_facts(&arm.body, &mut arm_environment);
                 }
@@ -277,7 +293,7 @@ impl TypecheckFactCollector<'_> {
 
                 let mut body_environment =
                     environment_for_for_range_binding(statement, self.resolved, environment);
-                self.record_environment_binding_type(
+                self.record_environment_binding(
                     statement.name_span,
                     &statement.name,
                     &body_environment,
@@ -295,7 +311,7 @@ impl TypecheckFactCollector<'_> {
 
                 let mut body_environment =
                     environment_for_while_let_binding(statement, self.resolved, environment);
-                self.record_environment_binding_type(
+                self.record_environment_binding(
                     statement.name_span,
                     &statement.name,
                     &body_environment,
@@ -331,12 +347,9 @@ impl TypecheckFactCollector<'_> {
 
         let binding_type =
             continuing_binding_type(statement, initializer_type, self.resolved, environment);
-        self.record_binding_type(statement.name_span, &binding_type);
-        environment.define_binding(
-            statement.name.clone(),
-            binding_type,
-            binding_kind_is_mutable(statement.kind),
-        );
+        let is_mutable = binding_kind_is_mutable(statement.kind);
+        self.record_binding(statement.name_span, &binding_type, is_mutable);
+        environment.define_binding(statement.name.clone(), binding_type, is_mutable);
     }
 
     fn collect_expression_facts(&mut self, expression: &Expr, environment: &mut TypeEnvironment) {
@@ -355,7 +368,7 @@ impl TypecheckFactCollector<'_> {
                     self.resolved,
                     environment,
                 );
-                self.record_environment_binding_type(
+                self.record_environment_binding(
                     expression.error_span,
                     &expression.error_name,
                     &catch_environment,
@@ -432,14 +445,20 @@ impl TypecheckFactCollector<'_> {
                     let mut arm_environment =
                         environment_for_pattern_conditional_arm(arm, self.resolved, environment);
                     if let Some(payload) = &arm.payload {
-                        self.record_payload_binding_type(payload, &arm_environment);
+                        self.record_payload_binding(payload, &arm_environment);
                     }
                     self.collect_expression_facts(&arm.expression, &mut arm_environment);
                 }
                 self.collect_expression_facts(&expression.fallback, environment);
             }
-            Expr::Identifier(_)
-            | Expr::IntegerLiteral(_)
+            Expr::Identifier(identifier) => {
+                self.record_environment_binding_readonly(
+                    identifier.span,
+                    &identifier.name,
+                    environment,
+                );
+            }
+            Expr::IntegerLiteral(_)
             | Expr::StringLiteral(_)
             | Expr::BoolLiteral(_)
             | Expr::NoneLiteral(_) => {}
@@ -506,15 +525,25 @@ impl TypecheckFactCollector<'_> {
         });
     }
 
-    fn record_payload_binding_type(
+    fn record_parameter_bindings(
+        &mut self,
+        parameters: &[Parameter],
+        environment: &TypeEnvironment,
+    ) {
+        for parameter in parameters {
+            self.record_environment_binding(parameter.name_span, &parameter.name, environment);
+        }
+    }
+
+    fn record_payload_binding(
         &mut self,
         payload: &SwitchPayloadBinding,
         environment: &TypeEnvironment,
     ) {
-        self.record_environment_binding_type(payload.span, &payload.name, environment);
+        self.record_environment_binding(payload.span, &payload.name, environment);
     }
 
-    fn record_environment_binding_type(
+    fn record_environment_binding(
         &mut self,
         name_span: ByteSpan,
         name: &str,
@@ -523,6 +552,25 @@ impl TypecheckFactCollector<'_> {
         if let Some(ty) = environment.get(name) {
             self.record_binding_type(name_span, ty);
         }
+        self.record_environment_binding_readonly(name_span, name, environment);
+    }
+
+    fn record_environment_binding_readonly(
+        &mut self,
+        name_span: ByteSpan,
+        name: &str,
+        environment: &TypeEnvironment,
+    ) {
+        if environment.get(name).is_some() {
+            self.facts
+                .binding_readonly
+                .insert(name_span, !environment.is_mutable_binding(name));
+        }
+    }
+
+    fn record_binding(&mut self, name_span: ByteSpan, ty: &Type, is_mutable: bool) {
+        self.record_binding_type(name_span, ty);
+        self.facts.binding_readonly.insert(name_span, !is_mutable);
     }
 
     fn record_binding_type(&mut self, name_span: ByteSpan, ty: &Type) {

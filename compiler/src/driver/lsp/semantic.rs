@@ -12,8 +12,9 @@ pub(super) const SEMANTIC_TOKEN_TYPES: [&str; 6] = [
     "type",
     "property",
 ];
-pub(super) const SEMANTIC_TOKEN_MODIFIERS: [&str; 1] = ["declaration"];
+pub(super) const SEMANTIC_TOKEN_MODIFIERS: [&str; 2] = ["declaration", "readonly"];
 pub(super) const SEMANTIC_DECLARATION_MODIFIER: u32 = 1 << 0;
+pub(super) const SEMANTIC_READONLY_MODIFIER: u32 = 1 << 1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum SemanticTokenKind {
@@ -125,6 +126,13 @@ fn apply_typecheck_semantic_facts(identifiers: &mut [ClassifiedIdentifier], file
             .any(|reference_span| reference_span == span)
         {
             identifier.kind = SemanticTokenKind::Type;
+        }
+        if matches!(
+            identifier.kind,
+            SemanticTokenKind::Variable | SemanticTokenKind::Parameter
+        ) && file.typecheck_facts.binding_is_readonly(span) == Some(true)
+        {
+            identifier.modifiers |= SEMANTIC_READONLY_MODIFIER;
         }
     }
 }
