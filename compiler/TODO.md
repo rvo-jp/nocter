@@ -20,13 +20,17 @@ Adopted user decisions:
 Recommended next implementation order:
 
 1. Follow `compiler/docs/interpolation-lowering.md`: keep bare interpolation lowering disabled until an explicit allocator source is designed, and first make explicit `std/string` construction plus `std/fmt.append_*` calls buildable.
-2. Use the resolved-type ABI layout/classification helper from IR/backend planning before adding aggregate storage code.
+2. Use the resolved-type function ABI helper from IR/backend planning before adding aggregate storage code.
 3. Add only the backend prerequisites needed by the explicit string path: aggregate `String`/`Allocator`/`RawBuffer` storage, aggregate stack-backed `var`, and owned aggregate return/move handling. Loaded imported scalar calls, scalar/view arguments, local scalar borrow arguments, scalar/view `var` plus simple assignment, and fallible propagation for the current scalar/view/void call subset are already buildable.
 4. Lower interpolated strings only after the explicit standard-library construction path builds.
 5. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
+- Current checkpoint: classify function signatures for ABI planning
+  - adds `AbiValue`, `AbiParameter`, `AbiReturn`, and `FunctionAbi` wrappers over ABI type, layout, and direct/indirect classification
+  - adds `function_abi_from_signature` so later IR/backend planning can classify parameters and return values without duplicating type/layout logic
+  - treats `void` and `never` returns as no-value ABI returns while leaving unsupported fallible/optional/generic shapes explicit at the ABI helper boundary
 - Current checkpoint: move std String to pointer/length/capacity
   - changes `.nocter/std/string.nct` from the temporary `len`-only skeleton to private `ptr`, `len`, and `capacity` fields
   - constructs `empty()` through the restricted `std/ptr.from_addr` primitive instead of compiler-special-casing `String`

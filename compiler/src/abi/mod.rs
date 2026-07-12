@@ -1,7 +1,7 @@
 //! Nocter ABI lowering and layout rules.
 
 use crate::ast::TypeExpr;
-use crate::resolve::{ResolveOutput, TypeSymbol, TypeSymbolKind};
+use crate::resolve::{FunctionSignature, ResolveOutput, TypeSymbol, TypeSymbolKind};
 use std::collections::HashSet;
 
 pub const ABI_WORD_SIZE: u64 = 8;
@@ -72,6 +72,44 @@ pub struct FieldLayout {
 pub enum ValueClassification {
     Direct { words: usize },
     Indirect,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AbiValue {
+    pub ty: AbiType,
+    pub layout: ValueLayout,
+    pub classification: ValueClassification,
+}
+
+impl AbiValue {
+    fn from_abi_type(ty: AbiType) -> Result<Self, AbiTypeError> {
+        let layout = layout_of(&ty)?;
+        let classification = classify_value(&ty)?;
+        Ok(Self {
+            ty,
+            layout,
+            classification,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AbiParameter {
+    pub name: String,
+    pub value: AbiValue,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AbiReturn {
+    Void,
+    Never,
+    Value(AbiValue),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FunctionAbi {
+    pub parameters: Vec<AbiParameter>,
+    pub return_value: AbiReturn,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -152,6 +190,35 @@ pub fn classify_value(ty: &AbiType) -> Result<ValueClassification, LayoutError> 
     }
 }
 
+pub fn abi_value_from_type_expr(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+) -> Result<AbiValue, AbiTypeError> {
+    AbiValue::from_abi_type(abi_type_from_type_expr(ty, resolved)?)
+}
+
+pub fn function_abi_from_signature(
+    signature: &FunctionSignature,
+    resolved: &ResolveOutput,
+) -> Result<FunctionAbi, AbiTypeError> {
+    let parameters = signature
+        .parameters
+        .iter()
+        .map(|parameter| {
+            Ok(AbiParameter {
+                name: parameter.name.clone(),
+                value: abi_value_from_type_expr(&parameter.ty, resolved)?,
+            })
+        })
+        .collect::<Result<Vec<_>, AbiTypeError>>()?;
+    let return_value = abi_return_from_type_expr(&signature.return_type, resolved)?;
+
+    Ok(FunctionAbi {
+        parameters,
+        return_value,
+    })
+}
+
 pub fn abi_type_from_type_expr(
     ty: &TypeExpr,
     resolved: &ResolveOutput,
@@ -160,6 +227,17 @@ pub fn abi_type_from_type_expr(
         AbiTypeKind::Value(ty) => Ok(ty),
         AbiTypeKind::UnsizedStr => Err(AbiTypeError::UnsizedValue("str".to_string())),
         AbiTypeKind::UnsizedArray => Err(AbiTypeError::UnsizedValue(type_expr_display_lossy(ty))),
+    }
+}
+
+fn abi_return_from_type_expr(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+) -> Result<AbiReturn, AbiTypeError> {
+    match ty {
+        TypeExpr::Reference(reference) if reference.name == "void" => Ok(AbiReturn::Void),
+        TypeExpr::Reference(reference) if reference.name == "never" => Ok(AbiReturn::Never),
+        _ => abi_value_from_type_expr(ty, resolved).map(AbiReturn::Value),
     }
 }
 
@@ -316,13 +394,13 @@ fn type_expr_display_lossy(ty: &TypeExpr) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        AbiField, AbiType, ValueClassification, ValueLayout, abi_type_from_type_expr,
-        classify_value, layout_of, layout_struct,
+        AbiField, AbiReturn, AbiType, ValueClassification, ValueLayout, abi_type_from_type_expr,
+        classify_value, function_abi_from_signature, layout_of, layout_struct,
     };
     use crate::ast::Item;
     use crate::lexer::lex;
     use crate::parser::parse;
-    use crate::resolve::resolve;
+    use crate::resolve::{FunctionSignature, ResolveOutput, SymbolKind, resolve};
     use crate::source::SourceMap;
 
     #[test]
@@ -437,6 +515,70 @@ func view(text: &Text): &Text {
         assert_eq!(layout_of(&ty).unwrap(), ValueLayout::new(16, 8));
     }
 
+    #[test]
+    fn classifies_function_signature_values() {
+        let (_ast, resolved) = parse_and_resolve(
+            r#"struct Text {
+    ptr: *u8
+    len: usize
+    capacity: usize
+}
+
+func passthrough(text: Text, view: &str, count: usize): Text {
+}
+"#,
+        );
+        let signature = resolved_function_signature(&resolved, "passthrough");
+
+        let abi = function_abi_from_signature(signature, &resolved).unwrap();
+
+        assert_eq!(abi.parameters.len(), 3);
+        assert_eq!(abi.parameters[0].name, "text");
+        assert_eq!(abi.parameters[0].value.layout, ValueLayout::new(24, 8));
+        assert_eq!(
+            abi.parameters[0].value.classification,
+            ValueClassification::Indirect
+        );
+        assert_eq!(abi.parameters[1].name, "view");
+        assert_eq!(abi.parameters[1].value.ty, AbiType::StrView);
+        assert_eq!(
+            abi.parameters[1].value.classification,
+            ValueClassification::Direct { words: 2 }
+        );
+        assert_eq!(abi.parameters[2].name, "count");
+        assert_eq!(
+            abi.parameters[2].value.classification,
+            ValueClassification::Direct { words: 1 }
+        );
+        assert!(matches!(
+            abi.return_value,
+            AbiReturn::Value(ref value)
+                if value.layout == ValueLayout::new(24, 8)
+                    && value.classification == ValueClassification::Indirect
+        ));
+    }
+
+    #[test]
+    fn classifies_void_and_never_returns_without_value_layout() {
+        let (_ast, resolved) = parse_and_resolve(
+            r#"primitive stop(): never
+
+func done(): void {
+}
+"#,
+        );
+
+        let stop =
+            function_abi_from_signature(resolved_function_signature(&resolved, "stop"), &resolved)
+                .unwrap();
+        let done =
+            function_abi_from_signature(resolved_function_signature(&resolved, "done"), &resolved)
+                .unwrap();
+
+        assert_eq!(stop.return_value, AbiReturn::Never);
+        assert_eq!(done.return_value, AbiReturn::Void);
+    }
+
     fn parse_and_resolve(text: &str) -> (crate::ast::AstFile, crate::resolve::ResolveOutput) {
         let mut sources = SourceMap::new();
         let source = sources.add_source("app.nct", None, text);
@@ -452,5 +594,21 @@ func view(text: &Text): &Text {
             resolved.diagnostics
         );
         (ast, resolved)
+    }
+
+    fn resolved_function_signature<'a>(
+        resolved: &'a ResolveOutput,
+        name: &str,
+    ) -> &'a FunctionSignature {
+        let symbol = resolved
+            .symbols
+            .symbol_by_name(name)
+            .unwrap_or_else(|| panic!("expected symbol `{name}`"));
+        match &symbol.kind {
+            SymbolKind::Function(signature) | SymbolKind::Primitive(signature) => signature,
+            SymbolKind::Type(_) | SymbolKind::Imported(_) => {
+                panic!("expected function or primitive symbol `{name}`")
+            }
+        }
     }
 }
