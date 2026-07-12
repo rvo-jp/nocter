@@ -229,6 +229,15 @@ fn check_expression(
                 diagnostics,
             );
         }
+        Expr::Borrow(expression) => {
+            check_expression(
+                sources,
+                &expression.expression,
+                resolved,
+                self_type,
+                diagnostics,
+            );
+        }
         Expr::Unary(expression) => {
             check_expression(
                 sources,

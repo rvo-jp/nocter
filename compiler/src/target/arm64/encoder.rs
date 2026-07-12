@@ -125,6 +125,10 @@ impl Encoder {
         self.emit_word(add_sub_sp_imm_word(ADD_SP_IMM_BASE, byte_count));
     }
 
+    pub(crate) fn emit_add_x_sp_imm(&mut self, rd: XReg, byte_count: u32) {
+        self.emit_word(add_x_sp_imm_word(rd, byte_count));
+    }
+
     pub(crate) fn emit_cmp_w(&mut self, rn: WReg, rm: WReg) {
         self.emit_word(SUBS_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | WZR_BITS);
     }
@@ -560,6 +564,18 @@ fn add_sub_sp_imm_word(base: u32, byte_count: u32) -> u32 {
     base | (shift << 22) | (imm12 << 10) | (SP_BITS << 5) | SP_BITS
 }
 
+fn add_x_sp_imm_word(rd: XReg, byte_count: u32) -> u32 {
+    let (shift, imm12) = if byte_count <= 0x0fff {
+        (0, byte_count)
+    } else {
+        debug_assert_eq!(byte_count % 4096, 0);
+        (1, byte_count / 4096)
+    };
+    debug_assert!(imm12 <= 0x0fff);
+
+    ADD_SP_IMM_BASE | (shift << 22) | (imm12 << 10) | (SP_BITS << 5) | rd.bits()
+}
+
 #[allow(dead_code)]
 fn load_store_sp_word(base: u32, rt: u32, byte_offset: u32, access_size: u32) -> u32 {
     debug_assert_eq!(byte_offset % access_size, 0);
@@ -826,6 +842,15 @@ mod tests {
         encoder.emit_add_sp_imm(32);
 
         assert_eq!(encoder.finish(), vec![0xff, 0x83, 0x00, 0x91]);
+    }
+
+    #[test]
+    fn encodes_add_x16_sp_imm() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_add_x_sp_imm(XReg::X16, 32);
+
+        assert_eq!(encoder.finish(), vec![0xf0, 0x83, 0x00, 0x91]);
     }
 
     #[test]

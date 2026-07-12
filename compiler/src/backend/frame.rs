@@ -1,8 +1,8 @@
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolLocation, BoolValue, FallibleFailureMode, Function, I32Location, I32Value, Instruction,
-    ScalarArgument, SliceLocation, SliceValue, StrLocation, StrValue, U8Location, U8Value,
-    UsizeLocation, UsizeValue,
+    BoolLocation, BoolValue, BorrowSource, FallibleFailureMode, Function, I32Location, I32Value,
+    Instruction, ScalarArgument, SliceLocation, SliceValue, StrLocation, StrValue, U8Location,
+    U8Value, UsizeLocation, UsizeValue,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,6 +30,13 @@ impl FrameLayout {
 
     pub(super) fn scalar_spill_slots(&self) -> &[ScalarSpillSlot] {
         &self.scalar_spill_slots
+    }
+
+    pub(super) fn scalar_spill_slot(&self, local_index: usize) -> Option<ScalarSpillSlot> {
+        self.scalar_spill_slots
+            .iter()
+            .copied()
+            .find(|slot| slot.local_index == local_index)
     }
 
     pub(super) fn argument_staging_slots(&self) -> &[ArgumentStagingSlot] {
@@ -663,6 +670,18 @@ fn record_scalar_argument(argument: &ScalarArgument, highest_local_index: &mut O
         ScalarArgument::Bool(value) => record_bool_value(value, highest_local_index),
         ScalarArgument::Str(value) => record_str_value(value, highest_local_index),
         ScalarArgument::Slice(value) => record_slice_value(value, highest_local_index),
+        ScalarArgument::Borrow(argument) => {
+            record_borrow_source(argument.source, highest_local_index);
+        }
+    }
+}
+
+fn record_borrow_source(source: BorrowSource, highest_local_index: &mut Option<usize>) {
+    match source {
+        BorrowSource::I32(location) => record_i32_location(location, highest_local_index),
+        BorrowSource::U8(location) => record_u8_location(location, highest_local_index),
+        BorrowSource::Usize(location) => record_usize_location(location, highest_local_index),
+        BorrowSource::Bool(location) => record_bool_location(location, highest_local_index),
     }
 }
 

@@ -207,6 +207,9 @@ fn collect_expression(
             collect_expression(&expression.expression, root_source, resolved, targets);
             collect_block(&expression.catch_block, root_source, resolved, targets);
         }
+        Expr::Borrow(expression) => {
+            collect_expression(&expression.expression, root_source, resolved, targets);
+        }
         Expr::Member(expression) => {
             collect_expression(&expression.object, root_source, resolved, targets);
         }

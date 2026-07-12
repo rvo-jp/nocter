@@ -1,5 +1,6 @@
 use super::{
-    AssignmentStmt, BindingStmt, Diagnostic, DiagnosticNote, SourceMap, Type, binding_keyword,
+    AssignmentStmt, BindingStmt, BorrowExpr, Diagnostic, DiagnosticNote, SourceMap, Type,
+    binding_keyword,
 };
 
 pub(in crate::typecheck) fn binding_type_mismatch_diagnostic(
@@ -77,5 +78,22 @@ pub(in crate::typecheck) fn assignment_type_mismatch_diagnostic(
         "change the assigned value to produce `{}`",
         expected.display()
     ));
+    diagnostic
+}
+
+pub(in crate::typecheck) fn readwrite_borrow_requires_writable_place_diagnostic(
+    sources: &SourceMap,
+    expression: &BorrowExpr,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0383",
+        "`&+` requires a writable place, such as a `var` binding",
+    );
+    diagnostic.primary_span = sources
+        .span_to_json(expression.expression.span())
+        .ok()
+        .map(Box::new);
+    diagnostic.help =
+        Some("use `&` for a readonly borrow or borrow from a `var` binding".to_string());
     diagnostic
 }

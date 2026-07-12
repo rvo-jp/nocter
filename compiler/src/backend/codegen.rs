@@ -542,7 +542,7 @@ impl EntryEmitter {
                 self.encoder.emit_mov_x(XReg::X1, XReg::X0);
             }
             Type::Void => {}
-            Type::Never | Type::Fallible(_) => {
+            Type::Borrow { .. } | Type::Never | Type::Fallible(_) => {
                 return Err(vec![Diagnostic::error(
                     "E9002",
                     "invalid fallible success payload type for codegen",

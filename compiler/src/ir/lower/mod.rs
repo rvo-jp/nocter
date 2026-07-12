@@ -110,6 +110,12 @@ fn lower_signature_parameter_type(ty: &TypeExpr) -> Option<Type> {
         TypeExpr::Borrow(borrow) if is_u8_slice_data_type(&borrow.inner) => Some(Type::Slice {
             is_readwrite: borrow.is_readwrite,
         }),
+        TypeExpr::Borrow(borrow) => {
+            scalar_borrow_inner_type(&borrow.inner).map(|inner| Type::Borrow {
+                is_readwrite: borrow.is_readwrite,
+                inner: Box::new(inner),
+            })
+        }
         _ => None,
     }
 }
@@ -121,6 +127,16 @@ fn is_u8_slice_data_type(ty: &TypeExpr) -> bool {
             if !view.is_readwrite
                 && matches!(view.element.as_ref(), TypeExpr::Reference(reference) if reference.name == "u8")
     )
+}
+
+fn scalar_borrow_inner_type(ty: &TypeExpr) -> Option<Type> {
+    match ty {
+        TypeExpr::Reference(reference) if reference.name == "i32" => Some(Type::I32),
+        TypeExpr::Reference(reference) if reference.name == "u8" => Some(Type::U8),
+        TypeExpr::Reference(reference) if reference.name == "usize" => Some(Type::Usize),
+        TypeExpr::Reference(reference) if reference.name == "bool" => Some(Type::Bool),
+        _ => None,
+    }
 }
 
 fn lower_reachable_functions(

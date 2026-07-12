@@ -119,6 +119,7 @@ fn lower_entry_body(
                     "E8002",
                     "IR v0 cannot lower bare returns from `i32` entry function",
                 )]),
+                (Type::Borrow { .. }, _) => unreachable!("borrow entry type is not lowered in v0"),
                 (Type::Bool, _) => unreachable!("bool entry type is not lowered in v0"),
                 (Type::Never, _) => unreachable!("never entry type is not lowered in v0"),
                 (Type::Fallible(_), _) => unreachable!("fallible success type must be unwrapped"),

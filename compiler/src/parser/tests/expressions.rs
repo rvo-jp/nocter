@@ -102,6 +102,47 @@ fn parses_force_unwrap_expression() {
 }
 
 #[test]
+fn parses_borrow_expressions() {
+    let output = parse_text(
+        r#"func main(): i32 {
+    let readonly = &value
+    let readwrite = &+value
+    return 0
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
+    };
+    let Stmt::Binding(readonly) = &function.body.statements[0] else {
+        panic!("expected binding statement");
+    };
+    let Expr::Borrow(readonly_borrow) = &readonly.initializer else {
+        panic!("expected readonly borrow expression");
+    };
+    assert!(!readonly_borrow.is_readwrite);
+    assert!(matches!(
+        readonly_borrow.expression.as_ref(),
+        Expr::Identifier(_)
+    ));
+
+    let Stmt::Binding(readwrite) = &function.body.statements[1] else {
+        panic!("expected binding statement");
+    };
+    let Expr::Borrow(readwrite_borrow) = &readwrite.initializer else {
+        panic!("expected readwrite borrow expression");
+    };
+    assert!(readwrite_borrow.is_readwrite);
+    assert!(matches!(
+        readwrite_borrow.expression.as_ref(),
+        Expr::Identifier(_)
+    ));
+}
+
+#[test]
 fn ast_json_includes_expression_operator_spans() {
     let (sources, output) = parse_text_with_sources(
         r#"func main(): i32 {

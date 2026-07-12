@@ -316,15 +316,29 @@ pub(crate) enum ScalarArgument {
     Bool(BoolValue),
     Str(StrValue),
     Slice(SliceValue),
+    Borrow(BorrowArgument),
 }
 
 impl ScalarArgument {
     pub(crate) fn abi_word_count(&self) -> usize {
         match self {
-            Self::I32(_) | Self::U8(_) | Self::Usize(_) | Self::Bool(_) => 1,
+            Self::I32(_) | Self::U8(_) | Self::Usize(_) | Self::Bool(_) | Self::Borrow(_) => 1,
             Self::Str(_) | Self::Slice(_) => 2,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct BorrowArgument {
+    pub(crate) source: BorrowSource,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BorrowSource {
+    I32(I32Location),
+    U8(U8Location),
+    Usize(UsizeLocation),
+    Bool(BoolLocation),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -415,7 +429,13 @@ pub(crate) enum Type {
     Usize,
     Bool,
     Str,
-    Slice { is_readwrite: bool },
+    Slice {
+        is_readwrite: bool,
+    },
+    Borrow {
+        is_readwrite: bool,
+        inner: Box<Type>,
+    },
     Void,
     Never,
     Fallible(Box<Type>),
@@ -431,6 +451,7 @@ impl Type {
             | Self::Bool
             | Self::Str
             | Self::Slice { .. }
+            | Self::Borrow { .. }
             | Self::Void
             | Self::Never => self,
         }

@@ -543,6 +543,16 @@ fn check_expression_for_nested_returns(
                 environment,
             );
         }
+        Expr::Borrow(expression) => {
+            check_expression_for_nested_returns(
+                sources,
+                &expression.expression,
+                context,
+                resolved,
+                diagnostics,
+                environment,
+            );
+        }
         Expr::Binary(expression) => {
             check_expression_for_nested_returns(
                 sources,

@@ -55,6 +55,10 @@ impl Formatter {
                 self.write(" ");
                 self.format_block(&expression.catch_block);
             }
+            Expr::Borrow(expression) => {
+                self.write(if expression.is_readwrite { "&+" } else { "&" });
+                self.format_expr(&expression.expression, PREC_PREFIX);
+            }
             Expr::Unary(expression) => {
                 self.write(unary_spelling(expression.operator));
                 self.format_expr(&expression.operand, PREC_PREFIX);
@@ -169,7 +173,7 @@ fn expression_precedence(expression: &Expr) -> u8 {
     match expression {
         Expr::OptionalDefault(_) | Expr::PatternConditional(_) => PREC_OPTIONAL_DEFAULT,
         Expr::Binary(expression) => binary_precedence(expression.operator),
-        Expr::Unary(_) => PREC_PREFIX,
+        Expr::Borrow(_) | Expr::Unary(_) => PREC_PREFIX,
         Expr::Propagate(_)
         | Expr::Force(_)
         | Expr::Catch(_)

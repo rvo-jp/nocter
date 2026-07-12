@@ -822,6 +822,13 @@ impl Expr {
                 ],
             )
             .with_operator_span(json_span(sources, expression.catch_span)),
+            Expr::Borrow(expression) => JsonAstNode::with_value(
+                "borrow_expression",
+                if expression.is_readwrite { "&+" } else { "&" },
+                json_span(sources, expression.span),
+                vec![expression.expression.to_json(sources)],
+            )
+            .with_operator_span(json_span(sources, expression.operator_span)),
             Expr::Unary(expression) => JsonAstNode::with_value(
                 "unary_expression",
                 expression.operator.spelling(),

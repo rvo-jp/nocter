@@ -1,10 +1,10 @@
 use super::{ParseResult, Parser};
 use crate::ast::{
-    ArrayLiteralExpr, BinaryExpr, CallExpr, CatchExpr, Expr, ForceExpr, GroupExpr, IdentifierExpr,
-    IndexExpr, InterpolatedStringExpr, InterpolatedStringExpression, InterpolatedStringPart,
-    InterpolatedStringText, LiteralExpr, MemberExpr, OptionalDefaultExpr, PatternConditionalArm,
-    PatternConditionalExpr, PropagationExpr, StructLiteralExpr, StructLiteralField,
-    TypeConversionExpr, TypeExpr, TypeReference, UnaryExpr,
+    ArrayLiteralExpr, BinaryExpr, BorrowExpr, CallExpr, CatchExpr, Expr, ForceExpr, GroupExpr,
+    IdentifierExpr, IndexExpr, InterpolatedStringExpr, InterpolatedStringExpression,
+    InterpolatedStringPart, InterpolatedStringText, LiteralExpr, MemberExpr, OptionalDefaultExpr,
+    PatternConditionalArm, PatternConditionalExpr, PropagationExpr, StructLiteralExpr,
+    StructLiteralField, TypeConversionExpr, TypeExpr, TypeReference, UnaryExpr,
 };
 use crate::lexer::{Keyword, Token, TokenKind, lex_span};
 use crate::literals::{StringLiteralPartSpan, string_literal_parts};
@@ -155,6 +155,26 @@ impl Parser<'_> {
     }
 
     fn parse_prefix_expression(&mut self) -> ParseResult<Expr> {
+        if let Some(operator) = self.match_punctuation("&+") {
+            let expression = self.parse_prefix_expression()?;
+            return Ok(Expr::Borrow(BorrowExpr {
+                span: self.span(operator.span.start, expression.span().end),
+                operator_span: operator.span,
+                is_readwrite: true,
+                expression: Box::new(expression),
+            }));
+        }
+
+        if let Some(operator) = self.match_punctuation("&") {
+            let expression = self.parse_prefix_expression()?;
+            return Ok(Expr::Borrow(BorrowExpr {
+                span: self.span(operator.span.start, expression.span().end),
+                operator_span: operator.span,
+                is_readwrite: false,
+                expression: Box::new(expression),
+            }));
+        }
+
         if let Some(operator) = self.match_unary_operator() {
             let operand = self.parse_prefix_expression()?;
             return Ok(Expr::Unary(UnaryExpr {

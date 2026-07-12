@@ -10,7 +10,7 @@ use super::controls::{
 };
 use super::diagnostics::{
     assignment_type_mismatch_diagnostic, immutable_assignment_diagnostic,
-    loop_control_outside_loop_diagnostic,
+    loop_control_outside_loop_diagnostic, readwrite_borrow_requires_writable_place_diagnostic,
 };
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_if_is_binding,
@@ -554,6 +554,23 @@ fn check_expression_tree(
                 loop_depth,
             );
         }
+        Expr::Borrow(expression) => {
+            check_expression_tree(
+                sources,
+                &expression.expression,
+                resolved,
+                diagnostics,
+                environment,
+                loop_depth,
+            );
+            if expression.is_readwrite
+                && !borrow_operand_is_writable_place(&expression.expression, environment)
+            {
+                diagnostics.push(readwrite_borrow_requires_writable_place_diagnostic(
+                    sources, expression,
+                ));
+            }
+        }
         Expr::Binary(expression) => {
             check_expression_tree(
                 sources,
@@ -813,5 +830,13 @@ fn check_expression_tree(
         | Expr::StringLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => {}
+    }
+}
+
+fn borrow_operand_is_writable_place(expression: &Expr, environment: &TypeEnvironment) -> bool {
+    match expression {
+        Expr::Identifier(identifier) => environment.is_mutable_binding(&identifier.name),
+        Expr::Group(group) => borrow_operand_is_writable_place(&group.expression, environment),
+        _ => false,
     }
 }

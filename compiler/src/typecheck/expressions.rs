@@ -87,6 +87,7 @@ pub(super) fn expression_type(
         }
         Expr::Catch(expression) => expression_type(&expression.expression, resolved, environment)
             .into_fallible_success_type(),
+        Expr::Borrow(expression) => borrow_expression_type(expression, resolved, environment),
         Expr::Call(expression) => {
             if collection_len_call_type(expression, resolved, environment).is_some() {
                 return Type::Primitive("usize".to_string());
@@ -137,6 +138,23 @@ pub(super) fn expression_type(
             .or_else(|| struct_member_type(expression, resolved, environment))
             .unwrap_or(Type::Unknown),
     }
+}
+
+fn borrow_expression_type(
+    expression: &crate::ast::BorrowExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Type {
+    let inner = expression_type(&expression.expression, resolved, environment);
+    if inner.is_unknown_or_unresolved() {
+        return Type::Unknown;
+    }
+
+    Type::Named(format!(
+        "{}{}",
+        if expression.is_readwrite { "&+" } else { "&" },
+        inner.display()
+    ))
 }
 
 pub(super) fn collection_len_call_type(

@@ -3,10 +3,10 @@ use crate::analysis::{CompileUnit, analyze_compile_unit_with_entry};
 use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::ir::{
-    BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, CallTarget,
-    FallibleFailureMode, Function, I32ComparisonOperator, I32Location, I32Value, Instruction,
-    IrModule, ScalarArgument, SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location,
-    U8Value, UsizeLocation, UsizeValue,
+    BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, BorrowArgument,
+    BorrowSource, CallTarget, FallibleFailureMode, Function, I32ComparisonOperator, I32Location,
+    I32Value, Instruction, IrModule, ScalarArgument, SliceLocation, SliceValue, StrLocation,
+    StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use crate::source::SourceMap;
 use crate::target::DEFAULT_TARGET;
@@ -1167,6 +1167,89 @@ func consume(name: &str, code: i32): i32 {
                 ],
             },
         ])
+    );
+}
+
+#[test]
+fn lowers_scalar_borrow_call_argument_as_one_abi_word() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let value = 7
+    let result = choose(&value, 42)
+    return result
+}
+
+func choose(value: &i32, code: i32): i32 {
+    return code
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: I32Value::Const(7),
+                    },
+                    Instruction::CallI32 {
+                        destination: I32Location::Local(1),
+                        target: CallTarget::same_file("choose"),
+                        arguments: vec![
+                            ScalarArgument::Borrow(BorrowArgument {
+                                source: BorrowSource::I32(I32Location::Local(0)),
+                            }),
+                            ScalarArgument::I32(I32Value::Const(42)),
+                        ],
+                    },
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(1),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "choose".to_string(),
+                target: crate::ir::CallTarget::same_file("choose".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_param(1),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ])
+    );
+}
+
+#[test]
+fn rejects_tail_call_with_borrow_argument() {
+    let diagnostics = lower_text_diagnostics(
+        r#"func main(): i32 {
+    let value = 7
+    return choose(&value, 42)
+}
+
+func choose(value: &i32, code: i32): i32 {
+    return code
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E8006");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("tail call to function `choose` with borrow arguments")
     );
 }
 

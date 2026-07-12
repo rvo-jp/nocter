@@ -25,6 +25,7 @@ pub(in crate::ir::lower) fn expression_contains_call(expression: &Expr) -> bool 
         Expr::Propagate(propagation) => expression_contains_call(&propagation.expression),
         Expr::Force(force) => expression_contains_call(&force.expression),
         Expr::Catch(catch) => expression_contains_call(&catch.expression),
+        Expr::Borrow(borrow) => expression_contains_call(&borrow.expression),
         Expr::Member(member) => expression_contains_call(&member.object),
         Expr::Index(index) => {
             expression_contains_call(&index.object) || expression_contains_call(&index.index)
@@ -74,6 +75,7 @@ pub(in crate::ir::lower) fn expression_contains_interpolated_string(expression: 
         }
         Expr::Force(force) => expression_contains_interpolated_string(&force.expression),
         Expr::Catch(catch) => expression_contains_interpolated_string(&catch.expression),
+        Expr::Borrow(borrow) => expression_contains_interpolated_string(&borrow.expression),
         Expr::Call(call) => {
             expression_contains_interpolated_string(&call.callee)
                 || call

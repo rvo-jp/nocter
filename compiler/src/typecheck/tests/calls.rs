@@ -53,6 +53,42 @@ func length(value: i32): i32 {
 }
 
 #[test]
+fn accepts_readonly_borrow_function_argument() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    let value = 1
+    inspect(&value)
+    return 0
+}
+
+func inspect(value: &i32): void {
+    return
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_readwrite_borrow_function_argument_from_var() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    var value = 1
+    touch(&+value)
+    return 0
+}
+
+func touch(value: &+i32): void {
+    return
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn accepts_associated_function_return_type() {
     let diagnostics = check_text(
         r#"struct Point {

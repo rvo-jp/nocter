@@ -210,6 +210,7 @@ impl Resolver<'_> {
                 );
                 self.resolve_block(&expression.catch_block, &mut catch_scope);
             }
+            Expr::Borrow(expression) => self.resolve_expression(&expression.expression, scope),
             Expr::Binary(expression) => {
                 self.resolve_expression(&expression.left, scope);
                 self.resolve_expression(&expression.right, scope);

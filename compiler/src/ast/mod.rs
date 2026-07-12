@@ -475,6 +475,7 @@ pub enum Expr {
     Propagate(PropagationExpr),
     Force(ForceExpr),
     Catch(CatchExpr),
+    Borrow(BorrowExpr),
     Unary(UnaryExpr),
     Binary(BinaryExpr),
     TypeConversion(TypeConversionExpr),
@@ -569,6 +570,14 @@ pub struct CatchExpr {
     pub error_name: String,
     pub error_span: ByteSpan,
     pub catch_block: Block,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BorrowExpr {
+    pub span: ByteSpan,
+    pub operator_span: ByteSpan,
+    pub is_readwrite: bool,
+    pub expression: Box<Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -773,6 +782,7 @@ impl Expr {
             Expr::Propagate(expression) => expression.span,
             Expr::Force(expression) => expression.span,
             Expr::Catch(expression) => expression.span,
+            Expr::Borrow(expression) => expression.span,
             Expr::Unary(expression) => expression.span,
             Expr::Binary(expression) => expression.span,
             Expr::TypeConversion(expression) => expression.span,

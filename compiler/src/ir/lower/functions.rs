@@ -125,6 +125,14 @@ fn lower_scalar_parameters(
                 str_parameters.push(None);
                 slice_parameters.push(None);
             }
+            ScalarParameterKind::Borrow => {
+                i32_parameters.push(None);
+                u8_parameters.push(None);
+                usize_parameters.push(None);
+                bool_parameters.push(None);
+                str_parameters.push(None);
+                slice_parameters.push(None);
+            }
         }
 
         if i32_parameters.len() > MAX_PARAMETER_ABI_WORDS {
@@ -156,6 +164,7 @@ enum ScalarParameterKind {
     Bool,
     Str,
     Slice,
+    Borrow,
 }
 
 fn lower_scalar_parameter_kind(
@@ -178,10 +187,13 @@ fn lower_scalar_parameter_kind(
         TypeExpr::Borrow(borrow) if is_u8_slice_data_type(&borrow.inner) => {
             Ok(ScalarParameterKind::Slice)
         }
+        TypeExpr::Borrow(borrow) if scalar_borrow_inner_type(&borrow.inner).is_some() => {
+            Ok(ScalarParameterKind::Borrow)
+        }
         _ => Err(vec![Diagnostic::error(
             "E8007",
             format!(
-                "IR v0 can only lower `i32`, `u8`, `usize`, `bool`, `&str`, `&[u8]`, and `&+[u8]` parameters for function `{function_name}`"
+                "IR v0 can only lower `i32`, `u8`, `usize`, `bool`, `&str`, `&[u8]`, `&+[u8]`, and scalar borrow parameters for function `{function_name}`"
             ),
         )]),
     }
@@ -222,6 +234,16 @@ fn is_u8_slice_data_type(ty: &TypeExpr) -> bool {
             if !view.is_readwrite
                 && matches!(view.element.as_ref(), TypeExpr::Reference(reference) if reference.name == "u8")
     )
+}
+
+fn scalar_borrow_inner_type(ty: &TypeExpr) -> Option<Type> {
+    match ty {
+        TypeExpr::Reference(reference) if reference.name == "i32" => Some(Type::I32),
+        TypeExpr::Reference(reference) if reference.name == "u8" => Some(Type::U8),
+        TypeExpr::Reference(reference) if reference.name == "usize" => Some(Type::Usize),
+        TypeExpr::Reference(reference) if reference.name == "bool" => Some(Type::Bool),
+        _ => None,
+    }
 }
 
 fn lower_function_body(
@@ -330,6 +352,13 @@ fn lower_function_body(
                     "E8007",
                     format!(
                         "IR v0 cannot lower bare returns from slice function `{}`",
+                        function.name
+                    ),
+                )]),
+                (Type::Borrow { .. }, _) => Err(vec![Diagnostic::error(
+                    "E8007",
+                    format!(
+                        "IR v0 cannot lower borrow returns from function `{}`",
                         function.name
                     ),
                 )]),

@@ -513,6 +513,14 @@ fn collect_expression_resolved_hover_symbols(
                 candidates,
             );
         }
+        Expr::Borrow(expression) => {
+            collect_expression_resolved_hover_symbols(
+                &expression.expression,
+                resolved,
+                offset,
+                candidates,
+            );
+        }
         Expr::Unary(expression) => {
             collect_expression_resolved_hover_symbols(
                 &expression.operand,
@@ -952,6 +960,9 @@ fn collect_expression_hover_symbols(text: &str, expression: &Expr, symbols: &mut
         Expr::Catch(expression) => {
             collect_expression_hover_symbols(text, &expression.expression, symbols);
             collect_block_hover_symbols(text, &expression.catch_block, symbols);
+        }
+        Expr::Borrow(expression) => {
+            collect_expression_hover_symbols(text, &expression.expression, symbols);
         }
         Expr::Unary(expression) => {
             collect_expression_hover_symbols(text, &expression.operand, symbols)

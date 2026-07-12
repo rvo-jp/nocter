@@ -187,6 +187,9 @@ fn collect_expression_targets(
             collect_expression_targets(text, &expression.expression, targets);
             collect_block_targets(text, &expression.catch_block, targets);
         }
+        Expr::Borrow(expression) => {
+            collect_expression_targets(text, &expression.expression, targets);
+        }
         Expr::Unary(expression) => collect_expression_targets(text, &expression.operand, targets),
         Expr::Binary(expression) => {
             collect_expression_targets(text, &expression.left, targets);

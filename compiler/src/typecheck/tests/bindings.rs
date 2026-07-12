@@ -52,6 +52,25 @@ func id(value: i32): i32 {
 }
 
 #[test]
+fn diagnoses_readwrite_borrow_of_let_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    let value = 1
+    touch(&+value)
+    return 0
+}
+
+func touch(value: &+i32): void {
+    return
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0383");
+}
+
+#[test]
 fn diagnoses_assignment_type_mismatch() {
     let diagnostics = check_text(
         r#"func main(): i32 {

@@ -15,8 +15,8 @@ use crate::ast::{
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, FallibleFailureMode,
-    I32ComparisonOperator, I32Location, I32Value, Instruction, SliceLocation, SliceValue,
-    StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
+    I32ComparisonOperator, I32Location, I32Value, Instruction, ScalarArgument, SliceLocation,
+    SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use calls::{
     lower_bool_normal_call, lower_call_arguments, lower_direct_tail_call,
@@ -446,6 +446,7 @@ fn lower_catch_block(
                 | (Type::Bool, None)
                 | (Type::Str, None)
                 | (Type::Slice { .. }, None)
+                | (Type::Borrow { .. }, _)
                 | (Type::Never, None) => Err(unsupported_catch_block_diagnostic()),
                 (Type::Fallible(_), _) => {
                     unreachable!("fallible success type must be unwrapped")
@@ -1325,6 +1326,18 @@ pub(super) fn lower_never_return_expression(
             let mut temporaries = TemporaryAllocator::new(context)?;
             let (mut instructions, arguments) =
                 lower_call_arguments(call, &target, &identifier.name, context, &mut temporaries)?;
+            if arguments
+                .iter()
+                .any(|argument| matches!(argument, ScalarArgument::Borrow(_)))
+            {
+                return Err(vec![Diagnostic::error(
+                    "E8006",
+                    format!(
+                        "IR v0 cannot lower tail call to function `{}` with borrow arguments",
+                        identifier.name
+                    ),
+                )]);
+            }
             instructions.push(Instruction::TailCall { target, arguments });
             Ok(Some(instructions))
         }

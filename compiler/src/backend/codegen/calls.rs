@@ -2,8 +2,8 @@ use super::{EntryEmitter, FunctionCallPatch, FunctionSymbol};
 use crate::backend::frame::{ArgumentStagingSlot, FrameLayout};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolLocation, FallibleFailureMode, I32Location, ScalarArgument, SliceLocation, StrLocation,
-    Type, U8Location, UsizeLocation,
+    BoolLocation, BorrowSource, FallibleFailureMode, I32Location, ScalarArgument, SliceLocation,
+    StrLocation, Type, U8Location, UsizeLocation,
 };
 use crate::target::arm64::{BranchCondition, WReg, XReg};
 
@@ -451,6 +451,13 @@ impl EntryEmitter {
                     self.encoder.emit_str_x_sp(XReg::X17, len_slot.offset());
                     abi_word_index += 2;
                 }
+                ScalarArgument::Borrow(argument) => {
+                    let slot = staging_slot(frame, abi_word_index)?;
+                    let source_offset = borrow_source_spill_offset(argument.source, frame)?;
+                    self.encoder.emit_add_x_sp_imm(XReg::X16, source_offset);
+                    self.encoder.emit_str_x_sp(XReg::X16, slot.offset());
+                    abi_word_index += 1;
+                }
             }
         }
 
@@ -470,7 +477,7 @@ impl EntryEmitter {
                     self.encoder.emit_ldr_w_sp(register, slot.offset());
                     abi_word_index += 1;
                 }
-                ScalarArgument::Usize(_) => {
+                ScalarArgument::Usize(_) | ScalarArgument::Borrow(_) => {
                     let Some(register) = XReg::argument(abi_word_index) else {
                         return Err(vec![Diagnostic::error(
                             "E9003",
@@ -714,4 +721,39 @@ fn staging_slot(
         })?;
     debug_assert_eq!(slot.abi_word_index(), abi_word_index);
     Ok(slot)
+}
+
+fn borrow_source_spill_offset(
+    source: BorrowSource,
+    frame: &FrameLayout,
+) -> Result<u32, Vec<Diagnostic>> {
+    let Some(local_index) = borrow_source_local_index(source) else {
+        return Err(vec![Diagnostic::error(
+            "E9005",
+            "borrow argument emission requires a scalar local source",
+        )]);
+    };
+
+    frame
+        .scalar_spill_slot(local_index)
+        .map(|slot| slot.offset())
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "E9005",
+                format!("borrow argument source local {local_index} has no spill slot"),
+            )]
+        })
+}
+
+fn borrow_source_local_index(source: BorrowSource) -> Option<usize> {
+    match source {
+        BorrowSource::I32(I32Location::Local(index)) => Some(index),
+        BorrowSource::U8(U8Location::Local(index)) => Some(index),
+        BorrowSource::Usize(UsizeLocation::Local(index)) => Some(index),
+        BorrowSource::Bool(BoolLocation::Local(index)) => Some(index),
+        BorrowSource::I32(I32Location::Return | I32Location::Parameter(_))
+        | BorrowSource::U8(U8Location::Return | U8Location::Parameter(_))
+        | BorrowSource::Usize(UsizeLocation::Return | UsizeLocation::Parameter(_))
+        | BorrowSource::Bool(BoolLocation::Return | BoolLocation::Parameter(_)) => None,
+    }
 }

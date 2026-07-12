@@ -9,8 +9,8 @@ use crate::ast::{CallExpr, Expr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::StrLocation;
 use crate::ir::{
-    BoolLocation, CallTarget, FallibleFailureMode, I32Location, Instruction, ScalarArgument,
-    SliceLocation, Type, U8Location, UsizeLocation,
+    BoolLocation, BorrowArgument, BorrowSource, CallTarget, FallibleFailureMode, I32Location,
+    Instruction, ScalarArgument, SliceLocation, Type, U8Location, UsizeLocation,
 };
 
 pub(super) fn lower_i32_normal_call(
@@ -388,6 +388,19 @@ pub(super) fn lower_direct_tail_call(
     let (mut instructions, arguments) =
         lower_call_arguments(call, &target, &identifier.name, context, &mut temporaries)?;
 
+    if arguments
+        .iter()
+        .any(|argument| matches!(argument, ScalarArgument::Borrow(_)))
+    {
+        return Err(vec![Diagnostic::error(
+            "E8006",
+            format!(
+                "IR v0 cannot lower tail call to function `{}` with borrow arguments",
+                identifier.name
+            ),
+        )]);
+    }
+
     instructions.push(Instruction::TailCall { target, arguments });
     Ok(instructions)
 }
@@ -453,6 +466,14 @@ pub(super) fn lower_call_arguments(
                 instructions.extend(argument.instructions);
                 arguments.push(ScalarArgument::Slice(argument.value));
             }
+            Type::Borrow { .. } => {
+                arguments.push(ScalarArgument::Borrow(lower_borrow_argument(
+                    argument,
+                    parameter_type,
+                    callee_name,
+                    context,
+                )?));
+            }
             Type::Void | Type::Never | Type::Fallible(_) => {
                 return Err(vec![Diagnostic::error(
                     "E8006",
@@ -466,6 +487,109 @@ pub(super) fn lower_call_arguments(
     }
 
     Ok((instructions, arguments))
+}
+
+fn lower_borrow_argument(
+    argument: &Expr,
+    parameter_type: &Type,
+    callee_name: &str,
+    context: &LoweringContext,
+) -> Result<BorrowArgument, Vec<Diagnostic>> {
+    let Type::Borrow {
+        is_readwrite,
+        inner,
+    } = parameter_type
+    else {
+        unreachable!("borrow argument lowering requires a borrow parameter type");
+    };
+
+    let Expr::Borrow(borrow) = unwrap_group(argument) else {
+        return Err(unsupported_borrow_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    };
+
+    if borrow.is_readwrite != *is_readwrite {
+        return Err(unsupported_borrow_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    }
+
+    let Expr::Identifier(identifier) = unwrap_group(&borrow.expression) else {
+        return Err(unsupported_borrow_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    };
+
+    let source = match inner.as_ref() {
+        Type::I32 => match context.i32_location(&identifier.name) {
+            Some(I32Location::Local(index)) => BorrowSource::I32(I32Location::Local(index)),
+            _ => {
+                return Err(unsupported_borrow_argument_diagnostic(
+                    callee_name,
+                    parameter_type,
+                ));
+            }
+        },
+        Type::U8 => match context.u8_location(&identifier.name) {
+            Some(U8Location::Local(index)) => BorrowSource::U8(U8Location::Local(index)),
+            _ => {
+                return Err(unsupported_borrow_argument_diagnostic(
+                    callee_name,
+                    parameter_type,
+                ));
+            }
+        },
+        Type::Usize => match context.usize_location(&identifier.name) {
+            Some(UsizeLocation::Local(index)) => BorrowSource::Usize(UsizeLocation::Local(index)),
+            _ => {
+                return Err(unsupported_borrow_argument_diagnostic(
+                    callee_name,
+                    parameter_type,
+                ));
+            }
+        },
+        Type::Bool => match context.bool_location(&identifier.name) {
+            Some(BoolLocation::Local(index)) => BorrowSource::Bool(BoolLocation::Local(index)),
+            _ => {
+                return Err(unsupported_borrow_argument_diagnostic(
+                    callee_name,
+                    parameter_type,
+                ));
+            }
+        },
+        _ => {
+            return Err(unsupported_borrow_argument_diagnostic(
+                callee_name,
+                parameter_type,
+            ));
+        }
+    };
+
+    Ok(BorrowArgument { source })
+}
+
+fn unwrap_group(expression: &Expr) -> &Expr {
+    match expression {
+        Expr::Group(group) => unwrap_group(&group.expression),
+        _ => expression,
+    }
+}
+
+fn unsupported_borrow_argument_diagnostic(
+    callee_name: &str,
+    parameter_type: &Type,
+) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8006",
+        format!(
+            "IR v0 can only lower `{}` arguments from scalar local bindings for function `{callee_name}`",
+            describe_type(parameter_type),
+        ),
+    )]
 }
 
 pub(super) fn primitive_trap_call(call: &CallExpr, context: &LoweringContext) -> bool {
@@ -905,6 +1029,26 @@ fn describe_type(ty: &Type) -> &'static str {
             is_readwrite: false,
         } => "&[u8]",
         Type::Slice { is_readwrite: true } => "&+[u8]",
+        Type::Borrow {
+            is_readwrite: false,
+            inner,
+        } => match inner.as_ref() {
+            Type::I32 => "&i32",
+            Type::U8 => "&u8",
+            Type::Usize => "&usize",
+            Type::Bool => "&bool",
+            _ => "borrow",
+        },
+        Type::Borrow {
+            is_readwrite: true,
+            inner,
+        } => match inner.as_ref() {
+            Type::I32 => "&+i32",
+            Type::U8 => "&+u8",
+            Type::Usize => "&+usize",
+            Type::Bool => "&+bool",
+            _ => "borrow",
+        },
         Type::Void => "void",
         Type::Never => "never",
         Type::Fallible(success) => match success.as_ref() {
@@ -917,6 +1061,26 @@ fn describe_type(ty: &Type) -> &'static str {
                 is_readwrite: false,
             } => "&[u8]!",
             Type::Slice { is_readwrite: true } => "&+[u8]!",
+            Type::Borrow {
+                is_readwrite: false,
+                inner,
+            } => match inner.as_ref() {
+                Type::I32 => "&i32!",
+                Type::U8 => "&u8!",
+                Type::Usize => "&usize!",
+                Type::Bool => "&bool!",
+                _ => "borrow!",
+            },
+            Type::Borrow {
+                is_readwrite: true,
+                inner,
+            } => match inner.as_ref() {
+                Type::I32 => "&+i32!",
+                Type::U8 => "&+u8!",
+                Type::Usize => "&+usize!",
+                Type::Bool => "&+bool!",
+                _ => "borrow!",
+            },
             Type::Void => "void!",
             Type::Never => "never!",
             Type::Fallible(_) => "fallible",
