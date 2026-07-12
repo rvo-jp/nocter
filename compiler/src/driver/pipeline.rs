@@ -965,6 +965,227 @@ func main(): void! {
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     #[test]
+    fn build_file_output_runs_non_i32_catch_success_paths() {
+        let root = make_temp_project("build-run-non-i32-catch-success");
+        let nocter_home = make_nocter_home(&root);
+        let source = root.join("non_i32_catch_success.nct");
+        fs::write(
+            &source,
+            r#"func main(): i32 {
+    let left: i32 = success_left()
+    let right: i32 = success_right()
+    return left + right
+}
+
+func success_left(): i32 {
+    let byte_status: i32 = success_byte()
+    let size_status: i32 = success_size()
+    return byte_status + size_status
+}
+
+func success_right(): i32 {
+    let bool_status: i32 = success_bool()
+    let str_status: i32 = success_str()
+    let void_status: i32 = success_void()
+    return bool_status + str_status + void_status
+}
+
+func success_byte(): i32 {
+    let byte_value: u8 = make_byte() catch error {
+        return 1
+    }
+    return byte_value as i32
+}
+
+func success_size(): i32 {
+    let size_value: usize = make_size() catch error {
+        return 2
+    }
+    if size_value == 8 {
+        return 8
+    } else {
+        return 1
+    }
+}
+
+func success_bool(): i32 {
+    let flag_value: bool = make_flag() catch error {
+        return 3
+    }
+    if flag_value {
+        return 7
+    } else {
+        return 1
+    }
+}
+
+func success_str(): i32 {
+    let text: &str = make_text() catch error {
+        return 4
+    }
+    return 6
+}
+
+func success_void(): i32 {
+    effect() catch error {
+        return 5
+    }
+    return 11
+}
+
+func make_byte(): u8! {
+    return 10
+}
+
+func make_size(): usize! {
+    return 8
+}
+
+func make_flag(): bool! {
+    return true
+}
+
+func make_text(): &str! {
+    return "abc"
+}
+
+func effect(): void! {
+    return
+}
+"#,
+        )
+        .unwrap();
+
+        let executable = default_executable_path(&source);
+        let output = build_file_to_path_with_options(
+            &source,
+            &executable,
+            &frontend_options(nocter_home),
+            DEFAULT_ENTRY_NAME,
+        );
+
+        assert_diagnostics_empty(&output.diagnostics);
+        assert_eq!(output.output_path, executable);
+        let output = std::process::Command::new(&executable).output().unwrap();
+        assert_eq!(output.status.code(), Some(42));
+        assert!(output.stdout.is_empty());
+        assert!(output.stderr.is_empty());
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
+    fn build_file_output_runs_non_i32_catch_failure_recovery_paths() {
+        let root = make_temp_project("build-run-non-i32-catch-failure-recovery");
+        let nocter_home = make_nocter_home(&root);
+        write_std_error(&nocter_home);
+        let source = root.join("non_i32_catch_failure_recovery.nct");
+        fs::write(
+            &source,
+            r#"from std/error import Error
+
+func main(): i32 {
+    let left: i32 = recover_left()
+    let right: i32 = recover_right()
+    return left + right
+}
+
+func recover_left(): i32 {
+    let byte_status: i32 = recover_byte()
+    let size_status: i32 = recover_size()
+    return byte_status + size_status
+}
+
+func recover_right(): i32 {
+    let bool_status: i32 = recover_bool()
+    let str_status: i32 = recover_str()
+    let void_status: i32 = recover_void()
+    return bool_status + str_status + void_status
+}
+
+func recover_byte(): i32 {
+    let value: u8 = fail_byte() catch error {
+        return 10
+    }
+    return value as i32
+}
+
+func recover_size(): i32 {
+    let value: usize = fail_size() catch error {
+        return 11
+    }
+    if value == 0 {
+        return 0
+    } else {
+        return 1
+    }
+}
+
+func recover_bool(): i32 {
+    let value: bool = fail_flag() catch error {
+        return 12
+    }
+    if value {
+        return 0
+    } else {
+        return 1
+    }
+}
+
+func recover_str(): i32 {
+    let value: &str = fail_text() catch error {
+        return 13
+    }
+    return 1
+}
+
+func recover_void(): i32 {
+    fail_effect() catch error {
+        return 14
+    }
+    return 1
+}
+
+func fail_byte(): u8! {
+    return Error.new("app.byte", "byte failed")
+}
+
+func fail_size(): usize! {
+    return Error.new("app.size", "size failed")
+}
+
+func fail_flag(): bool! {
+    return Error.new("app.flag", "flag failed")
+}
+
+func fail_text(): &str! {
+    return Error.new("app.text", "text failed")
+}
+
+func fail_effect(): void! {
+    return Error.new("app.effect", "effect failed")
+}
+"#,
+        )
+        .unwrap();
+
+        let executable = default_executable_path(&source);
+        let output = build_file_to_path_with_options(
+            &source,
+            &executable,
+            &frontend_options(nocter_home),
+            DEFAULT_ENTRY_NAME,
+        );
+
+        assert_diagnostics_empty(&output.diagnostics);
+        assert_eq!(output.output_path, executable);
+        let output = std::process::Command::new(&executable).output().unwrap();
+        assert_eq!(output.status.code(), Some(60));
+        assert!(output.stdout.is_empty());
+        assert!(output.stderr.is_empty());
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
     fn build_file_output_runs_fallible_scalar_call_success_propagation() {
         let root = make_temp_project("build-run-fallible-scalar-success-propagation");
         let nocter_home = make_nocter_home(&root);
