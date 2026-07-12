@@ -154,7 +154,8 @@ impl Resolver<'_> {
                     );
                 }
                 Item::Struct(struct_) => {
-                    let mut symbol = struct_type_symbol(struct_.name.clone(), &struct_.fields);
+                    let mut symbol =
+                        struct_type_symbol(struct_.name.clone(), struct_.is_copy, &struct_.fields);
                     attach_inherent_impl_members_to_symbol(&mut symbol, ast, &struct_.name);
                     let imported = type_importable_symbol(struct_.span, struct_.visibility, symbol);
                     let imported = filter_importable_symbol_for_access(imported, access);
@@ -325,7 +326,8 @@ fn direct_importable_symbol(ast: &AstFile, name: &str) -> Option<ImportableSymbo
             Some(type_importable_symbol(alias.span, alias.visibility, symbol))
         }
         Item::Struct(struct_) if struct_.name == name => {
-            let mut symbol = struct_type_symbol(struct_.name.clone(), &struct_.fields);
+            let mut symbol =
+                struct_type_symbol(struct_.name.clone(), struct_.is_copy, &struct_.fields);
             attach_inherent_impl_members_to_symbol(&mut symbol, ast, &struct_.name);
             Some(type_importable_symbol(
                 struct_.span,

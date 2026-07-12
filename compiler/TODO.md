@@ -27,6 +27,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: track copy struct metadata in resolver
+  - records AST `copy struct` declarations on resolver `TypeSymbol` for local and imported struct symbols
+  - keeps alias, enum, trait, and ordinary struct symbols non-copy at this metadata layer
+  - prepares copy-only aggregate slot assignment/move checks without changing source-level aggregate behavior yet
 - Current checkpoint: copy aggregate slots to aggregate slots in backend
   - extends backend `CopyAggregate` emission from slot-to-return copies to slot-to-slot 8-byte chunk copies
   - keeps source-level aggregate move/assignment lowering disabled until ownership state and drop replacement rules are designed

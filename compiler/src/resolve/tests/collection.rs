@@ -28,7 +28,7 @@ fn collects_primitive_and_type_symbols() {
 
 	pub type Bytes = [u8]
 
-pub struct File {
+pub copy struct File {
     pub fd: i32
     name: &str
 }
@@ -58,12 +58,14 @@ func main(): i32 {
     let file_symbol = output.symbols.symbol_by_name("File").unwrap();
     let SymbolKind::Type(TypeSymbol {
         kind: TypeSymbolKind::Struct,
+        is_copy,
         fields,
         ..
     }) = &file_symbol.kind
     else {
         panic!("expected struct symbol");
     };
+    assert!(*is_copy);
     assert_eq!(fields.len(), 2);
     assert_eq!(fields[0].name, "fd");
     assert_eq!(fields[0].visibility, Visibility::Public);

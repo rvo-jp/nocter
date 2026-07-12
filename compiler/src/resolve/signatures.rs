@@ -141,6 +141,7 @@ pub(super) fn alias_type_symbol(canonical_name: String, alias_target: TypeExpr) 
     TypeSymbol {
         kind: TypeSymbolKind::Alias,
         canonical_name,
+        is_copy: false,
         alias_target: Some(alias_target),
         fields: Vec::new(),
         variants: Vec::new(),
@@ -153,6 +154,7 @@ pub(super) fn nominal_type_symbol(canonical_name: String, kind: TypeSymbolKind) 
     TypeSymbol {
         kind,
         canonical_name,
+        is_copy: false,
         alias_target: None,
         fields: Vec::new(),
         variants: Vec::new(),
@@ -161,10 +163,15 @@ pub(super) fn nominal_type_symbol(canonical_name: String, kind: TypeSymbolKind) 
     }
 }
 
-pub(super) fn struct_type_symbol(canonical_name: String, fields: &[StructField]) -> TypeSymbol {
+pub(super) fn struct_type_symbol(
+    canonical_name: String,
+    is_copy: bool,
+    fields: &[StructField],
+) -> TypeSymbol {
     TypeSymbol {
         kind: TypeSymbolKind::Struct,
         canonical_name,
+        is_copy,
         alias_target: None,
         fields: fields
             .iter()
@@ -186,6 +193,7 @@ pub(super) fn enum_type_symbol(canonical_name: String, variants: &[EnumVariant])
     TypeSymbol {
         kind: TypeSymbolKind::Enum,
         canonical_name,
+        is_copy: false,
         alias_target: None,
         fields: Vec::new(),
         variants: variants

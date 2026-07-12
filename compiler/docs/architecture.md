@@ -477,6 +477,7 @@ Current semantic coverage:
 - eligible user project modules synthesize `use std/prelude`
 - explicit or synthetic `use std/prelude` loads the prelude and introduces its public declarations and public `pub from` re-exports
 - same-file top-level `func`, `primitive`, `type`, `struct`, and `enum` declarations are collected into a resolver-owned symbol table
+- resolver type symbols retain whether a struct was declared with `copy struct`; aliases, enums, traits, and ordinary structs are non-copy in this metadata
 - duplicate visible names among same-file declarations, explicit imported names, parameters, locals, and catch bindings are diagnosed
 - direct calls to same-file functions are resolved and checked for argument count
 - direct calls to same-file functions check argument types when both expected and actual types are known

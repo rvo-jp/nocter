@@ -31,7 +31,7 @@ impl Resolver<'_> {
                     struct_.name.clone(),
                     struct_.name_span,
                     struct_.span,
-                    struct_type_symbol(struct_.name.clone(), &struct_.fields),
+                    struct_type_symbol(struct_.name.clone(), struct_.is_copy, &struct_.fields),
                 ),
                 Item::Enum(enum_) => self.collect_type_symbol(
                     enum_.name.clone(),

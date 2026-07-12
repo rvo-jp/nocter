@@ -274,6 +274,7 @@ pub struct FunctionSignature {
 pub struct TypeSymbol {
     pub kind: TypeSymbolKind,
     pub canonical_name: String,
+    pub is_copy: bool,
     pub alias_target: Option<TypeExpr>,
     pub fields: Vec<StructFieldSignature>,
     pub variants: Vec<EnumVariantSignature>,
