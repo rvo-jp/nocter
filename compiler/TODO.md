@@ -27,6 +27,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: show local reference documentation in LSP hover
+  - makes `///` attached to local `let`/`var` declarations appear when hovering later references to that binding
+  - reuses the existing hover symbol/documentation attachment path for both open-document fallback and workspace analysis hover
+  - keeps richer type hovers, references, rename, and other editor-only features deferred while backend core work remains the main priority
 - Current checkpoint: parse and lower narrow move returns
   - parses `move name` as a unary expression and formats it with keyword spacing
   - type-checks only the v0 operand shape rule that `move` must target a binding name, leaving copy/move-only classification and initialized-state tracking for the ownership pass

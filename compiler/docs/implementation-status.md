@@ -40,7 +40,7 @@ This file describes implementation state only.
 | `check --format json` | yes | n/a | yes | n/a | yes | JSON diagnostics are used by corpus tests. |
 | `tokens --format json` and `ast --format json` | yes | yes | n/a | n/a | yes | Tooling aids, not stable language compatibility promises. |
 | `fmt` | yes | yes | n/a | n/a | partial | v0 rejects files with comments instead of rewriting them. |
-| `lsp` | partial | n/a | partial | n/a | partial | JSON-RPC server supports initialize, workspace root recording, shutdown, exit, full document sync, stale version rejection, open-document import reuse, stale diagnostic clearing, UTF-16 diagnostic positions, publishDiagnostics, semantic tokens, Markdown hover for documented declarations/references and loaded import module paths, definition, document symbols, and basic completions. |
+| `lsp` | partial | n/a | partial | n/a | partial | JSON-RPC server supports initialize, workspace root recording, shutdown, exit, full document sync, stale version rejection, open-document import reuse, stale diagnostic clearing, UTF-16 diagnostic positions, publishDiagnostics, semantic tokens, Markdown hover for documented declarations, local/top-level/imported references, and loaded import module paths, definition, document symbols, and basic completions. |
 
 ## Buildable Subset
 

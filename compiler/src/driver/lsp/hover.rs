@@ -1209,7 +1209,9 @@ fn single_file_resolved_reference_hover_contents(
                 .map(str::to_string);
             (label, docs)
         }
-        ResolvedReference::Local(symbol) => (local_symbol_hover_label(symbol), None),
+        ResolvedReference::Local(symbol) => {
+            local_symbol_hover_contents(symbols, documentation, symbol)
+        }
     }
 }
 
@@ -1227,8 +1229,50 @@ fn resolved_reference_hover_contents(
                 )
             })
         }
-        ResolvedReference::Local(symbol) => (local_symbol_hover_label(symbol), None),
+        ResolvedReference::Local(symbol) => {
+            resolved_local_symbol_hover_contents(sources, analysis, symbol)
+                .unwrap_or_else(|| (local_symbol_hover_label(symbol), None))
+        }
     }
+}
+
+fn local_symbol_hover_contents(
+    symbols: &[HoverSymbol],
+    documentation: &crate::comments::AttachedDocumentation,
+    symbol: &LocalSymbol,
+) -> (String, Option<String>) {
+    let referenced = symbols
+        .iter()
+        .find(|candidate| candidate.name_span == symbol.name_span);
+    let label = referenced
+        .map(|symbol| symbol.label.clone())
+        .unwrap_or_else(|| local_symbol_hover_label(symbol));
+    let docs = referenced
+        .and_then(|symbol| documentation.get(symbol.name_span.start))
+        .map(str::to_string);
+
+    (label, docs)
+}
+
+fn resolved_local_symbol_hover_contents(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    symbol: &LocalSymbol,
+) -> Option<(String, Option<String>)> {
+    let file = analysis
+        .files
+        .iter()
+        .find(|file| file.ast.span.source == symbol.name_span.source)?;
+    let source_file = sources.get(file.ast.span.source)?;
+    let text = source_file.text();
+    let symbols = hover_symbols_for_ast(text, &file.ast);
+    let documentation = documentation_for_hover_symbols(file.ast.span.source, text, &symbols);
+
+    Some(local_symbol_hover_contents(
+        &symbols,
+        &documentation,
+        symbol,
+    ))
 }
 
 fn local_symbol_hover_label(symbol: &LocalSymbol) -> String {

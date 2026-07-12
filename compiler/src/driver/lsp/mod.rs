@@ -661,6 +661,83 @@ mod tests {
     }
 
     #[test]
+    fn returns_documented_hover_for_local_binding_reference() {
+        let uri = "file:///tmp/nocter-hover-local-reference-docs.nct".to_string();
+        let document = open_document(
+            uri.clone(),
+            Some(1),
+            "func main(): i32 {\n    /// Exit code.\n    let code: i32 = 0\n    return code\n}\n"
+                .to_string(),
+        );
+        let server = LspServer {
+            documents: HashMap::from([(uri.clone(), document)]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.hover_response(
+            json!(6),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "position": {
+                    "line": 3,
+                    "character": 12
+                }
+            })),
+        );
+
+        assert_eq!(
+            response["result"]["contents"]["value"],
+            json!("```nocter\nlet code: i32\n```\n\nExit code.")
+        );
+    }
+
+    #[test]
+    fn returns_documented_workspace_hover_for_local_binding_reference() {
+        let project = TempProject::new("lsp-hover-local-reference-docs");
+        let app = project.write_source(
+            "app.nct",
+            "func main(): i32 {\n    /// Exit code.\n    let code: i32 = 0\n    return code\n}\n",
+        );
+        let app_uri = file_uri(&app);
+        let server = LspServer {
+            documents: HashMap::from([(
+                app_uri.clone(),
+                open_document(
+                    app_uri.clone(),
+                    Some(1),
+                    "func main(): i32 {\n    /// Exit code.\n    let code: i32 = 0\n    return code\n}\n"
+                        .to_string(),
+                ),
+            )]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.hover_response(
+            json!(7),
+            Some(&json!({
+                "textDocument": {
+                    "uri": app_uri
+                },
+                "position": {
+                    "line": 3,
+                    "character": 12
+                }
+            })),
+        );
+
+        assert_eq!(
+            response["result"]["contents"]["value"],
+            json!("```nocter\nlet code: i32\n```\n\nExit code.")
+        );
+    }
+
+    #[test]
     fn returns_documented_hover_for_resolved_function_reference() {
         let uri = "file:///tmp/nocter-hover-reference-docs.nct".to_string();
         let document = open_document(
