@@ -1207,6 +1207,67 @@ func forward(): Text {
 }
 
 #[test]
+fn lowers_indirect_aggregate_struct_literal_binding_move_return() {
+    let function = lower_named_function(
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func forward(): Text {
+    let value = Text{ start: 1, len: 2, capacity: 3 }
+    return move value
+}
+"#,
+        "forward",
+    );
+
+    let aggregate_type = Type::Aggregate {
+        layout: ValueLayout::new(24, 8),
+    };
+    assert_eq!(
+        function,
+        Function {
+            name: "forward".to_string(),
+            target: CallTarget::same_file("forward"),
+            return_type: aggregate_type,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: usize_const(1),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 8,
+                    value: usize_const(2),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 16,
+                    value: usize_const(3),
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Return,
+                    source: AggregateLocation::Slot(0),
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_readwrite_indirect_aggregate_struct_literal_binding_borrow_argument() {
     let aggregate_type = Type::Aggregate {
         layout: ValueLayout::new(24, 8),

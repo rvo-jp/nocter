@@ -60,11 +60,12 @@ Already buildable in the narrow scalar subset:
 - aggregate slot reassignment from supported struct literals and normal or propagated fallible aggregate call results
 - local aggregate slot borrow argument lowering for `&T` and `&+T` normal-call parameters
 - return-by-name from reserved aggregate slots
+- `return move name` from reserved aggregate slots, without ownership-state or drop tracking
 
 Still required before explicit string construction can build:
 
 - aggregate storage outside the supported call-result and struct-literal local-slot paths
-- explicit source-level move/return handling for owned aggregate results
+- owned aggregate move/drop state tracking beyond reserved-slot `return move name`
 
 ## Open Language Decision
 

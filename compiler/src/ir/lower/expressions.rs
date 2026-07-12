@@ -2236,7 +2236,9 @@ fn lower_bool_unary_value(
             context,
             diagnostic_code,
         )?))),
-        UnaryOperator::Negate => Err(unsupported_bool_expression_diagnostic(diagnostic_code)),
+        UnaryOperator::Negate | UnaryOperator::Move => {
+            Err(unsupported_bool_expression_diagnostic(diagnostic_code))
+        }
     }
 }
 

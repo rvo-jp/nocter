@@ -61,6 +61,9 @@ impl Formatter {
             }
             Expr::Unary(expression) => {
                 self.write(unary_spelling(expression.operator));
+                if expression.operator == UnaryOperator::Move {
+                    self.write(" ");
+                }
                 self.format_expr(&expression.operand, PREC_PREFIX);
             }
             Expr::Binary(expression) => {
@@ -214,5 +217,6 @@ fn unary_spelling(operator: UnaryOperator) -> &'static str {
     match operator {
         UnaryOperator::LogicalNot => "!",
         UnaryOperator::Negate => "-",
+        UnaryOperator::Move => "move",
     }
 }

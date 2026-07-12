@@ -608,6 +608,7 @@ pub struct UnaryExpr {
 pub enum UnaryOperator {
     LogicalNot,
     Negate,
+    Move,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -818,6 +819,7 @@ impl UnaryOperator {
         match self {
             UnaryOperator::LogicalNot => "!",
             UnaryOperator::Negate => "-",
+            UnaryOperator::Move => "move",
         }
     }
 }

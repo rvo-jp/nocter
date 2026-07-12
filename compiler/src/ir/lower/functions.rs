@@ -12,7 +12,7 @@ use super::expressions::{
 use crate::abi::{
     ARGUMENT_REGISTER_COUNT, AbiType, AbiValue, ValueClassification, abi_value_from_type_expr,
 };
-use crate::ast::{Expr, FunctionDecl, Parameter, Stmt, StructLiteralExpr, TypeExpr};
+use crate::ast::{Expr, FunctionDecl, Parameter, Stmt, StructLiteralExpr, TypeExpr, UnaryOperator};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{AggregateLocation, CallTarget, Function, Instruction, Type};
 use crate::resolve::ResolveOutput;
@@ -571,6 +571,12 @@ fn lower_aggregate_return_expression(
         ),
         Expr::Call(call) => lower_aggregate_call_return(call, return_type, function_name, context),
         Expr::Identifier(identifier) => {
+            lower_aggregate_local_return(&identifier.name, return_type, function_name, context)
+        }
+        Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
+            let Expr::Identifier(identifier) = unary.operand.as_ref() else {
+                return Err(unsupported_aggregate_return_diagnostic(function_name));
+            };
             lower_aggregate_local_return(&identifier.name, return_type, function_name, context)
         }
         Expr::Group(group) => lower_aggregate_return_expression(

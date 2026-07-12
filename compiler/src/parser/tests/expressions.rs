@@ -572,3 +572,31 @@ fn parses_numeric_negate_expression_precedence() {
     };
     assert_eq!(negate_expression.operator, UnaryOperator::Negate);
 }
+
+#[test]
+fn parses_move_expression() {
+    let output = parse_text(
+        r#"func main(): i32 {
+    let next = move value
+    return 0
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
+    };
+    let Stmt::Binding(statement) = &function.body.statements[0] else {
+        panic!("expected binding statement");
+    };
+    let Expr::Unary(move_expression) = &statement.initializer else {
+        panic!("expected move expression");
+    };
+    assert_eq!(move_expression.operator, UnaryOperator::Move);
+    assert!(matches!(
+        move_expression.operand.as_ref(),
+        Expr::Identifier(identifier) if identifier.name == "value"
+    ));
+}

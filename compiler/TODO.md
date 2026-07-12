@@ -21,12 +21,17 @@ Recommended next implementation order:
 
 1. Follow `compiler/docs/interpolation-lowering.md`: keep bare interpolation lowering disabled until an explicit allocator source is designed, and first make explicit `std/string` construction plus `std/fmt.append_*` calls buildable.
 2. Use the resolved-type function ABI helper from IR/backend planning before adding aggregate storage code.
-3. Add only the remaining backend prerequisites needed by the explicit string path: aggregate storage outside the supported call-result/struct-literal slot paths and owned aggregate return/move handling. Loaded imported scalar calls, scalar/view arguments, local scalar and aggregate slot borrow arguments, scalar/view `var` plus simple assignment, aggregate struct-literal local slots, direct and narrow indirect aggregate normal call-result `let`/`var` slots, fallible direct aggregate call-result slots, supported aggregate slot reassignment, and fallible propagation for the current scalar/view/void plus aggregate call-result subset are already buildable.
+3. Add only the remaining backend prerequisites needed by the explicit string path: aggregate storage outside the supported call-result/struct-literal slot paths and owned aggregate move/drop state tracking. Loaded imported scalar calls, scalar/view arguments, local scalar and aggregate slot borrow arguments, scalar/view `var` plus simple assignment, aggregate struct-literal local slots, direct and narrow indirect aggregate normal call-result `let`/`var` slots, fallible direct aggregate call-result slots, supported aggregate slot reassignment, reserved aggregate slot `return move name`, and fallible propagation for the current scalar/view/void plus aggregate call-result subset are already buildable.
 4. Lower interpolated strings only after the explicit standard-library construction path builds.
 5. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
+- Current checkpoint: parse and lower narrow move returns
+  - parses `move name` as a unary expression and formats it with keyword spacing
+  - type-checks only the v0 operand shape rule that `move` must target a binding name, leaving copy/move-only classification and initialized-state tracking for the ownership pass
+  - lowers aggregate `return move name` from reserved aggregate slots through the existing `CopyAggregate` return path
+  - keeps general source-level aggregate moves, use-after-move checking, moved-value drop suppression, by-value aggregate arguments, and drop glue disabled
 - Current checkpoint: lower fallible direct aggregate slots
   - adds `CallFallibleDirectAggregate` for fallible calls whose success payload is a 16-byte-or-smaller direct aggregate returned in `x1,x2` after the status word
   - lowers `var value = make()?` and `value = make()?` into existing aggregate slots for direct aggregate success payloads

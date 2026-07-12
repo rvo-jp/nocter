@@ -72,6 +72,7 @@ fn formats_control_flow_and_postfix_expressions() {
     assert_formats_stably(
         r#"func main():i32!{
 var file=File.open(path) catch error {return 1}
+let next=move file
 for i in 0..<10{file.write("x")?}
 match error{AppError.missing_path{return 1}else{return file.size() as i32}}
 }
@@ -81,6 +82,7 @@ match error{AppError.missing_path{return 1}else{return file.size() as i32}}
             "    var file = File.open(path) catch error {\n",
             "        return 1\n",
             "    }\n",
+            "    let next = move file\n",
             "    for i in 0..<10 {\n",
             "        file.write(\"x\")?\n",
             "    }\n",

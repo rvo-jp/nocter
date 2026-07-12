@@ -199,3 +199,19 @@ pub(in crate::typecheck) fn numeric_negate_operand_type_mismatch_diagnostic(
     diagnostic.help = Some("use a signed integer value after `-`".to_string());
     diagnostic
 }
+
+pub(in crate::typecheck) fn move_operand_must_be_binding_diagnostic(
+    sources: &SourceMap,
+    expression: &UnaryExpr,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0370",
+        "`move` requires a local binding or parameter binding name in v0",
+    );
+    diagnostic.primary_span = sources
+        .span_to_json(expression.operand.span())
+        .ok()
+        .map(Box::new);
+    diagnostic.help = Some("write `move name` with a binding name as the operand".to_string());
+    diagnostic
+}

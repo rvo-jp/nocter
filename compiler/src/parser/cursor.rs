@@ -175,6 +175,7 @@ impl Parser<'_> {
         let value = match self.current().kind {
             TokenKind::Punctuation("!") => UnaryOperator::LogicalNot,
             TokenKind::Punctuation("-") => UnaryOperator::Negate,
+            TokenKind::Keyword(Keyword::Move) => UnaryOperator::Move,
             _ => return None,
         };
         let token = self.bump();
