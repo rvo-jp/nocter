@@ -3,14 +3,21 @@ use super::protocol::{LspPosition, byte_offset_to_lsp_position};
 use crate::lexer::{Keyword, Token, TokenKind, lex};
 use crate::source::SourceMap;
 
-pub(super) const SEMANTIC_TOKEN_TYPES: [&str; 5] =
-    ["function", "variable", "parameter", "type", "property"];
+pub(super) const SEMANTIC_TOKEN_TYPES: [&str; 6] = [
+    "function",
+    "method",
+    "variable",
+    "parameter",
+    "type",
+    "property",
+];
 pub(super) const SEMANTIC_TOKEN_MODIFIERS: [&str; 1] = ["declaration"];
 pub(super) const SEMANTIC_DECLARATION_MODIFIER: u32 = 1 << 0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum SemanticTokenKind {
     Function,
+    Method,
     Variable,
     Parameter,
     Type,
@@ -21,16 +28,18 @@ impl SemanticTokenKind {
     pub(super) const fn index(self) -> u32 {
         match self {
             SemanticTokenKind::Function => 0,
-            SemanticTokenKind::Variable => 1,
-            SemanticTokenKind::Parameter => 2,
-            SemanticTokenKind::Type => 3,
-            SemanticTokenKind::Property => 4,
+            SemanticTokenKind::Method => 1,
+            SemanticTokenKind::Variable => 2,
+            SemanticTokenKind::Parameter => 3,
+            SemanticTokenKind::Type => 4,
+            SemanticTokenKind::Property => 5,
         }
     }
 
     pub(super) const fn hover_label(self) -> &'static str {
         match self {
             SemanticTokenKind::Function => "function",
+            SemanticTokenKind::Method => "method",
             SemanticTokenKind::Variable => "variable",
             SemanticTokenKind::Parameter => "parameter",
             SemanticTokenKind::Type => "type",
@@ -101,14 +110,20 @@ pub(super) fn classified_identifiers(document: &OpenDocument) -> Vec<ClassifiedI
                 pending_declaration = pending_declaration_for_keyword(keyword);
             }
             TokenKind::Identifier => {
-                let modifiers = if pending_declaration.is_some() {
+                let is_method_declaration_name = is_method_declaration_name(&tokens, index);
+                let modifiers = if pending_declaration.is_some() || is_method_declaration_name {
                     SEMANTIC_DECLARATION_MODIFIER
                 } else {
                     0
                 };
-                let kind = pending_declaration
-                    .take()
-                    .unwrap_or_else(|| classify_identifier(&document.text, token, previous, next));
+                let kind = if is_method_declaration_name {
+                    pending_declaration = None;
+                    SemanticTokenKind::Method
+                } else {
+                    pending_declaration.take().unwrap_or_else(|| {
+                        classify_identifier(&document.text, token, previous, next)
+                    })
+                };
                 if token.span.start < token.span.end {
                     identifiers.push(ClassifiedIdentifier {
                         start_byte: token.span.start,
@@ -141,8 +156,10 @@ pub(super) fn classified_identifiers(document: &OpenDocument) -> Vec<ClassifiedI
 
 fn pending_declaration_for_keyword(keyword: Keyword) -> Option<SemanticTokenKind> {
     match keyword {
-        Keyword::Func | Keyword::Method => Some(SemanticTokenKind::Function),
-        Keyword::Type | Keyword::Struct | Keyword::Enum | Keyword::Trait | Keyword::Primitive => {
+        Keyword::Func => Some(SemanticTokenKind::Function),
+        Keyword::Primitive => Some(SemanticTokenKind::Function),
+        Keyword::Method => None,
+        Keyword::Type | Keyword::Struct | Keyword::Enum | Keyword::Trait => {
             Some(SemanticTokenKind::Type)
         }
         Keyword::Let | Keyword::Var => Some(SemanticTokenKind::Variable),
@@ -160,7 +177,20 @@ fn classify_identifier(
         previous.map(|token| token.kind),
         Some(TokenKind::Punctuation("."))
     ) {
+        if matches!(
+            next.map(|token| token.kind),
+            Some(TokenKind::Punctuation("("))
+        ) {
+            return SemanticTokenKind::Method;
+        }
         return SemanticTokenKind::Property;
+    }
+
+    let lexeme = text
+        .get(token.span.start..token.span.end)
+        .unwrap_or_default();
+    if is_builtin_type_lexeme(lexeme) {
+        return SemanticTokenKind::Type;
     }
 
     if matches!(
@@ -177,9 +207,6 @@ fn classify_identifier(
         return SemanticTokenKind::Parameter;
     }
 
-    let lexeme = text
-        .get(token.span.start..token.span.end)
-        .unwrap_or_default();
     if lexeme
         .chars()
         .next()
@@ -189,6 +216,69 @@ fn classify_identifier(
     }
 
     SemanticTokenKind::Variable
+}
+
+fn is_method_declaration_name(tokens: &[&Token], index: usize) -> bool {
+    if !matches!(
+        index.checked_sub(1).and_then(|index| tokens.get(index)),
+        Some(token) if matches!(token.kind, TokenKind::Punctuation("."))
+    ) || !matches!(
+        tokens.get(index + 1),
+        Some(token) if matches!(token.kind, TokenKind::Punctuation("("))
+    ) {
+        return false;
+    }
+
+    let Some(close_receiver) = index.checked_sub(2).and_then(|index| tokens.get(index)) else {
+        return false;
+    };
+    if !matches!(close_receiver.kind, TokenKind::Punctuation(")")) {
+        return false;
+    }
+
+    let mut depth = 0usize;
+    let mut cursor = index - 2;
+    loop {
+        match tokens[cursor].kind {
+            TokenKind::Punctuation(")") => depth += 1,
+            TokenKind::Punctuation("(") => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return cursor
+                        .checked_sub(1)
+                        .and_then(|index| tokens.get(index))
+                        .is_some_and(|token| {
+                            matches!(token.kind, TokenKind::Keyword(Keyword::Method))
+                        });
+                }
+            }
+            _ => {}
+        }
+
+        let Some(next_cursor) = cursor.checked_sub(1) else {
+            return false;
+        };
+        cursor = next_cursor;
+    }
+}
+
+fn is_builtin_type_lexeme(lexeme: &str) -> bool {
+    matches!(
+        lexeme,
+        "Self"
+            | "i8"
+            | "i16"
+            | "i32"
+            | "i64"
+            | "u8"
+            | "u16"
+            | "u32"
+            | "u64"
+            | "usize"
+            | "bool"
+            | "str"
+            | "error"
+    )
 }
 
 fn encode_semantic_tokens(tokens: Vec<SemanticToken>) -> Vec<usize> {

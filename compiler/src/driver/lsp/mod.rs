@@ -36,9 +36,13 @@ use protocol::{
     lsp_position_to_byte_offset, position_from_params, read_message, response, write_message,
 };
 #[cfg(test)]
+use semantic::ClassifiedIdentifier;
+#[cfg(test)]
 use semantic::SEMANTIC_DECLARATION_MODIFIER;
 #[cfg(test)]
 use semantic::SemanticTokenKind;
+#[cfg(test)]
+use semantic::classified_identifiers;
 use semantic::{SEMANTIC_TOKEN_MODIFIERS, SEMANTIC_TOKEN_TYPES, semantic_tokens_for_document};
 use symbols::document_symbols_for_document;
 #[cfg(test)]
@@ -305,7 +309,7 @@ impl LspServer {
         let workspace = workspace_analysis_for_uri(uri, &self.documents)?;
         let file = workspace.root_file()?;
 
-        definition_for_file_analysis(&workspace.sources, file, root_offset)
+        definition_for_file_analysis(&workspace.sources, &workspace.analysis, file, root_offset)
     }
 
     fn workspace_completion_for_uri(&self, uri: &str) -> Option<Vec<Value>> {
@@ -417,7 +421,14 @@ mod tests {
 
         assert_eq!(
             legend["tokenTypes"],
-            json!(["function", "variable", "parameter", "type", "property"])
+            json!([
+                "function",
+                "method",
+                "variable",
+                "parameter",
+                "type",
+                "property"
+            ])
         );
         assert_eq!(legend["tokenModifiers"], json!(["declaration"]));
     }
@@ -463,6 +474,38 @@ mod tests {
         assert_eq!(data.len() % 5, 0);
         assert_eq!(data[3], json!(SemanticTokenKind::Function.index()));
         assert_eq!(data[4], json!(SEMANTIC_DECLARATION_MODIFIER));
+    }
+
+    #[test]
+    fn classifies_builtin_types_and_methods_for_semantic_tokens() {
+        let uri = "file:///tmp/nocter-semantic-methods.nct".to_string();
+        let text = "struct File {\n    fd: i32\n}\n\nimpl File {\n    method (file: Self).read(buffer: &+[u8]): i32 {\n        return 0\n    }\n}\n\nfunc main(path: &str): i32 {\n    var file = File.open(path)\n    return file.read(&+[u8; 1])\n}\n";
+        let document = open_document(uri, Some(1), text.to_string());
+        let identifiers = classified_identifiers(&document);
+
+        for name in ["i32", "Self", "u8", "str"] {
+            assert!(
+                classified_identifier_with_lexeme(text, &identifiers, name)
+                    .iter()
+                    .any(|identifier| identifier.kind == SemanticTokenKind::Type),
+                "expected `{name}` to be classified as a type"
+            );
+        }
+
+        let read_identifiers = classified_identifier_with_lexeme(text, &identifiers, "read");
+        assert!(
+            read_identifiers.iter().any(|identifier| {
+                identifier.kind == SemanticTokenKind::Method
+                    && identifier.modifiers == SEMANTIC_DECLARATION_MODIFIER
+            }),
+            "expected method declaration name to be classified as a method declaration"
+        );
+        assert!(
+            read_identifiers.iter().any(|identifier| {
+                identifier.kind == SemanticTokenKind::Method && identifier.modifiers == 0
+            }),
+            "expected method call name to be classified as a method"
+        );
     }
 
     #[test]
@@ -531,7 +574,7 @@ mod tests {
 
         assert_eq!(
             response["result"]["contents"]["value"],
-            json!("```nocter\nlet code\n```")
+            json!("```nocter\nlet code: i32\n```")
         );
         assert_eq!(response["result"]["range"]["start"]["line"], json!(2));
         assert_eq!(response["result"]["range"]["start"]["character"], json!(11));
@@ -692,6 +735,40 @@ mod tests {
         assert_eq!(
             response["result"]["contents"]["value"],
             json!("```nocter\nlet code: i32\n```\n\nExit code.")
+        );
+    }
+
+    #[test]
+    fn returns_inferred_hover_for_integer_binding() {
+        let uri = "file:///tmp/nocter-hover-inferred-binding.nct".to_string();
+        let document = open_document(
+            uri.clone(),
+            Some(1),
+            "func main(): i32 {\n    var count = 0\n    return count\n}\n".to_string(),
+        );
+        let server = LspServer {
+            documents: HashMap::from([(uri.clone(), document)]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.hover_response(
+            json!(7),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "position": {
+                    "line": 2,
+                    "character": 12
+                }
+            })),
+        );
+
+        assert_eq!(
+            response["result"]["contents"]["value"],
+            json!("```nocter\nvar count: i32\n```")
         );
     }
 
@@ -961,6 +1038,115 @@ mod tests {
         assert_eq!(response["result"]["range"]["start"]["line"], json!(0));
         assert_eq!(response["result"]["range"]["start"]["character"], json!(9));
         assert_eq!(response["result"]["range"]["end"]["character"], json!(15));
+    }
+
+    #[test]
+    fn returns_definition_for_import_module_path() {
+        let project = TempProject::new("lsp-definition-import-module");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        std::fs::write(
+            home.join("std/io.nct"),
+            "//! I/O module.\n\npub func print(text: &str): void! {\n    return\n}\n",
+        )
+        .unwrap();
+        let app = project.write_source(
+            "app.nct",
+            "from std/io import print\n\nfunc main(): i32 {\n    return 0\n}\n",
+        );
+        let app_uri = file_uri(&app);
+        let io = home.join("std/io.nct").canonicalize().unwrap();
+        let server = LspServer {
+            documents: HashMap::from([(
+                app_uri.clone(),
+                open_document(
+                    app_uri.clone(),
+                    Some(1),
+                    "from std/io import print\n\nfunc main(): i32 {\n    return 0\n}\n".to_string(),
+                ),
+            )]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.definition_response(
+            json!(9),
+            Some(&json!({
+                "textDocument": {
+                    "uri": app_uri
+                },
+                "position": {
+                    "line": 0,
+                    "character": 7
+                }
+            })),
+        );
+
+        assert_eq!(response["result"]["uri"], json!(file_uri(&io)));
+        assert_eq!(response["result"]["range"]["start"]["line"], json!(0));
+        assert_eq!(response["result"]["range"]["start"]["character"], json!(0));
+        assert_eq!(response["result"]["range"]["end"]["line"], json!(0));
+        assert_eq!(response["result"]["range"]["end"]["character"], json!(0));
+    }
+
+    #[test]
+    fn returns_definition_for_imported_type_reference() {
+        let project = TempProject::new("lsp-definition-imported-type");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        let app = project.write_source(
+            "app.nct",
+            "from ./config import Config\n\nfunc main(): i32 {\n    var config: Config = Config { value: 0 }\n    return 0\n}\n",
+        );
+        let config = project.write_source("config.nct", "pub struct Config {\n    value: i32\n}\n");
+        let app_uri = file_uri(&app);
+        let config_uri = file_uri(&config);
+        let server = LspServer {
+            documents: HashMap::from([
+                (
+                    app_uri.clone(),
+                    open_document(
+                        app_uri.clone(),
+                        Some(1),
+                        "from ./config import Config\n\nfunc main(): i32 {\n    var config: Config = Config { value: 0 }\n    return 0\n}\n"
+                            .to_string(),
+                    ),
+                ),
+                (
+                    config_uri,
+                    open_document(
+                        file_uri(&config),
+                        Some(1),
+                        "pub struct Config {\n    value: i32\n}\n".to_string(),
+                    ),
+                ),
+            ]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.definition_response(
+            json!(9),
+            Some(&json!({
+                "textDocument": {
+                    "uri": app_uri
+                },
+                "position": {
+                    "line": 3,
+                    "character": 17
+                }
+            })),
+        );
+
+        assert_eq!(
+            response["result"]["uri"],
+            json!(file_uri(&config.canonicalize().unwrap()))
+        );
+        assert_eq!(response["result"]["range"]["start"]["line"], json!(0));
+        assert_eq!(response["result"]["range"]["start"]["character"], json!(11));
+        assert_eq!(response["result"]["range"]["end"]["character"], json!(17));
     }
 
     #[test]
@@ -1292,6 +1478,33 @@ mod tests {
     }
 
     #[test]
+    fn lsp_diagnostics_do_not_require_entry_function() {
+        let uri = "file:///tmp/nocter-lsp-library.nct".to_string();
+        let documents = HashMap::from([(
+            uri.clone(),
+            open_document(
+                uri.clone(),
+                Some(1),
+                "pub func helper(): i32 {\n    return 0\n}\n".to_string(),
+            ),
+        )]);
+
+        let diagnostics = diagnostics_for_workspace(&uri, &documents);
+        let document_diagnostics = diagnostics
+            .iter()
+            .find(|(diagnostic_uri, _)| diagnostic_uri == &uri)
+            .map(|(_, diagnostics)| diagnostics)
+            .expect("expected diagnostics for open document");
+
+        assert!(
+            document_diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != "E0300"),
+            "LSP diagnostics should not require `main` in every opened file"
+        );
+    }
+
+    #[test]
     fn clears_diagnostics_for_uris_missing_from_next_publish() {
         let mut server = LspServer::new();
         let mut output = Vec::new();
@@ -1323,6 +1536,19 @@ mod tests {
         items
             .iter()
             .find(|item| item.get("label").and_then(Value::as_str) == Some(label))
+    }
+
+    fn classified_identifier_with_lexeme<'a>(
+        text: &str,
+        identifiers: &'a [ClassifiedIdentifier],
+        lexeme: &str,
+    ) -> Vec<&'a ClassifiedIdentifier> {
+        identifiers
+            .iter()
+            .filter(|identifier| {
+                text.get(identifier.start_byte..identifier.end_byte) == Some(lexeme)
+            })
+            .collect()
     }
 
     static NOCTER_HOME_ENV_LOCK: Mutex<()> = Mutex::new(());

@@ -1,7 +1,6 @@
 use super::diagnostics::{LspDiagnostic, diagnostics_for_lsp};
 use super::documents::OpenDocument;
-use crate::analysis::{CompileUnitAnalysis, FileAnalysis, analyze_compile_unit_with_entry};
-use crate::entry::DEFAULT_ENTRY_NAME;
+use crate::analysis::{CompileUnitAnalysis, FileAnalysis, analyze_compile_unit_as_modules};
 use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::source::{SourceId, SourceMap};
 use std::collections::HashMap;
@@ -33,7 +32,7 @@ pub(super) fn workspace_analysis_for_uri(
     let root = source_by_uri.get(uri).copied()?;
     let options = frontend_options_for_document(document);
     let unit = load_compile_unit(&mut sources, root, &options).ok()?;
-    let analysis = analyze_compile_unit_with_entry(&sources, &unit, DEFAULT_ENTRY_NAME);
+    let analysis = analyze_compile_unit_as_modules(&sources, &unit);
 
     Some(LspWorkspaceAnalysis {
         sources,
@@ -58,9 +57,7 @@ pub(super) fn diagnostics_for_workspace(
             .map(|options| load_compile_unit(&mut sources, root, &options))
             .unwrap_or_else(|| load_compile_unit(&mut sources, root, &FrontendOptions::default()))
         {
-            Ok(unit) => {
-                analyze_compile_unit_with_entry(&sources, &unit, DEFAULT_ENTRY_NAME).diagnostics()
-            }
+            Ok(unit) => analyze_compile_unit_as_modules(&sources, &unit).diagnostics(),
             Err(diagnostics) => diagnostics,
         },
         None => Vec::new(),

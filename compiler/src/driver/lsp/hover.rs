@@ -224,7 +224,7 @@ fn module_path_hover_for_ast(
     }))
 }
 
-fn module_path_at_offset(ast: &AstFile, offset: usize) -> Option<&ModulePath> {
+pub(super) fn module_path_at_offset(ast: &AstFile, offset: usize) -> Option<&ModulePath> {
     ast.items.iter().find_map(|item| {
         let path = match item {
             Item::Use(item) => &item.path,
@@ -1011,6 +1011,9 @@ fn push_binding_hover_symbol(text: &str, statement: &BindingStmt, symbols: &mut 
         .ty
         .as_ref()
         .map(|ty| format!(": {}", source_fragment(text, ty.span())))
+        .or_else(|| {
+            inferred_binding_type_label(text, &statement.initializer).map(|ty| format!(": {ty}"))
+        })
         .unwrap_or_default();
     push_hover_symbol(
         text,
@@ -1024,6 +1027,29 @@ fn push_binding_hover_symbol(text: &str, statement: &BindingStmt, symbols: &mut 
         ),
         symbols,
     );
+}
+
+fn inferred_binding_type_label(text: &str, expression: &Expr) -> Option<String> {
+    match expression {
+        Expr::IntegerLiteral(_) => Some("i32".to_string()),
+        Expr::BoolLiteral(_) => Some("bool".to_string()),
+        Expr::StringLiteral(_) => Some("&str".to_string()),
+        Expr::StructLiteral(expression) => {
+            Some(source_fragment(text, expression.ty.span()).to_string())
+        }
+        Expr::TypeConversion(expression) => {
+            Some(source_fragment(text, expression.ty.span()).to_string())
+        }
+        Expr::Group(expression) => inferred_binding_type_label(text, &expression.expression),
+        Expr::Force(expression) => inferred_binding_type_label(text, &expression.expression),
+        Expr::Unary(expression)
+            if expression.operator == crate::ast::UnaryOperator::Negate
+                && matches!(expression.operand.as_ref(), Expr::IntegerLiteral(_)) =>
+        {
+            Some("i32".to_string())
+        }
+        _ => None,
+    }
 }
 
 fn collect_expression_hover_symbols(text: &str, expression: &Expr, symbols: &mut Vec<HoverSymbol>) {

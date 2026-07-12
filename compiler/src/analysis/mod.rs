@@ -114,6 +114,35 @@ pub(crate) fn analyze_compile_unit_with_entry(
     }
 }
 
+pub(crate) fn analyze_compile_unit_as_modules(
+    sources: &SourceMap,
+    unit: &CompileUnit,
+) -> CompileUnitAnalysis {
+    let root_source = unit.root_ast.span.source;
+    let files = unit
+        .files
+        .iter()
+        .map(|file| {
+            let is_root = file.span.source == root_source;
+            let resolved = resolve_compile_unit(sources, file, &unit.files, &unit.import_sources);
+            let mut diagnostics = resolved.diagnostics.clone();
+            diagnostics.extend(check_module(sources, file, &resolved));
+
+            FileAnalysis {
+                ast: file.clone(),
+                resolved,
+                diagnostics,
+                is_root,
+            }
+        })
+        .collect();
+
+    CompileUnitAnalysis {
+        files,
+        import_sources: unit.import_sources.clone(),
+    }
+}
+
 fn compare_diagnostics(
     left_file: usize,
     left: &Diagnostic,
