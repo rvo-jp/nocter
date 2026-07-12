@@ -7,7 +7,7 @@ use super::expressions::{
     lower_slice_expression_to_location, lower_str_expression_to_location,
     lower_u8_expression_to_location, lower_usize_expression_to_location,
 };
-use crate::abi::abi_value_from_type_expr;
+use crate::abi::{ValueLayout, abi_value_from_type_expr};
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, BinaryOperator, BindingStmt, CallExpr, Expr, TypeExpr,
     UnaryOperator,
@@ -257,7 +257,140 @@ pub(super) fn lower_assignment(
         return lower_slice_expression_to_location(&statement.value, destination, context);
     }
 
+    if let Some((slot_index, layout)) = context.aggregate_slot(&identifier.name) {
+        return lower_aggregate_assignment(slot_index, layout, &statement.value, context);
+    }
+
     Err(unsupported_assignment_diagnostic())
+}
+
+fn lower_aggregate_assignment(
+    slot_index: usize,
+    layout: ValueLayout,
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match unwrap_group(expression) {
+        Expr::StructLiteral(literal) => {
+            lower_aggregate_struct_literal_assignment(slot_index, layout, literal, context)
+        }
+        Expr::Call(call) => lower_aggregate_call_assignment(slot_index, layout, call, context),
+        Expr::Propagate(propagation) => {
+            let Expr::Call(call) = unwrap_group(&propagation.expression) else {
+                return Err(unsupported_assignment_diagnostic());
+            };
+            lower_aggregate_fallible_call_assignment(
+                slot_index,
+                layout,
+                call,
+                FallibleFailureMode::Propagate,
+                context,
+            )
+        }
+        _ => Err(unsupported_assignment_diagnostic()),
+    }
+}
+
+fn lower_aggregate_struct_literal_assignment(
+    slot_index: usize,
+    layout: ValueLayout,
+    literal: &crate::ast::StructLiteralExpr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+
+    lower_aggregate_struct_literal_to_location(
+        literal,
+        layout,
+        AggregateLocation::Slot(slot_index),
+        "E8008",
+        "assignments",
+        resolved,
+        context,
+    )
+}
+
+fn lower_aggregate_call_assignment(
+    slot_index: usize,
+    layout: ValueLayout,
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+
+    let target = context.call_target(call, &identifier.name);
+    let Some(return_type) = context.call_return_type(&target).cloned() else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let callee_layout = match &return_type {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => return Err(unsupported_assignment_diagnostic()),
+    };
+    if callee_layout != layout {
+        return Err(unsupported_assignment_diagnostic());
+    }
+
+    let (mut instructions, arguments) =
+        lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
+    match return_type {
+        Type::Aggregate { .. } => {
+            instructions.push(Instruction::CallAggregate {
+                destination: AggregateLocation::Slot(slot_index),
+                target,
+                arguments,
+            });
+        }
+        Type::DirectAggregate { .. } => {
+            instructions.push(Instruction::CallDirectAggregate {
+                destination: AggregateLocation::Slot(slot_index),
+                target,
+                arguments,
+                layout,
+            });
+        }
+        _ => unreachable!("aggregate call assignment requires aggregate return type"),
+    }
+    Ok(instructions)
+}
+
+fn lower_aggregate_fallible_call_assignment(
+    slot_index: usize,
+    layout: ValueLayout,
+    call: &CallExpr,
+    failure_mode: FallibleFailureMode,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+
+    let target = context.call_target(call, &identifier.name);
+    let Some(Type::Fallible(success)) = context.call_return_type(&target) else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let Type::Aggregate {
+        layout: callee_layout,
+    } = success.as_ref()
+    else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    if *callee_layout != layout {
+        return Err(unsupported_assignment_diagnostic());
+    }
+
+    let (mut instructions, arguments) =
+        lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
+    instructions.push(Instruction::CallFallibleAggregate {
+        destination: AggregateLocation::Slot(slot_index),
+        target,
+        arguments,
+        failure_mode,
+    });
+    Ok(instructions)
 }
 
 fn lower_i32_local_binding(
@@ -433,7 +566,7 @@ fn unsupported_binding_diagnostic(message: &'static str) -> Vec<Diagnostic> {
 fn unsupported_assignment_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8008",
-        "IR v0 can only lower simple `=` assignment to scalar local bindings",
+        "IR v0 can only lower simple `=` assignment to scalar local bindings or aggregate slots",
     )]
 }
 

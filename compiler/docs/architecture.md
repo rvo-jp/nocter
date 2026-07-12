@@ -189,17 +189,20 @@ Currently buildable:
 - the `std/os/macos.trap` and `std/os/macos.unreachable` target primitives as ARM64 `brk #0`
 - simple fallible entry success
 - simple fallible entry failure through a loaded static `error` constructor call with string code and message literals, where the message may be single-line or multi-line
+- scalar/view `var` bindings and simple `=` assignment for the lowerable scalar/view value subset
+- aggregate struct-literal local slots, direct and narrow indirect aggregate call-result local slots, and `&T`/`&+T` borrow arguments from those slots
+- simple aggregate slot reassignment from supported struct literals, direct or indirect normal aggregate calls, and propagated fallible indirect aggregate calls
 
 Currently not buildable even when it may be checkable:
 
-- `var`, reassignment, and general local storage
+- general local storage beyond the listed scalar/view and aggregate slot paths
 - general `if`, `while`, `loop`, range `for`, and `match`
 - unloaded imported function placeholders
 - `usize` arithmetic and `usize` entry return values
 - `&str` member operations and view/byte iteration
 - interpolated string construction
 - optional values
-- aggregate values, arrays, views, pointers, methods, traits, generics, ownership lowering, and drop glue
+- aggregate by-value arguments, source-level aggregate moves, arrays, general views beyond the listed slice ABI paths, raw pointer expressions beyond closed `std/ptr.from_addr` aggregate fields, methods, traits, generics, ownership lowering, and drop glue
 
 ### Backend V0 Register Convention
 
@@ -223,9 +226,9 @@ The frame, spill/reload, and normal-call implementation order is tracked in `bac
 `backend/frame.rs` owns the fixed v0 frame layout planner: frame size, saved `x30` offset, scalar spill-slot offsets, stack-backed argument staging offsets, and reserved aggregate stack slots for narrow aggregate result staging and aggregate borrow argument addresses.
 Frame-only IR `ReserveAggregateSlot` markers carry ABI `ValueLayout` requests into the planner; the planner collects them from nested instruction lists and catch handlers, deduplicates matching slot indexes, and codegen treats the marker as a no-op after prologue allocation.
 IR function signatures preserve ABI-indirect aggregate returns as `Type::Aggregate { layout }`, direct aggregate returns as `Type::DirectAggregate { layout, words }`, and aggregate borrow parameters as one-word borrows, so lowering can distinguish owned aggregate return and borrow shapes before aggregate value construction is broadly buildable.
-IR `CallAggregate` and `CallFallibleAggregate` lower calls that return indirect aggregate values by passing either the current return-storage pointer or a reserved destination slot address in ABI register `x8`; source lowering emits them for indirect aggregate return calls and for narrow indirect aggregate call result bindings.
+IR `CallAggregate` and `CallFallibleAggregate` lower calls that return indirect aggregate values by passing either the current return-storage pointer or a reserved destination slot address in ABI register `x8`; source lowering emits them for indirect aggregate return calls, narrow indirect aggregate call result bindings, and supported aggregate slot assignments.
 IR `CallDirectAggregate` lowers calls that return 16-byte-or-smaller direct aggregate values in `x0,x1`, either leaving them in the direct return registers or storing them into a reserved aggregate slot.
-IR `StoreAggregateUsize` writes 8-byte fields into the current indirect return storage behind `x8`, direct return registers, or a reserved aggregate stack slot; source lowering emits it for non-entry aggregate struct literal returns and aggregate struct-literal local bindings whose stored fields are 8-byte integers or `std/ptr.from_addr` pointer fields.
+IR `StoreAggregateUsize` writes 8-byte fields into the current indirect return storage behind `x8`, direct return registers, or a reserved aggregate stack slot; source lowering emits it for non-entry aggregate struct literal returns, aggregate struct-literal local bindings, and aggregate struct-literal slot assignments whose stored fields are 8-byte integers or `std/ptr.from_addr` pointer fields.
 IR `CopyAggregate` copies 8-byte chunks from a reserved aggregate slot into the current indirect return storage or direct return registers; source lowering emits it for narrow aggregate `let`/`var` binding paths returned by name.
 Aggregate borrow arguments from reserved slots are passed as the slot address in a single ABI word, matching ordinary `&T`/`&+T` borrow ABI without special-casing source identifiers.
 Codegen emits framed prologue/epilogue sequences and normal calls with conservative scalar spill/reload plus stack-backed argument staging.

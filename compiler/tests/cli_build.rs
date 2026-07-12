@@ -765,6 +765,145 @@ func touch(value: &+Text): void! {
 }
 
 #[test]
+fn build_command_lowers_aggregate_struct_literal_assignment_and_borrow_argument() {
+    let project = TempProject::new("cli-build-aggregate-literal-assignment-borrow");
+    let source = project.write_source(
+        "aggregate_literal_assignment_borrow.nct",
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32! {
+    var value = Text{ start: 1, len: 2, capacity: 3 }
+    value = Text{ start: 4, len: 5, capacity: 6 }
+    touch(&+value)?
+    return 0
+}
+
+func touch(value: &+Text): void! {
+    return
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_lowers_direct_aggregate_call_assignment_and_borrow_argument() {
+    let project = TempProject::new("cli-build-direct-aggregate-call-assignment-borrow");
+    let source = project.write_source(
+        "direct_aggregate_call_assignment_borrow.nct",
+        r#"struct Allocator {
+    state: usize
+    kind: u64
+}
+
+func main(): i32 {
+    var allocator = page_allocator()
+    allocator = reset_allocator()
+    touch(&+allocator)
+    return 0
+}
+
+func page_allocator(): Allocator {
+    return Allocator{ state: 0, kind: 0 }
+}
+
+func reset_allocator(): Allocator {
+    return Allocator{ state: 1, kind: 2 }
+}
+
+func touch(allocator: &+Allocator): void {
+    return
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_lowers_indirect_aggregate_call_assignment_and_borrow_argument() {
+    let project = TempProject::new("cli-build-indirect-aggregate-call-assignment-borrow");
+    let source = project.write_source(
+        "indirect_aggregate_call_assignment_borrow.nct",
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    var value = Text{ start: 1, len: 2, capacity: 3 }
+    value = make()
+    touch(&+value)
+    return 0
+}
+
+func make(): Text {
+    return Text{ start: 4, len: 5, capacity: 6 }
+}
+
+func touch(value: &+Text): void {
+    return
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_lowers_propagated_indirect_aggregate_call_assignment_and_borrow_argument() {
+    let project = TempProject::new("cli-build-propagated-aggregate-call-assignment-borrow");
+    let source = project.write_source(
+        "propagated_aggregate_call_assignment_borrow.nct",
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32! {
+    var value = Text{ start: 1, len: 2, capacity: 3 }
+    value = make()?
+    touch(&+value)?
+    return 0
+}
+
+func make(): Text! {
+    return Text{ start: 4, len: 5, capacity: 6 }
+}
+
+func touch(value: &+Text): void! {
+    return
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_std_page_allocator_direct_aggregate_binding_and_borrow_argument() {
     let project = TempProject::new("cli-build-page-allocator-borrow");
     project.write_nocter_home_file(

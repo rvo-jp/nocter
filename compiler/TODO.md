@@ -21,12 +21,16 @@ Recommended next implementation order:
 
 1. Follow `compiler/docs/interpolation-lowering.md`: keep bare interpolation lowering disabled until an explicit allocator source is designed, and first make explicit `std/string` construction plus `std/fmt.append_*` calls buildable.
 2. Use the resolved-type function ABI helper from IR/backend planning before adding aggregate storage code.
-3. Add only the remaining backend prerequisites needed by the explicit string path: aggregate reassignment, aggregate storage outside the supported call-result/struct-literal slot paths, and owned aggregate return/move handling. Loaded imported scalar calls, scalar/view arguments, local scalar and aggregate slot borrow arguments, scalar/view `var` plus simple assignment, aggregate struct-literal local slots, direct aggregate normal call-result slots, narrow indirect aggregate call-result `let`/`var` slots, and fallible propagation for the current scalar/view/void plus indirect aggregate call-result subset are already buildable.
+3. Add only the remaining backend prerequisites needed by the explicit string path: aggregate storage outside the supported call-result/struct-literal slot paths and owned aggregate return/move handling. Loaded imported scalar calls, scalar/view arguments, local scalar and aggregate slot borrow arguments, scalar/view `var` plus simple assignment, aggregate struct-literal local slots, direct and narrow indirect aggregate normal call-result `let`/`var` slots, supported aggregate slot reassignment, and fallible propagation for the current scalar/view/void plus indirect aggregate call-result subset are already buildable.
 4. Lower interpolated strings only after the explicit standard-library construction path builds.
 5. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
+- Current checkpoint: lower aggregate slot assignment
+  - lowers simple `=` assignment into existing aggregate slots from supported struct literals, normal indirect aggregate calls, normal direct aggregate calls, and propagated fallible indirect aggregate calls
+  - reuses the existing aggregate slot store and call destination paths; no new backend storage primitive is introduced
+  - keeps slot-to-slot aggregate moves, by-value aggregate arguments, fallible direct aggregate call-result staging, owned source-level aggregate moves, and drop glue disabled
 - Current checkpoint: lower direct aggregate return slots
   - tracks 16-byte-or-smaller struct returns as `Type::DirectAggregate { layout, words }`
   - lowers direct aggregate struct literal returns into `x0,x1` through the shared aggregate field-store path

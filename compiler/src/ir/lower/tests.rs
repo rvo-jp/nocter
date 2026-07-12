@@ -1633,6 +1633,371 @@ func use_allocator(): i32 {
 }
 
 #[test]
+fn lowers_aggregate_struct_literal_assignment_borrow_argument() {
+    let aggregate_type = Type::Aggregate {
+        layout: ValueLayout::new(24, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func touch(value: &+Text): void {
+    return
+}
+
+func use_text(): i32 {
+    var value = Text{ start: 1, len: 2, capacity: 3 }
+    value = Text{ start: 4, len: 5, capacity: 6 }
+    touch(&+value)
+    return 0
+}
+"#,
+        "use_text",
+        function_signatures(vec![(
+            "touch",
+            Type::Void,
+            vec![Type::Borrow {
+                is_readwrite: true,
+                inner: Box::new(aggregate_type),
+            }],
+        )]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "use_text".to_string(),
+            target: CallTarget::same_file("use_text"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: usize_const(1),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 8,
+                    value: usize_const(2),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 16,
+                    value: usize_const(3),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: usize_const(4),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 8,
+                    value: usize_const(5),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 16,
+                    value: usize_const(6),
+                },
+                Instruction::CallVoid {
+                    target: CallTarget::same_file("touch"),
+                    arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateSlot(0),
+                    })],
+                },
+                set_return_i32(0),
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_direct_aggregate_call_assignment_borrow_argument() {
+    let aggregate_type = Type::DirectAggregate {
+        layout: ValueLayout::new(16, 8),
+        words: 2,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct Allocator {
+    state: usize
+    kind: u64
+}
+
+func main(): i32 {
+    return 0
+}
+
+func page_allocator(): Allocator {
+    return Allocator{ state: 0, kind: 0 }
+}
+
+func reset_allocator(): Allocator {
+    return Allocator{ state: 1, kind: 2 }
+}
+
+func touch(allocator: &+Allocator): void {
+    return
+}
+
+func use_allocator(): i32 {
+    var allocator = page_allocator()
+    allocator = reset_allocator()
+    touch(&+allocator)
+    return 0
+}
+"#,
+        "use_allocator",
+        function_signatures(vec![
+            ("page_allocator", aggregate_type.clone(), vec![]),
+            ("reset_allocator", aggregate_type.clone(), vec![]),
+            (
+                "touch",
+                Type::Void,
+                vec![Type::Borrow {
+                    is_readwrite: true,
+                    inner: Box::new(aggregate_type.clone()),
+                }],
+            ),
+        ]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "use_allocator".to_string(),
+            target: CallTarget::same_file("use_allocator"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::CallDirectAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    target: CallTarget::same_file("page_allocator"),
+                    arguments: vec![],
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::CallDirectAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    target: CallTarget::same_file("reset_allocator"),
+                    arguments: vec![],
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::CallVoid {
+                    target: CallTarget::same_file("touch"),
+                    arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateSlot(0),
+                    })],
+                },
+                set_return_i32(0),
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_indirect_aggregate_call_assignment_borrow_argument() {
+    let aggregate_type = Type::Aggregate {
+        layout: ValueLayout::new(24, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Text {
+    return Text{ start: 4, len: 5, capacity: 6 }
+}
+
+func touch(value: &+Text): void {
+    return
+}
+
+func use_text(): i32 {
+    var value = Text{ start: 1, len: 2, capacity: 3 }
+    value = make()
+    touch(&+value)
+    return 0
+}
+"#,
+        "use_text",
+        function_signatures(vec![
+            ("make", aggregate_type.clone(), vec![]),
+            (
+                "touch",
+                Type::Void,
+                vec![Type::Borrow {
+                    is_readwrite: true,
+                    inner: Box::new(aggregate_type),
+                }],
+            ),
+        ]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "use_text".to_string(),
+            target: CallTarget::same_file("use_text"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: usize_const(1),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 8,
+                    value: usize_const(2),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 16,
+                    value: usize_const(3),
+                },
+                Instruction::CallAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    target: CallTarget::same_file("make"),
+                    arguments: vec![],
+                },
+                Instruction::CallVoid {
+                    target: CallTarget::same_file("touch"),
+                    arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateSlot(0),
+                    })],
+                },
+                set_return_i32(0),
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_propagated_indirect_aggregate_call_assignment_borrow_argument() {
+    let aggregate_type = Type::Aggregate {
+        layout: ValueLayout::new(24, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Text! {
+    return Text{ start: 4, len: 5, capacity: 6 }
+}
+
+func touch(value: &+Text): void {
+    return
+}
+
+func use_text(): i32! {
+    var value = Text{ start: 1, len: 2, capacity: 3 }
+    value = make()?
+    touch(&+value)
+    return 0
+}
+"#,
+        "use_text",
+        function_signatures(vec![
+            (
+                "make",
+                Type::Fallible(Box::new(aggregate_type.clone())),
+                vec![],
+            ),
+            (
+                "touch",
+                Type::Void,
+                vec![Type::Borrow {
+                    is_readwrite: true,
+                    inner: Box::new(aggregate_type),
+                }],
+            ),
+        ]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "use_text".to_string(),
+            target: CallTarget::same_file("use_text"),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: usize_const(1),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 8,
+                    value: usize_const(2),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 16,
+                    value: usize_const(3),
+                },
+                Instruction::CallFallibleAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    target: CallTarget::same_file("make"),
+                    arguments: vec![],
+                    failure_mode: FallibleFailureMode::Propagate,
+                },
+                Instruction::CallVoid {
+                    target: CallTarget::same_file("touch"),
+                    arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateSlot(0),
+                    })],
+                },
+                set_return_i32(0),
+                Instruction::ReturnFallibleSuccess,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_pointer_from_addr_aggregate_field_return() {
     let function = lower_imported_named_function_with_nocter_home_files(
         r#"from std/text import make
