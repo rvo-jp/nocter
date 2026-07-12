@@ -21,12 +21,16 @@ Recommended next implementation order:
 
 1. Keep bare interpolation lowering disabled until an explicit allocator source is designed. The explicit `std/mem.page_allocator` + `std/string.with_capacity` + `std/fmt.append_str` + `return move out` shape now builds to Mach-O through the current stub standard-library bodies.
 2. Add the next runtime prerequisites for allocation-backed `String`: owned aggregate move/drop state tracking beyond reserved-slot `return move name`, then target-backed allocation and mutation in `std/mem`, `std/string`, and `std/fmt`.
-3. Use the resolved-type function ABI helper from IR/backend planning before adding broader aggregate storage code. Loaded imported scalar calls, scalar/view arguments, local scalar and aggregate slot borrow arguments, scalar/view `var` plus simple assignment, aggregate struct-literal local slots, direct and narrow indirect aggregate normal call-result `let`/`var` slots, fallible direct aggregate call-result slots, supported aggregate slot reassignment, reserved aggregate slot `return move name`, and fallible propagation for the current scalar/view/void plus aggregate call-result subset are already buildable.
+3. Use the resolved-type function ABI helper from IR/backend planning before adding broader aggregate storage code. Loaded imported scalar calls, scalar/view arguments, local scalar and aggregate slot borrow arguments, scalar/view `var` plus simple assignment, aggregate struct-literal local slots, direct and narrow indirect aggregate normal call-result `let`/`var` slots, fallible direct aggregate call-result slots, supported aggregate slot reassignment including copy struct slot-to-slot assignment, reserved aggregate slot `return move name`, and fallible propagation for the current scalar/view/void plus aggregate call-result subset are already buildable.
 4. Lower interpolated strings only after the explicit standard-library construction path has a real allocator source and runtime mutation behavior.
 5. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
+- Current checkpoint: lower copy aggregate slot assignment
+  - records copyability on reserved aggregate locals created from struct literals and aggregate call results
+  - lowers `target = source` between matching copy struct aggregate slots to `CopyAggregate { destination: Slot, source: Slot }`
+  - keeps ordinary structs, aliases, owned source-level aggregate moves, use-after-move checks, replacement drop, and drop glue disabled
 - Current checkpoint: track copy struct metadata in resolver
   - records AST `copy struct` declarations on resolver `TypeSymbol` for local and imported struct symbols
   - keeps alias, enum, trait, and ordinary struct symbols non-copy at this metadata layer

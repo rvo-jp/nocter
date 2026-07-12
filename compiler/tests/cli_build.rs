@@ -796,6 +796,38 @@ func touch(value: &+Text): void! {
 }
 
 #[test]
+fn build_command_lowers_copy_aggregate_slot_assignment_and_borrow_argument() {
+    let project = TempProject::new("cli-build-copy-aggregate-slot-assignment-borrow");
+    let source = project.write_source(
+        "copy_aggregate_slot_assignment_borrow.nct",
+        r#"copy struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32! {
+    var source = Text{ start: 1, len: 2, capacity: 3 }
+    var target = Text{ start: 4, len: 5, capacity: 6 }
+    target = source
+    touch(&+target)?
+    return 0
+}
+
+func touch(value: &+Text): void! {
+    return
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_direct_aggregate_call_assignment_and_borrow_argument() {
     let project = TempProject::new("cli-build-direct-aggregate-call-assignment-borrow");
     let source = project.write_source(

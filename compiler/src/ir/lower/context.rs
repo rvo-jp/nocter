@@ -222,11 +222,20 @@ impl<'a> LoweringContext<'a> {
         self.define_local(name, LocalKind::Slice);
     }
 
-    pub(super) fn define_aggregate_local(&mut self, name: String, layout: ValueLayout) -> usize {
+    pub(super) fn define_aggregate_local(
+        &mut self,
+        name: String,
+        layout: ValueLayout,
+        is_copy: bool,
+    ) -> usize {
         let slot_index = self.next_aggregate_slot_index();
         self.locals.push(LocalBinding {
             name,
-            kind: LocalKind::Aggregate { layout, slot_index },
+            kind: LocalKind::Aggregate {
+                layout,
+                slot_index,
+                is_copy,
+            },
             index: 0,
         });
         slot_index
@@ -338,11 +347,45 @@ impl<'a> LoweringContext<'a> {
     }
 
     pub(super) fn aggregate_slot(&self, name: &str) -> Option<(usize, ValueLayout)> {
+        self.aggregate_local(name)
+            .map(|local| (local.slot_index, local.layout))
+    }
+
+    pub(super) fn aggregate_local(&self, name: &str) -> Option<AggregateLocal> {
         self.locals.iter().find_map(|local| {
             if local.name == name
-                && let LocalKind::Aggregate { layout, slot_index } = local.kind
+                && let LocalKind::Aggregate {
+                    layout,
+                    slot_index,
+                    is_copy,
+                } = local.kind
             {
-                return Some((slot_index, layout));
+                return Some(AggregateLocal {
+                    slot_index,
+                    layout,
+                    is_copy,
+                });
+            }
+            None
+        })
+    }
+
+    pub(super) fn aggregate_local_by_slot(&self, slot_index: usize) -> Option<AggregateLocal> {
+        self.locals.iter().find_map(|local| {
+            let LocalKind::Aggregate {
+                layout,
+                slot_index: local_slot_index,
+                is_copy,
+            } = local.kind
+            else {
+                return None;
+            };
+            if local_slot_index == slot_index {
+                return Some(AggregateLocal {
+                    slot_index: local_slot_index,
+                    layout,
+                    is_copy,
+                });
             }
             None
         })
@@ -460,6 +503,13 @@ struct LocalBinding {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct AggregateLocal {
+    pub(super) slot_index: usize,
+    pub(super) layout: ValueLayout,
+    pub(super) is_copy: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LocalKind {
     I32,
     U8,
@@ -471,6 +521,7 @@ enum LocalKind {
     Aggregate {
         layout: ValueLayout,
         slot_index: usize,
+        is_copy: bool,
     },
 }
 

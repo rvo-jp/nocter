@@ -58,7 +58,7 @@ Already buildable in the narrow scalar subset:
 - direct aggregate normal-call result `let`/`var` slots for 16-byte-or-smaller values such as `std/mem.Allocator`
 - fallible direct aggregate call-result `let`/`var` slots for 16-byte-or-smaller values such as `std/mem.Allocator`
 - aggregate struct-literal local slots with 8-byte integer fields or `std/ptr.from_addr` pointer fields
-- aggregate slot reassignment from supported struct literals and normal or propagated fallible aggregate call results
+- aggregate slot reassignment from supported struct literals, normal or propagated fallible aggregate call results, and matching copy struct local aggregate slots
 - local aggregate slot borrow argument lowering for `&T` and `&+T` normal-call parameters
 - return-by-name from reserved aggregate slots
 - `return move name` from reserved aggregate slots, without ownership-state or drop tracking

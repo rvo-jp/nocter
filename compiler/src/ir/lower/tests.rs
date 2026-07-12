@@ -1867,6 +1867,156 @@ func use_text(): i32 {
 }
 
 #[test]
+fn lowers_copy_aggregate_slot_assignment_borrow_argument() {
+    let aggregate_type = Type::Aggregate {
+        layout: ValueLayout::new(24, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func touch(value: &+Text): void {
+    return
+}
+
+func use_text(): i32 {
+    var source = Text{ start: 1, len: 2, capacity: 3 }
+    var target = Text{ start: 4, len: 5, capacity: 6 }
+    target = source
+    touch(&+target)
+    return 0
+}
+"#,
+        "use_text",
+        function_signatures(vec![(
+            "touch",
+            Type::Void,
+            vec![Type::Borrow {
+                is_readwrite: true,
+                inner: Box::new(aggregate_type),
+            }],
+        )]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "use_text".to_string(),
+            target: CallTarget::same_file("use_text"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: usize_const(1),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 8,
+                    value: usize_const(2),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 16,
+                    value: usize_const(3),
+                },
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 1,
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(1),
+                    offset: 0,
+                    value: usize_const(4),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(1),
+                    offset: 8,
+                    value: usize_const(5),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(1),
+                    offset: 16,
+                    value: usize_const(6),
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Slot(1),
+                    source: AggregateLocation::Slot(0),
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::CallVoid {
+                    target: CallTarget::same_file("touch"),
+                    arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateSlot(1),
+                    })],
+                },
+                set_return_i32(0),
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn rejects_non_copy_aggregate_slot_assignment() {
+    let aggregate_type = Type::Aggregate {
+        layout: ValueLayout::new(24, 8),
+    };
+    let diagnostics = lower_named_function_diagnostics_with_signatures(
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func touch(value: &+Text): void {
+    return
+}
+
+func use_text(): i32 {
+    var source = Text{ start: 1, len: 2, capacity: 3 }
+    var target = Text{ start: 4, len: 5, capacity: 6 }
+    target = source
+    touch(&+target)
+    return 0
+}
+"#,
+        "use_text",
+        function_signatures(vec![(
+            "touch",
+            Type::Void,
+            vec![Type::Borrow {
+                is_readwrite: true,
+                inner: Box::new(aggregate_type),
+            }],
+        )]),
+    );
+
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].code, "E8008");
+    assert_eq!(
+        diagnostics[0].message,
+        "IR v0 can only lower simple `=` assignment to scalar local bindings or aggregate slots"
+    );
+}
+
+#[test]
 fn lowers_direct_aggregate_call_assignment_borrow_argument() {
     let aggregate_type = Type::DirectAggregate {
         layout: ValueLayout::new(16, 8),

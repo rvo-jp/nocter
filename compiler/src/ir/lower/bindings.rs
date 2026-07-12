@@ -17,6 +17,7 @@ use crate::ir::{
     AggregateLocation, BoolLocation, FallibleFailureMode, I32Location, Instruction, SliceLocation,
     StrLocation, Type, U8Location, UsizeLocation,
 };
+use crate::resolve::{ResolveOutput, TypeSymbolKind};
 
 pub(super) fn lower_local_binding(
     statement: &BindingStmt,
@@ -70,7 +71,8 @@ fn lower_aggregate_struct_literal_binding(
     })?;
     validate_aggregate_binding_layout(value.layout)?;
 
-    let slot_index = context.define_aggregate_local(statement.name.clone(), value.layout);
+    let is_copy = type_expr_is_copy_struct(&literal.ty, resolved);
+    let slot_index = context.define_aggregate_local(statement.name.clone(), value.layout, is_copy);
     let mut instructions = vec![Instruction::ReserveAggregateSlot {
         slot_index,
         layout: value.layout,
@@ -129,7 +131,8 @@ fn lower_aggregate_normal_call_binding(
 
     let (mut instructions, arguments) =
         lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
-    let slot_index = context.define_aggregate_local(statement.name.clone(), layout);
+    let is_copy = call_success_type_is_copy_struct(call, context);
+    let slot_index = context.define_aggregate_local(statement.name.clone(), layout, is_copy);
     instructions.insert(0, Instruction::ReserveAggregateSlot { slot_index, layout });
     match return_type {
         Type::Aggregate { .. } => {
@@ -174,7 +177,8 @@ fn lower_aggregate_fallible_call_binding(
 
     let (mut instructions, arguments) =
         lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
-    let slot_index = context.define_aggregate_local(statement.name.clone(), layout);
+    let is_copy = call_success_type_is_copy_struct(call, context);
+    let slot_index = context.define_aggregate_local(statement.name.clone(), layout, is_copy);
     instructions.insert(0, Instruction::ReserveAggregateSlot { slot_index, layout });
     match success.as_ref() {
         Type::Aggregate { .. } => {
@@ -289,6 +293,9 @@ fn lower_aggregate_assignment(
             lower_aggregate_struct_literal_assignment(slot_index, layout, literal, context)
         }
         Expr::Call(call) => lower_aggregate_call_assignment(slot_index, layout, call, context),
+        Expr::Identifier(identifier) => {
+            lower_aggregate_copy_assignment(slot_index, layout, &identifier.name, context)
+        }
         Expr::Propagate(propagation) => {
             let Expr::Call(call) = unwrap_group(&propagation.expression) else {
                 return Err(unsupported_assignment_diagnostic());
@@ -303,6 +310,34 @@ fn lower_aggregate_assignment(
         }
         _ => Err(unsupported_assignment_diagnostic()),
     }
+}
+
+fn lower_aggregate_copy_assignment(
+    destination_slot: usize,
+    destination_layout: ValueLayout,
+    source_name: &str,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some(source) = context.aggregate_local(source_name) else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let Some(destination) = context.aggregate_local_by_slot(destination_slot) else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    if source.layout != destination_layout
+        || destination.layout != destination_layout
+        || !source.is_copy
+        || !destination.is_copy
+        || !destination_layout.size.is_multiple_of(8)
+    {
+        return Err(unsupported_assignment_diagnostic());
+    }
+
+    Ok(vec![Instruction::CopyAggregate {
+        destination: AggregateLocation::Slot(destination_slot),
+        source: AggregateLocation::Slot(source.slot_index),
+        layout: destination_layout,
+    }])
 }
 
 fn lower_aggregate_struct_literal_assignment(
@@ -583,6 +618,26 @@ fn is_u8_slice_type(ty: &TypeExpr) -> bool {
                         && matches!(view.element.as_ref(), TypeExpr::Reference(reference) if reference.name == "u8")
             )
     )
+}
+
+fn call_success_type_is_copy_struct(call: &CallExpr, context: &LoweringContext) -> bool {
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return false;
+    };
+    let Some(signature) = resolved.call_signature_for_call(call) else {
+        return false;
+    };
+    type_expr_is_copy_struct(&signature.return_type, resolved)
+}
+
+fn type_expr_is_copy_struct(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    match ty {
+        TypeExpr::Reference(reference) => resolved
+            .type_symbol_by_name(&reference.name)
+            .is_some_and(|symbol| symbol.kind == TypeSymbolKind::Struct && symbol.is_copy),
+        TypeExpr::Fallible(fallible) => type_expr_is_copy_struct(&fallible.success, resolved),
+        _ => false,
+    }
 }
 
 fn unsupported_binding_diagnostic(message: &'static str) -> Vec<Diagnostic> {
