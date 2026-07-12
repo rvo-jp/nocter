@@ -1115,6 +1115,148 @@ func forward(): Text {
 }
 
 #[test]
+fn lowers_indirect_aggregate_struct_literal_binding_return() {
+    let function = lower_named_function(
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func forward(): Text {
+    let value = Text{ start: 1, len: 2, capacity: 3 }
+    return value
+}
+"#,
+        "forward",
+    );
+
+    let aggregate_type = Type::Aggregate {
+        layout: ValueLayout::new(24, 8),
+    };
+    assert_eq!(
+        function,
+        Function {
+            name: "forward".to_string(),
+            target: CallTarget::same_file("forward"),
+            return_type: aggregate_type,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: usize_const(1),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 8,
+                    value: usize_const(2),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 16,
+                    value: usize_const(3),
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Return,
+                    source: AggregateLocation::Slot(0),
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_readwrite_indirect_aggregate_struct_literal_binding_borrow_argument() {
+    let aggregate_type = Type::Aggregate {
+        layout: ValueLayout::new(24, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func touch(value: &+Text): void {
+    return
+}
+
+func forward(): Text {
+    var value = Text{ start: 1, len: 2, capacity: 3 }
+    touch(&+value)
+    return value
+}
+"#,
+        "forward",
+        function_signatures(vec![(
+            "touch",
+            Type::Void,
+            vec![Type::Borrow {
+                is_readwrite: true,
+                inner: Box::new(aggregate_type.clone()),
+            }],
+        )]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "forward".to_string(),
+            target: CallTarget::same_file("forward"),
+            return_type: aggregate_type,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: usize_const(1),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 8,
+                    value: usize_const(2),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 16,
+                    value: usize_const(3),
+                },
+                Instruction::CallVoid {
+                    target: CallTarget::same_file("touch"),
+                    arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateSlot(0),
+                    })],
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Return,
+                    source: AggregateLocation::Slot(0),
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_readwrite_indirect_aggregate_call_binding_borrow_argument() {
     let aggregate_type = Type::Aggregate {
         layout: ValueLayout::new(24, 8),
@@ -1375,6 +1517,84 @@ pub func make(): Text {
                 destination: AggregateLocation::Return,
                 offset: 16,
                 value: usize_const(3),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
+fn lowers_pointer_from_addr_aggregate_field_binding_return() {
+    let function = lower_imported_named_function_with_nocter_home_files(
+        r#"from std/text import make
+
+func main(): i32 {
+    return 0
+}
+"#,
+        "make",
+        &[
+            (
+                "std/ptr.nct",
+                r#"pub(nocter) primitive from_addr<T>(address: usize): *T
+"#,
+            ),
+            (
+                "std/text.nct",
+                r#"from std/ptr import from_addr
+
+pub struct Text {
+    ptr: *u8
+    len: usize
+    capacity: usize
+}
+
+pub func make(): Text {
+    let value = Text{ ptr: from_addr(1), len: 2, capacity: 3 }
+    return value
+}
+"#,
+            ),
+        ],
+    );
+
+    assert_eq!(function.name, "make");
+    assert!(matches!(
+        function.target,
+        CallTarget::Imported { ref name, .. } if name == "make"
+    ));
+    assert_eq!(
+        function.return_type,
+        Type::Aggregate {
+            layout: ValueLayout::new(24, 8),
+        }
+    );
+    assert_eq!(
+        function.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(24, 8),
+            },
+            Instruction::StoreAggregateUsize {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: usize_const(1),
+            },
+            Instruction::StoreAggregateUsize {
+                destination: AggregateLocation::Slot(0),
+                offset: 8,
+                value: usize_const(2),
+            },
+            Instruction::StoreAggregateUsize {
+                destination: AggregateLocation::Slot(0),
+                offset: 16,
+                value: usize_const(3),
+            },
+            Instruction::CopyAggregate {
+                destination: AggregateLocation::Return,
+                source: AggregateLocation::Slot(0),
+                layout: ValueLayout::new(24, 8),
             },
             Instruction::Return,
         ]

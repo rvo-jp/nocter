@@ -54,12 +54,13 @@ Already buildable in the narrow scalar subset:
 - stack-backed scalar/view `var` bindings and simple whole-binding `=` assignment
 - local scalar borrow argument lowering for `&T` and `&+T` normal-call parameters
 - ABI-indirect aggregate call-result `let`/`var` slots, including propagated fallible aggregate calls
+- ABI-indirect aggregate struct-literal local slots with `usize` fields or `std/ptr.from_addr` pointer fields
 - local aggregate slot borrow argument lowering for `&T` and `&+T` normal-call parameters
 - return-by-name from reserved aggregate slots
 
 Still required before explicit string construction can build:
 
-- aggregate storage not initialized by ABI-indirect call results, including struct-literal local slots
+- aggregate storage outside the supported ABI-indirect call-result and struct-literal local-slot paths
 - direct aggregate value support for 16-byte-or-smaller standard-library values, or an explicit std surface that avoids requiring those values in the initial buildable path
 - aggregate reassignment for mutable owned values
 - explicit source-level move/return handling for owned aggregate results

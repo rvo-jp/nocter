@@ -1,3 +1,4 @@
+use super::aggregates::lower_aggregate_struct_literal_to_location;
 use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{FunctionNames, FunctionSignatures, LoweringContext, LoweringParameterSlots};
 use super::control_flow::{lower_terminal_bool_if_statement, lower_terminal_i32_if_statement};
@@ -5,17 +6,15 @@ use super::errors::{ErrorPayload, lower_error_payload};
 use super::expressions::{
     lower_bool_return_expression, lower_call_arguments_to_scalar_arguments,
     lower_i32_return_expression, lower_never_return_expression, lower_slice_return_expression,
-    lower_str_return_expression, lower_u8_return_expression, lower_usize_expression_to_word,
-    lower_usize_return_expression, lower_void_expression_statement, mark_fallible_success_returns,
-    success_return_instruction,
+    lower_str_return_expression, lower_u8_return_expression, lower_usize_return_expression,
+    lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
 };
-use crate::abi::{ARGUMENT_REGISTER_COUNT, AbiType, abi_value_from_type_expr, layout_struct};
+use crate::abi::{ARGUMENT_REGISTER_COUNT, AbiType, abi_value_from_type_expr};
 use crate::ast::{Expr, FunctionDecl, Parameter, Stmt, StructLiteralExpr, TypeExpr};
 use crate::diagnostics::Diagnostic;
-use crate::ir::{AggregateLocation, CallTarget, Function, Instruction, Type, UsizeValue};
+use crate::ir::{AggregateLocation, CallTarget, Function, Instruction, Type};
 use crate::resolve::ResolveOutput;
 use crate::source::SourceId;
-use std::collections::HashMap;
 
 pub(super) fn lower_function(
     function: &FunctionDecl,
@@ -647,80 +646,25 @@ fn lower_aggregate_struct_literal_return(
         unreachable!("aggregate return lowering requires aggregate return type")
     };
 
-    let value = abi_value_from_type_expr(&literal.ty, resolved)
-        .map_err(|_error| unsupported_aggregate_return_diagnostic(function_name))?;
-    if !value.is_indirect() || value.layout != *expected_layout {
-        return Err(unsupported_aggregate_return_diagnostic(function_name));
-    }
-
-    let AbiType::Struct(fields) = value.ty else {
-        return Err(unsupported_aggregate_return_diagnostic(function_name));
-    };
-    let struct_layout = layout_struct(&fields)
-        .map_err(|_error| unsupported_aggregate_return_diagnostic(function_name))?;
-    let field_layouts = fields
-        .iter()
-        .zip(struct_layout.fields.iter())
-        .map(|(field, layout)| (field.name.as_str(), (&field.ty, layout.offset)))
-        .collect::<HashMap<_, _>>();
-
-    let mut instructions = Vec::new();
-    for field in &literal.fields {
-        let Some((field_type, offset)) = field_layouts.get(field.name.as_str()) else {
-            return Err(unsupported_aggregate_return_diagnostic(function_name));
-        };
-        let offset = u32::try_from(*offset)
-            .map_err(|_error| unsupported_aggregate_return_diagnostic(function_name))?;
-        let (mut field_instructions, value) =
-            lower_aggregate_word_field_value(field_type, &field.value, function_name, context)?;
-        instructions.append(&mut field_instructions);
-        instructions.push(Instruction::StoreAggregateUsize {
-            destination: AggregateLocation::Return,
-            offset,
-            value,
-        });
-    }
+    let subject = format!("returns from function `{function_name}`");
+    let mut instructions = lower_aggregate_struct_literal_to_location(
+        literal,
+        *expected_layout,
+        AggregateLocation::Return,
+        "E8007",
+        &subject,
+        resolved,
+        context,
+    )?;
     instructions.push(Instruction::Return);
     Ok(instructions)
-}
-
-fn lower_aggregate_word_field_value(
-    field_type: &AbiType,
-    expression: &Expr,
-    function_name: &str,
-    context: &LoweringContext,
-) -> Result<(Vec<Instruction>, UsizeValue), Vec<Diagnostic>> {
-    match field_type {
-        AbiType::Usize => lower_usize_expression_to_word(expression, context),
-        AbiType::Pointer => lower_aggregate_pointer_field_value(expression, function_name, context),
-        _ => Err(unsupported_aggregate_return_diagnostic(function_name)),
-    }
-}
-
-fn lower_aggregate_pointer_field_value(
-    expression: &Expr,
-    function_name: &str,
-    context: &LoweringContext,
-) -> Result<(Vec<Instruction>, UsizeValue), Vec<Diagnostic>> {
-    match expression {
-        Expr::Call(call)
-            if context.primitive_name_for_call(call) == Some("from_addr")
-                && call.arguments.len() == 1 =>
-        {
-            lower_usize_expression_to_word(&call.arguments[0], context)
-        }
-        Expr::Group(group) => {
-            lower_aggregate_pointer_field_value(&group.expression, function_name, context)
-        }
-        _ => Err(unsupported_aggregate_return_diagnostic(function_name)),
-    }
 }
 
 fn unsupported_aggregate_return_diagnostic(function_name: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8007",
         format!(
-            "IR v0 can only lower aggregate returns from function `{function_name}` when the return expression is a struct literal with `usize` fields or `std/ptr.from_addr` pointer fields"
+            "IR v0 can only lower aggregate returns from function `{function_name}` from an indirect struct literal with `usize` fields or `std/ptr.from_addr` pointer fields, a direct aggregate call, or a supported aggregate local slot"
         ),
     )]
 }

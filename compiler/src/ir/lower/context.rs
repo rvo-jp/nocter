@@ -158,7 +158,7 @@ impl<'a> LoweringContext<'a> {
         }
     }
 
-    pub(super) fn resolved_calls(&self) -> Option<(SourceId, &ResolveOutput)> {
+    pub(super) fn resolved_calls(&self) -> Option<(SourceId, &'a ResolveOutput)> {
         self.call_resolution
             .as_ref()
             .map(|resolution| (resolution.root_source, resolution.resolved))

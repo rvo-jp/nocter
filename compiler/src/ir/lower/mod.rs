@@ -1,3 +1,4 @@
+mod aggregates;
 mod bindings;
 mod context;
 mod control_flow;

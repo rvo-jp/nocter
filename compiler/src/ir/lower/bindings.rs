@@ -1,3 +1,4 @@
+use super::aggregates::lower_aggregate_struct_literal_to_location;
 use super::context::LoweringContext;
 use super::expressions::{
     expression_contains_interpolated_string, expression_is_lowerable_bool_binding,
@@ -6,6 +7,7 @@ use super::expressions::{
     lower_slice_expression_to_location, lower_str_expression_to_location,
     lower_u8_expression_to_location, lower_usize_expression_to_location,
 };
+use crate::abi::abi_value_from_type_expr;
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, BinaryOperator, BindingStmt, CallExpr, Expr, TypeExpr,
     UnaryOperator,
@@ -30,6 +32,10 @@ pub(super) fn lower_local_binding(
         return Err(unsupported_interpolated_string_diagnostic());
     }
 
+    if let Some(instructions) = lower_aggregate_struct_literal_binding(statement, context)? {
+        return Ok(instructions);
+    }
+
     if let Some(instructions) = lower_aggregate_call_binding(statement, context)? {
         return Ok(instructions);
     }
@@ -42,6 +48,48 @@ pub(super) fn lower_local_binding(
         ScalarBindingKind::Str => lower_str_local_binding(statement, context),
         ScalarBindingKind::Slice => lower_slice_local_binding(statement, context),
     }
+}
+
+fn lower_aggregate_struct_literal_binding(
+    statement: &BindingStmt,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Expr::StructLiteral(literal) = unwrap_group(&statement.initializer) else {
+        return Ok(None);
+    };
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 cannot lower aggregate struct literal bindings without resolved type information",
+        ));
+    };
+
+    let value = abi_value_from_type_expr(&literal.ty, resolved).map_err(|_error| {
+        unsupported_binding_diagnostic(
+            "IR v0 can only lower local aggregate bindings whose initializer has an ABI layout",
+        )
+    })?;
+    if !value.is_indirect() {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 can only lower indirect aggregate struct literal local bindings",
+        ));
+    }
+    validate_aggregate_binding_layout(value.layout)?;
+
+    let slot_index = context.define_aggregate_local(statement.name.clone(), value.layout);
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index,
+        layout: value.layout,
+    }];
+    instructions.extend(lower_aggregate_struct_literal_to_location(
+        literal,
+        value.layout,
+        AggregateLocation::Slot(slot_index),
+        "E8008",
+        "local bindings",
+        resolved,
+        context,
+    )?);
+    Ok(Some(instructions))
 }
 
 fn lower_aggregate_call_binding(
