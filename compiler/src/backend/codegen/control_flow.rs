@@ -302,6 +302,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
         }
         Some(
             Instruction::WriteStr { .. }
+            | Instruction::ReserveAggregateSlot { .. }
             | Instruction::PropagateFailure
             | Instruction::TrapOnFailure
             | Instruction::CheckFailure { .. }

@@ -224,14 +224,23 @@ impl AggregateSlot {
 }
 
 pub(super) fn plan_function_frame(function: &Function) -> Result<FunctionFrame, Vec<Diagnostic>> {
-    if !function_requires_frame(&function.instructions) {
+    let aggregate_slot_requests = aggregate_slot_requests(&function.instructions)?;
+    if !function_requires_frame(&function.instructions) && aggregate_slot_requests.is_empty() {
         return Ok(FunctionFrame::Frameless);
     }
 
-    FrameLayout::for_slot_counts(
-        scalar_spill_slot_count(&function.instructions),
-        max_call_argument_count(&function.instructions),
-    )
+    let scalar_spill_count = scalar_spill_slot_count(&function.instructions);
+    let argument_staging_count = max_call_argument_count(&function.instructions);
+
+    if aggregate_slot_requests.is_empty() {
+        FrameLayout::for_slot_counts(scalar_spill_count, argument_staging_count)
+    } else {
+        FrameLayout::for_slot_counts_with_aggregate_slots(
+            scalar_spill_count,
+            argument_staging_count,
+            &aggregate_slot_requests,
+        )
+    }
     .map(FunctionFrame::Framed)
 }
 
@@ -262,6 +271,7 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::CallFallibleSlice { .. }
         | Instruction::CallVoid { .. }
         | Instruction::CallFallibleVoid { .. }
+        | Instruction::ReserveAggregateSlot { .. }
         | Instruction::WriteStr { .. } => true,
         Instruction::TailCall { arguments, .. } => !arguments.is_empty(),
         Instruction::CheckFailure { failure_mode } => failure_mode_requires_frame(failure_mode),
@@ -373,6 +383,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::ReturnFallibleSuccess
         | Instruction::ReturnFallibleFailure { .. } => 0,
         Instruction::WriteStr { .. }
+        | Instruction::ReserveAggregateSlot { .. }
         | Instruction::SetI32 { .. }
         | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
@@ -396,6 +407,124 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::Trap
         | Instruction::Return => 0,
     }
+}
+
+fn aggregate_slot_requests(
+    instructions: &[Instruction],
+) -> Result<Vec<AggregateSlotRequest>, Vec<Diagnostic>> {
+    let mut requests = Vec::new();
+    record_instruction_list_aggregate_slot_requests(instructions, &mut requests)?;
+    Ok(requests)
+}
+
+fn record_instruction_list_aggregate_slot_requests(
+    instructions: &[Instruction],
+    requests: &mut Vec<AggregateSlotRequest>,
+) -> Result<(), Vec<Diagnostic>> {
+    for instruction in instructions {
+        record_instruction_aggregate_slot_requests(instruction, requests)?;
+    }
+
+    Ok(())
+}
+
+fn record_instruction_aggregate_slot_requests(
+    instruction: &Instruction,
+    requests: &mut Vec<AggregateSlotRequest>,
+) -> Result<(), Vec<Diagnostic>> {
+    match instruction {
+        Instruction::ReserveAggregateSlot { slot_index, layout } => {
+            record_aggregate_slot_request(*slot_index, *layout, requests)
+        }
+        Instruction::If {
+            then_instructions,
+            else_instructions,
+            ..
+        } => {
+            record_instruction_list_aggregate_slot_requests(then_instructions, requests)?;
+            record_instruction_list_aggregate_slot_requests(else_instructions, requests)
+        }
+        Instruction::CallFallibleI32 { failure_mode, .. }
+        | Instruction::CallFallibleU8 { failure_mode, .. }
+        | Instruction::CallFallibleUsize { failure_mode, .. }
+        | Instruction::CallFallibleBool { failure_mode, .. }
+        | Instruction::CallFallibleStr { failure_mode, .. }
+        | Instruction::CallFallibleSlice { failure_mode, .. }
+        | Instruction::CallFallibleVoid { failure_mode, .. }
+        | Instruction::CheckFailure { failure_mode } => {
+            record_failure_mode_aggregate_slot_requests(failure_mode, requests)
+        }
+        Instruction::PropagateFailure
+        | Instruction::TrapOnFailure
+        | Instruction::ReturnFallibleSuccess
+        | Instruction::ReturnFallibleFailure { .. }
+        | Instruction::WriteStr { .. }
+        | Instruction::SetI32 { .. }
+        | Instruction::SetU8 { .. }
+        | Instruction::SetUsize { .. }
+        | Instruction::SetBool { .. }
+        | Instruction::SetStr { .. }
+        | Instruction::SetSlice { .. }
+        | Instruction::AddI32 { .. }
+        | Instruction::SubtractI32 { .. }
+        | Instruction::MultiplyI32 { .. }
+        | Instruction::DivideI32 { .. }
+        | Instruction::RemainderI32 { .. }
+        | Instruction::ShiftLeftI32 { .. }
+        | Instruction::ShiftRightI32 { .. }
+        | Instruction::AddUsize { .. }
+        | Instruction::SubtractUsize { .. }
+        | Instruction::MultiplyUsize { .. }
+        | Instruction::DivideUsize { .. }
+        | Instruction::RemainderUsize { .. }
+        | Instruction::ShiftLeftUsize { .. }
+        | Instruction::ShiftRightUsize { .. }
+        | Instruction::CallI32 { .. }
+        | Instruction::CallU8 { .. }
+        | Instruction::CallUsize { .. }
+        | Instruction::CallBool { .. }
+        | Instruction::CallStr { .. }
+        | Instruction::CallSlice { .. }
+        | Instruction::CallVoid { .. }
+        | Instruction::TailCall { .. }
+        | Instruction::Trap
+        | Instruction::Return => Ok(()),
+    }
+}
+
+fn record_failure_mode_aggregate_slot_requests(
+    failure_mode: &FallibleFailureMode,
+    requests: &mut Vec<AggregateSlotRequest>,
+) -> Result<(), Vec<Diagnostic>> {
+    match failure_mode {
+        FallibleFailureMode::Propagate | FallibleFailureMode::Trap => Ok(()),
+        FallibleFailureMode::Catch { instructions, .. } => {
+            record_instruction_list_aggregate_slot_requests(instructions, requests)
+        }
+    }
+}
+
+fn record_aggregate_slot_request(
+    slot_index: usize,
+    layout: ValueLayout,
+    requests: &mut Vec<AggregateSlotRequest>,
+) -> Result<(), Vec<Diagnostic>> {
+    if let Some(existing) = requests
+        .iter()
+        .find(|request| request.slot_index == slot_index)
+    {
+        if existing.layout == layout {
+            return Ok(());
+        }
+
+        return Err(vec![Diagnostic::error(
+            "E9005",
+            format!("aggregate slot {slot_index} has conflicting ABI layouts"),
+        )]);
+    }
+
+    requests.push(AggregateSlotRequest::new(slot_index, layout));
+    Ok(())
 }
 
 fn failure_mode_max_call_argument_count(failure_mode: &FallibleFailureMode) -> usize {
@@ -429,6 +558,7 @@ fn record_instruction_scalar_locals(
         Instruction::PropagateFailure
         | Instruction::TrapOnFailure
         | Instruction::ReturnFallibleSuccess
+        | Instruction::ReserveAggregateSlot { .. }
         | Instruction::Trap
         | Instruction::Return => {}
         Instruction::CheckFailure { failure_mode } => {
@@ -1064,6 +1194,95 @@ mod tests {
         .unwrap_err();
 
         assert_eq!(error[0].code, "E9005");
+    }
+
+    #[test]
+    fn plans_aggregate_slot_requests_from_ir_instructions() {
+        let function = Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Void,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::Return,
+            ],
+        };
+
+        let frame = plan_function_frame(&function).unwrap();
+        let FunctionFrame::Framed(layout) = frame else {
+            panic!("aggregate slot reservation should require a frame");
+        };
+
+        assert_eq!(layout.frame_size(), 32);
+        assert_eq!(layout.saved_x30_offset(), 24);
+        assert_eq!(
+            layout.aggregate_slots(),
+            &[AggregateSlot {
+                slot_index: 0,
+                offset: 0,
+                size: 24,
+                align: 8,
+            }]
+        );
+    }
+
+    #[test]
+    fn deduplicates_aggregate_slot_requests_from_nested_control_flow() {
+        let function = Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Fallible(Box::new(Type::Void)),
+            instructions: vec![
+                Instruction::If {
+                    condition: BoolValue::Const(true),
+                    then_instructions: vec![Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(24, 8),
+                    }],
+                    else_instructions: vec![Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(24, 8),
+                    }],
+                },
+                Instruction::CheckFailure {
+                    failure_mode: FallibleFailureMode::Catch {
+                        code: StrLocation::Local(0),
+                        message: StrLocation::Local(2),
+                        instructions: vec![Instruction::ReserveAggregateSlot {
+                            slot_index: 1,
+                            layout: ValueLayout::new(16, 16),
+                        }],
+                    },
+                },
+                Instruction::Return,
+            ],
+        };
+
+        let frame = plan_function_frame(&function).unwrap();
+        let FunctionFrame::Framed(layout) = frame else {
+            panic!("aggregate slot reservation should require a frame");
+        };
+
+        assert_eq!(
+            layout.aggregate_slots(),
+            &[
+                AggregateSlot {
+                    slot_index: 0,
+                    offset: 32,
+                    size: 24,
+                    align: 8,
+                },
+                AggregateSlot {
+                    slot_index: 1,
+                    offset: 64,
+                    size: 16,
+                    align: 16,
+                },
+            ]
+        );
     }
 
     #[test]

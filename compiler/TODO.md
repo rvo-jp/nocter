@@ -27,6 +27,12 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: connect aggregate frame reservations to IR
+  - adds a frame-only `ReserveAggregateSlot { slot_index, layout }` IR marker carrying ABI `ValueLayout`
+  - makes `backend/frame.rs` collect aggregate slot requests from top-level instructions, nested `if` branches, and catch failure handlers
+  - deduplicates repeated slot indexes with the same layout and reports conflicting slot layouts as backend diagnostics
+  - treats reservation markers as codegen no-ops, non-terminating control-flow instructions, and reachability-neutral instructions
+  - keeps aggregate load/store, aggregate-backed `var`, and owned aggregate returns/moves disabled until lowering can emit and use the reserved slots
 - Current checkpoint: use ABI counts for IR parameter planning
   - changes IR function parameter lowering to count parameter ABI words through `abi_value_from_type_expr`
   - shares the ABI module's eight-register argument window constant instead of maintaining a separate IR-only limit

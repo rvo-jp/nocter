@@ -141,6 +141,7 @@ impl EntryEmitter {
             Instruction::SetSlice { destination, value } => {
                 self.emit_set_slice(*destination, value)?;
             }
+            Instruction::ReserveAggregateSlot { .. } => {}
             Instruction::AddI32 {
                 destination,
                 left,

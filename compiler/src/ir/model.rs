@@ -1,3 +1,4 @@
+use crate::abi::ValueLayout;
 use crate::source::SourceId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -67,6 +68,11 @@ pub(crate) enum Instruction {
     SetSlice {
         destination: SliceLocation,
         value: SliceValue,
+    },
+    #[allow(dead_code)]
+    ReserveAggregateSlot {
+        slot_index: usize,
+        layout: ValueLayout,
     },
     AddI32 {
         destination: I32Location,
