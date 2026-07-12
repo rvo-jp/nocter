@@ -178,7 +178,9 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::CallBool { .. }
         | Instruction::CallFallibleBool { .. }
         | Instruction::CallStr { .. }
+        | Instruction::CallFallibleStr { .. }
         | Instruction::CallSlice { .. }
+        | Instruction::CallFallibleSlice { .. }
         | Instruction::CallVoid { .. }
         | Instruction::CallFallibleVoid { .. }
         | Instruction::WriteStr { .. } => true,
@@ -236,7 +238,9 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::CallBool { arguments, .. }
         | Instruction::CallFallibleBool { arguments, .. }
         | Instruction::CallStr { arguments, .. }
+        | Instruction::CallFallibleStr { arguments, .. }
         | Instruction::CallSlice { arguments, .. }
+        | Instruction::CallFallibleSlice { arguments, .. }
         | Instruction::CallVoid { arguments, .. }
         | Instruction::CallFallibleVoid { arguments, .. }
         | Instruction::TailCall { arguments, .. } => {
@@ -474,6 +478,11 @@ fn record_instruction_scalar_locals(
             destination,
             arguments,
             ..
+        }
+        | Instruction::CallFallibleStr {
+            destination,
+            arguments,
+            ..
         } => {
             record_str_location(*destination, highest_local_index);
             for argument in arguments {
@@ -481,6 +490,11 @@ fn record_instruction_scalar_locals(
             }
         }
         Instruction::CallSlice {
+            destination,
+            arguments,
+            ..
+        }
+        | Instruction::CallFallibleSlice {
             destination,
             arguments,
             ..

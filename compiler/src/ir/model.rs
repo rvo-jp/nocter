@@ -188,8 +188,18 @@ pub(crate) enum Instruction {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
     },
+    CallFallibleStr {
+        destination: StrLocation,
+        target: CallTarget,
+        arguments: Vec<ScalarArgument>,
+    },
     #[allow(dead_code)]
     CallSlice {
+        destination: SliceLocation,
+        target: CallTarget,
+        arguments: Vec<ScalarArgument>,
+    },
+    CallFallibleSlice {
         destination: SliceLocation,
         target: CallTarget,
         arguments: Vec<ScalarArgument>,

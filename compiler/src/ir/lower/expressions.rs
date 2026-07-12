@@ -18,10 +18,12 @@ use crate::ir::{
 };
 use calls::{
     lower_bool_normal_call, lower_call_arguments, lower_direct_tail_call,
-    lower_fallible_bool_normal_call, lower_fallible_i32_normal_call, lower_fallible_u8_normal_call,
-    lower_fallible_usize_normal_call, lower_fallible_void_normal_call, lower_i32_normal_call,
-    lower_slice_normal_call, lower_str_normal_call, lower_u8_normal_call, lower_usize_normal_call,
-    lower_void_normal_call, primitive_trap_call, primitive_write_text_raw_call,
+    lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
+    lower_fallible_slice_normal_call, lower_fallible_str_normal_call,
+    lower_fallible_u8_normal_call, lower_fallible_usize_normal_call,
+    lower_fallible_void_normal_call, lower_i32_normal_call, lower_slice_normal_call,
+    lower_str_normal_call, lower_u8_normal_call, lower_usize_normal_call, lower_void_normal_call,
+    primitive_trap_call, primitive_write_text_raw_call,
 };
 use predicates::{
     bool_comparison_contains_call, expressions_are_lowerable_bool_comparison_operands,
@@ -180,6 +182,9 @@ pub(super) fn lower_str_expression_to_location(
             let mut temporaries = TemporaryAllocator::new(context)?;
             lower_str_normal_call(call, destination, context, &mut temporaries)
         }
+        Expr::Propagate(propagation) => {
+            lower_str_fallible_expression_to_location(&propagation.expression, destination, context)
+        }
         Expr::Group(group) => {
             lower_str_expression_to_location(&group.expression, destination, context)
         }
@@ -198,6 +203,11 @@ pub(super) fn lower_slice_expression_to_location(
             let mut temporaries = TemporaryAllocator::new(context)?;
             lower_slice_normal_call(call, destination, context, &mut temporaries)
         }
+        Expr::Propagate(propagation) => lower_slice_fallible_expression_to_location(
+            &propagation.expression,
+            destination,
+            context,
+        ),
         Expr::Group(group) => {
             lower_slice_expression_to_location(&group.expression, destination, context)
         }
@@ -306,6 +316,40 @@ fn lower_usize_fallible_expression_to_location(
             lower_usize_fallible_expression_to_location(&group.expression, destination, context)
         }
         _ => Err(unsupported_usize_expression_diagnostic()),
+    }
+}
+
+fn lower_str_fallible_expression_to_location(
+    expression: &Expr,
+    destination: StrLocation,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(call) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            lower_fallible_str_normal_call(call, destination, context, &mut temporaries)
+        }
+        Expr::Group(group) => {
+            lower_str_fallible_expression_to_location(&group.expression, destination, context)
+        }
+        _ => Err(unsupported_str_expression_diagnostic()),
+    }
+}
+
+fn lower_slice_fallible_expression_to_location(
+    expression: &Expr,
+    destination: SliceLocation,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(call) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            lower_fallible_slice_normal_call(call, destination, context, &mut temporaries)
+        }
+        Expr::Group(group) => {
+            lower_slice_fallible_expression_to_location(&group.expression, destination, context)
+        }
+        _ => Err(unsupported_slice_expression_diagnostic()),
     }
 }
 
@@ -568,6 +612,17 @@ fn lower_str_expression_to_value(
                 value: StrValue::Location(temporary),
             })
         }
+        Expr::Propagate(propagation) => {
+            let temporary = temporaries.next_str()?;
+            Ok(LoweredStrValue {
+                instructions: lower_str_fallible_expression_to_location(
+                    &propagation.expression,
+                    temporary,
+                    context,
+                )?,
+                value: StrValue::Location(temporary),
+            })
+        }
         Expr::Group(group) => {
             lower_str_expression_to_value(&group.expression, context, temporaries)
         }
@@ -588,6 +643,17 @@ fn lower_slice_expression_to_value(
             let temporary = temporaries.next_slice()?;
             Ok(LoweredSliceValue {
                 instructions: lower_slice_normal_call(call, temporary, context, temporaries)?,
+                value: SliceValue::Location(temporary),
+            })
+        }
+        Expr::Propagate(propagation) => {
+            let temporary = temporaries.next_slice()?;
+            Ok(LoweredSliceValue {
+                instructions: lower_slice_fallible_expression_to_location(
+                    &propagation.expression,
+                    temporary,
+                    context,
+                )?,
                 value: SliceValue::Location(temporary),
             })
         }

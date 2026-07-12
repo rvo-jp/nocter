@@ -332,7 +332,9 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::CallBool { .. }
             | Instruction::CallFallibleBool { .. }
             | Instruction::CallStr { .. }
+            | Instruction::CallFallibleStr { .. }
             | Instruction::CallSlice { .. }
+            | Instruction::CallFallibleSlice { .. }
             | Instruction::CallVoid { .. }
             | Instruction::CallFallibleVoid { .. },
         )

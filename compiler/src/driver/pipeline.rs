@@ -897,6 +897,62 @@ func make_flag(): bool! {
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     #[test]
+    fn build_file_output_runs_fallible_str_call_success_propagation() {
+        let root = make_temp_project("build-run-fallible-str-success-propagation");
+        let nocter_home = make_nocter_home(&root);
+        fs::write(
+            nocter_home.join("std/io.nct"),
+            r#"from std/io_impl import write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+        )
+        .unwrap();
+        fs::write(
+            nocter_home.join("targets/arm64-darwin/std/io_impl.nct"),
+            r#"pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+        )
+        .unwrap();
+        let source = root.join("fallible_str_success.nct");
+        fs::write(
+            &source,
+            r#"from std/io import write
+
+func main(): i32! {
+    let text: &str = message()?
+    write(text)?
+    return 0
+}
+
+func message(): &str! {
+    return "fallible text\n"
+}
+"#,
+        )
+        .unwrap();
+
+        let executable = default_executable_path(&source);
+        let output = build_file_to_path_with_options(
+            &source,
+            &executable,
+            &frontend_options(nocter_home),
+            DEFAULT_ENTRY_NAME,
+        );
+
+        assert_diagnostics_empty(&output.diagnostics);
+        assert_eq!(output.output_path, executable);
+        let output = std::process::Command::new(&executable).output().unwrap();
+        assert_eq!(output.status.code(), Some(0));
+        assert_eq!(output.stdout, b"fallible text\n");
+        assert!(output.stderr.is_empty());
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
     fn build_file_output_runs_void_entry_with_zero_exit_code() {
         let root = make_temp_project("build-run-void");
         let nocter_home = make_nocter_home(&root);

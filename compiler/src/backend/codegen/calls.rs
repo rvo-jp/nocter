@@ -311,6 +311,34 @@ impl EntryEmitter {
         self.emit_call_result_to_str_location(destination)
     }
 
+    pub(super) fn emit_call_fallible_str(
+        &mut self,
+        destination: StrLocation,
+        function: FunctionSymbol,
+        arguments: &[ScalarArgument],
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "fallible str call emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_staged_scalar_arguments(arguments, frame)?;
+
+        self.emit_call(function);
+        self.encoder.emit_cmp_x_zero(XReg::X0);
+        let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+        self.emit_return(Some(frame));
+        self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
+        self.encoder.emit_mov_x(XReg::X16, XReg::X1);
+        self.encoder.emit_mov_x(XReg::X17, XReg::X2);
+        self.emit_scalar_reloads(frame)?;
+        self.emit_x_pair_to_str_location(XReg::X16, XReg::X17, destination)
+    }
+
     pub(super) fn emit_call_slice(
         &mut self,
         destination: SliceLocation,
@@ -331,6 +359,34 @@ impl EntryEmitter {
         self.emit_call(function);
         self.emit_scalar_reloads(frame)?;
         self.emit_call_result_to_slice_location(destination)
+    }
+
+    pub(super) fn emit_call_fallible_slice(
+        &mut self,
+        destination: SliceLocation,
+        function: FunctionSymbol,
+        arguments: &[ScalarArgument],
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "fallible slice call emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_staged_scalar_arguments(arguments, frame)?;
+
+        self.emit_call(function);
+        self.encoder.emit_cmp_x_zero(XReg::X0);
+        let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+        self.emit_return(Some(frame));
+        self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
+        self.encoder.emit_mov_x(XReg::X16, XReg::X1);
+        self.encoder.emit_mov_x(XReg::X17, XReg::X2);
+        self.emit_scalar_reloads(frame)?;
+        self.emit_x_pair_to_slice_location(XReg::X16, XReg::X17, destination)
     }
 
     fn emit_staged_scalar_arguments(
@@ -567,20 +623,25 @@ impl EntryEmitter {
         &mut self,
         destination: StrLocation,
     ) -> Result<(), Vec<Diagnostic>> {
-        if destination == StrLocation::Return {
-            return Ok(());
-        }
+        self.emit_x_pair_to_str_location(XReg::X0, XReg::X1, destination)
+    }
 
+    fn emit_x_pair_to_str_location(
+        &mut self,
+        ptr_source: XReg,
+        len_source: XReg,
+        destination: StrLocation,
+    ) -> Result<(), Vec<Diagnostic>> {
         let (ptr_destination, len_destination) = self.str_location_registers(destination)?;
-        let len_source = if ptr_destination == XReg::X1 {
-            self.encoder.emit_mov_x(XReg::X16, XReg::X1);
-            XReg::X16
+        let len_source = if ptr_destination == len_source {
+            self.encoder.emit_mov_x(XReg::X17, len_source);
+            XReg::X17
         } else {
-            XReg::X1
+            len_source
         };
 
-        if ptr_destination != XReg::X0 {
-            self.encoder.emit_mov_x(ptr_destination, XReg::X0);
+        if ptr_destination != ptr_source {
+            self.encoder.emit_mov_x(ptr_destination, ptr_source);
         }
         if len_destination != len_source {
             self.encoder.emit_mov_x(len_destination, len_source);
@@ -593,20 +654,25 @@ impl EntryEmitter {
         &mut self,
         destination: SliceLocation,
     ) -> Result<(), Vec<Diagnostic>> {
-        if destination == SliceLocation::Return {
-            return Ok(());
-        }
+        self.emit_x_pair_to_slice_location(XReg::X0, XReg::X1, destination)
+    }
 
+    fn emit_x_pair_to_slice_location(
+        &mut self,
+        ptr_source: XReg,
+        len_source: XReg,
+        destination: SliceLocation,
+    ) -> Result<(), Vec<Diagnostic>> {
         let (ptr_destination, len_destination) = self.slice_location_registers(destination)?;
-        let len_source = if ptr_destination == XReg::X1 {
-            self.encoder.emit_mov_x(XReg::X16, XReg::X1);
-            XReg::X16
+        let len_source = if ptr_destination == len_source {
+            self.encoder.emit_mov_x(XReg::X17, len_source);
+            XReg::X17
         } else {
-            XReg::X1
+            len_source
         };
 
-        if ptr_destination != XReg::X0 {
-            self.encoder.emit_mov_x(ptr_destination, XReg::X0);
+        if ptr_destination != ptr_source {
+            self.encoder.emit_mov_x(ptr_destination, ptr_source);
         }
         if len_destination != len_source {
             self.encoder.emit_mov_x(len_destination, len_source);

@@ -22,7 +22,9 @@ fn collect_reachable_call_targets(
             | Instruction::CallBool { target, .. }
             | Instruction::CallFallibleBool { target, .. }
             | Instruction::CallStr { target, .. }
+            | Instruction::CallFallibleStr { target, .. }
             | Instruction::CallSlice { target, .. }
+            | Instruction::CallFallibleSlice { target, .. }
             | Instruction::CallVoid { target, .. }
             | Instruction::CallFallibleVoid { target, .. }
             | Instruction::TailCall { target, .. } => {

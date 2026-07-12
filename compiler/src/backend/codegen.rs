@@ -345,12 +345,36 @@ impl EntryEmitter {
                     frame,
                 )?;
             }
+            Instruction::CallFallibleStr {
+                destination,
+                target,
+                arguments,
+            } => {
+                self.emit_call_fallible_str(
+                    *destination,
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    frame,
+                )?;
+            }
             Instruction::CallSlice {
                 destination,
                 target,
                 arguments,
             } => {
                 self.emit_call_slice(
+                    *destination,
+                    FunctionSymbol::from_call_target(target),
+                    arguments,
+                    frame,
+                )?;
+            }
+            Instruction::CallFallibleSlice {
+                destination,
+                target,
+                arguments,
+            } => {
+                self.emit_call_fallible_slice(
                     *destination,
                     FunctionSymbol::from_call_target(target),
                     arguments,

@@ -3444,6 +3444,70 @@ func make_flag(): bool! {
 }
 
 #[test]
+fn lowers_fallible_str_and_slice_let_propagation() {
+    let source = r#"func main(): i32 {
+    return 0
+}
+
+func use_text(): usize! {
+    let text: &str = make_text()?
+    return text.len()
+}
+
+func make_text(): &str! {
+    return "abc"
+}
+
+func use_bytes(bytes: &[u8]): usize! {
+    let view: &[u8] = maybe_bytes(bytes)?
+    return view.len()
+}
+
+func maybe_bytes(bytes: &[u8]): &[u8]! {
+    return bytes
+}
+"#;
+
+    let use_text = lower_named_function_with_signatures(
+        source,
+        "use_text",
+        function_signatures(vec![(
+            "make_text",
+            Type::Fallible(Box::new(Type::Str)),
+            vec![],
+        )]),
+    )
+    .unwrap();
+    assert_eq!(use_text.return_type, Type::Fallible(Box::new(Type::Usize)));
+    assert!(matches!(
+        use_text.instructions[0],
+        Instruction::CallFallibleStr {
+            destination: StrLocation::Local(0),
+            ..
+        }
+    ));
+
+    let use_bytes = lower_named_function_with_signatures(
+        source,
+        "use_bytes",
+        function_signatures(vec![(
+            "maybe_bytes",
+            Type::Fallible(Box::new(readonly_u8_slice_type())),
+            vec![readonly_u8_slice_type()],
+        )]),
+    )
+    .unwrap();
+    assert_eq!(use_bytes.return_type, Type::Fallible(Box::new(Type::Usize)));
+    assert!(matches!(
+        use_bytes.instructions[0],
+        Instruction::CallFallibleSlice {
+            destination: SliceLocation::Local(0),
+            ..
+        }
+    ));
+}
+
+#[test]
 fn lowers_fallible_void_function_static_error_failure() {
     let ir = lower_text_with_std_error(
         r#"from std/error import Error
