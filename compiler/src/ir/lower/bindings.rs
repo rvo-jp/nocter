@@ -308,10 +308,10 @@ fn lower_aggregate_field_assignment(
     value: &Expr,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let Expr::Identifier(identifier) = unwrap_group(&target.object) else {
+    let Some((identifier_name, field_path)) = aggregate_assignment_target_path(target) else {
         return Err(unsupported_assignment_diagnostic());
     };
-    let Some(field) = context.aggregate_field(&identifier.name, &target.member) else {
+    let Some(field) = context.aggregate_field(identifier_name, &field_path) else {
         return Err(unsupported_assignment_diagnostic());
     };
     if !field.is_readwrite {
@@ -355,6 +355,24 @@ fn lower_aggregate_field_assignment(
             });
             Ok(lowered.instructions)
         }
+    }
+}
+
+fn aggregate_assignment_target_path(target: &MemberExpr) -> Option<(&str, String)> {
+    let (identifier_name, mut fields) = aggregate_assignment_root_and_path(&target.object)?;
+    fields.push(target.member.as_str());
+    Some((identifier_name, fields.join(".")))
+}
+
+fn aggregate_assignment_root_and_path<'a>(expression: &'a Expr) -> Option<(&'a str, Vec<&'a str>)> {
+    match unwrap_group(expression) {
+        Expr::Identifier(identifier) => Some((&identifier.name, Vec::new())),
+        Expr::Member(member) => {
+            let (identifier_name, mut fields) = aggregate_assignment_root_and_path(&member.object)?;
+            fields.push(member.member.as_str());
+            Some((identifier_name, fields))
+        }
+        _ => None,
     }
 }
 

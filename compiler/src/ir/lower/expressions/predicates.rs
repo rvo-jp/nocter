@@ -474,28 +474,48 @@ fn expression_is_aggregate_field_kind(
     context: &LoweringContext,
 ) -> bool {
     match expression {
-        Expr::Member(member) => {
-            aggregate_member_object_field_kind(&member.object, &member.member, context)
-                .is_some_and(|field_kind| field_kind == kind)
-        }
+        Expr::Member(member) => aggregate_member_field_kind(member, context)
+            .is_some_and(|field_kind| field_kind == kind),
         Expr::Group(group) => expression_is_aggregate_field_kind(&group.expression, kind, context),
         _ => false,
     }
 }
 
-fn aggregate_member_object_field_kind(
-    object: &Expr,
-    member_name: &str,
+fn aggregate_member_field_kind(
+    member: &crate::ast::MemberExpr,
     context: &LoweringContext,
 ) -> Option<AggregateFieldKind> {
-    match object {
-        Expr::Identifier(identifier) => context
-            .aggregate_field(&identifier.name, member_name)
+    let (root, mut fields) = aggregate_member_root_and_path(&member.object)?;
+    fields.push(member.member.as_str());
+    let field_path = fields.join(".");
+    match root {
+        AggregateMemberRoot::Identifier(identifier_name) => context
+            .aggregate_field(identifier_name, &field_path)
             .map(|field| field.kind),
-        Expr::Call(call) => aggregate_call_field_kind(call, member_name, context),
-        Expr::Group(group) => {
-            aggregate_member_object_field_kind(&group.expression, member_name, context)
+        AggregateMemberRoot::Call(call) => aggregate_call_field_kind(call, &field_path, context),
+    }
+}
+
+enum AggregateMemberRoot<'a> {
+    Identifier(&'a str),
+    Call(&'a crate::ast::CallExpr),
+}
+
+fn aggregate_member_root_and_path<'a>(
+    expression: &'a Expr,
+) -> Option<(AggregateMemberRoot<'a>, Vec<&'a str>)> {
+    match expression {
+        Expr::Identifier(identifier) => Some((
+            AggregateMemberRoot::Identifier(&identifier.name),
+            Vec::new(),
+        )),
+        Expr::Call(call) => Some((AggregateMemberRoot::Call(call), Vec::new())),
+        Expr::Member(member) => {
+            let (root, mut fields) = aggregate_member_root_and_path(&member.object)?;
+            fields.push(member.member.as_str());
+            Some((root, fields))
         }
+        Expr::Group(group) => aggregate_member_root_and_path(&group.expression),
         _ => None,
     }
 }

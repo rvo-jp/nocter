@@ -3,7 +3,7 @@ use super::expressions::{
     lower_bool_expression_to_value, lower_i32_expression_to_word, lower_u8_expression_to_word,
     lower_usize_expression_to_word,
 };
-use crate::abi::{AbiType, ValueLayout, abi_value_from_type_expr, layout_struct};
+use crate::abi::{AbiType, ValueLayout, abi_value_from_type_expr, layout_of, layout_struct};
 use crate::ast::{Expr, StructLiteralExpr, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{AggregateLocation, Instruction, UsizeValue};
@@ -62,6 +62,7 @@ pub(super) fn lower_aggregate_struct_literal_to_location(
             offset,
             diagnostic_code,
             subject,
+            resolved,
             context,
         )?;
         instructions.append(&mut field_instructions);
@@ -86,17 +87,41 @@ pub(super) fn aggregate_fields_from_type_expr(
 
     let mut aggregate_fields = Vec::new();
     for (field, layout) in fields.iter().zip(struct_layout.fields.iter()) {
-        let Some(kind) = aggregate_field_kind_from_abi_type(&field.ty) else {
-            continue;
-        };
-        let offset = u32::try_from(layout.offset).ok()?;
+        collect_aggregate_fields(&field.name, &field.ty, layout.offset, &mut aggregate_fields)?;
+    }
+    Some(aggregate_fields)
+}
+
+fn collect_aggregate_fields(
+    name: &str,
+    ty: &AbiType,
+    base_offset: u64,
+    aggregate_fields: &mut Vec<AggregateField>,
+) -> Option<()> {
+    if let Some(kind) = aggregate_field_kind_from_abi_type(ty) {
+        let offset = u32::try_from(base_offset).ok()?;
         aggregate_fields.push(AggregateField {
-            name: field.name.clone(),
+            name: name.to_string(),
             offset,
             kind,
         });
+        return Some(());
     }
-    Some(aggregate_fields)
+
+    let AbiType::Struct(fields) = ty else {
+        return Some(());
+    };
+    let struct_layout = layout_struct(fields).ok()?;
+    for (field, layout) in fields.iter().zip(struct_layout.fields.iter()) {
+        let offset = base_offset.checked_add(layout.offset)?;
+        collect_aggregate_fields(
+            &format!("{name}.{}", field.name),
+            &field.ty,
+            offset,
+            aggregate_fields,
+        )?;
+    }
+    Some(())
 }
 
 fn aggregate_field_kind_from_abi_type(ty: &AbiType) -> Option<AggregateFieldKind> {
@@ -116,6 +141,7 @@ fn lower_aggregate_field_to_location(
     offset: u32,
     diagnostic_code: &'static str,
     subject: &str,
+    resolved: &ResolveOutput,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match field_type {
@@ -168,11 +194,88 @@ fn lower_aggregate_field_to_location(
             });
             Ok(instructions)
         }
+        AbiType::Struct(fields) => {
+            let Expr::StructLiteral(literal) = expression else {
+                return Err(unsupported_aggregate_struct_literal_diagnostic(
+                    diagnostic_code,
+                    subject,
+                ));
+            };
+            let actual = abi_value_from_type_expr(&literal.ty, resolved).map_err(|_error| {
+                unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+            })?;
+            let expected_layout = layout_of(field_type).map_err(|_error| {
+                unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+            })?;
+            if actual.layout != expected_layout {
+                return Err(unsupported_aggregate_struct_literal_diagnostic(
+                    diagnostic_code,
+                    subject,
+                ));
+            }
+            lower_aggregate_struct_fields_to_location(
+                fields,
+                literal,
+                destination,
+                offset,
+                diagnostic_code,
+                subject,
+                resolved,
+                context,
+            )
+        }
         _ => Err(unsupported_aggregate_struct_literal_diagnostic(
             diagnostic_code,
             subject,
         )),
     }
+}
+
+fn lower_aggregate_struct_fields_to_location(
+    fields: &[crate::abi::AbiField],
+    literal: &StructLiteralExpr,
+    destination: AggregateLocation,
+    base_offset: u32,
+    diagnostic_code: &'static str,
+    subject: &str,
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let struct_layout = layout_struct(fields).map_err(|_error| {
+        unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+    })?;
+    let field_layouts = fields
+        .iter()
+        .zip(struct_layout.fields.iter())
+        .map(|(field, layout)| (field.name.as_str(), (&field.ty, layout)))
+        .collect::<HashMap<_, _>>();
+
+    let mut instructions = Vec::new();
+    for field in &literal.fields {
+        let Some((field_type, field_layout)) = field_layouts.get(field.name.as_str()) else {
+            return Err(unsupported_aggregate_struct_literal_diagnostic(
+                diagnostic_code,
+                subject,
+            ));
+        };
+        let nested_offset = u32::try_from(field_layout.offset)
+            .ok()
+            .and_then(|offset| base_offset.checked_add(offset))
+            .ok_or_else(|| {
+                unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+            })?;
+        instructions.extend(lower_aggregate_field_to_location(
+            field_type,
+            &field.value,
+            destination,
+            nested_offset,
+            diagnostic_code,
+            subject,
+            resolved,
+            context,
+        )?);
+    }
+    Ok(instructions)
 }
 
 fn validate_direct_aggregate_field_store(

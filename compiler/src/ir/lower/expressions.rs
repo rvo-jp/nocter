@@ -1871,22 +1871,61 @@ fn lower_aggregate_member_field_access(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Option<LoweredAggregateFieldAccess>, Vec<Diagnostic>> {
-    let Expr::Member(member) = unwrap_group(expression) else {
+    let Some(access) = aggregate_member_access(expression) else {
         return Ok(None);
     };
-    match unwrap_group(&member.object) {
-        Expr::Identifier(identifier) => Ok(context
-            .aggregate_field(&identifier.name, &member.member)
+    match access.root {
+        AggregateMemberRoot::Identifier(identifier_name) => Ok(context
+            .aggregate_field(identifier_name, &access.field_path)
             .map(|field| LoweredAggregateFieldAccess {
                 instructions: Vec::new(),
                 source: field.source,
                 offset: field.offset,
                 kind: field.kind,
             })),
-        Expr::Call(call) => {
-            lower_aggregate_call_member_field_access(call, &member.member, context, temporaries)
+        AggregateMemberRoot::Call(call) => {
+            lower_aggregate_call_member_field_access(call, &access.field_path, context, temporaries)
         }
-        _ => Ok(None),
+    }
+}
+
+struct AggregateMemberAccess<'a> {
+    root: AggregateMemberRoot<'a>,
+    field_path: String,
+}
+
+enum AggregateMemberRoot<'a> {
+    Identifier(&'a str),
+    Call(&'a CallExpr),
+}
+
+fn aggregate_member_access(expression: &Expr) -> Option<AggregateMemberAccess<'_>> {
+    let Expr::Member(member) = unwrap_group(expression) else {
+        return None;
+    };
+    let (root, mut fields) = aggregate_member_root_and_path(&member.object)?;
+    fields.push(member.member.as_str());
+    Some(AggregateMemberAccess {
+        root,
+        field_path: fields.join("."),
+    })
+}
+
+fn aggregate_member_root_and_path<'a>(
+    expression: &'a Expr,
+) -> Option<(AggregateMemberRoot<'a>, Vec<&'a str>)> {
+    match unwrap_group(expression) {
+        Expr::Identifier(identifier) => Some((
+            AggregateMemberRoot::Identifier(&identifier.name),
+            Vec::new(),
+        )),
+        Expr::Call(call) => Some((AggregateMemberRoot::Call(call), Vec::new())),
+        Expr::Member(member) => {
+            let (root, mut fields) = aggregate_member_root_and_path(&member.object)?;
+            fields.push(member.member.as_str());
+            Some((root, fields))
+        }
+        _ => None,
     }
 }
 
