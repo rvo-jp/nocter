@@ -417,7 +417,7 @@ impl<'a> LoweringContext<'a> {
                 .sum::<usize>()
     }
 
-    fn next_aggregate_slot_index(&self) -> usize {
+    pub(super) fn next_aggregate_slot_index(&self) -> usize {
         self.locals
             .iter()
             .filter(|local| matches!(local.kind, LocalKind::Aggregate { .. }))

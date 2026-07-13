@@ -665,7 +665,7 @@ fn lower_aggregate_struct_literal_return(
     let (expected_layout, destination) = aggregate_return_layout_and_destination(return_type);
 
     let subject = format!("returns from function `{function_name}`");
-    let mut instructions = lower_aggregate_struct_literal_to_location(
+    let lowered_direct = lower_aggregate_struct_literal_to_location(
         literal,
         expected_layout,
         destination,
@@ -673,8 +673,57 @@ fn lower_aggregate_struct_literal_return(
         &subject,
         resolved,
         context,
-    )?;
+    );
+    let mut instructions = match lowered_direct {
+        Ok(instructions) => instructions,
+        Err(error) if matches!(destination, AggregateLocation::DirectReturn) => {
+            lower_direct_aggregate_struct_literal_return_through_slot(
+                literal,
+                expected_layout,
+                &subject,
+                resolved,
+                context,
+            )
+            .map_err(|_| error)?
+        }
+        Err(error) => return Err(error),
+    };
     instructions.push(Instruction::Return);
+    Ok(instructions)
+}
+
+fn lower_direct_aggregate_struct_literal_return_through_slot(
+    literal: &StructLiteralExpr,
+    expected_layout: crate::abi::ValueLayout,
+    subject: &str,
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if !expected_layout.size.is_multiple_of(8) {
+        return Err(unsupported_aggregate_return_diagnostic(
+            context.function_name(),
+        ));
+    }
+
+    let slot_index = context.next_aggregate_slot_index();
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index,
+        layout: expected_layout,
+    }];
+    instructions.extend(lower_aggregate_struct_literal_to_location(
+        literal,
+        expected_layout,
+        AggregateLocation::Slot(slot_index),
+        "E8007",
+        subject,
+        resolved,
+        context,
+    )?);
+    instructions.push(Instruction::CopyAggregate {
+        destination: AggregateLocation::DirectReturn,
+        source: AggregateLocation::Slot(slot_index),
+        layout: expected_layout,
+    });
     Ok(instructions)
 }
 
@@ -692,7 +741,7 @@ fn unsupported_aggregate_return_diagnostic(function_name: &str) -> Vec<Diagnosti
     vec![Diagnostic::error(
         "E8007",
         format!(
-            "IR v0 can only lower aggregate returns from function `{function_name}` from an indirect struct literal with `usize` fields or `std/ptr.from_addr` pointer fields, a direct aggregate call, or a supported aggregate local slot"
+            "IR v0 can only lower aggregate returns from function `{function_name}` from a supported struct literal, an aggregate call, or a supported aggregate local slot"
         ),
     )]
 }
