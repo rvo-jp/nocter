@@ -479,15 +479,11 @@ fn check_assignment_statement(
     diagnostics: &mut Vec<Diagnostic>,
     environment: &TypeEnvironment,
 ) {
-    if let Expr::Identifier(identifier) = &statement.target
-        && environment.get(&identifier.name).is_some()
-        && !environment.is_mutable_binding(&identifier.name)
+    if let Some(name) = assignment_target_root_name(&statement.target)
+        && environment.get(name).is_some()
+        && !environment.is_mutable_binding(name)
     {
-        diagnostics.push(immutable_assignment_diagnostic(
-            sources,
-            statement,
-            &identifier.name,
-        ));
+        diagnostics.push(immutable_assignment_diagnostic(sources, statement, name));
     }
 
     let target_type = expression_type(&statement.target, resolved, environment);
@@ -519,6 +515,15 @@ fn check_assignment_statement(
             source_name,
             type_name,
         ));
+    }
+}
+
+fn assignment_target_root_name(expression: &Expr) -> Option<&str> {
+    match expression {
+        Expr::Identifier(identifier) => Some(identifier.name.as_str()),
+        Expr::Member(member) => assignment_target_root_name(&member.object),
+        Expr::Group(group) => assignment_target_root_name(&group.expression),
+        _ => None,
     }
 }
 

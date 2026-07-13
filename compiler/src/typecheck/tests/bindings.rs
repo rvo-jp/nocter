@@ -33,6 +33,26 @@ fn diagnoses_assignment_to_let_binding() {
 }
 
 #[test]
+fn diagnoses_member_assignment_to_let_binding() {
+    let diagnostics = check_text(
+        r#"struct Header {
+    code: i32
+}
+
+func main(): i32 {
+    let value = Header{ code: 1 }
+    value.code = 2
+    return value.code
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0381");
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
 fn diagnoses_assignment_to_parameter_binding() {
     let diagnostics = check_text(
         r#"func main(): i32 {

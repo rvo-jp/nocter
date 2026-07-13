@@ -1,18 +1,20 @@
 use super::aggregates::{
     aggregate_fields_from_type_expr, lower_aggregate_struct_literal_to_location,
 };
-use super::context::LoweringContext;
+use super::context::{AggregateFieldKind, LoweringContext};
 use super::expressions::{
     expression_contains_interpolated_string, expression_is_lowerable_bool_binding,
     expression_is_unsupported_bool_comparison_binding, lower_bool_expression_to_location,
-    lower_call_arguments_to_scalar_arguments, lower_i32_expression_to_location,
+    lower_bool_expression_to_value, lower_call_arguments_to_scalar_arguments,
+    lower_i32_expression_to_location, lower_i32_expression_to_word,
     lower_slice_expression_to_location, lower_str_expression_to_location,
-    lower_u8_expression_to_location, lower_usize_expression_to_location,
+    lower_u8_expression_to_location, lower_u8_expression_to_word,
+    lower_usize_expression_to_location, lower_usize_expression_to_word,
 };
 use crate::abi::{ValueLayout, abi_value_from_type_expr};
 use crate::ast::{
-    AssignmentOperator, AssignmentStmt, BinaryOperator, BindingStmt, CallExpr, Expr, TypeExpr,
-    UnaryOperator,
+    AssignmentOperator, AssignmentStmt, BinaryOperator, BindingStmt, CallExpr, Expr, MemberExpr,
+    TypeExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -238,57 +240,119 @@ pub(super) fn lower_assignment(
         return Err(unsupported_assignment_diagnostic());
     }
 
-    let Expr::Identifier(identifier) = &statement.target else {
-        return Err(unsupported_assignment_diagnostic());
-    };
+    match unwrap_group(&statement.target) {
+        Expr::Identifier(identifier) => {
+            lower_identifier_assignment(identifier, &statement.value, context)
+        }
+        Expr::Member(member) => lower_aggregate_field_assignment(member, &statement.value, context),
+        _ => Err(unsupported_assignment_diagnostic()),
+    }
+}
 
+fn lower_identifier_assignment(
+    identifier: &crate::ast::IdentifierExpr,
+    value: &Expr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if let Some(destination) = context.i32_location(&identifier.name) {
         let I32Location::Local(_) = destination else {
             return Err(unsupported_assignment_diagnostic());
         };
-        return lower_i32_expression_to_location(&statement.value, destination, context);
+        return lower_i32_expression_to_location(value, destination, context);
     }
 
     if let Some(destination) = context.u8_location(&identifier.name) {
         let U8Location::Local(_) = destination else {
             return Err(unsupported_assignment_diagnostic());
         };
-        return lower_u8_expression_to_location(&statement.value, destination, context);
+        return lower_u8_expression_to_location(value, destination, context);
     }
 
     if let Some(destination) = context.usize_location(&identifier.name) {
         let UsizeLocation::Local(_) = destination else {
             return Err(unsupported_assignment_diagnostic());
         };
-        return lower_usize_expression_to_location(&statement.value, destination, context);
+        return lower_usize_expression_to_location(value, destination, context);
     }
 
     if let Some(destination) = context.bool_location(&identifier.name) {
         let BoolLocation::Local(_) = destination else {
             return Err(unsupported_assignment_diagnostic());
         };
-        return lower_bool_expression_to_location(&statement.value, destination, context, "E8008");
+        return lower_bool_expression_to_location(value, destination, context, "E8008");
     }
 
     if let Some(destination) = context.str_location(&identifier.name) {
         let StrLocation::Local(_) = destination else {
             return Err(unsupported_assignment_diagnostic());
         };
-        return lower_str_expression_to_location(&statement.value, destination, context);
+        return lower_str_expression_to_location(value, destination, context);
     }
 
     if let Some(destination) = context.slice_location(&identifier.name) {
         let SliceLocation::Local(_) = destination else {
             return Err(unsupported_assignment_diagnostic());
         };
-        return lower_slice_expression_to_location(&statement.value, destination, context);
+        return lower_slice_expression_to_location(value, destination, context);
     }
 
     if let Some((slot_index, layout)) = context.aggregate_slot(&identifier.name) {
-        return lower_aggregate_assignment(slot_index, layout, &statement.value, context);
+        return lower_aggregate_assignment(slot_index, layout, value, context);
     }
 
     Err(unsupported_assignment_diagnostic())
+}
+
+fn lower_aggregate_field_assignment(
+    target: &MemberExpr,
+    value: &Expr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = unwrap_group(&target.object) else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let Some(field) = context.aggregate_field(&identifier.name, &target.member) else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let destination = field.source;
+    match field.kind {
+        AggregateFieldKind::I32 => {
+            let (mut instructions, value) = lower_i32_expression_to_word(value, context)?;
+            instructions.push(Instruction::StoreAggregateI32 {
+                destination,
+                offset: field.offset,
+                value,
+            });
+            Ok(instructions)
+        }
+        AggregateFieldKind::U8 => {
+            let (mut instructions, value) = lower_u8_expression_to_word(value, context)?;
+            instructions.push(Instruction::StoreAggregateU8 {
+                destination,
+                offset: field.offset,
+                value,
+            });
+            Ok(instructions)
+        }
+        AggregateFieldKind::Usize => {
+            let (mut instructions, value) = lower_usize_expression_to_word(value, context)?;
+            instructions.push(Instruction::StoreAggregateUsize {
+                destination,
+                offset: field.offset,
+                value,
+            });
+            Ok(instructions)
+        }
+        AggregateFieldKind::Bool => {
+            let mut lowered = lower_bool_expression_to_value(value, context, "E8008")?;
+            lowered.instructions.push(Instruction::StoreAggregateBool {
+                destination,
+                offset: field.offset,
+                value: lowered.value,
+            });
+            Ok(lowered.instructions)
+        }
+    }
 }
 
 fn lower_aggregate_assignment(

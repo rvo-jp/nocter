@@ -3119,6 +3119,94 @@ func ok_is_true(): bool {
 }
 
 #[test]
+fn lowers_aggregate_scalar_field_assignments_to_local_slot() {
+    let function = lower_named_function(
+        r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func update(): i32 {
+    var value = Header{ tag: 7, ok: true, code: 42, len: 11 }
+    value.tag = 9
+    value.ok = false
+    value.code = 99
+    value.len = 13
+    return value.code
+}
+"#,
+        "update",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "update".to_string(),
+            target: CallTarget::same_file("update"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::StoreAggregateU8 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: u8_const(7),
+                },
+                Instruction::StoreAggregateBool {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 1,
+                    value: BoolValue::Const(true),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 4,
+                    value: i32_const(42),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 8,
+                    value: usize_const(11),
+                },
+                Instruction::StoreAggregateU8 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: u8_const(9),
+                },
+                Instruction::StoreAggregateBool {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 1,
+                    value: BoolValue::Const(false),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 4,
+                    value: i32_const(99),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 8,
+                    value: usize_const(13),
+                },
+                Instruction::LoadAggregateI32 {
+                    destination: I32Location::Return,
+                    source: AggregateLocation::Slot(0),
+                    offset: 4,
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn rejects_function_with_more_than_eight_abi_parameter_words() {
     let diagnostics = lower_named_function_diagnostics_with_signatures(
         r#"func main(): i32 {
