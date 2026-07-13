@@ -1498,7 +1498,7 @@ fn built_executable_passes_direct_aggregate_argument_words() {
     let project = TempProject::new("cli-build-run-direct-aggregate-argument-words");
     let source = project.write_source(
         "direct_aggregate_argument_words.nct",
-        r#"struct Pair {
+        r#"copy struct Pair {
     a: i32
     b: i32
     c: i32
@@ -1530,7 +1530,7 @@ fn built_executable_passes_partial_direct_aggregate_argument_bytes() {
     let project = TempProject::new("cli-build-run-partial-direct-aggregate-argument-bytes");
     let source = project.write_source(
         "partial_direct_aggregate_argument_bytes.nct",
-        r#"struct Bytes {
+        r#"copy struct Bytes {
     first: u8
     second: u8
     third: u8
@@ -1553,6 +1553,111 @@ func read(bytes: Bytes): u8 {
     assert_success(&output);
     let status = Command::new(&executable).status().unwrap();
     assert_eq!(status.code(), Some(42));
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn built_executable_passes_moved_non_copy_direct_aggregate_argument() {
+    let project = TempProject::new("cli-build-run-moved-non-copy-direct-aggregate-argument");
+    let source = project.write_source(
+        "moved_non_copy_direct_aggregate_argument.nct",
+        r#"struct Pair {
+    a: i32
+    b: i32
+    c: i32
+    d: i32
+}
+
+func main(): i32 {
+    let pair = Pair{ a: 10, b: 20, c: 7, d: 5 }
+    return check(move pair)
+}
+
+func check(pair: Pair): i32 {
+    return pair.a + pair.b + pair.c + pair.d
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    let status = Command::new(&executable).status().unwrap();
+    assert_eq!(status.code(), Some(42));
+}
+
+#[test]
+fn build_command_rejects_implicit_non_copy_aggregate_argument() {
+    let project = TempProject::new("cli-build-reject-implicit-non-copy-aggregate-argument");
+    let source = project.write_source(
+        "implicit_non_copy_aggregate_argument.nct",
+        r#"struct Pair {
+    a: i32
+    b: i32
+    c: i32
+    d: i32
+}
+
+func main(): i32 {
+    let pair = Pair{ a: 10, b: 20, c: 7, d: 5 }
+    return check(pair)
+}
+
+func check(pair: Pair): i32 {
+    return pair.a + pair.b + pair.c + pair.d
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let stderr = text(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E8006]"),
+        "expected aggregate argument diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("aggregate` arguments for function `check`"),
+        "expected non-copy aggregate argument lowering diagnostic, got:\n{stderr}"
+    );
+}
+
+#[test]
+fn build_command_rejects_implicit_non_copy_aggregate_return() {
+    let project = TempProject::new("cli-build-reject-implicit-non-copy-aggregate-return");
+    let source = project.write_source(
+        "implicit_non_copy_aggregate_return.nct",
+        r#"struct Text {
+    start: i32
+    len: i32
+    capacity: i32
+}
+
+func main(): i32 {
+    return make().len
+}
+
+func make(): Text {
+    let text = Text{ start: 1, len: 42, capacity: 99 }
+    return text
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let stderr = text(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E8007]"),
+        "expected aggregate return diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("aggregate returns from function `make`"),
+        "expected non-copy aggregate return lowering diagnostic, got:\n{stderr}"
+    );
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

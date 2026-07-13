@@ -47,6 +47,7 @@ pub(super) struct LoweringAggregateParameter {
     pub(super) layout: ValueLayout,
     pub(super) slot_index: usize,
     pub(super) source: AggregateParameterSource,
+    pub(super) is_copy: bool,
     pub(super) fields: Vec<AggregateField>,
 }
 
@@ -105,7 +106,7 @@ impl<'a> LoweringContext<'a> {
                 kind: LocalKind::Aggregate {
                     layout: parameter.layout,
                     slot_index: parameter.slot_index,
-                    is_copy: true,
+                    is_copy: parameter.is_copy,
                 },
                 index: 0,
             });

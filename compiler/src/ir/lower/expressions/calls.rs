@@ -662,21 +662,14 @@ fn lower_aggregate_argument_source(
     }
 
     match unwrap_group(argument) {
-        Expr::Identifier(identifier) => {
-            let Some(local) = context.aggregate_local(&identifier.name) else {
-                return Err(unsupported_aggregate_argument_diagnostic(
-                    callee_name,
-                    parameter_type,
-                ));
-            };
-            if local.layout != expected_layout {
-                return Err(unsupported_aggregate_argument_diagnostic(
-                    callee_name,
-                    parameter_type,
-                ));
-            }
-            Ok((Vec::new(), AggregateArgumentSource::Slot(local.slot_index)))
-        }
+        Expr::Identifier(identifier) => lower_aggregate_local_argument_source(
+            &identifier.name,
+            AggregateValueUse::ImplicitCopy,
+            expected_layout,
+            parameter_type,
+            callee_name,
+            context,
+        ),
         Expr::Member(_) => lower_aggregate_member_argument_source(
             argument,
             expected_layout,
@@ -686,12 +679,19 @@ fn lower_aggregate_argument_source(
             temporaries,
         ),
         Expr::Unary(unary) if unary.operator == crate::ast::UnaryOperator::Move => {
-            lower_aggregate_argument_source(
-                &unary.operand,
+            let Expr::Identifier(identifier) = unary.operand.as_ref() else {
+                return Err(unsupported_aggregate_argument_diagnostic(
+                    callee_name,
+                    parameter_type,
+                ));
+            };
+            lower_aggregate_local_argument_source(
+                &identifier.name,
+                AggregateValueUse::ExplicitMove,
+                expected_layout,
                 parameter_type,
                 callee_name,
                 context,
-                temporaries,
             )
         }
         Expr::StructLiteral(literal) => {
@@ -778,6 +778,37 @@ fn lower_aggregate_argument_source(
             parameter_type,
         )),
     }
+}
+
+fn lower_aggregate_local_argument_source(
+    name: &str,
+    value_use: AggregateValueUse,
+    expected_layout: crate::abi::ValueLayout,
+    parameter_type: &Type,
+    callee_name: &str,
+    context: &LoweringContext,
+) -> Result<(Vec<Instruction>, AggregateArgumentSource), Vec<Diagnostic>> {
+    let Some(local) = context.aggregate_local(name) else {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    };
+    if local.layout != expected_layout
+        || (value_use == AggregateValueUse::ImplicitCopy && !local.is_copy)
+    {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    }
+    Ok((Vec::new(), AggregateArgumentSource::Slot(local.slot_index)))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AggregateValueUse {
+    ImplicitCopy,
+    ExplicitMove,
 }
 
 fn lower_aggregate_member_argument_source(

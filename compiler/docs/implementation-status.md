@@ -95,6 +95,7 @@ Currently buildable:
 - direct aggregate value parameters, call arguments, and returns for supported non-generic structs up to 16 bytes, including partial final ABI words and shifted or boundary argument-register placement inside the 8-word limit
 - indirect aggregate parameters, call arguments, and returns for supported non-generic structs larger than 16 bytes, passed by slot address or returned through caller-provided `x8` storage
 - aggregate struct-literal returns and local slots, aggregate call-result slot bindings and assignments, aggregate slot borrow arguments, matching copy-struct slot assignment, and scalar field reads from supported aggregate slots, parameters, and call results
+- non-copy aggregate local slots can be passed by value or returned by name only through the current explicit `move name` form; implicit copy is limited to aggregate locals and parameters whose source type is `copy struct`
 - distributed `std/io.print` execution through the target-overlay `std/io_impl.write_text_raw` bootstrap primitive
 
 Currently not buildable even when it may be checkable:
@@ -108,4 +109,4 @@ Currently not buildable even when it may be checkable:
 - `&str` member operations and view/byte iteration
 - interpolated string construction
 - optional values
-- general aggregate value expressions outside the supported struct-literal, call-result, slot-copy, and borrow paths; arrays, views, pointers, methods, traits, generics, ownership lowering, and drop glue
+- general aggregate value expressions outside the supported struct-literal, call-result, slot-copy, explicit-move, and borrow paths; arrays, views, pointers, methods, traits, generics, full moved-state tracking, ownership lowering, and drop glue

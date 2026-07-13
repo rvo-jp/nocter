@@ -20,13 +20,17 @@ Adopted user decisions:
 Recommended next implementation order:
 
 1. Keep bare interpolation lowering disabled until an explicit allocator source is designed. The explicit `std/mem.page_allocator` + `std/string.with_capacity` + `std/fmt.append_str` + `return move out` shape now builds to Mach-O through the current stub standard-library bodies.
-2. Add the next runtime prerequisites for allocation-backed `String`: owned aggregate move/drop state tracking beyond reserved-slot `return move name`, then target-backed allocation and mutation in `std/mem`, `std/string`, and `std/fmt`.
-3. Use the resolved-type function ABI helper from IR/backend planning before adding broader aggregate storage code. Loaded imported scalar calls, scalar/view arguments, direct and indirect aggregate by-value arguments inside the 8-word register window, local scalar and aggregate slot borrow arguments, scalar/view `var` plus simple assignment, aggregate struct-literal local slots, direct and narrow indirect aggregate normal call-result `let`/`var` slots, fallible direct aggregate call-result slots, supported aggregate slot reassignment including copy struct slot-to-slot assignment, reserved aggregate slot `return move name`, and fallible propagation for the current scalar/view/void plus aggregate call-result subset are already buildable. Stack-passed ABI arguments remain intentionally rejected.
+2. Add the next runtime prerequisites for allocation-backed `String`: full owned aggregate move/drop state tracking beyond the current explicit-move lowering, then target-backed allocation and mutation in `std/mem`, `std/string`, and `std/fmt`.
+3. Use the resolved-type function ABI helper from IR/backend planning before adding broader aggregate storage code. Loaded imported scalar calls, scalar/view arguments, direct and indirect aggregate by-value arguments inside the 8-word register window, explicit `move name` aggregate local arguments/returns, local scalar and aggregate slot borrow arguments, scalar/view `var` plus simple assignment, aggregate struct-literal local slots, direct and narrow indirect aggregate normal call-result `let`/`var` slots, fallible direct aggregate call-result slots, supported aggregate slot reassignment including copy struct slot-to-slot assignment, reserved aggregate slot `return move name`, and fallible propagation for the current scalar/view/void plus aggregate call-result subset are already buildable. Stack-passed ABI arguments remain intentionally rejected.
 4. Lower interpolated strings only after the explicit standard-library construction path has a real allocator source and runtime mutation behavior.
 5. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
+- Current checkpoint: require explicit aggregate moves in IR lowering
+  - records aggregate parameter/local copyability from resolved `copy struct` metadata instead of treating every aggregate slot as copyable
+  - rejects implicit by-value arguments and return-by-name from non-copy aggregate locals at IR lowering, while keeping explicit `move name` in the current narrow slot-copy implementation
+  - keeps use-after-move checks, moved-value drop suppression, replacement drop, and full drop glue disabled
 - Current checkpoint: document current aggregate ABI coverage
   - updates implementation status, architecture notes, and backend v0 notes so aggregate support is described as a narrow register-only subset rather than wholly unsupported
   - records that direct aggregates up to 16 bytes, indirect aggregates over 16 bytes, aggregate call-result slots, aggregate slot copies, and aggregate slot borrows are buildable in the supported paths

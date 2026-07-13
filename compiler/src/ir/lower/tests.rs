@@ -1586,7 +1586,7 @@ func consume(text: Text): usize {
 
 func caller(): usize {
     let text = Text{ start: 1, len: 2, capacity: 3 }
-    let result: usize = consume(text)
+    let result: usize = consume(move text)
     return result
 }
 "#,
@@ -1819,7 +1819,7 @@ func make(): Text {
 
 func forward(): Text {
     let value = make()
-    return value
+    return move value
 }
 "#,
         "forward",
@@ -1965,7 +1965,7 @@ func main(): i32 {
 
 func forward(): Text {
     let value = Text{ start: 1, len: 2, capacity: 3 }
-    return value
+    return move value
 }
 "#,
         "forward",
@@ -2095,7 +2095,7 @@ func touch(value: &+Text): void {
 func forward(): Text {
     var value = Text{ start: 1, len: 2, capacity: 3 }
     touch(&+value)
-    return value
+    return move value
 }
 "#,
         "forward",
@@ -2180,7 +2180,7 @@ func touch(value: &+Text): void {
 func forward(): Text {
     var value = make()
     touch(&+value)
-    return value
+    return move value
 }
 "#,
         "forward",
@@ -2253,7 +2253,7 @@ func make(): Text! {
 
 func forward(): Text! {
     var value = make()?
-    return value
+    return move value
 }
 "#,
         "forward",
@@ -2608,7 +2608,7 @@ func main(): i32 {
 
 func make(): Header {
     let value = Header{ tag: 7, ok: false, code: 42 }
-    return value
+    return move value
 }
 "#,
         "make",
@@ -2856,7 +2856,7 @@ func main(): i32 {
 
 func make(): Allocator {
     let allocator = Allocator{ state: 1, kind: 2 }
-    return allocator
+    return move allocator
 }
 "#,
         "make",
@@ -3847,7 +3847,7 @@ pub struct Text {
 
 pub func make(): Text {
     let value = Text{ ptr: from_addr(1), len: 2, capacity: 3 }
-    return value
+    return move value
 }
 "#,
             ),

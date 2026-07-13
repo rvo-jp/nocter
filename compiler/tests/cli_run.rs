@@ -4034,7 +4034,7 @@ fn run_command_returns_indirect_aggregate_value_argument_field_exit_code() {
 
 func main(): i32 {
     let text = Text{ start: 1, len: 42, capacity: 99 }
-    let len: usize = length(text)
+    let len: usize = length(move text)
     if len == 42 {
         return 42
     } else {

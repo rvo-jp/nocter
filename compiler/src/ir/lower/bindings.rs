@@ -1251,7 +1251,7 @@ fn call_success_aggregate_fields(
     aggregate_fields_from_type_expr(&signature.return_type, resolved).unwrap_or_default()
 }
 
-fn type_expr_is_copy_struct(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+pub(super) fn type_expr_is_copy_struct(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
     type_expr_is_copy_struct_inner(ty, resolved, &mut HashSet::new())
 }
 

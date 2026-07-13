@@ -3,7 +3,7 @@ use super::aggregates::{
     lower_aggregate_struct_literal_to_location_with_temporaries, push_aggregate_call_instruction,
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
 };
-use super::bindings::{lower_assignment, lower_local_binding};
+use super::bindings::{lower_assignment, lower_local_binding, type_expr_is_copy_struct};
 use super::context::{
     AggregateBorrowParameter, AggregateFieldKind, AggregateParameterSource, FunctionNames,
     FunctionSignatures, LoweringAggregateParameter, LoweringContext, LoweringParameterSlots,
@@ -188,6 +188,7 @@ fn lower_scalar_parameters(
                     layout,
                     slot_index: aggregate_parameters.len(),
                     source: AggregateParameterSource::Indirect { parameter_index },
+                    is_copy: type_expr_is_copy_struct(&parameter.ty, resolved),
                     fields,
                 });
             }
@@ -210,6 +211,7 @@ fn lower_scalar_parameters(
                     layout,
                     slot_index: aggregate_parameters.len(),
                     source: AggregateParameterSource::Direct { start_index, words },
+                    is_copy: type_expr_is_copy_struct(&parameter.ty, resolved),
                     fields,
                 });
             }
@@ -780,9 +782,13 @@ fn lower_aggregate_return_expression(
                 lower_catch_failure_mode(catch, context, 0)?,
             )
         }
-        Expr::Identifier(identifier) => {
-            lower_aggregate_local_return(&identifier.name, return_type, function_name, context)
-        }
+        Expr::Identifier(identifier) => lower_aggregate_local_return(
+            &identifier.name,
+            AggregateValueUse::ImplicitCopy,
+            return_type,
+            function_name,
+            context,
+        ),
         Expr::Member(_) => {
             lower_aggregate_member_return(expression, return_type, function_name, context)
         }
@@ -790,7 +796,13 @@ fn lower_aggregate_return_expression(
             let Expr::Identifier(identifier) = unary.operand.as_ref() else {
                 return Err(unsupported_aggregate_return_diagnostic(function_name));
             };
-            lower_aggregate_local_return(&identifier.name, return_type, function_name, context)
+            lower_aggregate_local_return(
+                &identifier.name,
+                AggregateValueUse::ExplicitMove,
+                return_type,
+                function_name,
+                context,
+            )
         }
         Expr::Group(group) => lower_aggregate_return_expression(
             &group.expression,
@@ -812,23 +824,27 @@ fn unwrap_group(expression: &Expr) -> &Expr {
 
 fn lower_aggregate_local_return(
     name: &str,
+    value_use: AggregateValueUse,
     return_type: &Type,
     function_name: &str,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let (expected_layout, destination) = aggregate_return_layout_and_destination(return_type);
-    let Some((slot_index, layout)) = context.aggregate_slot(name) else {
+    let Some(local) = context.aggregate_local(name) else {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     };
-    if layout != expected_layout || !supported_aggregate_copy_layout(layout) {
+    if local.layout != expected_layout
+        || !supported_aggregate_copy_layout(local.layout)
+        || (value_use == AggregateValueUse::ImplicitCopy && !local.is_copy)
+    {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     }
 
     Ok(vec![
         Instruction::CopyAggregate {
             destination,
-            source: AggregateLocation::Slot(slot_index),
-            layout,
+            source: AggregateLocation::Slot(local.slot_index),
+            layout: local.layout,
         },
         Instruction::Return,
     ])
@@ -1015,6 +1031,12 @@ fn aggregate_return_layout_and_destination(
         Type::DirectAggregate { layout, .. } => (*layout, AggregateLocation::DirectReturn),
         _ => unreachable!("aggregate return lowering requires aggregate return type"),
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AggregateValueUse {
+    ImplicitCopy,
+    ExplicitMove,
 }
 
 fn unsupported_aggregate_return_diagnostic(function_name: &str) -> Vec<Diagnostic> {
