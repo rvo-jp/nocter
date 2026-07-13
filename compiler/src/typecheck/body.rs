@@ -482,6 +482,7 @@ fn check_assignment_statement(
     if let Some(name) = assignment_target_root_name(&statement.target)
         && environment.get(name).is_some()
         && !environment.is_mutable_binding(name)
+        && !assignment_targets_readwrite_borrow_field(&statement.target, resolved, environment)
     {
         diagnostics.push(immutable_assignment_diagnostic(sources, statement, name));
     }
@@ -524,6 +525,23 @@ fn assignment_target_root_name(expression: &Expr) -> Option<&str> {
         Expr::Member(member) => assignment_target_root_name(&member.object),
         Expr::Group(group) => assignment_target_root_name(&group.expression),
         _ => None,
+    }
+}
+
+fn assignment_targets_readwrite_borrow_field(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    match expression {
+        Expr::Member(member) => {
+            let object_type = expression_type(&member.object, resolved, environment);
+            matches!(object_type, Type::Named(name) if name.starts_with("&+"))
+        }
+        Expr::Group(group) => {
+            assignment_targets_readwrite_borrow_field(&group.expression, resolved, environment)
+        }
+        _ => false,
     }
 }
 

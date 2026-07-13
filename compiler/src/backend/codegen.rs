@@ -2238,6 +2238,70 @@ mod tests {
     }
 
     #[test]
+    fn borrowed_aggregate_parameter_field_read_loads_from_parameter_pointer() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "code".to_string(),
+                target: crate::ir::CallTarget::same_file("code".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::LoadAggregateI32 {
+                        destination: I32Location::Return,
+                        source: AggregateLocation::Parameter(0),
+                        offset: 4,
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_w_imm(WReg::W0, XReg::X0, 4)
+        ));
+    }
+
+    #[test]
+    fn readwrite_borrowed_aggregate_parameter_field_write_stores_to_parameter_pointer() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "set_code".to_string(),
+                target: crate::ir::CallTarget::same_file("set_code".to_string()),
+                return_type: Type::Void,
+                instructions: vec![
+                    Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::Parameter(0),
+                        offset: 4,
+                        value: I32Value::Const(99),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_w_imm(WReg::W16, XReg::X0, 4)
+        ));
+    }
+
+    #[test]
     fn fallible_aggregate_call_passes_destination_slot_and_checks_status() {
         let aggregate = Type::Aggregate {
             layout: ValueLayout::new(24, 8),
@@ -3384,6 +3448,12 @@ mod tests {
     fn encoded_ldr_x_imm(register: XReg, base: XReg, offset: u32) -> [u8; 4] {
         let mut encoder = Encoder::new();
         encoder.emit_ldr_x_imm(register, base, offset);
+        encoded_instruction(encoder)
+    }
+
+    fn encoded_ldr_w_imm(register: WReg, base: XReg, offset: u32) -> [u8; 4] {
+        let mut encoder = Encoder::new();
+        encoder.emit_ldr_w_imm(register, base, offset);
         encoded_instruction(encoder)
     }
 

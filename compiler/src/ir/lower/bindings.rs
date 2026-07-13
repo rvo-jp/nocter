@@ -314,6 +314,9 @@ fn lower_aggregate_field_assignment(
     let Some(field) = context.aggregate_field(&identifier.name, &target.member) else {
         return Err(unsupported_assignment_diagnostic());
     };
+    if !field.is_readwrite {
+        return Err(unsupported_assignment_diagnostic());
+    }
     let destination = field.source;
     match field.kind {
         AggregateFieldKind::I32 => {

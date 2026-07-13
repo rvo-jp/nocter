@@ -2,8 +2,8 @@ use crate::abi::ValueLayout;
 use crate::ast::CallExpr;
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolLocation, CallTarget, I32Location, SliceLocation, StrLocation, Type, U8Location,
-    UsizeLocation,
+    AggregateLocation, BoolLocation, CallTarget, I32Location, SliceLocation, StrLocation, Type,
+    U8Location, UsizeLocation,
 };
 use crate::resolve::{ResolveOutput, SymbolKind};
 use crate::source::{ByteSpan, SourceId};
@@ -26,6 +26,7 @@ pub(super) struct LoweringContext<'a> {
     reserved_local_abi_words: usize,
     locals: Vec<LocalBinding>,
     aggregate_fields: HashMap<usize, Vec<AggregateField>>,
+    aggregate_borrows: Vec<AggregateBorrowParameter>,
 }
 
 #[derive(Default)]
@@ -37,6 +38,7 @@ pub(super) struct LoweringParameterSlots {
     pub(super) str: Vec<Option<String>>,
     pub(super) slice: Vec<Option<String>>,
     pub(super) aggregates: Vec<LoweringAggregateParameter>,
+    pub(super) aggregate_borrows: Vec<AggregateBorrowParameter>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,6 +54,15 @@ pub(super) struct LoweringAggregateParameter {
 pub(super) enum AggregateParameterSource {
     Indirect { parameter_index: usize },
     Direct { start_index: usize, words: usize },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct AggregateBorrowParameter {
+    pub(super) name: String,
+    pub(super) layout: ValueLayout,
+    pub(super) parameter_index: usize,
+    pub(super) is_readwrite: bool,
+    pub(super) fields: Vec<AggregateField>,
 }
 
 impl<'a> LoweringContext<'a> {
@@ -76,6 +87,7 @@ impl<'a> LoweringContext<'a> {
             reserved_local_abi_words: 0,
             locals: Vec::new(),
             aggregate_fields: HashMap::new(),
+            aggregate_borrows: Vec::new(),
         }
     }
 
@@ -116,6 +128,7 @@ impl<'a> LoweringContext<'a> {
             reserved_local_abi_words: 0,
             locals,
             aggregate_fields,
+            aggregate_borrows: parameters.aggregate_borrows,
         }
     }
 
@@ -432,15 +445,46 @@ impl<'a> LoweringContext<'a> {
         aggregate_name: &str,
         field_name: &str,
     ) -> Option<AggregateFieldAccess> {
+        self.aggregate_local_field(aggregate_name, field_name)
+            .or_else(|| self.aggregate_borrow_field(aggregate_name, field_name))
+    }
+
+    fn aggregate_local_field(
+        &self,
+        aggregate_name: &str,
+        field_name: &str,
+    ) -> Option<AggregateFieldAccess> {
         let aggregate = self.aggregate_local(aggregate_name)?;
         self.aggregate_fields
             .get(&aggregate.slot_index)?
             .iter()
             .find(|field| field.name == field_name)
             .map(|field| AggregateFieldAccess {
-                source: crate::ir::AggregateLocation::Slot(aggregate.slot_index),
+                source: AggregateLocation::Slot(aggregate.slot_index),
                 offset: field.offset,
                 kind: field.kind,
+                is_readwrite: true,
+            })
+    }
+
+    fn aggregate_borrow_field(
+        &self,
+        aggregate_name: &str,
+        field_name: &str,
+    ) -> Option<AggregateFieldAccess> {
+        let borrow = self
+            .aggregate_borrows
+            .iter()
+            .find(|borrow| borrow.name == aggregate_name)?;
+        borrow
+            .fields
+            .iter()
+            .find(|field| field.name == field_name)
+            .map(|field| AggregateFieldAccess {
+                source: AggregateLocation::Parameter(borrow.parameter_index),
+                offset: field.offset,
+                kind: field.kind,
+                is_readwrite: borrow.is_readwrite,
             })
     }
 
@@ -571,9 +615,10 @@ pub(super) struct AggregateField {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct AggregateFieldAccess {
-    pub(super) source: crate::ir::AggregateLocation,
+    pub(super) source: AggregateLocation,
     pub(super) offset: u32,
     pub(super) kind: AggregateFieldKind,
+    pub(super) is_readwrite: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

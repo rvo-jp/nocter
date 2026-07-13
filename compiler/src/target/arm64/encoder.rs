@@ -226,9 +226,29 @@ impl Encoder {
         ));
     }
 
+    pub(crate) fn emit_ldr_w_imm(&mut self, rt: WReg, rn: XReg, byte_offset: u32) {
+        self.emit_word(load_store_unsigned_word(
+            LDR_W_UNSIGNED_BASE,
+            rt.bits(),
+            rn.bits(),
+            byte_offset,
+            4,
+        ));
+    }
+
     pub(crate) fn emit_strb_w_imm(&mut self, rt: WReg, rn: XReg, byte_offset: u32) {
         self.emit_word(load_store_unsigned_word(
             STRB_W_UNSIGNED_BASE,
+            rt.bits(),
+            rn.bits(),
+            byte_offset,
+            1,
+        ));
+    }
+
+    pub(crate) fn emit_ldrb_w_imm(&mut self, rt: WReg, rn: XReg, byte_offset: u32) {
+        self.emit_word(load_store_unsigned_word(
+            LDRB_W_UNSIGNED_BASE,
             rt.bits(),
             rn.bits(),
             byte_offset,
@@ -582,6 +602,7 @@ const STR_X_SP_UNSIGNED_BASE: u32 = 0xf900_0000;
 const LDR_X_SP_UNSIGNED_BASE: u32 = 0xf940_0000;
 #[allow(dead_code)]
 const STR_W_UNSIGNED_BASE: u32 = 0xb900_0000;
+const LDR_W_UNSIGNED_BASE: u32 = 0xb940_0000;
 const STRB_W_UNSIGNED_BASE: u32 = 0x3900_0000;
 const LDRB_W_UNSIGNED_BASE: u32 = 0x3940_0000;
 const STR_X_UNSIGNED_BASE: u32 = 0xf900_0000;

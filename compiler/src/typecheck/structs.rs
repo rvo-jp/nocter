@@ -174,6 +174,10 @@ fn struct_type_symbol_for_type<'a>(
     let Type::Named(canonical_name) = ty else {
         return None;
     };
+    let canonical_name = canonical_name
+        .strip_prefix("&+")
+        .or_else(|| canonical_name.strip_prefix('&'))
+        .unwrap_or(canonical_name);
 
     resolved
         .type_symbol_by_canonical_name(canonical_name)

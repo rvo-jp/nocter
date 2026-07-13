@@ -49,9 +49,14 @@ impl EntryEmitter {
                 Ok(())
             }
             AggregateLocation::DirectReturn => self.emit_x_to_direct_aggregate_return(offset),
-            AggregateLocation::Parameter(_) | AggregateLocation::DirectParameter { .. } => Err(
-                aggregate_store_offset_diagnostic("aggregate parameter stores are not supported"),
-            ),
+            AggregateLocation::Parameter(index) => {
+                let base = aggregate_parameter_register(index)?;
+                self.encoder.emit_str_x_imm(XReg::X16, base, offset);
+                Ok(())
+            }
+            AggregateLocation::DirectParameter { .. } => Err(aggregate_store_offset_diagnostic(
+                "direct aggregate parameter stores are not supported",
+            )),
             AggregateLocation::Slot(slot_index) => {
                 let absolute_offset = self.aggregate_slot_field_offset(
                     slot_index,
@@ -83,9 +88,14 @@ impl EntryEmitter {
             AggregateLocation::DirectReturn => Err(aggregate_store_offset_diagnostic(
                 "direct aggregate return field store must be an 8-byte word",
             )),
-            AggregateLocation::Parameter(_) | AggregateLocation::DirectParameter { .. } => Err(
-                aggregate_store_offset_diagnostic("aggregate parameter stores are not supported"),
-            ),
+            AggregateLocation::Parameter(index) => {
+                let base = aggregate_parameter_register(index)?;
+                self.encoder.emit_str_w_imm(WReg::W16, base, offset);
+                Ok(())
+            }
+            AggregateLocation::DirectParameter { .. } => Err(aggregate_store_offset_diagnostic(
+                "direct aggregate parameter stores are not supported",
+            )),
             AggregateLocation::Slot(slot_index) => {
                 let absolute_offset = self.aggregate_slot_field_offset(
                     slot_index,
@@ -135,9 +145,14 @@ impl EntryEmitter {
             AggregateLocation::DirectReturn => Err(aggregate_store_offset_diagnostic(
                 "direct aggregate return field store must be an 8-byte word",
             )),
-            AggregateLocation::Parameter(_) | AggregateLocation::DirectParameter { .. } => Err(
-                aggregate_store_offset_diagnostic("aggregate parameter stores are not supported"),
-            ),
+            AggregateLocation::Parameter(index) => {
+                let base = aggregate_parameter_register(index)?;
+                self.encoder.emit_strb_w_imm(WReg::W16, base, offset);
+                Ok(())
+            }
+            AggregateLocation::DirectParameter { .. } => Err(aggregate_store_offset_diagnostic(
+                "direct aggregate parameter stores are not supported",
+            )),
             AggregateLocation::Slot(slot_index) => {
                 let absolute_offset = self.aggregate_slot_field_offset(
                     slot_index,
@@ -159,10 +174,32 @@ impl EntryEmitter {
         frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
         validate_aggregate_usize_field_offset(offset)?;
-        let source_offset =
-            self.aggregate_slot_load_offset(source, offset, AGGREGATE_USIZE_STORE_BYTES, frame)?;
         let destination = self.usize_location_register(destination)?;
-        self.encoder.emit_ldr_x_sp(destination, source_offset);
+        match source {
+            AggregateLocation::Slot(_) => {
+                let source_offset = self.aggregate_slot_load_offset(
+                    source,
+                    offset,
+                    AGGREGATE_USIZE_STORE_BYTES,
+                    frame,
+                )?;
+                self.encoder.emit_ldr_x_sp(destination, source_offset);
+            }
+            AggregateLocation::Parameter(index) => {
+                let base = aggregate_parameter_register(index)?;
+                self.encoder.emit_ldr_x_imm(destination, base, offset);
+            }
+            AggregateLocation::Return | AggregateLocation::DirectReturn => {
+                return Err(aggregate_load_diagnostic(
+                    "aggregate field load cannot read from return locations",
+                ));
+            }
+            AggregateLocation::DirectParameter { .. } => {
+                return Err(aggregate_load_diagnostic(
+                    "aggregate field load cannot read from direct parameter registers",
+                ));
+            }
+        }
         Ok(())
     }
 
@@ -174,10 +211,32 @@ impl EntryEmitter {
         frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
         validate_aggregate_i32_field_offset(offset)?;
-        let source_offset =
-            self.aggregate_slot_load_offset(source, offset, AGGREGATE_I32_STORE_BYTES, frame)?;
         let destination = self.i32_location_register(destination)?;
-        self.encoder.emit_ldr_w_sp(destination, source_offset);
+        match source {
+            AggregateLocation::Slot(_) => {
+                let source_offset = self.aggregate_slot_load_offset(
+                    source,
+                    offset,
+                    AGGREGATE_I32_STORE_BYTES,
+                    frame,
+                )?;
+                self.encoder.emit_ldr_w_sp(destination, source_offset);
+            }
+            AggregateLocation::Parameter(index) => {
+                let base = aggregate_parameter_register(index)?;
+                self.encoder.emit_ldr_w_imm(destination, base, offset);
+            }
+            AggregateLocation::Return | AggregateLocation::DirectReturn => {
+                return Err(aggregate_load_diagnostic(
+                    "aggregate field load cannot read from return locations",
+                ));
+            }
+            AggregateLocation::DirectParameter { .. } => {
+                return Err(aggregate_load_diagnostic(
+                    "aggregate field load cannot read from direct parameter registers",
+                ));
+            }
+        }
         Ok(())
     }
 
@@ -188,10 +247,32 @@ impl EntryEmitter {
         offset: u32,
         frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
-        let source_offset =
-            self.aggregate_slot_load_offset(source, offset, AGGREGATE_U8_STORE_BYTES, frame)?;
         let destination = self.u8_location_register(destination)?;
-        self.encoder.emit_ldrb_w_sp(destination, source_offset);
+        match source {
+            AggregateLocation::Slot(_) => {
+                let source_offset = self.aggregate_slot_load_offset(
+                    source,
+                    offset,
+                    AGGREGATE_U8_STORE_BYTES,
+                    frame,
+                )?;
+                self.encoder.emit_ldrb_w_sp(destination, source_offset);
+            }
+            AggregateLocation::Parameter(index) => {
+                let base = aggregate_parameter_register(index)?;
+                self.encoder.emit_ldrb_w_imm(destination, base, offset);
+            }
+            AggregateLocation::Return | AggregateLocation::DirectReturn => {
+                return Err(aggregate_load_diagnostic(
+                    "aggregate field load cannot read from return locations",
+                ));
+            }
+            AggregateLocation::DirectParameter { .. } => {
+                return Err(aggregate_load_diagnostic(
+                    "aggregate field load cannot read from direct parameter registers",
+                ));
+            }
+        }
         Ok(())
     }
 
@@ -202,10 +283,32 @@ impl EntryEmitter {
         offset: u32,
         frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
-        let source_offset =
-            self.aggregate_slot_load_offset(source, offset, AGGREGATE_U8_STORE_BYTES, frame)?;
         let destination = self.bool_location_register(destination)?;
-        self.encoder.emit_ldrb_w_sp(destination, source_offset);
+        match source {
+            AggregateLocation::Slot(_) => {
+                let source_offset = self.aggregate_slot_load_offset(
+                    source,
+                    offset,
+                    AGGREGATE_U8_STORE_BYTES,
+                    frame,
+                )?;
+                self.encoder.emit_ldrb_w_sp(destination, source_offset);
+            }
+            AggregateLocation::Parameter(index) => {
+                let base = aggregate_parameter_register(index)?;
+                self.encoder.emit_ldrb_w_imm(destination, base, offset);
+            }
+            AggregateLocation::Return | AggregateLocation::DirectReturn => {
+                return Err(aggregate_load_diagnostic(
+                    "aggregate field load cannot read from return locations",
+                ));
+            }
+            AggregateLocation::DirectParameter { .. } => {
+                return Err(aggregate_load_diagnostic(
+                    "aggregate field load cannot read from direct parameter registers",
+                ));
+            }
+        }
         Ok(())
     }
 
@@ -1016,6 +1119,15 @@ fn validate_aggregate_i32_field_offset(offset: u32) -> Result<(), Vec<Diagnostic
     }
 
     Ok(())
+}
+
+fn aggregate_parameter_register(index: usize) -> Result<XReg, Vec<Diagnostic>> {
+    XReg::argument(index).ok_or_else(|| {
+        vec![Diagnostic::error(
+            "E9005",
+            format!("aggregate parameter pointer word {index} has no argument register"),
+        )]
+    })
 }
 
 fn aggregate_store_offset_diagnostic(reason: &str) -> Vec<Diagnostic> {

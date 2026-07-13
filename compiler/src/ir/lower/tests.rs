@@ -1135,6 +1135,85 @@ func code(header: Header): i32 {
 }
 
 #[test]
+fn lowers_borrowed_aggregate_parameter_field_return() {
+    let function = lower_named_function(
+        r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func code(header: &Header): i32 {
+    return header.code
+}
+"#,
+        "code",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "code".to_string(),
+            target: CallTarget::same_file("code"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::LoadAggregateI32 {
+                    destination: I32Location::Return,
+                    source: AggregateLocation::Parameter(0),
+                    offset: 4,
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_readwrite_borrowed_aggregate_parameter_field_assignment() {
+    let function = lower_named_function(
+        r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func set_code(header: &+Header): void {
+    header.code = 99
+    return
+}
+"#,
+        "set_code",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "set_code".to_string(),
+            target: CallTarget::same_file("set_code"),
+            return_type: Type::Void,
+            instructions: vec![
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Parameter(0),
+                    offset: 4,
+                    value: I32Value::Const(99),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_direct_aggregate_struct_literal_value_argument() {
     let aggregate_type = Type::DirectAggregate {
         layout: ValueLayout::new(16, 8),

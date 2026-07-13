@@ -53,6 +53,29 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_member_assignment_through_readonly_borrow() {
+    let diagnostics = check_text(
+        r#"struct Header {
+    code: i32
+}
+
+func main(): i32 {
+    return 0
+}
+
+func update(value: &Header): void {
+    value.code = 2
+    return
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0381");
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
 fn diagnoses_assignment_to_parameter_binding() {
     let diagnostics = check_text(
         r#"func main(): i32 {

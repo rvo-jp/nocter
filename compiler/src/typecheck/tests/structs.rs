@@ -26,6 +26,31 @@ func label(point: Point): &str {
 }
 
 #[test]
+fn accepts_borrowed_struct_field_access() {
+    let diagnostics = check_text(
+        r#"struct Point {
+    x: i32
+}
+
+func main(): i32 {
+    return 0
+}
+
+func x(point: &Point): i32 {
+    return point.x
+}
+
+func set_x(point: &+Point): void {
+    point.x = 2
+    return
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn uses_struct_field_type_for_return_checking() {
     let diagnostics = check_text(
         r#"struct Point {

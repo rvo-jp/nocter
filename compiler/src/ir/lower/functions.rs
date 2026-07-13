@@ -3,8 +3,8 @@ use super::aggregates::{
 };
 use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{
-    AggregateParameterSource, FunctionNames, FunctionSignatures, LoweringAggregateParameter,
-    LoweringContext, LoweringParameterSlots,
+    AggregateBorrowParameter, AggregateParameterSource, FunctionNames, FunctionSignatures,
+    LoweringAggregateParameter, LoweringContext, LoweringParameterSlots,
 };
 use super::control_flow::{lower_terminal_bool_if_statement, lower_terminal_i32_if_statement};
 use super::errors::{ErrorPayload, lower_error_payload};
@@ -81,6 +81,7 @@ fn lower_scalar_parameters(
     let mut str_parameters = Vec::new();
     let mut slice_parameters = Vec::new();
     let mut aggregate_parameters = Vec::new();
+    let mut aggregate_borrow_parameters = Vec::new();
     for parameter in &function.parameters.parameters {
         match lower_scalar_parameter_kind(parameter, &function.name, resolved)? {
             ScalarParameterKind::I32 => {
@@ -151,6 +152,26 @@ fn lower_scalar_parameters(
                 str_parameters.push(None);
                 slice_parameters.push(None);
             }
+            ScalarParameterKind::BorrowAggregate {
+                layout,
+                is_readwrite,
+                fields,
+            } => {
+                let parameter_index = i32_parameters.len();
+                i32_parameters.push(None);
+                u8_parameters.push(None);
+                usize_parameters.push(None);
+                bool_parameters.push(None);
+                str_parameters.push(None);
+                slice_parameters.push(None);
+                aggregate_borrow_parameters.push(AggregateBorrowParameter {
+                    name: parameter.name.clone(),
+                    layout,
+                    parameter_index,
+                    is_readwrite,
+                    fields,
+                });
+            }
             ScalarParameterKind::AggregateIndirect { layout, fields } => {
                 let parameter_index = i32_parameters.len();
                 i32_parameters.push(None);
@@ -211,6 +232,7 @@ fn lower_scalar_parameters(
         str: str_parameters,
         slice: slice_parameters,
         aggregates: aggregate_parameters,
+        aggregate_borrows: aggregate_borrow_parameters,
     })
 }
 
@@ -277,6 +299,11 @@ enum ScalarParameterKind {
     Str,
     Slice,
     Borrow,
+    BorrowAggregate {
+        layout: crate::abi::ValueLayout,
+        is_readwrite: bool,
+        fields: Vec<super::context::AggregateField>,
+    },
     AggregateIndirect {
         layout: crate::abi::ValueLayout,
         fields: Vec<super::context::AggregateField>,
@@ -309,11 +336,41 @@ fn lower_scalar_parameter_kind(
         TypeExpr::Borrow(borrow) if is_u8_slice_data_type(&borrow.inner) => {
             Ok(ScalarParameterKind::Slice)
         }
+        TypeExpr::Borrow(borrow)
+            if matches!(
+                borrow_inner_type(&borrow.inner, resolved),
+                Some(Type::Aggregate { .. } | Type::DirectAggregate { .. })
+            ) =>
+        {
+            lower_aggregate_borrow_parameter_kind(parameter, function_name, resolved)
+        }
         TypeExpr::Borrow(borrow) if borrow_inner_type(&borrow.inner, resolved).is_some() => {
             Ok(ScalarParameterKind::Borrow)
         }
         _ => lower_aggregate_parameter_kind(parameter, function_name, resolved),
     }
+}
+
+fn lower_aggregate_borrow_parameter_kind(
+    parameter: &Parameter,
+    function_name: &str,
+    resolved: &ResolveOutput,
+) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
+    let TypeExpr::Borrow(borrow) = &parameter.ty else {
+        unreachable!("aggregate borrow parameter lowering requires a borrow type");
+    };
+    let value = abi_value_from_type_expr(&borrow.inner, resolved)
+        .map_err(|_error| unsupported_parameter_type_diagnostic(function_name))?;
+    if !matches!(value.ty, AbiType::Struct(_)) {
+        return Err(unsupported_parameter_type_diagnostic(function_name));
+    }
+    let fields = aggregate_fields_from_type_expr(&borrow.inner, resolved)
+        .ok_or_else(|| unsupported_parameter_type_diagnostic(function_name))?;
+    Ok(ScalarParameterKind::BorrowAggregate {
+        layout: value.layout,
+        is_readwrite: borrow.is_readwrite,
+        fields,
+    })
 }
 
 fn lower_aggregate_parameter_kind(
