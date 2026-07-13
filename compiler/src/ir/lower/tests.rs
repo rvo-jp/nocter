@@ -2715,6 +2715,53 @@ func make(): Header {
 }
 
 #[test]
+fn reports_unsupported_u16_aggregate_struct_literal_return() {
+    let diagnostics = lower_named_function_diagnostics_with_signatures(
+        r#"struct Header {
+    tag: u8
+    code: u16
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Header {
+    return Header{ tag: 7, code: 42 }
+}
+"#,
+        "make",
+        context::FunctionSignatures::new(HashMap::new()),
+    );
+
+    assert_eq!(diagnostics[0].code, "E8007");
+    assert!(diagnostics[0].message.contains("supported scalar values"));
+}
+
+#[test]
+fn reports_unsupported_u32_aggregate_struct_literal_argument() {
+    let diagnostics = lower_text_diagnostics(
+        r#"struct Header {
+    tag: u8
+    code: u32
+}
+
+func main(): i32 {
+    consume(Header{ tag: 7, code: 42 })
+    return 0
+}
+
+func consume(header: Header): void {
+    return
+}
+"#,
+    );
+
+    assert_eq!(diagnostics[0].code, "E8006");
+    assert!(diagnostics[0].message.contains("supported scalar values"));
+}
+
+#[test]
 fn lowers_direct_aggregate_struct_literal_return_field_call_through_distinct_slot() {
     let pair_type = Type::DirectAggregate {
         layout: ValueLayout::new(8, 4),
