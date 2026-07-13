@@ -239,7 +239,7 @@ Addition and subtraction emission uses ARM64 flag-setting arithmetic and traps o
 Multiplication emission computes a signed 64-bit product and traps unless that product exactly fits in `i32`.
 Division and remainder emission inserts zero-divisor and signed-overflow trap checks before ARM64 `sdiv`.
 Shift emission checks the runtime count before ARM64 variable shift instructions and traps when the count is negative or greater than or equal to the shifted value width.
-Unloaded imported placeholders, aggregate values, ownership/drop lowering, and general control-flow call placement remain outside the buildable subset.
+Unloaded imported placeholders, general aggregate value expressions outside the supported struct-literal/call-result/slot-copy/borrow paths, ownership/drop lowering, and general control-flow call placement remain outside the buildable subset.
 
 Use integration tests for user-visible CLI behavior and backend/unit tests for lower-level encoding and Mach-O layout. When extending build support, first add a small `nocter build` regression case, then expand IR lowering, code generation, and documentation together.
 

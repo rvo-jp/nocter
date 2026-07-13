@@ -92,6 +92,9 @@ Currently buildable:
 - simple fallible entry failure through a loaded static `error` constructor call with string code and message literals, where the message may be single-line or multi-line
 - fallible `?`, `!`, and `catch` lowering for the current scalar/view/void normal-call subset: `i32`, `u8`, `usize`, `bool`, `&str`, slices, and `void`
 - `catch` blocks that contain leading scalar/view `let` bindings or void call statements followed by a terminating `return`, including `error.code` and `error.message` payload access
+- direct aggregate value parameters, call arguments, and returns for supported non-generic structs up to 16 bytes, including partial final ABI words and shifted or boundary argument-register placement inside the 8-word limit
+- indirect aggregate parameters, call arguments, and returns for supported non-generic structs larger than 16 bytes, passed by slot address or returned through caller-provided `x8` storage
+- aggregate struct-literal returns and local slots, aggregate call-result slot bindings and assignments, aggregate slot borrow arguments, matching copy-struct slot assignment, and scalar field reads from supported aggregate slots, parameters, and call results
 - distributed `std/io.print` execution through the target-overlay `std/io_impl.write_text_raw` bootstrap primitive
 
 Currently not buildable even when it may be checkable:
@@ -105,4 +108,4 @@ Currently not buildable even when it may be checkable:
 - `&str` member operations and view/byte iteration
 - interpolated string construction
 - optional values
-- aggregate values, arrays, views, pointers, methods, traits, generics, ownership lowering, and drop glue
+- general aggregate value expressions outside the supported struct-literal, call-result, slot-copy, and borrow paths; arrays, views, pointers, methods, traits, generics, ownership lowering, and drop glue

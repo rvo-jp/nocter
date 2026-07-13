@@ -33,7 +33,7 @@ The backend v0 uses a deliberately small register-only convention while the IR h
 - `w16`/`w17` and `x16`/`x17` are backend scratch registers and may be clobbered by code generation
 
 Tail calls are lowered by staging callee arguments, loading `w0`/`x0` through `w7`/`x7` according to ABI word indexes, and branching directly to the target function.
-Normal calls are buildable only for the narrow same-file and loaded imported scalar/view subset described below.
+Normal calls are buildable for the narrow same-file and loaded imported scalar/view subset plus selected aggregate slot and call-result paths described below.
 A normal call returns to the caller after clobbering argument, return, and scratch registers, so v0 framed functions conservatively spill and reload scalar locals around each normal call.
 
 ## Normal Call Lowering Design
@@ -53,7 +53,8 @@ The first implementation should keep the user-visible subset small:
 - direct `&str` return values from static string literals, `&str` parameters, `&str` locals, and tail calls
 - `&str` return values in annotated `&str` `let` initializers and as `&str` call arguments
 - up to 8 ABI argument words, passed in `w0`/`x0` through `w7`/`x7`
-- no aggregate by-value arguments, general aggregate values, owned strings, optionals, ownership/drop lowering, or calls in broader control-flow; only the narrow ABI-indirect aggregate return/call-result slot, direct aggregate normal call-result slot, and aggregate borrow-argument paths described in `architecture.md` are enabled
+- selected aggregate by-value arguments and returns are supported through the ABI helper classification: direct structs up to 16 bytes use consecutive `x` registers, indirect structs use a slot pointer or `x8` return storage, and aggregate slot borrows pass a slot address
+- stack-passed arguments, general aggregate value expressions, owned strings, optionals, ownership/drop lowering, and calls in broader control-flow remain outside this backend phase
 
 ### Frame Shape
 
@@ -245,6 +246,17 @@ Implement normal calls in this order:
 27. Done: lower direct non-entry `&str` returns from static string literals, `&str` parameters, and tail calls, returning `ptr,len` in `x0,x1`.
 28. Done: lower `&str` normal-call results into two local ABI words for annotated `&str` `let` initializers and nested `&str` call arguments, and emit `CallStr`.
 
+### Aggregate ABI Status
+
+The backend currently supports the register-only portion of Nocter ABI v0 for supported non-generic aggregate structs:
+
+- direct aggregate parameters, arguments, and returns up to 16 bytes, including partial final ABI words
+- indirect aggregate parameters, arguments, and returns larger than 16 bytes by pointer or caller-provided return storage
+- aggregate call-result slots for normal, propagated fallible, forced fallible, and caught fallible calls in the narrow expression positions lowered by IR
+- aggregate slot-to-slot copies, aggregate struct-literal slots, and aggregate slot borrow arguments for the current supported field and assignment paths
+
+The remaining ABI gap is stack-passed arguments. IR lowering rejects functions and calls whose ABI argument footprint exceeds the 8 argument registers, because backend call lowering has no stack argument area yet.
+
 ### Non-Goals For This Phase
 
 Do not combine normal-call work with:
@@ -252,7 +264,7 @@ Do not combine normal-call work with:
 - stack-backed `var` and reassignment
 - general loops or non-terminal control flow
 - imported calls or external linking
-- aggregate layout or aggregate calling convention
+- aggregate forms outside the current register-only slot/call-result subset
 - ownership/drop lowering
 - ABI-complete Darwin interop
 
