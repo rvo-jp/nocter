@@ -392,9 +392,10 @@ pub(super) fn lower_direct_tail_call(
     let (mut instructions, arguments) =
         lower_call_arguments(call, &target, &identifier.name, context, &mut temporaries)?;
 
-    if arguments
-        .iter()
-        .any(tail_call_argument_requires_current_frame)
+    if fallible_success_tail_call_requires_normal_call(&target, context)
+        || arguments
+            .iter()
+            .any(tail_call_argument_requires_current_frame)
     {
         let Some(return_type) = context.call_return_type(&target).cloned() else {
             return Err(unsupported_non_tail_return_call_diagnostic(
@@ -417,6 +418,16 @@ pub(super) fn lower_direct_tail_call(
 
 fn tail_call_argument_requires_current_frame(argument: &ScalarArgument) -> bool {
     matches!(argument, ScalarArgument::Borrow(_)) || is_tail_call_stack_pointer_argument(argument)
+}
+
+fn fallible_success_tail_call_requires_normal_call(
+    target: &CallTarget,
+    context: &LoweringContext,
+) -> bool {
+    if !matches!(context.function_return_type(), Type::Fallible(_)) {
+        return false;
+    }
+    matches!(context.call_return_type(target), Some(return_type) if return_type == context.return_type())
 }
 
 fn lower_non_tail_return_call_instruction(
@@ -667,6 +678,21 @@ fn lower_aggregate_argument_source(
             context,
             temporaries,
         ),
+        Expr::Propagate(propagation) => {
+            let Expr::Call(call) = unwrap_group(&propagation.expression) else {
+                return Err(unsupported_aggregate_argument_diagnostic(
+                    callee_name,
+                    parameter_type,
+                ));
+            };
+            lower_aggregate_fallible_call_argument_source(
+                call,
+                parameter_type,
+                callee_name,
+                context,
+                temporaries,
+            )
+        }
         _ => Err(unsupported_aggregate_argument_diagnostic(
             callee_name,
             parameter_type,
@@ -738,6 +764,76 @@ fn lower_aggregate_call_argument_source(
             });
         }
         _ => unreachable!("aggregate call argument lowering requires aggregate return type"),
+    }
+    Ok((instructions, AggregateArgumentSource::Slot(slot_index)))
+}
+
+fn lower_aggregate_fallible_call_argument_source(
+    call: &CallExpr,
+    parameter_type: &Type,
+    callee_name: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, AggregateArgumentSource), Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    };
+    let target = context.call_target(call, &identifier.name);
+    let Some(Type::Fallible(success_type)) = context.call_return_type(&target) else {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    };
+    if success_type.as_ref() != parameter_type {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    }
+    let layout = match success_type.as_ref() {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => {
+            return Err(unsupported_aggregate_argument_diagnostic(
+                callee_name,
+                parameter_type,
+            ));
+        }
+    };
+    if !supported_aggregate_copy_layout(layout) {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    }
+
+    let slot_index = temporaries.next_aggregate_slot();
+    let mut instructions = vec![Instruction::ReserveAggregateSlot { slot_index, layout }];
+    let (call_instructions, arguments) =
+        lower_call_arguments(call, &target, &identifier.name, context, temporaries)?;
+    instructions.extend(call_instructions);
+    match success_type.as_ref() {
+        Type::Aggregate { .. } => {
+            instructions.push(Instruction::CallFallibleAggregate {
+                destination: AggregateLocation::Slot(slot_index),
+                target,
+                arguments,
+                failure_mode: FallibleFailureMode::Propagate,
+            });
+        }
+        Type::DirectAggregate { .. } => {
+            instructions.push(Instruction::CallFallibleDirectAggregate {
+                destination: AggregateLocation::Slot(slot_index),
+                target,
+                arguments,
+                layout,
+                failure_mode: FallibleFailureMode::Propagate,
+            });
+        }
+        _ => unreachable!("aggregate fallible call argument lowering requires aggregate success"),
     }
     Ok((instructions, AggregateArgumentSource::Slot(slot_index)))
 }

@@ -1430,6 +1430,141 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_propagated_indirect_aggregate_call_value_argument() {
+    let aggregate_type = Type::Aggregate {
+        layout: ValueLayout::new(24, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func make(): Text! {
+    return Text{ start: 1, len: 2, capacity: 3 }
+}
+
+func consume(text: Text): i32 {
+    return 42
+}
+
+func main(): i32! {
+    return consume(make()?)
+}
+"#,
+        "main",
+        function_signatures(vec![
+            (
+                "make",
+                Type::Fallible(Box::new(aggregate_type.clone())),
+                vec![],
+            ),
+            ("consume", Type::I32, vec![aggregate_type]),
+        ]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "main".to_string(),
+            target: CallTarget::same_file("main"),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::CallFallibleAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    target: CallTarget::same_file("make"),
+                    arguments: vec![],
+                    failure_mode: FallibleFailureMode::Propagate,
+                },
+                Instruction::CallI32 {
+                    destination: I32Location::Return,
+                    target: CallTarget::same_file("consume"),
+                    arguments: vec![ScalarArgument::AggregateIndirect(AggregateArgument {
+                        source: AggregateArgumentSource::Slot(0),
+                    })],
+                },
+                Instruction::ReturnFallibleSuccess,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_propagated_direct_aggregate_call_value_argument() {
+    let aggregate_type = Type::DirectAggregate {
+        layout: ValueLayout::new(16, 8),
+        words: 2,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct Allocator {
+    state: usize
+    kind: usize
+}
+
+func make(): Allocator! {
+    return Allocator{ state: 1, kind: 2 }
+}
+
+func consume(allocator: Allocator): i32 {
+    return 42
+}
+
+func main(): i32! {
+    return consume(make()?)
+}
+"#,
+        "main",
+        function_signatures(vec![
+            (
+                "make",
+                Type::Fallible(Box::new(aggregate_type.clone())),
+                vec![],
+            ),
+            ("consume", Type::I32, vec![aggregate_type]),
+        ]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "main".to_string(),
+            target: CallTarget::same_file("main"),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::CallFallibleDirectAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    target: CallTarget::same_file("make"),
+                    arguments: vec![],
+                    layout: ValueLayout::new(16, 8),
+                    failure_mode: FallibleFailureMode::Propagate,
+                },
+                Instruction::CallI32 {
+                    destination: I32Location::Return,
+                    target: CallTarget::same_file("consume"),
+                    arguments: vec![ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                        source: AggregateArgumentSource::Slot(0),
+                        layout: ValueLayout::new(16, 8),
+                        words: 2,
+                    })],
+                },
+                Instruction::ReturnFallibleSuccess,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_indirect_aggregate_local_value_argument() {
     let aggregate_type = Type::Aggregate {
         layout: ValueLayout::new(24, 8),
@@ -6935,6 +7070,37 @@ func answer(): i32! {
                     target: CallTarget::same_file("answer"),
                     arguments: vec![],
                     failure_mode: FallibleFailureMode::Propagate,
+                },
+                Instruction::ReturnFallibleSuccess,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_fallible_i32_success_call_return_as_normal_call() {
+    let ir = lower_text(
+        r#"func main(): i32! {
+    return answer()
+}
+
+func answer(): i32 {
+    return 42
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0],
+        Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![
+                Instruction::CallI32 {
+                    destination: I32Location::Return,
+                    target: CallTarget::same_file("answer"),
+                    arguments: vec![],
                 },
                 Instruction::ReturnFallibleSuccess,
             ],
