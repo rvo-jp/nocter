@@ -2620,6 +2620,161 @@ func consume(pair: Pair): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_propagated_direct_aggregate_call_argument_between_scalars_exit_code() {
+    let project =
+        TempProject::new("cli-run-propagated-direct-aggregate-call-argument-between-scalars");
+    let source = project.write_source(
+        "propagated_direct_aggregate_call_argument_between_scalars.nct",
+        r#"struct Pair {
+    a: i32
+    b: i32
+    c: i32
+    d: i32
+}
+
+func main(): i32! {
+    return consume(5, make()?, 1)
+}
+
+func make(): Pair! {
+    return Pair{ a: 10, b: 20, c: 41, d: 2 }
+}
+
+func consume(prefix: i32, pair: Pair, suffix: i32): i32 {
+    return pair.c + suffix
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_propagated_indirect_aggregate_call_argument_between_scalars_exit_code() {
+    let project =
+        TempProject::new("cli-run-propagated-indirect-aggregate-call-argument-between-scalars");
+    let source = project.write_source(
+        "propagated_indirect_aggregate_call_argument_between_scalars.nct",
+        r#"struct Big {
+    first: usize
+    second: usize
+    code: i32
+}
+
+func main(): i32! {
+    return consume(5, make()?, 1)
+}
+
+func make(): Big! {
+    return Big{ first: 1, second: 2, code: 41 }
+}
+
+func consume(prefix: i32, value: Big, suffix: i32): i32 {
+    return value.code + suffix
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_propagated_direct_aggregate_call_argument_at_register_boundary_exit_code() {
+    let project =
+        TempProject::new("cli-run-propagated-direct-aggregate-call-argument-register-boundary");
+    let source = project.write_source(
+        "propagated_direct_aggregate_call_argument_register_boundary.nct",
+        r#"struct Pair {
+    a: i32
+    b: i32
+    c: i32
+    d: i32
+}
+
+func main(): i32! {
+    return consume(1, 2, 3, 4, 5, 6, make()?)
+}
+
+func make(): Pair! {
+    return Pair{ a: 10, b: 20, c: 42, d: 7 }
+}
+
+func consume(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, pair: Pair): i32 {
+    return pair.c
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_propagated_indirect_aggregate_call_argument_at_register_boundary_exit_code()
+{
+    let project =
+        TempProject::new("cli-run-propagated-indirect-aggregate-call-argument-register-boundary");
+    let source = project.write_source(
+        "propagated_indirect_aggregate_call_argument_register_boundary.nct",
+        r#"struct Big {
+    first: usize
+    second: usize
+    code: i32
+}
+
+func main(): i32! {
+    return consume(1, 2, 3, 4, 5, 6, 7, make()?)
+}
+
+func make(): Big! {
+    return Big{ first: 10, second: 20, code: 42 }
+}
+
+func consume(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, value: Big): i32 {
+    return value.code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_propagated_small_direct_aggregate_call_argument_field_exit_code() {
     let project = TempProject::new("cli-run-propagated-small-direct-aggregate-call-argument-field");
     let source = project.write_source(
