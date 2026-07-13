@@ -27,6 +27,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: cover stack-passed aggregate parameter returns
+  - adds native execution coverage for fully stack-passed direct aggregate parameters copied into callee slots and returned by name
+  - adds native execution coverage for fully stack-passed indirect aggregate parameter pointers copied into callee slots and returned by name
+  - confirms parameter setup copies and aggregate return copies compose correctly across stack-passed direct and indirect aggregate ABI paths
 - Current checkpoint: cover partial aggregate slot copies
   - adds native execution coverage for 5-byte and 9-byte `copy struct` whole-slot assignment
   - adds native execution coverage for 9-byte `copy struct` return-by-name through the direct aggregate return copy path
