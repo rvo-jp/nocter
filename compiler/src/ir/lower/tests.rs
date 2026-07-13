@@ -1180,6 +1180,52 @@ func read(code: Code): i32 {
 }
 
 #[test]
+fn lowers_two_byte_direct_aggregate_value_parameter_field_return() {
+    let function = lower_named_function(
+        r#"struct Bytes {
+    first: u8
+    second: u8
+}
+
+func main(): i32 {
+    return 0
+}
+
+func read(bytes: Bytes): u8 {
+    return bytes.second
+}
+"#,
+        "read",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "read".to_string(),
+            target: CallTarget::same_file("read"),
+            return_type: Type::U8,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(2, 1),
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    source: AggregateLocation::DirectParameter { start_index: 0 },
+                    layout: ValueLayout::new(2, 1),
+                },
+                Instruction::LoadAggregateU8 {
+                    destination: U8Location::Return,
+                    source: AggregateLocation::Slot(0),
+                    offset: 1,
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_borrowed_aggregate_parameter_field_return() {
     let function = lower_named_function(
         r#"struct Header {

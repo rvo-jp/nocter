@@ -1687,6 +1687,43 @@ func consume(code: Code): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_two_byte_direct_aggregate_value_argument_field_exit_code() {
+    let project = TempProject::new("cli-run-two-byte-direct-aggregate-value-arg");
+    let source = project.write_source(
+        "two_byte_direct_aggregate_value_arg.nct",
+        r#"struct Bytes {
+    first: u8
+    second: u8
+}
+
+func main(): i32 {
+    let result = consume(Bytes{ first: 7, second: 42 })
+    return result
+}
+
+func consume(bytes: Bytes): i32 {
+    if bytes.second == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_small_direct_aggregate_call_result_field_exit_code() {
     let project = TempProject::new("cli-run-small-direct-aggregate-call-result-field");
     let source = project.write_source(
@@ -1701,6 +1738,42 @@ func main(): i32 {
 
 func make(): Code {
     return Code{ value: 42 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_two_byte_direct_aggregate_call_result_field_exit_code() {
+    let project = TempProject::new("cli-run-two-byte-direct-aggregate-call-result-field");
+    let source = project.write_source(
+        "two_byte_direct_aggregate_call_result_field.nct",
+        r#"struct Bytes {
+    first: u8
+    second: u8
+}
+
+func main(): i32 {
+    if make().second == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+
+func make(): Bytes {
+    return Bytes{ first: 7, second: 42 }
 }
 "#,
     );

@@ -1140,6 +1140,11 @@ impl EntryEmitter {
                 self.encoder.emit_ldr_w_sp(WReg::W16, source_offset);
                 self.encoder.emit_str_w_sp(WReg::W16, staging_slot.offset());
             }
+            DIRECT_AGGREGATE_U16_BYTES => {
+                self.encoder.emit_ldrh_w_sp(WReg::W16, source_offset);
+                self.encoder
+                    .emit_strh_w_sp(WReg::W16, staging_slot.offset());
+            }
             DIRECT_AGGREGATE_U8_BYTES => {
                 self.encoder.emit_ldrb_w_sp(WReg::W16, source_offset);
                 self.encoder
@@ -1198,6 +1203,12 @@ impl EntryEmitter {
                     })?;
                     self.encoder.emit_str_w_sp(register, destination);
                 }
+                DIRECT_AGGREGATE_U16_BYTES => {
+                    let register = WReg::argument(register_index).ok_or_else(|| {
+                        direct_aggregate_result_diagnostic("result register is unavailable")
+                    })?;
+                    self.encoder.emit_strh_w_sp(register, destination);
+                }
                 DIRECT_AGGREGATE_U8_BYTES => {
                     let register = WReg::argument(register_index).ok_or_else(|| {
                         direct_aggregate_result_diagnostic("result register is unavailable")
@@ -1253,7 +1264,9 @@ fn direct_aggregate_chunk_bytes(
         return Ok(DIRECT_AGGREGATE_WORD_BYTES);
     }
     match remaining_bytes {
-        DIRECT_AGGREGATE_I32_BYTES | DIRECT_AGGREGATE_U8_BYTES => Ok(remaining_bytes),
+        DIRECT_AGGREGATE_I32_BYTES | DIRECT_AGGREGATE_U16_BYTES | DIRECT_AGGREGATE_U8_BYTES => {
+            Ok(remaining_bytes)
+        }
         _ => Err(unsupported_direct_aggregate_chunk_diagnostic(
             remaining_bytes,
             subject,
@@ -1284,4 +1297,5 @@ fn direct_aggregate_diagnostic(subject: &str, reason: &str) -> Vec<Diagnostic> {
 
 const DIRECT_AGGREGATE_WORD_BYTES: u32 = 8;
 const DIRECT_AGGREGATE_I32_BYTES: u32 = 4;
+const DIRECT_AGGREGATE_U16_BYTES: u32 = 2;
 const DIRECT_AGGREGATE_U8_BYTES: u32 = 1;

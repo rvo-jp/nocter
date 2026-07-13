@@ -483,7 +483,9 @@ impl EntryEmitter {
                             self.encoder.emit_mov_x(XReg::X16, source_register);
                         }
                     }
-                    AGGREGATE_I32_STORE_BYTES | AGGREGATE_U8_STORE_BYTES => {
+                    AGGREGATE_I32_STORE_BYTES
+                    | AGGREGATE_U16_STORE_BYTES
+                    | AGGREGATE_U8_STORE_BYTES => {
                         let source_register = WReg::argument(register_index).ok_or_else(|| {
                             vec![Diagnostic::error(
                                 "E9005",
@@ -547,6 +549,7 @@ impl EntryEmitter {
         match chunk_bytes {
             AGGREGATE_USIZE_STORE_BYTES => self.encoder.emit_ldr_x_sp(XReg::X16, offset),
             AGGREGATE_I32_STORE_BYTES => self.encoder.emit_ldr_w_sp(WReg::W16, offset),
+            AGGREGATE_U16_STORE_BYTES => self.encoder.emit_ldrh_w_sp(WReg::W16, offset),
             AGGREGATE_U8_STORE_BYTES => self.encoder.emit_ldrb_w_sp(WReg::W16, offset),
             _ => return Err(unsupported_aggregate_copy_chunk_diagnostic(chunk_bytes)),
         }
@@ -562,6 +565,7 @@ impl EntryEmitter {
         match chunk_bytes {
             AGGREGATE_USIZE_STORE_BYTES => self.encoder.emit_ldr_x_imm(XReg::X16, base, offset),
             AGGREGATE_I32_STORE_BYTES => self.encoder.emit_ldr_w_imm(WReg::W16, base, offset),
+            AGGREGATE_U16_STORE_BYTES => self.encoder.emit_ldrh_w_imm(WReg::W16, base, offset),
             AGGREGATE_U8_STORE_BYTES => self.encoder.emit_ldrb_w_imm(WReg::W16, base, offset),
             _ => return Err(unsupported_aggregate_copy_chunk_diagnostic(chunk_bytes)),
         }
@@ -576,6 +580,7 @@ impl EntryEmitter {
         match chunk_bytes {
             AGGREGATE_USIZE_STORE_BYTES => self.encoder.emit_str_x_sp(XReg::X16, offset),
             AGGREGATE_I32_STORE_BYTES => self.encoder.emit_str_w_sp(WReg::W16, offset),
+            AGGREGATE_U16_STORE_BYTES => self.encoder.emit_strh_w_sp(WReg::W16, offset),
             AGGREGATE_U8_STORE_BYTES => self.encoder.emit_strb_w_sp(WReg::W16, offset),
             _ => return Err(unsupported_aggregate_copy_chunk_diagnostic(chunk_bytes)),
         }
@@ -591,6 +596,7 @@ impl EntryEmitter {
         match chunk_bytes {
             AGGREGATE_USIZE_STORE_BYTES => self.encoder.emit_str_x_imm(XReg::X16, base, offset),
             AGGREGATE_I32_STORE_BYTES => self.encoder.emit_str_w_imm(WReg::W16, base, offset),
+            AGGREGATE_U16_STORE_BYTES => self.encoder.emit_strh_w_imm(WReg::W16, base, offset),
             AGGREGATE_U8_STORE_BYTES => self.encoder.emit_strb_w_imm(WReg::W16, base, offset),
             _ => return Err(unsupported_aggregate_copy_chunk_diagnostic(chunk_bytes)),
         }
@@ -1225,7 +1231,9 @@ fn aggregate_copy_chunk_bytes(remaining_bytes: u32) -> Result<u32, Vec<Diagnosti
         return Ok(AGGREGATE_USIZE_STORE_BYTES);
     }
     match remaining_bytes {
-        AGGREGATE_I32_STORE_BYTES | AGGREGATE_U8_STORE_BYTES => Ok(remaining_bytes),
+        AGGREGATE_I32_STORE_BYTES | AGGREGATE_U16_STORE_BYTES | AGGREGATE_U8_STORE_BYTES => {
+            Ok(remaining_bytes)
+        }
         _ => Err(unsupported_aggregate_copy_chunk_diagnostic(remaining_bytes)),
     }
 }
@@ -1263,4 +1271,5 @@ fn unsupported_aggregate_copy_chunk_diagnostic(chunk_bytes: u32) -> Vec<Diagnost
 
 const AGGREGATE_USIZE_STORE_BYTES: u32 = 8;
 const AGGREGATE_I32_STORE_BYTES: u32 = 4;
+const AGGREGATE_U16_STORE_BYTES: u32 = 2;
 const AGGREGATE_U8_STORE_BYTES: u32 = 1;

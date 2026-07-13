@@ -220,7 +220,7 @@ fn validate_aggregate_binding_layout(
 ) -> Result<(), Vec<Diagnostic>> {
     if !supported_aggregate_copy_layout(layout) {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower aggregate call bindings whose final ABI word is 1, 4, or 8 bytes",
+            "IR v0 can only lower aggregate call bindings whose final ABI word is 1, 2, 4, or 8 bytes",
         ));
     }
     Ok(())

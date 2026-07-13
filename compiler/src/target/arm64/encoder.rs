@@ -215,6 +215,24 @@ impl Encoder {
         ));
     }
 
+    pub(crate) fn emit_strh_w_sp(&mut self, rt: WReg, byte_offset: u32) {
+        self.emit_word(load_store_sp_word(
+            STRH_W_UNSIGNED_BASE,
+            rt.bits(),
+            byte_offset,
+            2,
+        ));
+    }
+
+    pub(crate) fn emit_ldrh_w_sp(&mut self, rt: WReg, byte_offset: u32) {
+        self.emit_word(load_store_sp_word(
+            LDRH_W_UNSIGNED_BASE,
+            rt.bits(),
+            byte_offset,
+            2,
+        ));
+    }
+
     #[allow(dead_code)]
     pub(crate) fn emit_str_w_imm(&mut self, rt: WReg, rn: XReg, byte_offset: u32) {
         self.emit_word(load_store_unsigned_word(
@@ -253,6 +271,26 @@ impl Encoder {
             rn.bits(),
             byte_offset,
             1,
+        ));
+    }
+
+    pub(crate) fn emit_strh_w_imm(&mut self, rt: WReg, rn: XReg, byte_offset: u32) {
+        self.emit_word(load_store_unsigned_word(
+            STRH_W_UNSIGNED_BASE,
+            rt.bits(),
+            rn.bits(),
+            byte_offset,
+            2,
+        ));
+    }
+
+    pub(crate) fn emit_ldrh_w_imm(&mut self, rt: WReg, rn: XReg, byte_offset: u32) {
+        self.emit_word(load_store_unsigned_word(
+            LDRH_W_UNSIGNED_BASE,
+            rt.bits(),
+            rn.bits(),
+            byte_offset,
+            2,
         ));
     }
 
@@ -605,6 +643,8 @@ const STR_W_UNSIGNED_BASE: u32 = 0xb900_0000;
 const LDR_W_UNSIGNED_BASE: u32 = 0xb940_0000;
 const STRB_W_UNSIGNED_BASE: u32 = 0x3900_0000;
 const LDRB_W_UNSIGNED_BASE: u32 = 0x3940_0000;
+const STRH_W_UNSIGNED_BASE: u32 = 0x7900_0000;
+const LDRH_W_UNSIGNED_BASE: u32 = 0x7940_0000;
 const STR_X_UNSIGNED_BASE: u32 = 0xf900_0000;
 const LDR_X_UNSIGNED_BASE: u32 = 0xf940_0000;
 const LDRB_W_REG_BASE: u32 = 0x3860_6800;
@@ -1078,6 +1118,24 @@ mod tests {
     }
 
     #[test]
+    fn encodes_strh_w_local_sp_offset() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_strh_w_sp(WReg::W9, 6);
+
+        assert_eq!(encoder.finish(), vec![0xe9, 0x0f, 0x00, 0x79]);
+    }
+
+    #[test]
+    fn encodes_ldrh_w_local_sp_offset() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_ldrh_w_sp(WReg::W9, 6);
+
+        assert_eq!(encoder.finish(), vec![0xe9, 0x0f, 0x40, 0x79]);
+    }
+
+    #[test]
     fn encodes_ldr_w_local_sp_offset() {
         let mut encoder = Encoder::new();
 
@@ -1102,6 +1160,24 @@ mod tests {
         encoder.emit_strb_w_imm(WReg::W16, XReg::X8, 3);
 
         assert_eq!(encoder.finish(), vec![0x10, 0x0d, 0x00, 0x39]);
+    }
+
+    #[test]
+    fn encodes_strh_w16_x8_offset() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_strh_w_imm(WReg::W16, XReg::X8, 2);
+
+        assert_eq!(encoder.finish(), vec![0x10, 0x05, 0x00, 0x79]);
+    }
+
+    #[test]
+    fn encodes_ldrh_w16_x8_offset() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_ldrh_w_imm(WReg::W16, XReg::X8, 2);
+
+        assert_eq!(encoder.finish(), vec![0x10, 0x05, 0x40, 0x79]);
     }
 
     #[test]

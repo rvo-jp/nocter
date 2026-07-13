@@ -403,7 +403,7 @@ fn unsupported_parameter_type_diagnostic(function_name: &str) -> Vec<Diagnostic>
     vec![Diagnostic::error(
         "E8007",
         format!(
-            "IR v0 can only lower `i32`, `u8`, `usize`, `bool`, `&str`, `&[u8]`, `&+[u8]`, scalar borrow parameters, aggregate borrow parameters, and aggregate value parameters whose final ABI word is 1, 4, or 8 bytes for function `{function_name}`"
+            "IR v0 can only lower `i32`, `u8`, `usize`, `bool`, `&str`, `&[u8]`, `&+[u8]`, scalar borrow parameters, aggregate borrow parameters, and aggregate value parameters whose final ABI word is 1, 2, 4, or 8 bytes for function `{function_name}`"
         ),
     )]
 }
