@@ -26,6 +26,10 @@ impl Encoder {
         self.emit_word(ORR_X_BASE | (rm.bits() << 16) | (XZR_BITS << 5) | rd.bits());
     }
 
+    pub(crate) fn emit_orr_x(&mut self, rd: XReg, rn: XReg, rm: XReg) {
+        self.emit_word(ORR_X_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
+    }
+
     #[allow(dead_code)]
     pub(crate) fn emit_add_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
         self.emit_word(ADD_W_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
@@ -83,6 +87,14 @@ impl Encoder {
 
     pub(crate) fn emit_lsrv_x(&mut self, rd: XReg, rn: XReg, rm: XReg) {
         self.emit_word(LSRV_X_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rd.bits());
+    }
+
+    pub(crate) fn emit_lsl_x_imm(&mut self, rd: XReg, rn: XReg, shift: u32) {
+        self.emit_word(lsl_x_imm_word(rd, rn, shift));
+    }
+
+    pub(crate) fn emit_lsr_x_imm(&mut self, rd: XReg, rn: XReg, shift: u32) {
+        self.emit_word(lsr_x_imm_word(rd, rn, shift));
     }
 
     pub(crate) fn emit_asrv_w(&mut self, rd: WReg, rn: WReg, rm: WReg) {
@@ -620,6 +632,7 @@ const UDIV_X_BASE: u32 = 0x9ac0_0800;
 const LSLV_W_BASE: u32 = 0x1ac0_2000;
 const LSLV_X_BASE: u32 = 0x9ac0_2000;
 const LSRV_X_BASE: u32 = 0x9ac0_2400;
+const UBFM_X_BASE: u32 = 0xd340_0000;
 const ASRV_W_BASE: u32 = 0x1ac0_2800;
 #[allow(dead_code)]
 const ADD_SP_IMM_BASE: u32 = 0x9100_0000;
@@ -702,6 +715,18 @@ fn add_x_sp_imm_word(rd: XReg, byte_count: u32) -> u32 {
     debug_assert!(imm12 <= 0x0fff);
 
     ADD_SP_IMM_BASE | (shift << 22) | (imm12 << 10) | (SP_BITS << 5) | rd.bits()
+}
+
+fn lsl_x_imm_word(rd: XReg, rn: XReg, shift: u32) -> u32 {
+    debug_assert!(shift < 64);
+    let immr = (64 - shift) & 0x3f;
+    let imms = 63 - shift;
+    UBFM_X_BASE | (immr << 16) | (imms << 10) | (rn.bits() << 5) | rd.bits()
+}
+
+fn lsr_x_imm_word(rd: XReg, rn: XReg, shift: u32) -> u32 {
+    debug_assert!(shift < 64);
+    UBFM_X_BASE | (shift << 16) | (0x3f << 10) | (rn.bits() << 5) | rd.bits()
 }
 
 #[allow(dead_code)]
@@ -791,6 +816,15 @@ mod tests {
         encoder.emit_mov_x(XReg::X9, XReg::X0);
 
         assert_eq!(encoder.finish(), vec![0xe9, 0x03, 0x00, 0xaa]);
+    }
+
+    #[test]
+    fn encodes_orr_x16_x16_x17() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_orr_x(XReg::X16, XReg::X16, XReg::X17);
+
+        assert_eq!(encoder.finish(), vec![0x10, 0x02, 0x11, 0xaa]);
     }
 
     #[test]
@@ -1034,6 +1068,24 @@ mod tests {
         encoder.emit_cmp_x_zero(XReg::X17);
 
         assert_eq!(encoder.finish(), vec![0x3f, 0x02, 0x1f, 0xeb]);
+    }
+
+    #[test]
+    fn encodes_lsl_x17_x17_8() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_lsl_x_imm(XReg::X17, XReg::X17, 8);
+
+        assert_eq!(encoder.finish(), vec![0x31, 0xde, 0x78, 0xd3]);
+    }
+
+    #[test]
+    fn encodes_lsr_x17_x16_8() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_lsr_x_imm(XReg::X17, XReg::X16, 8);
+
+        assert_eq!(encoder.finish(), vec![0x11, 0xfe, 0x48, 0xd3]);
     }
 
     #[test]

@@ -6,7 +6,7 @@ use crate::ir::{
     AggregateArgumentSource, AggregateLocation, BoolLocation, BorrowSource, FallibleFailureMode,
     I32Location, ScalarArgument, SliceLocation, StrLocation, Type, U8Location, UsizeLocation,
 };
-use crate::target::arm64::{BranchCondition, MoveWideShift, WReg, XReg};
+use crate::target::arm64::{BranchCondition, WReg, XReg};
 
 pub(super) struct FallibleDirectAggregateCall<'a> {
     pub(super) destination: AggregateLocation,
@@ -1127,36 +1127,8 @@ impl EntryEmitter {
                 "direct aggregate argument source offset overflows",
             )]
         })?;
-        if chunk_bytes < DIRECT_AGGREGATE_WORD_BYTES {
-            self.encoder.emit_movz_x(XReg::X16, 0, MoveWideShift::Lsl0);
-            self.encoder.emit_str_x_sp(XReg::X16, staging_slot.offset());
-        }
-        match chunk_bytes {
-            DIRECT_AGGREGATE_WORD_BYTES => {
-                self.encoder.emit_ldr_x_sp(XReg::X16, source_offset);
-                self.encoder.emit_str_x_sp(XReg::X16, staging_slot.offset());
-            }
-            DIRECT_AGGREGATE_I32_BYTES => {
-                self.encoder.emit_ldr_w_sp(WReg::W16, source_offset);
-                self.encoder.emit_str_w_sp(WReg::W16, staging_slot.offset());
-            }
-            DIRECT_AGGREGATE_U16_BYTES => {
-                self.encoder.emit_ldrh_w_sp(WReg::W16, source_offset);
-                self.encoder
-                    .emit_strh_w_sp(WReg::W16, staging_slot.offset());
-            }
-            DIRECT_AGGREGATE_U8_BYTES => {
-                self.encoder.emit_ldrb_w_sp(WReg::W16, source_offset);
-                self.encoder
-                    .emit_strb_w_sp(WReg::W16, staging_slot.offset());
-            }
-            _ => {
-                return Err(unsupported_direct_aggregate_chunk_diagnostic(
-                    chunk_bytes,
-                    "direct aggregate argument",
-                ));
-            }
-        }
+        self.emit_aggregate_copy_stack_chunk_to_scratch(source_offset, chunk_bytes)?;
+        self.encoder.emit_str_x_sp(XReg::X16, staging_slot.offset());
         Ok(())
     }
 
@@ -1191,29 +1163,11 @@ impl EntryEmitter {
                 direct_aggregate_result_diagnostic("destination offset overflows")
             })?;
             match chunk_bytes {
-                DIRECT_AGGREGATE_WORD_BYTES => {
+                1..=DIRECT_AGGREGATE_WORD_BYTES => {
                     let register = XReg::argument(register_index).ok_or_else(|| {
                         direct_aggregate_result_diagnostic("result register is unavailable")
                     })?;
-                    self.encoder.emit_str_x_sp(register, destination);
-                }
-                DIRECT_AGGREGATE_I32_BYTES => {
-                    let register = WReg::argument(register_index).ok_or_else(|| {
-                        direct_aggregate_result_diagnostic("result register is unavailable")
-                    })?;
-                    self.encoder.emit_str_w_sp(register, destination);
-                }
-                DIRECT_AGGREGATE_U16_BYTES => {
-                    let register = WReg::argument(register_index).ok_or_else(|| {
-                        direct_aggregate_result_diagnostic("result register is unavailable")
-                    })?;
-                    self.encoder.emit_strh_w_sp(register, destination);
-                }
-                DIRECT_AGGREGATE_U8_BYTES => {
-                    let register = WReg::argument(register_index).ok_or_else(|| {
-                        direct_aggregate_result_diagnostic("result register is unavailable")
-                    })?;
-                    self.encoder.emit_strb_w_sp(register, destination);
+                    self.emit_aggregate_copy_x_to_stack_chunk(register, destination, chunk_bytes)?;
                 }
                 _ => {
                     return Err(unsupported_direct_aggregate_chunk_diagnostic(
@@ -1260,17 +1214,13 @@ fn direct_aggregate_chunk_bytes(
     remaining_bytes: u32,
     subject: &str,
 ) -> Result<u32, Vec<Diagnostic>> {
-    if remaining_bytes >= DIRECT_AGGREGATE_WORD_BYTES {
-        return Ok(DIRECT_AGGREGATE_WORD_BYTES);
-    }
     match remaining_bytes {
-        DIRECT_AGGREGATE_I32_BYTES | DIRECT_AGGREGATE_U16_BYTES | DIRECT_AGGREGATE_U8_BYTES => {
-            Ok(remaining_bytes)
-        }
-        _ => Err(unsupported_direct_aggregate_chunk_diagnostic(
+        0 => Err(unsupported_direct_aggregate_chunk_diagnostic(
             remaining_bytes,
             subject,
         )),
+        1..=DIRECT_AGGREGATE_WORD_BYTES => Ok(remaining_bytes),
+        _ => Ok(DIRECT_AGGREGATE_WORD_BYTES),
     }
 }
 
@@ -1296,6 +1246,3 @@ fn direct_aggregate_diagnostic(subject: &str, reason: &str) -> Vec<Diagnostic> {
 }
 
 const DIRECT_AGGREGATE_WORD_BYTES: u32 = 8;
-const DIRECT_AGGREGATE_I32_BYTES: u32 = 4;
-const DIRECT_AGGREGATE_U16_BYTES: u32 = 2;
-const DIRECT_AGGREGATE_U8_BYTES: u32 = 1;

@@ -6,7 +6,7 @@ use crate::ir::{
     AggregateLocation, BoolLocation, BoolValue, I32Location, I32Value, SliceLocation, SliceValue,
     StrLocation, StrValue, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
-use crate::target::arm64::{BranchCondition, WReg, XReg};
+use crate::target::arm64::{BranchCondition, MoveWideShift, WReg, XReg};
 
 #[derive(Clone, Copy)]
 enum AggregateCopySource {
@@ -477,28 +477,9 @@ impl EntryEmitter {
                         ),
                     )]
                 })?;
-                match chunk_bytes {
-                    AGGREGATE_USIZE_STORE_BYTES => {
-                        if source_register != XReg::X16 {
-                            self.encoder.emit_mov_x(XReg::X16, source_register);
-                        }
-                    }
-                    AGGREGATE_I32_STORE_BYTES
-                    | AGGREGATE_U16_STORE_BYTES
-                    | AGGREGATE_U8_STORE_BYTES => {
-                        let source_register = WReg::argument(register_index).ok_or_else(|| {
-                            vec![Diagnostic::error(
-                                "E9005",
-                                format!(
-                                    "direct aggregate parameter copy source word {register_index} has no argument register"
-                                ),
-                            )]
-                        })?;
-                        if source_register != WReg::W16 {
-                            self.encoder.emit_mov_w(WReg::W16, source_register);
-                        }
-                    }
-                    _ => return Err(unsupported_aggregate_copy_chunk_diagnostic(chunk_bytes)),
+                validate_aggregate_copy_chunk_bytes(chunk_bytes)?;
+                if source_register != XReg::X16 {
+                    self.encoder.emit_mov_x(XReg::X16, source_register);
                 }
             }
         }
@@ -541,66 +522,217 @@ impl EntryEmitter {
         }
     }
 
-    fn emit_aggregate_copy_stack_chunk_to_scratch(
+    pub(super) fn emit_aggregate_copy_stack_chunk_to_scratch(
         &mut self,
         offset: u32,
         chunk_bytes: u32,
     ) -> Result<(), Vec<Diagnostic>> {
+        validate_aggregate_copy_chunk_bytes(chunk_bytes)?;
+        if !aggregate_copy_chunk_has_aligned_offset(offset, chunk_bytes) {
+            return self.emit_aggregate_copy_stack_bytes_to_scratch(offset, chunk_bytes);
+        }
+
         match chunk_bytes {
             AGGREGATE_USIZE_STORE_BYTES => self.encoder.emit_ldr_x_sp(XReg::X16, offset),
             AGGREGATE_I32_STORE_BYTES => self.encoder.emit_ldr_w_sp(WReg::W16, offset),
             AGGREGATE_U16_STORE_BYTES => self.encoder.emit_ldrh_w_sp(WReg::W16, offset),
             AGGREGATE_U8_STORE_BYTES => self.encoder.emit_ldrb_w_sp(WReg::W16, offset),
-            _ => return Err(unsupported_aggregate_copy_chunk_diagnostic(chunk_bytes)),
+            _ => return self.emit_aggregate_copy_stack_bytes_to_scratch(offset, chunk_bytes),
         }
         Ok(())
     }
 
-    fn emit_aggregate_copy_memory_chunk_to_scratch(
+    pub(super) fn emit_aggregate_copy_memory_chunk_to_scratch(
         &mut self,
         base: XReg,
         offset: u32,
         chunk_bytes: u32,
     ) -> Result<(), Vec<Diagnostic>> {
+        validate_aggregate_copy_chunk_bytes(chunk_bytes)?;
+        if !aggregate_copy_chunk_has_aligned_offset(offset, chunk_bytes) {
+            return self.emit_aggregate_copy_memory_bytes_to_scratch(base, offset, chunk_bytes);
+        }
+
         match chunk_bytes {
             AGGREGATE_USIZE_STORE_BYTES => self.encoder.emit_ldr_x_imm(XReg::X16, base, offset),
             AGGREGATE_I32_STORE_BYTES => self.encoder.emit_ldr_w_imm(WReg::W16, base, offset),
             AGGREGATE_U16_STORE_BYTES => self.encoder.emit_ldrh_w_imm(WReg::W16, base, offset),
             AGGREGATE_U8_STORE_BYTES => self.encoder.emit_ldrb_w_imm(WReg::W16, base, offset),
-            _ => return Err(unsupported_aggregate_copy_chunk_diagnostic(chunk_bytes)),
+            _ => {
+                return self.emit_aggregate_copy_memory_bytes_to_scratch(base, offset, chunk_bytes);
+            }
         }
         Ok(())
     }
 
-    fn emit_aggregate_copy_scratch_to_stack_chunk(
+    pub(super) fn emit_aggregate_copy_scratch_to_stack_chunk(
         &mut self,
         offset: u32,
         chunk_bytes: u32,
     ) -> Result<(), Vec<Diagnostic>> {
+        validate_aggregate_copy_chunk_bytes(chunk_bytes)?;
+        if !aggregate_copy_chunk_has_aligned_offset(offset, chunk_bytes) {
+            return self.emit_aggregate_copy_scratch_to_stack_bytes(offset, chunk_bytes);
+        }
+
         match chunk_bytes {
             AGGREGATE_USIZE_STORE_BYTES => self.encoder.emit_str_x_sp(XReg::X16, offset),
             AGGREGATE_I32_STORE_BYTES => self.encoder.emit_str_w_sp(WReg::W16, offset),
             AGGREGATE_U16_STORE_BYTES => self.encoder.emit_strh_w_sp(WReg::W16, offset),
             AGGREGATE_U8_STORE_BYTES => self.encoder.emit_strb_w_sp(WReg::W16, offset),
-            _ => return Err(unsupported_aggregate_copy_chunk_diagnostic(chunk_bytes)),
+            _ => return self.emit_aggregate_copy_scratch_to_stack_bytes(offset, chunk_bytes),
         }
         Ok(())
     }
 
-    fn emit_aggregate_copy_scratch_to_memory_chunk(
+    pub(super) fn emit_aggregate_copy_scratch_to_memory_chunk(
         &mut self,
         base: XReg,
         offset: u32,
         chunk_bytes: u32,
     ) -> Result<(), Vec<Diagnostic>> {
+        validate_aggregate_copy_chunk_bytes(chunk_bytes)?;
+        if !aggregate_copy_chunk_has_aligned_offset(offset, chunk_bytes) {
+            return self.emit_aggregate_copy_scratch_to_memory_bytes(base, offset, chunk_bytes);
+        }
+
         match chunk_bytes {
             AGGREGATE_USIZE_STORE_BYTES => self.encoder.emit_str_x_imm(XReg::X16, base, offset),
             AGGREGATE_I32_STORE_BYTES => self.encoder.emit_str_w_imm(WReg::W16, base, offset),
             AGGREGATE_U16_STORE_BYTES => self.encoder.emit_strh_w_imm(WReg::W16, base, offset),
             AGGREGATE_U8_STORE_BYTES => self.encoder.emit_strb_w_imm(WReg::W16, base, offset),
-            _ => return Err(unsupported_aggregate_copy_chunk_diagnostic(chunk_bytes)),
+            _ => {
+                return self.emit_aggregate_copy_scratch_to_memory_bytes(base, offset, chunk_bytes);
+            }
         }
         Ok(())
+    }
+
+    pub(super) fn emit_aggregate_copy_x_to_stack_chunk(
+        &mut self,
+        source: XReg,
+        offset: u32,
+        chunk_bytes: u32,
+    ) -> Result<(), Vec<Diagnostic>> {
+        validate_aggregate_copy_chunk_bytes(chunk_bytes)?;
+        if aggregate_copy_chunk_has_aligned_offset(offset, chunk_bytes) {
+            match chunk_bytes {
+                AGGREGATE_USIZE_STORE_BYTES => {
+                    self.encoder.emit_str_x_sp(source, offset);
+                    return Ok(());
+                }
+                AGGREGATE_I32_STORE_BYTES => {
+                    if let Some(source) = w_reg_for_x_reg(source) {
+                        self.encoder.emit_str_w_sp(source, offset);
+                        return Ok(());
+                    }
+                }
+                AGGREGATE_U16_STORE_BYTES => {
+                    if let Some(source) = w_reg_for_x_reg(source) {
+                        self.encoder.emit_strh_w_sp(source, offset);
+                        return Ok(());
+                    }
+                }
+                AGGREGATE_U8_STORE_BYTES => {
+                    if let Some(source) = w_reg_for_x_reg(source) {
+                        self.encoder.emit_strb_w_sp(source, offset);
+                        return Ok(());
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        if source != XReg::X16 {
+            self.encoder.emit_mov_x(XReg::X16, source);
+        }
+        self.emit_aggregate_copy_scratch_to_stack_chunk(offset, chunk_bytes)
+    }
+
+    fn emit_aggregate_copy_stack_bytes_to_scratch(
+        &mut self,
+        offset: u32,
+        chunk_bytes: u32,
+    ) -> Result<(), Vec<Diagnostic>> {
+        validate_aggregate_copy_chunk_bytes(chunk_bytes)?;
+        self.encoder.emit_movz_x(XReg::X16, 0, MoveWideShift::Lsl0);
+        for byte_offset in 0..chunk_bytes {
+            let source_offset = offset
+                .checked_add(byte_offset)
+                .ok_or_else(|| aggregate_copy_diagnostic("source byte offset overflows"))?;
+            self.encoder.emit_ldrb_w_sp(WReg::W17, source_offset);
+            self.emit_aggregate_copy_byte_to_scratch(byte_offset);
+        }
+        Ok(())
+    }
+
+    fn emit_aggregate_copy_memory_bytes_to_scratch(
+        &mut self,
+        base: XReg,
+        offset: u32,
+        chunk_bytes: u32,
+    ) -> Result<(), Vec<Diagnostic>> {
+        validate_aggregate_copy_chunk_bytes(chunk_bytes)?;
+        self.encoder.emit_movz_x(XReg::X16, 0, MoveWideShift::Lsl0);
+        for byte_offset in 0..chunk_bytes {
+            let source_offset = offset
+                .checked_add(byte_offset)
+                .ok_or_else(|| aggregate_copy_diagnostic("source byte offset overflows"))?;
+            self.encoder.emit_ldrb_w_imm(WReg::W17, base, source_offset);
+            self.emit_aggregate_copy_byte_to_scratch(byte_offset);
+        }
+        Ok(())
+    }
+
+    fn emit_aggregate_copy_byte_to_scratch(&mut self, byte_offset: u32) {
+        if byte_offset != 0 {
+            self.encoder
+                .emit_lsl_x_imm(XReg::X17, XReg::X17, byte_offset * 8);
+        }
+        self.encoder.emit_orr_x(XReg::X16, XReg::X16, XReg::X17);
+    }
+
+    fn emit_aggregate_copy_scratch_to_stack_bytes(
+        &mut self,
+        offset: u32,
+        chunk_bytes: u32,
+    ) -> Result<(), Vec<Diagnostic>> {
+        validate_aggregate_copy_chunk_bytes(chunk_bytes)?;
+        for byte_offset in 0..chunk_bytes {
+            let destination_offset = offset
+                .checked_add(byte_offset)
+                .ok_or_else(|| aggregate_copy_diagnostic("destination byte offset overflows"))?;
+            self.emit_aggregate_copy_scratch_byte_to_w17(byte_offset);
+            self.encoder.emit_strb_w_sp(WReg::W17, destination_offset);
+        }
+        Ok(())
+    }
+
+    fn emit_aggregate_copy_scratch_to_memory_bytes(
+        &mut self,
+        base: XReg,
+        offset: u32,
+        chunk_bytes: u32,
+    ) -> Result<(), Vec<Diagnostic>> {
+        validate_aggregate_copy_chunk_bytes(chunk_bytes)?;
+        for byte_offset in 0..chunk_bytes {
+            let destination_offset = offset
+                .checked_add(byte_offset)
+                .ok_or_else(|| aggregate_copy_diagnostic("destination byte offset overflows"))?;
+            self.emit_aggregate_copy_scratch_byte_to_w17(byte_offset);
+            self.encoder
+                .emit_strb_w_imm(WReg::W17, base, destination_offset);
+        }
+        Ok(())
+    }
+
+    fn emit_aggregate_copy_scratch_byte_to_w17(&mut self, byte_offset: u32) {
+        if byte_offset == 0 {
+            self.encoder.emit_mov_w(WReg::W17, WReg::W16);
+        } else {
+            self.encoder
+                .emit_lsr_x_imm(XReg::X17, XReg::X16, byte_offset * 8);
+        }
     }
 
     fn emit_x_to_direct_aggregate_return(&mut self, offset: u32) -> Result<(), Vec<Diagnostic>> {
@@ -1227,14 +1359,10 @@ fn aggregate_copy_diagnostic(reason: &str) -> Vec<Diagnostic> {
 }
 
 fn aggregate_copy_chunk_bytes(remaining_bytes: u32) -> Result<u32, Vec<Diagnostic>> {
-    if remaining_bytes >= AGGREGATE_USIZE_STORE_BYTES {
-        return Ok(AGGREGATE_USIZE_STORE_BYTES);
-    }
     match remaining_bytes {
-        AGGREGATE_I32_STORE_BYTES | AGGREGATE_U16_STORE_BYTES | AGGREGATE_U8_STORE_BYTES => {
-            Ok(remaining_bytes)
-        }
-        _ => Err(unsupported_aggregate_copy_chunk_diagnostic(remaining_bytes)),
+        0 => Err(unsupported_aggregate_copy_chunk_diagnostic(remaining_bytes)),
+        1..=AGGREGATE_USIZE_STORE_BYTES => Ok(remaining_bytes),
+        _ => Ok(AGGREGATE_USIZE_STORE_BYTES),
     }
 }
 
@@ -1267,6 +1395,46 @@ fn unsupported_aggregate_copy_chunk_diagnostic(chunk_bytes: u32) -> Vec<Diagnost
     aggregate_copy_diagnostic(&format!(
         "partial ABI word size {chunk_bytes} is not supported"
     ))
+}
+
+fn validate_aggregate_copy_chunk_bytes(chunk_bytes: u32) -> Result<(), Vec<Diagnostic>> {
+    match chunk_bytes {
+        1..=AGGREGATE_USIZE_STORE_BYTES => Ok(()),
+        _ => Err(unsupported_aggregate_copy_chunk_diagnostic(chunk_bytes)),
+    }
+}
+
+fn aggregate_copy_chunk_has_aligned_offset(offset: u32, chunk_bytes: u32) -> bool {
+    matches!(
+        chunk_bytes,
+        AGGREGATE_USIZE_STORE_BYTES
+            | AGGREGATE_I32_STORE_BYTES
+            | AGGREGATE_U16_STORE_BYTES
+            | AGGREGATE_U8_STORE_BYTES
+    ) && offset % chunk_bytes == 0
+}
+
+fn w_reg_for_x_reg(register: XReg) -> Option<WReg> {
+    match register {
+        XReg::X0 => Some(WReg::W0),
+        XReg::X1 => Some(WReg::W1),
+        XReg::X2 => Some(WReg::W2),
+        XReg::X3 => Some(WReg::W3),
+        XReg::X4 => Some(WReg::W4),
+        XReg::X5 => Some(WReg::W5),
+        XReg::X6 => Some(WReg::W6),
+        XReg::X7 => Some(WReg::W7),
+        XReg::X9 => Some(WReg::W9),
+        XReg::X10 => Some(WReg::W10),
+        XReg::X11 => Some(WReg::W11),
+        XReg::X12 => Some(WReg::W12),
+        XReg::X13 => Some(WReg::W13),
+        XReg::X14 => Some(WReg::W14),
+        XReg::X15 => Some(WReg::W15),
+        XReg::X16 => Some(WReg::W16),
+        XReg::X17 => Some(WReg::W17),
+        XReg::X8 | XReg::X30 => None,
+    }
 }
 
 const AGGREGATE_USIZE_STORE_BYTES: u32 = 8;

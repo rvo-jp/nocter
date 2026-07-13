@@ -1226,6 +1226,53 @@ func read(bytes: Bytes): u8 {
 }
 
 #[test]
+fn lowers_three_byte_direct_aggregate_value_parameter_field_return() {
+    let function = lower_named_function(
+        r#"struct Bytes {
+    first: u8
+    second: u8
+    third: u8
+}
+
+func main(): i32 {
+    return 0
+}
+
+func read(bytes: Bytes): u8 {
+    return bytes.third
+}
+"#,
+        "read",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "read".to_string(),
+            target: CallTarget::same_file("read"),
+            return_type: Type::U8,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(3, 1),
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    source: AggregateLocation::DirectParameter { start_index: 0 },
+                    layout: ValueLayout::new(3, 1),
+                },
+                Instruction::LoadAggregateU8 {
+                    destination: U8Location::Return,
+                    source: AggregateLocation::Slot(0),
+                    offset: 2,
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_borrowed_aggregate_parameter_field_return() {
     let function = lower_named_function(
         r#"struct Header {
@@ -2131,6 +2178,78 @@ func make(): Code {
                     destination: AggregateLocation::DirectReturn,
                     source: AggregateLocation::Slot(0),
                     layout: ValueLayout::new(4, 4),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_five_byte_direct_aggregate_struct_literal_return_through_slot() {
+    let function = lower_named_function(
+        r#"struct Bytes {
+    first: u8
+    second: u8
+    third: u8
+    fourth: u8
+    fifth: u8
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Bytes {
+    return Bytes{ first: 1, second: 2, third: 3, fourth: 4, fifth: 42 }
+}
+"#,
+        "make",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "make".to_string(),
+            target: CallTarget::same_file("make"),
+            return_type: Type::DirectAggregate {
+                layout: ValueLayout::new(5, 1),
+                words: 1,
+            },
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(5, 1),
+                },
+                Instruction::StoreAggregateU8 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: U8Value::Const(1),
+                },
+                Instruction::StoreAggregateU8 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 1,
+                    value: U8Value::Const(2),
+                },
+                Instruction::StoreAggregateU8 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 2,
+                    value: U8Value::Const(3),
+                },
+                Instruction::StoreAggregateU8 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 3,
+                    value: U8Value::Const(4),
+                },
+                Instruction::StoreAggregateU8 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 4,
+                    value: U8Value::Const(42),
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::DirectReturn,
+                    source: AggregateLocation::Slot(0),
+                    layout: ValueLayout::new(5, 1),
                 },
                 Instruction::Return,
             ],

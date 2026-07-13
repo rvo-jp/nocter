@@ -1724,6 +1724,84 @@ func consume(bytes: Bytes): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_three_byte_direct_aggregate_value_argument_field_exit_code() {
+    let project = TempProject::new("cli-run-three-byte-direct-aggregate-value-arg");
+    let source = project.write_source(
+        "three_byte_direct_aggregate_value_arg.nct",
+        r#"struct Bytes {
+    first: u8
+    second: u8
+    third: u8
+}
+
+func main(): i32 {
+    let result = consume(Bytes{ first: 7, second: 11, third: 42 })
+    return result
+}
+
+func consume(bytes: Bytes): i32 {
+    if bytes.third == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_five_byte_direct_aggregate_value_argument_field_exit_code() {
+    let project = TempProject::new("cli-run-five-byte-direct-aggregate-value-arg");
+    let source = project.write_source(
+        "five_byte_direct_aggregate_value_arg.nct",
+        r#"struct Bytes {
+    first: u8
+    second: u8
+    third: u8
+    fourth: u8
+    fifth: u8
+}
+
+func main(): i32 {
+    let result = consume(Bytes{ first: 1, second: 2, third: 3, fourth: 4, fifth: 42 })
+    return result
+}
+
+func consume(bytes: Bytes): i32 {
+    if bytes.fifth == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_small_direct_aggregate_call_result_field_exit_code() {
     let project = TempProject::new("cli-run-small-direct-aggregate-call-result-field");
     let source = project.write_source(
@@ -1774,6 +1852,87 @@ func main(): i32 {
 
 func make(): Bytes {
     return Bytes{ first: 7, second: 42 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_six_byte_direct_aggregate_call_result_field_exit_code() {
+    let project = TempProject::new("cli-run-six-byte-direct-aggregate-call-result-field");
+    let source = project.write_source(
+        "six_byte_direct_aggregate_call_result_field.nct",
+        r#"struct Bytes {
+    first: u8
+    second: u8
+    third: u8
+    fourth: u8
+    fifth: u8
+    sixth: u8
+}
+
+func main(): i32 {
+    if make().sixth == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+
+func make(): Bytes {
+    return Bytes{ first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 42 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_seven_byte_direct_aggregate_call_result_field_exit_code() {
+    let project = TempProject::new("cli-run-seven-byte-direct-aggregate-call-result-field");
+    let source = project.write_source(
+        "seven_byte_direct_aggregate_call_result_field.nct",
+        r#"struct Bytes {
+    first: u8
+    second: u8
+    third: u8
+    fourth: u8
+    fifth: u8
+    sixth: u8
+    seventh: u8
+}
+
+func main(): i32 {
+    if make().seventh == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+
+func make(): Bytes {
+    return Bytes{ first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 42 }
 }
 "#,
     );
