@@ -2381,6 +2381,112 @@ func consume(bytes: Bytes): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_shifted_nine_byte_direct_aggregate_argument_exit_code() {
+    let project = TempProject::new("cli-run-nine-byte-direct-aggregate-arg-between-scalars");
+    let source = project.write_source(
+        "nine_byte_direct_aggregate_arg_between_scalars.nct",
+        r#"struct Bytes {
+    first: u8
+    second: u8
+    third: u8
+    fourth: u8
+    fifth: u8
+    sixth: u8
+    seventh: u8
+    eighth: u8
+    ninth: u8
+}
+
+func main(): i32 {
+    return consume(5, Bytes{
+        first: 1,
+        second: 2,
+        third: 3,
+        fourth: 4,
+        fifth: 5,
+        sixth: 6,
+        seventh: 7,
+        eighth: 8,
+        ninth: 41,
+    }, 42)
+}
+
+func consume(prefix: i32, bytes: Bytes, suffix: i32): i32 {
+    if bytes.ninth == 41 {
+        return suffix
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_boundary_nine_byte_direct_aggregate_argument_exit_code() {
+    let project = TempProject::new("cli-run-nine-byte-direct-aggregate-arg-register-boundary");
+    let source = project.write_source(
+        "nine_byte_direct_aggregate_arg_register_boundary.nct",
+        r#"struct Bytes {
+    first: u8
+    second: u8
+    third: u8
+    fourth: u8
+    fifth: u8
+    sixth: u8
+    seventh: u8
+    eighth: u8
+    ninth: u8
+}
+
+func main(): i32 {
+    return consume(1, 2, 3, 4, 5, 6, Bytes{
+        first: 1,
+        second: 2,
+        third: 3,
+        fourth: 4,
+        fifth: 5,
+        sixth: 6,
+        seventh: 7,
+        eighth: 8,
+        ninth: 42,
+    })
+}
+
+func consume(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, bytes: Bytes): i32 {
+    if bytes.ninth == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_shifted_five_byte_direct_aggregate_argument_exit_code() {
     let project = TempProject::new("cli-run-five-byte-direct-aggregate-arg-between-scalars");
     let source = project.write_source(
@@ -3115,6 +3221,64 @@ func make(): Bytes! {
 
 func consume(prefix: i32, bytes: Bytes, suffix: i32): i32 {
     if bytes.fifth == 41 {
+        return suffix
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_shifted_fallible_nine_byte_direct_aggregate_argument_exit_code() {
+    let project =
+        TempProject::new("cli-run-propagated-nine-byte-direct-aggregate-call-arg-between-scalars");
+    let source = project.write_source(
+        "propagated_nine_byte_direct_aggregate_call_arg_between_scalars.nct",
+        r#"struct Bytes {
+    first: u8
+    second: u8
+    third: u8
+    fourth: u8
+    fifth: u8
+    sixth: u8
+    seventh: u8
+    eighth: u8
+    ninth: u8
+}
+
+func main(): i32! {
+    return consume(5, make()?, 42)
+}
+
+func make(): Bytes! {
+    return Bytes{
+        first: 1,
+        second: 2,
+        third: 3,
+        fourth: 4,
+        fifth: 5,
+        sixth: 6,
+        seventh: 7,
+        eighth: 8,
+        ninth: 41,
+    }
+}
+
+func consume(prefix: i32, bytes: Bytes, suffix: i32): i32 {
+    if bytes.ninth == 41 {
         return suffix
     } else {
         return 1
