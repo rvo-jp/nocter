@@ -1839,6 +1839,96 @@ func wrap(header: Header): Packet {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_nested_aggregate_struct_literal_argument_call_field_exit_code() {
+    let project = TempProject::new("cli-run-nested-aggregate-struct-literal-arg-call-field");
+    let source = project.write_source(
+        "nested_aggregate_struct_literal_arg_call_field.nct",
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    return consume(Packet{
+        prefix: 1,
+        header: make_header(),
+        tail: 99,
+    })
+}
+
+func make_header(): Header {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+
+func consume(packet: Packet): i32 {
+    return packet.header.code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_direct_aggregate_struct_literal_return_call_field_exit_code() {
+    let project = TempProject::new("cli-run-direct-aggregate-struct-literal-return-call-field");
+    let source = project.write_source(
+        "direct_aggregate_struct_literal_return_call_field.nct",
+        r#"copy struct Pair {
+    first: i32
+    second: i32
+}
+
+copy struct Wrap {
+    pair: Pair
+    code: i32
+}
+
+func main(): i32 {
+    let wrap = make_wrap()
+    return wrap.code
+}
+
+func make_pair(): Pair {
+    return Pair{ first: 1, second: 2 }
+}
+
+func make_wrap(): Wrap {
+    return Wrap{ pair: make_pair(), code: 42 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_small_direct_aggregate_value_argument_field_exit_code() {
     let project = TempProject::new("cli-run-small-direct-aggregate-value-arg");
     let source = project.write_source(

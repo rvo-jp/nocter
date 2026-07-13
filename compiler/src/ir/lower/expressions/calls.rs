@@ -1,5 +1,5 @@
 use super::super::aggregates::{
-    lower_aggregate_struct_literal_to_location, supported_aggregate_copy_layout,
+    lower_aggregate_struct_literal_to_location_with_temporaries, supported_aggregate_copy_layout,
 };
 use super::super::context::{AggregateFieldKind, LoweringContext};
 use super::temporaries::TemporaryAllocator;
@@ -669,7 +669,7 @@ fn lower_aggregate_argument_source(
                 slot_index,
                 layout: expected_layout,
             }];
-            instructions.extend(lower_aggregate_struct_literal_to_location(
+            instructions.extend(lower_aggregate_struct_literal_to_location_with_temporaries(
                 literal,
                 expected_layout,
                 AggregateLocation::Slot(slot_index),
@@ -677,6 +677,7 @@ fn lower_aggregate_argument_source(
                 &format!("arguments for function `{callee_name}`"),
                 resolved,
                 context,
+                temporaries,
             )?);
             Ok((instructions, AggregateArgumentSource::Slot(slot_index)))
         }

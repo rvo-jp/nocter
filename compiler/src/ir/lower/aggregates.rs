@@ -36,6 +36,29 @@ pub(super) fn lower_aggregate_struct_literal_to_location(
     )
 }
 
+pub(super) fn lower_aggregate_struct_literal_to_location_with_temporaries(
+    literal: &StructLiteralExpr,
+    expected_layout: ValueLayout,
+    destination: AggregateLocation,
+    diagnostic_code: &'static str,
+    subject: &str,
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_aggregate_struct_literal_to_location_at_offset_with_temporaries(
+        literal,
+        expected_layout,
+        destination,
+        0,
+        diagnostic_code,
+        subject,
+        resolved,
+        context,
+        temporaries,
+    )
+}
+
 pub(super) fn lower_aggregate_struct_literal_to_location_at_offset(
     literal: &StructLiteralExpr,
     expected_layout: ValueLayout,
@@ -45,6 +68,31 @@ pub(super) fn lower_aggregate_struct_literal_to_location_at_offset(
     subject: &str,
     resolved: &ResolveOutput,
     context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    lower_aggregate_struct_literal_to_location_at_offset_with_temporaries(
+        literal,
+        expected_layout,
+        destination,
+        base_offset,
+        diagnostic_code,
+        subject,
+        resolved,
+        context,
+        &mut temporaries,
+    )
+}
+
+fn lower_aggregate_struct_literal_to_location_at_offset_with_temporaries(
+    literal: &StructLiteralExpr,
+    expected_layout: ValueLayout,
+    destination: AggregateLocation,
+    base_offset: u32,
+    diagnostic_code: &'static str,
+    subject: &str,
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let value = abi_value_from_type_expr(&literal.ty, resolved).map_err(|_error| {
         unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
@@ -62,7 +110,6 @@ pub(super) fn lower_aggregate_struct_literal_to_location_at_offset(
             subject,
         ));
     };
-    let mut temporaries = TemporaryAllocator::new(context)?;
     lower_aggregate_struct_fields_to_location(
         &fields,
         literal,
@@ -72,7 +119,7 @@ pub(super) fn lower_aggregate_struct_literal_to_location_at_offset(
         subject,
         resolved,
         context,
-        &mut temporaries,
+        temporaries,
     )
 }
 

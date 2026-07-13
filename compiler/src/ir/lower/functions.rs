@@ -1,6 +1,6 @@
 use super::aggregates::{
     aggregate_fields_from_type_expr, lower_aggregate_struct_literal_to_location,
-    supported_aggregate_copy_layout,
+    lower_aggregate_struct_literal_to_location_with_temporaries, supported_aggregate_copy_layout,
 };
 use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{
@@ -969,12 +969,13 @@ fn lower_direct_aggregate_struct_literal_return_through_slot(
         ));
     }
 
-    let slot_index = context.next_aggregate_slot_index();
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let slot_index = temporaries.next_aggregate_slot();
     let mut instructions = vec![Instruction::ReserveAggregateSlot {
         slot_index,
         layout: expected_layout,
     }];
-    instructions.extend(lower_aggregate_struct_literal_to_location(
+    instructions.extend(lower_aggregate_struct_literal_to_location_with_temporaries(
         literal,
         expected_layout,
         AggregateLocation::Slot(slot_index),
@@ -982,6 +983,7 @@ fn lower_direct_aggregate_struct_literal_return_through_slot(
         subject,
         resolved,
         context,
+        &mut temporaries,
     )?);
     instructions.push(Instruction::CopyAggregate {
         destination: AggregateLocation::DirectReturn,
