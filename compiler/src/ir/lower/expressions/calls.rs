@@ -11,6 +11,7 @@ use super::{
     lower_str_expression_to_value, lower_u8_expression_to_value, lower_usize_expression_to_value,
     unsupported_non_tail_call_diagnostic,
 };
+use crate::abi::ARGUMENT_REGISTER_COUNT;
 use crate::ast::{CallExpr, Expr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::StrLocation;
@@ -507,7 +508,7 @@ pub(super) fn lower_call_arguments(
     temporaries: &mut TemporaryAllocator,
 ) -> Result<(Vec<Instruction>, Vec<ScalarArgument>), Vec<Diagnostic>> {
     let Some(parameter_types) = context.call_parameter_types(target) else {
-        return lower_legacy_i32_call_arguments(call, context, temporaries);
+        return lower_legacy_i32_call_arguments(call, callee_name, context, temporaries);
     };
 
     if parameter_types.len() != call.arguments.len() {
@@ -608,7 +609,38 @@ pub(super) fn lower_call_arguments(
         }
     }
 
+    validate_call_argument_abi_word_count(callee_name, &arguments)?;
     Ok((instructions, arguments))
+}
+
+fn validate_call_argument_abi_word_count(
+    callee_name: &str,
+    arguments: &[ScalarArgument],
+) -> Result<(), Vec<Diagnostic>> {
+    let mut count = 0_usize;
+    for argument in arguments {
+        count = count
+            .checked_add(argument.abi_word_count())
+            .ok_or_else(|| call_argument_abi_word_count_overflow_diagnostic(callee_name))?;
+    }
+
+    if count > ARGUMENT_REGISTER_COUNT {
+        return Err(vec![Diagnostic::error(
+            "E8006",
+            format!(
+                "IR v0 can only lower up to {ARGUMENT_REGISTER_COUNT} ABI argument words for call to function `{callee_name}`, got {count}",
+            ),
+        )]);
+    }
+
+    Ok(())
+}
+
+fn call_argument_abi_word_count_overflow_diagnostic(callee_name: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8006",
+        format!("IR v0 call argument ABI word count overflows for function `{callee_name}`"),
+    )]
 }
 
 fn lower_aggregate_argument_source(
@@ -1045,6 +1077,7 @@ pub(super) fn primitive_trap_call(call: &CallExpr, context: &LoweringContext) ->
 
 fn lower_legacy_i32_call_arguments(
     call: &CallExpr,
+    callee_name: &str,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<(Vec<Instruction>, Vec<ScalarArgument>), Vec<Diagnostic>> {
@@ -1056,6 +1089,7 @@ fn lower_legacy_i32_call_arguments(
         arguments.push(ScalarArgument::I32(argument.value));
     }
 
+    validate_call_argument_abi_word_count(callee_name, &arguments)?;
     Ok((instructions, arguments))
 }
 

@@ -6190,6 +6190,54 @@ func consume(a: &str, b: &str, c: &str, d: &str, e: usize): i32 {
 }
 
 #[test]
+fn rejects_call_with_more_than_eight_abi_argument_words() {
+    let diagnostics = lower_named_function_diagnostics_with_signatures(
+        r#"func main(): i32 {
+    return consume(1, 2, 3, 4, 5, 6, 7, 8, 9)
+}
+
+func consume(
+    a: usize,
+    b: usize,
+    c: usize,
+    d: usize,
+    e: usize,
+    f: usize,
+    g: usize,
+    h: usize,
+    i: usize,
+): i32 {
+    return 0
+}
+"#,
+        "main",
+        function_signatures(vec![(
+            "consume",
+            Type::I32,
+            vec![
+                Type::Usize,
+                Type::Usize,
+                Type::Usize,
+                Type::Usize,
+                Type::Usize,
+                Type::Usize,
+                Type::Usize,
+                Type::Usize,
+                Type::Usize,
+            ],
+        )]),
+    );
+
+    assert_eq!(diagnostics[0].code, "E8006");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("up to 8 ABI argument words"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn lowers_imported_i32_call_target_when_boundary_is_bypassed() {
     let analysis = analyze_text_with_entry_and_nocter_home_files(
         r#"from std/math import answer
