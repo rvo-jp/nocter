@@ -2415,6 +2415,112 @@ func consume(pair: Pair): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_caught_direct_aggregate_call_return_field_exit_code() {
+    let project = TempProject::new("cli-run-caught-direct-aggregate-call-return-field");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+impl Error {
+    pub func new(code: ErrorCode, message: &str): Error {
+        return new_error(code, message)
+    }
+}
+"#,
+    );
+    let source = project.write_source(
+        "caught_direct_aggregate_call_return_field.nct",
+        r#"from std/error import Error
+
+struct Pair {
+    first: i32
+    second: i32
+}
+
+func main(): i32! {
+    var pair = forward()?
+    return pair.second
+}
+
+func forward(): Pair! {
+    return make() catch error {
+        return Error.new("app.forward", error.message)
+    }
+}
+
+func make(): Pair! {
+    return Pair{ first: 7, second: 42 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_reports_caught_direct_aggregate_call_return_failure() {
+    let project = TempProject::new("cli-run-caught-direct-aggregate-call-return-failure");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+impl Error {
+    pub func new(code: ErrorCode, message: &str): Error {
+        return new_error(code, message)
+    }
+}
+"#,
+    );
+    let source = project.write_source(
+        "caught_direct_aggregate_call_return_failure.nct",
+        r#"from std/error import Error
+
+struct Pair {
+    first: i32
+    second: i32
+}
+
+func main(): i32! {
+    var pair = forward()?
+    return pair.second
+}
+
+func forward(): Pair! {
+    return make() catch error {
+        return Error.new("app.forward", error.message)
+    }
+}
+
+func make(): Pair! {
+    return Error.new("app.make", "failed")
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(output.stderr, b"app.forward: failed\n");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_indirect_aggregate_value_argument_field_exit_code() {
     let project = TempProject::new("cli-run-indirect-aggregate-value-arg");
     let source = project.write_source(
