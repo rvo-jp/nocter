@@ -1722,6 +1722,73 @@ func consume(prefix: i32, value: Big, suffix: i32): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_direct_aggregate_argument_at_register_boundary_exit_code() {
+    let project = TempProject::new("cli-run-direct-aggregate-arg-register-boundary");
+    let source = project.write_source(
+        "direct_aggregate_arg_register_boundary.nct",
+        r#"struct Pair {
+    a: i32
+    b: i32
+    c: i32
+    d: i32
+}
+
+func main(): i32 {
+    return consume(1, 2, 3, 4, 5, 6, Pair{ a: 10, b: 20, c: 42, d: 7 })
+}
+
+func consume(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, pair: Pair): i32 {
+    return pair.c
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_indirect_aggregate_argument_at_register_boundary_exit_code() {
+    let project = TempProject::new("cli-run-indirect-aggregate-arg-register-boundary");
+    let source = project.write_source(
+        "indirect_aggregate_arg_register_boundary.nct",
+        r#"struct Big {
+    first: usize
+    second: usize
+    code: i32
+}
+
+func main(): i32 {
+    return consume(1, 2, 3, 4, 5, 6, 7, Big{ first: 10, second: 20, code: 42 })
+}
+
+func consume(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, value: Big): i32 {
+    return value.code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_nested_aggregate_value_argument_field_exit_code() {
     let project = TempProject::new("cli-run-nested-aggregate-value-arg");
     let source = project.write_source(
