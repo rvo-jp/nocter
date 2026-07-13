@@ -462,8 +462,9 @@ impl<'a> LoweringContext<'a> {
             .map(|field| AggregateFieldAccess {
                 source: AggregateLocation::Slot(aggregate.slot_index),
                 offset: field.offset,
-                kind: field.kind,
+                kind: field.kind.clone(),
                 is_readwrite: true,
+                is_copy: aggregate.is_copy,
             })
     }
 
@@ -483,8 +484,9 @@ impl<'a> LoweringContext<'a> {
             .map(|field| AggregateFieldAccess {
                 source: AggregateLocation::Parameter(borrow.parameter_index),
                 offset: field.offset,
-                kind: field.kind,
+                kind: field.kind.clone(),
                 is_readwrite: borrow.is_readwrite,
+                is_copy: true,
             })
     }
 
@@ -613,20 +615,25 @@ pub(super) struct AggregateField {
     pub(super) kind: AggregateFieldKind,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct AggregateFieldAccess {
     pub(super) source: AggregateLocation,
     pub(super) offset: u32,
     pub(super) kind: AggregateFieldKind,
     pub(super) is_readwrite: bool,
+    pub(super) is_copy: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum AggregateFieldKind {
     I32,
     U8,
     Usize,
     Bool,
+    Aggregate {
+        layout: ValueLayout,
+        fields: Vec<AggregateField>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -128,6 +128,13 @@ pub(crate) enum Instruction {
         source: AggregateLocation,
         layout: ValueLayout,
     },
+    CopyAggregateRange {
+        destination: AggregateLocation,
+        destination_offset: u32,
+        source: AggregateLocation,
+        source_offset: u32,
+        layout: ValueLayout,
+    },
     AddI32 {
         destination: I32Location,
         left: I32Value,

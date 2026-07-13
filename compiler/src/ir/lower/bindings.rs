@@ -1,6 +1,6 @@
 use super::aggregates::{
     aggregate_fields_from_type_expr, lower_aggregate_struct_literal_to_location,
-    supported_aggregate_copy_layout,
+    lower_aggregate_struct_literal_to_location_at_offset, supported_aggregate_copy_layout,
 };
 use super::context::{AggregateFieldKind, LoweringContext};
 use super::expressions::{
@@ -44,6 +44,10 @@ pub(super) fn lower_local_binding(
     }
 
     if let Some(instructions) = lower_aggregate_call_binding(statement, context)? {
+        return Ok(instructions);
+    }
+
+    if let Some(instructions) = lower_aggregate_member_binding(statement, context)? {
         return Ok(instructions);
     }
 
@@ -215,6 +219,45 @@ fn lower_aggregate_fallible_call_binding(
     Ok(Some(instructions))
 }
 
+fn lower_aggregate_member_binding(
+    statement: &BindingStmt,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Expr::Member(member) = unwrap_group(&statement.initializer) else {
+        return Ok(None);
+    };
+    let Some((identifier_name, field_path)) = aggregate_assignment_target_path(member) else {
+        return Ok(None);
+    };
+    let Some(field) = context.aggregate_field(identifier_name, &field_path) else {
+        return Ok(None);
+    };
+    let source = field.source;
+    let source_offset = field.offset;
+    let is_copy = field.is_copy;
+    let AggregateFieldKind::Aggregate { layout, fields } = field.kind else {
+        return Ok(None);
+    };
+    if !is_copy || !supported_aggregate_copy_layout(layout) {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 can only lower aggregate member bindings from copy aggregate fields",
+        ));
+    }
+
+    let slot_index =
+        context.define_aggregate_local(statement.name.clone(), layout, is_copy, fields);
+    Ok(Some(vec![
+        Instruction::ReserveAggregateSlot { slot_index, layout },
+        Instruction::CopyAggregateRange {
+            destination: AggregateLocation::Slot(slot_index),
+            destination_offset: 0,
+            source,
+            source_offset,
+            layout,
+        },
+    ]))
+}
+
 fn validate_aggregate_binding_layout(
     layout: crate::abi::ValueLayout,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -319,12 +362,13 @@ fn lower_aggregate_field_assignment(
         return Err(unsupported_assignment_diagnostic());
     }
     let destination = field.source;
+    let offset = field.offset;
     match field.kind {
         AggregateFieldKind::I32 => {
             let (mut instructions, value) = lower_i32_expression_to_word(value, context)?;
             instructions.push(Instruction::StoreAggregateI32 {
                 destination,
-                offset: field.offset,
+                offset,
                 value,
             });
             Ok(instructions)
@@ -333,7 +377,7 @@ fn lower_aggregate_field_assignment(
             let (mut instructions, value) = lower_u8_expression_to_word(value, context)?;
             instructions.push(Instruction::StoreAggregateU8 {
                 destination,
-                offset: field.offset,
+                offset,
                 value,
             });
             Ok(instructions)
@@ -342,7 +386,7 @@ fn lower_aggregate_field_assignment(
             let (mut instructions, value) = lower_usize_expression_to_word(value, context)?;
             instructions.push(Instruction::StoreAggregateUsize {
                 destination,
-                offset: field.offset,
+                offset,
                 value,
             });
             Ok(instructions)
@@ -351,11 +395,89 @@ fn lower_aggregate_field_assignment(
             let mut lowered = lower_bool_expression_to_value(value, context, "E8008")?;
             lowered.instructions.push(Instruction::StoreAggregateBool {
                 destination,
-                offset: field.offset,
+                offset,
                 value: lowered.value,
             });
             Ok(lowered.instructions)
         }
+        AggregateFieldKind::Aggregate { layout, .. } => {
+            lower_aggregate_member_value_assignment(destination, offset, layout, value, context)
+        }
+    }
+}
+
+fn lower_aggregate_member_value_assignment(
+    destination: AggregateLocation,
+    destination_offset: u32,
+    layout: ValueLayout,
+    value: &Expr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if !supported_aggregate_copy_layout(layout) {
+        return Err(unsupported_assignment_diagnostic());
+    }
+
+    match unwrap_group(value) {
+        Expr::StructLiteral(literal) => {
+            let Some((_root_source, resolved)) = context.resolved_calls() else {
+                return Err(unsupported_assignment_diagnostic());
+            };
+            lower_aggregate_struct_literal_to_location_at_offset(
+                literal,
+                layout,
+                destination,
+                destination_offset,
+                "E8008",
+                "assignments",
+                resolved,
+                context,
+            )
+        }
+        Expr::Identifier(identifier) => {
+            let Some(source) = context.aggregate_local(&identifier.name) else {
+                return Err(unsupported_assignment_diagnostic());
+            };
+            if source.layout != layout || !source.is_copy {
+                return Err(unsupported_assignment_diagnostic());
+            }
+            Ok(vec![Instruction::CopyAggregateRange {
+                destination,
+                destination_offset,
+                source: AggregateLocation::Slot(source.slot_index),
+                source_offset: 0,
+                layout,
+            }])
+        }
+        Expr::Member(member) => {
+            let Some((identifier_name, field_path)) = aggregate_assignment_target_path(member)
+            else {
+                return Err(unsupported_assignment_diagnostic());
+            };
+            let Some(source) = context.aggregate_field(identifier_name, &field_path) else {
+                return Err(unsupported_assignment_diagnostic());
+            };
+            let source_location = source.source;
+            let source_offset = source.offset;
+            let source_is_copy = source.is_copy;
+            let AggregateFieldKind::Aggregate {
+                layout: source_layout,
+                ..
+            } = source.kind
+            else {
+                return Err(unsupported_assignment_diagnostic());
+            };
+            if source_layout != layout || !source_is_copy {
+                return Err(unsupported_assignment_diagnostic());
+            }
+            Ok(vec![Instruction::CopyAggregateRange {
+                destination,
+                destination_offset,
+                source: source_location,
+                source_offset,
+                layout,
+            }])
+        }
+        _ => Err(unsupported_assignment_diagnostic()),
     }
 }
 

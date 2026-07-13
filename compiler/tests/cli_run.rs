@@ -1655,6 +1655,52 @@ func consume(header: Header): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_nested_aggregate_value_argument_field_exit_code() {
+    let project = TempProject::new("cli-run-nested-aggregate-value-arg");
+    let source = project.write_source(
+        "nested_aggregate_value_arg.nct",
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    let packet = Packet{
+        prefix: 1,
+        header: Header{ tag: 7, ok: true, code: 42, len: 11 },
+        tail: 99,
+    }
+    let result = consume(packet.header)
+    return result
+}
+
+func consume(header: Header): i32 {
+    return header.code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_small_direct_aggregate_value_argument_field_exit_code() {
     let project = TempProject::new("cli-run-small-direct-aggregate-value-arg");
     let source = project.write_source(
@@ -2215,6 +2261,97 @@ func main(): i32 {
     }
     packet.header.code = 42
     return packet.header.code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_nested_aggregate_field_copy_assignment_exit_code() {
+    let project = TempProject::new("cli-run-nested-aggregate-field-copy-assignment");
+    let source = project.write_source(
+        "nested_aggregate_field_copy_assignment.nct",
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    var packet = Packet{
+        prefix: 1,
+        header: Header{ tag: 7, ok: false, code: 1, len: 11 },
+        tail: 99,
+    }
+    let header = Header{ tag: 8, ok: true, code: 42, len: 12 }
+    packet.header = header
+    return packet.header.code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_borrowed_nested_aggregate_field_copy_assignment_exit_code() {
+    let project = TempProject::new("cli-run-borrowed-nested-aggregate-field-copy-assignment");
+    let source = project.write_source(
+        "borrowed_nested_aggregate_field_copy_assignment.nct",
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    var packet = Packet{
+        prefix: 1,
+        header: Header{ tag: 7, ok: false, code: 1, len: 11 },
+        tail: 99,
+    }
+    let header = Header{ tag: 8, ok: true, code: 42, len: 12 }
+    set_header(&+packet, header)
+    return packet.header.code
+}
+
+func set_header(packet: &+Packet, header: Header): void {
+    packet.header = header
+    return
 }
 "#,
     );

@@ -285,6 +285,7 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
             matches!(destination, AggregateLocation::Slot(_))
                 || matches!(source, AggregateLocation::Slot(_))
         }
+        Instruction::CopyAggregateRange { .. } => true,
         Instruction::StoreAggregateUsize { destination, .. }
         | Instruction::StoreAggregateI32 { destination, .. }
         | Instruction::StoreAggregateU8 { destination, .. }
@@ -429,6 +430,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::LoadAggregateU8 { .. }
         | Instruction::LoadAggregateBool { .. }
         | Instruction::CopyAggregate { .. }
+        | Instruction::CopyAggregateRange { .. }
         | Instruction::SetI32 { .. }
         | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
@@ -494,6 +496,7 @@ fn record_instruction_aggregate_slot_requests(
             }
             Ok(())
         }
+        Instruction::CopyAggregateRange { .. } => Ok(()),
         Instruction::If {
             then_instructions,
             else_instructions,
@@ -630,6 +633,7 @@ fn record_instruction_scalar_locals(
         | Instruction::ReturnFallibleSuccess
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::CopyAggregate { .. }
+        | Instruction::CopyAggregateRange { .. }
         | Instruction::Trap
         | Instruction::Return => {}
         Instruction::CheckFailure { failure_mode } => {
@@ -1617,6 +1621,50 @@ mod tests {
                     &[
                         AggregateSlotRequest::new(1, ValueLayout::new(24, 8)),
                         AggregateSlotRequest::new(0, ValueLayout::new(24, 8)),
+                    ]
+                )
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn aggregate_range_copy_uses_explicit_slot_reservations() {
+        let function = Function {
+            name: "copy_header".to_string(),
+            target: crate::ir::CallTarget::same_file("copy_header".to_string()),
+            return_type: Type::Void,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(32, 8),
+                },
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 1,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::CopyAggregateRange {
+                    destination: AggregateLocation::Slot(1),
+                    destination_offset: 0,
+                    source: AggregateLocation::Slot(0),
+                    source_offset: 8,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::Return,
+            ],
+        };
+
+        let frame = plan_function_frame(&function).unwrap();
+
+        assert_eq!(
+            frame,
+            FunctionFrame::Framed(
+                FrameLayout::for_slot_counts_with_aggregate_slots(
+                    0,
+                    0,
+                    &[
+                        AggregateSlotRequest::new(0, ValueLayout::new(32, 8)),
+                        AggregateSlotRequest::new(1, ValueLayout::new(16, 8)),
                     ]
                 )
                 .unwrap()

@@ -1,7 +1,7 @@
 use super::super::aggregates::{
     lower_aggregate_struct_literal_to_location, supported_aggregate_copy_layout,
 };
-use super::super::context::LoweringContext;
+use super::super::context::{AggregateFieldKind, LoweringContext};
 use super::temporaries::TemporaryAllocator;
 use super::{
     lower_bool_expression_to_value_with_temporaries, lower_i32_expression_to_value,
@@ -639,6 +639,14 @@ fn lower_aggregate_argument_source(
             }
             Ok((Vec::new(), AggregateArgumentSource::Slot(local.slot_index)))
         }
+        Expr::Member(member) => lower_aggregate_member_argument_source(
+            member,
+            expected_layout,
+            parameter_type,
+            callee_name,
+            context,
+            temporaries,
+        ),
         Expr::Unary(unary) if unary.operator == crate::ast::UnaryOperator::Move => {
             lower_aggregate_argument_source(
                 &unary.operand,
@@ -697,6 +705,79 @@ fn lower_aggregate_argument_source(
             callee_name,
             parameter_type,
         )),
+    }
+}
+
+fn lower_aggregate_member_argument_source(
+    member: &crate::ast::MemberExpr,
+    expected_layout: crate::abi::ValueLayout,
+    parameter_type: &Type,
+    callee_name: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, AggregateArgumentSource), Vec<Diagnostic>> {
+    let Some((identifier_name, field_path)) = aggregate_member_argument_path(member) else {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    };
+    let Some(field) = context.aggregate_field(identifier_name, &field_path) else {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    };
+    let source = field.source;
+    let source_offset = field.offset;
+    let is_copy = field.is_copy;
+    let AggregateFieldKind::Aggregate { layout, .. } = field.kind else {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    };
+    if layout != expected_layout || !is_copy {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    }
+
+    let slot_index = temporaries.next_aggregate_slot();
+    Ok((
+        vec![
+            Instruction::ReserveAggregateSlot { slot_index, layout },
+            Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(slot_index),
+                destination_offset: 0,
+                source,
+                source_offset,
+                layout,
+            },
+        ],
+        AggregateArgumentSource::Slot(slot_index),
+    ))
+}
+
+fn aggregate_member_argument_path(member: &crate::ast::MemberExpr) -> Option<(&str, String)> {
+    let (identifier_name, mut fields) = aggregate_member_argument_root_and_path(&member.object)?;
+    fields.push(member.member.as_str());
+    Some((identifier_name, fields.join(".")))
+}
+
+fn aggregate_member_argument_root_and_path<'a>(
+    expression: &'a Expr,
+) -> Option<(&'a str, Vec<&'a str>)> {
+    match unwrap_group(expression) {
+        Expr::Identifier(identifier) => Some((&identifier.name, Vec::new())),
+        Expr::Member(member) => {
+            let (identifier_name, mut fields) =
+                aggregate_member_argument_root_and_path(&member.object)?;
+            fields.push(member.member.as_str());
+            Some((identifier_name, fields))
+        }
+        _ => None,
     }
 }
 

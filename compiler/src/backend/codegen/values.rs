@@ -367,6 +367,39 @@ impl EntryEmitter {
         layout: ValueLayout,
         frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_copy_aggregate_range_checked(destination, 0, source, 0, layout, frame, true)
+    }
+
+    pub(super) fn emit_copy_aggregate_range(
+        &mut self,
+        destination: AggregateLocation,
+        destination_offset: u32,
+        source: AggregateLocation,
+        source_offset: u32,
+        layout: ValueLayout,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_copy_aggregate_range_checked(
+            destination,
+            destination_offset,
+            source,
+            source_offset,
+            layout,
+            frame,
+            false,
+        )
+    }
+
+    fn emit_copy_aggregate_range_checked(
+        &mut self,
+        destination: AggregateLocation,
+        destination_offset: u32,
+        source: AggregateLocation,
+        source_offset: u32,
+        layout: ValueLayout,
+        frame: Option<&FrameLayout>,
+        require_exact_slots: bool,
+    ) -> Result<(), Vec<Diagnostic>> {
         let Some(frame) = frame else {
             return Err(vec![Diagnostic::error(
                 "E9005",
@@ -382,7 +415,23 @@ impl EntryEmitter {
                 "direct aggregate return copy exceeds two ABI words",
             ));
         }
-        validate_aggregate_copy_destination(destination, layout_size, frame)?;
+        if require_exact_slots {
+            validate_aggregate_copy_destination_exact(
+                destination,
+                destination_offset,
+                layout_size,
+                frame,
+            )?;
+            validate_aggregate_copy_source_exact(source, source_offset, layout_size)?;
+        } else {
+            validate_aggregate_copy_destination_range(
+                destination,
+                destination_offset,
+                layout_size,
+                frame,
+            )?;
+            validate_aggregate_copy_source_range(source, source_offset, layout_size, frame)?;
+        }
 
         let mut offset = 0_u32;
         while offset < layout_size {
@@ -390,10 +439,20 @@ impl EntryEmitter {
                 .checked_sub(offset)
                 .ok_or_else(|| aggregate_copy_diagnostic("copy offset exceeds aggregate size"))?;
             let chunk_bytes = aggregate_copy_chunk_bytes(remaining)?;
-            self.emit_aggregate_copy_source_chunk_to_scratch(source, offset, chunk_bytes)?;
+            let absolute_source_offset = source_offset
+                .checked_add(offset)
+                .ok_or_else(|| aggregate_copy_diagnostic("source range offset overflows"))?;
+            let absolute_destination_offset = destination_offset
+                .checked_add(offset)
+                .ok_or_else(|| aggregate_copy_diagnostic("destination range offset overflows"))?;
+            self.emit_aggregate_copy_source_chunk_to_scratch(
+                source,
+                absolute_source_offset,
+                chunk_bytes,
+            )?;
             self.emit_aggregate_copy_scratch_to_destination(
                 destination,
-                offset,
+                absolute_destination_offset,
                 chunk_bytes,
                 frame,
             )?;
@@ -408,7 +467,7 @@ impl EntryEmitter {
     fn aggregate_copy_source(
         &self,
         source: AggregateLocation,
-        layout_size: u32,
+        _layout_size: u32,
         frame: &FrameLayout,
     ) -> Result<AggregateCopySource, Vec<Diagnostic>> {
         match source {
@@ -419,11 +478,6 @@ impl EntryEmitter {
                         format!("aggregate copy source slot {source_slot_index} is not reserved"),
                     )]
                 })?;
-                if source_slot.size() != layout_size {
-                    return Err(aggregate_copy_diagnostic(
-                        "source slot size does not match aggregate layout",
-                    ));
-                }
                 Ok(AggregateCopySource::Slot(source_slot))
             }
             AggregateLocation::Parameter(index) => {
@@ -516,9 +570,13 @@ impl EntryEmitter {
                     .ok_or_else(|| aggregate_copy_diagnostic("destination offset overflows"))?;
                 self.emit_aggregate_copy_scratch_to_stack_chunk(destination_offset, chunk_bytes)
             }
-            AggregateLocation::Parameter(_) | AggregateLocation::DirectParameter { .. } => Err(
-                aggregate_copy_diagnostic("aggregate copy cannot target parameter locations"),
-            ),
+            AggregateLocation::Parameter(index) => {
+                let base = aggregate_parameter_register(index)?;
+                self.emit_aggregate_copy_scratch_to_memory_chunk(base, offset, chunk_bytes)
+            }
+            AggregateLocation::DirectParameter { .. } => Err(aggregate_copy_diagnostic(
+                "aggregate copy cannot target direct parameter locations",
+            )),
         }
     }
 
@@ -1366,11 +1424,18 @@ fn aggregate_copy_chunk_bytes(remaining_bytes: u32) -> Result<u32, Vec<Diagnosti
     }
 }
 
-fn validate_aggregate_copy_destination(
+fn validate_aggregate_copy_destination_exact(
     destination: AggregateLocation,
+    destination_offset: u32,
     layout_size: u32,
     frame: &FrameLayout,
 ) -> Result<(), Vec<Diagnostic>> {
+    validate_aggregate_copy_destination_range(destination, destination_offset, layout_size, frame)?;
+    if destination_offset != 0 {
+        return Err(aggregate_copy_diagnostic(
+            "exact aggregate copy destination offset must be 0",
+        ));
+    }
     if let AggregateLocation::Slot(destination_slot_index) = destination {
         let destination_slot = frame
             .aggregate_slot(destination_slot_index)
@@ -1387,6 +1452,107 @@ fn validate_aggregate_copy_destination(
                 "destination slot size does not match aggregate layout",
             ));
         }
+    }
+    Ok(())
+}
+
+fn validate_aggregate_copy_source_exact(
+    source: AggregateCopySource,
+    source_offset: u32,
+    layout_size: u32,
+) -> Result<(), Vec<Diagnostic>> {
+    if source_offset != 0 {
+        return Err(aggregate_copy_diagnostic(
+            "exact aggregate copy source offset must be 0",
+        ));
+    }
+    if let AggregateCopySource::Slot(source_slot) = source
+        && source_slot.size() != layout_size
+    {
+        return Err(aggregate_copy_diagnostic(
+            "source slot size does not match aggregate layout",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_aggregate_copy_destination_range(
+    destination: AggregateLocation,
+    destination_offset: u32,
+    layout_size: u32,
+    frame: &FrameLayout,
+) -> Result<(), Vec<Diagnostic>> {
+    match destination {
+        AggregateLocation::Slot(destination_slot_index) => {
+            let destination_slot = frame
+                .aggregate_slot(destination_slot_index)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9005",
+                        format!(
+                            "aggregate copy destination slot {destination_slot_index} is not reserved"
+                        ),
+                    )]
+                })?;
+            validate_aggregate_copy_slot_range(
+                destination_offset,
+                layout_size,
+                destination_slot.size(),
+                "destination range exceeds aggregate slot size",
+            )
+        }
+        AggregateLocation::DirectReturn => {
+            if destination_offset != 0 {
+                return Err(aggregate_copy_diagnostic(
+                    "direct aggregate return range offset must be 0",
+                ));
+            }
+            Ok(())
+        }
+        AggregateLocation::Return | AggregateLocation::Parameter(_) => Ok(()),
+        AggregateLocation::DirectParameter { .. } => Err(aggregate_copy_diagnostic(
+            "aggregate copy cannot target direct parameter locations",
+        )),
+    }
+}
+
+fn validate_aggregate_copy_source_range(
+    source: AggregateCopySource,
+    source_offset: u32,
+    layout_size: u32,
+    _frame: &FrameLayout,
+) -> Result<(), Vec<Diagnostic>> {
+    match source {
+        AggregateCopySource::Slot(source_slot) => validate_aggregate_copy_slot_range(
+            source_offset,
+            layout_size,
+            source_slot.size(),
+            "source range exceeds aggregate slot size",
+        ),
+        AggregateCopySource::Parameter(_) => Ok(()),
+        AggregateCopySource::DirectParameter { .. } => {
+            if source_offset.is_multiple_of(AGGREGATE_USIZE_STORE_BYTES) {
+                Ok(())
+            } else {
+                Err(aggregate_copy_diagnostic(
+                    "direct aggregate parameter range offset must be 8-byte aligned",
+                ))
+            }
+        }
+    }
+}
+
+fn validate_aggregate_copy_slot_range(
+    offset: u32,
+    layout_size: u32,
+    slot_size: u32,
+    reason: &str,
+) -> Result<(), Vec<Diagnostic>> {
+    let end = offset
+        .checked_add(layout_size)
+        .ok_or_else(|| aggregate_copy_diagnostic("aggregate copy range end overflows"))?;
+    if end > slot_size {
+        return Err(aggregate_copy_diagnostic(reason));
     }
     Ok(())
 }

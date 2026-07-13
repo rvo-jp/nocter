@@ -23,6 +23,28 @@ pub(super) fn lower_aggregate_struct_literal_to_location(
     resolved: &ResolveOutput,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_aggregate_struct_literal_to_location_at_offset(
+        literal,
+        expected_layout,
+        destination,
+        0,
+        diagnostic_code,
+        subject,
+        resolved,
+        context,
+    )
+}
+
+pub(super) fn lower_aggregate_struct_literal_to_location_at_offset(
+    literal: &StructLiteralExpr,
+    expected_layout: ValueLayout,
+    destination: AggregateLocation,
+    base_offset: u32,
+    diagnostic_code: &'static str,
+    subject: &str,
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let value = abi_value_from_type_expr(&literal.ty, resolved).map_err(|_error| {
         unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
     })?;
@@ -56,9 +78,12 @@ pub(super) fn lower_aggregate_struct_literal_to_location(
                 subject,
             ));
         };
-        let offset = u32::try_from(field_layout.offset).map_err(|_error| {
-            unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
-        })?;
+        let offset = u32::try_from(field_layout.offset)
+            .ok()
+            .and_then(|offset| base_offset.checked_add(offset))
+            .ok_or_else(|| {
+                unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+            })?;
         let mut field_instructions = lower_aggregate_field_to_location(
             field_type,
             &field.value,
@@ -116,6 +141,20 @@ fn collect_aggregate_fields(
         return Some(());
     };
     let struct_layout = layout_struct(fields).ok()?;
+    let offset = u32::try_from(base_offset).ok()?;
+    let mut nested_fields = Vec::new();
+    for (field, layout) in fields.iter().zip(struct_layout.fields.iter()) {
+        collect_aggregate_fields(&field.name, &field.ty, layout.offset, &mut nested_fields)?;
+    }
+    aggregate_fields.push(AggregateField {
+        name: name.to_string(),
+        offset,
+        kind: AggregateFieldKind::Aggregate {
+            layout: ValueLayout::new(struct_layout.size, struct_layout.align),
+            fields: nested_fields,
+        },
+    });
+
     for (field, layout) in fields.iter().zip(struct_layout.fields.iter()) {
         let offset = base_offset.checked_add(layout.offset)?;
         collect_aggregate_fields(

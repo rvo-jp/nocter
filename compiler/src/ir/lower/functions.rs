@@ -4,8 +4,8 @@ use super::aggregates::{
 };
 use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{
-    AggregateBorrowParameter, AggregateParameterSource, FunctionNames, FunctionSignatures,
-    LoweringAggregateParameter, LoweringContext, LoweringParameterSlots,
+    AggregateBorrowParameter, AggregateFieldKind, AggregateParameterSource, FunctionNames,
+    FunctionSignatures, LoweringAggregateParameter, LoweringContext, LoweringParameterSlots,
 };
 use super::control_flow::{lower_terminal_bool_if_statement, lower_terminal_i32_if_statement};
 use super::errors::{ErrorPayload, lower_error_payload};
@@ -751,6 +751,9 @@ fn lower_aggregate_return_expression(
         Expr::Identifier(identifier) => {
             lower_aggregate_local_return(&identifier.name, return_type, function_name, context)
         }
+        Expr::Member(member) => {
+            lower_aggregate_member_return(member, return_type, function_name, context)
+        }
         Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
             let Expr::Identifier(identifier) = unary.operand.as_ref() else {
                 return Err(unsupported_aggregate_return_diagnostic(function_name));
@@ -797,6 +800,62 @@ fn lower_aggregate_local_return(
         },
         Instruction::Return,
     ])
+}
+
+fn lower_aggregate_member_return(
+    member: &crate::ast::MemberExpr,
+    return_type: &Type,
+    function_name: &str,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let (expected_layout, destination) = aggregate_return_layout_and_destination(return_type);
+    let Some((identifier_name, field_path)) = aggregate_return_member_path(member) else {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    };
+    let Some(field) = context.aggregate_field(identifier_name, &field_path) else {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    };
+    let source = field.source;
+    let source_offset = field.offset;
+    let is_copy = field.is_copy;
+    let AggregateFieldKind::Aggregate { layout, .. } = field.kind else {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    };
+    if layout != expected_layout || !is_copy || !supported_aggregate_copy_layout(layout) {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    }
+
+    Ok(vec![
+        Instruction::CopyAggregateRange {
+            destination,
+            destination_offset: 0,
+            source,
+            source_offset,
+            layout,
+        },
+        Instruction::Return,
+    ])
+}
+
+fn aggregate_return_member_path(member: &crate::ast::MemberExpr) -> Option<(&str, String)> {
+    let (identifier_name, mut fields) = aggregate_return_member_root_and_path(&member.object)?;
+    fields.push(member.member.as_str());
+    Some((identifier_name, fields.join(".")))
+}
+
+fn aggregate_return_member_root_and_path<'a>(
+    expression: &'a Expr,
+) -> Option<(&'a str, Vec<&'a str>)> {
+    match unwrap_group(expression) {
+        Expr::Identifier(identifier) => Some((&identifier.name, Vec::new())),
+        Expr::Member(member) => {
+            let (identifier_name, mut fields) =
+                aggregate_return_member_root_and_path(&member.object)?;
+            fields.push(member.member.as_str());
+            Some((identifier_name, fields))
+        }
+        _ => None,
+    }
 }
 
 fn lower_aggregate_fallible_call_return(

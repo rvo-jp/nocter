@@ -205,6 +205,22 @@ impl EntryEmitter {
             } => {
                 self.emit_copy_aggregate(*destination, *source, *layout, frame)?;
             }
+            Instruction::CopyAggregateRange {
+                destination,
+                destination_offset,
+                source,
+                source_offset,
+                layout,
+            } => {
+                self.emit_copy_aggregate_range(
+                    *destination,
+                    *destination_offset,
+                    *source,
+                    *source_offset,
+                    *layout,
+                    frame,
+                )?;
+            }
             Instruction::AddI32 {
                 destination,
                 left,

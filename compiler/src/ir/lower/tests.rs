@@ -4174,6 +4174,418 @@ func read_code(): i32 {
 }
 
 #[test]
+fn lowers_nested_aggregate_field_binding() {
+    let function = lower_named_function(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func read_code(): i32 {
+    let packet = Packet{ prefix: 1, header: Header{ tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
+    let header = packet.header
+    return header.code
+}
+"#,
+        "read_code",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "read_code".to_string(),
+            target: CallTarget::same_file("read_code"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(32, 8),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: usize_const(1),
+                },
+                Instruction::StoreAggregateU8 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 8,
+                    value: u8_const(7),
+                },
+                Instruction::StoreAggregateBool {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 9,
+                    value: BoolValue::Const(true),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 12,
+                    value: i32_const(42),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 16,
+                    value: usize_const(11),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 24,
+                    value: usize_const(2),
+                },
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 1,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::CopyAggregateRange {
+                    destination: AggregateLocation::Slot(1),
+                    destination_offset: 0,
+                    source: AggregateLocation::Slot(0),
+                    source_offset: 8,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::LoadAggregateI32 {
+                    destination: I32Location::Return,
+                    source: AggregateLocation::Slot(1),
+                    offset: 4,
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_nested_aggregate_field_value_argument() {
+    let aggregate_type = Type::DirectAggregate {
+        layout: ValueLayout::new(16, 8),
+        words: 2,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func consume(header: Header): i32 {
+    return header.code
+}
+
+func main(): i32 {
+    let packet = Packet{ prefix: 1, header: Header{ tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
+    let result = consume(packet.header)
+    return result
+}
+"#,
+        "main",
+        function_signatures(vec![("consume", Type::I32, vec![aggregate_type])]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "main".to_string(),
+            target: CallTarget::same_file("main"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(32, 8),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: usize_const(1),
+                },
+                Instruction::StoreAggregateU8 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 8,
+                    value: u8_const(7),
+                },
+                Instruction::StoreAggregateBool {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 9,
+                    value: BoolValue::Const(true),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 12,
+                    value: i32_const(42),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 16,
+                    value: usize_const(11),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 24,
+                    value: usize_const(2),
+                },
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 1,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::CopyAggregateRange {
+                    destination: AggregateLocation::Slot(1),
+                    destination_offset: 0,
+                    source: AggregateLocation::Slot(0),
+                    source_offset: 8,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::CallI32 {
+                    destination: I32Location::Local(0),
+                    target: CallTarget::same_file("consume"),
+                    arguments: vec![ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                        source: AggregateArgumentSource::Slot(1),
+                        layout: ValueLayout::new(16, 8),
+                        words: 2,
+                    })],
+                },
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: i32_local(0),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_nested_aggregate_field_return() {
+    let function = lower_named_function(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func pick(packet: Packet): Header {
+    return packet.header
+}
+"#,
+        "pick",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "pick".to_string(),
+            target: CallTarget::same_file("pick"),
+            return_type: Type::DirectAggregate {
+                layout: ValueLayout::new(16, 8),
+                words: 2,
+            },
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(32, 8),
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    source: AggregateLocation::Parameter(0),
+                    layout: ValueLayout::new(32, 8),
+                },
+                Instruction::CopyAggregateRange {
+                    destination: AggregateLocation::DirectReturn,
+                    destination_offset: 0,
+                    source: AggregateLocation::Slot(0),
+                    source_offset: 8,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_nested_aggregate_field_struct_literal_assignment() {
+    let function = lower_named_function(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func update(): i32 {
+    var packet = Packet{ prefix: 1, header: Header{ tag: 7, ok: false, code: 1, len: 11 }, tail: 2 }
+    packet.header = Header{ tag: 8, ok: true, code: 42, len: 12 }
+    return packet.header.code
+}
+"#,
+        "update",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "update".to_string(),
+            target: CallTarget::same_file("update"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(32, 8),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: usize_const(1),
+                },
+                Instruction::StoreAggregateU8 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 8,
+                    value: u8_const(7),
+                },
+                Instruction::StoreAggregateBool {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 9,
+                    value: BoolValue::Const(false),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 12,
+                    value: i32_const(1),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 16,
+                    value: usize_const(11),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 24,
+                    value: usize_const(2),
+                },
+                Instruction::StoreAggregateU8 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 8,
+                    value: u8_const(8),
+                },
+                Instruction::StoreAggregateBool {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 9,
+                    value: BoolValue::Const(true),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 12,
+                    value: i32_const(42),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 16,
+                    value: usize_const(12),
+                },
+                Instruction::LoadAggregateI32 {
+                    destination: I32Location::Return,
+                    source: AggregateLocation::Slot(0),
+                    offset: 12,
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_nested_aggregate_field_copy_assignment() {
+    let function = lower_named_function(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func update(): i32 {
+    var packet = Packet{ prefix: 1, header: Header{ tag: 7, ok: false, code: 1, len: 11 }, tail: 2 }
+    let header = Header{ tag: 8, ok: true, code: 42, len: 12 }
+    packet.header = header
+    return packet.header.code
+}
+"#,
+        "update",
+    );
+
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(0),
+                destination_offset: 8,
+                source: AggregateLocation::Slot(1),
+                source_offset: 0,
+                layout: ValueLayout::new(16, 8),
+            }),
+        "{function:?}"
+    );
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::LoadAggregateI32 {
+                destination: I32Location::Return,
+                source: AggregateLocation::Slot(0),
+                offset: 12,
+            }),
+        "{function:?}"
+    );
+}
+
+#[test]
 fn lowers_aggregate_u8_bool_and_usize_field_returns_from_local_slot() {
     let text = r#"struct Header {
     tag: u8

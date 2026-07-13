@@ -95,6 +95,7 @@ fn collect_reachable_call_targets(
             | Instruction::LoadAggregateU8 { .. }
             | Instruction::LoadAggregateBool { .. }
             | Instruction::CopyAggregate { .. }
+            | Instruction::CopyAggregateRange { .. }
             | Instruction::PropagateFailure
             | Instruction::TrapOnFailure
             | Instruction::ReturnFallibleSuccess
