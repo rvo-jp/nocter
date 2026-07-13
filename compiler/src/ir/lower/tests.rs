@@ -2063,6 +2063,58 @@ func forward(): Text! {
 }
 
 #[test]
+fn lowers_propagated_indirect_aggregate_call_return() {
+    let aggregate_type = Type::Aggregate {
+        layout: ValueLayout::new(24, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Text! {
+    return Text{ start: 1, len: 2, capacity: 3 }
+}
+
+func forward(): Text! {
+    return make()?
+}
+"#,
+        "forward",
+        function_signatures(vec![(
+            "make",
+            Type::Fallible(Box::new(aggregate_type.clone())),
+            vec![],
+        )]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "forward".to_string(),
+            target: CallTarget::same_file("forward"),
+            return_type: Type::Fallible(Box::new(aggregate_type)),
+            instructions: vec![
+                Instruction::CallFallibleAggregate {
+                    destination: AggregateLocation::Return,
+                    target: CallTarget::same_file("make"),
+                    arguments: vec![],
+                    failure_mode: FallibleFailureMode::Propagate,
+                },
+                Instruction::ReturnFallibleSuccess,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_direct_aggregate_borrow_parameter_signature() {
     let function = lower_named_function(
         r#"struct Allocator {
@@ -2132,6 +2184,59 @@ func make(): Pair {
                     value: usize_const(2),
                 },
                 Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_propagated_direct_aggregate_call_return() {
+    let aggregate_type = Type::DirectAggregate {
+        layout: ValueLayout::new(16, 8),
+        words: 2,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct Pair {
+    first: usize
+    second: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Pair! {
+    return Pair{ first: 1, second: 2 }
+}
+
+func forward(): Pair! {
+    return make()?
+}
+"#,
+        "forward",
+        function_signatures(vec![(
+            "make",
+            Type::Fallible(Box::new(aggregate_type.clone())),
+            vec![],
+        )]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "forward".to_string(),
+            target: CallTarget::same_file("forward"),
+            return_type: Type::Fallible(Box::new(aggregate_type)),
+            instructions: vec![
+                Instruction::CallFallibleDirectAggregate {
+                    destination: AggregateLocation::DirectReturn,
+                    target: CallTarget::same_file("make"),
+                    arguments: vec![],
+                    layout: ValueLayout::new(16, 8),
+                    failure_mode: FallibleFailureMode::Propagate,
+                },
+                Instruction::ReturnFallibleSuccess,
             ],
         }
     );

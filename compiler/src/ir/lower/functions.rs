@@ -20,7 +20,7 @@ use crate::abi::{
 };
 use crate::ast::{Expr, FunctionDecl, Parameter, Stmt, StructLiteralExpr, TypeExpr, UnaryOperator};
 use crate::diagnostics::Diagnostic;
-use crate::ir::{AggregateLocation, CallTarget, Function, Instruction, Type};
+use crate::ir::{AggregateLocation, CallTarget, FallibleFailureMode, Function, Instruction, Type};
 use crate::resolve::ResolveOutput;
 use crate::source::SourceId;
 
@@ -742,6 +742,12 @@ fn lower_aggregate_return_expression(
             context,
         ),
         Expr::Call(call) => lower_aggregate_call_return(call, return_type, function_name, context),
+        Expr::Propagate(propagation) => {
+            let Expr::Call(call) = unwrap_group(&propagation.expression) else {
+                return Err(unsupported_aggregate_return_diagnostic(function_name));
+            };
+            lower_aggregate_fallible_call_return(call, return_type, function_name, context)
+        }
         Expr::Identifier(identifier) => {
             lower_aggregate_local_return(&identifier.name, return_type, function_name, context)
         }
@@ -759,6 +765,13 @@ fn lower_aggregate_return_expression(
             context,
         ),
         _ => Err(unsupported_aggregate_return_diagnostic(function_name)),
+    }
+}
+
+fn unwrap_group(expression: &Expr) -> &Expr {
+    match expression {
+        Expr::Group(group) => unwrap_group(&group.expression),
+        _ => expression,
     }
 }
 
@@ -784,6 +797,49 @@ fn lower_aggregate_local_return(
         },
         Instruction::Return,
     ])
+}
+
+fn lower_aggregate_fallible_call_return(
+    call: &crate::ast::CallExpr,
+    return_type: &Type,
+    function_name: &str,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    };
+    let target = context.call_target(call, &identifier.name);
+    let Some(Type::Fallible(success_type)) = context.call_return_type(&target) else {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    };
+    if success_type.as_ref() != return_type {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    }
+
+    let (mut instructions, arguments) =
+        lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
+    match return_type {
+        Type::Aggregate { .. } => {
+            instructions.push(Instruction::CallFallibleAggregate {
+                destination: AggregateLocation::Return,
+                target,
+                arguments,
+                failure_mode: FallibleFailureMode::Propagate,
+            });
+        }
+        Type::DirectAggregate { layout, .. } => {
+            instructions.push(Instruction::CallFallibleDirectAggregate {
+                destination: AggregateLocation::DirectReturn,
+                target,
+                arguments,
+                layout: *layout,
+                failure_mode: FallibleFailureMode::Propagate,
+            });
+        }
+        _ => unreachable!("fallible aggregate call return lowering requires aggregate return type"),
+    }
+    instructions.push(Instruction::ReturnFallibleSuccess);
+    Ok(instructions)
 }
 
 fn lower_aggregate_call_return(
