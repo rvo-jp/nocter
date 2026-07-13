@@ -2329,6 +2329,195 @@ func read_code(packet: &Packet): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_nested_aggregate_struct_literal_call_field_exit_code() {
+    let project = TempProject::new("cli-run-nested-aggregate-struct-literal-call-field");
+    let source = project.write_source(
+        "nested_aggregate_struct_literal_call_field.nct",
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    let packet = Packet{
+        prefix: 1,
+        header: make_header(),
+        tail: 99,
+    }
+    return packet.header.code
+}
+
+func make_header(): Header {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_nested_aggregate_struct_literal_fallible_call_field_exit_code() {
+    let project = TempProject::new("cli-run-nested-aggregate-struct-literal-fallible-call-field");
+    let source = project.write_source(
+        "nested_aggregate_struct_literal_fallible_call_field.nct",
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32! {
+    let packet = Packet{
+        prefix: 1,
+        header: make_header()?,
+        tail: 99,
+    }
+    return packet.header.code
+}
+
+func make_header(): Header! {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_nested_aggregate_struct_literal_call_member_field_exit_code() {
+    let project = TempProject::new("cli-run-nested-aggregate-struct-literal-call-member-field");
+    let source = project.write_source(
+        "nested_aggregate_struct_literal_call_member_field.nct",
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    let packet = Packet{
+        prefix: 1,
+        header: make().header,
+        tail: 99,
+    }
+    return packet.header.code
+}
+
+func make(): Packet {
+    return Packet{
+        prefix: 1,
+        header: Header{ tag: 7, ok: true, code: 42, len: 11 },
+        tail: 2,
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_nested_aggregate_struct_literal_fallible_call_member_field_exit_code() {
+    let project =
+        TempProject::new("cli-run-nested-aggregate-struct-literal-fallible-call-member-field");
+    let source = project.write_source(
+        "nested_aggregate_struct_literal_fallible_call_member_field.nct",
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32! {
+    let packet = Packet{
+        prefix: 1,
+        header: make()?.header,
+        tail: 99,
+    }
+    return packet.header.code
+}
+
+func make(): Packet! {
+    return Packet{
+        prefix: 1,
+        header: Header{ tag: 7, ok: true, code: 42, len: 11 },
+        tail: 2,
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_tail_position_borrowed_aggregate_call_exit_code() {
     let project = TempProject::new("cli-run-tail-position-borrowed-aggregate-call");
     let source = project.write_source(

@@ -1,12 +1,13 @@
 use super::context::{AggregateField, AggregateFieldKind, LoweringContext};
 use super::expressions::{
-    lower_bool_expression_to_value, lower_i32_expression_to_word, lower_u8_expression_to_word,
-    lower_usize_expression_to_word,
+    TemporaryAllocator, lower_aggregate_member_field_access, lower_bool_expression_to_value,
+    lower_call_arguments_to_scalar_arguments_with_temporaries, lower_i32_expression_to_word,
+    lower_u8_expression_to_word, lower_usize_expression_to_word,
 };
 use crate::abi::{AbiType, ValueLayout, abi_value_from_type_expr, layout_of, layout_struct};
-use crate::ast::{Expr, StructLiteralExpr, TypeExpr};
+use crate::ast::{CallExpr, Expr, StructLiteralExpr, TypeExpr};
 use crate::diagnostics::Diagnostic;
-use crate::ir::{AggregateLocation, Instruction, UsizeValue};
+use crate::ir::{AggregateLocation, FallibleFailureMode, Instruction, Type, UsizeValue};
 use crate::resolve::ResolveOutput;
 use std::collections::HashMap;
 
@@ -61,43 +62,18 @@ pub(super) fn lower_aggregate_struct_literal_to_location_at_offset(
             subject,
         ));
     };
-    let struct_layout = layout_struct(&fields).map_err(|_error| {
-        unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
-    })?;
-    let field_layouts = fields
-        .iter()
-        .zip(struct_layout.fields.iter())
-        .map(|(field, layout)| (field.name.as_str(), (&field.ty, layout)))
-        .collect::<HashMap<_, _>>();
-
-    let mut instructions = Vec::new();
-    for field in &literal.fields {
-        let Some((field_type, field_layout)) = field_layouts.get(field.name.as_str()) else {
-            return Err(unsupported_aggregate_struct_literal_diagnostic(
-                diagnostic_code,
-                subject,
-            ));
-        };
-        let offset = u32::try_from(field_layout.offset)
-            .ok()
-            .and_then(|offset| base_offset.checked_add(offset))
-            .ok_or_else(|| {
-                unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
-            })?;
-        let mut field_instructions = lower_aggregate_field_to_location(
-            field_type,
-            &field.value,
-            destination,
-            offset,
-            diagnostic_code,
-            subject,
-            resolved,
-            context,
-        )?;
-        instructions.append(&mut field_instructions);
-    }
-
-    Ok(instructions)
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    lower_aggregate_struct_fields_to_location(
+        &fields,
+        literal,
+        destination,
+        base_offset,
+        diagnostic_code,
+        subject,
+        resolved,
+        context,
+        &mut temporaries,
+    )
 }
 
 pub(super) fn aggregate_fields_from_type_expr(
@@ -186,6 +162,7 @@ fn lower_aggregate_field_to_location(
     subject: &str,
     resolved: &ResolveOutput,
     context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match field_type {
         AbiType::U64 | AbiType::Usize => {
@@ -266,6 +243,7 @@ fn lower_aggregate_field_to_location(
                         subject,
                         resolved,
                         context,
+                        temporaries,
                     )
                 }
                 Expr::Identifier(identifier) => {
@@ -292,6 +270,44 @@ fn lower_aggregate_field_to_location(
                         layout: expected_layout,
                     }])
                 }
+                Expr::Call(call) => lower_aggregate_call_field_value_to_location(
+                    call,
+                    expected_layout,
+                    destination,
+                    offset,
+                    diagnostic_code,
+                    subject,
+                    context,
+                    temporaries,
+                ),
+                Expr::Propagate(propagation) => {
+                    let Some(call) = call_expression(&propagation.expression) else {
+                        return Err(unsupported_aggregate_struct_literal_diagnostic(
+                            diagnostic_code,
+                            subject,
+                        ));
+                    };
+                    lower_aggregate_fallible_call_field_value_to_location(
+                        call,
+                        expected_layout,
+                        destination,
+                        offset,
+                        diagnostic_code,
+                        subject,
+                        context,
+                        temporaries,
+                    )
+                }
+                Expr::Member(_) => lower_aggregate_member_field_value_to_location(
+                    expression,
+                    expected_layout,
+                    destination,
+                    offset,
+                    diagnostic_code,
+                    subject,
+                    context,
+                    temporaries,
+                ),
                 Expr::Group(group) => lower_aggregate_field_to_location(
                     field_type,
                     &group.expression,
@@ -301,6 +317,7 @@ fn lower_aggregate_field_to_location(
                     subject,
                     resolved,
                     context,
+                    temporaries,
                 ),
                 _ => Err(unsupported_aggregate_struct_literal_diagnostic(
                     diagnostic_code,
@@ -324,6 +341,7 @@ fn lower_aggregate_struct_fields_to_location(
     subject: &str,
     resolved: &ResolveOutput,
     context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let struct_layout = layout_struct(fields).map_err(|_error| {
         unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
@@ -357,9 +375,223 @@ fn lower_aggregate_struct_fields_to_location(
             subject,
             resolved,
             context,
+            temporaries,
         )?);
     }
     Ok(instructions)
+}
+
+fn lower_aggregate_call_field_value_to_location(
+    call: &CallExpr,
+    expected_layout: ValueLayout,
+    destination: AggregateLocation,
+    destination_offset: u32,
+    diagnostic_code: &'static str,
+    subject: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Err(unsupported_aggregate_struct_literal_diagnostic(
+            diagnostic_code,
+            subject,
+        ));
+    };
+    let target = context.call_target(call, &identifier.name);
+    let Some(return_type) = context.call_return_type(&target).cloned() else {
+        return Err(unsupported_aggregate_struct_literal_diagnostic(
+            diagnostic_code,
+            subject,
+        ));
+    };
+    let layout = match &return_type {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => {
+            return Err(unsupported_aggregate_struct_literal_diagnostic(
+                diagnostic_code,
+                subject,
+            ));
+        }
+    };
+    if layout != expected_layout || !supported_aggregate_copy_layout(layout) {
+        return Err(unsupported_aggregate_struct_literal_diagnostic(
+            diagnostic_code,
+            subject,
+        ));
+    }
+
+    let source_slot = temporaries.next_aggregate_slot();
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index: source_slot,
+        layout,
+    }];
+    let (mut argument_instructions, arguments) =
+        lower_call_arguments_to_scalar_arguments_with_temporaries(
+            call,
+            &target,
+            &identifier.name,
+            context,
+            temporaries,
+        )?;
+    instructions.append(&mut argument_instructions);
+    match return_type {
+        Type::Aggregate { .. } => {
+            instructions.push(Instruction::CallAggregate {
+                destination: AggregateLocation::Slot(source_slot),
+                target,
+                arguments,
+            });
+        }
+        Type::DirectAggregate { .. } => {
+            instructions.push(Instruction::CallDirectAggregate {
+                destination: AggregateLocation::Slot(source_slot),
+                target,
+                arguments,
+                layout,
+            });
+        }
+        _ => unreachable!("aggregate field call value requires aggregate return type"),
+    }
+    instructions.push(Instruction::CopyAggregateRange {
+        destination,
+        destination_offset,
+        source: AggregateLocation::Slot(source_slot),
+        source_offset: 0,
+        layout,
+    });
+    Ok(instructions)
+}
+
+fn lower_aggregate_fallible_call_field_value_to_location(
+    call: &CallExpr,
+    expected_layout: ValueLayout,
+    destination: AggregateLocation,
+    destination_offset: u32,
+    diagnostic_code: &'static str,
+    subject: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Err(unsupported_aggregate_struct_literal_diagnostic(
+            diagnostic_code,
+            subject,
+        ));
+    };
+    let target = context.call_target(call, &identifier.name);
+    let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
+        return Err(unsupported_aggregate_struct_literal_diagnostic(
+            diagnostic_code,
+            subject,
+        ));
+    };
+    let layout = match success_type.as_ref() {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => {
+            return Err(unsupported_aggregate_struct_literal_diagnostic(
+                diagnostic_code,
+                subject,
+            ));
+        }
+    };
+    if layout != expected_layout || !supported_aggregate_copy_layout(layout) {
+        return Err(unsupported_aggregate_struct_literal_diagnostic(
+            diagnostic_code,
+            subject,
+        ));
+    }
+
+    let source_slot = temporaries.next_aggregate_slot();
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index: source_slot,
+        layout,
+    }];
+    let (mut argument_instructions, arguments) =
+        lower_call_arguments_to_scalar_arguments_with_temporaries(
+            call,
+            &target,
+            &identifier.name,
+            context,
+            temporaries,
+        )?;
+    instructions.append(&mut argument_instructions);
+    match success_type.as_ref() {
+        Type::Aggregate { .. } => {
+            instructions.push(Instruction::CallFallibleAggregate {
+                destination: AggregateLocation::Slot(source_slot),
+                target,
+                arguments,
+                failure_mode: FallibleFailureMode::Propagate,
+            });
+        }
+        Type::DirectAggregate { .. } => {
+            instructions.push(Instruction::CallFallibleDirectAggregate {
+                destination: AggregateLocation::Slot(source_slot),
+                target,
+                arguments,
+                layout,
+                failure_mode: FallibleFailureMode::Propagate,
+            });
+        }
+        _ => unreachable!("fallible aggregate field call value requires aggregate success type"),
+    }
+    instructions.push(Instruction::CopyAggregateRange {
+        destination,
+        destination_offset,
+        source: AggregateLocation::Slot(source_slot),
+        source_offset: 0,
+        layout,
+    });
+    Ok(instructions)
+}
+
+fn lower_aggregate_member_field_value_to_location(
+    expression: &Expr,
+    expected_layout: ValueLayout,
+    destination: AggregateLocation,
+    destination_offset: u32,
+    diagnostic_code: &'static str,
+    subject: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some(access) = lower_aggregate_member_field_access(expression, context, temporaries)?
+    else {
+        return Err(unsupported_aggregate_struct_literal_diagnostic(
+            diagnostic_code,
+            subject,
+        ));
+    };
+    let AggregateFieldKind::Aggregate { layout, .. } = access.kind else {
+        return Err(unsupported_aggregate_struct_literal_diagnostic(
+            diagnostic_code,
+            subject,
+        ));
+    };
+    if layout != expected_layout || !access.is_copy || !supported_aggregate_copy_layout(layout) {
+        return Err(unsupported_aggregate_struct_literal_diagnostic(
+            diagnostic_code,
+            subject,
+        ));
+    }
+
+    let mut instructions = access.instructions;
+    instructions.push(Instruction::CopyAggregateRange {
+        destination,
+        destination_offset,
+        source: access.source,
+        source_offset: access.offset,
+        layout,
+    });
+    Ok(instructions)
+}
+
+fn call_expression(expression: &Expr) -> Option<&CallExpr> {
+    match expression {
+        Expr::Call(call) => Some(call),
+        Expr::Group(group) => call_expression(&group.expression),
+        _ => None,
+    }
 }
 
 fn validate_direct_aggregate_field_store(
@@ -409,7 +641,7 @@ pub(super) fn unsupported_aggregate_struct_literal_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower aggregate {subject} when the expression is a struct literal with scalar integer, bool, or `std/ptr.from_addr` pointer fields"
+            "IR v0 can only lower aggregate {subject} from struct literals whose fields are supported scalar values, nested struct literals, copy aggregate values, aggregate calls, or aggregate member values"
         ),
     )]
 }

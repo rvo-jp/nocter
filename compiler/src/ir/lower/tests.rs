@@ -4735,6 +4735,268 @@ func build(): i32 {
 }
 
 #[test]
+fn lowers_nested_aggregate_struct_literal_field_from_call() {
+    let header_type = Type::DirectAggregate {
+        layout: ValueLayout::new(16, 8),
+        words: 2,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make_header(): Header {
+    return Header{ tag: 8, ok: true, code: 42, len: 12 }
+}
+
+func build(): i32 {
+    let packet = Packet{ prefix: 1, header: make_header(), tail: 2 }
+    return packet.header.code
+}
+"#,
+        "build",
+        function_signatures(vec![("make_header", header_type, vec![])]),
+    )
+    .unwrap();
+
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CallDirectAggregate {
+                destination: AggregateLocation::Slot(1),
+                target: CallTarget::same_file("make_header"),
+                arguments: vec![],
+                layout: ValueLayout::new(16, 8),
+            }),
+        "{function:?}"
+    );
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(0),
+                destination_offset: 8,
+                source: AggregateLocation::Slot(1),
+                source_offset: 0,
+                layout: ValueLayout::new(16, 8),
+            }),
+        "{function:?}"
+    );
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::LoadAggregateI32 {
+                destination: I32Location::Return,
+                source: AggregateLocation::Slot(0),
+                offset: 12,
+            }),
+        "{function:?}"
+    );
+}
+
+#[test]
+fn lowers_nested_aggregate_struct_literal_field_from_call_result_member() {
+    let packet_type = Type::Aggregate {
+        layout: ValueLayout::new(32, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Packet {
+    return Packet{ prefix: 1, header: Header{ tag: 8, ok: true, code: 42, len: 12 }, tail: 2 }
+}
+
+func build(): i32 {
+    let packet = Packet{ prefix: 1, header: make().header, tail: 2 }
+    return packet.header.code
+}
+"#,
+        "build",
+        function_signatures(vec![("make", packet_type, vec![])]),
+    )
+    .unwrap();
+
+    assert!(
+        function.instructions.contains(&Instruction::CallAggregate {
+            destination: AggregateLocation::Slot(1),
+            target: CallTarget::same_file("make"),
+            arguments: vec![],
+        }),
+        "{function:?}"
+    );
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(0),
+                destination_offset: 8,
+                source: AggregateLocation::Slot(1),
+                source_offset: 8,
+                layout: ValueLayout::new(16, 8),
+            }),
+        "{function:?}"
+    );
+}
+
+#[test]
+fn lowers_nested_aggregate_struct_literal_field_from_fallible_call_result_member() {
+    let packet_type = Type::Aggregate {
+        layout: ValueLayout::new(32, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Packet! {
+    return Packet{ prefix: 1, header: Header{ tag: 8, ok: true, code: 42, len: 12 }, tail: 2 }
+}
+
+func build(): i32! {
+    let packet = Packet{ prefix: 1, header: make()?.header, tail: 2 }
+    return packet.header.code
+}
+"#,
+        "build",
+        function_signatures(vec![(
+            "make",
+            Type::Fallible(Box::new(packet_type)),
+            vec![],
+        )]),
+    )
+    .unwrap();
+
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CallFallibleAggregate {
+                destination: AggregateLocation::Slot(1),
+                target: CallTarget::same_file("make"),
+                arguments: vec![],
+                failure_mode: FallibleFailureMode::Propagate,
+            }),
+        "{function:?}"
+    );
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(0),
+                destination_offset: 8,
+                source: AggregateLocation::Slot(1),
+                source_offset: 8,
+                layout: ValueLayout::new(16, 8),
+            }),
+        "{function:?}"
+    );
+}
+
+#[test]
+fn lowers_nested_aggregate_struct_literal_field_from_fallible_call() {
+    let header_type = Type::Fallible(Box::new(Type::DirectAggregate {
+        layout: ValueLayout::new(16, 8),
+        words: 2,
+    }));
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make_header(): Header! {
+    return Header{ tag: 8, ok: true, code: 42, len: 12 }
+}
+
+func build(): i32! {
+    let packet = Packet{ prefix: 1, header: make_header()?, tail: 2 }
+    return packet.header.code
+}
+"#,
+        "build",
+        function_signatures(vec![("make_header", header_type, vec![])]),
+    )
+    .unwrap();
+
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CallFallibleDirectAggregate {
+                destination: AggregateLocation::Slot(1),
+                target: CallTarget::same_file("make_header"),
+                arguments: vec![],
+                layout: ValueLayout::new(16, 8),
+                failure_mode: FallibleFailureMode::Propagate,
+            }),
+        "{function:?}"
+    );
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(0),
+                destination_offset: 8,
+                source: AggregateLocation::Slot(1),
+                source_offset: 0,
+                layout: ValueLayout::new(16, 8),
+            }),
+        "{function:?}"
+    );
+}
+
+#[test]
 fn lowers_nested_aggregate_field_binding_from_call_result() {
     let packet_type = Type::Aggregate {
         layout: ValueLayout::new(32, 8),
