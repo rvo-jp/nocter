@@ -1,4 +1,4 @@
-use super::super::aggregates::aggregate_fields_from_type_expr;
+use super::super::aggregates::{aggregate_fields_from_type_expr, supported_aggregate_copy_layout};
 use super::super::context::{AggregateFieldKind, LoweringContext};
 use super::super::literals::{lower_i32_literal, lower_u8_literal, lower_usize_literal};
 use crate::ast::{
@@ -533,7 +533,7 @@ fn aggregate_call_field_kind(
         Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
         _ => return None,
     };
-    if !layout.size.is_multiple_of(8) {
+    if !supported_aggregate_copy_layout(layout) {
         return None;
     }
 

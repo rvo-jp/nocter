@@ -1,5 +1,6 @@
 use super::aggregates::{
     aggregate_fields_from_type_expr, lower_aggregate_struct_literal_to_location,
+    supported_aggregate_copy_layout,
 };
 use super::context::{AggregateFieldKind, LoweringContext};
 use super::expressions::{
@@ -217,9 +218,9 @@ fn lower_aggregate_fallible_call_binding(
 fn validate_aggregate_binding_layout(
     layout: crate::abi::ValueLayout,
 ) -> Result<(), Vec<Diagnostic>> {
-    if !layout.size.is_multiple_of(8) {
+    if !supported_aggregate_copy_layout(layout) {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower aggregate call bindings whose ABI size is a multiple of 8 bytes",
+            "IR v0 can only lower aggregate call bindings whose final ABI word is 1, 4, or 8 bytes",
         ));
     }
     Ok(())
@@ -422,7 +423,7 @@ fn lower_aggregate_copy_assignment(
         || destination.layout != destination_layout
         || !source.is_copy
         || !destination.is_copy
-        || !destination_layout.size.is_multiple_of(8)
+        || !supported_aggregate_copy_layout(destination_layout)
     {
         return Err(unsupported_assignment_diagnostic());
     }

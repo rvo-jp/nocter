@@ -1,4 +1,6 @@
-use super::super::aggregates::lower_aggregate_struct_literal_to_location;
+use super::super::aggregates::{
+    lower_aggregate_struct_literal_to_location, supported_aggregate_copy_layout,
+};
 use super::super::context::LoweringContext;
 use super::temporaries::TemporaryAllocator;
 use super::{
@@ -539,7 +541,7 @@ fn lower_aggregate_argument_source(
         Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
         _ => unreachable!("aggregate argument lowering requires aggregate parameter type"),
     };
-    if !expected_layout.size.is_multiple_of(8) {
+    if !supported_aggregate_copy_layout(expected_layout) {
         return Err(unsupported_aggregate_argument_diagnostic(
             callee_name,
             parameter_type,
@@ -643,7 +645,7 @@ fn lower_aggregate_call_argument_source(
             ));
         }
     };
-    if !layout.size.is_multiple_of(8) {
+    if !supported_aggregate_copy_layout(layout) {
         return Err(unsupported_aggregate_argument_diagnostic(
             callee_name,
             parameter_type,

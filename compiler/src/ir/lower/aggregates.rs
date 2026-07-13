@@ -10,6 +10,10 @@ use crate::ir::{AggregateLocation, Instruction, UsizeValue};
 use crate::resolve::ResolveOutput;
 use std::collections::HashMap;
 
+pub(super) fn supported_aggregate_copy_layout(layout: ValueLayout) -> bool {
+    matches!(layout.size % 8, 0 | 1 | 4)
+}
+
 pub(super) fn lower_aggregate_struct_literal_to_location(
     literal: &StructLiteralExpr,
     expected_layout: ValueLayout,

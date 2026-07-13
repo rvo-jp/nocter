@@ -1,4 +1,5 @@
 use super::{EntryEmitter, I32_BIT_WIDTH, USIZE_BIT_WIDTH, emit_mov_i32_to_w, emit_mov_u64_to_x};
+use crate::abi::ValueLayout;
 use crate::backend::frame::{AggregateSlot, FrameLayout};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -363,18 +364,9 @@ impl EntryEmitter {
         &mut self,
         destination: AggregateLocation,
         source: AggregateLocation,
-        layout: crate::abi::ValueLayout,
+        layout: ValueLayout,
         frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
-        if !layout
-            .size
-            .is_multiple_of(AGGREGATE_USIZE_STORE_BYTES.into())
-        {
-            return Err(aggregate_copy_diagnostic(
-                "aggregate size is not a multiple of 8 bytes",
-            ));
-        }
-
         let Some(frame) = frame else {
             return Err(vec![Diagnostic::error(
                 "E9005",
@@ -385,64 +377,29 @@ impl EntryEmitter {
             .map_err(|_error| aggregate_copy_diagnostic("aggregate size exceeds u32 range"))?;
         let source = self.aggregate_copy_source(source, layout_size, frame)?;
 
-        match destination {
-            AggregateLocation::Return => {
-                let mut offset = 0_u32;
-                while u64::from(offset) < layout.size {
-                    self.emit_aggregate_copy_source_word_to_x(source, offset, XReg::X16)?;
-                    self.encoder.emit_str_x_imm(XReg::X16, XReg::X8, offset);
-                    offset = offset
-                        .checked_add(AGGREGATE_USIZE_STORE_BYTES)
-                        .ok_or_else(|| aggregate_copy_diagnostic("copy offset overflows"))?;
-                }
-            }
-            AggregateLocation::DirectReturn => {
-                if layout.size > 16 {
-                    return Err(aggregate_copy_diagnostic(
-                        "direct aggregate return copy exceeds two ABI words",
-                    ));
-                }
-                self.emit_aggregate_copy_source_word_to_x(source, 0, XReg::X0)?;
-                if layout.size > 8 {
-                    self.emit_aggregate_copy_source_word_to_x(source, 8, XReg::X1)?;
-                }
-            }
-            AggregateLocation::Slot(destination_slot_index) => {
-                let destination_slot =
-                    frame
-                        .aggregate_slot(destination_slot_index)
-                        .ok_or_else(|| {
-                            vec![Diagnostic::error(
-                                "E9005",
-                                format!(
-                                    "aggregate copy destination slot {destination_slot_index} is not reserved"
-                                ),
-                            )]
-                        })?;
-                if destination_slot.size() != layout_size {
-                    return Err(aggregate_copy_diagnostic(
-                        "destination slot size does not match aggregate layout",
-                    ));
-                }
+        if matches!(destination, AggregateLocation::DirectReturn) && layout.size > 16 {
+            return Err(aggregate_copy_diagnostic(
+                "direct aggregate return copy exceeds two ABI words",
+            ));
+        }
+        validate_aggregate_copy_destination(destination, layout_size, frame)?;
 
-                let mut offset = 0_u32;
-                while u64::from(offset) < layout.size {
-                    let destination_offset = destination_slot
-                        .offset()
-                        .checked_add(offset)
-                        .ok_or_else(|| aggregate_copy_diagnostic("destination offset overflows"))?;
-                    self.emit_aggregate_copy_source_word_to_x(source, offset, XReg::X16)?;
-                    self.encoder.emit_str_x_sp(XReg::X16, destination_offset);
-                    offset = offset
-                        .checked_add(AGGREGATE_USIZE_STORE_BYTES)
-                        .ok_or_else(|| aggregate_copy_diagnostic("copy offset overflows"))?;
-                }
-            }
-            AggregateLocation::Parameter(_) | AggregateLocation::DirectParameter { .. } => {
-                return Err(aggregate_copy_diagnostic(
-                    "aggregate copy cannot target parameter locations",
-                ));
-            }
+        let mut offset = 0_u32;
+        while offset < layout_size {
+            let remaining = layout_size
+                .checked_sub(offset)
+                .ok_or_else(|| aggregate_copy_diagnostic("copy offset exceeds aggregate size"))?;
+            let chunk_bytes = aggregate_copy_chunk_bytes(remaining)?;
+            self.emit_aggregate_copy_source_chunk_to_scratch(source, offset, chunk_bytes)?;
+            self.emit_aggregate_copy_scratch_to_destination(
+                destination,
+                offset,
+                chunk_bytes,
+                frame,
+            )?;
+            offset = offset
+                .checked_add(chunk_bytes)
+                .ok_or_else(|| aggregate_copy_diagnostic("copy offset overflows"))?;
         }
 
         Ok(())
@@ -489,11 +446,11 @@ impl EntryEmitter {
         }
     }
 
-    fn emit_aggregate_copy_source_word_to_x(
+    fn emit_aggregate_copy_source_chunk_to_scratch(
         &mut self,
         source: AggregateCopySource,
         offset: u32,
-        destination: XReg,
+        chunk_bytes: u32,
     ) -> Result<(), Vec<Diagnostic>> {
         match source {
             AggregateCopySource::Slot(slot) => {
@@ -501,10 +458,10 @@ impl EntryEmitter {
                     .offset()
                     .checked_add(offset)
                     .ok_or_else(|| aggregate_copy_diagnostic("source offset overflows"))?;
-                self.encoder.emit_ldr_x_sp(destination, source_offset);
+                self.emit_aggregate_copy_stack_chunk_to_scratch(source_offset, chunk_bytes)?;
             }
             AggregateCopySource::Parameter(register) => {
-                self.encoder.emit_ldr_x_imm(destination, register, offset);
+                self.emit_aggregate_copy_memory_chunk_to_scratch(register, offset, chunk_bytes)?;
             }
             AggregateCopySource::DirectParameter { start_index } => {
                 let word_index = usize::try_from(offset / AGGREGATE_USIZE_STORE_BYTES)
@@ -520,10 +477,122 @@ impl EntryEmitter {
                         ),
                     )]
                 })?;
-                if source_register != destination {
-                    self.encoder.emit_mov_x(destination, source_register);
+                match chunk_bytes {
+                    AGGREGATE_USIZE_STORE_BYTES => {
+                        if source_register != XReg::X16 {
+                            self.encoder.emit_mov_x(XReg::X16, source_register);
+                        }
+                    }
+                    AGGREGATE_I32_STORE_BYTES | AGGREGATE_U8_STORE_BYTES => {
+                        let source_register = WReg::argument(register_index).ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "E9005",
+                                format!(
+                                    "direct aggregate parameter copy source word {register_index} has no argument register"
+                                ),
+                            )]
+                        })?;
+                        if source_register != WReg::W16 {
+                            self.encoder.emit_mov_w(WReg::W16, source_register);
+                        }
+                    }
+                    _ => return Err(unsupported_aggregate_copy_chunk_diagnostic(chunk_bytes)),
                 }
             }
+        }
+        Ok(())
+    }
+
+    fn emit_aggregate_copy_scratch_to_destination(
+        &mut self,
+        destination: AggregateLocation,
+        offset: u32,
+        chunk_bytes: u32,
+        frame: &FrameLayout,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match destination {
+            AggregateLocation::Return => {
+                self.emit_aggregate_copy_scratch_to_memory_chunk(XReg::X8, offset, chunk_bytes)
+            }
+            AggregateLocation::DirectReturn => self.emit_x_to_direct_aggregate_return(offset),
+            AggregateLocation::Slot(destination_slot_index) => {
+                let destination_slot =
+                    frame
+                        .aggregate_slot(destination_slot_index)
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "E9005",
+                                format!(
+                                    "aggregate copy destination slot {destination_slot_index} is not reserved"
+                                ),
+                            )]
+                        })?;
+                let destination_offset = destination_slot
+                    .offset()
+                    .checked_add(offset)
+                    .ok_or_else(|| aggregate_copy_diagnostic("destination offset overflows"))?;
+                self.emit_aggregate_copy_scratch_to_stack_chunk(destination_offset, chunk_bytes)
+            }
+            AggregateLocation::Parameter(_) | AggregateLocation::DirectParameter { .. } => Err(
+                aggregate_copy_diagnostic("aggregate copy cannot target parameter locations"),
+            ),
+        }
+    }
+
+    fn emit_aggregate_copy_stack_chunk_to_scratch(
+        &mut self,
+        offset: u32,
+        chunk_bytes: u32,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match chunk_bytes {
+            AGGREGATE_USIZE_STORE_BYTES => self.encoder.emit_ldr_x_sp(XReg::X16, offset),
+            AGGREGATE_I32_STORE_BYTES => self.encoder.emit_ldr_w_sp(WReg::W16, offset),
+            AGGREGATE_U8_STORE_BYTES => self.encoder.emit_ldrb_w_sp(WReg::W16, offset),
+            _ => return Err(unsupported_aggregate_copy_chunk_diagnostic(chunk_bytes)),
+        }
+        Ok(())
+    }
+
+    fn emit_aggregate_copy_memory_chunk_to_scratch(
+        &mut self,
+        base: XReg,
+        offset: u32,
+        chunk_bytes: u32,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match chunk_bytes {
+            AGGREGATE_USIZE_STORE_BYTES => self.encoder.emit_ldr_x_imm(XReg::X16, base, offset),
+            AGGREGATE_I32_STORE_BYTES => self.encoder.emit_ldr_w_imm(WReg::W16, base, offset),
+            AGGREGATE_U8_STORE_BYTES => self.encoder.emit_ldrb_w_imm(WReg::W16, base, offset),
+            _ => return Err(unsupported_aggregate_copy_chunk_diagnostic(chunk_bytes)),
+        }
+        Ok(())
+    }
+
+    fn emit_aggregate_copy_scratch_to_stack_chunk(
+        &mut self,
+        offset: u32,
+        chunk_bytes: u32,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match chunk_bytes {
+            AGGREGATE_USIZE_STORE_BYTES => self.encoder.emit_str_x_sp(XReg::X16, offset),
+            AGGREGATE_I32_STORE_BYTES => self.encoder.emit_str_w_sp(WReg::W16, offset),
+            AGGREGATE_U8_STORE_BYTES => self.encoder.emit_strb_w_sp(WReg::W16, offset),
+            _ => return Err(unsupported_aggregate_copy_chunk_diagnostic(chunk_bytes)),
+        }
+        Ok(())
+    }
+
+    fn emit_aggregate_copy_scratch_to_memory_chunk(
+        &mut self,
+        base: XReg,
+        offset: u32,
+        chunk_bytes: u32,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match chunk_bytes {
+            AGGREGATE_USIZE_STORE_BYTES => self.encoder.emit_str_x_imm(XReg::X16, base, offset),
+            AGGREGATE_I32_STORE_BYTES => self.encoder.emit_str_w_imm(WReg::W16, base, offset),
+            AGGREGATE_U8_STORE_BYTES => self.encoder.emit_strb_w_imm(WReg::W16, base, offset),
+            _ => return Err(unsupported_aggregate_copy_chunk_diagnostic(chunk_bytes)),
         }
         Ok(())
     }
@@ -1149,6 +1218,47 @@ fn aggregate_copy_diagnostic(reason: &str) -> Vec<Diagnostic> {
         "E9005",
         format!("aggregate copy is invalid: {reason}"),
     )]
+}
+
+fn aggregate_copy_chunk_bytes(remaining_bytes: u32) -> Result<u32, Vec<Diagnostic>> {
+    if remaining_bytes >= AGGREGATE_USIZE_STORE_BYTES {
+        return Ok(AGGREGATE_USIZE_STORE_BYTES);
+    }
+    match remaining_bytes {
+        AGGREGATE_I32_STORE_BYTES | AGGREGATE_U8_STORE_BYTES => Ok(remaining_bytes),
+        _ => Err(unsupported_aggregate_copy_chunk_diagnostic(remaining_bytes)),
+    }
+}
+
+fn validate_aggregate_copy_destination(
+    destination: AggregateLocation,
+    layout_size: u32,
+    frame: &FrameLayout,
+) -> Result<(), Vec<Diagnostic>> {
+    if let AggregateLocation::Slot(destination_slot_index) = destination {
+        let destination_slot = frame
+            .aggregate_slot(destination_slot_index)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "E9005",
+                    format!(
+                        "aggregate copy destination slot {destination_slot_index} is not reserved"
+                    ),
+                )]
+            })?;
+        if destination_slot.size() != layout_size {
+            return Err(aggregate_copy_diagnostic(
+                "destination slot size does not match aggregate layout",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn unsupported_aggregate_copy_chunk_diagnostic(chunk_bytes: u32) -> Vec<Diagnostic> {
+    aggregate_copy_diagnostic(&format!(
+        "partial ABI word size {chunk_bytes} is not supported"
+    ))
 }
 
 const AGGREGATE_USIZE_STORE_BYTES: u32 = 8;

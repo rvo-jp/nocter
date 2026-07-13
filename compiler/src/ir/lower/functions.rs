@@ -1,5 +1,6 @@
 use super::aggregates::{
     aggregate_fields_from_type_expr, lower_aggregate_struct_literal_to_location,
+    supported_aggregate_copy_layout,
 };
 use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{
@@ -380,7 +381,7 @@ fn lower_aggregate_parameter_kind(
 ) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
     let value = abi_value_from_type_expr(&parameter.ty, resolved)
         .map_err(|_error| unsupported_parameter_type_diagnostic(function_name))?;
-    if !matches!(value.ty, AbiType::Struct(_)) || !value.layout.size.is_multiple_of(8) {
+    if !matches!(value.ty, AbiType::Struct(_)) || !supported_aggregate_copy_layout(value.layout) {
         return Err(unsupported_parameter_type_diagnostic(function_name));
     }
     let fields = aggregate_fields_from_type_expr(&parameter.ty, resolved)
@@ -402,7 +403,7 @@ fn unsupported_parameter_type_diagnostic(function_name: &str) -> Vec<Diagnostic>
     vec![Diagnostic::error(
         "E8007",
         format!(
-            "IR v0 can only lower `i32`, `u8`, `usize`, `bool`, `&str`, `&[u8]`, `&+[u8]`, scalar borrow parameters, aggregate borrow parameters, and 8-byte-aligned aggregate value parameters for function `{function_name}`"
+            "IR v0 can only lower `i32`, `u8`, `usize`, `bool`, `&str`, `&[u8]`, `&+[u8]`, scalar borrow parameters, aggregate borrow parameters, and aggregate value parameters whose final ABI word is 1, 4, or 8 bytes for function `{function_name}`"
         ),
     )]
 }
@@ -771,7 +772,7 @@ fn lower_aggregate_local_return(
     let Some((slot_index, layout)) = context.aggregate_slot(name) else {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     };
-    if layout != expected_layout || !layout.size.is_multiple_of(8) {
+    if layout != expected_layout || !supported_aggregate_copy_layout(layout) {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     }
 
@@ -870,7 +871,7 @@ fn lower_direct_aggregate_struct_literal_return_through_slot(
     resolved: &ResolveOutput,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    if !expected_layout.size.is_multiple_of(8) {
+    if !supported_aggregate_copy_layout(expected_layout) {
         return Err(unsupported_aggregate_return_diagnostic(
             context.function_name(),
         ));

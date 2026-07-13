@@ -6,7 +6,7 @@ use crate::ir::{
     AggregateArgumentSource, AggregateLocation, BoolLocation, BorrowSource, FallibleFailureMode,
     I32Location, ScalarArgument, SliceLocation, StrLocation, Type, U8Location, UsizeLocation,
 };
-use crate::target::arm64::{BranchCondition, WReg, XReg};
+use crate::target::arm64::{BranchCondition, MoveWideShift, WReg, XReg};
 
 pub(super) struct FallibleDirectAggregateCall<'a> {
     pub(super) destination: AggregateLocation,
@@ -216,6 +216,7 @@ impl EntryEmitter {
         layout: ValueLayout,
         frame: &FrameLayout,
     ) -> Result<(), Vec<Diagnostic>> {
+        validate_direct_aggregate_register_layout(layout, "direct aggregate call result")?;
         match destination {
             AggregateLocation::DirectReturn => Ok(()),
             AggregateLocation::Slot(slot_index) => {
@@ -237,23 +238,7 @@ impl EntryEmitter {
                         "direct aggregate destination slot size does not match layout",
                     )]);
                 }
-                if layout.size > 16 || !layout.size.is_multiple_of(8) {
-                    return Err(vec![Diagnostic::error(
-                        "E9005",
-                        "direct aggregate call result must be one or two ABI words",
-                    )]);
-                }
-
-                self.encoder.emit_str_x_sp(XReg::X0, slot.offset());
-                if layout.size > 8 {
-                    let second_offset = slot.offset().checked_add(8).ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "E9005",
-                            "direct aggregate destination offset overflows",
-                        )]
-                    })?;
-                    self.encoder.emit_str_x_sp(XReg::X1, second_offset);
-                }
+                self.emit_direct_aggregate_registers_to_stack(0, layout, slot.offset())?;
                 Ok(())
             }
             AggregateLocation::Return => Err(vec![Diagnostic::error(
@@ -275,12 +260,7 @@ impl EntryEmitter {
         layout: ValueLayout,
         frame: &FrameLayout,
     ) -> Result<(), Vec<Diagnostic>> {
-        if layout.size > 16 || !layout.size.is_multiple_of(8) {
-            return Err(vec![Diagnostic::error(
-                "E9005",
-                "fallible direct aggregate call result must be one or two ABI words",
-            )]);
-        }
+        validate_direct_aggregate_register_layout(layout, "fallible direct aggregate call result")?;
 
         match destination {
             AggregateLocation::DirectReturn => {
@@ -311,17 +291,7 @@ impl EntryEmitter {
                         "fallible direct aggregate destination slot size does not match layout",
                     )]);
                 }
-
-                self.encoder.emit_str_x_sp(XReg::X1, slot.offset());
-                if layout.size > 8 {
-                    let second_offset = slot.offset().checked_add(8).ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "E9005",
-                            "fallible direct aggregate destination offset overflows",
-                        )]
-                    })?;
-                    self.encoder.emit_str_x_sp(XReg::X2, second_offset);
-                }
+                self.emit_direct_aggregate_registers_to_stack(1, layout, slot.offset())?;
                 Ok(())
             }
             AggregateLocation::Return => Err(vec![Diagnostic::error(
@@ -710,9 +680,7 @@ impl EntryEmitter {
                     abi_word_index += 1;
                 }
                 ScalarArgument::AggregateDirect(argument) => {
-                    if !argument.layout.size.is_multiple_of(8)
-                        || argument.words != argument.layout.size.div_ceil(8) as usize
-                    {
+                    if argument.words != argument.layout.size.div_ceil(8) as usize {
                         return Err(vec![Diagnostic::error(
                             "E9003",
                             "direct aggregate argument must use full ABI words",
@@ -720,14 +688,13 @@ impl EntryEmitter {
                     }
                     for word_index in 0..argument.words {
                         let slot = staging_slot(frame, abi_word_index + word_index)?;
-                        self.emit_direct_aggregate_argument_word_to_x(
+                        self.emit_direct_aggregate_argument_word_to_staging_slot(
                             argument.source,
                             argument.layout,
                             word_index,
-                            XReg::X16,
+                            slot,
                             frame,
                         )?;
-                        self.encoder.emit_str_x_sp(XReg::X16, slot.offset());
                     }
                     abi_word_index += argument.words;
                 }
@@ -1110,12 +1077,12 @@ impl EntryEmitter {
         }
     }
 
-    fn emit_direct_aggregate_argument_word_to_x(
+    fn emit_direct_aggregate_argument_word_to_staging_slot(
         &mut self,
         source: AggregateArgumentSource,
         layout: ValueLayout,
         word_index: usize,
-        register: XReg,
+        staging_slot: ArgumentStagingSlot,
         frame: &FrameLayout,
     ) -> Result<(), Vec<Diagnostic>> {
         let AggregateArgumentSource::Slot(slot_index) = source;
@@ -1146,13 +1113,175 @@ impl EntryEmitter {
                     "direct aggregate argument word offset overflows",
                 )]
             })?;
+        let remaining_bytes = layout_size.checked_sub(offset).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "E9005",
+                "direct aggregate argument word offset exceeds layout size",
+            )]
+        })?;
+        let chunk_bytes =
+            direct_aggregate_chunk_bytes(remaining_bytes, "direct aggregate argument")?;
         let source_offset = slot.offset().checked_add(offset).ok_or_else(|| {
             vec![Diagnostic::error(
                 "E9005",
                 "direct aggregate argument source offset overflows",
             )]
         })?;
-        self.encoder.emit_ldr_x_sp(register, source_offset);
+        if chunk_bytes < DIRECT_AGGREGATE_WORD_BYTES {
+            self.encoder.emit_movz_x(XReg::X16, 0, MoveWideShift::Lsl0);
+            self.encoder.emit_str_x_sp(XReg::X16, staging_slot.offset());
+        }
+        match chunk_bytes {
+            DIRECT_AGGREGATE_WORD_BYTES => {
+                self.encoder.emit_ldr_x_sp(XReg::X16, source_offset);
+                self.encoder.emit_str_x_sp(XReg::X16, staging_slot.offset());
+            }
+            DIRECT_AGGREGATE_I32_BYTES => {
+                self.encoder.emit_ldr_w_sp(WReg::W16, source_offset);
+                self.encoder.emit_str_w_sp(WReg::W16, staging_slot.offset());
+            }
+            DIRECT_AGGREGATE_U8_BYTES => {
+                self.encoder.emit_ldrb_w_sp(WReg::W16, source_offset);
+                self.encoder
+                    .emit_strb_w_sp(WReg::W16, staging_slot.offset());
+            }
+            _ => {
+                return Err(unsupported_direct_aggregate_chunk_diagnostic(
+                    chunk_bytes,
+                    "direct aggregate argument",
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn emit_direct_aggregate_registers_to_stack(
+        &mut self,
+        first_register_index: usize,
+        layout: ValueLayout,
+        destination_offset: u32,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let layout_size = u32::try_from(layout.size).map_err(|_error| {
+            vec![Diagnostic::error(
+                "E9005",
+                "direct aggregate result size exceeds u32 range",
+            )]
+        })?;
+        let mut offset = 0_u32;
+        while offset < layout_size {
+            let remaining_bytes = layout_size.checked_sub(offset).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "E9005",
+                    "direct aggregate result offset exceeds layout size",
+                )]
+            })?;
+            let chunk_bytes =
+                direct_aggregate_chunk_bytes(remaining_bytes, "direct aggregate result")?;
+            let word_index = usize::try_from(offset / DIRECT_AGGREGATE_WORD_BYTES)
+                .map_err(|_error| direct_aggregate_result_diagnostic("word index overflows"))?;
+            let register_index = first_register_index
+                .checked_add(word_index)
+                .ok_or_else(|| direct_aggregate_result_diagnostic("register index overflows"))?;
+            let destination = destination_offset.checked_add(offset).ok_or_else(|| {
+                direct_aggregate_result_diagnostic("destination offset overflows")
+            })?;
+            match chunk_bytes {
+                DIRECT_AGGREGATE_WORD_BYTES => {
+                    let register = XReg::argument(register_index).ok_or_else(|| {
+                        direct_aggregate_result_diagnostic("result register is unavailable")
+                    })?;
+                    self.encoder.emit_str_x_sp(register, destination);
+                }
+                DIRECT_AGGREGATE_I32_BYTES => {
+                    let register = WReg::argument(register_index).ok_or_else(|| {
+                        direct_aggregate_result_diagnostic("result register is unavailable")
+                    })?;
+                    self.encoder.emit_str_w_sp(register, destination);
+                }
+                DIRECT_AGGREGATE_U8_BYTES => {
+                    let register = WReg::argument(register_index).ok_or_else(|| {
+                        direct_aggregate_result_diagnostic("result register is unavailable")
+                    })?;
+                    self.encoder.emit_strb_w_sp(register, destination);
+                }
+                _ => {
+                    return Err(unsupported_direct_aggregate_chunk_diagnostic(
+                        chunk_bytes,
+                        "direct aggregate result",
+                    ));
+                }
+            }
+            offset = offset
+                .checked_add(chunk_bytes)
+                .ok_or_else(|| direct_aggregate_result_diagnostic("offset overflows"))?;
+        }
         Ok(())
     }
 }
+
+fn validate_direct_aggregate_register_layout(
+    layout: ValueLayout,
+    subject: &str,
+) -> Result<(), Vec<Diagnostic>> {
+    if layout.size > 16 {
+        return Err(direct_aggregate_diagnostic(
+            subject,
+            "value exceeds two ABI words",
+        ));
+    }
+
+    let layout_size = u32::try_from(layout.size)
+        .map_err(|_error| direct_aggregate_diagnostic(subject, "size exceeds u32 range"))?;
+    let mut offset = 0_u32;
+    while offset < layout_size {
+        let remaining_bytes = layout_size
+            .checked_sub(offset)
+            .ok_or_else(|| direct_aggregate_diagnostic(subject, "offset exceeds layout size"))?;
+        let chunk_bytes = direct_aggregate_chunk_bytes(remaining_bytes, subject)?;
+        offset = offset
+            .checked_add(chunk_bytes)
+            .ok_or_else(|| direct_aggregate_diagnostic(subject, "offset overflows"))?;
+    }
+    Ok(())
+}
+
+fn direct_aggregate_chunk_bytes(
+    remaining_bytes: u32,
+    subject: &str,
+) -> Result<u32, Vec<Diagnostic>> {
+    if remaining_bytes >= DIRECT_AGGREGATE_WORD_BYTES {
+        return Ok(DIRECT_AGGREGATE_WORD_BYTES);
+    }
+    match remaining_bytes {
+        DIRECT_AGGREGATE_I32_BYTES | DIRECT_AGGREGATE_U8_BYTES => Ok(remaining_bytes),
+        _ => Err(unsupported_direct_aggregate_chunk_diagnostic(
+            remaining_bytes,
+            subject,
+        )),
+    }
+}
+
+fn unsupported_direct_aggregate_chunk_diagnostic(
+    chunk_bytes: u32,
+    subject: &str,
+) -> Vec<Diagnostic> {
+    direct_aggregate_diagnostic(
+        subject,
+        &format!("partial ABI word size {chunk_bytes} is not supported"),
+    )
+}
+
+fn direct_aggregate_result_diagnostic(reason: &str) -> Vec<Diagnostic> {
+    direct_aggregate_diagnostic("direct aggregate result", reason)
+}
+
+fn direct_aggregate_diagnostic(subject: &str, reason: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E9005",
+        format!("{subject} is invalid: {reason}"),
+    )]
+}
+
+const DIRECT_AGGREGATE_WORD_BYTES: u32 = 8;
+const DIRECT_AGGREGATE_I32_BYTES: u32 = 4;
+const DIRECT_AGGREGATE_U8_BYTES: u32 = 1;

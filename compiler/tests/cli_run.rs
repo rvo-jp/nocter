@@ -1620,6 +1620,268 @@ func add(a: i32, b: i32): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_direct_aggregate_value_argument_field_exit_code() {
+    let project = TempProject::new("cli-run-direct-aggregate-value-arg");
+    let source = project.write_source(
+        "direct_aggregate_value_arg.nct",
+        r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    let result = consume(Header{ tag: 7, ok: true, code: 42, len: 11 })
+    return result
+}
+
+func consume(header: Header): i32 {
+    return header.code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_small_direct_aggregate_value_argument_field_exit_code() {
+    let project = TempProject::new("cli-run-small-direct-aggregate-value-arg");
+    let source = project.write_source(
+        "small_direct_aggregate_value_arg.nct",
+        r#"struct Code {
+    value: i32
+}
+
+func main(): i32 {
+    let result = consume(Code{ value: 42 })
+    return result
+}
+
+func consume(code: Code): i32 {
+    return code.value
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_small_direct_aggregate_call_result_field_exit_code() {
+    let project = TempProject::new("cli-run-small-direct-aggregate-call-result-field");
+    let source = project.write_source(
+        "small_direct_aggregate_call_result_field.nct",
+        r#"struct Code {
+    value: i32
+}
+
+func main(): i32 {
+    return make().value
+}
+
+func make(): Code {
+    return Code{ value: 42 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_indirect_aggregate_value_argument_field_exit_code() {
+    let project = TempProject::new("cli-run-indirect-aggregate-value-arg");
+    let source = project.write_source(
+        "indirect_aggregate_value_arg.nct",
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    let text = Text{ start: 1, len: 42, capacity: 99 }
+    let len: usize = length(text)
+    if len == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+
+func length(text: Text): usize {
+    return text.len
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_readwrite_borrowed_aggregate_field_update_exit_code() {
+    let project = TempProject::new("cli-run-readwrite-borrowed-aggregate-field-update");
+    let source = project.write_source(
+        "readwrite_borrowed_aggregate_field_update.nct",
+        r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    var header = Header{ tag: 7, ok: true, code: 1, len: 11 }
+    set_code(&+header)
+    return header.code
+}
+
+func set_code(header: &+Header): void {
+    header.code = 42
+    return
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_nested_borrowed_aggregate_field_exit_code() {
+    let project = TempProject::new("cli-run-nested-borrowed-aggregate-field");
+    let source = project.write_source(
+        "nested_borrowed_aggregate_field.nct",
+        r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    let packet = Packet{
+        prefix: 1,
+        header: Header{ tag: 7, ok: true, code: 42, len: 11 },
+        tail: 99,
+    }
+    let result = read_code(&packet)
+    return result
+}
+
+func read_code(packet: &Packet): i32 {
+    return packet.header.code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_nested_aggregate_field_assignment_exit_code() {
+    let project = TempProject::new("cli-run-nested-aggregate-field-assignment");
+    let source = project.write_source(
+        "nested_aggregate_field_assignment.nct",
+        r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    var packet = Packet{
+        prefix: 1,
+        header: Header{ tag: 7, ok: true, code: 1, len: 11 },
+        tail: 99,
+    }
+    packet.header.code = 42
+    return packet.header.code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_bool_inequality_exit_code() {
     let project = TempProject::new("cli-run-bool-inequality");
     let source = project.write_source(

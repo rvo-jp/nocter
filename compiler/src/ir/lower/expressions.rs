@@ -1,4 +1,4 @@
-use super::aggregates::aggregate_fields_from_type_expr;
+use super::aggregates::{aggregate_fields_from_type_expr, supported_aggregate_copy_layout};
 use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{AggregateFieldKind, LoweringContext};
 use super::errors::{ErrorPayload, lower_error_payload};
@@ -1946,7 +1946,7 @@ fn lower_aggregate_call_member_field_access(
         Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
         _ => return Ok(None),
     };
-    if !layout.size.is_multiple_of(8) {
+    if !supported_aggregate_copy_layout(layout) {
         return Ok(None);
     }
     let Some(field) = aggregate_call_field(call, member_name, context) else {
