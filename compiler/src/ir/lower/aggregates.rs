@@ -1,5 +1,8 @@
 use super::context::LoweringContext;
-use super::expressions::lower_usize_expression_to_word;
+use super::expressions::{
+    lower_bool_expression_to_value, lower_i32_expression_to_word, lower_u8_expression_to_word,
+    lower_usize_expression_to_word,
+};
 use crate::abi::{AbiType, ValueLayout, abi_value_from_type_expr, layout_struct};
 use crate::ast::{Expr, StructLiteralExpr};
 use crate::diagnostics::Diagnostic;
@@ -38,55 +41,113 @@ pub(super) fn lower_aggregate_struct_literal_to_location(
     let field_layouts = fields
         .iter()
         .zip(struct_layout.fields.iter())
-        .map(|(field, layout)| (field.name.as_str(), (&field.ty, layout.offset)))
+        .map(|(field, layout)| (field.name.as_str(), (&field.ty, layout)))
         .collect::<HashMap<_, _>>();
 
     let mut instructions = Vec::new();
     for field in &literal.fields {
-        let Some((field_type, offset)) = field_layouts.get(field.name.as_str()) else {
+        let Some((field_type, field_layout)) = field_layouts.get(field.name.as_str()) else {
             return Err(unsupported_aggregate_struct_literal_diagnostic(
                 diagnostic_code,
                 subject,
             ));
         };
-        let offset = u32::try_from(*offset).map_err(|_error| {
+        let offset = u32::try_from(field_layout.offset).map_err(|_error| {
             unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
         })?;
-        let (mut field_instructions, value) = lower_aggregate_word_field_value(
+        let mut field_instructions = lower_aggregate_field_to_location(
             field_type,
             &field.value,
+            destination,
+            offset,
             diagnostic_code,
             subject,
             context,
         )?;
         instructions.append(&mut field_instructions);
-        instructions.push(Instruction::StoreAggregateUsize {
-            destination,
-            offset,
-            value,
-        });
     }
 
     Ok(instructions)
 }
 
-fn lower_aggregate_word_field_value(
+fn lower_aggregate_field_to_location(
     field_type: &AbiType,
     expression: &Expr,
+    destination: AggregateLocation,
+    offset: u32,
     diagnostic_code: &'static str,
     subject: &str,
     context: &LoweringContext,
-) -> Result<(Vec<Instruction>, UsizeValue), Vec<Diagnostic>> {
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match field_type {
-        AbiType::U64 | AbiType::Usize => lower_usize_expression_to_word(expression, context),
+        AbiType::U64 | AbiType::Usize => {
+            let (mut instructions, value) = lower_usize_expression_to_word(expression, context)?;
+            instructions.push(Instruction::StoreAggregateUsize {
+                destination,
+                offset,
+                value,
+            });
+            Ok(instructions)
+        }
+        AbiType::I32 => {
+            validate_direct_aggregate_field_store(destination, diagnostic_code, subject)?;
+            let (mut instructions, value) = lower_i32_expression_to_word(expression, context)?;
+            instructions.push(Instruction::StoreAggregateI32 {
+                destination,
+                offset,
+                value,
+            });
+            Ok(instructions)
+        }
+        AbiType::U8 => {
+            validate_direct_aggregate_field_store(destination, diagnostic_code, subject)?;
+            let (mut instructions, value) = lower_u8_expression_to_word(expression, context)?;
+            instructions.push(Instruction::StoreAggregateU8 {
+                destination,
+                offset,
+                value,
+            });
+            Ok(instructions)
+        }
+        AbiType::Bool => {
+            validate_direct_aggregate_field_store(destination, diagnostic_code, subject)?;
+            let mut lowered = lower_bool_expression_to_value(expression, context, diagnostic_code)?;
+            lowered.instructions.push(Instruction::StoreAggregateBool {
+                destination,
+                offset,
+                value: lowered.value,
+            });
+            Ok(lowered.instructions)
+        }
         AbiType::Pointer => {
-            lower_aggregate_pointer_field_value(expression, diagnostic_code, subject, context)
+            let (mut instructions, value) =
+                lower_aggregate_pointer_field_value(expression, diagnostic_code, subject, context)?;
+            instructions.push(Instruction::StoreAggregateUsize {
+                destination,
+                offset,
+                value,
+            });
+            Ok(instructions)
         }
         _ => Err(unsupported_aggregate_struct_literal_diagnostic(
             diagnostic_code,
             subject,
         )),
     }
+}
+
+fn validate_direct_aggregate_field_store(
+    destination: AggregateLocation,
+    diagnostic_code: &'static str,
+    subject: &str,
+) -> Result<(), Vec<Diagnostic>> {
+    if matches!(destination, AggregateLocation::DirectReturn) {
+        return Err(unsupported_aggregate_struct_literal_diagnostic(
+            diagnostic_code,
+            subject,
+        ));
+    }
+    Ok(())
 }
 
 fn lower_aggregate_pointer_field_value(
@@ -122,7 +183,7 @@ pub(super) fn unsupported_aggregate_struct_literal_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower aggregate {subject} when the expression is a struct literal with 8-byte integer fields or `std/ptr.from_addr` pointer fields"
+            "IR v0 can only lower aggregate {subject} when the expression is a struct literal with scalar integer, bool, or `std/ptr.from_addr` pointer fields"
         ),
     )]
 }

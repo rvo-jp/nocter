@@ -1042,6 +1042,68 @@ func make(): Text {
 }
 
 #[test]
+fn lowers_indirect_aggregate_scalar_struct_literal_return() {
+    let function = lower_named_function(
+        r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Header {
+    return Header{ tag: 7, ok: true, code: 42, len: 11, capacity: 12 }
+}
+"#,
+        "make",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "make".to_string(),
+            target: CallTarget::same_file("make"),
+            return_type: Type::Aggregate {
+                layout: ValueLayout::new(24, 8),
+            },
+            instructions: vec![
+                Instruction::StoreAggregateU8 {
+                    destination: AggregateLocation::Return,
+                    offset: 0,
+                    value: U8Value::Const(7),
+                },
+                Instruction::StoreAggregateBool {
+                    destination: AggregateLocation::Return,
+                    offset: 1,
+                    value: BoolValue::Const(true),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Return,
+                    offset: 4,
+                    value: I32Value::Const(42),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Return,
+                    offset: 8,
+                    value: usize_const(11),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Return,
+                    offset: 16,
+                    value: usize_const(12),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_indirect_aggregate_call_return() {
     let aggregate_type = Type::Aggregate {
         layout: ValueLayout::new(24, 8),
@@ -1556,6 +1618,67 @@ func make(): Pair {
                     destination: AggregateLocation::DirectReturn,
                     offset: 8,
                     value: usize_const(2),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_direct_aggregate_scalar_struct_literal_binding_return() {
+    let function = lower_named_function(
+        r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Header {
+    let value = Header{ tag: 7, ok: false, code: 42 }
+    return value
+}
+"#,
+        "make",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "make".to_string(),
+            target: CallTarget::same_file("make"),
+            return_type: Type::DirectAggregate {
+                layout: ValueLayout::new(8, 4),
+                words: 1,
+            },
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(8, 4),
+                },
+                Instruction::StoreAggregateU8 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: U8Value::Const(7),
+                },
+                Instruction::StoreAggregateBool {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 1,
+                    value: BoolValue::Const(false),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 4,
+                    value: I32Value::Const(42),
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::DirectReturn,
+                    source: AggregateLocation::Slot(0),
+                    layout: ValueLayout::new(8, 4),
                 },
                 Instruction::Return,
             ],

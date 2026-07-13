@@ -149,6 +149,27 @@ impl EntryEmitter {
             } => {
                 self.emit_store_aggregate_usize(*destination, *offset, value, frame)?;
             }
+            Instruction::StoreAggregateI32 {
+                destination,
+                offset,
+                value,
+            } => {
+                self.emit_store_aggregate_i32(*destination, *offset, value, frame)?;
+            }
+            Instruction::StoreAggregateU8 {
+                destination,
+                offset,
+                value,
+            } => {
+                self.emit_store_aggregate_u8(*destination, *offset, value, frame)?;
+            }
+            Instruction::StoreAggregateBool {
+                destination,
+                offset,
+                value,
+            } => {
+                self.emit_store_aggregate_bool(*destination, *offset, value, frame)?;
+            }
             Instruction::CopyAggregate {
                 destination,
                 source,
@@ -1742,6 +1763,115 @@ mod tests {
     }
 
     #[test]
+    fn aggregate_scalar_field_stores_use_field_width() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "make".to_string(),
+                target: crate::ir::CallTarget::same_file("make".to_string()),
+                return_type: Type::Aggregate {
+                    layout: ValueLayout::new(24, 8),
+                },
+                instructions: vec![
+                    Instruction::StoreAggregateU8 {
+                        destination: AggregateLocation::Return,
+                        offset: 0,
+                        value: U8Value::Const(7),
+                    },
+                    Instruction::StoreAggregateBool {
+                        destination: AggregateLocation::Return,
+                        offset: 1,
+                        value: BoolValue::Const(true),
+                    },
+                    Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::Return,
+                        offset: 4,
+                        value: I32Value::Const(42),
+                    },
+                    Instruction::StoreAggregateUsize {
+                        destination: AggregateLocation::Return,
+                        offset: 8,
+                        value: UsizeValue::Const(11),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_strb_w_imm(WReg::W16, XReg::X8, 0)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_strb_w_imm(WReg::W16, XReg::X8, 1)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_w_imm(WReg::W16, XReg::X8, 4)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_x_imm(XReg::X16, XReg::X8, 8)
+        ));
+    }
+
+    #[test]
+    fn aggregate_scalar_field_stores_to_slot_use_frame_offsets() {
+        let layout = ValueLayout::new(8, 4);
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout,
+                },
+                Instruction::StoreAggregateU8 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: U8Value::Const(7),
+                },
+                Instruction::StoreAggregateBool {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 1,
+                    value: BoolValue::Const(true),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 4,
+                    value: I32Value::Const(42),
+                },
+                set_return_i32(0),
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_strb_w_sp(WReg::W16, 0)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_strb_w_sp(WReg::W16, 1)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_w_sp(WReg::W16, 4)
+        ));
+    }
+
+    #[test]
     fn aggregate_copy_from_slot_to_return_copies_words_to_x8_destination() {
         let module = IrModule::new(vec![
             Function {
@@ -3051,6 +3181,36 @@ mod tests {
     fn encoded_str_x_sp(register: XReg, offset: u32) -> [u8; 4] {
         let mut encoder = Encoder::new();
         encoder.emit_str_x_sp(register, offset);
+        encoded_instruction(encoder)
+    }
+
+    fn encoded_str_w_sp(register: WReg, offset: u32) -> [u8; 4] {
+        let mut encoder = Encoder::new();
+        encoder.emit_str_w_sp(register, offset);
+        encoded_instruction(encoder)
+    }
+
+    fn encoded_strb_w_sp(register: WReg, offset: u32) -> [u8; 4] {
+        let mut encoder = Encoder::new();
+        encoder.emit_strb_w_sp(register, offset);
+        encoded_instruction(encoder)
+    }
+
+    fn encoded_str_w_imm(register: WReg, base: XReg, offset: u32) -> [u8; 4] {
+        let mut encoder = Encoder::new();
+        encoder.emit_str_w_imm(register, base, offset);
+        encoded_instruction(encoder)
+    }
+
+    fn encoded_strb_w_imm(register: WReg, base: XReg, offset: u32) -> [u8; 4] {
+        let mut encoder = Encoder::new();
+        encoder.emit_strb_w_imm(register, base, offset);
+        encoded_instruction(encoder)
+    }
+
+    fn encoded_str_x_imm(register: XReg, base: XReg, offset: u32) -> [u8; 4] {
+        let mut encoder = Encoder::new();
+        encoder.emit_str_x_imm(register, base, offset);
         encoded_instruction(encoder)
     }
 

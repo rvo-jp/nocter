@@ -43,34 +43,128 @@ impl EntryEmitter {
             }
             AggregateLocation::DirectReturn => self.emit_x_to_direct_aggregate_return(offset),
             AggregateLocation::Slot(slot_index) => {
-                let Some(frame) = frame else {
-                    return Err(vec![Diagnostic::error(
-                        "E9005",
-                        "aggregate slot store emission requires a stack frame",
-                    )]);
-                };
-                let slot = frame.aggregate_slot(slot_index).ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "E9005",
-                        format!("aggregate store destination slot {slot_index} is not reserved"),
-                    )]
-                })?;
-                let field_end = offset
-                    .checked_add(AGGREGATE_USIZE_STORE_BYTES)
-                    .ok_or_else(|| aggregate_store_offset_diagnostic("field end overflows"))?;
-                if field_end > slot.size() {
-                    return Err(aggregate_store_offset_diagnostic(
-                        "field exceeds aggregate slot size",
-                    ));
-                }
-                let absolute_offset = slot
-                    .offset()
-                    .checked_add(offset)
-                    .ok_or_else(|| aggregate_store_offset_diagnostic("stack offset overflows"))?;
+                let absolute_offset = self.aggregate_slot_field_offset(
+                    slot_index,
+                    offset,
+                    AGGREGATE_USIZE_STORE_BYTES,
+                    frame,
+                )?;
                 self.encoder.emit_str_x_sp(XReg::X16, absolute_offset);
                 Ok(())
             }
         }
+    }
+
+    pub(super) fn emit_store_aggregate_i32(
+        &mut self,
+        destination: AggregateLocation,
+        offset: u32,
+        value: &I32Value,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        validate_aggregate_i32_field_offset(offset)?;
+        self.emit_i32_value_to_w(value, WReg::W16)?;
+
+        match destination {
+            AggregateLocation::Return => {
+                self.encoder.emit_str_w_imm(WReg::W16, XReg::X8, offset);
+                Ok(())
+            }
+            AggregateLocation::DirectReturn => Err(aggregate_store_offset_diagnostic(
+                "direct aggregate return field store must be an 8-byte word",
+            )),
+            AggregateLocation::Slot(slot_index) => {
+                let absolute_offset = self.aggregate_slot_field_offset(
+                    slot_index,
+                    offset,
+                    AGGREGATE_I32_STORE_BYTES,
+                    frame,
+                )?;
+                self.encoder.emit_str_w_sp(WReg::W16, absolute_offset);
+                Ok(())
+            }
+        }
+    }
+
+    pub(super) fn emit_store_aggregate_u8(
+        &mut self,
+        destination: AggregateLocation,
+        offset: u32,
+        value: &U8Value,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_u8_value_to_w(value, WReg::W16)?;
+        self.emit_store_aggregate_byte(destination, offset, frame)
+    }
+
+    pub(super) fn emit_store_aggregate_bool(
+        &mut self,
+        destination: AggregateLocation,
+        offset: u32,
+        value: &BoolValue,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_bool_value_to_w(value, WReg::W16)?;
+        self.emit_store_aggregate_byte(destination, offset, frame)
+    }
+
+    fn emit_store_aggregate_byte(
+        &mut self,
+        destination: AggregateLocation,
+        offset: u32,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match destination {
+            AggregateLocation::Return => {
+                self.encoder.emit_strb_w_imm(WReg::W16, XReg::X8, offset);
+                Ok(())
+            }
+            AggregateLocation::DirectReturn => Err(aggregate_store_offset_diagnostic(
+                "direct aggregate return field store must be an 8-byte word",
+            )),
+            AggregateLocation::Slot(slot_index) => {
+                let absolute_offset = self.aggregate_slot_field_offset(
+                    slot_index,
+                    offset,
+                    AGGREGATE_U8_STORE_BYTES,
+                    frame,
+                )?;
+                self.encoder.emit_strb_w_sp(WReg::W16, absolute_offset);
+                Ok(())
+            }
+        }
+    }
+
+    fn aggregate_slot_field_offset(
+        &self,
+        slot_index: usize,
+        offset: u32,
+        store_bytes: u32,
+        frame: Option<&FrameLayout>,
+    ) -> Result<u32, Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "aggregate slot store emission requires a stack frame",
+            )]);
+        };
+        let slot = frame.aggregate_slot(slot_index).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "E9005",
+                format!("aggregate store destination slot {slot_index} is not reserved"),
+            )]
+        })?;
+        let field_end = offset
+            .checked_add(store_bytes)
+            .ok_or_else(|| aggregate_store_offset_diagnostic("field end overflows"))?;
+        if field_end > slot.size() {
+            return Err(aggregate_store_offset_diagnostic(
+                "field exceeds aggregate slot size",
+            ));
+        }
+        slot.offset()
+            .checked_add(offset)
+            .ok_or_else(|| aggregate_store_offset_diagnostic("stack offset overflows"))
     }
 
     pub(super) fn emit_copy_aggregate(
@@ -767,10 +861,20 @@ fn validate_aggregate_usize_field_offset(offset: u32) -> Result<(), Vec<Diagnost
     Ok(())
 }
 
+fn validate_aggregate_i32_field_offset(offset: u32) -> Result<(), Vec<Diagnostic>> {
+    if !offset.is_multiple_of(AGGREGATE_I32_STORE_BYTES) {
+        return Err(aggregate_store_offset_diagnostic(
+            "i32 field offset is not 4-byte aligned",
+        ));
+    }
+
+    Ok(())
+}
+
 fn aggregate_store_offset_diagnostic(reason: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E9005",
-        format!("aggregate usize store offset is invalid: {reason}"),
+        format!("aggregate field store offset is invalid: {reason}"),
     )]
 }
 
@@ -782,3 +886,5 @@ fn aggregate_copy_diagnostic(reason: &str) -> Vec<Diagnostic> {
 }
 
 const AGGREGATE_USIZE_STORE_BYTES: u32 = 8;
+const AGGREGATE_I32_STORE_BYTES: u32 = 4;
+const AGGREGATE_U8_STORE_BYTES: u32 = 1;

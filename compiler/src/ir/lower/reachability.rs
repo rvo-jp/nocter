@@ -87,6 +87,9 @@ fn collect_reachable_call_targets(
             Instruction::WriteStr { .. }
             | Instruction::ReserveAggregateSlot { .. }
             | Instruction::StoreAggregateUsize { .. }
+            | Instruction::StoreAggregateI32 { .. }
+            | Instruction::StoreAggregateU8 { .. }
+            | Instruction::StoreAggregateBool { .. }
             | Instruction::CopyAggregate { .. }
             | Instruction::PropagateFailure
             | Instruction::TrapOnFailure

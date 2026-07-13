@@ -285,7 +285,10 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
             matches!(destination, AggregateLocation::Slot(_))
                 || matches!(source, AggregateLocation::Slot(_))
         }
-        Instruction::StoreAggregateUsize { destination, .. } => {
+        Instruction::StoreAggregateUsize { destination, .. }
+        | Instruction::StoreAggregateI32 { destination, .. }
+        | Instruction::StoreAggregateU8 { destination, .. }
+        | Instruction::StoreAggregateBool { destination, .. } => {
             matches!(destination, AggregateLocation::Slot(_))
         }
         Instruction::TailCall { arguments, .. } => !arguments.is_empty(),
@@ -412,6 +415,9 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         Instruction::WriteStr { .. }
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::StoreAggregateUsize { .. }
+        | Instruction::StoreAggregateI32 { .. }
+        | Instruction::StoreAggregateU8 { .. }
+        | Instruction::StoreAggregateBool { .. }
         | Instruction::CopyAggregate { .. }
         | Instruction::SetI32 { .. }
         | Instruction::SetU8 { .. }
@@ -505,6 +511,9 @@ fn record_instruction_aggregate_slot_requests(
         | Instruction::WriteStr { .. }
         | Instruction::SetI32 { .. }
         | Instruction::StoreAggregateUsize { .. }
+        | Instruction::StoreAggregateI32 { .. }
+        | Instruction::StoreAggregateU8 { .. }
+        | Instruction::StoreAggregateBool { .. }
         | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
         | Instruction::SetBool { .. }
@@ -618,6 +627,15 @@ fn record_instruction_scalar_locals(
         }
         Instruction::StoreAggregateUsize { value, .. } => {
             record_usize_value(value, highest_local_index);
+        }
+        Instruction::StoreAggregateI32 { value, .. } => {
+            record_i32_value(value, highest_local_index);
+        }
+        Instruction::StoreAggregateU8 { value, .. } => {
+            record_u8_value(value, highest_local_index);
+        }
+        Instruction::StoreAggregateBool { value, .. } => {
+            record_bool_value(value, highest_local_index);
         }
         Instruction::WriteStr { fd, text } => {
             record_i32_value(fd, highest_local_index);

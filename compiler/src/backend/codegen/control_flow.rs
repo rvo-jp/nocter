@@ -304,6 +304,9 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             Instruction::WriteStr { .. }
             | Instruction::ReserveAggregateSlot { .. }
             | Instruction::StoreAggregateUsize { .. }
+            | Instruction::StoreAggregateI32 { .. }
+            | Instruction::StoreAggregateU8 { .. }
+            | Instruction::StoreAggregateBool { .. }
             | Instruction::CopyAggregate { .. }
             | Instruction::PropagateFailure
             | Instruction::TrapOnFailure

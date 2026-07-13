@@ -801,6 +801,15 @@ fn lower_i32_expression_to_value(
     }
 }
 
+pub(super) fn lower_i32_expression_to_word(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Result<(Vec<Instruction>, I32Value), Vec<Diagnostic>> {
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let lowered = lower_i32_expression_to_value(expression, context, &mut temporaries)?;
+    Ok((lowered.instructions, lowered.value))
+}
+
 fn lower_u8_expression_to_value(
     expression: &Expr,
     context: &LoweringContext,
@@ -864,6 +873,15 @@ fn lower_u8_expression_to_value(
             value: lower_u8_value(expression, context)?,
         }),
     }
+}
+
+pub(super) fn lower_u8_expression_to_word(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Result<(Vec<Instruction>, U8Value), Vec<Diagnostic>> {
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let lowered = lower_u8_expression_to_value(expression, context, &mut temporaries)?;
+    Ok((lowered.instructions, lowered.value))
 }
 
 fn lower_i32_conversion_expression_to_value(
