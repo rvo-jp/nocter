@@ -4194,6 +4194,81 @@ func check(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, pair: Pair): 
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_stack_passed_propagated_direct_aggregate_argument_field_exit_code() {
+    let project = TempProject::new("cli-run-stack-passed-propagated-direct-aggregate-arg");
+    let source = project.write_source(
+        "stack_passed_propagated_direct_aggregate_arg.nct",
+        r#"struct Pair {
+    a: i32
+    b: i32
+    c: i32
+    d: i32
+}
+
+func main(): i32! {
+    return check(1, 2, 3, 4, 5, 6, 7, make()?)
+}
+
+func make(): Pair! {
+    return Pair{ a: 10, b: 20, c: 7, d: 5 }
+}
+
+func check(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, pair: Pair): i32 {
+    return pair.a + pair.b + pair.c + pair.d
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_stack_passed_propagated_indirect_aggregate_argument_field_exit_code() {
+    let project = TempProject::new("cli-run-stack-passed-propagated-indirect-aggregate-arg");
+    let source = project.write_source(
+        "stack_passed_propagated_indirect_aggregate_arg.nct",
+        r#"struct Big {
+    first: usize
+    second: usize
+    code: i32
+}
+
+func main(): i32! {
+    return check(1, 2, 3, 4, 5, 6, 7, 8, make()?)
+}
+
+func make(): Big! {
+    return Big{ first: 10, second: 20, code: 42 }
+}
+
+func check(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, value: Big): i32 {
+    return value.code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_readwrite_borrowed_aggregate_field_update_exit_code() {
     let project = TempProject::new("cli-run-readwrite-borrowed-aggregate-field-update");
     let source = project.write_source(
