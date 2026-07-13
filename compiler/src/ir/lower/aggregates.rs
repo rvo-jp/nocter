@@ -343,6 +343,26 @@ fn lower_aggregate_field_to_location(
                         subject,
                         context,
                         temporaries,
+                        FallibleFailureMode::Propagate,
+                    )
+                }
+                Expr::Force(force) => {
+                    let Some(call) = call_expression(&force.expression) else {
+                        return Err(unsupported_aggregate_struct_literal_diagnostic(
+                            diagnostic_code,
+                            subject,
+                        ));
+                    };
+                    lower_aggregate_fallible_call_field_value_to_location(
+                        call,
+                        expected_layout,
+                        destination,
+                        offset,
+                        diagnostic_code,
+                        subject,
+                        context,
+                        temporaries,
+                        FallibleFailureMode::Trap,
                     )
                 }
                 Expr::Member(_) => lower_aggregate_member_field_value_to_location(
@@ -518,6 +538,7 @@ fn lower_aggregate_fallible_call_field_value_to_location(
     subject: &str,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
+    failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Expr::Identifier(identifier) = call.callee.as_ref() else {
         return Err(unsupported_aggregate_struct_literal_diagnostic(
@@ -568,7 +589,7 @@ fn lower_aggregate_fallible_call_field_value_to_location(
                 destination: AggregateLocation::Slot(source_slot),
                 target,
                 arguments,
-                failure_mode: FallibleFailureMode::Propagate,
+                failure_mode,
             });
         }
         Type::DirectAggregate { .. } => {
@@ -577,7 +598,7 @@ fn lower_aggregate_fallible_call_field_value_to_location(
                 target,
                 arguments,
                 layout,
-                failure_mode: FallibleFailureMode::Propagate,
+                failure_mode,
             });
         }
         _ => unreachable!("fallible aggregate field call value requires aggregate success type"),

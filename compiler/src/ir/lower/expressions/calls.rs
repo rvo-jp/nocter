@@ -701,6 +701,23 @@ fn lower_aggregate_argument_source(
                 callee_name,
                 context,
                 temporaries,
+                FallibleFailureMode::Propagate,
+            )
+        }
+        Expr::Force(force) => {
+            let Expr::Call(call) = unwrap_group(&force.expression) else {
+                return Err(unsupported_aggregate_argument_diagnostic(
+                    callee_name,
+                    parameter_type,
+                ));
+            };
+            lower_aggregate_fallible_call_argument_source(
+                call,
+                parameter_type,
+                callee_name,
+                context,
+                temporaries,
+                FallibleFailureMode::Trap,
             )
         }
         _ => Err(unsupported_aggregate_argument_diagnostic(
@@ -823,6 +840,7 @@ fn lower_aggregate_fallible_call_argument_source(
     callee_name: &str,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
+    failure_mode: FallibleFailureMode,
 ) -> Result<(Vec<Instruction>, AggregateArgumentSource), Vec<Diagnostic>> {
     let Expr::Identifier(identifier) = call.callee.as_ref() else {
         return Err(unsupported_aggregate_argument_diagnostic(
@@ -870,7 +888,7 @@ fn lower_aggregate_fallible_call_argument_source(
                 destination: AggregateLocation::Slot(slot_index),
                 target,
                 arguments,
-                failure_mode: FallibleFailureMode::Propagate,
+                failure_mode,
             });
         }
         Type::DirectAggregate { .. } => {
@@ -879,7 +897,7 @@ fn lower_aggregate_fallible_call_argument_source(
                 target,
                 arguments,
                 layout,
-                failure_mode: FallibleFailureMode::Propagate,
+                failure_mode,
             });
         }
         _ => unreachable!("aggregate fallible call argument lowering requires aggregate success"),

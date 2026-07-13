@@ -747,7 +747,25 @@ fn lower_aggregate_return_expression(
             let Expr::Call(call) = unwrap_group(&propagation.expression) else {
                 return Err(unsupported_aggregate_return_diagnostic(function_name));
             };
-            lower_aggregate_fallible_call_return(call, return_type, function_name, context)
+            lower_aggregate_fallible_call_return(
+                call,
+                return_type,
+                function_name,
+                context,
+                FallibleFailureMode::Propagate,
+            )
+        }
+        Expr::Force(force) => {
+            let Expr::Call(call) = unwrap_group(&force.expression) else {
+                return Err(unsupported_aggregate_return_diagnostic(function_name));
+            };
+            lower_aggregate_fallible_call_return(
+                call,
+                return_type,
+                function_name,
+                context,
+                FallibleFailureMode::Trap,
+            )
         }
         Expr::Identifier(identifier) => {
             lower_aggregate_local_return(&identifier.name, return_type, function_name, context)
@@ -840,6 +858,7 @@ fn lower_aggregate_fallible_call_return(
     return_type: &Type,
     function_name: &str,
     context: &LoweringContext,
+    failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Expr::Identifier(identifier) = call.callee.as_ref() else {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
@@ -854,13 +873,18 @@ fn lower_aggregate_fallible_call_return(
 
     let (mut instructions, arguments) =
         lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
+    let success_return = if matches!(&failure_mode, FallibleFailureMode::Propagate) {
+        Instruction::ReturnFallibleSuccess
+    } else {
+        Instruction::Return
+    };
     match return_type {
         Type::Aggregate { .. } => {
             instructions.push(Instruction::CallFallibleAggregate {
                 destination: AggregateLocation::Return,
                 target,
                 arguments,
-                failure_mode: FallibleFailureMode::Propagate,
+                failure_mode,
             });
         }
         Type::DirectAggregate { layout, .. } => {
@@ -869,12 +893,12 @@ fn lower_aggregate_fallible_call_return(
                 target,
                 arguments,
                 layout: *layout,
-                failure_mode: FallibleFailureMode::Propagate,
+                failure_mode,
             });
         }
         _ => unreachable!("fallible aggregate call return lowering requires aggregate return type"),
     }
-    instructions.push(Instruction::ReturnFallibleSuccess);
+    instructions.push(success_return);
     Ok(instructions)
 }
 

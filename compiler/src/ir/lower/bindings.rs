@@ -119,6 +119,17 @@ fn lower_aggregate_call_binding(
                 context,
             )
         }
+        Expr::Force(force) => {
+            let Expr::Call(call) = unwrap_group(&force.expression) else {
+                return Ok(None);
+            };
+            lower_aggregate_fallible_call_binding(
+                statement,
+                call,
+                FallibleFailureMode::Trap,
+                context,
+            )
+        }
         _ => Ok(None),
     }
 }
@@ -235,8 +246,14 @@ fn lower_aggregate_member_binding(
         Some((AggregateMemberBindingRoot::Call(call), field_path)) => {
             lower_aggregate_call_member_binding(statement, call, &field_path, context)
         }
-        Some((AggregateMemberBindingRoot::FallibleCall(call), field_path)) => {
-            lower_aggregate_fallible_call_member_binding(statement, call, &field_path, context)
+        Some((AggregateMemberBindingRoot::FallibleCall(call, failure_mode), field_path)) => {
+            lower_aggregate_fallible_call_member_binding(
+                statement,
+                call,
+                &field_path,
+                failure_mode,
+                context,
+            )
         }
         None => Ok(None),
     }
@@ -360,6 +377,7 @@ fn lower_aggregate_fallible_call_member_binding(
     statement: &BindingStmt,
     call: &CallExpr,
     field_path: &str,
+    failure_mode: FallibleFailureMode,
     context: &mut LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     let Expr::Identifier(identifier) = call.callee.as_ref() else {
@@ -413,7 +431,7 @@ fn lower_aggregate_fallible_call_member_binding(
                 destination: AggregateLocation::Slot(source_slot),
                 target,
                 arguments,
-                failure_mode: FallibleFailureMode::Propagate,
+                failure_mode,
             });
         }
         Type::DirectAggregate { .. } => {
@@ -422,7 +440,7 @@ fn lower_aggregate_fallible_call_member_binding(
                 target,
                 arguments,
                 layout: source_layout,
-                failure_mode: FallibleFailureMode::Propagate,
+                failure_mode,
             });
         }
         _ => unreachable!("fallible aggregate member binding requires aggregate success type"),
@@ -440,7 +458,7 @@ fn lower_aggregate_fallible_call_member_binding(
 enum AggregateMemberBindingRoot<'a> {
     Identifier(&'a str),
     Call(&'a CallExpr),
-    FallibleCall(&'a CallExpr),
+    FallibleCall(&'a CallExpr, FallibleFailureMode),
 }
 
 fn aggregate_member_binding_path(
@@ -464,7 +482,19 @@ fn aggregate_member_binding_root_and_path<'a>(
             let Expr::Call(call) = unwrap_group(&propagation.expression) else {
                 return None;
             };
-            Some((AggregateMemberBindingRoot::FallibleCall(call), Vec::new()))
+            Some((
+                AggregateMemberBindingRoot::FallibleCall(call, FallibleFailureMode::Propagate),
+                Vec::new(),
+            ))
+        }
+        Expr::Force(force) => {
+            let Expr::Call(call) = unwrap_group(&force.expression) else {
+                return None;
+            };
+            Some((
+                AggregateMemberBindingRoot::FallibleCall(call, FallibleFailureMode::Trap),
+                Vec::new(),
+            ))
         }
         Expr::Member(member) => {
             let (root, mut fields) = aggregate_member_binding_root_and_path(&member.object)?;
@@ -685,6 +715,19 @@ fn lower_aggregate_member_value_assignment(
                 context,
             )
         }
+        Expr::Force(force) => {
+            let Expr::Call(call) = unwrap_group(&force.expression) else {
+                return Err(unsupported_assignment_diagnostic());
+            };
+            lower_aggregate_fallible_call_member_value_assignment(
+                destination,
+                destination_offset,
+                layout,
+                call,
+                FallibleFailureMode::Trap,
+                context,
+            )
+        }
         Expr::Member(_) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             let access = lower_aggregate_member_field_access(value, context, &mut temporaries)?
@@ -890,6 +933,18 @@ fn lower_aggregate_assignment(
                 layout,
                 call,
                 FallibleFailureMode::Propagate,
+                context,
+            )
+        }
+        Expr::Force(force) => {
+            let Expr::Call(call) = unwrap_group(&force.expression) else {
+                return Err(unsupported_assignment_diagnostic());
+            };
+            lower_aggregate_fallible_call_assignment(
+                slot_index,
+                layout,
+                call,
+                FallibleFailureMode::Trap,
                 context,
             )
         }

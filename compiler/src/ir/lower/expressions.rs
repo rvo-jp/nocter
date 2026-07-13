@@ -1888,12 +1888,13 @@ pub(super) fn lower_aggregate_member_field_access(
         AggregateMemberRoot::Call(call) => {
             lower_aggregate_call_member_field_access(call, &access.field_path, context, temporaries)
         }
-        AggregateMemberRoot::FallibleCall(call) => {
+        AggregateMemberRoot::FallibleCall(call, failure_mode) => {
             lower_aggregate_fallible_call_member_field_access(
                 call,
                 &access.field_path,
                 context,
                 temporaries,
+                failure_mode,
             )
         }
     }
@@ -1907,7 +1908,7 @@ struct AggregateMemberAccess<'a> {
 enum AggregateMemberRoot<'a> {
     Identifier(&'a str),
     Call(&'a CallExpr),
-    FallibleCall(&'a CallExpr),
+    FallibleCall(&'a CallExpr, FallibleFailureMode),
 }
 
 fn aggregate_member_access(expression: &Expr) -> Option<AggregateMemberAccess<'_>> {
@@ -1935,7 +1936,19 @@ fn aggregate_member_root_and_path<'a>(
             let Expr::Call(call) = unwrap_group(&propagation.expression) else {
                 return None;
             };
-            Some((AggregateMemberRoot::FallibleCall(call), Vec::new()))
+            Some((
+                AggregateMemberRoot::FallibleCall(call, FallibleFailureMode::Propagate),
+                Vec::new(),
+            ))
+        }
+        Expr::Force(force) => {
+            let Expr::Call(call) = unwrap_group(&force.expression) else {
+                return None;
+            };
+            Some((
+                AggregateMemberRoot::FallibleCall(call, FallibleFailureMode::Trap),
+                Vec::new(),
+            ))
         }
         Expr::Member(member) => {
             let (root, mut fields) = aggregate_member_root_and_path(&member.object)?;
@@ -2008,6 +2021,7 @@ fn lower_aggregate_fallible_call_member_field_access(
     member_name: &str,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
+    failure_mode: FallibleFailureMode,
 ) -> Result<Option<LoweredAggregateFieldAccess>, Vec<Diagnostic>> {
     let Expr::Identifier(identifier) = call.callee.as_ref() else {
         return Ok(None);
@@ -2038,7 +2052,7 @@ fn lower_aggregate_fallible_call_member_field_access(
                 destination: AggregateLocation::Slot(slot_index),
                 target,
                 arguments,
-                failure_mode: FallibleFailureMode::Propagate,
+                failure_mode,
             });
         }
         Type::DirectAggregate { .. } => {
@@ -2047,7 +2061,7 @@ fn lower_aggregate_fallible_call_member_field_access(
                 target,
                 arguments,
                 layout,
-                failure_mode: FallibleFailureMode::Propagate,
+                failure_mode,
             });
         }
         _ => unreachable!("aggregate fallible call member access requires aggregate success type"),

@@ -1839,6 +1839,124 @@ func wrap(header: Header): Packet {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_aggregate_force_unwrap_call_binding_exit_code() {
+    let project = TempProject::new("cli-run-aggregate-force-unwrap-call-binding");
+    let source = project.write_source(
+        "aggregate_force_unwrap_call_binding.nct",
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    let header = make()!
+    return header.code
+}
+
+func make(): Header! {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_aggregate_force_unwrap_value_argument_exit_code() {
+    let project = TempProject::new("cli-run-aggregate-force-unwrap-value-argument");
+    let source = project.write_source(
+        "aggregate_force_unwrap_value_argument.nct",
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    return consume(make()!)
+}
+
+func make(): Header! {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+
+func consume(header: Header): i32 {
+    return header.code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_aggregate_force_unwrap_struct_literal_field_exit_code() {
+    let project = TempProject::new("cli-run-aggregate-force-unwrap-struct-literal-field");
+    let source = project.write_source(
+        "aggregate_force_unwrap_struct_literal_field.nct",
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    let packet = Packet{
+        prefix: 1,
+        header: make()!,
+        tail: 99,
+    }
+    return packet.header.code
+}
+
+func make(): Header! {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_nested_aggregate_struct_literal_argument_call_field_exit_code() {
     let project = TempProject::new("cli-run-nested-aggregate-struct-literal-arg-call-field");
     let source = project.write_source(
