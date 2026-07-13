@@ -2415,6 +2415,116 @@ func consume(pair: Pair): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_caught_direct_aggregate_call_argument_field_exit_code() {
+    let project = TempProject::new("cli-run-caught-direct-aggregate-call-argument-field");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+impl Error {
+    pub func new(code: ErrorCode, message: &str): Error {
+        return new_error(code, message)
+    }
+}
+"#,
+    );
+    let source = project.write_source(
+        "caught_direct_aggregate_call_argument_field.nct",
+        r#"from std/error import Error
+
+struct Pair {
+    first: i32
+    second: i32
+}
+
+func main(): i32! {
+    return consume(make() catch error {
+        return Error.new("app.main", error.message)
+    })
+}
+
+func make(): Pair! {
+    return Pair{ first: 7, second: 42 }
+}
+
+func consume(pair: Pair): i32 {
+    return pair.second
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_caught_indirect_aggregate_call_argument_field_exit_code() {
+    let project = TempProject::new("cli-run-caught-indirect-aggregate-call-argument-field");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+impl Error {
+    pub func new(code: ErrorCode, message: &str): Error {
+        return new_error(code, message)
+    }
+}
+"#,
+    );
+    let source = project.write_source(
+        "caught_indirect_aggregate_call_argument_field.nct",
+        r#"from std/error import Error
+
+struct Big {
+    first: usize
+    second: usize
+    third: usize
+    code: i32
+}
+
+func main(): i32! {
+    return consume(make() catch error {
+        return Error.new("app.main", error.message)
+    })
+}
+
+func make(): Big! {
+    return Big{ first: 1, second: 2, third: 3, code: 42 }
+}
+
+func consume(value: Big): i32 {
+    return value.code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_caught_direct_aggregate_call_return_field_exit_code() {
     let project = TempProject::new("cli-run-caught-direct-aggregate-call-return-field");
     project.write_nocter_home_file(
