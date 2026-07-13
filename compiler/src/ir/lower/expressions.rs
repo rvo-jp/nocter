@@ -1,4 +1,7 @@
-use super::aggregates::{aggregate_fields_from_type_expr, supported_aggregate_copy_layout};
+use super::aggregates::{
+    aggregate_fields_from_type_expr, aggregate_type_layout, push_aggregate_call_instruction,
+    push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
+};
 use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{AggregateFieldKind, LoweringContext};
 use super::errors::{ErrorPayload, lower_error_payload};
@@ -1972,9 +1975,8 @@ fn lower_aggregate_call_member_field_access(
     let Some(return_type) = context.call_return_type(&target).cloned() else {
         return Ok(None);
     };
-    let layout = match &return_type {
-        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
-        _ => return Ok(None),
+    let Some(layout) = aggregate_type_layout(&return_type) else {
+        return Ok(None);
     };
     if !supported_aggregate_copy_layout(layout) {
         return Ok(None);
@@ -1988,24 +1990,14 @@ fn lower_aggregate_call_member_field_access(
     let (mut argument_instructions, arguments) =
         lower_call_arguments(call, &target, &identifier.name, context, temporaries)?;
     instructions.append(&mut argument_instructions);
-    match return_type {
-        Type::Aggregate { .. } => {
-            instructions.push(Instruction::CallAggregate {
-                destination: AggregateLocation::Slot(slot_index),
-                target,
-                arguments,
-            });
-        }
-        Type::DirectAggregate { .. } => {
-            instructions.push(Instruction::CallDirectAggregate {
-                destination: AggregateLocation::Slot(slot_index),
-                target,
-                arguments,
-                layout,
-            });
-        }
-        _ => unreachable!("aggregate call member access requires aggregate return type"),
-    }
+    push_aggregate_call_instruction(
+        &mut instructions,
+        &return_type,
+        AggregateLocation::Slot(slot_index),
+        target,
+        arguments,
+        layout,
+    );
 
     Ok(Some(LoweredAggregateFieldAccess {
         instructions,
@@ -2030,9 +2022,8 @@ fn lower_aggregate_fallible_call_member_field_access(
     let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
         return Ok(None);
     };
-    let layout = match success_type.as_ref() {
-        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
-        _ => return Ok(None),
+    let Some(layout) = aggregate_type_layout(success_type.as_ref()) else {
+        return Ok(None);
     };
     if !supported_aggregate_copy_layout(layout) {
         return Ok(None);
@@ -2046,26 +2037,15 @@ fn lower_aggregate_fallible_call_member_field_access(
     let (mut argument_instructions, arguments) =
         lower_call_arguments(call, &target, &identifier.name, context, temporaries)?;
     instructions.append(&mut argument_instructions);
-    match success_type.as_ref() {
-        Type::Aggregate { .. } => {
-            instructions.push(Instruction::CallFallibleAggregate {
-                destination: AggregateLocation::Slot(slot_index),
-                target,
-                arguments,
-                failure_mode,
-            });
-        }
-        Type::DirectAggregate { .. } => {
-            instructions.push(Instruction::CallFallibleDirectAggregate {
-                destination: AggregateLocation::Slot(slot_index),
-                target,
-                arguments,
-                layout,
-                failure_mode,
-            });
-        }
-        _ => unreachable!("aggregate fallible call member access requires aggregate success type"),
-    }
+    push_fallible_aggregate_call_instruction(
+        &mut instructions,
+        success_type.as_ref(),
+        AggregateLocation::Slot(slot_index),
+        target,
+        arguments,
+        layout,
+        failure_mode,
+    );
 
     Ok(Some(LoweredAggregateFieldAccess {
         instructions,

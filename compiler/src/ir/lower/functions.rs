@@ -1,6 +1,7 @@
 use super::aggregates::{
     aggregate_fields_from_type_expr, lower_aggregate_struct_literal_to_location,
-    lower_aggregate_struct_literal_to_location_with_temporaries, supported_aggregate_copy_layout,
+    lower_aggregate_struct_literal_to_location_with_temporaries, push_aggregate_call_instruction,
+    push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
 };
 use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{
@@ -878,26 +879,16 @@ fn lower_aggregate_fallible_call_return(
     } else {
         Instruction::Return
     };
-    match return_type {
-        Type::Aggregate { .. } => {
-            instructions.push(Instruction::CallFallibleAggregate {
-                destination: AggregateLocation::Return,
-                target,
-                arguments,
-                failure_mode,
-            });
-        }
-        Type::DirectAggregate { layout, .. } => {
-            instructions.push(Instruction::CallFallibleDirectAggregate {
-                destination: AggregateLocation::DirectReturn,
-                target,
-                arguments,
-                layout: *layout,
-                failure_mode,
-            });
-        }
-        _ => unreachable!("fallible aggregate call return lowering requires aggregate return type"),
-    }
+    let (layout, destination) = aggregate_return_layout_and_destination(return_type);
+    push_fallible_aggregate_call_instruction(
+        &mut instructions,
+        return_type,
+        destination,
+        target,
+        arguments,
+        layout,
+        failure_mode,
+    );
     instructions.push(success_return);
     Ok(instructions)
 }
@@ -921,24 +912,15 @@ fn lower_aggregate_call_return(
 
     let (mut instructions, arguments) =
         lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
-    match return_type {
-        Type::Aggregate { .. } => {
-            instructions.push(Instruction::CallAggregate {
-                destination: AggregateLocation::Return,
-                target,
-                arguments,
-            });
-        }
-        Type::DirectAggregate { layout, .. } => {
-            instructions.push(Instruction::CallDirectAggregate {
-                destination: AggregateLocation::DirectReturn,
-                target,
-                arguments,
-                layout: *layout,
-            });
-        }
-        _ => unreachable!("aggregate call return lowering requires aggregate return type"),
-    }
+    let (layout, destination) = aggregate_return_layout_and_destination(return_type);
+    push_aggregate_call_instruction(
+        &mut instructions,
+        return_type,
+        destination,
+        target,
+        arguments,
+        layout,
+    );
     instructions.push(Instruction::Return);
     Ok(instructions)
 }

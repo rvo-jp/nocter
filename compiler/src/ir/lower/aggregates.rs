@@ -7,12 +7,107 @@ use super::expressions::{
 use crate::abi::{AbiType, ValueLayout, abi_value_from_type_expr, layout_of, layout_struct};
 use crate::ast::{CallExpr, Expr, StructLiteralExpr, TypeExpr};
 use crate::diagnostics::Diagnostic;
-use crate::ir::{AggregateLocation, FallibleFailureMode, Instruction, Type, UsizeValue};
+use crate::ir::{
+    AggregateLocation, CallTarget, FallibleFailureMode, Instruction, ScalarArgument, Type,
+    UsizeValue,
+};
 use crate::resolve::ResolveOutput;
 use std::collections::HashMap;
 
 pub(super) fn supported_aggregate_copy_layout(layout: ValueLayout) -> bool {
     layout.size > 0
+}
+
+pub(super) fn aggregate_type_layout(ty: &Type) -> Option<ValueLayout> {
+    match ty {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => Some(*layout),
+        _ => None,
+    }
+}
+
+pub(super) fn aggregate_call_instruction(
+    return_type: &Type,
+    destination: AggregateLocation,
+    target: CallTarget,
+    arguments: Vec<ScalarArgument>,
+    layout: ValueLayout,
+) -> Instruction {
+    match return_type {
+        Type::Aggregate { .. } => Instruction::CallAggregate {
+            destination,
+            target,
+            arguments,
+        },
+        Type::DirectAggregate { .. } => Instruction::CallDirectAggregate {
+            destination,
+            target,
+            arguments,
+            layout,
+        },
+        _ => unreachable!("aggregate call instruction requires aggregate return type"),
+    }
+}
+
+pub(super) fn push_aggregate_call_instruction(
+    instructions: &mut Vec<Instruction>,
+    return_type: &Type,
+    destination: AggregateLocation,
+    target: CallTarget,
+    arguments: Vec<ScalarArgument>,
+    layout: ValueLayout,
+) {
+    instructions.push(aggregate_call_instruction(
+        return_type,
+        destination,
+        target,
+        arguments,
+        layout,
+    ));
+}
+
+pub(super) fn fallible_aggregate_call_instruction(
+    success_type: &Type,
+    destination: AggregateLocation,
+    target: CallTarget,
+    arguments: Vec<ScalarArgument>,
+    layout: ValueLayout,
+    failure_mode: FallibleFailureMode,
+) -> Instruction {
+    match success_type {
+        Type::Aggregate { .. } => Instruction::CallFallibleAggregate {
+            destination,
+            target,
+            arguments,
+            failure_mode,
+        },
+        Type::DirectAggregate { .. } => Instruction::CallFallibleDirectAggregate {
+            destination,
+            target,
+            arguments,
+            layout,
+            failure_mode,
+        },
+        _ => unreachable!("fallible aggregate call instruction requires aggregate success type"),
+    }
+}
+
+pub(super) fn push_fallible_aggregate_call_instruction(
+    instructions: &mut Vec<Instruction>,
+    success_type: &Type,
+    destination: AggregateLocation,
+    target: CallTarget,
+    arguments: Vec<ScalarArgument>,
+    layout: ValueLayout,
+    failure_mode: FallibleFailureMode,
+) {
+    instructions.push(fallible_aggregate_call_instruction(
+        success_type,
+        destination,
+        target,
+        arguments,
+        layout,
+        failure_mode,
+    ));
 }
 
 pub(super) fn lower_aggregate_struct_literal_to_location(
@@ -471,14 +566,11 @@ fn lower_aggregate_call_field_value_to_location(
             subject,
         ));
     };
-    let layout = match &return_type {
-        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
-        _ => {
-            return Err(unsupported_aggregate_struct_literal_diagnostic(
-                diagnostic_code,
-                subject,
-            ));
-        }
+    let Some(layout) = aggregate_type_layout(&return_type) else {
+        return Err(unsupported_aggregate_struct_literal_diagnostic(
+            diagnostic_code,
+            subject,
+        ));
     };
     if layout != expected_layout || !supported_aggregate_copy_layout(layout) {
         return Err(unsupported_aggregate_struct_literal_diagnostic(
@@ -501,24 +593,14 @@ fn lower_aggregate_call_field_value_to_location(
             temporaries,
         )?;
     instructions.append(&mut argument_instructions);
-    match return_type {
-        Type::Aggregate { .. } => {
-            instructions.push(Instruction::CallAggregate {
-                destination: AggregateLocation::Slot(source_slot),
-                target,
-                arguments,
-            });
-        }
-        Type::DirectAggregate { .. } => {
-            instructions.push(Instruction::CallDirectAggregate {
-                destination: AggregateLocation::Slot(source_slot),
-                target,
-                arguments,
-                layout,
-            });
-        }
-        _ => unreachable!("aggregate field call value requires aggregate return type"),
-    }
+    push_aggregate_call_instruction(
+        &mut instructions,
+        &return_type,
+        AggregateLocation::Slot(source_slot),
+        target,
+        arguments,
+        layout,
+    );
     instructions.push(Instruction::CopyAggregateRange {
         destination,
         destination_offset,
@@ -553,14 +635,11 @@ fn lower_aggregate_fallible_call_field_value_to_location(
             subject,
         ));
     };
-    let layout = match success_type.as_ref() {
-        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
-        _ => {
-            return Err(unsupported_aggregate_struct_literal_diagnostic(
-                diagnostic_code,
-                subject,
-            ));
-        }
+    let Some(layout) = aggregate_type_layout(success_type.as_ref()) else {
+        return Err(unsupported_aggregate_struct_literal_diagnostic(
+            diagnostic_code,
+            subject,
+        ));
     };
     if layout != expected_layout || !supported_aggregate_copy_layout(layout) {
         return Err(unsupported_aggregate_struct_literal_diagnostic(
@@ -583,26 +662,15 @@ fn lower_aggregate_fallible_call_field_value_to_location(
             temporaries,
         )?;
     instructions.append(&mut argument_instructions);
-    match success_type.as_ref() {
-        Type::Aggregate { .. } => {
-            instructions.push(Instruction::CallFallibleAggregate {
-                destination: AggregateLocation::Slot(source_slot),
-                target,
-                arguments,
-                failure_mode,
-            });
-        }
-        Type::DirectAggregate { .. } => {
-            instructions.push(Instruction::CallFallibleDirectAggregate {
-                destination: AggregateLocation::Slot(source_slot),
-                target,
-                arguments,
-                layout,
-                failure_mode,
-            });
-        }
-        _ => unreachable!("fallible aggregate field call value requires aggregate success type"),
-    }
+    push_fallible_aggregate_call_instruction(
+        &mut instructions,
+        success_type.as_ref(),
+        AggregateLocation::Slot(source_slot),
+        target,
+        arguments,
+        layout,
+        failure_mode,
+    );
     instructions.push(Instruction::CopyAggregateRange {
         destination,
         destination_offset,

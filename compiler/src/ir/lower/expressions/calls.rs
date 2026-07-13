@@ -1,5 +1,7 @@
 use super::super::aggregates::{
-    lower_aggregate_struct_literal_to_location_with_temporaries, supported_aggregate_copy_layout,
+    aggregate_call_instruction, aggregate_type_layout,
+    lower_aggregate_struct_literal_to_location_with_temporaries, push_aggregate_call_instruction,
+    push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
 };
 use super::super::context::{AggregateFieldKind, LoweringContext};
 use super::temporaries::TemporaryAllocator;
@@ -437,7 +439,7 @@ fn lower_non_tail_return_call_instruction(
     arguments: Vec<ScalarArgument>,
     callee_name: &str,
 ) -> Result<Instruction, Vec<Diagnostic>> {
-    match return_type {
+    match &return_type {
         Type::I32 => Ok(Instruction::CallI32 {
             destination: I32Location::Return,
             target,
@@ -468,17 +470,20 @@ fn lower_non_tail_return_call_instruction(
             target,
             arguments,
         }),
-        Type::Aggregate { .. } => Ok(Instruction::CallAggregate {
-            destination: AggregateLocation::Return,
+        Type::Aggregate { layout } => Ok(aggregate_call_instruction(
+            &return_type,
+            AggregateLocation::Return,
             target,
             arguments,
-        }),
-        Type::DirectAggregate { layout, .. } => Ok(Instruction::CallDirectAggregate {
-            destination: AggregateLocation::DirectReturn,
+            *layout,
+        )),
+        Type::DirectAggregate { layout, .. } => Ok(aggregate_call_instruction(
+            &return_type,
+            AggregateLocation::DirectReturn,
             target,
             arguments,
-            layout,
-        }),
+            *layout,
+        )),
         Type::Never | Type::Void | Type::Fallible(_) | Type::Borrow { .. } => {
             Err(unsupported_non_tail_return_call_diagnostic(callee_name))
         }
@@ -792,14 +797,11 @@ fn lower_aggregate_call_argument_source(
             parameter_type,
         ));
     }
-    let layout = match return_type {
-        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
-        _ => {
-            return Err(unsupported_aggregate_argument_diagnostic(
-                callee_name,
-                parameter_type,
-            ));
-        }
+    let Some(layout) = aggregate_type_layout(return_type) else {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
     };
     if !supported_aggregate_copy_layout(layout) {
         return Err(unsupported_aggregate_argument_diagnostic(
@@ -813,24 +815,14 @@ fn lower_aggregate_call_argument_source(
     let (call_instructions, arguments) =
         lower_call_arguments(call, &target, &identifier.name, context, temporaries)?;
     instructions.extend(call_instructions);
-    match return_type {
-        Type::Aggregate { .. } => {
-            instructions.push(Instruction::CallAggregate {
-                destination: AggregateLocation::Slot(slot_index),
-                target,
-                arguments,
-            });
-        }
-        Type::DirectAggregate { .. } => {
-            instructions.push(Instruction::CallDirectAggregate {
-                destination: AggregateLocation::Slot(slot_index),
-                target,
-                arguments,
-                layout,
-            });
-        }
-        _ => unreachable!("aggregate call argument lowering requires aggregate return type"),
-    }
+    push_aggregate_call_instruction(
+        &mut instructions,
+        return_type,
+        AggregateLocation::Slot(slot_index),
+        target,
+        arguments,
+        layout,
+    );
     Ok((instructions, AggregateArgumentSource::Slot(slot_index)))
 }
 
@@ -861,14 +853,11 @@ fn lower_aggregate_fallible_call_argument_source(
             parameter_type,
         ));
     }
-    let layout = match success_type.as_ref() {
-        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
-        _ => {
-            return Err(unsupported_aggregate_argument_diagnostic(
-                callee_name,
-                parameter_type,
-            ));
-        }
+    let Some(layout) = aggregate_type_layout(success_type.as_ref()) else {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
     };
     if !supported_aggregate_copy_layout(layout) {
         return Err(unsupported_aggregate_argument_diagnostic(
@@ -882,26 +871,15 @@ fn lower_aggregate_fallible_call_argument_source(
     let (call_instructions, arguments) =
         lower_call_arguments(call, &target, &identifier.name, context, temporaries)?;
     instructions.extend(call_instructions);
-    match success_type.as_ref() {
-        Type::Aggregate { .. } => {
-            instructions.push(Instruction::CallFallibleAggregate {
-                destination: AggregateLocation::Slot(slot_index),
-                target,
-                arguments,
-                failure_mode,
-            });
-        }
-        Type::DirectAggregate { .. } => {
-            instructions.push(Instruction::CallFallibleDirectAggregate {
-                destination: AggregateLocation::Slot(slot_index),
-                target,
-                arguments,
-                layout,
-                failure_mode,
-            });
-        }
-        _ => unreachable!("aggregate fallible call argument lowering requires aggregate success"),
-    }
+    push_fallible_aggregate_call_instruction(
+        &mut instructions,
+        success_type.as_ref(),
+        AggregateLocation::Slot(slot_index),
+        target,
+        arguments,
+        layout,
+        failure_mode,
+    );
     Ok((instructions, AggregateArgumentSource::Slot(slot_index)))
 }
 
