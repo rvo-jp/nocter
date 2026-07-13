@@ -246,6 +246,16 @@ impl Encoder {
         ));
     }
 
+    pub(crate) fn emit_ldr_x_imm(&mut self, rt: XReg, rn: XReg, byte_offset: u32) {
+        self.emit_word(load_store_unsigned_word(
+            LDR_X_UNSIGNED_BASE,
+            rt.bits(),
+            rn.bits(),
+            byte_offset,
+            8,
+        ));
+    }
+
     pub(crate) fn emit_ldrb_w_reg(&mut self, rt: WReg, rn: XReg, rm: XReg) {
         self.emit_word(LDRB_W_REG_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rt.bits());
     }
@@ -575,6 +585,7 @@ const STR_W_UNSIGNED_BASE: u32 = 0xb900_0000;
 const STRB_W_UNSIGNED_BASE: u32 = 0x3900_0000;
 const LDRB_W_UNSIGNED_BASE: u32 = 0x3940_0000;
 const STR_X_UNSIGNED_BASE: u32 = 0xf900_0000;
+const LDR_X_UNSIGNED_BASE: u32 = 0xf940_0000;
 const LDRB_W_REG_BASE: u32 = 0x3860_6800;
 const B_BASE: u32 = 0x1400_0000;
 const B_COND_BASE: u32 = 0x5400_0000;

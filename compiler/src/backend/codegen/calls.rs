@@ -3,8 +3,8 @@ use crate::abi::ValueLayout;
 use crate::backend::frame::{ArgumentStagingSlot, FrameLayout};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    AggregateLocation, BoolLocation, BorrowSource, FallibleFailureMode, I32Location,
-    ScalarArgument, SliceLocation, StrLocation, Type, U8Location, UsizeLocation,
+    AggregateArgumentSource, AggregateLocation, BoolLocation, BorrowSource, FallibleFailureMode,
+    I32Location, ScalarArgument, SliceLocation, StrLocation, Type, U8Location, UsizeLocation,
 };
 use crate::target::arm64::{BranchCondition, WReg, XReg};
 
@@ -260,6 +260,12 @@ impl EntryEmitter {
                 "E9005",
                 "direct aggregate call cannot target indirect return storage",
             )]),
+            AggregateLocation::Parameter(_) | AggregateLocation::DirectParameter { .. } => {
+                Err(vec![Diagnostic::error(
+                    "E9005",
+                    "direct aggregate call cannot target parameter storage",
+                )])
+            }
         }
     }
 
@@ -322,6 +328,12 @@ impl EntryEmitter {
                 "E9005",
                 "fallible direct aggregate call cannot target indirect return storage",
             )]),
+            AggregateLocation::Parameter(_) | AggregateLocation::DirectParameter { .. } => {
+                Err(vec![Diagnostic::error(
+                    "E9005",
+                    "fallible direct aggregate call cannot target parameter storage",
+                )])
+            }
         }
     }
 
@@ -687,6 +699,38 @@ impl EntryEmitter {
                     self.encoder.emit_str_x_sp(XReg::X16, slot.offset());
                     abi_word_index += 1;
                 }
+                ScalarArgument::AggregateIndirect(argument) => {
+                    let slot = staging_slot(frame, abi_word_index)?;
+                    self.emit_aggregate_argument_source_address_to_x(
+                        argument.source,
+                        XReg::X16,
+                        frame,
+                    )?;
+                    self.encoder.emit_str_x_sp(XReg::X16, slot.offset());
+                    abi_word_index += 1;
+                }
+                ScalarArgument::AggregateDirect(argument) => {
+                    if !argument.layout.size.is_multiple_of(8)
+                        || argument.words != argument.layout.size.div_ceil(8) as usize
+                    {
+                        return Err(vec![Diagnostic::error(
+                            "E9003",
+                            "direct aggregate argument must use full ABI words",
+                        )]);
+                    }
+                    for word_index in 0..argument.words {
+                        let slot = staging_slot(frame, abi_word_index + word_index)?;
+                        self.emit_direct_aggregate_argument_word_to_x(
+                            argument.source,
+                            argument.layout,
+                            word_index,
+                            XReg::X16,
+                            frame,
+                        )?;
+                        self.encoder.emit_str_x_sp(XReg::X16, slot.offset());
+                    }
+                    abi_word_index += argument.words;
+                }
             }
         }
 
@@ -706,7 +750,9 @@ impl EntryEmitter {
                     self.encoder.emit_ldr_w_sp(register, slot.offset());
                     abi_word_index += 1;
                 }
-                ScalarArgument::Usize(_) | ScalarArgument::Borrow(_) => {
+                ScalarArgument::Usize(_)
+                | ScalarArgument::Borrow(_)
+                | ScalarArgument::AggregateIndirect(_) => {
                     let Some(register) = XReg::argument(abi_word_index) else {
                         return Err(vec![Diagnostic::error(
                             "E9003",
@@ -718,6 +764,22 @@ impl EntryEmitter {
                     let slot = staging_slot(frame, abi_word_index)?;
                     self.encoder.emit_ldr_x_sp(register, slot.offset());
                     abi_word_index += 1;
+                }
+                ScalarArgument::AggregateDirect(argument) => {
+                    for word_index in 0..argument.words {
+                        let register_index = abi_word_index + word_index;
+                        let Some(register) = XReg::argument(register_index) else {
+                            return Err(vec![Diagnostic::error(
+                                "E9003",
+                                format!(
+                                    "codegen supports at most 8 ABI argument words, got argument word {register_index}"
+                                ),
+                            )]);
+                        };
+                        let slot = staging_slot(frame, register_index)?;
+                        self.encoder.emit_ldr_x_sp(register, slot.offset());
+                    }
+                    abi_word_index += argument.words;
                 }
                 ScalarArgument::Str(_) | ScalarArgument::Slice(_) => {
                     let Some(ptr_register) = XReg::argument(abi_word_index) else {
@@ -816,6 +878,12 @@ impl EntryEmitter {
                 "E9005",
                 "indirect aggregate call cannot target direct return registers",
             )]),
+            AggregateLocation::Parameter(_) | AggregateLocation::DirectParameter { .. } => {
+                Err(vec![Diagnostic::error(
+                    "E9005",
+                    "indirect aggregate call cannot target parameter storage",
+                )])
+            }
             AggregateLocation::Slot(slot_index) => {
                 self.emit_aggregate_slot_address_to_x(slot_index, XReg::X8, frame)
             }
@@ -1026,6 +1094,65 @@ impl EntryEmitter {
         };
 
         self.encoder.emit_add_x_sp_imm(register, offset);
+        Ok(())
+    }
+
+    fn emit_aggregate_argument_source_address_to_x(
+        &mut self,
+        source: AggregateArgumentSource,
+        register: XReg,
+        frame: &FrameLayout,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match source {
+            AggregateArgumentSource::Slot(slot_index) => {
+                self.emit_aggregate_slot_address_to_x(slot_index, register, frame)
+            }
+        }
+    }
+
+    fn emit_direct_aggregate_argument_word_to_x(
+        &mut self,
+        source: AggregateArgumentSource,
+        layout: ValueLayout,
+        word_index: usize,
+        register: XReg,
+        frame: &FrameLayout,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let AggregateArgumentSource::Slot(slot_index) = source;
+        let slot = frame.aggregate_slot(slot_index).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "E9005",
+                format!("direct aggregate argument source slot {slot_index} is not reserved"),
+            )]
+        })?;
+        let layout_size = u32::try_from(layout.size).map_err(|_error| {
+            vec![Diagnostic::error(
+                "E9005",
+                "direct aggregate argument size exceeds u32 range",
+            )]
+        })?;
+        if slot.size() != layout_size {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "direct aggregate argument source slot size does not match layout",
+            )]);
+        }
+        let offset = u32::try_from(word_index)
+            .ok()
+            .and_then(|word_index| word_index.checked_mul(8))
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "E9005",
+                    "direct aggregate argument word offset overflows",
+                )]
+            })?;
+        let source_offset = slot.offset().checked_add(offset).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "E9005",
+                "direct aggregate argument source offset overflows",
+            )]
+        })?;
+        self.encoder.emit_ldr_x_sp(register, source_offset);
         Ok(())
     }
 }

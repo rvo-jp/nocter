@@ -36,6 +36,22 @@ pub(super) struct LoweringParameterSlots {
     pub(super) bool: Vec<Option<String>>,
     pub(super) str: Vec<Option<String>>,
     pub(super) slice: Vec<Option<String>>,
+    pub(super) aggregates: Vec<LoweringAggregateParameter>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct LoweringAggregateParameter {
+    pub(super) name: String,
+    pub(super) layout: ValueLayout,
+    pub(super) slot_index: usize,
+    pub(super) source: AggregateParameterSource,
+    pub(super) fields: Vec<AggregateField>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum AggregateParameterSource {
+    Indirect { parameter_index: usize },
+    Direct { start_index: usize, words: usize },
 }
 
 impl<'a> LoweringContext<'a> {
@@ -69,6 +85,21 @@ impl<'a> LoweringContext<'a> {
         function_signatures: FunctionSignatures,
         parameters: LoweringParameterSlots,
     ) -> Self {
+        let mut locals = Vec::new();
+        let mut aggregate_fields = HashMap::new();
+        for parameter in parameters.aggregates {
+            locals.push(LocalBinding {
+                name: parameter.name,
+                kind: LocalKind::Aggregate {
+                    layout: parameter.layout,
+                    slot_index: parameter.slot_index,
+                    is_copy: true,
+                },
+                index: 0,
+            });
+            aggregate_fields.insert(parameter.slot_index, parameter.fields);
+        }
+
         Self {
             function_name,
             function_return_type: return_type.clone(),
@@ -83,8 +114,8 @@ impl<'a> LoweringContext<'a> {
             str_parameters: parameters.str,
             slice_parameters: parameters.slice,
             reserved_local_abi_words: 0,
-            locals: Vec::new(),
-            aggregate_fields: HashMap::new(),
+            locals,
+            aggregate_fields,
         }
     }
 

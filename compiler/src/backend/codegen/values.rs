@@ -1,11 +1,18 @@
 use super::{EntryEmitter, I32_BIT_WIDTH, USIZE_BIT_WIDTH, emit_mov_i32_to_w, emit_mov_u64_to_x};
-use crate::backend::frame::FrameLayout;
+use crate::backend::frame::{AggregateSlot, FrameLayout};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateLocation, BoolLocation, BoolValue, I32Location, I32Value, SliceLocation, SliceValue,
     StrLocation, StrValue, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use crate::target::arm64::{BranchCondition, WReg, XReg};
+
+#[derive(Clone, Copy)]
+enum AggregateCopySource {
+    Slot(AggregateSlot),
+    Parameter(XReg),
+    DirectParameter { start_index: usize },
+}
 
 impl EntryEmitter {
     pub(super) fn emit_set_i32(
@@ -42,6 +49,9 @@ impl EntryEmitter {
                 Ok(())
             }
             AggregateLocation::DirectReturn => self.emit_x_to_direct_aggregate_return(offset),
+            AggregateLocation::Parameter(_) | AggregateLocation::DirectParameter { .. } => Err(
+                aggregate_store_offset_diagnostic("aggregate parameter stores are not supported"),
+            ),
             AggregateLocation::Slot(slot_index) => {
                 let absolute_offset = self.aggregate_slot_field_offset(
                     slot_index,
@@ -73,6 +83,9 @@ impl EntryEmitter {
             AggregateLocation::DirectReturn => Err(aggregate_store_offset_diagnostic(
                 "direct aggregate return field store must be an 8-byte word",
             )),
+            AggregateLocation::Parameter(_) | AggregateLocation::DirectParameter { .. } => Err(
+                aggregate_store_offset_diagnostic("aggregate parameter stores are not supported"),
+            ),
             AggregateLocation::Slot(slot_index) => {
                 let absolute_offset = self.aggregate_slot_field_offset(
                     slot_index,
@@ -122,6 +135,9 @@ impl EntryEmitter {
             AggregateLocation::DirectReturn => Err(aggregate_store_offset_diagnostic(
                 "direct aggregate return field store must be an 8-byte word",
             )),
+            AggregateLocation::Parameter(_) | AggregateLocation::DirectParameter { .. } => Err(
+                aggregate_store_offset_diagnostic("aggregate parameter stores are not supported"),
+            ),
             AggregateLocation::Slot(slot_index) => {
                 let absolute_offset = self.aggregate_slot_field_offset(
                     slot_index,
@@ -256,40 +272,21 @@ impl EntryEmitter {
             ));
         }
 
-        let AggregateLocation::Slot(source_slot_index) = source else {
-            return Err(aggregate_copy_diagnostic(
-                "backend v0 can only copy aggregate slots to return destinations",
-            ));
-        };
         let Some(frame) = frame else {
             return Err(vec![Diagnostic::error(
                 "E9005",
                 "aggregate copy emission requires a stack frame",
             )]);
         };
-        let source_slot = frame.aggregate_slot(source_slot_index).ok_or_else(|| {
-            vec![Diagnostic::error(
-                "E9005",
-                format!("aggregate copy source slot {source_slot_index} is not reserved"),
-            )]
-        })?;
         let layout_size = u32::try_from(layout.size)
             .map_err(|_error| aggregate_copy_diagnostic("aggregate size exceeds u32 range"))?;
-        if source_slot.size() != layout_size {
-            return Err(aggregate_copy_diagnostic(
-                "source slot size does not match aggregate layout",
-            ));
-        }
+        let source = self.aggregate_copy_source(source, layout_size, frame)?;
 
         match destination {
             AggregateLocation::Return => {
                 let mut offset = 0_u32;
                 while u64::from(offset) < layout.size {
-                    let source_offset = source_slot
-                        .offset()
-                        .checked_add(offset)
-                        .ok_or_else(|| aggregate_copy_diagnostic("source offset overflows"))?;
-                    self.encoder.emit_ldr_x_sp(XReg::X16, source_offset);
+                    self.emit_aggregate_copy_source_word_to_x(source, offset, XReg::X16)?;
                     self.encoder.emit_str_x_imm(XReg::X16, XReg::X8, offset);
                     offset = offset
                         .checked_add(AGGREGATE_USIZE_STORE_BYTES)
@@ -302,13 +299,9 @@ impl EntryEmitter {
                         "direct aggregate return copy exceeds two ABI words",
                     ));
                 }
-                let source_offset = source_slot.offset();
-                self.encoder.emit_ldr_x_sp(XReg::X0, source_offset);
+                self.emit_aggregate_copy_source_word_to_x(source, 0, XReg::X0)?;
                 if layout.size > 8 {
-                    let second_offset = source_offset
-                        .checked_add(8)
-                        .ok_or_else(|| aggregate_copy_diagnostic("source offset overflows"))?;
-                    self.encoder.emit_ldr_x_sp(XReg::X1, second_offset);
+                    self.emit_aggregate_copy_source_word_to_x(source, 8, XReg::X1)?;
                 }
             }
             AggregateLocation::Slot(destination_slot_index) => {
@@ -331,23 +324,104 @@ impl EntryEmitter {
 
                 let mut offset = 0_u32;
                 while u64::from(offset) < layout.size {
-                    let source_offset = source_slot
-                        .offset()
-                        .checked_add(offset)
-                        .ok_or_else(|| aggregate_copy_diagnostic("source offset overflows"))?;
                     let destination_offset = destination_slot
                         .offset()
                         .checked_add(offset)
                         .ok_or_else(|| aggregate_copy_diagnostic("destination offset overflows"))?;
-                    self.encoder.emit_ldr_x_sp(XReg::X16, source_offset);
+                    self.emit_aggregate_copy_source_word_to_x(source, offset, XReg::X16)?;
                     self.encoder.emit_str_x_sp(XReg::X16, destination_offset);
                     offset = offset
                         .checked_add(AGGREGATE_USIZE_STORE_BYTES)
                         .ok_or_else(|| aggregate_copy_diagnostic("copy offset overflows"))?;
                 }
             }
+            AggregateLocation::Parameter(_) | AggregateLocation::DirectParameter { .. } => {
+                return Err(aggregate_copy_diagnostic(
+                    "aggregate copy cannot target parameter locations",
+                ));
+            }
         }
 
+        Ok(())
+    }
+
+    fn aggregate_copy_source(
+        &self,
+        source: AggregateLocation,
+        layout_size: u32,
+        frame: &FrameLayout,
+    ) -> Result<AggregateCopySource, Vec<Diagnostic>> {
+        match source {
+            AggregateLocation::Slot(source_slot_index) => {
+                let source_slot = frame.aggregate_slot(source_slot_index).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9005",
+                        format!("aggregate copy source slot {source_slot_index} is not reserved"),
+                    )]
+                })?;
+                if source_slot.size() != layout_size {
+                    return Err(aggregate_copy_diagnostic(
+                        "source slot size does not match aggregate layout",
+                    ));
+                }
+                Ok(AggregateCopySource::Slot(source_slot))
+            }
+            AggregateLocation::Parameter(index) => {
+                let register = XReg::argument(index).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9005",
+                        format!(
+                            "aggregate parameter copy source word {index} has no argument register"
+                        ),
+                    )]
+                })?;
+                Ok(AggregateCopySource::Parameter(register))
+            }
+            AggregateLocation::DirectParameter { start_index } => {
+                Ok(AggregateCopySource::DirectParameter { start_index })
+            }
+            AggregateLocation::Return | AggregateLocation::DirectReturn => Err(
+                aggregate_copy_diagnostic("aggregate copy cannot read from return locations"),
+            ),
+        }
+    }
+
+    fn emit_aggregate_copy_source_word_to_x(
+        &mut self,
+        source: AggregateCopySource,
+        offset: u32,
+        destination: XReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match source {
+            AggregateCopySource::Slot(slot) => {
+                let source_offset = slot
+                    .offset()
+                    .checked_add(offset)
+                    .ok_or_else(|| aggregate_copy_diagnostic("source offset overflows"))?;
+                self.encoder.emit_ldr_x_sp(destination, source_offset);
+            }
+            AggregateCopySource::Parameter(register) => {
+                self.encoder.emit_ldr_x_imm(destination, register, offset);
+            }
+            AggregateCopySource::DirectParameter { start_index } => {
+                let word_index = usize::try_from(offset / AGGREGATE_USIZE_STORE_BYTES)
+                    .map_err(|_error| aggregate_copy_diagnostic("copy word index overflows"))?;
+                let register_index = start_index
+                    .checked_add(word_index)
+                    .ok_or_else(|| aggregate_copy_diagnostic("copy word index overflows"))?;
+                let source_register = XReg::argument(register_index).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9005",
+                        format!(
+                            "direct aggregate parameter copy source word {register_index} has no argument register"
+                        ),
+                    )]
+                })?;
+                if source_register != destination {
+                    self.encoder.emit_mov_x(destination, source_register);
+                }
+            }
+        }
         Ok(())
     }
 

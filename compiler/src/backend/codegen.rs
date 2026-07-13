@@ -1051,10 +1051,10 @@ mod tests {
     use super::*;
     use crate::abi::ValueLayout;
     use crate::ir::{
-        AggregateLocation, BoolLocation, BoolValue, BorrowArgument, BorrowSource, CallTarget,
-        FallibleFailureMode, Function, I32ComparisonOperator, I32Location, I32Value,
-        ScalarArgument, SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location,
-        U8Value, UsizeLocation, UsizeValue,
+        AggregateArgumentSource, AggregateLocation, BoolLocation, BoolValue, BorrowArgument,
+        BorrowSource, CallTarget, DirectAggregateArgument, FallibleFailureMode, Function,
+        I32ComparisonOperator, I32Location, I32Value, ScalarArgument, SliceLocation, SliceValue,
+        StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
     };
     use crate::source::SourceId;
     use crate::target::arm64::BranchCondition;
@@ -2116,6 +2116,125 @@ mod tests {
         assert!(contains_instruction(&code.text, [0xf0, 0x23, 0x00, 0x91])); // add x16, sp, #8
         assert!(contains_instruction(&code.text, [0xf0, 0x03, 0x00, 0xf9])); // str x16, [sp, #0]
         assert!(contains_instruction(&code.text, [0xe0, 0x03, 0x40, 0xf9])); // ldr x0, [sp, #0]
+    }
+
+    #[test]
+    fn direct_aggregate_argument_passes_slot_words() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(16, 8),
+                    },
+                    Instruction::StoreAggregateUsize {
+                        destination: AggregateLocation::Slot(0),
+                        offset: 0,
+                        value: usize_const(40),
+                    },
+                    Instruction::StoreAggregateUsize {
+                        destination: AggregateLocation::Slot(0),
+                        offset: 8,
+                        value: usize_const(2),
+                    },
+                    Instruction::CallVoid {
+                        target: CallTarget::same_file("consume"),
+                        arguments: vec![ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                            source: AggregateArgumentSource::Slot(0),
+                            layout: ValueLayout::new(16, 8),
+                            words: 2,
+                        })],
+                    },
+                    set_return_i32(0),
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "consume".to_string(),
+                target: crate::ir::CallTarget::same_file("consume".to_string()),
+                return_type: Type::Void,
+                instructions: vec![Instruction::Return],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_sp(XReg::X16, 16)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_x_sp(XReg::X16, 0)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_sp(XReg::X16, 24)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_x_sp(XReg::X16, 8)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_sp(XReg::X0, 0)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_sp(XReg::X1, 8)
+        ));
+    }
+
+    #[test]
+    fn indirect_aggregate_parameter_copy_reads_from_parameter_pointer() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "length".to_string(),
+                target: crate::ir::CallTarget::same_file("length".to_string()),
+                return_type: Type::Usize,
+                instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(24, 8),
+                    },
+                    Instruction::CopyAggregate {
+                        destination: AggregateLocation::Slot(0),
+                        source: AggregateLocation::Parameter(0),
+                        layout: ValueLayout::new(24, 8),
+                    },
+                    Instruction::LoadAggregateUsize {
+                        destination: UsizeLocation::Return,
+                        source: AggregateLocation::Slot(0),
+                        offset: 8,
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_imm(XReg::X16, XReg::X0, 0)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_imm(XReg::X16, XReg::X0, 8)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_imm(XReg::X16, XReg::X0, 16)
+        ));
     }
 
     #[test]
@@ -3259,6 +3378,12 @@ mod tests {
     fn encoded_ldr_x_sp(register: XReg, offset: u32) -> [u8; 4] {
         let mut encoder = Encoder::new();
         encoder.emit_ldr_x_sp(register, offset);
+        encoded_instruction(encoder)
+    }
+
+    fn encoded_ldr_x_imm(register: XReg, base: XReg, offset: u32) -> [u8; 4] {
+        let mut encoder = Encoder::new();
+        encoder.emit_ldr_x_imm(register, base, offset);
         encoded_instruction(encoder)
     }
 

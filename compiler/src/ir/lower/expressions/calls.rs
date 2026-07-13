@@ -1,3 +1,4 @@
+use super::super::aggregates::lower_aggregate_struct_literal_to_location;
 use super::super::context::LoweringContext;
 use super::temporaries::TemporaryAllocator;
 use super::{
@@ -9,7 +10,8 @@ use crate::ast::{CallExpr, Expr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::StrLocation;
 use crate::ir::{
-    BoolLocation, BorrowArgument, BorrowSource, CallTarget, FallibleFailureMode, I32Location,
+    AggregateArgument, AggregateArgumentSource, AggregateLocation, BoolLocation, BorrowArgument,
+    BorrowSource, CallTarget, DirectAggregateArgument, FallibleFailureMode, I32Location,
     Instruction, ScalarArgument, SliceLocation, Type, U8Location, UsizeLocation,
 };
 
@@ -400,6 +402,15 @@ pub(super) fn lower_direct_tail_call(
             ),
         )]);
     }
+    if arguments.iter().any(is_tail_call_stack_pointer_argument) {
+        return Err(vec![Diagnostic::error(
+            "E8006",
+            format!(
+                "IR v0 cannot lower tail call to function `{}` with aggregate pointer arguments",
+                identifier.name
+            ),
+        )]);
+    }
 
     instructions.push(Instruction::TailCall { target, arguments });
     Ok(instructions)
@@ -474,11 +485,35 @@ pub(super) fn lower_call_arguments(
                     context,
                 )?));
             }
-            Type::Aggregate { .. }
-            | Type::DirectAggregate { .. }
-            | Type::Void
-            | Type::Never
-            | Type::Fallible(_) => {
+            Type::Aggregate { .. } => {
+                let (argument_instructions, source) = lower_aggregate_argument_source(
+                    argument,
+                    parameter_type,
+                    callee_name,
+                    context,
+                    temporaries,
+                )?;
+                instructions.extend(argument_instructions);
+                arguments.push(ScalarArgument::AggregateIndirect(AggregateArgument {
+                    source,
+                }));
+            }
+            Type::DirectAggregate { layout, words } => {
+                let (argument_instructions, source) = lower_aggregate_argument_source(
+                    argument,
+                    parameter_type,
+                    callee_name,
+                    context,
+                    temporaries,
+                )?;
+                instructions.extend(argument_instructions);
+                arguments.push(ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                    source,
+                    layout: *layout,
+                    words: *words,
+                }));
+            }
+            Type::Void | Type::Never | Type::Fallible(_) => {
                 return Err(vec![Diagnostic::error(
                     "E8006",
                     format!(
@@ -491,6 +526,167 @@ pub(super) fn lower_call_arguments(
     }
 
     Ok((instructions, arguments))
+}
+
+fn lower_aggregate_argument_source(
+    argument: &Expr,
+    parameter_type: &Type,
+    callee_name: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, AggregateArgumentSource), Vec<Diagnostic>> {
+    let expected_layout = match parameter_type {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => unreachable!("aggregate argument lowering requires aggregate parameter type"),
+    };
+    if !expected_layout.size.is_multiple_of(8) {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    }
+
+    match unwrap_group(argument) {
+        Expr::Identifier(identifier) => {
+            let Some(local) = context.aggregate_local(&identifier.name) else {
+                return Err(unsupported_aggregate_argument_diagnostic(
+                    callee_name,
+                    parameter_type,
+                ));
+            };
+            if local.layout != expected_layout {
+                return Err(unsupported_aggregate_argument_diagnostic(
+                    callee_name,
+                    parameter_type,
+                ));
+            }
+            Ok((Vec::new(), AggregateArgumentSource::Slot(local.slot_index)))
+        }
+        Expr::Unary(unary) if unary.operator == crate::ast::UnaryOperator::Move => {
+            lower_aggregate_argument_source(
+                &unary.operand,
+                parameter_type,
+                callee_name,
+                context,
+                temporaries,
+            )
+        }
+        Expr::StructLiteral(literal) => {
+            let Some((_root_source, resolved)) = context.resolved_calls() else {
+                return Err(unsupported_aggregate_argument_diagnostic(
+                    callee_name,
+                    parameter_type,
+                ));
+            };
+            let slot_index = temporaries.next_aggregate_slot();
+            let mut instructions = vec![Instruction::ReserveAggregateSlot {
+                slot_index,
+                layout: expected_layout,
+            }];
+            instructions.extend(lower_aggregate_struct_literal_to_location(
+                literal,
+                expected_layout,
+                AggregateLocation::Slot(slot_index),
+                "E8006",
+                &format!("arguments for function `{callee_name}`"),
+                resolved,
+                context,
+            )?);
+            Ok((instructions, AggregateArgumentSource::Slot(slot_index)))
+        }
+        Expr::Call(call) => lower_aggregate_call_argument_source(
+            call,
+            parameter_type,
+            callee_name,
+            context,
+            temporaries,
+        ),
+        _ => Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        )),
+    }
+}
+
+fn lower_aggregate_call_argument_source(
+    call: &CallExpr,
+    parameter_type: &Type,
+    callee_name: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, AggregateArgumentSource), Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    };
+    let target = context.call_target(call, &identifier.name);
+    let Some(return_type) = context.call_return_type(&target) else {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    };
+    if return_type != parameter_type {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    }
+    let layout = match return_type {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => {
+            return Err(unsupported_aggregate_argument_diagnostic(
+                callee_name,
+                parameter_type,
+            ));
+        }
+    };
+    if !layout.size.is_multiple_of(8) {
+        return Err(unsupported_aggregate_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    }
+
+    let slot_index = temporaries.next_aggregate_slot();
+    let mut instructions = vec![Instruction::ReserveAggregateSlot { slot_index, layout }];
+    let (call_instructions, arguments) =
+        lower_call_arguments(call, &target, &identifier.name, context, temporaries)?;
+    instructions.extend(call_instructions);
+    match return_type {
+        Type::Aggregate { .. } => {
+            instructions.push(Instruction::CallAggregate {
+                destination: AggregateLocation::Slot(slot_index),
+                target,
+                arguments,
+            });
+        }
+        Type::DirectAggregate { .. } => {
+            instructions.push(Instruction::CallDirectAggregate {
+                destination: AggregateLocation::Slot(slot_index),
+                target,
+                arguments,
+                layout,
+            });
+        }
+        _ => unreachable!("aggregate call argument lowering requires aggregate return type"),
+    }
+    Ok((instructions, AggregateArgumentSource::Slot(slot_index)))
+}
+
+fn unsupported_aggregate_argument_diagnostic(
+    callee_name: &str,
+    parameter_type: &Type,
+) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8006",
+        format!(
+            "IR v0 can only lower `{}` arguments for function `{callee_name}` from supported aggregate locals, struct literals, or aggregate calls",
+            describe_type(parameter_type),
+        ),
+    )]
 }
 
 fn lower_borrow_argument(
@@ -611,6 +807,10 @@ fn unsupported_borrow_argument_diagnostic(
             describe_type(parameter_type),
         ),
     )]
+}
+
+pub(super) fn is_tail_call_stack_pointer_argument(argument: &ScalarArgument) -> bool {
+    matches!(argument, ScalarArgument::AggregateIndirect(_))
 }
 
 pub(super) fn primitive_trap_call(call: &CallExpr, context: &LoweringContext) -> bool {

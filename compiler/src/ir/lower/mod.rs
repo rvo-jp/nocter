@@ -123,8 +123,16 @@ fn lower_signature_parameter_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Op
                 inner: Box::new(inner),
             })
         }
-        _ => None,
+        _ => lower_aggregate_signature_parameter_type(ty, resolved),
     }
+}
+
+fn lower_aggregate_signature_parameter_type(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+) -> Option<Type> {
+    let value = abi_value_from_type_expr(ty, resolved).ok()?;
+    aggregate_type_from_abi_value(&value)
 }
 
 fn is_u8_slice_data_type(ty: &TypeExpr) -> bool {

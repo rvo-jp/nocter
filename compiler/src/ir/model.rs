@@ -344,6 +344,8 @@ pub(crate) enum FallibleFailureMode {
 pub(crate) enum AggregateLocation {
     Return,
     DirectReturn,
+    Parameter(usize),
+    DirectParameter { start_index: usize },
     Slot(usize),
 }
 
@@ -411,15 +413,40 @@ pub(crate) enum ScalarArgument {
     Str(StrValue),
     Slice(SliceValue),
     Borrow(BorrowArgument),
+    AggregateIndirect(AggregateArgument),
+    AggregateDirect(DirectAggregateArgument),
 }
 
 impl ScalarArgument {
     pub(crate) fn abi_word_count(&self) -> usize {
         match self {
-            Self::I32(_) | Self::U8(_) | Self::Usize(_) | Self::Bool(_) | Self::Borrow(_) => 1,
+            Self::I32(_)
+            | Self::U8(_)
+            | Self::Usize(_)
+            | Self::Bool(_)
+            | Self::Borrow(_)
+            | Self::AggregateIndirect(_) => 1,
             Self::Str(_) | Self::Slice(_) => 2,
+            Self::AggregateDirect(argument) => argument.words,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct AggregateArgument {
+    pub(crate) source: AggregateArgumentSource,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct DirectAggregateArgument {
+    pub(crate) source: AggregateArgumentSource,
+    pub(crate) layout: ValueLayout,
+    pub(crate) words: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AggregateArgumentSource {
+    Slot(usize),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -4,10 +4,11 @@ use crate::analysis::{CompileUnit, analyze_compile_unit_with_entry};
 use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::ir::{
-    AggregateLocation, BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue,
-    BorrowArgument, BorrowSource, CallTarget, FallibleFailureMode, Function, I32ComparisonOperator,
-    I32Location, I32Value, Instruction, IrModule, ScalarArgument, SliceLocation, SliceValue,
-    StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
+    AggregateArgument, AggregateArgumentSource, AggregateLocation, BoolComparisonOperator,
+    BoolLocation, BoolLogicalOperator, BoolValue, BorrowArgument, BorrowSource, CallTarget,
+    DirectAggregateArgument, FallibleFailureMode, Function, I32ComparisonOperator, I32Location,
+    I32Value, Instruction, IrModule, ScalarArgument, SliceLocation, SliceValue, StrLocation,
+    StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 use crate::source::SourceMap;
 use crate::target::DEFAULT_TARGET;
@@ -988,6 +989,300 @@ func page_allocator(): Allocator {
             layout: ValueLayout::new(16, 8),
             words: 2,
         })
+    );
+}
+
+#[test]
+fn indexes_aggregate_function_signature_parameter_types() {
+    let analysis = analyze_text_with_entry(
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func consume(text: Text, header: Header): i32 {
+    return 0
+}
+"#,
+        crate::entry::DEFAULT_ENTRY_NAME,
+    );
+    let root = analysis.root_file().unwrap();
+    let index = FunctionIndex::new(&analysis, root.ast.span.source);
+    let signatures = index.signatures();
+
+    assert_eq!(
+        signatures.parameter_types(&CallTarget::same_file("consume")),
+        Some(
+            vec![
+                Type::Aggregate {
+                    layout: ValueLayout::new(24, 8),
+                },
+                Type::DirectAggregate {
+                    layout: ValueLayout::new(16, 8),
+                    words: 2,
+                },
+            ]
+            .as_slice()
+        )
+    );
+}
+
+#[test]
+fn lowers_indirect_aggregate_value_parameter_field_return() {
+    let function = lower_named_function(
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func length(text: Text): usize {
+    return text.len
+}
+"#,
+        "length",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "length".to_string(),
+            target: CallTarget::same_file("length"),
+            return_type: Type::Usize,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    source: AggregateLocation::Parameter(0),
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::LoadAggregateUsize {
+                    destination: UsizeLocation::Return,
+                    source: AggregateLocation::Slot(0),
+                    offset: 8,
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_direct_aggregate_value_parameter_field_return() {
+    let function = lower_named_function(
+        r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func code(header: Header): i32 {
+    return header.code
+}
+"#,
+        "code",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "code".to_string(),
+            target: CallTarget::same_file("code"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    source: AggregateLocation::DirectParameter { start_index: 0 },
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::LoadAggregateI32 {
+                    destination: I32Location::Return,
+                    source: AggregateLocation::Slot(0),
+                    offset: 4,
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_direct_aggregate_struct_literal_value_argument() {
+    let aggregate_type = Type::DirectAggregate {
+        layout: ValueLayout::new(16, 8),
+        words: 2,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func consume(header: Header): i32 {
+    return header.code
+}
+
+func main(): i32 {
+    let result = consume(Header{ tag: 7, ok: true, code: 42, len: 11 })
+    return result
+}
+"#,
+        "main",
+        function_signatures(vec![("consume", Type::I32, vec![aggregate_type])]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "main".to_string(),
+            target: CallTarget::same_file("main"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::StoreAggregateU8 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: u8_const(7),
+                },
+                Instruction::StoreAggregateBool {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 1,
+                    value: BoolValue::Const(true),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 4,
+                    value: i32_const(42),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 8,
+                    value: usize_const(11),
+                },
+                Instruction::CallI32 {
+                    destination: I32Location::Local(0),
+                    target: CallTarget::same_file("consume"),
+                    arguments: vec![ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                        source: AggregateArgumentSource::Slot(0),
+                        layout: ValueLayout::new(16, 8),
+                        words: 2,
+                    })],
+                },
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: i32_local(0),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_indirect_aggregate_local_value_argument() {
+    let aggregate_type = Type::Aggregate {
+        layout: ValueLayout::new(24, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func consume(text: Text): usize {
+    return text.len
+}
+
+func caller(): usize {
+    let text = Text{ start: 1, len: 2, capacity: 3 }
+    let result: usize = consume(text)
+    return result
+}
+"#,
+        "caller",
+        function_signatures(vec![("consume", Type::Usize, vec![aggregate_type])]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "caller".to_string(),
+            target: CallTarget::same_file("caller"),
+            return_type: Type::Usize,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: usize_const(1),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 8,
+                    value: usize_const(2),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 16,
+                    value: usize_const(3),
+                },
+                Instruction::CallUsize {
+                    destination: UsizeLocation::Local(0),
+                    target: CallTarget::same_file("consume"),
+                    arguments: vec![ScalarArgument::AggregateIndirect(AggregateArgument {
+                        source: AggregateArgumentSource::Slot(0),
+                    })],
+                },
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: usize_local(0),
+                },
+                Instruction::Return,
+            ],
+        }
     );
 }
 

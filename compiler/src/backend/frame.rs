@@ -996,6 +996,7 @@ fn record_scalar_argument(argument: &ScalarArgument, highest_local_index: &mut O
         ScalarArgument::Borrow(argument) => {
             record_borrow_source(argument.source, highest_local_index);
         }
+        ScalarArgument::AggregateIndirect(_) | ScalarArgument::AggregateDirect(_) => {}
     }
 }
 
@@ -1190,8 +1191,9 @@ const LDR_STR_X_SP_MAX_BYTE_OFFSET: u32 = 0x0fff * 8;
 mod tests {
     use super::*;
     use crate::ir::{
-        BoolComparisonOperator, CallTarget, FallibleFailureMode, ScalarArgument, SliceLocation,
-        SliceValue, StrValue, Type,
+        AggregateArgument, AggregateArgumentSource, BoolComparisonOperator, CallTarget,
+        DirectAggregateArgument, FallibleFailureMode, ScalarArgument, SliceLocation, SliceValue,
+        StrValue, Type,
     };
 
     #[test]
@@ -1438,6 +1440,56 @@ mod tests {
                     2,
                     1,
                     &[AggregateSlotRequest::new(0, ValueLayout::new(24, 8))]
+                )
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn aggregate_value_arguments_count_abi_staging_slots() {
+        let function = Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Void,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(24, 8),
+                },
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 1,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::CallVoid {
+                    target: CallTarget::same_file("consume"),
+                    arguments: vec![
+                        ScalarArgument::AggregateIndirect(AggregateArgument {
+                            source: AggregateArgumentSource::Slot(0),
+                        }),
+                        ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                            source: AggregateArgumentSource::Slot(1),
+                            layout: ValueLayout::new(16, 8),
+                            words: 2,
+                        }),
+                    ],
+                },
+                Instruction::Return,
+            ],
+        };
+
+        let frame = plan_function_frame(&function).unwrap();
+
+        assert_eq!(
+            frame,
+            FunctionFrame::Framed(
+                FrameLayout::for_slot_counts_with_aggregate_slots(
+                    0,
+                    3,
+                    &[
+                        AggregateSlotRequest::new(0, ValueLayout::new(24, 8)),
+                        AggregateSlotRequest::new(1, ValueLayout::new(16, 8)),
+                    ]
                 )
                 .unwrap()
             )

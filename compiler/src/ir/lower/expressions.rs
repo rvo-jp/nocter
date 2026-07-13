@@ -21,8 +21,8 @@ use crate::ir::{
     UsizeValue,
 };
 use calls::{
-    lower_bool_normal_call, lower_call_arguments, lower_direct_tail_call,
-    lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
+    is_tail_call_stack_pointer_argument, lower_bool_normal_call, lower_call_arguments,
+    lower_direct_tail_call, lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
     lower_fallible_slice_normal_call, lower_fallible_str_normal_call,
     lower_fallible_u8_normal_call, lower_fallible_usize_normal_call,
     lower_fallible_void_normal_call, lower_i32_normal_call, lower_slice_normal_call,
@@ -1414,6 +1414,15 @@ pub(super) fn lower_never_return_expression(
                     "E8006",
                     format!(
                         "IR v0 cannot lower tail call to function `{}` with borrow arguments",
+                        identifier.name
+                    ),
+                )]);
+            }
+            if arguments.iter().any(is_tail_call_stack_pointer_argument) {
+                return Err(vec![Diagnostic::error(
+                    "E8006",
+                    format!(
+                        "IR v0 cannot lower tail call to function `{}` with aggregate pointer arguments",
                         identifier.name
                     ),
                 )]);
