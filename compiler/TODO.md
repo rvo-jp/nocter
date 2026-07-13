@@ -27,6 +27,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: lower frame-dependent `never` calls as normal calls
+  - lowers `never` calls that need caller frame state, aggregate slot pointers, or stack-passed arguments as `CallVoid` followed by `Trap` instead of emitting unsupported tail calls
+  - adds IR coverage for stack-passed scalar `never` calls and aggregate-pointer `never` calls
+  - adds native execution coverage for stack-passed and aggregate-argument `never` calls terminating through `std/process.abort`
 - Current checkpoint: lower stack-passed normal-call ABI arguments
   - stages all call ABI words through existing frame argument slots, then copies words after `x7` to a 16-byte-aligned outgoing stack argument area before `bl`
   - reads callee parameter words after `x7` from the caller stack area, including scalar/view parameters, indirect aggregate parameter pointers, and direct aggregate parameter words copied into aggregate slots
