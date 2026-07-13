@@ -4120,6 +4120,38 @@ func length(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, text
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_split_register_stack_passed_str_argument_first_byte_exit_code() {
+    let project = TempProject::new("cli-run-split-register-stack-str-arg-first-byte");
+    let source = project.write_source(
+        "split_register_stack_str_arg_first_byte.nct",
+        r#"func main(): i32 {
+    let value: i32 = first_byte(1, 2, 3, 4, 5, 6, 7, "Nocter")
+    if value == 78 {
+        return 42
+    } else {
+        return 1
+    }
+}
+
+func first_byte(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, text: &str): i32 {
+    return text[0] as i32
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_forwarded_stack_passed_str_argument_first_byte_exit_code() {
     let project = TempProject::new("cli-run-forwarded-stack-passed-str-arg-first-byte");
     let source = project.write_source(
@@ -4212,6 +4244,41 @@ func main(): i32 {
 }
 
 func check(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, pair: Pair): i32 {
+    return pair.a + pair.b + pair.c + pair.d
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_fully_stack_passed_direct_aggregate_argument_field_exit_code() {
+    let project = TempProject::new("cli-run-fully-stack-direct-aggregate-arg");
+    let source = project.write_source(
+        "fully_stack_direct_aggregate_arg.nct",
+        r#"copy struct Pair {
+    a: i32
+    b: i32
+    c: i32
+    d: i32
+}
+
+func main(): i32 {
+    let pair = Pair{ a: 10, b: 20, c: 7, d: 5 }
+    return check(1, 2, 3, 4, 5, 6, 7, 8, pair)
+}
+
+func check(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, pair: Pair): i32 {
     return pair.a + pair.b + pair.c + pair.d
 }
 "#,
