@@ -4,9 +4,10 @@ use super::super::aggregates::{
 use super::super::context::{AggregateFieldKind, LoweringContext};
 use super::temporaries::TemporaryAllocator;
 use super::{
-    lower_bool_expression_to_value_with_temporaries, lower_i32_expression_to_value,
-    lower_slice_expression_to_value, lower_str_expression_to_value, lower_u8_expression_to_value,
-    lower_usize_expression_to_value, unsupported_non_tail_call_diagnostic,
+    lower_aggregate_member_field_access, lower_bool_expression_to_value_with_temporaries,
+    lower_i32_expression_to_value, lower_slice_expression_to_value, lower_str_expression_to_value,
+    lower_u8_expression_to_value, lower_usize_expression_to_value,
+    unsupported_non_tail_call_diagnostic,
 };
 use crate::ast::{CallExpr, Expr};
 use crate::diagnostics::Diagnostic;
@@ -639,8 +640,8 @@ fn lower_aggregate_argument_source(
             }
             Ok((Vec::new(), AggregateArgumentSource::Slot(local.slot_index)))
         }
-        Expr::Member(member) => lower_aggregate_member_argument_source(
-            member,
+        Expr::Member(_) => lower_aggregate_member_argument_source(
+            argument,
             expected_layout,
             parameter_type,
             callee_name,
@@ -709,29 +710,19 @@ fn lower_aggregate_argument_source(
 }
 
 fn lower_aggregate_member_argument_source(
-    member: &crate::ast::MemberExpr,
+    argument: &Expr,
     expected_layout: crate::abi::ValueLayout,
     parameter_type: &Type,
     callee_name: &str,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<(Vec<Instruction>, AggregateArgumentSource), Vec<Diagnostic>> {
-    let Some((identifier_name, field_path)) = aggregate_member_argument_path(member) else {
-        return Err(unsupported_aggregate_argument_diagnostic(
-            callee_name,
-            parameter_type,
-        ));
-    };
-    let Some(field) = context.aggregate_field(identifier_name, &field_path) else {
-        return Err(unsupported_aggregate_argument_diagnostic(
-            callee_name,
-            parameter_type,
-        ));
-    };
-    let source = field.source;
-    let source_offset = field.offset;
-    let is_copy = field.is_copy;
-    let AggregateFieldKind::Aggregate { layout, .. } = field.kind else {
+    let access = lower_aggregate_member_field_access(argument, context, temporaries)?
+        .ok_or_else(|| unsupported_aggregate_argument_diagnostic(callee_name, parameter_type))?;
+    let source = access.source;
+    let source_offset = access.offset;
+    let is_copy = access.is_copy;
+    let AggregateFieldKind::Aggregate { layout, .. } = access.kind else {
         return Err(unsupported_aggregate_argument_diagnostic(
             callee_name,
             parameter_type,
@@ -745,40 +736,16 @@ fn lower_aggregate_member_argument_source(
     }
 
     let slot_index = temporaries.next_aggregate_slot();
-    Ok((
-        vec![
-            Instruction::ReserveAggregateSlot { slot_index, layout },
-            Instruction::CopyAggregateRange {
-                destination: AggregateLocation::Slot(slot_index),
-                destination_offset: 0,
-                source,
-                source_offset,
-                layout,
-            },
-        ],
-        AggregateArgumentSource::Slot(slot_index),
-    ))
-}
-
-fn aggregate_member_argument_path(member: &crate::ast::MemberExpr) -> Option<(&str, String)> {
-    let (identifier_name, mut fields) = aggregate_member_argument_root_and_path(&member.object)?;
-    fields.push(member.member.as_str());
-    Some((identifier_name, fields.join(".")))
-}
-
-fn aggregate_member_argument_root_and_path<'a>(
-    expression: &'a Expr,
-) -> Option<(&'a str, Vec<&'a str>)> {
-    match unwrap_group(expression) {
-        Expr::Identifier(identifier) => Some((&identifier.name, Vec::new())),
-        Expr::Member(member) => {
-            let (identifier_name, mut fields) =
-                aggregate_member_argument_root_and_path(&member.object)?;
-            fields.push(member.member.as_str());
-            Some((identifier_name, fields))
-        }
-        _ => None,
-    }
+    let mut instructions = access.instructions;
+    instructions.push(Instruction::ReserveAggregateSlot { slot_index, layout });
+    instructions.push(Instruction::CopyAggregateRange {
+        destination: AggregateLocation::Slot(slot_index),
+        destination_offset: 0,
+        source,
+        source_offset,
+        layout,
+    });
+    Ok((instructions, AggregateArgumentSource::Slot(slot_index)))
 }
 
 fn lower_aggregate_call_argument_source(

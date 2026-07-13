@@ -30,44 +30,44 @@ pub(super) struct LoweredSliceValue {
     pub(super) value: SliceValue,
 }
 
-pub(super) struct TemporaryAllocator {
+pub(in crate::ir::lower) struct TemporaryAllocator {
     next_index: usize,
     next_aggregate_slot_index: usize,
 }
 
 impl TemporaryAllocator {
-    pub(super) fn new(context: &LoweringContext) -> Result<Self, Vec<Diagnostic>> {
+    pub(in crate::ir::lower) fn new(context: &LoweringContext) -> Result<Self, Vec<Diagnostic>> {
         Ok(Self {
             next_index: context.first_temporary_local_index()?,
             next_aggregate_slot_index: context.next_aggregate_slot_index(),
         })
     }
 
-    pub(super) fn next_i32(&mut self) -> Result<I32Location, Vec<Diagnostic>> {
+    pub(in crate::ir::lower) fn next_i32(&mut self) -> Result<I32Location, Vec<Diagnostic>> {
         self.next_local_index(1).map(I32Location::Local)
     }
 
-    pub(super) fn next_u8(&mut self) -> Result<U8Location, Vec<Diagnostic>> {
+    pub(in crate::ir::lower) fn next_u8(&mut self) -> Result<U8Location, Vec<Diagnostic>> {
         self.next_local_index(1).map(U8Location::Local)
     }
 
-    pub(super) fn next_usize(&mut self) -> Result<UsizeLocation, Vec<Diagnostic>> {
+    pub(in crate::ir::lower) fn next_usize(&mut self) -> Result<UsizeLocation, Vec<Diagnostic>> {
         self.next_local_index(1).map(UsizeLocation::Local)
     }
 
-    pub(super) fn next_bool(&mut self) -> Result<BoolLocation, Vec<Diagnostic>> {
+    pub(in crate::ir::lower) fn next_bool(&mut self) -> Result<BoolLocation, Vec<Diagnostic>> {
         self.next_local_index(1).map(BoolLocation::Local)
     }
 
-    pub(super) fn next_str(&mut self) -> Result<StrLocation, Vec<Diagnostic>> {
+    pub(in crate::ir::lower) fn next_str(&mut self) -> Result<StrLocation, Vec<Diagnostic>> {
         self.next_local_index(2).map(StrLocation::Local)
     }
 
-    pub(super) fn next_slice(&mut self) -> Result<SliceLocation, Vec<Diagnostic>> {
+    pub(in crate::ir::lower) fn next_slice(&mut self) -> Result<SliceLocation, Vec<Diagnostic>> {
         self.next_local_index(2).map(SliceLocation::Local)
     }
 
-    pub(super) fn next_aggregate_slot(&mut self) -> usize {
+    pub(in crate::ir::lower) fn next_aggregate_slot(&mut self) -> usize {
         let slot_index = self.next_aggregate_slot_index;
         self.next_aggregate_slot_index += 1;
         slot_index

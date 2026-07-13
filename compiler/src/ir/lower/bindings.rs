@@ -4,12 +4,13 @@ use super::aggregates::{
 };
 use super::context::{AggregateFieldKind, LoweringContext};
 use super::expressions::{
-    expression_contains_interpolated_string, expression_is_lowerable_bool_binding,
-    expression_is_unsupported_bool_comparison_binding, lower_bool_expression_to_location,
+    TemporaryAllocator, aggregate_call_field, expression_contains_interpolated_string,
+    expression_is_lowerable_bool_binding, expression_is_unsupported_bool_comparison_binding,
+    lower_aggregate_member_field_access, lower_bool_expression_to_location,
     lower_bool_expression_to_value, lower_call_arguments_to_scalar_arguments,
-    lower_i32_expression_to_location, lower_i32_expression_to_word,
-    lower_slice_expression_to_location, lower_str_expression_to_location,
-    lower_u8_expression_to_location, lower_u8_expression_to_word,
+    lower_call_arguments_to_scalar_arguments_with_temporaries, lower_i32_expression_to_location,
+    lower_i32_expression_to_word, lower_slice_expression_to_location,
+    lower_str_expression_to_location, lower_u8_expression_to_location, lower_u8_expression_to_word,
     lower_usize_expression_to_location, lower_usize_expression_to_word,
 };
 use crate::abi::{ValueLayout, abi_value_from_type_expr};
@@ -141,12 +142,12 @@ fn lower_aggregate_normal_call_binding(
     };
     validate_aggregate_binding_layout(layout)?;
 
-    let (mut instructions, arguments) =
-        lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
     let is_copy = call_success_type_is_copy_struct(call, context);
     let fields = call_success_aggregate_fields(call, context);
     let slot_index =
         context.define_aggregate_local(statement.name.clone(), layout, is_copy, fields);
+    let (mut instructions, arguments) =
+        lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
     instructions.insert(0, Instruction::ReserveAggregateSlot { slot_index, layout });
     match return_type {
         Type::Aggregate { .. } => {
@@ -189,12 +190,12 @@ fn lower_aggregate_fallible_call_binding(
     };
     validate_aggregate_binding_layout(layout)?;
 
-    let (mut instructions, arguments) =
-        lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
     let is_copy = call_success_type_is_copy_struct(call, context);
     let fields = call_success_aggregate_fields(call, context);
     let slot_index =
         context.define_aggregate_local(statement.name.clone(), layout, is_copy, fields);
+    let (mut instructions, arguments) =
+        lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
     instructions.insert(0, Instruction::ReserveAggregateSlot { slot_index, layout });
     match success.as_ref() {
         Type::Aggregate { .. } => {
@@ -226,10 +227,25 @@ fn lower_aggregate_member_binding(
     let Expr::Member(member) = unwrap_group(&statement.initializer) else {
         return Ok(None);
     };
-    let Some((identifier_name, field_path)) = aggregate_assignment_target_path(member) else {
-        return Ok(None);
-    };
-    let Some(field) = context.aggregate_field(identifier_name, &field_path) else {
+
+    match aggregate_member_binding_path(member) {
+        Some((AggregateMemberBindingRoot::Identifier(identifier_name), field_path)) => {
+            lower_aggregate_local_member_binding(statement, identifier_name, &field_path, context)
+        }
+        Some((AggregateMemberBindingRoot::Call(call), field_path)) => {
+            lower_aggregate_call_member_binding(statement, call, &field_path, context)
+        }
+        None => Ok(None),
+    }
+}
+
+fn lower_aggregate_local_member_binding(
+    statement: &BindingStmt,
+    identifier_name: &str,
+    field_path: &str,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Some(field) = context.aggregate_field(identifier_name, field_path) else {
         return Ok(None);
     };
     let source = field.source;
@@ -256,6 +272,116 @@ fn lower_aggregate_member_binding(
             layout,
         },
     ]))
+}
+
+fn lower_aggregate_call_member_binding(
+    statement: &BindingStmt,
+    call: &CallExpr,
+    field_path: &str,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Ok(None);
+    };
+    let target = context.call_target(call, &identifier.name);
+    let Some(return_type) = context.call_return_type(&target).cloned() else {
+        return Ok(None);
+    };
+    let source_layout = match &return_type {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => return Ok(None),
+    };
+    let Some(field) = aggregate_call_field(call, field_path, context) else {
+        return Ok(None);
+    };
+    let source_offset = field.offset;
+    let AggregateFieldKind::Aggregate { layout, fields } = field.kind else {
+        return Ok(None);
+    };
+    if !supported_aggregate_copy_layout(layout) || !supported_aggregate_copy_layout(source_layout) {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 can only lower aggregate member bindings from supported aggregate fields",
+        ));
+    }
+
+    let is_copy = call_success_type_is_copy_struct(call, context);
+    let slot_index =
+        context.define_aggregate_local(statement.name.clone(), layout, is_copy, fields);
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let source_slot = temporaries.next_aggregate_slot();
+    let mut instructions = vec![
+        Instruction::ReserveAggregateSlot { slot_index, layout },
+        Instruction::ReserveAggregateSlot {
+            slot_index: source_slot,
+            layout: source_layout,
+        },
+    ];
+    let (mut argument_instructions, arguments) =
+        lower_call_arguments_to_scalar_arguments_with_temporaries(
+            call,
+            &target,
+            &identifier.name,
+            context,
+            &mut temporaries,
+        )?;
+    instructions.append(&mut argument_instructions);
+    match return_type {
+        Type::Aggregate { .. } => {
+            instructions.push(Instruction::CallAggregate {
+                destination: AggregateLocation::Slot(source_slot),
+                target,
+                arguments,
+            });
+        }
+        Type::DirectAggregate { .. } => {
+            instructions.push(Instruction::CallDirectAggregate {
+                destination: AggregateLocation::Slot(source_slot),
+                target,
+                arguments,
+                layout: source_layout,
+            });
+        }
+        _ => unreachable!("aggregate member binding requires aggregate call return type"),
+    }
+    instructions.push(Instruction::CopyAggregateRange {
+        destination: AggregateLocation::Slot(slot_index),
+        destination_offset: 0,
+        source: AggregateLocation::Slot(source_slot),
+        source_offset,
+        layout,
+    });
+    Ok(Some(instructions))
+}
+
+enum AggregateMemberBindingRoot<'a> {
+    Identifier(&'a str),
+    Call(&'a CallExpr),
+}
+
+fn aggregate_member_binding_path(
+    member: &MemberExpr,
+) -> Option<(AggregateMemberBindingRoot<'_>, String)> {
+    let (root, mut fields) = aggregate_member_binding_root_and_path(&member.object)?;
+    fields.push(member.member.as_str());
+    Some((root, fields.join(".")))
+}
+
+fn aggregate_member_binding_root_and_path<'a>(
+    expression: &'a Expr,
+) -> Option<(AggregateMemberBindingRoot<'a>, Vec<&'a str>)> {
+    match unwrap_group(expression) {
+        Expr::Identifier(identifier) => Some((
+            AggregateMemberBindingRoot::Identifier(&identifier.name),
+            Vec::new(),
+        )),
+        Expr::Call(call) => Some((AggregateMemberBindingRoot::Call(call), Vec::new())),
+        Expr::Member(member) => {
+            let (root, mut fields) = aggregate_member_binding_root_and_path(&member.object)?;
+            fields.push(member.member.as_str());
+            Some((root, fields))
+        }
+        _ => None,
+    }
 }
 
 fn validate_aggregate_binding_layout(
@@ -448,37 +574,188 @@ fn lower_aggregate_member_value_assignment(
                 layout,
             }])
         }
-        Expr::Member(member) => {
-            let Some((identifier_name, field_path)) = aggregate_assignment_target_path(member)
-            else {
+        Expr::Call(call) => lower_aggregate_call_member_value_assignment(
+            destination,
+            destination_offset,
+            layout,
+            call,
+            context,
+        ),
+        Expr::Propagate(propagation) => {
+            let Expr::Call(call) = unwrap_group(&propagation.expression) else {
                 return Err(unsupported_assignment_diagnostic());
             };
-            let Some(source) = context.aggregate_field(identifier_name, &field_path) else {
-                return Err(unsupported_assignment_diagnostic());
-            };
-            let source_location = source.source;
-            let source_offset = source.offset;
-            let source_is_copy = source.is_copy;
+            lower_aggregate_fallible_call_member_value_assignment(
+                destination,
+                destination_offset,
+                layout,
+                call,
+                FallibleFailureMode::Propagate,
+                context,
+            )
+        }
+        Expr::Member(_) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let access = lower_aggregate_member_field_access(value, context, &mut temporaries)?
+                .ok_or_else(unsupported_assignment_diagnostic)?;
+            let source_location = access.source;
+            let source_offset = access.offset;
+            let source_is_copy = access.is_copy;
             let AggregateFieldKind::Aggregate {
                 layout: source_layout,
                 ..
-            } = source.kind
+            } = access.kind
             else {
                 return Err(unsupported_assignment_diagnostic());
             };
             if source_layout != layout || !source_is_copy {
                 return Err(unsupported_assignment_diagnostic());
             }
-            Ok(vec![Instruction::CopyAggregateRange {
+            let mut instructions = access.instructions;
+            instructions.push(Instruction::CopyAggregateRange {
                 destination,
                 destination_offset,
                 source: source_location,
                 source_offset,
                 layout,
-            }])
+            });
+            Ok(instructions)
         }
         _ => Err(unsupported_assignment_diagnostic()),
     }
+}
+
+fn lower_aggregate_call_member_value_assignment(
+    destination: AggregateLocation,
+    destination_offset: u32,
+    layout: ValueLayout,
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let target = context.call_target(call, &identifier.name);
+    let Some(return_type) = context.call_return_type(&target).cloned() else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let callee_layout = match &return_type {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => return Err(unsupported_assignment_diagnostic()),
+    };
+    if callee_layout != layout {
+        return Err(unsupported_assignment_diagnostic());
+    }
+
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let source_slot = temporaries.next_aggregate_slot();
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index: source_slot,
+        layout,
+    }];
+    let (mut argument_instructions, arguments) =
+        lower_call_arguments_to_scalar_arguments_with_temporaries(
+            call,
+            &target,
+            &identifier.name,
+            context,
+            &mut temporaries,
+        )?;
+    instructions.append(&mut argument_instructions);
+    match return_type {
+        Type::Aggregate { .. } => {
+            instructions.push(Instruction::CallAggregate {
+                destination: AggregateLocation::Slot(source_slot),
+                target,
+                arguments,
+            });
+        }
+        Type::DirectAggregate { .. } => {
+            instructions.push(Instruction::CallDirectAggregate {
+                destination: AggregateLocation::Slot(source_slot),
+                target,
+                arguments,
+                layout,
+            });
+        }
+        _ => unreachable!("aggregate field assignment requires aggregate call return type"),
+    }
+    instructions.push(Instruction::CopyAggregateRange {
+        destination,
+        destination_offset,
+        source: AggregateLocation::Slot(source_slot),
+        source_offset: 0,
+        layout,
+    });
+    Ok(instructions)
+}
+
+fn lower_aggregate_fallible_call_member_value_assignment(
+    destination: AggregateLocation,
+    destination_offset: u32,
+    layout: ValueLayout,
+    call: &CallExpr,
+    failure_mode: FallibleFailureMode,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let target = context.call_target(call, &identifier.name);
+    let Some(Type::Fallible(success)) = context.call_return_type(&target).cloned() else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let callee_layout = match success.as_ref() {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => return Err(unsupported_assignment_diagnostic()),
+    };
+    if callee_layout != layout {
+        return Err(unsupported_assignment_diagnostic());
+    }
+
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let source_slot = temporaries.next_aggregate_slot();
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index: source_slot,
+        layout,
+    }];
+    let (mut argument_instructions, arguments) =
+        lower_call_arguments_to_scalar_arguments_with_temporaries(
+            call,
+            &target,
+            &identifier.name,
+            context,
+            &mut temporaries,
+        )?;
+    instructions.append(&mut argument_instructions);
+    match success.as_ref() {
+        Type::Aggregate { .. } => {
+            instructions.push(Instruction::CallFallibleAggregate {
+                destination: AggregateLocation::Slot(source_slot),
+                target,
+                arguments,
+                failure_mode,
+            });
+        }
+        Type::DirectAggregate { .. } => {
+            instructions.push(Instruction::CallFallibleDirectAggregate {
+                destination: AggregateLocation::Slot(source_slot),
+                target,
+                arguments,
+                layout,
+                failure_mode,
+            });
+        }
+        _ => unreachable!("fallible aggregate field assignment requires aggregate success type"),
+    }
+    instructions.push(Instruction::CopyAggregateRange {
+        destination,
+        destination_offset,
+        source: AggregateLocation::Slot(source_slot),
+        source_offset: 0,
+        layout,
+    });
+    Ok(instructions)
 }
 
 fn aggregate_assignment_target_path(target: &MemberExpr) -> Option<(&str, String)> {

@@ -238,34 +238,75 @@ fn lower_aggregate_field_to_location(
             Ok(instructions)
         }
         AbiType::Struct(fields) => {
-            let Expr::StructLiteral(literal) = expression else {
-                return Err(unsupported_aggregate_struct_literal_diagnostic(
-                    diagnostic_code,
-                    subject,
-                ));
-            };
-            let actual = abi_value_from_type_expr(&literal.ty, resolved).map_err(|_error| {
-                unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
-            })?;
             let expected_layout = layout_of(field_type).map_err(|_error| {
                 unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
             })?;
-            if actual.layout != expected_layout {
-                return Err(unsupported_aggregate_struct_literal_diagnostic(
+
+            match expression {
+                Expr::StructLiteral(literal) => {
+                    let actual =
+                        abi_value_from_type_expr(&literal.ty, resolved).map_err(|_error| {
+                            unsupported_aggregate_struct_literal_diagnostic(
+                                diagnostic_code,
+                                subject,
+                            )
+                        })?;
+                    if actual.layout != expected_layout {
+                        return Err(unsupported_aggregate_struct_literal_diagnostic(
+                            diagnostic_code,
+                            subject,
+                        ));
+                    }
+                    lower_aggregate_struct_fields_to_location(
+                        fields,
+                        literal,
+                        destination,
+                        offset,
+                        diagnostic_code,
+                        subject,
+                        resolved,
+                        context,
+                    )
+                }
+                Expr::Identifier(identifier) => {
+                    let Some(source) = context.aggregate_local(&identifier.name) else {
+                        return Err(unsupported_aggregate_struct_literal_diagnostic(
+                            diagnostic_code,
+                            subject,
+                        ));
+                    };
+                    if source.layout != expected_layout
+                        || !source.is_copy
+                        || !supported_aggregate_copy_layout(expected_layout)
+                    {
+                        return Err(unsupported_aggregate_struct_literal_diagnostic(
+                            diagnostic_code,
+                            subject,
+                        ));
+                    }
+                    Ok(vec![Instruction::CopyAggregateRange {
+                        destination,
+                        destination_offset: offset,
+                        source: AggregateLocation::Slot(source.slot_index),
+                        source_offset: 0,
+                        layout: expected_layout,
+                    }])
+                }
+                Expr::Group(group) => lower_aggregate_field_to_location(
+                    field_type,
+                    &group.expression,
+                    destination,
+                    offset,
                     diagnostic_code,
                     subject,
-                ));
+                    resolved,
+                    context,
+                ),
+                _ => Err(unsupported_aggregate_struct_literal_diagnostic(
+                    diagnostic_code,
+                    subject,
+                )),
             }
-            lower_aggregate_struct_fields_to_location(
-                fields,
-                literal,
-                destination,
-                offset,
-                diagnostic_code,
-                subject,
-                resolved,
-                context,
-            )
         }
         _ => Err(unsupported_aggregate_struct_literal_diagnostic(
             diagnostic_code,

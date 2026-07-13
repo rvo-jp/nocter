@@ -1855,6 +1855,102 @@ func forward(): Text {
 }
 
 #[test]
+fn lowers_aggregate_call_binding_with_aggregate_argument_without_slot_conflict() {
+    let packet_type = Type::Aggregate {
+        layout: ValueLayout::new(32, 8),
+    };
+    let header_type = Type::DirectAggregate {
+        layout: ValueLayout::new(16, 8),
+        words: 2,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func wrap(header: Header): Packet {
+    return Packet{ prefix: 1, header: header, tail: 2 }
+}
+
+func build(): i32 {
+    let packet = wrap(Header{ tag: 7, ok: true, code: 42, len: 11 })
+    return packet.header.code
+}
+"#,
+        "build",
+        function_signatures(vec![("wrap", packet_type, vec![header_type])]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "build".to_string(),
+            target: CallTarget::same_file("build"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(32, 8),
+                },
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 1,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::StoreAggregateU8 {
+                    destination: AggregateLocation::Slot(1),
+                    offset: 0,
+                    value: u8_const(7),
+                },
+                Instruction::StoreAggregateBool {
+                    destination: AggregateLocation::Slot(1),
+                    offset: 1,
+                    value: BoolValue::Const(true),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(1),
+                    offset: 4,
+                    value: i32_const(42),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(1),
+                    offset: 8,
+                    value: usize_const(11),
+                },
+                Instruction::CallAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    target: CallTarget::same_file("wrap"),
+                    arguments: vec![ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                        source: AggregateArgumentSource::Slot(1),
+                        layout: ValueLayout::new(16, 8),
+                        words: 2,
+                    })],
+                },
+                Instruction::LoadAggregateI32 {
+                    destination: I32Location::Return,
+                    source: AggregateLocation::Slot(0),
+                    offset: 12,
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_indirect_aggregate_struct_literal_binding_return() {
     let function = lower_named_function(
         r#"struct Text {
@@ -4580,6 +4676,408 @@ func update(): i32 {
                 destination: I32Location::Return,
                 source: AggregateLocation::Slot(0),
                 offset: 12,
+            }),
+        "{function:?}"
+    );
+}
+
+#[test]
+fn lowers_nested_aggregate_struct_literal_field_from_local() {
+    let function = lower_named_function(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func build(): i32 {
+    let header = Header{ tag: 7, ok: true, code: 42, len: 11 }
+    let packet = Packet{ prefix: 1, header: header, tail: 2 }
+    return packet.header.code
+}
+"#,
+        "build",
+    );
+
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(1),
+                destination_offset: 8,
+                source: AggregateLocation::Slot(0),
+                source_offset: 0,
+                layout: ValueLayout::new(16, 8),
+            }),
+        "{function:?}"
+    );
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::LoadAggregateI32 {
+                destination: I32Location::Return,
+                source: AggregateLocation::Slot(1),
+                offset: 12,
+            }),
+        "{function:?}"
+    );
+}
+
+#[test]
+fn lowers_nested_aggregate_field_binding_from_call_result() {
+    let packet_type = Type::Aggregate {
+        layout: ValueLayout::new(32, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Packet {
+    return Packet{ prefix: 1, header: Header{ tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
+}
+
+func read_code(): i32 {
+    let header = make().header
+    return header.code
+}
+"#,
+        "read_code",
+        function_signatures(vec![("make", packet_type, vec![])]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "read_code".to_string(),
+            target: CallTarget::same_file("read_code"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 1,
+                    layout: ValueLayout::new(32, 8),
+                },
+                Instruction::CallAggregate {
+                    destination: AggregateLocation::Slot(1),
+                    target: CallTarget::same_file("make"),
+                    arguments: vec![],
+                },
+                Instruction::CopyAggregateRange {
+                    destination: AggregateLocation::Slot(0),
+                    destination_offset: 0,
+                    source: AggregateLocation::Slot(1),
+                    source_offset: 8,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::LoadAggregateI32 {
+                    destination: I32Location::Return,
+                    source: AggregateLocation::Slot(0),
+                    offset: 4,
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_nested_aggregate_field_value_argument_from_call_result() {
+    let packet_type = Type::Aggregate {
+        layout: ValueLayout::new(32, 8),
+    };
+    let header_type = Type::DirectAggregate {
+        layout: ValueLayout::new(16, 8),
+        words: 2,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func make(): Packet {
+    return Packet{ prefix: 1, header: Header{ tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
+}
+
+func consume(header: Header): i32 {
+    return header.code
+}
+
+func main(): i32 {
+    let result = consume(make().header)
+    return result
+}
+"#,
+        "main",
+        function_signatures(vec![
+            ("make", packet_type, vec![]),
+            ("consume", Type::I32, vec![header_type]),
+        ]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "main".to_string(),
+            target: CallTarget::same_file("main"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(32, 8),
+                },
+                Instruction::CallAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    target: CallTarget::same_file("make"),
+                    arguments: vec![],
+                },
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 1,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::CopyAggregateRange {
+                    destination: AggregateLocation::Slot(1),
+                    destination_offset: 0,
+                    source: AggregateLocation::Slot(0),
+                    source_offset: 8,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::CallI32 {
+                    destination: I32Location::Local(0),
+                    target: CallTarget::same_file("consume"),
+                    arguments: vec![ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                        source: AggregateArgumentSource::Slot(1),
+                        layout: ValueLayout::new(16, 8),
+                        words: 2,
+                    })],
+                },
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: i32_local(0),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_nested_aggregate_field_return_from_call_result() {
+    let packet_type = Type::Aggregate {
+        layout: ValueLayout::new(32, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Packet {
+    return Packet{ prefix: 1, header: Header{ tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
+}
+
+func pick(): Header {
+    return make().header
+}
+"#,
+        "pick",
+        function_signatures(vec![("make", packet_type, vec![])]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "pick".to_string(),
+            target: CallTarget::same_file("pick"),
+            return_type: Type::DirectAggregate {
+                layout: ValueLayout::new(16, 8),
+                words: 2,
+            },
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(32, 8),
+                },
+                Instruction::CallAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    target: CallTarget::same_file("make"),
+                    arguments: vec![],
+                },
+                Instruction::CopyAggregateRange {
+                    destination: AggregateLocation::DirectReturn,
+                    destination_offset: 0,
+                    source: AggregateLocation::Slot(0),
+                    source_offset: 8,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_nested_aggregate_field_call_assignment() {
+    let header_type = Type::DirectAggregate {
+        layout: ValueLayout::new(16, 8),
+        words: 2,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make_header(): Header {
+    return Header{ tag: 8, ok: true, code: 42, len: 12 }
+}
+
+func update(): i32 {
+    var packet = Packet{ prefix: 1, header: Header{ tag: 7, ok: false, code: 1, len: 11 }, tail: 2 }
+    packet.header = make_header()
+    return packet.header.code
+}
+"#,
+        "update",
+        function_signatures(vec![("make_header", header_type, vec![])]),
+    )
+    .unwrap();
+
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CallDirectAggregate {
+                destination: AggregateLocation::Slot(1),
+                target: CallTarget::same_file("make_header"),
+                arguments: vec![],
+                layout: ValueLayout::new(16, 8),
+            }),
+        "{function:?}"
+    );
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(0),
+                destination_offset: 8,
+                source: AggregateLocation::Slot(1),
+                source_offset: 0,
+                layout: ValueLayout::new(16, 8),
+            }),
+        "{function:?}"
+    );
+}
+
+#[test]
+fn lowers_nested_aggregate_field_member_assignment_from_call_result() {
+    let packet_type = Type::Aggregate {
+        layout: ValueLayout::new(32, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Packet {
+    return Packet{ prefix: 1, header: Header{ tag: 8, ok: true, code: 42, len: 12 }, tail: 2 }
+}
+
+func update(): i32 {
+    var packet = Packet{ prefix: 1, header: Header{ tag: 7, ok: false, code: 1, len: 11 }, tail: 2 }
+    packet.header = make().header
+    return packet.header.code
+}
+"#,
+        "update",
+        function_signatures(vec![("make", packet_type, vec![])]),
+    )
+    .unwrap();
+
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(0),
+                destination_offset: 8,
+                source: AggregateLocation::Slot(1),
+                source_offset: 8,
+                layout: ValueLayout::new(16, 8),
             }),
         "{function:?}"
     );

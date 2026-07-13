@@ -40,9 +40,9 @@ pub(super) use predicates::{
     expression_contains_call, expression_contains_interpolated_string,
     expression_is_lowerable_bool_binding, expression_is_unsupported_bool_comparison_binding,
 };
+pub(super) use temporaries::TemporaryAllocator;
 use temporaries::{
     LoweredI32Value, LoweredSliceValue, LoweredStrValue, LoweredU8Value, LoweredUsizeValue,
-    TemporaryAllocator,
 };
 
 pub(super) fn lower_i32_expression(
@@ -1859,14 +1859,15 @@ fn lower_aggregate_bool_field_to_location(
     Ok(instructions)
 }
 
-struct LoweredAggregateFieldAccess {
-    instructions: Vec<Instruction>,
-    source: AggregateLocation,
-    offset: u32,
-    kind: AggregateFieldKind,
+pub(super) struct LoweredAggregateFieldAccess {
+    pub(super) instructions: Vec<Instruction>,
+    pub(super) source: AggregateLocation,
+    pub(super) offset: u32,
+    pub(super) kind: AggregateFieldKind,
+    pub(super) is_copy: bool,
 }
 
-fn lower_aggregate_member_field_access(
+pub(super) fn lower_aggregate_member_field_access(
     expression: &Expr,
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
@@ -1882,6 +1883,7 @@ fn lower_aggregate_member_field_access(
                 source: field.source,
                 offset: field.offset,
                 kind: field.kind,
+                is_copy: field.is_copy,
             })),
         AggregateMemberRoot::Call(call) => {
             lower_aggregate_call_member_field_access(call, &access.field_path, context, temporaries)
@@ -1956,7 +1958,7 @@ fn lower_aggregate_call_member_field_access(
     let slot_index = temporaries.next_aggregate_slot();
     let mut instructions = vec![Instruction::ReserveAggregateSlot { slot_index, layout }];
     let (mut argument_instructions, arguments) =
-        lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
+        lower_call_arguments(call, &target, &identifier.name, context, temporaries)?;
     instructions.append(&mut argument_instructions);
     match return_type {
         Type::Aggregate { .. } => {
@@ -1982,10 +1984,11 @@ fn lower_aggregate_call_member_field_access(
         source: AggregateLocation::Slot(slot_index),
         offset: field.offset,
         kind: field.kind,
+        is_copy: true,
     }))
 }
 
-fn aggregate_call_field(
+pub(super) fn aggregate_call_field(
     call: &CallExpr,
     member_name: &str,
     context: &LoweringContext,
@@ -2524,6 +2527,16 @@ pub(super) fn lower_call_arguments_to_scalar_arguments(
 ) -> Result<(Vec<Instruction>, Vec<ScalarArgument>), Vec<Diagnostic>> {
     let mut temporaries = TemporaryAllocator::new(context)?;
     lower_call_arguments(call, target, callee_name, context, &mut temporaries)
+}
+
+pub(super) fn lower_call_arguments_to_scalar_arguments_with_temporaries(
+    call: &CallExpr,
+    target: &crate::ir::CallTarget,
+    callee_name: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, Vec<ScalarArgument>), Vec<Diagnostic>> {
+    lower_call_arguments(call, target, callee_name, context, temporaries)
 }
 
 fn lower_builtin_len_call_to_value(
