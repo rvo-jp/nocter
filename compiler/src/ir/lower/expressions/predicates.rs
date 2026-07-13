@@ -493,12 +493,16 @@ fn aggregate_member_field_kind(
             .aggregate_field(identifier_name, &field_path)
             .map(|field| field.kind),
         AggregateMemberRoot::Call(call) => aggregate_call_field_kind(call, &field_path, context),
+        AggregateMemberRoot::FallibleCall(call) => {
+            aggregate_fallible_call_field_kind(call, &field_path, context)
+        }
     }
 }
 
 enum AggregateMemberRoot<'a> {
     Identifier(&'a str),
     Call(&'a crate::ast::CallExpr),
+    FallibleCall(&'a crate::ast::CallExpr),
 }
 
 fn aggregate_member_root_and_path<'a>(
@@ -510,6 +514,24 @@ fn aggregate_member_root_and_path<'a>(
             Vec::new(),
         )),
         Expr::Call(call) => Some((AggregateMemberRoot::Call(call), Vec::new())),
+        Expr::Propagate(propagation) => {
+            let Expr::Call(call) = unwrap_group(&propagation.expression) else {
+                return None;
+            };
+            Some((AggregateMemberRoot::FallibleCall(call), Vec::new()))
+        }
+        Expr::Force(force) => {
+            let Expr::Call(call) = unwrap_group(&force.expression) else {
+                return None;
+            };
+            Some((AggregateMemberRoot::FallibleCall(call), Vec::new()))
+        }
+        Expr::Catch(catch) => {
+            let Expr::Call(call) = unwrap_group(&catch.expression) else {
+                return None;
+            };
+            Some((AggregateMemberRoot::FallibleCall(call), Vec::new()))
+        }
         Expr::Member(member) => {
             let (root, mut fields) = aggregate_member_root_and_path(&member.object)?;
             fields.push(member.member.as_str());
@@ -531,6 +553,36 @@ fn aggregate_call_field_kind(
     let target = context.call_target(call, &identifier.name);
     let layout = match context.call_return_type(&target)? {
         Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => return None,
+    };
+    if !supported_aggregate_copy_layout(layout) {
+        return None;
+    }
+
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return None;
+    };
+    let signature = resolved.call_signature_for_call(call)?;
+    aggregate_fields_from_type_expr(&signature.return_type, resolved)?
+        .into_iter()
+        .find(|field| field.name == member_name)
+        .map(|field| field.kind)
+}
+
+fn aggregate_fallible_call_field_kind(
+    call: &crate::ast::CallExpr,
+    member_name: &str,
+    context: &LoweringContext,
+) -> Option<AggregateFieldKind> {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return None;
+    };
+    let target = context.call_target(call, &identifier.name);
+    let layout = match context.call_return_type(&target)? {
+        Type::Fallible(success_type) => match success_type.as_ref() {
+            Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+            _ => return None,
+        },
         _ => return None,
     };
     if !supported_aggregate_copy_layout(layout) {
@@ -598,6 +650,13 @@ fn expression_is_direct_bool_returning_call(expression: &Expr, context: &Lowerin
         }
         Expr::Group(group) => expression_is_direct_bool_returning_call(&group.expression, context),
         _ => false,
+    }
+}
+
+fn unwrap_group(expression: &Expr) -> &Expr {
+    match expression {
+        Expr::Group(group) => unwrap_group(&group.expression),
+        _ => expression,
     }
 }
 

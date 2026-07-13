@@ -5973,6 +5973,64 @@ func code_is_answer(): bool {
 }
 
 #[test]
+fn lowers_fallible_aggregate_catch_field_read_in_comparison() {
+    let ir = lower_text_with_std_error(
+        r#"from std/error import Error
+
+copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32! {
+    return run()?
+}
+
+func run(): i32! {
+    if (source() catch error {
+        return Error.new("app.source", error.message)
+    }).code == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+
+func source(): Header! {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+"#,
+    );
+
+    let run = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "run")
+        .unwrap();
+    assert_contains_fallible_direct_aggregate_catch_call(run, AggregateLocation::Slot(0), "source");
+    assert!(run.instructions.contains(&Instruction::LoadAggregateI32 {
+        destination: I32Location::Local(0),
+        source: AggregateLocation::Slot(0),
+        offset: 4,
+    }));
+    assert!(run.instructions.iter().any(|instruction| {
+        matches!(
+            instruction,
+            Instruction::If {
+                condition: BoolValue::I32Comparison {
+                    operator: I32ComparisonOperator::Equal,
+                    left,
+                    right,
+                },
+                ..
+            } if left == &i32_local(0) && right == &i32_const(42)
+        )
+    }));
+}
+
+#[test]
 fn lowers_aggregate_scalar_field_assignments_to_local_slot() {
     let function = lower_named_function(
         r#"struct Header {
