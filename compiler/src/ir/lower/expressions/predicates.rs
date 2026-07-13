@@ -1,6 +1,7 @@
-use super::super::aggregates::{aggregate_fields_from_type_expr, supported_aggregate_copy_layout};
+use super::super::aggregates::{aggregate_type_layout, supported_aggregate_copy_layout};
 use super::super::context::{AggregateFieldKind, LoweringContext};
 use super::super::literals::{lower_i32_literal, lower_u8_literal, lower_usize_literal};
+use super::aggregate_call_field;
 use crate::ast::{
     BinaryExpr, BinaryOperator, Expr, InterpolatedStringPart, TypeConversionExpr, TypeExpr,
     UnaryOperator,
@@ -551,22 +552,12 @@ fn aggregate_call_field_kind(
         return None;
     };
     let target = context.call_target(call, &identifier.name);
-    let layout = match context.call_return_type(&target)? {
-        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
-        _ => return None,
-    };
+    let layout = aggregate_type_layout(context.call_return_type(&target)?)?;
     if !supported_aggregate_copy_layout(layout) {
         return None;
     }
 
-    let Some((_root_source, resolved)) = context.resolved_calls() else {
-        return None;
-    };
-    let signature = resolved.call_signature_for_call(call)?;
-    aggregate_fields_from_type_expr(&signature.return_type, resolved)?
-        .into_iter()
-        .find(|field| field.name == member_name)
-        .map(|field| field.kind)
+    aggregate_call_field(call, member_name, context).map(|field| field.kind)
 }
 
 fn aggregate_fallible_call_field_kind(
@@ -579,24 +570,14 @@ fn aggregate_fallible_call_field_kind(
     };
     let target = context.call_target(call, &identifier.name);
     let layout = match context.call_return_type(&target)? {
-        Type::Fallible(success_type) => match success_type.as_ref() {
-            Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
-            _ => return None,
-        },
+        Type::Fallible(success_type) => aggregate_type_layout(success_type.as_ref())?,
         _ => return None,
     };
     if !supported_aggregate_copy_layout(layout) {
         return None;
     }
 
-    let Some((_root_source, resolved)) = context.resolved_calls() else {
-        return None;
-    };
-    let signature = resolved.call_signature_for_call(call)?;
-    aggregate_fields_from_type_expr(&signature.return_type, resolved)?
-        .into_iter()
-        .find(|field| field.name == member_name)
-        .map(|field| field.kind)
+    aggregate_call_field(call, member_name, context).map(|field| field.kind)
 }
 
 fn expression_is_lowerable_i32_value(expression: &Expr, context: &LoweringContext) -> bool {
