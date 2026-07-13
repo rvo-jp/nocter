@@ -1655,6 +1655,40 @@ func consume(header: Header): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_direct_aggregate_argument_between_scalars_exit_code() {
+    let project = TempProject::new("cli-run-direct-aggregate-arg-between-scalars");
+    let source = project.write_source(
+        "direct_aggregate_arg_between_scalars.nct",
+        r#"struct Pair {
+    a: i32
+    b: i32
+    c: i32
+    d: i32
+}
+
+func main(): i32 {
+    return consume(5, Pair{ a: 10, b: 20, c: 41, d: 2 }, 1)
+}
+
+func consume(prefix: i32, pair: Pair, suffix: i32): i32 {
+    return pair.c + suffix
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_nested_aggregate_value_argument_field_exit_code() {
     let project = TempProject::new("cli-run-nested-aggregate-value-arg");
     let source = project.write_source(
