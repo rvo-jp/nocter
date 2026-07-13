@@ -1,19 +1,19 @@
 <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
     <path
     d="
-    m8.5 9
+    m8 8.5
     h12
     a2.5 2.5 0 1 1 0 5
     h6
     a5 5 0 1 1 0 10
     h-1
-    a2 2 0 1 1 0 4
+    a2.5 2.5 0 1 1 0 5
     h-10
     z
     "
     fill="#4a648f"
     stroke="#4a648f"
-    stroke-width="0.3"
+    stroke-width="0.2"
   />
 
   <path
@@ -31,11 +31,11 @@
 
   <path
     d="
-    m3 22
+    m3.2 22.3
     a2.5 2.5 0 1 1 0 -5
     h8
     a2.5 2.5 0 1 1 0 5
-    h5
+    h4
     a3.5 3.5 0 1 1 0 7
     h-9
     a3.5 3.5 0 1 1 0 -7
@@ -43,12 +43,12 @@
     "
     fill="#6480ad"
     stroke="#6480ad"
-    stroke-width="0.3"
+    stroke-width="0.2"
   />
 
   <path
     d="
-    m25.8 7.2
+    m26 7.5
     l 0.65 -2.8
     l 0.65 2.8
     l 2.8 0.65
