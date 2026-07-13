@@ -5084,6 +5084,272 @@ func update(): i32 {
 }
 
 #[test]
+fn lowers_nested_aggregate_field_binding_from_fallible_call_result() {
+    let packet_type = Type::Aggregate {
+        layout: ValueLayout::new(32, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Packet! {
+    return Packet{ prefix: 1, header: Header{ tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
+}
+
+func read_code(): i32! {
+    let header = make()?.header
+    return header.code
+}
+"#,
+        "read_code",
+        function_signatures(vec![(
+            "make",
+            Type::Fallible(Box::new(packet_type)),
+            vec![],
+        )]),
+    )
+    .unwrap();
+
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CallFallibleAggregate {
+                destination: AggregateLocation::Slot(1),
+                target: CallTarget::same_file("make"),
+                arguments: vec![],
+                failure_mode: FallibleFailureMode::Propagate,
+            }),
+        "{function:?}"
+    );
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(0),
+                destination_offset: 0,
+                source: AggregateLocation::Slot(1),
+                source_offset: 8,
+                layout: ValueLayout::new(16, 8),
+            }),
+        "{function:?}"
+    );
+}
+
+#[test]
+fn lowers_nested_aggregate_field_value_argument_from_fallible_call_result() {
+    let packet_type = Type::Aggregate {
+        layout: ValueLayout::new(32, 8),
+    };
+    let header_type = Type::DirectAggregate {
+        layout: ValueLayout::new(16, 8),
+        words: 2,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func make(): Packet! {
+    return Packet{ prefix: 1, header: Header{ tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
+}
+
+func consume(header: Header): i32 {
+    return header.code
+}
+
+func main(): i32! {
+    return consume(make()?.header)
+}
+"#,
+        "main",
+        function_signatures(vec![
+            ("make", Type::Fallible(Box::new(packet_type)), vec![]),
+            ("consume", Type::I32, vec![header_type]),
+        ]),
+    )
+    .unwrap();
+
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CallFallibleAggregate {
+                destination: AggregateLocation::Slot(0),
+                target: CallTarget::same_file("make"),
+                arguments: vec![],
+                failure_mode: FallibleFailureMode::Propagate,
+            }),
+        "{function:?}"
+    );
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(1),
+                destination_offset: 0,
+                source: AggregateLocation::Slot(0),
+                source_offset: 8,
+                layout: ValueLayout::new(16, 8),
+            }),
+        "{function:?}"
+    );
+}
+
+#[test]
+fn lowers_nested_aggregate_field_return_from_fallible_call_result() {
+    let packet_type = Type::Aggregate {
+        layout: ValueLayout::new(32, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Packet! {
+    return Packet{ prefix: 1, header: Header{ tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
+}
+
+func pick(): Header! {
+    return make()?.header
+}
+"#,
+        "pick",
+        function_signatures(vec![(
+            "make",
+            Type::Fallible(Box::new(packet_type)),
+            vec![],
+        )]),
+    )
+    .unwrap();
+
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CallFallibleAggregate {
+                destination: AggregateLocation::Slot(0),
+                target: CallTarget::same_file("make"),
+                arguments: vec![],
+                failure_mode: FallibleFailureMode::Propagate,
+            }),
+        "{function:?}"
+    );
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::DirectReturn,
+                destination_offset: 0,
+                source: AggregateLocation::Slot(0),
+                source_offset: 8,
+                layout: ValueLayout::new(16, 8),
+            }),
+        "{function:?}"
+    );
+}
+
+#[test]
+fn lowers_nested_aggregate_field_assignment_from_fallible_call_result() {
+    let packet_type = Type::Aggregate {
+        layout: ValueLayout::new(32, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Packet! {
+    return Packet{ prefix: 1, header: Header{ tag: 8, ok: true, code: 42, len: 12 }, tail: 2 }
+}
+
+func update(): i32! {
+    var packet = Packet{ prefix: 1, header: Header{ tag: 7, ok: false, code: 1, len: 11 }, tail: 2 }
+    packet.header = make()?.header
+    return packet.header.code
+}
+"#,
+        "update",
+        function_signatures(vec![(
+            "make",
+            Type::Fallible(Box::new(packet_type)),
+            vec![],
+        )]),
+    )
+    .unwrap();
+
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CallFallibleAggregate {
+                destination: AggregateLocation::Slot(1),
+                target: CallTarget::same_file("make"),
+                arguments: vec![],
+                failure_mode: FallibleFailureMode::Propagate,
+            }),
+        "{function:?}"
+    );
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(0),
+                destination_offset: 8,
+                source: AggregateLocation::Slot(1),
+                source_offset: 8,
+                layout: ValueLayout::new(16, 8),
+            }),
+        "{function:?}"
+    );
+}
+
+#[test]
 fn lowers_aggregate_u8_bool_and_usize_field_returns_from_local_slot() {
     let text = r#"struct Header {
     tag: u8

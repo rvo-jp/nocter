@@ -235,6 +235,9 @@ fn lower_aggregate_member_binding(
         Some((AggregateMemberBindingRoot::Call(call), field_path)) => {
             lower_aggregate_call_member_binding(statement, call, &field_path, context)
         }
+        Some((AggregateMemberBindingRoot::FallibleCall(call), field_path)) => {
+            lower_aggregate_fallible_call_member_binding(statement, call, &field_path, context)
+        }
         None => Ok(None),
     }
 }
@@ -353,9 +356,91 @@ fn lower_aggregate_call_member_binding(
     Ok(Some(instructions))
 }
 
+fn lower_aggregate_fallible_call_member_binding(
+    statement: &BindingStmt,
+    call: &CallExpr,
+    field_path: &str,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Ok(None);
+    };
+    let target = context.call_target(call, &identifier.name);
+    let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
+        return Ok(None);
+    };
+    let source_layout = match success_type.as_ref() {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => return Ok(None),
+    };
+    let Some(field) = aggregate_call_field(call, field_path, context) else {
+        return Ok(None);
+    };
+    let source_offset = field.offset;
+    let AggregateFieldKind::Aggregate { layout, fields } = field.kind else {
+        return Ok(None);
+    };
+    if !supported_aggregate_copy_layout(layout) || !supported_aggregate_copy_layout(source_layout) {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 can only lower aggregate member bindings from supported fallible aggregate fields",
+        ));
+    }
+
+    let is_copy = call_success_type_is_copy_struct(call, context);
+    let slot_index =
+        context.define_aggregate_local(statement.name.clone(), layout, is_copy, fields);
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let source_slot = temporaries.next_aggregate_slot();
+    let mut instructions = vec![
+        Instruction::ReserveAggregateSlot { slot_index, layout },
+        Instruction::ReserveAggregateSlot {
+            slot_index: source_slot,
+            layout: source_layout,
+        },
+    ];
+    let (mut argument_instructions, arguments) =
+        lower_call_arguments_to_scalar_arguments_with_temporaries(
+            call,
+            &target,
+            &identifier.name,
+            context,
+            &mut temporaries,
+        )?;
+    instructions.append(&mut argument_instructions);
+    match success_type.as_ref() {
+        Type::Aggregate { .. } => {
+            instructions.push(Instruction::CallFallibleAggregate {
+                destination: AggregateLocation::Slot(source_slot),
+                target,
+                arguments,
+                failure_mode: FallibleFailureMode::Propagate,
+            });
+        }
+        Type::DirectAggregate { .. } => {
+            instructions.push(Instruction::CallFallibleDirectAggregate {
+                destination: AggregateLocation::Slot(source_slot),
+                target,
+                arguments,
+                layout: source_layout,
+                failure_mode: FallibleFailureMode::Propagate,
+            });
+        }
+        _ => unreachable!("fallible aggregate member binding requires aggregate success type"),
+    }
+    instructions.push(Instruction::CopyAggregateRange {
+        destination: AggregateLocation::Slot(slot_index),
+        destination_offset: 0,
+        source: AggregateLocation::Slot(source_slot),
+        source_offset,
+        layout,
+    });
+    Ok(Some(instructions))
+}
+
 enum AggregateMemberBindingRoot<'a> {
     Identifier(&'a str),
     Call(&'a CallExpr),
+    FallibleCall(&'a CallExpr),
 }
 
 fn aggregate_member_binding_path(
@@ -375,6 +460,12 @@ fn aggregate_member_binding_root_and_path<'a>(
             Vec::new(),
         )),
         Expr::Call(call) => Some((AggregateMemberBindingRoot::Call(call), Vec::new())),
+        Expr::Propagate(propagation) => {
+            let Expr::Call(call) = unwrap_group(&propagation.expression) else {
+                return None;
+            };
+            Some((AggregateMemberBindingRoot::FallibleCall(call), Vec::new()))
+        }
         Expr::Member(member) => {
             let (root, mut fields) = aggregate_member_binding_root_and_path(&member.object)?;
             fields.push(member.member.as_str());

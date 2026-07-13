@@ -1888,6 +1888,14 @@ pub(super) fn lower_aggregate_member_field_access(
         AggregateMemberRoot::Call(call) => {
             lower_aggregate_call_member_field_access(call, &access.field_path, context, temporaries)
         }
+        AggregateMemberRoot::FallibleCall(call) => {
+            lower_aggregate_fallible_call_member_field_access(
+                call,
+                &access.field_path,
+                context,
+                temporaries,
+            )
+        }
     }
 }
 
@@ -1899,6 +1907,7 @@ struct AggregateMemberAccess<'a> {
 enum AggregateMemberRoot<'a> {
     Identifier(&'a str),
     Call(&'a CallExpr),
+    FallibleCall(&'a CallExpr),
 }
 
 fn aggregate_member_access(expression: &Expr) -> Option<AggregateMemberAccess<'_>> {
@@ -1922,6 +1931,12 @@ fn aggregate_member_root_and_path<'a>(
             Vec::new(),
         )),
         Expr::Call(call) => Some((AggregateMemberRoot::Call(call), Vec::new())),
+        Expr::Propagate(propagation) => {
+            let Expr::Call(call) = unwrap_group(&propagation.expression) else {
+                return None;
+            };
+            Some((AggregateMemberRoot::FallibleCall(call), Vec::new()))
+        }
         Expr::Member(member) => {
             let (root, mut fields) = aggregate_member_root_and_path(&member.object)?;
             fields.push(member.member.as_str());
@@ -1977,6 +1992,65 @@ fn lower_aggregate_call_member_field_access(
             });
         }
         _ => unreachable!("aggregate call member access requires aggregate return type"),
+    }
+
+    Ok(Some(LoweredAggregateFieldAccess {
+        instructions,
+        source: AggregateLocation::Slot(slot_index),
+        offset: field.offset,
+        kind: field.kind,
+        is_copy: true,
+    }))
+}
+
+fn lower_aggregate_fallible_call_member_field_access(
+    call: &CallExpr,
+    member_name: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Option<LoweredAggregateFieldAccess>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Ok(None);
+    };
+    let target = context.call_target(call, &identifier.name);
+    let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
+        return Ok(None);
+    };
+    let layout = match success_type.as_ref() {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => return Ok(None),
+    };
+    if !supported_aggregate_copy_layout(layout) {
+        return Ok(None);
+    }
+    let Some(field) = aggregate_call_field(call, member_name, context) else {
+        return Ok(None);
+    };
+
+    let slot_index = temporaries.next_aggregate_slot();
+    let mut instructions = vec![Instruction::ReserveAggregateSlot { slot_index, layout }];
+    let (mut argument_instructions, arguments) =
+        lower_call_arguments(call, &target, &identifier.name, context, temporaries)?;
+    instructions.append(&mut argument_instructions);
+    match success_type.as_ref() {
+        Type::Aggregate { .. } => {
+            instructions.push(Instruction::CallFallibleAggregate {
+                destination: AggregateLocation::Slot(slot_index),
+                target,
+                arguments,
+                failure_mode: FallibleFailureMode::Propagate,
+            });
+        }
+        Type::DirectAggregate { .. } => {
+            instructions.push(Instruction::CallFallibleDirectAggregate {
+                destination: AggregateLocation::Slot(slot_index),
+                target,
+                arguments,
+                layout,
+                failure_mode: FallibleFailureMode::Propagate,
+            });
+        }
+        _ => unreachable!("aggregate fallible call member access requires aggregate success type"),
     }
 
     Ok(Some(LoweredAggregateFieldAccess {

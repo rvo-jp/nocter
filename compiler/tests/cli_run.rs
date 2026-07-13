@@ -1750,6 +1750,54 @@ func consume(header: Header): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_nested_aggregate_fallible_call_result_value_argument_field_exit_code() {
+    let project = TempProject::new("cli-run-nested-aggregate-fallible-call-result-value-arg");
+    let source = project.write_source(
+        "nested_aggregate_fallible_call_result_value_arg.nct",
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32! {
+    return consume(make()?.header)
+}
+
+func make(): Packet! {
+    return Packet{
+        prefix: 1,
+        header: Header{ tag: 7, ok: true, code: 42, len: 11 },
+        tail: 99,
+    }
+}
+
+func consume(header: Header): i32 {
+    return header.code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_aggregate_call_binding_with_aggregate_argument_exit_code() {
     let project = TempProject::new("cli-run-aggregate-call-binding-aggregate-arg");
     let source = project.write_source(
@@ -2533,6 +2581,58 @@ func main(): i32 {
 }
 
 func make(): Packet {
+    return Packet{
+        prefix: 1,
+        header: Header{ tag: 8, ok: true, code: 42, len: 12 },
+        tail: 2,
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_nested_aggregate_field_member_assignment_from_fallible_call_result_exit_code()
+ {
+    let project =
+        TempProject::new("cli-run-nested-aggregate-field-member-assignment-fallible-call-result");
+    let source = project.write_source(
+        "nested_aggregate_field_member_assignment_fallible_call_result.nct",
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32! {
+    var packet = Packet{
+        prefix: 1,
+        header: Header{ tag: 7, ok: false, code: 1, len: 11 },
+        tail: 99,
+    }
+    packet.header = make()?.header
+    return packet.header.code
+}
+
+func make(): Packet! {
     return Packet{
         prefix: 1,
         header: Header{ tag: 8, ok: true, code: 42, len: 12 },
