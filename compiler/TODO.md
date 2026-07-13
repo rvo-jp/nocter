@@ -27,6 +27,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: cover partial aggregate slot copies
+  - adds native execution coverage for 5-byte and 9-byte `copy struct` whole-slot assignment
+  - adds native execution coverage for 9-byte `copy struct` return-by-name through the direct aggregate return copy path
+  - confirms the backend aggregate byte-copy fallback handles partial final ABI words for slot-to-slot and slot-to-direct-return copies
 - Current checkpoint: cover stack-passed aggregate argument boundaries
   - adds native execution coverage for split and fully stack-passed direct aggregate arguments whose final ABI word is partial
   - adds native execution coverage for stack-passed `&T` field reads and `&+T` field writes through aggregate borrow parameters

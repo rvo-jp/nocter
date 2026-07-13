@@ -5139,6 +5139,161 @@ func set_header(packet: &+Packet, header: Header): void {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_five_byte_copy_aggregate_assignment_exit_code() {
+    let project = TempProject::new("cli-run-five-byte-copy-aggregate-assignment");
+    let source = project.write_source(
+        "five_byte_copy_aggregate_assignment.nct",
+        r#"copy struct Bytes {
+    first: u8
+    second: u8
+    third: u8
+    fourth: u8
+    fifth: u8
+}
+
+func main(): i32 {
+    var bytes = Bytes{ first: 1, second: 2, third: 3, fourth: 4, fifth: 1 }
+    let replacement = Bytes{ first: 5, second: 6, third: 7, fourth: 8, fifth: 42 }
+    bytes = replacement
+    if bytes.fifth == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_nine_byte_copy_aggregate_assignment_exit_code() {
+    let project = TempProject::new("cli-run-nine-byte-copy-aggregate-assignment");
+    let source = project.write_source(
+        "nine_byte_copy_aggregate_assignment.nct",
+        r#"copy struct Bytes {
+    first: u8
+    second: u8
+    third: u8
+    fourth: u8
+    fifth: u8
+    sixth: u8
+    seventh: u8
+    eighth: u8
+    ninth: u8
+}
+
+func main(): i32 {
+    var bytes = Bytes{
+        first: 1,
+        second: 2,
+        third: 3,
+        fourth: 4,
+        fifth: 5,
+        sixth: 6,
+        seventh: 7,
+        eighth: 8,
+        ninth: 1,
+    }
+    let replacement = Bytes{
+        first: 9,
+        second: 10,
+        third: 11,
+        fourth: 12,
+        fifth: 13,
+        sixth: 14,
+        seventh: 15,
+        eighth: 16,
+        ninth: 42,
+    }
+    bytes = replacement
+    if bytes.ninth == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_nine_byte_copy_aggregate_return_by_name_exit_code() {
+    let project = TempProject::new("cli-run-nine-byte-copy-aggregate-return-by-name");
+    let source = project.write_source(
+        "nine_byte_copy_aggregate_return_by_name.nct",
+        r#"copy struct Bytes {
+    first: u8
+    second: u8
+    third: u8
+    fourth: u8
+    fifth: u8
+    sixth: u8
+    seventh: u8
+    eighth: u8
+    ninth: u8
+}
+
+func main(): i32 {
+    let bytes = make()
+    if bytes.ninth == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+
+func make(): Bytes {
+    let bytes = Bytes{
+        first: 1,
+        second: 2,
+        third: 3,
+        fourth: 4,
+        fifth: 5,
+        sixth: 6,
+        seventh: 7,
+        eighth: 8,
+        ninth: 42,
+    }
+    return bytes
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_nested_aggregate_field_call_assignment_exit_code() {
     let project = TempProject::new("cli-run-nested-aggregate-field-call-assignment");
     let source = project.write_source(
