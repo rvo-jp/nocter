@@ -3561,6 +3561,74 @@ func read_code(packet: &Packet): i32 {
 }
 
 #[test]
+fn lowers_return_call_with_aggregate_borrow_argument_as_normal_call() {
+    let packet_type = Type::Aggregate {
+        layout: ValueLayout::new(32, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func caller(): i32 {
+    let packet = Packet{
+        prefix: 1,
+        header: Header{ tag: 7, ok: true, code: 42, len: 11 },
+        tail: 99,
+    }
+    return read_code(&packet)
+}
+
+func read_code(packet: &Packet): i32 {
+    return packet.header.code
+}
+"#,
+        "caller",
+        function_signatures(vec![(
+            "read_code",
+            Type::I32,
+            vec![Type::Borrow {
+                is_readwrite: false,
+                inner: Box::new(packet_type),
+            }],
+        )]),
+    )
+    .unwrap();
+
+    assert!(
+        function.instructions.contains(&Instruction::CallI32 {
+            destination: I32Location::Return,
+            target: CallTarget::same_file("read_code"),
+            arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                source: BorrowSource::AggregateSlot(0),
+            })],
+        }),
+        "{function:?}"
+    );
+    assert_eq!(function.instructions.last(), Some(&Instruction::Return));
+    assert!(
+        !function
+            .instructions
+            .iter()
+            .any(|instruction| matches!(instruction, Instruction::TailCall { .. })),
+        "{function:?}"
+    );
+}
+
+#[test]
 fn lowers_aggregate_scalar_field_reads_as_expression_operands() {
     let function = lower_named_function(
         r#"struct Header {
@@ -4414,9 +4482,13 @@ func choose(value: &+i32, code: i32): i32 {
 }
 
 #[test]
-fn rejects_tail_call_with_borrow_argument() {
-    let diagnostics = lower_text_diagnostics(
+fn lowers_return_call_with_borrow_argument_as_normal_call() {
+    let function = lower_named_function_with_signatures(
         r#"func main(): i32 {
+    return 0
+}
+
+func caller(): i32 {
     let value = 7
     return choose(&value, 42)
 }
@@ -4425,14 +4497,45 @@ func choose(value: &i32, code: i32): i32 {
     return code
 }
 "#,
-    );
+        "caller",
+        function_signatures(vec![(
+            "choose",
+            Type::I32,
+            vec![
+                Type::Borrow {
+                    is_readwrite: false,
+                    inner: Box::new(Type::I32),
+                },
+                Type::I32,
+            ],
+        )]),
+    )
+    .unwrap();
 
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E8006");
-    assert!(
-        diagnostics[0]
-            .message
-            .contains("tail call to function `choose` with borrow arguments")
+    assert_eq!(
+        function,
+        Function {
+            name: "caller".to_string(),
+            target: crate::ir::CallTarget::same_file("caller".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::SetI32 {
+                    destination: I32Location::Local(0),
+                    value: I32Value::Const(7),
+                },
+                Instruction::CallI32 {
+                    destination: I32Location::Return,
+                    target: CallTarget::same_file("choose"),
+                    arguments: vec![
+                        ScalarArgument::Borrow(BorrowArgument {
+                            source: BorrowSource::I32(I32Location::Local(0)),
+                        }),
+                        ScalarArgument::I32(I32Value::Const(42)),
+                    ],
+                },
+                Instruction::Return,
+            ],
+        }
     );
 }
 

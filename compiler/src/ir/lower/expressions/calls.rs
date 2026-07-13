@@ -394,28 +394,92 @@ pub(super) fn lower_direct_tail_call(
 
     if arguments
         .iter()
-        .any(|argument| matches!(argument, ScalarArgument::Borrow(_)))
+        .any(tail_call_argument_requires_current_frame)
     {
-        return Err(vec![Diagnostic::error(
-            "E8006",
-            format!(
-                "IR v0 cannot lower tail call to function `{}` with borrow arguments",
-                identifier.name
-            ),
-        )]);
-    }
-    if arguments.iter().any(is_tail_call_stack_pointer_argument) {
-        return Err(vec![Diagnostic::error(
-            "E8006",
-            format!(
-                "IR v0 cannot lower tail call to function `{}` with aggregate pointer arguments",
-                identifier.name
-            ),
-        )]);
+        let Some(return_type) = context.call_return_type(&target).cloned() else {
+            return Err(unsupported_non_tail_return_call_diagnostic(
+                &identifier.name,
+            ));
+        };
+        instructions.push(lower_non_tail_return_call_instruction(
+            return_type,
+            target,
+            arguments,
+            &identifier.name,
+        )?);
+        instructions.push(Instruction::Return);
+        return Ok(instructions);
     }
 
     instructions.push(Instruction::TailCall { target, arguments });
     Ok(instructions)
+}
+
+fn tail_call_argument_requires_current_frame(argument: &ScalarArgument) -> bool {
+    matches!(argument, ScalarArgument::Borrow(_)) || is_tail_call_stack_pointer_argument(argument)
+}
+
+fn lower_non_tail_return_call_instruction(
+    return_type: Type,
+    target: CallTarget,
+    arguments: Vec<ScalarArgument>,
+    callee_name: &str,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    match return_type {
+        Type::I32 => Ok(Instruction::CallI32 {
+            destination: I32Location::Return,
+            target,
+            arguments,
+        }),
+        Type::U8 => Ok(Instruction::CallU8 {
+            destination: U8Location::Return,
+            target,
+            arguments,
+        }),
+        Type::Usize => Ok(Instruction::CallUsize {
+            destination: UsizeLocation::Return,
+            target,
+            arguments,
+        }),
+        Type::Bool => Ok(Instruction::CallBool {
+            destination: BoolLocation::Return,
+            target,
+            arguments,
+        }),
+        Type::Str => Ok(Instruction::CallStr {
+            destination: StrLocation::Return,
+            target,
+            arguments,
+        }),
+        Type::Slice { .. } => Ok(Instruction::CallSlice {
+            destination: SliceLocation::Return,
+            target,
+            arguments,
+        }),
+        Type::Aggregate { .. } => Ok(Instruction::CallAggregate {
+            destination: AggregateLocation::Return,
+            target,
+            arguments,
+        }),
+        Type::DirectAggregate { layout, .. } => Ok(Instruction::CallDirectAggregate {
+            destination: AggregateLocation::DirectReturn,
+            target,
+            arguments,
+            layout,
+        }),
+        Type::Never | Type::Void | Type::Fallible(_) | Type::Borrow { .. } => {
+            Err(unsupported_non_tail_return_call_diagnostic(callee_name))
+        }
+    }
+}
+
+fn unsupported_non_tail_return_call_diagnostic(callee_name: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8006",
+        format!(
+            "IR v0 cannot lower return call to function `{callee_name}` without tail-call support for this return type"
+        ),
+    )]
 }
 
 pub(super) fn lower_call_arguments(

@@ -1913,6 +1913,51 @@ func read_code(packet: &Packet): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_tail_position_borrowed_aggregate_call_exit_code() {
+    let project = TempProject::new("cli-run-tail-position-borrowed-aggregate-call");
+    let source = project.write_source(
+        "tail_position_borrowed_aggregate_call.nct",
+        r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    let packet = Packet{
+        prefix: 1,
+        header: Header{ tag: 7, ok: true, code: 42, len: 11 },
+        tail: 99,
+    }
+    return read_code(&packet)
+}
+
+func read_code(packet: &Packet): i32 {
+    return packet.header.code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_nested_aggregate_field_assignment_exit_code() {
     let project = TempProject::new("cli-run-nested-aggregate-field-assignment");
     let source = project.write_source(
