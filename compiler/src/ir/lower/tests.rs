@@ -6238,6 +6238,54 @@ func consume(
 }
 
 #[test]
+fn rejects_direct_aggregate_call_that_exceeds_eight_abi_argument_words() {
+    let pair_type = Type::DirectAggregate {
+        layout: ValueLayout::new(16, 4),
+        words: 2,
+    };
+    let diagnostics = lower_named_function_diagnostics_with_signatures(
+        r#"struct Pair {
+    a: i32
+    b: i32
+    c: i32
+    d: i32
+}
+
+func main(): i32 {
+    return consume(1, 2, 3, 4, 5, 6, 7, Pair{ a: 1, b: 2, c: 3, d: 4 })
+}
+
+func consume(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, pair: Pair): i32 {
+    return pair.c
+}
+"#,
+        "main",
+        function_signatures(vec![(
+            "consume",
+            Type::I32,
+            vec![
+                Type::I32,
+                Type::I32,
+                Type::I32,
+                Type::I32,
+                Type::I32,
+                Type::I32,
+                Type::I32,
+                pair_type,
+            ],
+        )]),
+    );
+
+    assert_eq!(diagnostics[0].code, "E8006");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("up to 8 ABI argument words"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn lowers_imported_i32_call_target_when_boundary_is_bypassed() {
     let analysis = analyze_text_with_entry_and_nocter_home_files(
         r#"from std/math import answer
