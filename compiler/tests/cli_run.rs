@@ -2328,6 +2328,59 @@ func consume(bytes: Bytes): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_nine_byte_direct_aggregate_value_argument_field_exit_code() {
+    let project = TempProject::new("cli-run-nine-byte-direct-aggregate-value-arg");
+    let source = project.write_source(
+        "nine_byte_direct_aggregate_value_arg.nct",
+        r#"struct Bytes {
+    first: u8
+    second: u8
+    third: u8
+    fourth: u8
+    fifth: u8
+    sixth: u8
+    seventh: u8
+    eighth: u8
+    ninth: u8
+}
+
+func main(): i32 {
+    return consume(Bytes{
+        first: 1,
+        second: 2,
+        third: 3,
+        fourth: 4,
+        fifth: 5,
+        sixth: 6,
+        seventh: 7,
+        eighth: 8,
+        ninth: 42,
+    })
+}
+
+func consume(bytes: Bytes): i32 {
+    if bytes.ninth == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_shifted_five_byte_direct_aggregate_argument_exit_code() {
     let project = TempProject::new("cli-run-five-byte-direct-aggregate-arg-between-scalars");
     let source = project.write_source(
@@ -2554,6 +2607,59 @@ func make(): Bytes {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_nine_byte_direct_aggregate_call_result_field_exit_code() {
+    let project = TempProject::new("cli-run-nine-byte-direct-aggregate-call-result-field");
+    let source = project.write_source(
+        "nine_byte_direct_aggregate_call_result_field.nct",
+        r#"struct Bytes {
+    first: u8
+    second: u8
+    third: u8
+    fourth: u8
+    fifth: u8
+    sixth: u8
+    seventh: u8
+    eighth: u8
+    ninth: u8
+}
+
+func main(): i32 {
+    if make().ninth == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+
+func make(): Bytes {
+    return Bytes{
+        first: 1,
+        second: 2,
+        third: 3,
+        fourth: 4,
+        fifth: 5,
+        sixth: 6,
+        seventh: 7,
+        eighth: 8,
+        ninth: 42,
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_propagated_direct_aggregate_call_return_field_exit_code() {
     let project = TempProject::new("cli-run-propagated-direct-aggregate-call-return-field");
     let source = project.write_source(
@@ -2645,6 +2751,60 @@ func main(): i32! {
 
 func make(): Bytes! {
     return Bytes{ first: 1, second: 2, third: 3, fourth: 4, fifth: 42 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_propagated_nine_byte_direct_aggregate_call_return_field_exit_code() {
+    let project =
+        TempProject::new("cli-run-propagated-nine-byte-direct-aggregate-call-return-field");
+    let source = project.write_source(
+        "propagated_nine_byte_direct_aggregate_call_return_field.nct",
+        r#"struct Bytes {
+    first: u8
+    second: u8
+    third: u8
+    fourth: u8
+    fifth: u8
+    sixth: u8
+    seventh: u8
+    eighth: u8
+    ninth: u8
+}
+
+func main(): i32! {
+    if make()?.ninth == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+
+func make(): Bytes! {
+    return Bytes{
+        first: 1,
+        second: 2,
+        third: 3,
+        fourth: 4,
+        fifth: 5,
+        sixth: 6,
+        seventh: 7,
+        eighth: 8,
+        ninth: 42,
+    }
 }
 "#,
     );
