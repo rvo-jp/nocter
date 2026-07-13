@@ -2469,6 +2469,56 @@ func consume(pair: Pair): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_reports_caught_direct_aggregate_call_argument_failure() {
+    let project = TempProject::new("cli-run-caught-direct-aggregate-call-argument-failure");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+impl Error {
+    pub func new(code: ErrorCode, message: &str): Error {
+        return new_error(code, message)
+    }
+}
+"#,
+    );
+    let source = project.write_source(
+        "caught_direct_aggregate_call_argument_failure.nct",
+        r#"from std/error import Error
+
+struct Pair {
+    first: i32
+    second: i32
+}
+
+func main(): i32! {
+    return consume(make() catch error {
+        return Error.new("app.main", error.message)
+    })
+}
+
+func make(): Pair! {
+    return Error.new("app.make", "failed")
+}
+
+func consume(pair: Pair): i32 {
+    return pair.second
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(output.stderr, b"app.main: failed\n");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_caught_indirect_aggregate_call_argument_field_exit_code() {
     let project = TempProject::new("cli-run-caught-indirect-aggregate-call-argument-field");
     project.write_nocter_home_file(
@@ -2630,6 +2680,56 @@ func make(): Pair! {
         text(&output.stdout),
         text(&output.stderr)
     );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_reports_caught_direct_aggregate_call_comparison_failure() {
+    let project = TempProject::new("cli-run-caught-direct-aggregate-call-comparison-failure");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+impl Error {
+    pub func new(code: ErrorCode, message: &str): Error {
+        return new_error(code, message)
+    }
+}
+"#,
+    );
+    let source = project.write_source(
+        "caught_direct_aggregate_call_comparison_failure.nct",
+        r#"from std/error import Error
+
+struct Pair {
+    first: i32
+    second: i32
+}
+
+func main(): i32! {
+    if (make() catch error {
+        return Error.new("app.main", error.message)
+    }).second == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+
+func make(): Pair! {
+    return Error.new("app.make", "failed")
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(output.stderr, b"app.main: failed\n");
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
@@ -2921,6 +3021,65 @@ func source(): Header! {
         text(&output.stdout),
         text(&output.stderr)
     );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_reports_caught_aggregate_struct_literal_field_failure() {
+    let project = TempProject::new("cli-run-caught-aggregate-struct-literal-field-failure");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+impl Error {
+    pub func new(code: ErrorCode, message: &str): Error {
+        return new_error(code, message)
+    }
+}
+"#,
+    );
+    let source = project.write_source(
+        "caught_aggregate_struct_literal_field_failure.nct",
+        r#"from std/error import Error
+
+copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32! {
+    let packet = Packet{
+        prefix: 1,
+        header: source() catch error {
+            return Error.new("app.main", error.message)
+        },
+        tail: 2,
+    }
+    return packet.header.code
+}
+
+func source(): Header! {
+    return Error.new("app.source", "failed")
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(output.stderr, b"app.main: failed\n");
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
