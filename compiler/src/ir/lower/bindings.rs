@@ -230,7 +230,7 @@ fn lower_aggregate_member_binding(
         return Ok(None);
     };
 
-    match aggregate_member_binding_path(member) {
+    match aggregate_member_binding_path(member, context)? {
         Some((AggregateMemberBindingRoot::Identifier(identifier_name), field_path)) => {
             lower_aggregate_local_member_binding(statement, identifier_name, &field_path, context)
         }
@@ -429,47 +429,68 @@ enum AggregateMemberBindingRoot<'a> {
     FallibleCall(&'a CallExpr, FallibleFailureMode),
 }
 
-fn aggregate_member_binding_path(
-    member: &MemberExpr,
-) -> Option<(AggregateMemberBindingRoot<'_>, String)> {
-    let (root, mut fields) = aggregate_member_binding_root_and_path(&member.object)?;
+fn aggregate_member_binding_path<'a>(
+    member: &'a MemberExpr,
+    context: &LoweringContext,
+) -> Result<Option<(AggregateMemberBindingRoot<'a>, String)>, Vec<Diagnostic>> {
+    let Some((root, mut fields)) = aggregate_member_binding_root_and_path(&member.object, context)?
+    else {
+        return Ok(None);
+    };
     fields.push(member.member.as_str());
-    Some((root, fields.join(".")))
+    Ok(Some((root, fields.join("."))))
 }
 
 fn aggregate_member_binding_root_and_path<'a>(
     expression: &'a Expr,
-) -> Option<(AggregateMemberBindingRoot<'a>, Vec<&'a str>)> {
+    context: &LoweringContext,
+) -> Result<Option<(AggregateMemberBindingRoot<'a>, Vec<&'a str>)>, Vec<Diagnostic>> {
     match unwrap_group(expression) {
-        Expr::Identifier(identifier) => Some((
+        Expr::Identifier(identifier) => Ok(Some((
             AggregateMemberBindingRoot::Identifier(&identifier.name),
             Vec::new(),
-        )),
-        Expr::Call(call) => Some((AggregateMemberBindingRoot::Call(call), Vec::new())),
+        ))),
+        Expr::Call(call) => Ok(Some((AggregateMemberBindingRoot::Call(call), Vec::new()))),
         Expr::Propagate(propagation) => {
             let Expr::Call(call) = unwrap_group(&propagation.expression) else {
-                return None;
+                return Ok(None);
             };
-            Some((
+            Ok(Some((
                 AggregateMemberBindingRoot::FallibleCall(call, FallibleFailureMode::Propagate),
                 Vec::new(),
-            ))
+            )))
         }
         Expr::Force(force) => {
             let Expr::Call(call) = unwrap_group(&force.expression) else {
-                return None;
+                return Ok(None);
             };
-            Some((
+            Ok(Some((
                 AggregateMemberBindingRoot::FallibleCall(call, FallibleFailureMode::Trap),
                 Vec::new(),
-            ))
+            )))
+        }
+        Expr::Catch(catch) => {
+            let Expr::Call(call) = unwrap_group(&catch.expression) else {
+                return Ok(None);
+            };
+            Ok(Some((
+                AggregateMemberBindingRoot::FallibleCall(
+                    call,
+                    lower_catch_failure_mode(catch, context, 0)?,
+                ),
+                Vec::new(),
+            )))
         }
         Expr::Member(member) => {
-            let (root, mut fields) = aggregate_member_binding_root_and_path(&member.object)?;
+            let Some((root, mut fields)) =
+                aggregate_member_binding_root_and_path(&member.object, context)?
+            else {
+                return Ok(None);
+            };
             fields.push(member.member.as_str());
-            Some((root, fields))
+            Ok(Some((root, fields)))
         }
-        _ => None,
+        _ => Ok(None),
     }
 }
 

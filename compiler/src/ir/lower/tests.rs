@@ -9442,6 +9442,77 @@ func source(): Header! {
 }
 
 #[test]
+fn lowers_fallible_aggregate_catch_member_binding() {
+    let ir = lower_text_with_std_error(
+        r#"from std/error import Error
+
+copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32! {
+    return run()?
+}
+
+func run(): i32! {
+    let header = (source() catch error {
+        return Error.new("app.source", error.message)
+    }).header
+    return header.code
+}
+
+func source(): Packet! {
+    return Packet{
+        prefix: 1,
+        header: Header{ tag: 7, ok: true, code: 42, len: 11 },
+        tail: 2,
+    }
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "run")
+        .unwrap();
+    assert!(main.instructions.iter().any(|instruction| {
+        matches!(
+            instruction,
+            Instruction::CallFallibleAggregate {
+                destination: AggregateLocation::Slot(1),
+                target,
+                arguments,
+                failure_mode: FallibleFailureMode::Catch { .. },
+            } if target == &CallTarget::same_file("source") && arguments.is_empty()
+        )
+    }));
+    assert!(
+        main.instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(0),
+                destination_offset: 0,
+                source: AggregateLocation::Slot(1),
+                source_offset: 8,
+                layout: ValueLayout::new(16, 8),
+            })
+    );
+    assert!(
+        main.instructions
+            .contains(&Instruction::ReturnFallibleSuccess)
+    );
+}
+
+#[test]
 fn lowers_fallible_aggregate_catch_assignment() {
     let ir = lower_text_with_std_error(
         r#"from std/error import Error
