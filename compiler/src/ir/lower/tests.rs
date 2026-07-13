@@ -6166,33 +6166,44 @@ func update(): i32 {
 }
 
 #[test]
-fn rejects_function_with_more_than_eight_abi_parameter_words() {
-    let diagnostics = lower_named_function_diagnostics_with_signatures(
+fn lowers_function_with_stack_passed_parameter_word() {
+    let function = lower_named_function(
         r#"func main(): i32 {
     return 0
 }
 
-func consume(a: &str, b: &str, c: &str, d: &str, e: usize): i32 {
-    return 0
+func consume(a: &str, b: &str, c: &str, d: &str, e: usize): usize {
+    return e
 }
 "#,
         "consume",
-        context::FunctionSignatures::new(HashMap::new()),
     );
 
-    assert_eq!(diagnostics[0].code, "E8007");
-    assert!(
-        diagnostics[0]
-            .message
-            .contains("up to 8 ABI parameter words"),
-        "{diagnostics:?}"
+    assert_eq!(
+        function,
+        Function {
+            name: "consume".to_string(),
+            target: CallTarget::same_file("consume"),
+            return_type: Type::Usize,
+            instructions: vec![
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: usize_param(8),
+                },
+                Instruction::Return,
+            ],
+        }
     );
 }
 
 #[test]
-fn rejects_call_with_more_than_eight_abi_argument_words() {
-    let diagnostics = lower_named_function_diagnostics_with_signatures(
+fn lowers_call_with_stack_passed_argument_word_as_normal_return_call() {
+    let function = lower_named_function_with_signatures(
         r#"func main(): i32 {
+    return 0
+}
+
+func run(): usize {
     return consume(1, 2, 3, 4, 5, 6, 7, 8, 9)
 }
 
@@ -6206,14 +6217,14 @@ func consume(
     g: usize,
     h: usize,
     i: usize,
-): i32 {
-    return 0
+): usize {
+    return i
 }
 "#,
-        "main",
+        "run",
         function_signatures(vec![(
             "consume",
-            Type::I32,
+            Type::Usize,
             vec![
                 Type::Usize,
                 Type::Usize,
@@ -6226,25 +6237,45 @@ func consume(
                 Type::Usize,
             ],
         )]),
-    );
+    )
+    .unwrap();
 
-    assert_eq!(diagnostics[0].code, "E8006");
-    assert!(
-        diagnostics[0]
-            .message
-            .contains("up to 8 ABI argument words"),
-        "{diagnostics:?}"
+    assert_eq!(
+        function,
+        Function {
+            name: "run".to_string(),
+            target: CallTarget::same_file("run"),
+            return_type: Type::Usize,
+            instructions: vec![
+                Instruction::CallUsize {
+                    destination: UsizeLocation::Return,
+                    target: CallTarget::same_file("consume"),
+                    arguments: vec![
+                        ScalarArgument::Usize(usize_const(1)),
+                        ScalarArgument::Usize(usize_const(2)),
+                        ScalarArgument::Usize(usize_const(3)),
+                        ScalarArgument::Usize(usize_const(4)),
+                        ScalarArgument::Usize(usize_const(5)),
+                        ScalarArgument::Usize(usize_const(6)),
+                        ScalarArgument::Usize(usize_const(7)),
+                        ScalarArgument::Usize(usize_const(8)),
+                        ScalarArgument::Usize(usize_const(9)),
+                    ],
+                },
+                Instruction::Return,
+            ],
+        }
     );
 }
 
 #[test]
-fn rejects_direct_aggregate_call_that_exceeds_eight_abi_argument_words() {
+fn lowers_split_register_stack_direct_aggregate_call_argument() {
     let pair_type = Type::DirectAggregate {
         layout: ValueLayout::new(16, 4),
         words: 2,
     };
-    let diagnostics = lower_named_function_diagnostics_with_signatures(
-        r#"struct Pair {
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Pair {
     a: i32
     b: i32
     c: i32
@@ -6274,14 +6305,29 @@ func consume(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, pair: Pair)
                 pair_type,
             ],
         )]),
-    );
+    )
+    .unwrap();
 
-    assert_eq!(diagnostics[0].code, "E8006");
     assert!(
-        diagnostics[0]
-            .message
-            .contains("up to 8 ABI argument words"),
-        "{diagnostics:?}"
+        function.instructions.contains(&Instruction::CallI32 {
+            destination: I32Location::Return,
+            target: CallTarget::same_file("consume"),
+            arguments: vec![
+                ScalarArgument::I32(i32_const(1)),
+                ScalarArgument::I32(i32_const(2)),
+                ScalarArgument::I32(i32_const(3)),
+                ScalarArgument::I32(i32_const(4)),
+                ScalarArgument::I32(i32_const(5)),
+                ScalarArgument::I32(i32_const(6)),
+                ScalarArgument::I32(i32_const(7)),
+                ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                    source: AggregateArgumentSource::Slot(0),
+                    layout: ValueLayout::new(16, 4),
+                    words: 2,
+                }),
+            ],
+        }),
+        "{function:?}"
     );
 }
 

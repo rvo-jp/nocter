@@ -1,5 +1,5 @@
 use super::{EntryEmitter, FunctionCallPatch, FunctionSymbol};
-use crate::abi::ValueLayout;
+use crate::abi::{ABI_WORD_SIZE, ARGUMENT_REGISTER_COUNT, ValueLayout};
 use crate::backend::frame::{ArgumentStagingSlot, FrameLayout};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -13,6 +13,11 @@ pub(super) struct FallibleDirectAggregateCall<'a> {
     pub(super) function: FunctionSymbol,
     pub(super) arguments: &'a [ScalarArgument],
     pub(super) layout: ValueLayout,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct OutgoingStackArguments {
+    area_size: u32,
 }
 
 impl EntryEmitter {
@@ -32,13 +37,20 @@ impl EntryEmitter {
         frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
         if !arguments.is_empty() {
+            if call_argument_abi_word_count(arguments) > ARGUMENT_REGISTER_COUNT {
+                return Err(vec![Diagnostic::error(
+                    "E9003",
+                    "tail call emission does not support stack-passed arguments",
+                )]);
+            }
             let Some(frame) = frame else {
                 return Err(vec![Diagnostic::error(
                     "E9005",
                     "tail call argument staging requires a stack frame",
                 )]);
             };
-            self.emit_staged_scalar_arguments(arguments, frame)?;
+            let outgoing_stack = self.emit_staged_scalar_arguments(arguments, frame)?;
+            debug_assert_eq!(outgoing_stack.area_size, 0);
         }
 
         if let Some(frame) = frame {
@@ -69,9 +81,10 @@ impl EntryEmitter {
         };
 
         self.emit_scalar_spills(frame)?;
-        self.emit_staged_scalar_arguments(arguments, frame)?;
+        let outgoing_stack = self.emit_staged_scalar_arguments(arguments, frame)?;
 
         self.emit_call(function);
+        self.emit_restore_outgoing_stack_arguments(outgoing_stack);
         self.emit_scalar_reloads(frame)?;
         Ok(())
     }
@@ -92,9 +105,10 @@ impl EntryEmitter {
         };
 
         self.emit_scalar_spills(frame)?;
-        self.emit_staged_scalar_arguments(arguments, frame)?;
+        let outgoing_stack = self.emit_staged_scalar_arguments(arguments, frame)?;
 
         self.emit_call(function);
+        self.emit_restore_outgoing_stack_arguments(outgoing_stack);
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
         self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
@@ -118,10 +132,11 @@ impl EntryEmitter {
         };
 
         self.emit_scalar_spills(frame)?;
-        self.emit_staged_scalar_arguments(arguments, frame)?;
         self.emit_aggregate_destination_to_x8(destination, frame)?;
+        let outgoing_stack = self.emit_staged_scalar_arguments(arguments, frame)?;
 
         self.emit_call(function);
+        self.emit_restore_outgoing_stack_arguments(outgoing_stack);
         self.emit_scalar_reloads(frame)?;
         Ok(())
     }
@@ -142,9 +157,10 @@ impl EntryEmitter {
         };
 
         self.emit_scalar_spills(frame)?;
-        self.emit_staged_scalar_arguments(arguments, frame)?;
+        let outgoing_stack = self.emit_staged_scalar_arguments(arguments, frame)?;
 
         self.emit_call(function);
+        self.emit_restore_outgoing_stack_arguments(outgoing_stack);
         self.emit_direct_aggregate_result_to_location(destination, layout, frame)?;
         self.emit_scalar_reloads(frame)?;
         Ok(())
@@ -167,10 +183,11 @@ impl EntryEmitter {
         };
 
         self.emit_scalar_spills(frame)?;
-        self.emit_staged_scalar_arguments(arguments, frame)?;
         self.emit_aggregate_destination_to_x8(destination, frame)?;
+        let outgoing_stack = self.emit_staged_scalar_arguments(arguments, frame)?;
 
         self.emit_call(function);
+        self.emit_restore_outgoing_stack_arguments(outgoing_stack);
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
         self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
@@ -194,9 +211,10 @@ impl EntryEmitter {
         };
 
         self.emit_scalar_spills(frame)?;
-        self.emit_staged_scalar_arguments(call.arguments, frame)?;
+        let outgoing_stack = self.emit_staged_scalar_arguments(call.arguments, frame)?;
 
         self.emit_call(call.function);
+        self.emit_restore_outgoing_stack_arguments(outgoing_stack);
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
         self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
@@ -322,9 +340,10 @@ impl EntryEmitter {
         };
 
         self.emit_scalar_spills(frame)?;
-        self.emit_staged_scalar_arguments(arguments, frame)?;
+        let outgoing_stack = self.emit_staged_scalar_arguments(arguments, frame)?;
 
         self.emit_call(function);
+        self.emit_restore_outgoing_stack_arguments(outgoing_stack);
         self.emit_scalar_reloads(frame)?;
         self.emit_call_result_to_i32_location(destination)
     }
@@ -346,9 +365,10 @@ impl EntryEmitter {
         };
 
         self.emit_scalar_spills(frame)?;
-        self.emit_staged_scalar_arguments(arguments, frame)?;
+        let outgoing_stack = self.emit_staged_scalar_arguments(arguments, frame)?;
 
         self.emit_call(function);
+        self.emit_restore_outgoing_stack_arguments(outgoing_stack);
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
         self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
@@ -373,9 +393,10 @@ impl EntryEmitter {
         };
 
         self.emit_scalar_spills(frame)?;
-        self.emit_staged_scalar_arguments(arguments, frame)?;
+        let outgoing_stack = self.emit_staged_scalar_arguments(arguments, frame)?;
 
         self.emit_call(function);
+        self.emit_restore_outgoing_stack_arguments(outgoing_stack);
         self.emit_scalar_reloads(frame)?;
         self.emit_call_result_to_usize_location(destination)
     }
@@ -397,9 +418,10 @@ impl EntryEmitter {
         };
 
         self.emit_scalar_spills(frame)?;
-        self.emit_staged_scalar_arguments(arguments, frame)?;
+        let outgoing_stack = self.emit_staged_scalar_arguments(arguments, frame)?;
 
         self.emit_call(function);
+        self.emit_restore_outgoing_stack_arguments(outgoing_stack);
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
         self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
@@ -424,9 +446,10 @@ impl EntryEmitter {
         };
 
         self.emit_scalar_spills(frame)?;
-        self.emit_staged_scalar_arguments(arguments, frame)?;
+        let outgoing_stack = self.emit_staged_scalar_arguments(arguments, frame)?;
 
         self.emit_call(function);
+        self.emit_restore_outgoing_stack_arguments(outgoing_stack);
         self.emit_scalar_reloads(frame)?;
         self.emit_call_result_to_u8_location(destination)
     }
@@ -448,9 +471,10 @@ impl EntryEmitter {
         };
 
         self.emit_scalar_spills(frame)?;
-        self.emit_staged_scalar_arguments(arguments, frame)?;
+        let outgoing_stack = self.emit_staged_scalar_arguments(arguments, frame)?;
 
         self.emit_call(function);
+        self.emit_restore_outgoing_stack_arguments(outgoing_stack);
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
         self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
@@ -475,9 +499,10 @@ impl EntryEmitter {
         };
 
         self.emit_scalar_spills(frame)?;
-        self.emit_staged_scalar_arguments(arguments, frame)?;
+        let outgoing_stack = self.emit_staged_scalar_arguments(arguments, frame)?;
 
         self.emit_call(function);
+        self.emit_restore_outgoing_stack_arguments(outgoing_stack);
         self.emit_scalar_reloads(frame)?;
         self.emit_call_result_to_bool_location(destination)
     }
@@ -499,9 +524,10 @@ impl EntryEmitter {
         };
 
         self.emit_scalar_spills(frame)?;
-        self.emit_staged_scalar_arguments(arguments, frame)?;
+        let outgoing_stack = self.emit_staged_scalar_arguments(arguments, frame)?;
 
         self.emit_call(function);
+        self.emit_restore_outgoing_stack_arguments(outgoing_stack);
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
         self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
@@ -526,9 +552,10 @@ impl EntryEmitter {
         };
 
         self.emit_scalar_spills(frame)?;
-        self.emit_staged_scalar_arguments(arguments, frame)?;
+        let outgoing_stack = self.emit_staged_scalar_arguments(arguments, frame)?;
 
         self.emit_call(function);
+        self.emit_restore_outgoing_stack_arguments(outgoing_stack);
         self.emit_scalar_reloads(frame)?;
         self.emit_call_result_to_str_location(destination)
     }
@@ -550,9 +577,10 @@ impl EntryEmitter {
         };
 
         self.emit_scalar_spills(frame)?;
-        self.emit_staged_scalar_arguments(arguments, frame)?;
+        let outgoing_stack = self.emit_staged_scalar_arguments(arguments, frame)?;
 
         self.emit_call(function);
+        self.emit_restore_outgoing_stack_arguments(outgoing_stack);
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
         self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
@@ -578,9 +606,10 @@ impl EntryEmitter {
         };
 
         self.emit_scalar_spills(frame)?;
-        self.emit_staged_scalar_arguments(arguments, frame)?;
+        let outgoing_stack = self.emit_staged_scalar_arguments(arguments, frame)?;
 
         self.emit_call(function);
+        self.emit_restore_outgoing_stack_arguments(outgoing_stack);
         self.emit_scalar_reloads(frame)?;
         self.emit_call_result_to_slice_location(destination)
     }
@@ -602,9 +631,10 @@ impl EntryEmitter {
         };
 
         self.emit_scalar_spills(frame)?;
-        self.emit_staged_scalar_arguments(arguments, frame)?;
+        let outgoing_stack = self.emit_staged_scalar_arguments(arguments, frame)?;
 
         self.emit_call(function);
+        self.emit_restore_outgoing_stack_arguments(outgoing_stack);
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
         self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
@@ -619,7 +649,7 @@ impl EntryEmitter {
         &mut self,
         arguments: &[ScalarArgument],
         frame: &FrameLayout,
-    ) -> Result<(), Vec<Diagnostic>> {
+    ) -> Result<OutgoingStackArguments, Vec<Diagnostic>> {
         let mut abi_word_index = 0;
         for argument in arguments {
             match argument {
@@ -701,81 +731,110 @@ impl EntryEmitter {
             }
         }
 
+        let outgoing_stack = OutgoingStackArguments {
+            area_size: outgoing_stack_argument_area_size(abi_word_index)?,
+        };
+        if outgoing_stack.area_size > 0 {
+            self.encoder.emit_sub_sp_imm(outgoing_stack.area_size);
+        }
+
         let mut abi_word_index = 0;
         for argument in arguments {
             match argument {
                 ScalarArgument::I32(_) | ScalarArgument::U8(_) | ScalarArgument::Bool(_) => {
-                    let Some(register) = WReg::argument(abi_word_index) else {
-                        return Err(vec![Diagnostic::error(
-                            "E9003",
-                            format!(
-                                "codegen supports at most 8 ABI argument words, got argument word {abi_word_index}"
-                            ),
-                        )]);
-                    };
                     let slot = staging_slot(frame, abi_word_index)?;
-                    self.encoder.emit_ldr_w_sp(register, slot.offset());
+                    self.emit_staged_w_argument_word(
+                        abi_word_index,
+                        slot,
+                        outgoing_stack.area_size,
+                    )?;
                     abi_word_index += 1;
                 }
                 ScalarArgument::Usize(_)
                 | ScalarArgument::Borrow(_)
                 | ScalarArgument::AggregateIndirect(_) => {
-                    let Some(register) = XReg::argument(abi_word_index) else {
-                        return Err(vec![Diagnostic::error(
-                            "E9003",
-                            format!(
-                                "codegen supports at most 8 ABI argument words, got argument word {abi_word_index}"
-                            ),
-                        )]);
-                    };
                     let slot = staging_slot(frame, abi_word_index)?;
-                    self.encoder.emit_ldr_x_sp(register, slot.offset());
+                    self.emit_staged_x_argument_word(
+                        abi_word_index,
+                        slot,
+                        outgoing_stack.area_size,
+                    )?;
                     abi_word_index += 1;
                 }
                 ScalarArgument::AggregateDirect(argument) => {
                     for word_index in 0..argument.words {
                         let register_index = abi_word_index + word_index;
-                        let Some(register) = XReg::argument(register_index) else {
-                            return Err(vec![Diagnostic::error(
-                                "E9003",
-                                format!(
-                                    "codegen supports at most 8 ABI argument words, got argument word {register_index}"
-                                ),
-                            )]);
-                        };
                         let slot = staging_slot(frame, register_index)?;
-                        self.encoder.emit_ldr_x_sp(register, slot.offset());
+                        self.emit_staged_x_argument_word(
+                            register_index,
+                            slot,
+                            outgoing_stack.area_size,
+                        )?;
                     }
                     abi_word_index += argument.words;
                 }
                 ScalarArgument::Str(_) | ScalarArgument::Slice(_) => {
-                    let Some(ptr_register) = XReg::argument(abi_word_index) else {
-                        return Err(vec![Diagnostic::error(
-                            "E9003",
-                            format!(
-                                "codegen supports at most 8 ABI argument words, got argument word {abi_word_index}"
-                            ),
-                        )]);
-                    };
                     let len_word_index = abi_word_index + 1;
-                    let Some(len_register) = XReg::argument(len_word_index) else {
-                        return Err(vec![Diagnostic::error(
-                            "E9003",
-                            format!(
-                                "codegen supports at most 8 ABI argument words, got argument word {len_word_index}"
-                            ),
-                        )]);
-                    };
                     let ptr_slot = staging_slot(frame, abi_word_index)?;
                     let len_slot = staging_slot(frame, len_word_index)?;
-                    self.encoder.emit_ldr_x_sp(ptr_register, ptr_slot.offset());
-                    self.encoder.emit_ldr_x_sp(len_register, len_slot.offset());
+                    self.emit_staged_x_argument_word(
+                        abi_word_index,
+                        ptr_slot,
+                        outgoing_stack.area_size,
+                    )?;
+                    self.emit_staged_x_argument_word(
+                        len_word_index,
+                        len_slot,
+                        outgoing_stack.area_size,
+                    )?;
                     abi_word_index += 2;
                 }
             }
         }
 
+        Ok(outgoing_stack)
+    }
+
+    fn emit_staged_w_argument_word(
+        &mut self,
+        abi_word_index: usize,
+        slot: ArgumentStagingSlot,
+        stack_area_size: u32,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let source_offset = staged_argument_slot_offset(slot, stack_area_size)?;
+        if let Some(register) = WReg::argument(abi_word_index) {
+            self.encoder.emit_ldr_w_sp(register, source_offset);
+            return Ok(());
+        }
+
+        self.encoder.emit_ldr_w_sp(WReg::W16, source_offset);
+        let destination_offset = outgoing_stack_argument_word_offset(abi_word_index)?;
+        self.encoder.emit_str_w_sp(WReg::W16, destination_offset);
         Ok(())
+    }
+
+    fn emit_staged_x_argument_word(
+        &mut self,
+        abi_word_index: usize,
+        slot: ArgumentStagingSlot,
+        stack_area_size: u32,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let source_offset = staged_argument_slot_offset(slot, stack_area_size)?;
+        if let Some(register) = XReg::argument(abi_word_index) {
+            self.encoder.emit_ldr_x_sp(register, source_offset);
+            return Ok(());
+        }
+
+        self.encoder.emit_ldr_x_sp(XReg::X16, source_offset);
+        let destination_offset = outgoing_stack_argument_word_offset(abi_word_index)?;
+        self.encoder.emit_str_x_sp(XReg::X16, destination_offset);
+        Ok(())
+    }
+
+    fn emit_restore_outgoing_stack_arguments(&mut self, outgoing_stack: OutgoingStackArguments) {
+        if outgoing_stack.area_size > 0 {
+            self.encoder.emit_add_sp_imm(outgoing_stack.area_size);
+        }
     }
 
     pub(super) fn emit_scalar_spills(
@@ -1011,13 +1070,60 @@ fn staging_slot(
         .ok_or_else(|| {
             vec![Diagnostic::error(
                 "E9003",
-                format!(
-                    "codegen supports at most 8 ABI argument words, got argument word {abi_word_index}"
-                ),
+                format!("argument staging slot {abi_word_index} is not reserved"),
             )]
         })?;
     debug_assert_eq!(slot.abi_word_index(), abi_word_index);
     Ok(slot)
+}
+
+fn call_argument_abi_word_count(arguments: &[ScalarArgument]) -> usize {
+    arguments.iter().map(ScalarArgument::abi_word_count).sum()
+}
+
+fn outgoing_stack_argument_area_size(abi_word_count: usize) -> Result<u32, Vec<Diagnostic>> {
+    let Some(stack_words) = abi_word_count.checked_sub(ARGUMENT_REGISTER_COUNT) else {
+        return Ok(0);
+    };
+    let bytes = stack_words
+        .checked_mul(ABI_WORD_SIZE as usize)
+        .ok_or_else(|| outgoing_stack_argument_diagnostic("stack argument byte count overflows"))?;
+    let aligned = align_usize(bytes, 16)
+        .ok_or_else(|| outgoing_stack_argument_diagnostic("stack argument alignment overflows"))?;
+    u32::try_from(aligned)
+        .map_err(|_error| outgoing_stack_argument_diagnostic("stack argument area exceeds u32"))
+}
+
+fn staged_argument_slot_offset(
+    slot: ArgumentStagingSlot,
+    stack_area_size: u32,
+) -> Result<u32, Vec<Diagnostic>> {
+    slot.offset()
+        .checked_add(stack_area_size)
+        .ok_or_else(|| outgoing_stack_argument_diagnostic("staged argument offset overflows"))
+}
+
+fn outgoing_stack_argument_word_offset(abi_word_index: usize) -> Result<u32, Vec<Diagnostic>> {
+    let stack_word_index = abi_word_index
+        .checked_sub(ARGUMENT_REGISTER_COUNT)
+        .ok_or_else(|| outgoing_stack_argument_diagnostic("argument word is register-passed"))?;
+    let offset = stack_word_index
+        .checked_mul(ABI_WORD_SIZE as usize)
+        .ok_or_else(|| outgoing_stack_argument_diagnostic("stack argument offset overflows"))?;
+    u32::try_from(offset)
+        .map_err(|_error| outgoing_stack_argument_diagnostic("stack argument offset exceeds u32"))
+}
+
+fn align_usize(value: usize, align: usize) -> Option<usize> {
+    let mask = align.checked_sub(1)?;
+    value.checked_add(mask).map(|value| value & !mask)
+}
+
+fn outgoing_stack_argument_diagnostic(reason: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E9003",
+        format!("stack argument emission is invalid: {reason}"),
+    )]
 }
 
 impl EntryEmitter {

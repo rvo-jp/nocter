@@ -12,6 +12,7 @@ use crate::target::arm64::{BranchCondition, MoveWideShift, WReg, XReg};
 enum AggregateCopySource {
     Slot(AggregateSlot),
     Parameter(XReg),
+    StackParameterPointer { parameter_index: usize },
     DirectParameter { start_index: usize },
 }
 
@@ -51,7 +52,7 @@ impl EntryEmitter {
             }
             AggregateLocation::DirectReturn => self.emit_x_to_direct_aggregate_return(offset),
             AggregateLocation::Parameter(index) => {
-                let base = aggregate_parameter_register(index)?;
+                let base = self.aggregate_parameter_base_register(index)?;
                 self.encoder.emit_str_x_imm(XReg::X16, base, offset);
                 Ok(())
             }
@@ -90,7 +91,7 @@ impl EntryEmitter {
                 "direct aggregate return field store must be an 8-byte word",
             )),
             AggregateLocation::Parameter(index) => {
-                let base = aggregate_parameter_register(index)?;
+                let base = self.aggregate_parameter_base_register(index)?;
                 self.encoder.emit_str_w_imm(WReg::W16, base, offset);
                 Ok(())
             }
@@ -147,7 +148,7 @@ impl EntryEmitter {
                 "direct aggregate return field store must be an 8-byte word",
             )),
             AggregateLocation::Parameter(index) => {
-                let base = aggregate_parameter_register(index)?;
+                let base = self.aggregate_parameter_base_register(index)?;
                 self.encoder.emit_strb_w_imm(WReg::W16, base, offset);
                 Ok(())
             }
@@ -187,7 +188,7 @@ impl EntryEmitter {
                 self.encoder.emit_ldr_x_sp(destination, source_offset);
             }
             AggregateLocation::Parameter(index) => {
-                let base = aggregate_parameter_register(index)?;
+                let base = self.aggregate_parameter_base_register(index)?;
                 self.encoder.emit_ldr_x_imm(destination, base, offset);
             }
             AggregateLocation::DirectParameter { start_index } => {
@@ -226,7 +227,7 @@ impl EntryEmitter {
                 self.encoder.emit_ldr_w_sp(destination, source_offset);
             }
             AggregateLocation::Parameter(index) => {
-                let base = aggregate_parameter_register(index)?;
+                let base = self.aggregate_parameter_base_register(index)?;
                 self.encoder.emit_ldr_w_imm(destination, base, offset);
             }
             AggregateLocation::DirectParameter { start_index } => {
@@ -271,7 +272,7 @@ impl EntryEmitter {
                 self.encoder.emit_ldrb_w_sp(destination, source_offset);
             }
             AggregateLocation::Parameter(index) => {
-                let base = aggregate_parameter_register(index)?;
+                let base = self.aggregate_parameter_base_register(index)?;
                 self.encoder.emit_ldrb_w_imm(destination, base, offset);
             }
             AggregateLocation::DirectParameter { start_index } => {
@@ -316,7 +317,7 @@ impl EntryEmitter {
                 self.encoder.emit_ldrb_w_sp(destination, source_offset);
             }
             AggregateLocation::Parameter(index) => {
-                let base = aggregate_parameter_register(index)?;
+                let base = self.aggregate_parameter_base_register(index)?;
                 self.encoder.emit_ldrb_w_imm(destination, base, offset);
             }
             AggregateLocation::DirectParameter { start_index } => {
@@ -510,15 +511,13 @@ impl EntryEmitter {
                 Ok(AggregateCopySource::Slot(source_slot))
             }
             AggregateLocation::Parameter(index) => {
-                let register = XReg::argument(index).ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "E9005",
-                        format!(
-                            "aggregate parameter copy source word {index} has no argument register"
-                        ),
-                    )]
-                })?;
-                Ok(AggregateCopySource::Parameter(register))
+                if let Some(register) = XReg::argument(index) {
+                    Ok(AggregateCopySource::Parameter(register))
+                } else {
+                    Ok(AggregateCopySource::StackParameterPointer {
+                        parameter_index: index,
+                    })
+                }
             }
             AggregateLocation::DirectParameter { start_index } => {
                 Ok(AggregateCopySource::DirectParameter { start_index })
@@ -546,24 +545,18 @@ impl EntryEmitter {
             AggregateCopySource::Parameter(register) => {
                 self.emit_aggregate_copy_memory_chunk_to_scratch(register, offset, chunk_bytes)?;
             }
+            AggregateCopySource::StackParameterPointer { parameter_index } => {
+                self.emit_parameter_word_to_x(parameter_index, XReg::X17)?;
+                self.emit_aggregate_copy_memory_chunk_to_scratch(XReg::X17, offset, chunk_bytes)?;
+            }
             AggregateCopySource::DirectParameter { start_index } => {
                 let word_index = usize::try_from(offset / AGGREGATE_USIZE_STORE_BYTES)
                     .map_err(|_error| aggregate_copy_diagnostic("copy word index overflows"))?;
                 let register_index = start_index
                     .checked_add(word_index)
                     .ok_or_else(|| aggregate_copy_diagnostic("copy word index overflows"))?;
-                let source_register = XReg::argument(register_index).ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "E9005",
-                        format!(
-                            "direct aggregate parameter copy source word {register_index} has no argument register"
-                        ),
-                    )]
-                })?;
                 validate_aggregate_copy_chunk_bytes(chunk_bytes)?;
-                if source_register != XReg::X16 {
-                    self.encoder.emit_mov_x(XReg::X16, source_register);
-                }
+                self.emit_parameter_word_to_x(register_index, XReg::X16)?;
             }
         }
         Ok(())
@@ -600,7 +593,7 @@ impl EntryEmitter {
                 self.emit_aggregate_copy_scratch_to_stack_chunk(destination_offset, chunk_bytes)
             }
             AggregateLocation::Parameter(index) => {
-                let base = aggregate_parameter_register(index)?;
+                let base = self.aggregate_parameter_base_register(index)?;
                 self.emit_aggregate_copy_scratch_to_memory_chunk(base, offset, chunk_bytes)
             }
             AggregateLocation::DirectParameter { .. } => Err(aggregate_copy_diagnostic(
@@ -836,6 +829,14 @@ impl EntryEmitter {
                 "direct aggregate return offset must be 0 or 8",
             )),
         }
+    }
+
+    fn aggregate_parameter_base_register(&mut self, index: usize) -> Result<XReg, Vec<Diagnostic>> {
+        if let Some(register) = XReg::argument(index) {
+            return Ok(register);
+        }
+        self.emit_parameter_word_to_x(index, XReg::X17)?;
+        Ok(XReg::X17)
     }
 
     fn emit_direct_aggregate_parameter_chunk_to_w(
@@ -1237,6 +1238,10 @@ impl EntryEmitter {
         match value {
             I32Value::Const(value) => emit_mov_i32_to_w(&mut self.encoder, destination, *value),
             I32Value::Location(location) => {
+                if let I32Location::Parameter(index) = location {
+                    self.emit_parameter_word_to_w(*index, destination)?;
+                    return Ok(());
+                }
                 let source = self.i32_location_register(*location)?;
                 if source != destination {
                     self.encoder.emit_mov_w(destination, source);
@@ -1258,6 +1263,10 @@ impl EntryEmitter {
         match value {
             UsizeValue::Const(value) => emit_mov_u64_to_x(&mut self.encoder, destination, *value),
             UsizeValue::Location(location) => {
+                if let UsizeLocation::Parameter(index) = location {
+                    self.emit_parameter_word_to_x(*index, destination)?;
+                    return Ok(());
+                }
                 let source = self.usize_location_register(*location)?;
                 if source != destination {
                     self.encoder.emit_mov_x(destination, source);
@@ -1270,12 +1279,20 @@ impl EntryEmitter {
                 }
             }
             UsizeValue::StrLen(location) => {
+                if let StrLocation::Parameter(index) = *location {
+                    self.emit_parameter_word_to_x(index + 1, destination)?;
+                    return Ok(());
+                }
                 let (_, source) = self.str_location_registers(*location)?;
                 if source != destination {
                     self.encoder.emit_mov_x(destination, source);
                 }
             }
             UsizeValue::SliceLen(location) => {
+                if let SliceLocation::Parameter(index) = *location {
+                    self.emit_parameter_word_to_x(index + 1, destination)?;
+                    return Ok(());
+                }
                 let (_, source) = self.slice_location_registers(*location)?;
                 if source != destination {
                     self.encoder.emit_mov_x(destination, source);
@@ -1296,6 +1313,10 @@ impl EntryEmitter {
                 emit_mov_i32_to_w(&mut self.encoder, destination, i32::from(*value));
             }
             U8Value::Location(location) => {
+                if let U8Location::Parameter(index) = location {
+                    self.emit_parameter_word_to_w(*index, destination)?;
+                    return Ok(());
+                }
                 let source = self.u8_location_register(*location)?;
                 if source != destination {
                     self.encoder.emit_mov_w(destination, source);
@@ -1357,6 +1378,10 @@ impl EntryEmitter {
                 emit_mov_i32_to_w(&mut self.encoder, destination, i32::from(*value));
             }
             BoolValue::Location(location) => {
+                if let BoolLocation::Parameter(index) = location {
+                    self.emit_parameter_word_to_w(*index, destination)?;
+                    return Ok(());
+                }
                 let source = self.bool_location_register(*location)?;
                 if source != destination {
                     self.encoder.emit_mov_w(destination, source);
@@ -1397,6 +1422,11 @@ impl EntryEmitter {
                 emit_mov_u64_to_x(&mut self.encoder, len_destination, bytes.len() as u64);
             }
             StrValue::Location(location) => {
+                if let StrLocation::Parameter(index) = *location {
+                    self.emit_parameter_word_to_x(index, ptr_destination)?;
+                    self.emit_parameter_word_to_x(index + 1, len_destination)?;
+                    return Ok(());
+                }
                 let (ptr_source, len_source) = self.str_location_registers(*location)?;
                 if ptr_source != ptr_destination {
                     self.encoder.emit_mov_x(ptr_destination, ptr_source);
@@ -1418,6 +1448,11 @@ impl EntryEmitter {
     ) -> Result<(), Vec<Diagnostic>> {
         match value {
             SliceValue::Location(location) => {
+                if let SliceLocation::Parameter(index) = *location {
+                    self.emit_parameter_word_to_x(index, ptr_destination)?;
+                    self.emit_parameter_word_to_x(index + 1, len_destination)?;
+                    return Ok(());
+                }
                 let (ptr_source, len_source) = self.slice_location_registers(*location)?;
                 if ptr_source != ptr_destination {
                     self.encoder.emit_mov_x(ptr_destination, ptr_source);
@@ -1450,15 +1485,6 @@ fn validate_aggregate_i32_field_offset(offset: u32) -> Result<(), Vec<Diagnostic
     }
 
     Ok(())
-}
-
-fn aggregate_parameter_register(index: usize) -> Result<XReg, Vec<Diagnostic>> {
-    XReg::argument(index).ok_or_else(|| {
-        vec![Diagnostic::error(
-            "E9005",
-            format!("aggregate parameter pointer word {index} has no argument register"),
-        )]
-    })
 }
 
 fn direct_aggregate_parameter_word_register(
@@ -1658,7 +1684,9 @@ fn validate_aggregate_copy_source_range(
             source_slot.size(),
             "source range exceeds aggregate slot size",
         ),
-        AggregateCopySource::Parameter(_) => Ok(()),
+        AggregateCopySource::Parameter(_) | AggregateCopySource::StackParameterPointer { .. } => {
+            Ok(())
+        }
         AggregateCopySource::DirectParameter { .. } => {
             if source_offset.is_multiple_of(AGGREGATE_USIZE_STORE_BYTES) {
                 Ok(())

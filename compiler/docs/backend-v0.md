@@ -18,15 +18,15 @@ SourceMap
     -> executable file
 ```
 
-## Register Convention
+## Calling Convention
 
-The backend v0 uses a deliberately small register-only convention while the IR has no stack frame, spill slots, or ABI-complete call lowering.
+The backend v0 uses a deliberately small register-first convention. The first eight ABI argument words use ARM64 argument registers, and normal-call words after that use caller stack argument slots.
 
 - scalar `i32` and `bool` values are represented in 32-bit ARM64 `w` registers
 - scalar `usize` values are represented in 64-bit ARM64 `x` registers
 - `&str` values are represented as two 64-bit ARM64 `x` registers: pointer, then byte length
 - `bool` is encoded as `0` for false and `1` for true
-- lowered `i32` and `bool` function arguments are passed in `w0` through `w7`; lowered `usize` function arguments are passed in `x0` through `x7`; lowered `&str` arguments consume two consecutive `x` registers at the same ABI word indexes
+- lowered `i32` and `bool` function arguments are passed in `w0` through `w7`; lowered `usize` function arguments are passed in `x0` through `x7`; lowered `&str` arguments consume two consecutive ABI words; normal-call words after the first eight are passed in 8-byte caller stack slots
 - lowered function return values are produced in `w0` for `i32`/`bool`, `x0` for `usize`, and `x0,x1` for `&str`
 - scalar local bindings use `w9` through `w15` for `i32`/`bool` and `x9` through `x15` for `usize`
 - framed functions spill scalar locals through 8-byte stack slots so the same frame layout can preserve 32-bit and 64-bit locals
@@ -52,9 +52,9 @@ The first implementation should keep the user-visible subset small:
 - `bool` return values in `let` initializers, unary-not bool expressions, bool equality/inequality operands, short-circuit bool value expressions, direct terminal-if conditions, and terminal-if short-circuit conditions
 - direct `&str` return values from static string literals, `&str` parameters, `&str` locals, and tail calls
 - `&str` return values in annotated `&str` `let` initializers and as `&str` call arguments
-- up to 8 ABI argument words, passed in `w0`/`x0` through `w7`/`x7`
+- normal-call ABI argument words after `w7`/`x7` are copied to a 16-byte-aligned caller stack argument area; tail calls remain register-only
 - selected aggregate by-value arguments and returns are supported through the ABI helper classification: direct structs up to 16 bytes use consecutive `x` registers, indirect structs use a slot pointer or `x8` return storage, and aggregate slot borrows pass a slot address
-- stack-passed arguments, general aggregate value expressions, owned strings, optionals, ownership/drop lowering, and calls in broader control-flow remain outside this backend phase
+- general aggregate value expressions, owned strings, optionals, ownership/drop lowering, stack-argument tail calls, and calls in broader control-flow remain outside this backend phase
 
 ### Frame Shape
 
@@ -248,14 +248,14 @@ Implement normal calls in this order:
 
 ### Aggregate ABI Status
 
-The backend currently supports the register-only portion of Nocter ABI v0 for supported non-generic aggregate structs:
+The backend currently supports the normal-call register and stack-argument portion of Nocter ABI v0 for supported non-generic aggregate structs:
 
 - direct aggregate parameters, arguments, and returns up to 16 bytes, including partial final ABI words
-- indirect aggregate parameters, arguments, and returns larger than 16 bytes by pointer or caller-provided return storage
+- indirect aggregate parameters, arguments, and returns larger than 16 bytes by pointer ABI word or caller-provided return storage
 - aggregate call-result slots for normal, propagated fallible, forced fallible, and caught fallible calls in the narrow expression positions lowered by IR
 - aggregate slot-to-slot copies, aggregate struct-literal slots, and aggregate slot borrow arguments for the current supported field and assignment paths
 
-The remaining ABI gap is stack-passed arguments. IR lowering rejects functions and calls whose ABI argument footprint exceeds the 8 argument registers, because backend call lowering has no stack argument area yet.
+Stack-passed normal-call arguments are buildable for the current scalar/view and supported aggregate subset. Tail calls with stack-passed arguments are lowered through the normal-call-plus-return path rather than emitted as stack-argument tail calls.
 
 ### Non-Goals For This Phase
 
@@ -264,7 +264,7 @@ Do not combine normal-call work with:
 - stack-backed `var` and reassignment
 - general loops or non-terminal control flow
 - imported calls or external linking
-- aggregate forms outside the current register-only slot/call-result subset
+- aggregate forms outside the current supported slot/call-result subset
 - ownership/drop lowering
 - ABI-complete Darwin interop
 

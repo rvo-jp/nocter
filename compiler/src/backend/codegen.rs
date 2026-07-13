@@ -34,6 +34,7 @@ struct EntryEmitter {
     function_offsets: HashMap<FunctionSymbol, usize>,
     call_patches: Vec<FunctionCallPatch>,
     tail_call_patches: Vec<FunctionCallPatch>,
+    current_frame_size: Option<u32>,
 }
 
 impl EntryEmitter {
@@ -45,6 +46,7 @@ impl EntryEmitter {
             function_offsets: HashMap::new(),
             call_patches: Vec::new(),
             tail_call_patches: Vec::new(),
+            current_frame_size: None,
         }
     }
 
@@ -98,19 +100,27 @@ impl EntryEmitter {
         function: &Function,
         frame: &FunctionFrame,
     ) -> Result<(), Vec<Diagnostic>> {
+        let previous_frame_size = self.current_frame_size;
         let frame = match frame {
-            FunctionFrame::Frameless => None,
+            FunctionFrame::Frameless => {
+                self.current_frame_size = Some(0);
+                None
+            }
             FunctionFrame::Framed(layout) => {
+                self.current_frame_size = Some(layout.frame_size());
                 self.emit_prologue(layout);
                 Some(layout)
             }
         };
 
-        for instruction in &function.instructions {
-            self.emit_instruction(instruction, frame, &function.return_type)?;
-        }
-
-        Ok(())
+        let result = (|| {
+            for instruction in &function.instructions {
+                self.emit_instruction(instruction, frame, &function.return_type)?;
+            }
+            Ok(())
+        })();
+        self.current_frame_size = previous_frame_size;
+        result
     }
 
     fn emit_instruction(

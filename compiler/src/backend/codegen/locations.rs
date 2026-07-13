@@ -1,9 +1,66 @@
 use super::EntryEmitter;
+use crate::abi::{ABI_WORD_SIZE, ARGUMENT_REGISTER_COUNT};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{BoolLocation, I32Location, SliceLocation, StrLocation, U8Location, UsizeLocation};
 use crate::target::arm64::{WReg, XReg};
 
 impl EntryEmitter {
+    pub(super) fn emit_parameter_word_to_x(
+        &mut self,
+        index: usize,
+        destination: XReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if let Some(source) = XReg::argument(index) {
+            if source != destination {
+                self.encoder.emit_mov_x(destination, source);
+            }
+            return Ok(());
+        }
+
+        let offset = self.stack_parameter_word_offset(index)?;
+        self.encoder.emit_ldr_x_sp(destination, offset);
+        Ok(())
+    }
+
+    pub(super) fn emit_parameter_word_to_w(
+        &mut self,
+        index: usize,
+        destination: WReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if let Some(source) = WReg::argument(index) {
+            if source != destination {
+                self.encoder.emit_mov_w(destination, source);
+            }
+            return Ok(());
+        }
+
+        let offset = self.stack_parameter_word_offset(index)?;
+        self.encoder.emit_ldr_w_sp(destination, offset);
+        Ok(())
+    }
+
+    pub(super) fn stack_parameter_word_offset(&self, index: usize) -> Result<u32, Vec<Diagnostic>> {
+        let Some(stack_word_index) = index.checked_sub(ARGUMENT_REGISTER_COUNT) else {
+            return Err(vec![Diagnostic::error(
+                "E9003",
+                format!("parameter word {index} is passed in a register"),
+            )]);
+        };
+        let frame_size = self.current_frame_size.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "E9003",
+                "stack parameter access requires an active function frame context",
+            )]
+        })?;
+        let stack_word_offset = u32::try_from(stack_word_index)
+            .ok()
+            .and_then(|index| index.checked_mul(ABI_WORD_SIZE as u32))
+            .ok_or_else(|| stack_parameter_offset_diagnostic(index))?;
+        frame_size
+            .checked_add(stack_word_offset)
+            .ok_or_else(|| stack_parameter_offset_diagnostic(index))
+    }
+
     pub(super) fn i32_location_register(
         &self,
         location: I32Location,
@@ -98,14 +155,14 @@ impl EntryEmitter {
                 let ptr = XReg::argument(index).ok_or_else(|| {
                     vec![Diagnostic::error(
                         "E9003",
-                        format!("codegen supports at most 8 ABI parameter words, got parameter word {index}"),
+                        format!("parameter word {index} is stack-passed and must be loaded through a frame-aware helper"),
                     )]
                 })?;
                 let len_index = index + 1;
                 let len = XReg::argument(len_index).ok_or_else(|| {
                     vec![Diagnostic::error(
                         "E9003",
-                        format!("codegen supports at most 8 ABI parameter words, got parameter word {len_index}"),
+                        format!("parameter word {len_index} is stack-passed and must be loaded through a frame-aware helper"),
                     )]
                 })?;
                 Ok((ptr, len))
@@ -143,14 +200,14 @@ impl EntryEmitter {
                 let ptr = XReg::argument(index).ok_or_else(|| {
                     vec![Diagnostic::error(
                         "E9003",
-                        format!("codegen supports at most 8 ABI parameter words, got parameter word {index}"),
+                        format!("parameter word {index} is stack-passed and must be loaded through a frame-aware helper"),
                     )]
                 })?;
                 let len_index = index + 1;
                 let len = XReg::argument(len_index).ok_or_else(|| {
                     vec![Diagnostic::error(
                         "E9003",
-                        format!("codegen supports at most 8 ABI parameter words, got parameter word {len_index}"),
+                        format!("parameter word {len_index} is stack-passed and must be loaded through a frame-aware helper"),
                     )]
                 })?;
                 Ok((ptr, len))
@@ -177,4 +234,11 @@ impl EntryEmitter {
             }
         }
     }
+}
+
+fn stack_parameter_offset_diagnostic(index: usize) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E9003",
+        format!("stack parameter word {index} offset overflows"),
+    )]
 }

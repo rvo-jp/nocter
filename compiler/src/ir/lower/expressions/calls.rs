@@ -400,6 +400,7 @@ pub(super) fn lower_direct_tail_call(
         || arguments
             .iter()
             .any(tail_call_argument_requires_current_frame)
+        || call_arguments_require_stack(&arguments, &identifier.name)?
     {
         let Some(return_type) = context.call_return_type(&target).cloned() else {
             return Err(unsupported_non_tail_return_call_diagnostic(
@@ -617,6 +618,21 @@ fn validate_call_argument_abi_word_count(
     callee_name: &str,
     arguments: &[ScalarArgument],
 ) -> Result<(), Vec<Diagnostic>> {
+    let _count = call_argument_abi_word_count(arguments, callee_name)?;
+    Ok(())
+}
+
+fn call_arguments_require_stack(
+    arguments: &[ScalarArgument],
+    callee_name: &str,
+) -> Result<bool, Vec<Diagnostic>> {
+    Ok(call_argument_abi_word_count(arguments, callee_name)? > ARGUMENT_REGISTER_COUNT)
+}
+
+fn call_argument_abi_word_count(
+    arguments: &[ScalarArgument],
+    callee_name: &str,
+) -> Result<usize, Vec<Diagnostic>> {
     let mut count = 0_usize;
     for argument in arguments {
         count = count
@@ -624,16 +640,7 @@ fn validate_call_argument_abi_word_count(
             .ok_or_else(|| call_argument_abi_word_count_overflow_diagnostic(callee_name))?;
     }
 
-    if count > ARGUMENT_REGISTER_COUNT {
-        return Err(vec![Diagnostic::error(
-            "E8006",
-            format!(
-                "IR v0 can only lower up to {ARGUMENT_REGISTER_COUNT} ABI argument words for call to function `{callee_name}`, got {count}",
-            ),
-        )]);
-    }
-
-    Ok(())
+    Ok(count)
 }
 
 fn call_argument_abi_word_count_overflow_diagnostic(callee_name: &str) -> Vec<Diagnostic> {

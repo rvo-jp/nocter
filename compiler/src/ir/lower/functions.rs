@@ -17,9 +17,7 @@ use super::expressions::{
     lower_str_return_expression, lower_u8_return_expression, lower_usize_return_expression,
     lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
 };
-use crate::abi::{
-    ARGUMENT_REGISTER_COUNT, AbiType, AbiValue, ValueClassification, abi_value_from_type_expr,
-};
+use crate::abi::{AbiType, AbiValue, ValueClassification, abi_value_from_type_expr};
 use crate::ast::{Expr, FunctionDecl, Parameter, Stmt, StructLiteralExpr, TypeExpr, UnaryOperator};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{AggregateLocation, CallTarget, FallibleFailureMode, Function, Instruction, Type};
@@ -218,17 +216,6 @@ fn lower_scalar_parameters(
         }
     }
 
-    let abi_word_count = lowered_parameter_abi_word_count(function, resolved)?;
-    if abi_word_count > ARGUMENT_REGISTER_COUNT {
-        return Err(vec![Diagnostic::error(
-            "E8007",
-            format!(
-                "IR v0 can only lower up to {ARGUMENT_REGISTER_COUNT} ABI parameter words for function `{}`",
-                function.name
-            ),
-        )]);
-    }
-
     Ok(LoweringParameterSlots {
         i32: i32_parameters,
         u8: u8_parameters,
@@ -263,36 +250,6 @@ fn lower_aggregate_parameter_setup(parameters: &LoweringParameterSlots) -> Vec<I
         });
     }
     instructions
-}
-
-fn lowered_parameter_abi_word_count(
-    function: &FunctionDecl,
-    resolved: &ResolveOutput,
-) -> Result<usize, Vec<Diagnostic>> {
-    let mut count = 0_usize;
-    for parameter in &function.parameters.parameters {
-        let value = abi_value_from_type_expr(&parameter.ty, resolved).map_err(|_error| {
-            vec![Diagnostic::error(
-                "E8007",
-                format!(
-                    "IR v0 cannot classify parameter `{}` of function `{}` as a supported ABI value",
-                    parameter.name, function.name
-                ),
-            )]
-        })?;
-        count = count
-            .checked_add(value.parameter_abi_word_count())
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "E8007",
-                    format!(
-                        "IR v0 parameter ABI word count overflows for function `{}`",
-                        function.name
-                    ),
-                )]
-            })?;
-    }
-    Ok(count)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

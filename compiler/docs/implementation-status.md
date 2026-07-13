@@ -77,7 +77,7 @@ Currently buildable:
 - explicit local scalar borrow arguments such as `let result = choose(&value, 42)` and `touch(&+value)`, for `i32`, `u8`, `usize`, and `bool` normal-call parameter positions
 - static string literals and `&str` parameters as call arguments, passed as `ptr,len` ABI word pairs
 - same-file and loaded imported non-generic normal calls returning `&str` in annotated `&str` `let` initializers and as `&str` call or tail-call arguments, with results staged into two local ABI words
-- up to 8 ABI argument words across scalar `i32`/`usize`/`bool`, local scalar borrow, and `&str` parameters/call arguments for lowered functions and calls
+- normal calls with scalar/view, borrow, and supported aggregate arguments can pass ABI words after `x7` through the caller stack argument area; tail calls remain register-only for stack-passed arguments
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
 - non-entry functions returning `bool`, `usize`, or direct `&str` literal/parameter/local/tail-call values
 - `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; addition, subtraction, and multiplication emit signed-overflow trap checks, and division and remainder emit zero-divisor plus signed-overflow trap checks
@@ -92,8 +92,8 @@ Currently buildable:
 - simple fallible entry failure through a loaded static `error` constructor call with string code and message literals, where the message may be single-line or multi-line
 - fallible `?`, `!`, and `catch` lowering for the current scalar/view/void normal-call subset: `i32`, `u8`, `usize`, `bool`, `&str`, slices, and `void`
 - `catch` blocks that contain leading scalar/view `let` bindings or void call statements followed by a terminating `return`, including `error.code` and `error.message` payload access
-- direct aggregate value parameters, call arguments, and returns for supported non-generic structs up to 16 bytes, including partial final ABI words and shifted or boundary argument-register placement inside the 8-word limit
-- indirect aggregate parameters, call arguments, and returns for supported non-generic structs larger than 16 bytes, passed by slot address or returned through caller-provided `x8` storage
+- direct aggregate value parameters, call arguments, and returns for supported non-generic structs up to 16 bytes, including partial final ABI words and shifted, boundary, or split register/stack normal-call argument placement
+- indirect aggregate parameters, call arguments, and returns for supported non-generic structs larger than 16 bytes, passed by slot address in registers or stack argument words, or returned through caller-provided `x8` storage
 - aggregate struct-literal returns and local slots, aggregate call-result slot bindings and assignments, aggregate slot borrow arguments, matching copy-struct slot assignment, and scalar field reads from supported aggregate slots, parameters, and call results
 - non-copy aggregate local slots can be passed by value or returned by name only through the current explicit `move name` form; implicit copy is limited to aggregate locals and parameters whose source type is `copy struct`
 - distributed `std/io.print` execution through the target-overlay `std/io_impl.write_text_raw` bootstrap primitive

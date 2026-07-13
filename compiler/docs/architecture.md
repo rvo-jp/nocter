@@ -178,7 +178,7 @@ Currently buildable:
 - nested scalar tail-call arguments such as `return outer(inner())`, for `i32`, `usize`, and `bool` parameter positions
 - static string literals and `&str` parameters as call arguments, passed as `ptr,len` ABI word pairs
 - same-file and loaded imported non-generic normal calls returning `&str` in annotated `&str` `let` initializers and as `&str` call or tail-call arguments, with results staged into two local ABI words
-- up to 8 ABI argument words across scalar `i32`/`usize`/`bool` and `&str` parameters/call arguments for lowered functions and calls
+- normal calls across scalar `i32`/`usize`/`bool`, local scalar borrow, `&str`, slices, and supported aggregate arguments, including ABI words after `x7` passed through the caller stack argument area
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
 - non-entry functions returning `bool`, `usize`, or direct `&str` literal/parameter/local/tail-call values
 - `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; addition, subtraction, and multiplication trap on signed overflow, and division and remainder trap on zero divisors and signed division overflow
@@ -207,18 +207,18 @@ Currently not buildable even when it may be checkable:
 
 ### Backend V0 Register Convention
 
-The `arm64-darwin` backend v0 uses a deliberately small register-only convention while the IR has no stack frame, spill slots, or ABI-complete call lowering.
+The `arm64-darwin` backend v0 uses a deliberately small convention with register arguments first and stack-passed normal-call arguments after the eight argument registers.
 
 - scalar `i32` and `bool` values are represented in 32-bit ARM64 `w` registers
 - scalar `usize` values are represented in 64-bit ARM64 `x` registers
 - `&str` values are represented as two 64-bit ABI words, `ptr` then byte `len`
 - `bool` is encoded as `0` for false and `1` for true
-- lowered `i32` and `bool` function arguments are passed in `w0` through `w7`, lowered `usize` function arguments are passed in `x0` through `x7`, and lowered `&str` arguments consume two consecutive `x` argument registers at the same ABI word indexes
+- lowered `i32` and `bool` function arguments are passed in `w0` through `w7`, lowered `usize` function arguments are passed in `x0` through `x7`, lowered `&str` arguments consume two consecutive ABI words, and normal-call argument words beyond the first eight are passed in 8-byte caller stack slots
 - lowered function return values are produced in `w0` for `i32`/`bool`, `x0` for `usize`, and `x0,x1` for `&str`
 - scalar local bindings use `w9` through `w15` for `i32`/`bool` and `x9` through `x15` for `usize`; framed functions spill scalar locals through 8-byte stack slots
 - `w16`/`w17` and `x16`/`x17` are backend scratch registers and may be clobbered by code generation
 
-Tail calls are lowered by loading the callee arguments into `w0` through `w7` or `x0` through `x7` according to each scalar argument type, then branching directly to the target function.
+Tail calls are lowered by loading the callee arguments into `w0` through `w7` or `x0` through `x7` according to each scalar argument type, then branching directly to the target function; tail calls that need stack-passed arguments are lowered through a normal call followed by return.
 The source-level scalar/view call subset lowers same-file and loaded imported non-generic `i32` calls in `let` initializers, `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, `i32` comparison operands, nested normal-call arguments, and nested tail-call arguments, evaluating staged calls left to right into distinct temporary locals.
 It also lowers same-file and loaded imported non-generic calls returning `usize` in annotated `let` initializers and `usize` comparison operands, including calls whose parameter list contains `usize`.
 Calls in the current buildable subset can receive static string literals, existing `&str` parameters or locals, or staged `&str` normal-call results as `&str` arguments, with each `&str` occupying two ABI argument words.
@@ -233,7 +233,7 @@ IR `CallFallibleDirectAggregate` lowers fallible calls whose success payload is 
 IR `StoreAggregateUsize` writes 8-byte fields into the current indirect return storage behind `x8`, direct return registers, or a reserved aggregate stack slot; source lowering emits it for non-entry aggregate struct literal returns, aggregate struct-literal local bindings, and aggregate struct-literal slot assignments whose stored fields are 8-byte integers or `std/ptr.from_addr` pointer fields.
 IR `CopyAggregate` copies 8-byte chunks from a reserved aggregate slot into the current indirect return storage, direct return registers, or another reserved aggregate slot; source lowering currently emits it for narrow aggregate `let`/`var` binding paths returned by name or by `return move name`, and for matching copy struct local aggregate slot assignment.
 Aggregate borrow arguments from reserved slots are passed as the slot address in a single ABI word, matching ordinary `&T`/`&+T` borrow ABI without special-casing source identifiers.
-Codegen emits framed prologue/epilogue sequences and normal calls with conservative scalar spill/reload plus stack-backed argument staging.
+Codegen emits framed prologue/epilogue sequences and normal calls with conservative scalar spill/reload, stack-backed argument staging, and a temporary outgoing stack argument area for ABI words after `x7`.
 Backend call patching and function offset registration use an internal `FunctionSymbol` key rather than raw function-name strings, so same-file calls and imported calls use distinct symbol identities before Mach-O branch patching resolves offsets.
 Addition and subtraction emission uses ARM64 flag-setting arithmetic and traps on signed overflow.
 Multiplication emission computes a signed 64-bit product and traps unless that product exactly fits in `i32`.
