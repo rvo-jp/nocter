@@ -1,8 +1,8 @@
 use super::context::{AggregateField, AggregateFieldKind, LoweringContext};
 use super::expressions::{
     TemporaryAllocator, lower_aggregate_member_field_access, lower_bool_expression_to_value,
-    lower_call_arguments_to_scalar_arguments_with_temporaries, lower_i32_expression_to_word,
-    lower_u8_expression_to_word, lower_usize_expression_to_word,
+    lower_call_arguments_to_scalar_arguments_with_temporaries, lower_catch_failure_mode,
+    lower_i32_expression_to_word, lower_u8_expression_to_word, lower_usize_expression_to_word,
 };
 use crate::abi::{AbiType, ValueLayout, abi_value_from_type_expr, layout_of, layout_struct};
 use crate::ast::{CallExpr, Expr, StructLiteralExpr, TypeExpr};
@@ -458,6 +458,25 @@ fn lower_aggregate_field_to_location(
                         context,
                         temporaries,
                         FallibleFailureMode::Trap,
+                    )
+                }
+                Expr::Catch(catch) => {
+                    let Some(call) = call_expression(&catch.expression) else {
+                        return Err(unsupported_aggregate_struct_literal_diagnostic(
+                            diagnostic_code,
+                            subject,
+                        ));
+                    };
+                    lower_aggregate_fallible_call_field_value_to_location(
+                        call,
+                        expected_layout,
+                        destination,
+                        offset,
+                        diagnostic_code,
+                        subject,
+                        context,
+                        temporaries,
+                        lower_catch_failure_mode(catch, context, 0)?,
                     )
                 }
                 Expr::Member(_) => lower_aggregate_member_field_value_to_location(

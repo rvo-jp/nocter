@@ -9261,6 +9261,344 @@ func make(): Header {
 }
 
 #[test]
+fn lowers_fallible_aggregate_catch_call_binding() {
+    let ir = lower_text_with_std_error(
+        r#"from std/error import Error
+
+copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32! {
+    return run()?
+}
+
+func run(): i32! {
+    let value = source() catch error {
+        return Error.new("app.source", error.message)
+    }
+    return value.code
+}
+
+func source(): Header! {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "run")
+        .unwrap();
+    assert_contains_fallible_direct_aggregate_catch_call(
+        main,
+        AggregateLocation::Slot(0),
+        "source",
+    );
+    assert!(
+        main.instructions
+            .contains(&Instruction::ReturnFallibleSuccess)
+    );
+}
+
+#[test]
+fn lowers_fallible_aggregate_catch_call_return() {
+    let ir = lower_text_with_std_error(
+        r#"from std/error import Error
+
+copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32! {
+    let value = forward()?
+    return value.code
+}
+
+func forward(): Header! {
+    return source() catch error {
+        return Error.new("app.source", error.message)
+    }
+}
+
+func source(): Header! {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "forward")
+        .unwrap();
+    assert_contains_fallible_direct_aggregate_catch_call(
+        main,
+        AggregateLocation::DirectReturn,
+        "source",
+    );
+    assert_eq!(
+        main.instructions.last(),
+        Some(&Instruction::ReturnFallibleSuccess)
+    );
+}
+
+#[test]
+fn lowers_fallible_aggregate_catch_value_argument() {
+    let ir = lower_text_with_std_error(
+        r#"from std/error import Error
+
+copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32! {
+    return run()?
+}
+
+func run(): i32! {
+    return consume(source() catch error {
+        return Error.new("app.source", error.message)
+    })
+}
+
+func consume(header: Header): i32 {
+    return header.code
+}
+
+func source(): Header! {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "run")
+        .unwrap();
+    assert_contains_fallible_direct_aggregate_catch_call(
+        main,
+        AggregateLocation::Slot(0),
+        "source",
+    );
+    assert!(main.instructions.iter().any(|instruction| {
+        matches!(instruction, Instruction::CallI32 { target, .. } if target == &CallTarget::same_file("consume"))
+    }));
+}
+
+#[test]
+fn lowers_fallible_aggregate_catch_member_field_read() {
+    let ir = lower_text_with_std_error(
+        r#"from std/error import Error
+
+copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32! {
+    return run()?
+}
+
+func run(): i32! {
+    return (source() catch error {
+        return Error.new("app.source", error.message)
+    }).code
+}
+
+func source(): Header! {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "run")
+        .unwrap();
+    assert_contains_fallible_direct_aggregate_catch_call(
+        main,
+        AggregateLocation::Slot(0),
+        "source",
+    );
+    assert!(
+        main.instructions
+            .contains(&Instruction::ReturnFallibleSuccess)
+    );
+}
+
+#[test]
+fn lowers_fallible_aggregate_catch_assignment() {
+    let ir = lower_text_with_std_error(
+        r#"from std/error import Error
+
+copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32! {
+    return run()?
+}
+
+func run(): i32! {
+    var value = Header{ tag: 1, ok: false, code: 2, len: 3 }
+    value = source() catch error {
+        return Error.new("app.source", error.message)
+    }
+    return value.code
+}
+
+func source(): Header! {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "run")
+        .unwrap();
+    assert_contains_fallible_direct_aggregate_catch_call(
+        main,
+        AggregateLocation::Slot(0),
+        "source",
+    );
+    assert!(
+        main.instructions
+            .contains(&Instruction::ReturnFallibleSuccess)
+    );
+}
+
+#[test]
+fn lowers_fallible_aggregate_catch_member_assignment() {
+    let ir = lower_text_with_std_error(
+        r#"from std/error import Error
+
+copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32! {
+    return run()?
+}
+
+func run(): i32! {
+    var packet = Packet{
+        prefix: 1,
+        header: Header{ tag: 1, ok: false, code: 2, len: 3 },
+        tail: 4,
+    }
+    packet.header = source() catch error {
+        return Error.new("app.source", error.message)
+    }
+    return packet.header.code
+}
+
+func source(): Header! {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "run")
+        .unwrap();
+    assert_contains_fallible_direct_aggregate_catch_call(
+        main,
+        AggregateLocation::Slot(1),
+        "source",
+    );
+    assert!(
+        main.instructions
+            .contains(&Instruction::ReturnFallibleSuccess)
+    );
+}
+
+#[test]
+fn lowers_fallible_aggregate_catch_struct_literal_field() {
+    let ir = lower_text_with_std_error(
+        r#"from std/error import Error
+
+copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32! {
+    return run()?
+}
+
+func run(): i32! {
+    let packet = Packet{
+        prefix: 1,
+        header: source() catch error {
+            return Error.new("app.source", error.message)
+        },
+        tail: 2,
+    }
+    return packet.header.code
+}
+
+func source(): Header! {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "run")
+        .unwrap();
+    assert_contains_fallible_direct_aggregate_catch_call(
+        main,
+        AggregateLocation::Slot(1),
+        "source",
+    );
+    assert!(
+        main.instructions
+            .contains(&Instruction::ReturnFallibleSuccess)
+    );
+}
+
+#[test]
 fn lowers_fallible_void_function_static_error_failure() {
     let ir = lower_text_with_std_error(
         r#"from std/error import Error
@@ -11574,6 +11912,50 @@ fn function_signatures(signatures: Vec<(&str, Type, Vec<Type>)>) -> context::Fun
             })
             .collect(),
     )
+}
+
+fn assert_contains_fallible_direct_aggregate_catch_call(
+    function: &Function,
+    expected_destination: AggregateLocation,
+    expected_target: &str,
+) {
+    let Some(Instruction::CallFallibleDirectAggregate {
+        destination,
+        target,
+        arguments,
+        layout,
+        failure_mode:
+            FallibleFailureMode::Catch {
+                code,
+                message,
+                instructions,
+            },
+    }) = function.instructions.iter().find(|instruction| {
+        matches!(
+            instruction,
+            Instruction::CallFallibleDirectAggregate {
+                failure_mode: FallibleFailureMode::Catch { .. },
+                ..
+            }
+        )
+    })
+    else {
+        panic!("missing fallible direct aggregate catch call: {function:?}");
+    };
+
+    assert_eq!(*destination, expected_destination);
+    assert_eq!(target, &CallTarget::same_file(expected_target));
+    assert_eq!(arguments, &Vec::<ScalarArgument>::new());
+    assert_eq!(*layout, ValueLayout::new(16, 8));
+    assert_eq!(*code, StrLocation::Local(0));
+    assert_eq!(*message, StrLocation::Local(2));
+    assert_eq!(
+        instructions,
+        &vec![Instruction::ReturnFallibleFailure {
+            code: StrValue::StaticBytes(b"app.source".to_vec()),
+            message: StrValue::Location(StrLocation::Local(2)),
+        }]
+    );
 }
 
 fn readonly_u8_slice_type() -> Type {

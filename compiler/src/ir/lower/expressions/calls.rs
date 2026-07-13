@@ -7,8 +7,8 @@ use super::super::context::{AggregateFieldKind, LoweringContext};
 use super::temporaries::TemporaryAllocator;
 use super::{
     lower_aggregate_member_field_access, lower_bool_expression_to_value_with_temporaries,
-    lower_i32_expression_to_value, lower_slice_expression_to_value, lower_str_expression_to_value,
-    lower_u8_expression_to_value, lower_usize_expression_to_value,
+    lower_catch_failure_mode, lower_i32_expression_to_value, lower_slice_expression_to_value,
+    lower_str_expression_to_value, lower_u8_expression_to_value, lower_usize_expression_to_value,
     unsupported_non_tail_call_diagnostic,
 };
 use crate::ast::{CallExpr, Expr};
@@ -723,6 +723,22 @@ fn lower_aggregate_argument_source(
                 context,
                 temporaries,
                 FallibleFailureMode::Trap,
+            )
+        }
+        Expr::Catch(catch) => {
+            let Expr::Call(call) = unwrap_group(&catch.expression) else {
+                return Err(unsupported_aggregate_argument_diagnostic(
+                    callee_name,
+                    parameter_type,
+                ));
+            };
+            lower_aggregate_fallible_call_argument_source(
+                call,
+                parameter_type,
+                callee_name,
+                context,
+                temporaries,
+                lower_catch_failure_mode(catch, context, 0)?,
             )
         }
         _ => Err(unsupported_aggregate_argument_diagnostic(

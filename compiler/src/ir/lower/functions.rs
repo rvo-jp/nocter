@@ -12,10 +12,10 @@ use super::control_flow::{lower_terminal_bool_if_statement, lower_terminal_i32_i
 use super::errors::{ErrorPayload, lower_error_payload};
 use super::expressions::{
     TemporaryAllocator, lower_aggregate_member_field_access, lower_bool_return_expression,
-    lower_call_arguments_to_scalar_arguments, lower_i32_return_expression,
-    lower_never_return_expression, lower_slice_return_expression, lower_str_return_expression,
-    lower_u8_return_expression, lower_usize_return_expression, lower_void_expression_statement,
-    mark_fallible_success_returns, success_return_instruction,
+    lower_call_arguments_to_scalar_arguments, lower_catch_failure_mode,
+    lower_i32_return_expression, lower_never_return_expression, lower_slice_return_expression,
+    lower_str_return_expression, lower_u8_return_expression, lower_usize_return_expression,
+    lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
 };
 use crate::abi::{
     ARGUMENT_REGISTER_COUNT, AbiType, AbiValue, ValueClassification, abi_value_from_type_expr,
@@ -768,6 +768,18 @@ fn lower_aggregate_return_expression(
                 FallibleFailureMode::Trap,
             )
         }
+        Expr::Catch(catch) => {
+            let Expr::Call(call) = unwrap_group(&catch.expression) else {
+                return Err(unsupported_aggregate_return_diagnostic(function_name));
+            };
+            lower_aggregate_fallible_call_return(
+                call,
+                return_type,
+                function_name,
+                context,
+                lower_catch_failure_mode(catch, context, 0)?,
+            )
+        }
         Expr::Identifier(identifier) => {
             lower_aggregate_local_return(&identifier.name, return_type, function_name, context)
         }
@@ -874,11 +886,7 @@ fn lower_aggregate_fallible_call_return(
 
     let (mut instructions, arguments) =
         lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
-    let success_return = if matches!(&failure_mode, FallibleFailureMode::Propagate) {
-        Instruction::ReturnFallibleSuccess
-    } else {
-        Instruction::Return
-    };
+    let success_return = success_return_instruction(context.function_return_type());
     let (layout, destination) = aggregate_return_layout_and_destination(return_type);
     push_fallible_aggregate_call_instruction(
         &mut instructions,

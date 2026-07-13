@@ -403,7 +403,7 @@ fn lower_fallible_void_expression_statement(
     }
 }
 
-fn lower_catch_failure_mode(
+pub(super) fn lower_catch_failure_mode(
     catch: &CatchExpr,
     context: &LoweringContext,
     reserved_abi_words: usize,
@@ -1875,7 +1875,7 @@ pub(super) fn lower_aggregate_member_field_access(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Option<LoweredAggregateFieldAccess>, Vec<Diagnostic>> {
-    let Some(access) = aggregate_member_access(expression) else {
+    let Some(access) = aggregate_member_access(expression, context)? else {
         return Ok(None);
     };
     match access.root {
@@ -1914,51 +1914,72 @@ enum AggregateMemberRoot<'a> {
     FallibleCall(&'a CallExpr, FallibleFailureMode),
 }
 
-fn aggregate_member_access(expression: &Expr) -> Option<AggregateMemberAccess<'_>> {
+fn aggregate_member_access<'a>(
+    expression: &'a Expr,
+    context: &LoweringContext,
+) -> Result<Option<AggregateMemberAccess<'a>>, Vec<Diagnostic>> {
     let Expr::Member(member) = unwrap_group(expression) else {
-        return None;
+        return Ok(None);
     };
-    let (root, mut fields) = aggregate_member_root_and_path(&member.object)?;
+    let Some((root, mut fields)) = aggregate_member_root_and_path(&member.object, context)? else {
+        return Ok(None);
+    };
     fields.push(member.member.as_str());
-    Some(AggregateMemberAccess {
+    Ok(Some(AggregateMemberAccess {
         root,
         field_path: fields.join("."),
-    })
+    }))
 }
 
 fn aggregate_member_root_and_path<'a>(
     expression: &'a Expr,
-) -> Option<(AggregateMemberRoot<'a>, Vec<&'a str>)> {
+    context: &LoweringContext,
+) -> Result<Option<(AggregateMemberRoot<'a>, Vec<&'a str>)>, Vec<Diagnostic>> {
     match unwrap_group(expression) {
-        Expr::Identifier(identifier) => Some((
+        Expr::Identifier(identifier) => Ok(Some((
             AggregateMemberRoot::Identifier(&identifier.name),
             Vec::new(),
-        )),
-        Expr::Call(call) => Some((AggregateMemberRoot::Call(call), Vec::new())),
+        ))),
+        Expr::Call(call) => Ok(Some((AggregateMemberRoot::Call(call), Vec::new()))),
         Expr::Propagate(propagation) => {
             let Expr::Call(call) = unwrap_group(&propagation.expression) else {
-                return None;
+                return Ok(None);
             };
-            Some((
+            Ok(Some((
                 AggregateMemberRoot::FallibleCall(call, FallibleFailureMode::Propagate),
                 Vec::new(),
-            ))
+            )))
         }
         Expr::Force(force) => {
             let Expr::Call(call) = unwrap_group(&force.expression) else {
-                return None;
+                return Ok(None);
             };
-            Some((
+            Ok(Some((
                 AggregateMemberRoot::FallibleCall(call, FallibleFailureMode::Trap),
                 Vec::new(),
-            ))
+            )))
+        }
+        Expr::Catch(catch) => {
+            let Expr::Call(call) = unwrap_group(&catch.expression) else {
+                return Ok(None);
+            };
+            Ok(Some((
+                AggregateMemberRoot::FallibleCall(
+                    call,
+                    lower_catch_failure_mode(catch, context, 0)?,
+                ),
+                Vec::new(),
+            )))
         }
         Expr::Member(member) => {
-            let (root, mut fields) = aggregate_member_root_and_path(&member.object)?;
+            let Some((root, mut fields)) = aggregate_member_root_and_path(&member.object, context)?
+            else {
+                return Ok(None);
+            };
             fields.push(member.member.as_str());
-            Some((root, fields))
+            Ok(Some((root, fields)))
         }
-        _ => None,
+        _ => Ok(None),
     }
 }
 

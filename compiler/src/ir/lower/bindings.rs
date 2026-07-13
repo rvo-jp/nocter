@@ -10,9 +10,10 @@ use super::expressions::{
     expression_is_lowerable_bool_binding, expression_is_unsupported_bool_comparison_binding,
     lower_aggregate_member_field_access, lower_bool_expression_to_location,
     lower_bool_expression_to_value, lower_call_arguments_to_scalar_arguments,
-    lower_call_arguments_to_scalar_arguments_with_temporaries, lower_i32_expression_to_location,
-    lower_i32_expression_to_word, lower_slice_expression_to_location,
-    lower_str_expression_to_location, lower_u8_expression_to_location, lower_u8_expression_to_word,
+    lower_call_arguments_to_scalar_arguments_with_temporaries, lower_catch_failure_mode,
+    lower_i32_expression_to_location, lower_i32_expression_to_word,
+    lower_slice_expression_to_location, lower_str_expression_to_location,
+    lower_u8_expression_to_location, lower_u8_expression_to_word,
     lower_usize_expression_to_location, lower_usize_expression_to_word,
 };
 use crate::abi::{ValueLayout, abi_value_from_type_expr};
@@ -129,6 +130,17 @@ fn lower_aggregate_call_binding(
                 statement,
                 call,
                 FallibleFailureMode::Trap,
+                context,
+            )
+        }
+        Expr::Catch(catch) => {
+            let Expr::Call(call) = unwrap_group(&catch.expression) else {
+                return Ok(None);
+            };
+            lower_aggregate_fallible_call_binding(
+                statement,
+                call,
+                lower_catch_failure_mode(catch, context, 0)?,
                 context,
             )
         }
@@ -684,6 +696,19 @@ fn lower_aggregate_member_value_assignment(
                 context,
             )
         }
+        Expr::Catch(catch) => {
+            let Expr::Call(call) = unwrap_group(&catch.expression) else {
+                return Err(unsupported_assignment_diagnostic());
+            };
+            lower_aggregate_fallible_call_member_value_assignment(
+                destination,
+                destination_offset,
+                layout,
+                call,
+                lower_catch_failure_mode(catch, context, 0)?,
+                context,
+            )
+        }
         Expr::Member(_) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             let access = lower_aggregate_member_field_access(value, context, &mut temporaries)?
@@ -878,6 +903,18 @@ fn lower_aggregate_assignment(
                 layout,
                 call,
                 FallibleFailureMode::Trap,
+                context,
+            )
+        }
+        Expr::Catch(catch) => {
+            let Expr::Call(call) = unwrap_group(&catch.expression) else {
+                return Err(unsupported_assignment_diagnostic());
+            };
+            lower_aggregate_fallible_call_assignment(
+                slot_index,
+                layout,
+                call,
+                lower_catch_failure_mode(catch, context, 0)?,
                 context,
             )
         }
