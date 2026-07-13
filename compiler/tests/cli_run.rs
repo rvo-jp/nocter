@@ -1299,6 +1299,41 @@ func fail(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, i: i32
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_traps_aggregate_argument_never_call() {
+    let project = TempProject::new("cli-run-aggregate-argument-never-call");
+    let source = project.write_source(
+        "aggregate_argument_never_call.nct",
+        r#"from std/process import abort
+
+copy struct Big {
+    first: usize
+    second: usize
+    code: usize
+}
+
+func main(): i32 {
+    let value = Big{ first: 1, second: 2, code: 42 }
+    return fail(value)
+}
+
+func fail(value: Big): never {
+    abort()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert!(
+        !output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_traps_i32_signed_division_overflow() {
     let project = TempProject::new("cli-run-i32-div-overflow");
     let source = project.write_source(
