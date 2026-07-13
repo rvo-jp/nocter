@@ -1555,6 +1555,40 @@ mod tests {
     }
 
     #[test]
+    fn generates_stack_passed_slice_index_byte_load_from_hand_built_ir() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "first".to_string(),
+                target: crate::ir::CallTarget::same_file("first".to_string()),
+                return_type: Type::U8,
+                instructions: vec![
+                    Instruction::SetU8 {
+                        destination: U8Location::Return,
+                        value: U8Value::SliceIndex {
+                            source: SliceLocation::Parameter(8),
+                            index: UsizeValue::Const(1),
+                        },
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+        assert!(contains_instruction(&code.text, [0xf1, 0x07, 0x40, 0xf9])); // ldr x17, [sp, #8]
+        assert!(contains_instruction(&code.text, [0xf1, 0x03, 0x40, 0xf9])); // ldr x17, [sp, #0]
+        assert!(contains_instruction(&code.text, [0x20, 0x6a, 0x70, 0x38])); // ldrb w0, [x17, x16]
+    }
+
+    #[test]
     fn generates_static_str_index_byte_load_from_hand_built_ir() {
         let module = IrModule::new(vec![
             Function {
