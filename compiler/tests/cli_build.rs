@@ -1557,6 +1557,41 @@ func read(bytes: Bytes): u8 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn built_executable_returns_direct_aggregate_with_scalar_fields() {
+    let project = TempProject::new("cli-build-run-direct-aggregate-scalar-return");
+    let source = project.write_source(
+        "direct_aggregate_scalar_return.nct",
+        r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+}
+
+func main(): i32 {
+    var header = make()
+    if header.ok {
+        return header.code
+    } else {
+        return 1
+    }
+}
+
+func make(): Header {
+    return Header{ tag: 7, ok: true, code: 42 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    let status = Command::new(&executable).status().unwrap();
+    assert_eq!(status.code(), Some(42));
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn built_fallible_entry_failure_reports_stderr() {
     let project = TempProject::new("cli-build-run-fallible-failure");
     project.write_nocter_home_file(
