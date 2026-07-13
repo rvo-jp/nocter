@@ -1972,6 +1972,78 @@ mod tests {
     }
 
     #[test]
+    fn direct_aggregate_parameter_i32_field_load_extracts_register_word() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "code".to_string(),
+                target: crate::ir::CallTarget::same_file("code".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::LoadAggregateI32 {
+                        destination: I32Location::Return,
+                        source: AggregateLocation::DirectParameter { start_index: 0 },
+                        offset: 4,
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_lsr_x_imm(XReg::X16, XReg::X16, 32)
+        ));
+    }
+
+    #[test]
+    fn direct_aggregate_parameter_u8_field_load_masks_selected_byte() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "read".to_string(),
+                target: crate::ir::CallTarget::same_file("read".to_string()),
+                return_type: Type::U8,
+                instructions: vec![
+                    Instruction::LoadAggregateU8 {
+                        destination: U8Location::Return,
+                        source: AggregateLocation::DirectParameter { start_index: 0 },
+                        offset: 2,
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_lsr_x_imm(XReg::X16, XReg::X16, 16)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_lsl_x_imm(XReg::X16, XReg::X16, 56)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_lsr_x_imm(XReg::X16, XReg::X16, 56)
+        ));
+    }
+
+    #[test]
     fn aggregate_copy_from_slot_to_return_copies_words_to_x8_destination() {
         let module = IrModule::new(vec![
             Function {
@@ -3464,6 +3536,18 @@ mod tests {
     fn encoded_ldr_x_imm(register: XReg, base: XReg, offset: u32) -> [u8; 4] {
         let mut encoder = Encoder::new();
         encoder.emit_ldr_x_imm(register, base, offset);
+        encoded_instruction(encoder)
+    }
+
+    fn encoded_lsl_x_imm(destination: XReg, source: XReg, shift: u32) -> [u8; 4] {
+        let mut encoder = Encoder::new();
+        encoder.emit_lsl_x_imm(destination, source, shift);
+        encoded_instruction(encoder)
+    }
+
+    fn encoded_lsr_x_imm(destination: XReg, source: XReg, shift: u32) -> [u8; 4] {
+        let mut encoder = Encoder::new();
+        encoder.emit_lsr_x_imm(destination, source, shift);
         encoded_instruction(encoder)
     }
 

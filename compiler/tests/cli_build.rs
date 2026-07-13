@@ -1494,6 +1494,69 @@ func identity(text: &str): &str {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn built_executable_passes_direct_aggregate_argument_words() {
+    let project = TempProject::new("cli-build-run-direct-aggregate-argument-words");
+    let source = project.write_source(
+        "direct_aggregate_argument_words.nct",
+        r#"struct Pair {
+    a: i32
+    b: i32
+    c: i32
+    d: i32
+}
+
+func main(): i32 {
+    var pair = Pair{ a: 10, b: 20, c: 7, d: 5 }
+    return check(pair)
+}
+
+func check(pair: Pair): i32 {
+    return pair.a + pair.b + pair.c + pair.d
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    let status = Command::new(&executable).status().unwrap();
+    assert_eq!(status.code(), Some(42));
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn built_executable_passes_partial_direct_aggregate_argument_bytes() {
+    let project = TempProject::new("cli-build-run-partial-direct-aggregate-argument-bytes");
+    let source = project.write_source(
+        "partial_direct_aggregate_argument_bytes.nct",
+        r#"struct Bytes {
+    first: u8
+    second: u8
+    third: u8
+}
+
+func main(): i32 {
+    var bytes = Bytes{ first: 1, second: 2, third: 42 }
+    return read(bytes) as i32
+}
+
+func read(bytes: Bytes): u8 {
+    return bytes.third
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    let status = Command::new(&executable).status().unwrap();
+    assert_eq!(status.code(), Some(42));
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn built_fallible_entry_failure_reports_stderr() {
     let project = TempProject::new("cli-build-run-fallible-failure");
     project.write_nocter_home_file(
