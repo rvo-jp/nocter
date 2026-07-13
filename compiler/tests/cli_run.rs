@@ -2798,6 +2798,133 @@ func make(): Big! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_caught_aggregate_member_assignment_field_exit_code() {
+    let project = TempProject::new("cli-run-caught-aggregate-member-assignment-field");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+impl Error {
+    pub func new(code: ErrorCode, message: &str): Error {
+        return new_error(code, message)
+    }
+}
+"#,
+    );
+    let source = project.write_source(
+        "caught_aggregate_member_assignment_field.nct",
+        r#"from std/error import Error
+
+copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32! {
+    var packet = Packet{
+        prefix: 1,
+        header: Header{ tag: 1, ok: false, code: 2, len: 3 },
+        tail: 4,
+    }
+    packet.header = source() catch error {
+        return Error.new("app.main", error.message)
+    }
+    return packet.header.code
+}
+
+func source(): Header! {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_caught_aggregate_struct_literal_field_exit_code() {
+    let project = TempProject::new("cli-run-caught-aggregate-struct-literal-field");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+impl Error {
+    pub func new(code: ErrorCode, message: &str): Error {
+        return new_error(code, message)
+    }
+}
+"#,
+    );
+    let source = project.write_source(
+        "caught_aggregate_struct_literal_field.nct",
+        r#"from std/error import Error
+
+copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32! {
+    let packet = Packet{
+        prefix: 1,
+        header: source() catch error {
+            return Error.new("app.main", error.message)
+        },
+        tail: 2,
+    }
+    return packet.header.code
+}
+
+func source(): Header! {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_reports_caught_indirect_aggregate_call_return_failure() {
     let project = TempProject::new("cli-run-caught-indirect-aggregate-call-return-failure");
     project.write_nocter_home_file(
