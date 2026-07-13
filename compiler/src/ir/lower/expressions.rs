@@ -24,13 +24,13 @@ use crate::ir::{
     UsizeValue,
 };
 use calls::{
-    is_tail_call_stack_pointer_argument, lower_bool_normal_call, lower_call_arguments,
-    lower_direct_tail_call, lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
-    lower_fallible_slice_normal_call, lower_fallible_str_normal_call,
-    lower_fallible_u8_normal_call, lower_fallible_usize_normal_call,
-    lower_fallible_void_normal_call, lower_i32_normal_call, lower_slice_normal_call,
-    lower_str_normal_call, lower_u8_normal_call, lower_usize_normal_call, lower_void_normal_call,
-    primitive_trap_call, primitive_write_text_raw_call,
+    call_arguments_require_stack, is_tail_call_stack_pointer_argument, lower_bool_normal_call,
+    lower_call_arguments, lower_direct_tail_call, lower_fallible_bool_normal_call,
+    lower_fallible_i32_normal_call, lower_fallible_slice_normal_call,
+    lower_fallible_str_normal_call, lower_fallible_u8_normal_call,
+    lower_fallible_usize_normal_call, lower_fallible_void_normal_call, lower_i32_normal_call,
+    lower_slice_normal_call, lower_str_normal_call, lower_u8_normal_call, lower_usize_normal_call,
+    lower_void_normal_call, primitive_trap_call, primitive_write_text_raw_call,
 };
 use predicates::{
     bool_comparison_contains_call, bool_comparison_needs_temporaries,
@@ -1409,26 +1409,14 @@ pub(super) fn lower_never_return_expression(
             let mut temporaries = TemporaryAllocator::new(context)?;
             let (mut instructions, arguments) =
                 lower_call_arguments(call, &target, &identifier.name, context, &mut temporaries)?;
-            if arguments
+            let requires_current_frame = arguments
                 .iter()
-                .any(|argument| matches!(argument, ScalarArgument::Borrow(_)))
+                .any(never_tail_call_argument_requires_current_frame);
+            if requires_current_frame || call_arguments_require_stack(&arguments, &identifier.name)?
             {
-                return Err(vec![Diagnostic::error(
-                    "E8006",
-                    format!(
-                        "IR v0 cannot lower tail call to function `{}` with borrow arguments",
-                        identifier.name
-                    ),
-                )]);
-            }
-            if arguments.iter().any(is_tail_call_stack_pointer_argument) {
-                return Err(vec![Diagnostic::error(
-                    "E8006",
-                    format!(
-                        "IR v0 cannot lower tail call to function `{}` with aggregate pointer arguments",
-                        identifier.name
-                    ),
-                )]);
+                instructions.push(Instruction::CallVoid { target, arguments });
+                instructions.push(Instruction::Trap);
+                return Ok(Some(instructions));
             }
             instructions.push(Instruction::TailCall { target, arguments });
             Ok(Some(instructions))
@@ -1436,6 +1424,10 @@ pub(super) fn lower_never_return_expression(
         Expr::Group(group) => lower_never_return_expression(&group.expression, context),
         _ => Ok(None),
     }
+}
+
+fn never_tail_call_argument_requires_current_frame(argument: &ScalarArgument) -> bool {
+    matches!(argument, ScalarArgument::Borrow(_)) || is_tail_call_stack_pointer_argument(argument)
 }
 
 pub(super) fn lower_usize_return_expression(

@@ -622,7 +622,7 @@ fn validate_call_argument_abi_word_count(
     Ok(())
 }
 
-fn call_arguments_require_stack(
+pub(super) fn call_arguments_require_stack(
     arguments: &[ScalarArgument],
     callee_name: &str,
 ) -> Result<bool, Vec<Diagnostic>> {

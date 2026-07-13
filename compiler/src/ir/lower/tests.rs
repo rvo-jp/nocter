@@ -6269,6 +6269,111 @@ func consume(
 }
 
 #[test]
+fn lowers_stack_passed_never_call_as_normal_call_then_trap() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return abort(1, 2, 3, 4, 5, 6, 7, 8, 9)
+}
+
+func abort(
+    a: i32,
+    b: i32,
+    c: i32,
+    d: i32,
+    e: i32,
+    f: i32,
+    g: i32,
+    h: i32,
+    i: i32,
+): never {
+    abort(a, b, c, d, e, f, g, h, i)
+}
+"#,
+        "main",
+        function_signatures(vec![(
+            "abort",
+            Type::Never,
+            vec![
+                Type::I32,
+                Type::I32,
+                Type::I32,
+                Type::I32,
+                Type::I32,
+                Type::I32,
+                Type::I32,
+                Type::I32,
+                Type::I32,
+            ],
+        )]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "main".to_string(),
+            target: CallTarget::same_file("main"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::CallVoid {
+                    target: CallTarget::same_file("abort"),
+                    arguments: vec![
+                        ScalarArgument::I32(i32_const(1)),
+                        ScalarArgument::I32(i32_const(2)),
+                        ScalarArgument::I32(i32_const(3)),
+                        ScalarArgument::I32(i32_const(4)),
+                        ScalarArgument::I32(i32_const(5)),
+                        ScalarArgument::I32(i32_const(6)),
+                        ScalarArgument::I32(i32_const(7)),
+                        ScalarArgument::I32(i32_const(8)),
+                        ScalarArgument::I32(i32_const(9)),
+                    ],
+                },
+                Instruction::Trap,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_aggregate_pointer_never_call_as_normal_call_then_trap() {
+    let aggregate_type = Type::Aggregate {
+        layout: ValueLayout::new(24, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Big {
+    first: usize
+    second: usize
+    code: usize
+}
+
+func main(): i32 {
+    let value = Big{ first: 1, second: 2, code: 42 }
+    return abort(value)
+}
+
+func abort(value: Big): never {
+    abort(value)
+}
+"#,
+        "main",
+        function_signatures(vec![("abort", Type::Never, vec![aggregate_type.clone()])]),
+    )
+    .unwrap();
+
+    assert!(
+        function.instructions.contains(&Instruction::CallVoid {
+            target: CallTarget::same_file("abort"),
+            arguments: vec![ScalarArgument::AggregateIndirect(AggregateArgument {
+                source: AggregateArgumentSource::Slot(0),
+            })],
+        }),
+        "{function:?}"
+    );
+    assert_eq!(function.instructions.last(), Some(&Instruction::Trap));
+}
+
+#[test]
 fn lowers_split_register_stack_direct_aggregate_call_argument() {
     let pair_type = Type::DirectAggregate {
         layout: ValueLayout::new(16, 4),
