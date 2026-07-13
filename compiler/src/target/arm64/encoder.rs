@@ -206,6 +206,15 @@ impl Encoder {
         ));
     }
 
+    pub(crate) fn emit_ldrb_w_sp(&mut self, rt: WReg, byte_offset: u32) {
+        self.emit_word(load_store_sp_word(
+            LDRB_W_UNSIGNED_BASE,
+            rt.bits(),
+            byte_offset,
+            1,
+        ));
+    }
+
     #[allow(dead_code)]
     pub(crate) fn emit_str_w_imm(&mut self, rt: WReg, rn: XReg, byte_offset: u32) {
         self.emit_word(load_store_unsigned_word(
@@ -564,6 +573,7 @@ const LDR_X_SP_UNSIGNED_BASE: u32 = 0xf940_0000;
 #[allow(dead_code)]
 const STR_W_UNSIGNED_BASE: u32 = 0xb900_0000;
 const STRB_W_UNSIGNED_BASE: u32 = 0x3900_0000;
+const LDRB_W_UNSIGNED_BASE: u32 = 0x3940_0000;
 const STR_X_UNSIGNED_BASE: u32 = 0xf900_0000;
 const LDRB_W_REG_BASE: u32 = 0x3860_6800;
 const B_BASE: u32 = 0x1400_0000;
@@ -1024,6 +1034,15 @@ mod tests {
         encoder.emit_strb_w_sp(WReg::W9, 7);
 
         assert_eq!(encoder.finish(), vec![0xe9, 0x1f, 0x00, 0x39]);
+    }
+
+    #[test]
+    fn encodes_ldrb_w_local_sp_offset() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_ldrb_w_sp(WReg::W9, 7);
+
+        assert_eq!(encoder.finish(), vec![0xe9, 0x1f, 0x40, 0x39]);
     }
 
     #[test]

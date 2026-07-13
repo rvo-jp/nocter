@@ -135,6 +135,79 @@ impl EntryEmitter {
         }
     }
 
+    pub(super) fn emit_load_aggregate_usize(
+        &mut self,
+        destination: UsizeLocation,
+        source: AggregateLocation,
+        offset: u32,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        validate_aggregate_usize_field_offset(offset)?;
+        let source_offset =
+            self.aggregate_slot_load_offset(source, offset, AGGREGATE_USIZE_STORE_BYTES, frame)?;
+        let destination = self.usize_location_register(destination)?;
+        self.encoder.emit_ldr_x_sp(destination, source_offset);
+        Ok(())
+    }
+
+    pub(super) fn emit_load_aggregate_i32(
+        &mut self,
+        destination: I32Location,
+        source: AggregateLocation,
+        offset: u32,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        validate_aggregate_i32_field_offset(offset)?;
+        let source_offset =
+            self.aggregate_slot_load_offset(source, offset, AGGREGATE_I32_STORE_BYTES, frame)?;
+        let destination = self.i32_location_register(destination)?;
+        self.encoder.emit_ldr_w_sp(destination, source_offset);
+        Ok(())
+    }
+
+    pub(super) fn emit_load_aggregate_u8(
+        &mut self,
+        destination: U8Location,
+        source: AggregateLocation,
+        offset: u32,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let source_offset =
+            self.aggregate_slot_load_offset(source, offset, AGGREGATE_U8_STORE_BYTES, frame)?;
+        let destination = self.u8_location_register(destination)?;
+        self.encoder.emit_ldrb_w_sp(destination, source_offset);
+        Ok(())
+    }
+
+    pub(super) fn emit_load_aggregate_bool(
+        &mut self,
+        destination: BoolLocation,
+        source: AggregateLocation,
+        offset: u32,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let source_offset =
+            self.aggregate_slot_load_offset(source, offset, AGGREGATE_U8_STORE_BYTES, frame)?;
+        let destination = self.bool_location_register(destination)?;
+        self.encoder.emit_ldrb_w_sp(destination, source_offset);
+        Ok(())
+    }
+
+    fn aggregate_slot_load_offset(
+        &self,
+        source: AggregateLocation,
+        offset: u32,
+        load_bytes: u32,
+        frame: Option<&FrameLayout>,
+    ) -> Result<u32, Vec<Diagnostic>> {
+        let AggregateLocation::Slot(slot_index) = source else {
+            return Err(aggregate_load_diagnostic(
+                "backend v0 can only load aggregate fields from slots",
+            ));
+        };
+        self.aggregate_slot_field_offset(slot_index, offset, load_bytes, frame)
+    }
+
     fn aggregate_slot_field_offset(
         &self,
         slot_index: usize,
@@ -875,6 +948,13 @@ fn aggregate_store_offset_diagnostic(reason: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E9005",
         format!("aggregate field store offset is invalid: {reason}"),
+    )]
+}
+
+fn aggregate_load_diagnostic(reason: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E9005",
+        format!("aggregate field load is invalid: {reason}"),
     )]
 }
 

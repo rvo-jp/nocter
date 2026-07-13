@@ -25,6 +25,7 @@ pub(super) struct LoweringContext<'a> {
     slice_parameters: Vec<Option<String>>,
     reserved_local_abi_words: usize,
     locals: Vec<LocalBinding>,
+    aggregate_fields: HashMap<usize, Vec<AggregateField>>,
 }
 
 #[derive(Default)]
@@ -58,6 +59,7 @@ impl<'a> LoweringContext<'a> {
             slice_parameters: Vec::new(),
             reserved_local_abi_words: 0,
             locals: Vec::new(),
+            aggregate_fields: HashMap::new(),
         }
     }
 
@@ -82,6 +84,7 @@ impl<'a> LoweringContext<'a> {
             slice_parameters: parameters.slice,
             reserved_local_abi_words: 0,
             locals: Vec::new(),
+            aggregate_fields: HashMap::new(),
         }
     }
 
@@ -227,6 +230,7 @@ impl<'a> LoweringContext<'a> {
         name: String,
         layout: ValueLayout,
         is_copy: bool,
+        fields: Vec<AggregateField>,
     ) -> usize {
         let slot_index = self.next_aggregate_slot_index();
         self.locals.push(LocalBinding {
@@ -238,6 +242,7 @@ impl<'a> LoweringContext<'a> {
             },
             index: 0,
         });
+        self.aggregate_fields.insert(slot_index, fields);
         slot_index
     }
 
@@ -391,6 +396,23 @@ impl<'a> LoweringContext<'a> {
         })
     }
 
+    pub(super) fn aggregate_field(
+        &self,
+        aggregate_name: &str,
+        field_name: &str,
+    ) -> Option<AggregateFieldAccess> {
+        let aggregate = self.aggregate_local(aggregate_name)?;
+        self.aggregate_fields
+            .get(&aggregate.slot_index)?
+            .iter()
+            .find(|field| field.name == field_name)
+            .map(|field| AggregateFieldAccess {
+                source: crate::ir::AggregateLocation::Slot(aggregate.slot_index),
+                offset: field.offset,
+                kind: field.kind,
+            })
+    }
+
     fn next_local_index(&self, required_words: usize) -> Result<usize, Vec<Diagnostic>> {
         let index = self.used_local_abi_words();
         if index + required_words > MAX_LOCAL_ABI_WORDS {
@@ -507,6 +529,28 @@ pub(super) struct AggregateLocal {
     pub(super) slot_index: usize,
     pub(super) layout: ValueLayout,
     pub(super) is_copy: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct AggregateField {
+    pub(super) name: String,
+    pub(super) offset: u32,
+    pub(super) kind: AggregateFieldKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct AggregateFieldAccess {
+    pub(super) source: crate::ir::AggregateLocation,
+    pub(super) offset: u32,
+    pub(super) kind: AggregateFieldKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum AggregateFieldKind {
+    I32,
+    U8,
+    Usize,
+    Bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

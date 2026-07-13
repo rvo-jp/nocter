@@ -1,5 +1,5 @@
 use super::bindings::{lower_assignment, lower_local_binding};
-use super::context::LoweringContext;
+use super::context::{AggregateFieldKind, LoweringContext};
 use super::errors::{ErrorPayload, lower_error_payload};
 use super::literals::{
     lower_i32_literal, lower_str_literal, lower_u8_literal, lower_usize_literal,
@@ -28,11 +28,11 @@ use calls::{
     primitive_trap_call, primitive_write_text_raw_call,
 };
 use predicates::{
-    bool_comparison_contains_call, expressions_are_lowerable_bool_comparison_operands,
-    expressions_are_lowerable_bool_values, expressions_are_lowerable_usize_values,
-    i32_comparison_needs_temporaries, is_i32_binary_operator, is_usize_binary_operator,
-    short_circuit_bool_expression_contains_call, u8_comparison_is_lowerable,
-    usize_comparison_needs_temporaries,
+    bool_comparison_contains_call, bool_comparison_needs_temporaries,
+    expressions_are_lowerable_bool_comparison_operands, expressions_are_lowerable_bool_values,
+    expressions_are_lowerable_usize_values, i32_comparison_needs_temporaries,
+    is_i32_binary_operator, is_usize_binary_operator, short_circuit_bool_expression_contains_call,
+    u8_comparison_is_lowerable, usize_comparison_needs_temporaries,
 };
 pub(super) use predicates::{
     expression_contains_call, expression_contains_interpolated_string,
@@ -96,6 +96,7 @@ pub(super) fn lower_i32_expression_to_location(
             });
             Ok(instructions)
         }
+        Expr::Member(_) => lower_aggregate_i32_field_to_location(expression, destination, context),
         Expr::Group(group) => {
             lower_i32_expression_to_location(&group.expression, destination, context)
         }
@@ -157,6 +158,7 @@ pub(super) fn lower_u8_expression_to_location(
             });
             Ok(instructions)
         }
+        Expr::Member(_) => lower_aggregate_u8_field_to_location(expression, destination, context),
         Expr::Group(group) => {
             lower_u8_expression_to_location(&group.expression, destination, context)
         }
@@ -220,6 +222,9 @@ pub(super) fn lower_usize_expression_to_location(
                 value: lowered.value,
             });
             Ok(instructions)
+        }
+        Expr::Member(_) => {
+            lower_aggregate_usize_field_to_location(expression, destination, context)
         }
         Expr::Group(group) => {
             lower_usize_expression_to_location(&group.expression, destination, context)
@@ -791,6 +796,15 @@ fn lower_i32_expression_to_value(
         Expr::TypeConversion(conversion) if type_conversion_target_is(conversion, "i32") => {
             lower_i32_conversion_expression_to_value(conversion, context, temporaries)
         }
+        Expr::Member(_) => {
+            let temporary = temporaries.next_i32()?;
+            Ok(LoweredI32Value {
+                instructions: lower_aggregate_i32_field_to_location(
+                    expression, temporary, context,
+                )?,
+                value: I32Value::Location(temporary),
+            })
+        }
         Expr::Group(group) => {
             lower_i32_expression_to_value(&group.expression, context, temporaries)
         }
@@ -866,6 +880,13 @@ fn lower_u8_expression_to_value(
         Expr::Index(index) => lower_u8_index_expression_to_value(index, context, temporaries),
         Expr::TypeConversion(conversion) if type_conversion_target_is(conversion, "u8") => {
             lower_u8_expression_to_value(&conversion.expression, context, temporaries)
+        }
+        Expr::Member(_) => {
+            let temporary = temporaries.next_u8()?;
+            Ok(LoweredU8Value {
+                instructions: lower_aggregate_u8_field_to_location(expression, temporary, context)?,
+                value: U8Value::Location(temporary),
+            })
         }
         Expr::Group(group) => lower_u8_expression_to_value(&group.expression, context, temporaries),
         _ => Ok(LoweredU8Value {
@@ -1030,6 +1051,15 @@ fn lower_usize_expression_to_value(
         }
         Expr::TypeConversion(conversion) if type_conversion_target_is(conversion, "usize") => {
             lower_usize_conversion_expression_to_value(conversion, context, temporaries)
+        }
+        Expr::Member(_) => {
+            let temporary = temporaries.next_usize()?;
+            Ok(LoweredUsizeValue {
+                instructions: lower_aggregate_usize_field_to_location(
+                    expression, temporary, context,
+                )?,
+                value: UsizeValue::Location(temporary),
+            })
         }
         Expr::Group(group) => {
             lower_usize_expression_to_value(&group.expression, context, temporaries)
@@ -1481,6 +1511,21 @@ pub(super) fn lower_bool_expression_to_location(
             });
             Ok(instructions)
         }
+        Expr::Binary(binary) if bool_comparison_needs_temporaries(binary, context) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let comparison = lower_bool_comparison_to_value_with_temporaries(
+                binary,
+                context,
+                diagnostic_code,
+                &mut temporaries,
+            )?;
+            let mut instructions = comparison.instructions;
+            instructions.push(Instruction::SetBool {
+                destination,
+                value: comparison.value,
+            });
+            Ok(instructions)
+        }
         Expr::Binary(binary) if u8_comparison_is_lowerable(binary, context) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             let comparison = lower_u8_comparison_to_value_with_temporaries(
@@ -1555,6 +1600,12 @@ pub(super) fn lower_bool_expression_to_location(
             });
             Ok(instructions)
         }
+        Expr::Member(_) => lower_aggregate_bool_field_to_location(
+            expression,
+            destination,
+            context,
+            diagnostic_code,
+        ),
         Expr::Group(group) => lower_bool_expression_to_location(
             &group.expression,
             destination,
@@ -1692,6 +1743,80 @@ fn unwrap_group(expression: &Expr) -> &Expr {
     }
 }
 
+fn lower_aggregate_i32_field_to_location(
+    expression: &Expr,
+    destination: I32Location,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let access = aggregate_member_field_access(expression, context)
+        .filter(|access| access.kind == AggregateFieldKind::I32)
+        .ok_or_else(unsupported_i32_expression_diagnostic)?;
+    Ok(vec![Instruction::LoadAggregateI32 {
+        destination,
+        source: access.source,
+        offset: access.offset,
+    }])
+}
+
+fn lower_aggregate_u8_field_to_location(
+    expression: &Expr,
+    destination: U8Location,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let access = aggregate_member_field_access(expression, context)
+        .filter(|access| access.kind == AggregateFieldKind::U8)
+        .ok_or_else(unsupported_u8_expression_diagnostic)?;
+    Ok(vec![Instruction::LoadAggregateU8 {
+        destination,
+        source: access.source,
+        offset: access.offset,
+    }])
+}
+
+fn lower_aggregate_usize_field_to_location(
+    expression: &Expr,
+    destination: UsizeLocation,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let access = aggregate_member_field_access(expression, context)
+        .filter(|access| access.kind == AggregateFieldKind::Usize)
+        .ok_or_else(unsupported_usize_expression_diagnostic)?;
+    Ok(vec![Instruction::LoadAggregateUsize {
+        destination,
+        source: access.source,
+        offset: access.offset,
+    }])
+}
+
+fn lower_aggregate_bool_field_to_location(
+    expression: &Expr,
+    destination: BoolLocation,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let access = aggregate_member_field_access(expression, context)
+        .filter(|access| access.kind == AggregateFieldKind::Bool)
+        .ok_or_else(|| unsupported_bool_expression_diagnostic(diagnostic_code))?;
+    Ok(vec![Instruction::LoadAggregateBool {
+        destination,
+        source: access.source,
+        offset: access.offset,
+    }])
+}
+
+fn aggregate_member_field_access(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Option<super::context::AggregateFieldAccess> {
+    let Expr::Member(member) = unwrap_group(expression) else {
+        return None;
+    };
+    let Expr::Identifier(identifier) = unwrap_group(&member.object) else {
+        return None;
+    };
+    context.aggregate_field(&identifier.name, &member.member)
+}
+
 pub(super) struct LoweredBoolValue {
     pub(super) instructions: Vec<Instruction>,
     pub(super) value: BoolValue,
@@ -1719,6 +1844,14 @@ fn lower_bool_expression_to_value_with_temporaries(
 ) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
     match expression {
         Expr::Binary(binary) if bool_comparison_contains_call(binary, context) => {
+            lower_bool_comparison_to_value_with_temporaries(
+                binary,
+                context,
+                diagnostic_code,
+                temporaries,
+            )
+        }
+        Expr::Binary(binary) if bool_comparison_needs_temporaries(binary, context) => {
             lower_bool_comparison_to_value_with_temporaries(
                 binary,
                 context,
@@ -1812,6 +1945,18 @@ fn lower_bool_expression_to_value_with_temporaries(
                 value: BoolValue::Not(Box::new(operand.value)),
             })
         }
+        Expr::Member(_) => {
+            let temporary = temporaries.next_bool()?;
+            Ok(LoweredBoolValue {
+                instructions: lower_aggregate_bool_field_to_location(
+                    expression,
+                    temporary,
+                    context,
+                    diagnostic_code,
+                )?,
+                value: BoolValue::Location(temporary),
+            })
+        }
         Expr::Group(group) => lower_bool_expression_to_value_with_temporaries(
             &group.expression,
             context,
@@ -1873,6 +2018,18 @@ fn lower_bool_comparison_operand_to_value_with_temporaries(
             let temporary = temporaries.next_bool()?;
             Ok(LoweredBoolValue {
                 instructions: lower_bool_normal_call(call, temporary, context, temporaries)?,
+                value: BoolValue::Location(temporary),
+            })
+        }
+        Expr::Member(_) => {
+            let temporary = temporaries.next_bool()?;
+            Ok(LoweredBoolValue {
+                instructions: lower_aggregate_bool_field_to_location(
+                    expression,
+                    temporary,
+                    context,
+                    diagnostic_code,
+                )?,
                 value: BoolValue::Location(temporary),
             })
         }

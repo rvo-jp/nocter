@@ -2802,6 +2802,323 @@ pub func make(): Text {
 }
 
 #[test]
+fn lowers_aggregate_i32_field_return_from_local_slot() {
+    let function = lower_named_function(
+        r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func read_code(): i32 {
+    let value = Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return value.code
+}
+"#,
+        "read_code",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "read_code".to_string(),
+            target: CallTarget::same_file("read_code"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::StoreAggregateU8 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: u8_const(7),
+                },
+                Instruction::StoreAggregateBool {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 1,
+                    value: BoolValue::Const(true),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 4,
+                    value: i32_const(42),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 8,
+                    value: usize_const(11),
+                },
+                Instruction::LoadAggregateI32 {
+                    destination: I32Location::Return,
+                    source: AggregateLocation::Slot(0),
+                    offset: 4,
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_aggregate_scalar_field_reads_as_expression_operands() {
+    let function = lower_named_function(
+        r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func read_next_code(): i32 {
+    let value = Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return value.code + 1
+}
+"#,
+        "read_next_code",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "read_next_code".to_string(),
+            target: CallTarget::same_file("read_next_code"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::StoreAggregateU8 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: u8_const(7),
+                },
+                Instruction::StoreAggregateBool {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 1,
+                    value: BoolValue::Const(true),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 4,
+                    value: i32_const(42),
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 8,
+                    value: usize_const(11),
+                },
+                Instruction::LoadAggregateI32 {
+                    destination: I32Location::Local(0),
+                    source: AggregateLocation::Slot(0),
+                    offset: 4,
+                },
+                Instruction::AddI32 {
+                    destination: I32Location::Return,
+                    left: i32_local(0),
+                    right: i32_const(1),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_aggregate_field_return_from_call_binding_slot() {
+    let aggregate_type = Type::Aggregate {
+        layout: ValueLayout::new(16, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Header {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+
+func read_code(): i32 {
+    let value = make()
+    return value.code
+}
+"#,
+        "read_code",
+        function_signatures(vec![("make", aggregate_type, vec![])]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "read_code".to_string(),
+            target: CallTarget::same_file("read_code"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::CallAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    target: CallTarget::same_file("make"),
+                    arguments: vec![],
+                },
+                Instruction::LoadAggregateI32 {
+                    destination: I32Location::Return,
+                    source: AggregateLocation::Slot(0),
+                    offset: 4,
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_aggregate_u8_bool_and_usize_field_returns_from_local_slot() {
+    let text = r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func read_tag(): u8 {
+    let value = Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return value.tag
+}
+
+func read_ok(): bool {
+    let value = Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return value.ok
+}
+
+func read_len(): usize {
+    let value = Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return value.len
+}
+"#;
+
+    let tag = lower_named_function(text, "read_tag");
+    let ok = lower_named_function(text, "read_ok");
+    let len = lower_named_function(text, "read_len");
+
+    assert!(
+        tag.instructions.contains(&Instruction::LoadAggregateU8 {
+            destination: U8Location::Return,
+            source: AggregateLocation::Slot(0),
+            offset: 0,
+        }),
+        "{tag:?}"
+    );
+    assert!(
+        ok.instructions.contains(&Instruction::LoadAggregateBool {
+            destination: BoolLocation::Return,
+            source: AggregateLocation::Slot(0),
+            offset: 1,
+        }),
+        "{ok:?}"
+    );
+    assert!(
+        len.instructions.contains(&Instruction::LoadAggregateUsize {
+            destination: UsizeLocation::Return,
+            source: AggregateLocation::Slot(0),
+            offset: 8,
+        }),
+        "{len:?}"
+    );
+}
+
+#[test]
+fn lowers_aggregate_field_reads_in_comparisons() {
+    let text = r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func code_is_answer(): bool {
+    let value = Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return value.code == 42
+}
+
+func ok_is_true(): bool {
+    let value = Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return value.ok == true
+}
+"#;
+
+    let code = lower_named_function(text, "code_is_answer");
+    let ok = lower_named_function(text, "ok_is_true");
+
+    assert!(
+        code.instructions.contains(&Instruction::LoadAggregateI32 {
+            destination: I32Location::Local(0),
+            source: AggregateLocation::Slot(0),
+            offset: 4,
+        }),
+        "{code:?}"
+    );
+    assert!(
+        code.instructions.contains(&Instruction::SetBool {
+            destination: BoolLocation::Return,
+            value: BoolValue::I32Comparison {
+                operator: I32ComparisonOperator::Equal,
+                left: i32_local(0),
+                right: i32_const(42),
+            },
+        }),
+        "{code:?}"
+    );
+    assert!(
+        ok.instructions.contains(&Instruction::LoadAggregateBool {
+            destination: BoolLocation::Local(0),
+            source: AggregateLocation::Slot(0),
+            offset: 1,
+        }),
+        "{ok:?}"
+    );
+    assert!(
+        ok.instructions.contains(&Instruction::SetBool {
+            destination: BoolLocation::Return,
+            value: BoolValue::BoolComparison {
+                operator: BoolComparisonOperator::Equal,
+                left: Box::new(BoolValue::Location(BoolLocation::Local(0))),
+                right: Box::new(BoolValue::Const(true)),
+            },
+        }),
+        "{ok:?}"
+    );
+}
+
+#[test]
 fn rejects_function_with_more_than_eight_abi_parameter_words() {
     let diagnostics = lower_named_function_diagnostics_with_signatures(
         r#"func main(): i32 {

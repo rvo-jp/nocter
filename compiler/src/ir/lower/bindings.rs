@@ -1,4 +1,6 @@
-use super::aggregates::lower_aggregate_struct_literal_to_location;
+use super::aggregates::{
+    aggregate_fields_from_type_expr, lower_aggregate_struct_literal_to_location,
+};
 use super::context::LoweringContext;
 use super::expressions::{
     expression_contains_interpolated_string, expression_is_lowerable_bool_binding,
@@ -73,7 +75,9 @@ fn lower_aggregate_struct_literal_binding(
     validate_aggregate_binding_layout(value.layout)?;
 
     let is_copy = type_expr_is_copy_struct(&literal.ty, resolved);
-    let slot_index = context.define_aggregate_local(statement.name.clone(), value.layout, is_copy);
+    let fields = aggregate_fields_from_type_expr(&literal.ty, resolved).unwrap_or_default();
+    let slot_index =
+        context.define_aggregate_local(statement.name.clone(), value.layout, is_copy, fields);
     let mut instructions = vec![Instruction::ReserveAggregateSlot {
         slot_index,
         layout: value.layout,
@@ -133,7 +137,9 @@ fn lower_aggregate_normal_call_binding(
     let (mut instructions, arguments) =
         lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
     let is_copy = call_success_type_is_copy_struct(call, context);
-    let slot_index = context.define_aggregate_local(statement.name.clone(), layout, is_copy);
+    let fields = call_success_aggregate_fields(call, context);
+    let slot_index =
+        context.define_aggregate_local(statement.name.clone(), layout, is_copy, fields);
     instructions.insert(0, Instruction::ReserveAggregateSlot { slot_index, layout });
     match return_type {
         Type::Aggregate { .. } => {
@@ -179,7 +185,9 @@ fn lower_aggregate_fallible_call_binding(
     let (mut instructions, arguments) =
         lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
     let is_copy = call_success_type_is_copy_struct(call, context);
-    let slot_index = context.define_aggregate_local(statement.name.clone(), layout, is_copy);
+    let fields = call_success_aggregate_fields(call, context);
+    let slot_index =
+        context.define_aggregate_local(statement.name.clone(), layout, is_copy, fields);
     instructions.insert(0, Instruction::ReserveAggregateSlot { slot_index, layout });
     match success.as_ref() {
         Type::Aggregate { .. } => {
@@ -629,6 +637,19 @@ fn call_success_type_is_copy_struct(call: &CallExpr, context: &LoweringContext) 
         return false;
     };
     type_expr_is_copy_struct(&signature.return_type, resolved)
+}
+
+fn call_success_aggregate_fields(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> Vec<super::context::AggregateField> {
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Vec::new();
+    };
+    let Some(signature) = resolved.call_signature_for_call(call) else {
+        return Vec::new();
+    };
+    aggregate_fields_from_type_expr(&signature.return_type, resolved).unwrap_or_default()
 }
 
 fn type_expr_is_copy_struct(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {

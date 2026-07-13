@@ -90,6 +90,10 @@ fn collect_reachable_call_targets(
             | Instruction::StoreAggregateI32 { .. }
             | Instruction::StoreAggregateU8 { .. }
             | Instruction::StoreAggregateBool { .. }
+            | Instruction::LoadAggregateUsize { .. }
+            | Instruction::LoadAggregateI32 { .. }
+            | Instruction::LoadAggregateU8 { .. }
+            | Instruction::LoadAggregateBool { .. }
             | Instruction::CopyAggregate { .. }
             | Instruction::PropagateFailure
             | Instruction::TrapOnFailure

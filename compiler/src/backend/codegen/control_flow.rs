@@ -307,6 +307,10 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::StoreAggregateI32 { .. }
             | Instruction::StoreAggregateU8 { .. }
             | Instruction::StoreAggregateBool { .. }
+            | Instruction::LoadAggregateUsize { .. }
+            | Instruction::LoadAggregateI32 { .. }
+            | Instruction::LoadAggregateU8 { .. }
+            | Instruction::LoadAggregateBool { .. }
             | Instruction::CopyAggregate { .. }
             | Instruction::PropagateFailure
             | Instruction::TrapOnFailure

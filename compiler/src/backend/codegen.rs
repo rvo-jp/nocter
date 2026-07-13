@@ -170,6 +170,34 @@ impl EntryEmitter {
             } => {
                 self.emit_store_aggregate_bool(*destination, *offset, value, frame)?;
             }
+            Instruction::LoadAggregateUsize {
+                destination,
+                source,
+                offset,
+            } => {
+                self.emit_load_aggregate_usize(*destination, *source, *offset, frame)?;
+            }
+            Instruction::LoadAggregateI32 {
+                destination,
+                source,
+                offset,
+            } => {
+                self.emit_load_aggregate_i32(*destination, *source, *offset, frame)?;
+            }
+            Instruction::LoadAggregateU8 {
+                destination,
+                source,
+                offset,
+            } => {
+                self.emit_load_aggregate_u8(*destination, *source, *offset, frame)?;
+            }
+            Instruction::LoadAggregateBool {
+                destination,
+                source,
+                offset,
+            } => {
+                self.emit_load_aggregate_bool(*destination, *source, *offset, frame)?;
+            }
             Instruction::CopyAggregate {
                 destination,
                 source,
@@ -1872,6 +1900,62 @@ mod tests {
     }
 
     #[test]
+    fn aggregate_scalar_field_loads_from_slot_use_frame_offsets() {
+        let layout = ValueLayout::new(16, 8);
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout,
+                },
+                Instruction::LoadAggregateU8 {
+                    destination: U8Location::Return,
+                    source: AggregateLocation::Slot(0),
+                    offset: 0,
+                },
+                Instruction::LoadAggregateBool {
+                    destination: BoolLocation::Return,
+                    source: AggregateLocation::Slot(0),
+                    offset: 1,
+                },
+                Instruction::LoadAggregateI32 {
+                    destination: I32Location::Return,
+                    source: AggregateLocation::Slot(0),
+                    offset: 4,
+                },
+                Instruction::LoadAggregateUsize {
+                    destination: UsizeLocation::Return,
+                    source: AggregateLocation::Slot(0),
+                    offset: 8,
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldrb_w_sp(WReg::W0, 0)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldrb_w_sp(WReg::W0, 1)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_w_sp(WReg::W0, 4)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_sp(XReg::X0, 8)
+        ));
+    }
+
+    #[test]
     fn aggregate_copy_from_slot_to_return_copies_words_to_x8_destination() {
         let module = IrModule::new(vec![
             Function {
@@ -3175,6 +3259,18 @@ mod tests {
     fn encoded_ldr_x_sp(register: XReg, offset: u32) -> [u8; 4] {
         let mut encoder = Encoder::new();
         encoder.emit_ldr_x_sp(register, offset);
+        encoded_instruction(encoder)
+    }
+
+    fn encoded_ldr_w_sp(register: WReg, offset: u32) -> [u8; 4] {
+        let mut encoder = Encoder::new();
+        encoder.emit_ldr_w_sp(register, offset);
+        encoded_instruction(encoder)
+    }
+
+    fn encoded_ldrb_w_sp(register: WReg, offset: u32) -> [u8; 4] {
+        let mut encoder = Encoder::new();
+        encoder.emit_ldrb_w_sp(register, offset);
         encoded_instruction(encoder)
     }
 

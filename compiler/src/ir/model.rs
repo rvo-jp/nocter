@@ -99,6 +99,30 @@ pub(crate) enum Instruction {
         value: BoolValue,
     },
     #[allow(dead_code)]
+    LoadAggregateUsize {
+        destination: UsizeLocation,
+        source: AggregateLocation,
+        offset: u32,
+    },
+    #[allow(dead_code)]
+    LoadAggregateI32 {
+        destination: I32Location,
+        source: AggregateLocation,
+        offset: u32,
+    },
+    #[allow(dead_code)]
+    LoadAggregateU8 {
+        destination: U8Location,
+        source: AggregateLocation,
+        offset: u32,
+    },
+    #[allow(dead_code)]
+    LoadAggregateBool {
+        destination: BoolLocation,
+        source: AggregateLocation,
+        offset: u32,
+    },
+    #[allow(dead_code)]
     CopyAggregate {
         destination: AggregateLocation,
         source: AggregateLocation,

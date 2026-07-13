@@ -291,6 +291,12 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::StoreAggregateBool { destination, .. } => {
             matches!(destination, AggregateLocation::Slot(_))
         }
+        Instruction::LoadAggregateUsize { source, .. }
+        | Instruction::LoadAggregateI32 { source, .. }
+        | Instruction::LoadAggregateU8 { source, .. }
+        | Instruction::LoadAggregateBool { source, .. } => {
+            matches!(source, AggregateLocation::Slot(_))
+        }
         Instruction::TailCall { arguments, .. } => !arguments.is_empty(),
         Instruction::CheckFailure { failure_mode } => failure_mode_requires_frame(failure_mode),
         Instruction::PropagateFailure
@@ -418,6 +424,10 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::StoreAggregateI32 { .. }
         | Instruction::StoreAggregateU8 { .. }
         | Instruction::StoreAggregateBool { .. }
+        | Instruction::LoadAggregateUsize { .. }
+        | Instruction::LoadAggregateI32 { .. }
+        | Instruction::LoadAggregateU8 { .. }
+        | Instruction::LoadAggregateBool { .. }
         | Instruction::CopyAggregate { .. }
         | Instruction::SetI32 { .. }
         | Instruction::SetU8 { .. }
@@ -514,6 +524,10 @@ fn record_instruction_aggregate_slot_requests(
         | Instruction::StoreAggregateI32 { .. }
         | Instruction::StoreAggregateU8 { .. }
         | Instruction::StoreAggregateBool { .. }
+        | Instruction::LoadAggregateUsize { .. }
+        | Instruction::LoadAggregateI32 { .. }
+        | Instruction::LoadAggregateU8 { .. }
+        | Instruction::LoadAggregateBool { .. }
         | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
         | Instruction::SetBool { .. }
@@ -636,6 +650,18 @@ fn record_instruction_scalar_locals(
         }
         Instruction::StoreAggregateBool { value, .. } => {
             record_bool_value(value, highest_local_index);
+        }
+        Instruction::LoadAggregateUsize { destination, .. } => {
+            record_usize_location(*destination, highest_local_index);
+        }
+        Instruction::LoadAggregateI32 { destination, .. } => {
+            record_i32_location(*destination, highest_local_index);
+        }
+        Instruction::LoadAggregateU8 { destination, .. } => {
+            record_u8_location(*destination, highest_local_index);
+        }
+        Instruction::LoadAggregateBool { destination, .. } => {
+            record_bool_location(*destination, highest_local_index);
         }
         Instruction::WriteStr { fd, text } => {
             record_i32_value(fd, highest_local_index);
@@ -1469,6 +1495,41 @@ mod tests {
                     2,
                     0,
                     &[AggregateSlotRequest::new(0, ValueLayout::new(24, 8))]
+                )
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn aggregate_slot_load_requires_frame_and_counts_destination_local() {
+        let function = Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Void,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::LoadAggregateI32 {
+                    destination: I32Location::Local(2),
+                    source: AggregateLocation::Slot(0),
+                    offset: 4,
+                },
+                Instruction::Return,
+            ],
+        };
+
+        let frame = plan_function_frame(&function).unwrap();
+
+        assert_eq!(
+            frame,
+            FunctionFrame::Framed(
+                FrameLayout::for_slot_counts_with_aggregate_slots(
+                    3,
+                    0,
+                    &[AggregateSlotRequest::new(0, ValueLayout::new(16, 8))]
                 )
                 .unwrap()
             )

@@ -1,10 +1,10 @@
-use super::context::LoweringContext;
+use super::context::{AggregateField, AggregateFieldKind, LoweringContext};
 use super::expressions::{
     lower_bool_expression_to_value, lower_i32_expression_to_word, lower_u8_expression_to_word,
     lower_usize_expression_to_word,
 };
 use crate::abi::{AbiType, ValueLayout, abi_value_from_type_expr, layout_struct};
-use crate::ast::{Expr, StructLiteralExpr};
+use crate::ast::{Expr, StructLiteralExpr, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{AggregateLocation, Instruction, UsizeValue};
 use crate::resolve::ResolveOutput;
@@ -68,6 +68,45 @@ pub(super) fn lower_aggregate_struct_literal_to_location(
     }
 
     Ok(instructions)
+}
+
+pub(super) fn aggregate_fields_from_type_expr(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+) -> Option<Vec<AggregateField>> {
+    let ty = match ty {
+        TypeExpr::Fallible(fallible) => &fallible.success,
+        _ => ty,
+    };
+    let value = abi_value_from_type_expr(ty, resolved).ok()?;
+    let AbiType::Struct(fields) = value.ty else {
+        return Some(Vec::new());
+    };
+    let struct_layout = layout_struct(&fields).ok()?;
+
+    let mut aggregate_fields = Vec::new();
+    for (field, layout) in fields.iter().zip(struct_layout.fields.iter()) {
+        let Some(kind) = aggregate_field_kind_from_abi_type(&field.ty) else {
+            continue;
+        };
+        let offset = u32::try_from(layout.offset).ok()?;
+        aggregate_fields.push(AggregateField {
+            name: field.name.clone(),
+            offset,
+            kind,
+        });
+    }
+    Some(aggregate_fields)
+}
+
+fn aggregate_field_kind_from_abi_type(ty: &AbiType) -> Option<AggregateFieldKind> {
+    match ty {
+        AbiType::I32 => Some(AggregateFieldKind::I32),
+        AbiType::U8 => Some(AggregateFieldKind::U8),
+        AbiType::Bool => Some(AggregateFieldKind::Bool),
+        AbiType::U64 | AbiType::Usize | AbiType::Pointer => Some(AggregateFieldKind::Usize),
+        _ => None,
+    }
 }
 
 fn lower_aggregate_field_to_location(

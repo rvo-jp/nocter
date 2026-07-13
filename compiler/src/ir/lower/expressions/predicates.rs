@@ -1,4 +1,4 @@
-use super::super::context::LoweringContext;
+use super::super::context::{AggregateFieldKind, LoweringContext};
 use super::super::literals::{lower_i32_literal, lower_u8_literal, lower_usize_literal};
 use crate::ast::{
     BinaryExpr, BinaryOperator, Expr, InterpolatedStringPart, TypeConversionExpr, TypeExpr,
@@ -126,6 +126,19 @@ pub(super) fn bool_comparison_contains_call(
     )
 }
 
+pub(super) fn bool_comparison_needs_temporaries(
+    binary: &BinaryExpr,
+    context: &LoweringContext,
+) -> bool {
+    matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) && expressions_are_lowerable_bool_values(&binary.left, &binary.right, context)
+        && !expressions_are_lowerable_bool_comparison_operands(&binary.left, &binary.right, context)
+        && (expression_is_aggregate_field_kind(&binary.left, AggregateFieldKind::Bool, context)
+            || expression_is_aggregate_field_kind(&binary.right, AggregateFieldKind::Bool, context))
+}
+
 pub(super) fn i32_comparison_needs_temporaries(
     binary: &BinaryExpr,
     context: &LoweringContext,
@@ -158,6 +171,9 @@ pub(in crate::ir::lower) fn expression_is_lowerable_bool_binding(
     match expression {
         Expr::BoolLiteral(_) => true,
         Expr::Identifier(identifier) => context.bool_location(&identifier.name).is_some(),
+        Expr::Member(_) => {
+            expression_is_aggregate_field_kind(expression, AggregateFieldKind::Bool, context)
+        }
         Expr::Unary(unary) => {
             unary.operator == UnaryOperator::LogicalNot
                 && expression_is_lowerable_bool_binding(&unary.operand, context)
@@ -284,7 +300,8 @@ fn expression_is_lowerable_comparison_binding(
             &binary.left,
             &binary.right,
             context,
-        ))
+        )
+        || bool_comparison_needs_temporaries(binary, context))
 }
 
 fn expressions_are_lowerable_i32_values(
@@ -339,6 +356,9 @@ fn expression_is_lowerable_u8_expression(expression: &Expr, context: &LoweringCo
         Expr::TypeConversion(conversion) if type_conversion_target_is(conversion, "u8") => {
             expression_is_lowerable_u8_expression(&conversion.expression, context)
         }
+        Expr::Member(_) => {
+            expression_is_aggregate_field_kind(expression, AggregateFieldKind::U8, context)
+        }
         Expr::Group(group) => expression_is_lowerable_u8_expression(&group.expression, context),
         _ => expression_is_lowerable_u8_value(expression, context),
     }
@@ -356,6 +376,9 @@ fn expression_is_known_u8_expression(expression: &Expr, context: &LoweringContex
         }
         Expr::Index(index) => expression_is_lowerable_byte_index_object(&index.object, context),
         Expr::TypeConversion(conversion) if type_conversion_target_is(conversion, "u8") => true,
+        Expr::Member(_) => {
+            expression_is_aggregate_field_kind(expression, AggregateFieldKind::U8, context)
+        }
         Expr::Group(group) => expression_is_known_u8_expression(&group.expression, context),
         _ => false,
     }
@@ -407,6 +430,9 @@ fn expression_is_lowerable_usize_expression(expression: &Expr, context: &Lowerin
             expression_is_lowerable_usize_expression(&binary.left, context)
                 && expression_is_lowerable_usize_expression(&binary.right, context)
         }
+        Expr::Member(_) => {
+            expression_is_aggregate_field_kind(expression, AggregateFieldKind::Usize, context)
+        }
         Expr::Group(group) => expression_is_lowerable_usize_expression(&group.expression, context),
         _ => expression_is_lowerable_usize_value(expression, context),
     }
@@ -433,8 +459,30 @@ fn expression_is_lowerable_i32_expression(expression: &Expr, context: &LoweringC
             expression_is_lowerable_i32_expression(&binary.left, context)
                 && expression_is_lowerable_i32_expression(&binary.right, context)
         }
+        Expr::Member(_) => {
+            expression_is_aggregate_field_kind(expression, AggregateFieldKind::I32, context)
+        }
         Expr::Group(group) => expression_is_lowerable_i32_expression(&group.expression, context),
         _ => expression_is_lowerable_i32_value(expression, context),
+    }
+}
+
+fn expression_is_aggregate_field_kind(
+    expression: &Expr,
+    kind: AggregateFieldKind,
+    context: &LoweringContext,
+) -> bool {
+    match expression {
+        Expr::Member(member) => {
+            let Expr::Identifier(identifier) = member.object.as_ref() else {
+                return false;
+            };
+            context
+                .aggregate_field(&identifier.name, &member.member)
+                .is_some_and(|field| field.kind == kind)
+        }
+        Expr::Group(group) => expression_is_aggregate_field_kind(&group.expression, kind, context),
+        _ => false,
     }
 }
 
