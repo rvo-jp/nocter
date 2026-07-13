@@ -32,12 +32,14 @@ pub(super) struct LoweredSliceValue {
 
 pub(super) struct TemporaryAllocator {
     next_index: usize,
+    next_aggregate_slot_index: usize,
 }
 
 impl TemporaryAllocator {
     pub(super) fn new(context: &LoweringContext) -> Result<Self, Vec<Diagnostic>> {
         Ok(Self {
             next_index: context.first_temporary_local_index()?,
+            next_aggregate_slot_index: context.next_aggregate_slot_index(),
         })
     }
 
@@ -63,6 +65,12 @@ impl TemporaryAllocator {
 
     pub(super) fn next_slice(&mut self) -> Result<SliceLocation, Vec<Diagnostic>> {
         self.next_local_index(2).map(SliceLocation::Local)
+    }
+
+    pub(super) fn next_aggregate_slot(&mut self) -> usize {
+        let slot_index = self.next_aggregate_slot_index;
+        self.next_aggregate_slot_index += 1;
+        slot_index
     }
 
     fn next_local_index(&mut self, word_count: usize) -> Result<usize, Vec<Diagnostic>> {

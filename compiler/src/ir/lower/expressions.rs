@@ -1,3 +1,4 @@
+use super::aggregates::aggregate_fields_from_type_expr;
 use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{AggregateFieldKind, LoweringContext};
 use super::errors::{ErrorPayload, lower_error_payload};
@@ -14,9 +15,10 @@ use crate::ast::{
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue, FallibleFailureMode,
-    I32ComparisonOperator, I32Location, I32Value, Instruction, ScalarArgument, SliceLocation,
-    SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation, UsizeValue,
+    AggregateLocation, BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue,
+    FallibleFailureMode, I32ComparisonOperator, I32Location, I32Value, Instruction, ScalarArgument,
+    SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation,
+    UsizeValue,
 };
 use calls::{
     lower_bool_normal_call, lower_call_arguments, lower_direct_tail_call,
@@ -96,7 +98,15 @@ pub(super) fn lower_i32_expression_to_location(
             });
             Ok(instructions)
         }
-        Expr::Member(_) => lower_aggregate_i32_field_to_location(expression, destination, context),
+        Expr::Member(_) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            lower_aggregate_i32_field_to_location(
+                expression,
+                destination,
+                context,
+                &mut temporaries,
+            )
+        }
         Expr::Group(group) => {
             lower_i32_expression_to_location(&group.expression, destination, context)
         }
@@ -158,7 +168,10 @@ pub(super) fn lower_u8_expression_to_location(
             });
             Ok(instructions)
         }
-        Expr::Member(_) => lower_aggregate_u8_field_to_location(expression, destination, context),
+        Expr::Member(_) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            lower_aggregate_u8_field_to_location(expression, destination, context, &mut temporaries)
+        }
         Expr::Group(group) => {
             lower_u8_expression_to_location(&group.expression, destination, context)
         }
@@ -224,7 +237,13 @@ pub(super) fn lower_usize_expression_to_location(
             Ok(instructions)
         }
         Expr::Member(_) => {
-            lower_aggregate_usize_field_to_location(expression, destination, context)
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            lower_aggregate_usize_field_to_location(
+                expression,
+                destination,
+                context,
+                &mut temporaries,
+            )
         }
         Expr::Group(group) => {
             lower_usize_expression_to_location(&group.expression, destination, context)
@@ -800,7 +819,10 @@ fn lower_i32_expression_to_value(
             let temporary = temporaries.next_i32()?;
             Ok(LoweredI32Value {
                 instructions: lower_aggregate_i32_field_to_location(
-                    expression, temporary, context,
+                    expression,
+                    temporary,
+                    context,
+                    temporaries,
                 )?,
                 value: I32Value::Location(temporary),
             })
@@ -884,7 +906,12 @@ fn lower_u8_expression_to_value(
         Expr::Member(_) => {
             let temporary = temporaries.next_u8()?;
             Ok(LoweredU8Value {
-                instructions: lower_aggregate_u8_field_to_location(expression, temporary, context)?,
+                instructions: lower_aggregate_u8_field_to_location(
+                    expression,
+                    temporary,
+                    context,
+                    temporaries,
+                )?,
                 value: U8Value::Location(temporary),
             })
         }
@@ -1056,7 +1083,10 @@ fn lower_usize_expression_to_value(
             let temporary = temporaries.next_usize()?;
             Ok(LoweredUsizeValue {
                 instructions: lower_aggregate_usize_field_to_location(
-                    expression, temporary, context,
+                    expression,
+                    temporary,
+                    context,
+                    temporaries,
                 )?,
                 value: UsizeValue::Location(temporary),
             })
@@ -1600,12 +1630,16 @@ pub(super) fn lower_bool_expression_to_location(
             });
             Ok(instructions)
         }
-        Expr::Member(_) => lower_aggregate_bool_field_to_location(
-            expression,
-            destination,
-            context,
-            diagnostic_code,
-        ),
+        Expr::Member(_) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            lower_aggregate_bool_field_to_location(
+                expression,
+                destination,
+                context,
+                diagnostic_code,
+                &mut temporaries,
+            )
+        }
         Expr::Group(group) => lower_bool_expression_to_location(
             &group.expression,
             destination,
@@ -1747,45 +1781,54 @@ fn lower_aggregate_i32_field_to_location(
     expression: &Expr,
     destination: I32Location,
     context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let access = aggregate_member_field_access(expression, context)
+    let access = lower_aggregate_member_field_access(expression, context, temporaries)?
         .filter(|access| access.kind == AggregateFieldKind::I32)
         .ok_or_else(unsupported_i32_expression_diagnostic)?;
-    Ok(vec![Instruction::LoadAggregateI32 {
+    let mut instructions = access.instructions;
+    instructions.push(Instruction::LoadAggregateI32 {
         destination,
         source: access.source,
         offset: access.offset,
-    }])
+    });
+    Ok(instructions)
 }
 
 fn lower_aggregate_u8_field_to_location(
     expression: &Expr,
     destination: U8Location,
     context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let access = aggregate_member_field_access(expression, context)
+    let access = lower_aggregate_member_field_access(expression, context, temporaries)?
         .filter(|access| access.kind == AggregateFieldKind::U8)
         .ok_or_else(unsupported_u8_expression_diagnostic)?;
-    Ok(vec![Instruction::LoadAggregateU8 {
+    let mut instructions = access.instructions;
+    instructions.push(Instruction::LoadAggregateU8 {
         destination,
         source: access.source,
         offset: access.offset,
-    }])
+    });
+    Ok(instructions)
 }
 
 fn lower_aggregate_usize_field_to_location(
     expression: &Expr,
     destination: UsizeLocation,
     context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let access = aggregate_member_field_access(expression, context)
+    let access = lower_aggregate_member_field_access(expression, context, temporaries)?
         .filter(|access| access.kind == AggregateFieldKind::Usize)
         .ok_or_else(unsupported_usize_expression_diagnostic)?;
-    Ok(vec![Instruction::LoadAggregateUsize {
+    let mut instructions = access.instructions;
+    instructions.push(Instruction::LoadAggregateUsize {
         destination,
         source: access.source,
         offset: access.offset,
-    }])
+    });
+    Ok(instructions)
 }
 
 fn lower_aggregate_bool_field_to_location(
@@ -1793,28 +1836,119 @@ fn lower_aggregate_bool_field_to_location(
     destination: BoolLocation,
     context: &LoweringContext,
     diagnostic_code: &'static str,
+    temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let access = aggregate_member_field_access(expression, context)
+    let access = lower_aggregate_member_field_access(expression, context, temporaries)?
         .filter(|access| access.kind == AggregateFieldKind::Bool)
         .ok_or_else(|| unsupported_bool_expression_diagnostic(diagnostic_code))?;
-    Ok(vec![Instruction::LoadAggregateBool {
+    let mut instructions = access.instructions;
+    instructions.push(Instruction::LoadAggregateBool {
         destination,
         source: access.source,
         offset: access.offset,
-    }])
+    });
+    Ok(instructions)
 }
 
-fn aggregate_member_field_access(
+struct LoweredAggregateFieldAccess {
+    instructions: Vec<Instruction>,
+    source: AggregateLocation,
+    offset: u32,
+    kind: AggregateFieldKind,
+}
+
+fn lower_aggregate_member_field_access(
     expression: &Expr,
     context: &LoweringContext,
-) -> Option<super::context::AggregateFieldAccess> {
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Option<LoweredAggregateFieldAccess>, Vec<Diagnostic>> {
     let Expr::Member(member) = unwrap_group(expression) else {
+        return Ok(None);
+    };
+    match unwrap_group(&member.object) {
+        Expr::Identifier(identifier) => Ok(context
+            .aggregate_field(&identifier.name, &member.member)
+            .map(|field| LoweredAggregateFieldAccess {
+                instructions: Vec::new(),
+                source: field.source,
+                offset: field.offset,
+                kind: field.kind,
+            })),
+        Expr::Call(call) => {
+            lower_aggregate_call_member_field_access(call, &member.member, context, temporaries)
+        }
+        _ => Ok(None),
+    }
+}
+
+fn lower_aggregate_call_member_field_access(
+    call: &CallExpr,
+    member_name: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Option<LoweredAggregateFieldAccess>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+        return Ok(None);
+    };
+    let target = context.call_target(call, &identifier.name);
+    let Some(return_type) = context.call_return_type(&target).cloned() else {
+        return Ok(None);
+    };
+    let layout = match &return_type {
+        Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => *layout,
+        _ => return Ok(None),
+    };
+    if !layout.size.is_multiple_of(8) {
+        return Ok(None);
+    }
+    let Some(field) = aggregate_call_field(call, member_name, context) else {
+        return Ok(None);
+    };
+
+    let slot_index = temporaries.next_aggregate_slot();
+    let mut instructions = vec![Instruction::ReserveAggregateSlot { slot_index, layout }];
+    let (mut argument_instructions, arguments) =
+        lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
+    instructions.append(&mut argument_instructions);
+    match return_type {
+        Type::Aggregate { .. } => {
+            instructions.push(Instruction::CallAggregate {
+                destination: AggregateLocation::Slot(slot_index),
+                target,
+                arguments,
+            });
+        }
+        Type::DirectAggregate { .. } => {
+            instructions.push(Instruction::CallDirectAggregate {
+                destination: AggregateLocation::Slot(slot_index),
+                target,
+                arguments,
+                layout,
+            });
+        }
+        _ => unreachable!("aggregate call member access requires aggregate return type"),
+    }
+
+    Ok(Some(LoweredAggregateFieldAccess {
+        instructions,
+        source: AggregateLocation::Slot(slot_index),
+        offset: field.offset,
+        kind: field.kind,
+    }))
+}
+
+fn aggregate_call_field(
+    call: &CallExpr,
+    member_name: &str,
+    context: &LoweringContext,
+) -> Option<super::context::AggregateField> {
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
         return None;
     };
-    let Expr::Identifier(identifier) = unwrap_group(&member.object) else {
-        return None;
-    };
-    context.aggregate_field(&identifier.name, &member.member)
+    let signature = resolved.call_signature_for_call(call)?;
+    aggregate_fields_from_type_expr(&signature.return_type, resolved)?
+        .into_iter()
+        .find(|field| field.name == member_name)
 }
 
 pub(super) struct LoweredBoolValue {
@@ -1953,6 +2087,7 @@ fn lower_bool_expression_to_value_with_temporaries(
                     temporary,
                     context,
                     diagnostic_code,
+                    temporaries,
                 )?,
                 value: BoolValue::Location(temporary),
             })
@@ -2029,6 +2164,7 @@ fn lower_bool_comparison_operand_to_value_with_temporaries(
                     temporary,
                     context,
                     diagnostic_code,
+                    temporaries,
                 )?,
                 value: BoolValue::Location(temporary),
             })

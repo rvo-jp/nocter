@@ -2993,6 +2993,65 @@ func read_code(): i32 {
 }
 
 #[test]
+fn lowers_aggregate_field_return_from_direct_call_result_slot() {
+    let aggregate_type = Type::DirectAggregate {
+        layout: ValueLayout::new(16, 8),
+        words: 2,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Header {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+
+func read_code(): i32 {
+    return make().code
+}
+"#,
+        "read_code",
+        function_signatures(vec![("make", aggregate_type, vec![])]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "read_code".to_string(),
+            target: CallTarget::same_file("read_code"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::CallDirectAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    target: CallTarget::same_file("make"),
+                    arguments: vec![],
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::LoadAggregateI32 {
+                    destination: I32Location::Return,
+                    source: AggregateLocation::Slot(0),
+                    offset: 4,
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_aggregate_u8_bool_and_usize_field_returns_from_local_slot() {
     let text = r#"struct Header {
     tag: u8
@@ -3115,6 +3174,73 @@ func ok_is_true(): bool {
             },
         }),
         "{ok:?}"
+    );
+}
+
+#[test]
+fn lowers_aggregate_call_field_read_in_comparison() {
+    let aggregate_type = Type::DirectAggregate {
+        layout: ValueLayout::new(16, 8),
+        words: 2,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Header {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+
+func code_is_answer(): bool {
+    return make().code == 42
+}
+"#,
+        "code_is_answer",
+        function_signatures(vec![("make", aggregate_type, vec![])]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "code_is_answer".to_string(),
+            target: CallTarget::same_file("code_is_answer"),
+            return_type: Type::Bool,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::CallDirectAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    target: CallTarget::same_file("make"),
+                    arguments: vec![],
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::LoadAggregateI32 {
+                    destination: I32Location::Local(0),
+                    source: AggregateLocation::Slot(0),
+                    offset: 4,
+                },
+                Instruction::SetBool {
+                    destination: BoolLocation::Return,
+                    value: BoolValue::I32Comparison {
+                        operator: I32ComparisonOperator::Equal,
+                        left: i32_local(0),
+                        right: i32_const(42),
+                    },
+                },
+                Instruction::Return,
+            ],
+        }
     );
 }
 
