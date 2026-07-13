@@ -4360,6 +4360,151 @@ func check(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, pair:
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_split_stack_passed_nine_byte_direct_aggregate_argument_exit_code() {
+    let project = TempProject::new("cli-run-split-stack-passed-nine-byte-direct-aggregate-arg");
+    let source = project.write_source(
+        "split_stack_passed_nine_byte_direct_aggregate_arg.nct",
+        r#"struct Bytes {
+    first: u8
+    second: u8
+    third: u8
+    fourth: u8
+    fifth: u8
+    sixth: u8
+    seventh: u8
+    eighth: u8
+    ninth: u8
+}
+
+func main(): i32 {
+    return consume(1, 2, 3, 4, 5, 6, 7, Bytes{
+        first: 1,
+        second: 2,
+        third: 3,
+        fourth: 4,
+        fifth: 5,
+        sixth: 6,
+        seventh: 7,
+        eighth: 8,
+        ninth: 42,
+    })
+}
+
+func consume(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, bytes: Bytes): i32 {
+    if bytes.ninth == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_fully_stack_passed_five_byte_direct_aggregate_argument_exit_code() {
+    let project = TempProject::new("cli-run-fully-stack-passed-five-byte-direct-aggregate-arg");
+    let source = project.write_source(
+        "fully_stack_passed_five_byte_direct_aggregate_arg.nct",
+        r#"struct Bytes {
+    first: u8
+    second: u8
+    third: u8
+    fourth: u8
+    fifth: u8
+}
+
+func main(): i32 {
+    return consume(1, 2, 3, 4, 5, 6, 7, 8, Bytes{ first: 1, second: 2, third: 3, fourth: 4, fifth: 42 })
+}
+
+func consume(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, bytes: Bytes): i32 {
+    if bytes.fifth == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_fully_stack_passed_nine_byte_direct_aggregate_argument_exit_code() {
+    let project = TempProject::new("cli-run-fully-stack-passed-nine-byte-direct-aggregate-arg");
+    let source = project.write_source(
+        "fully_stack_passed_nine_byte_direct_aggregate_arg.nct",
+        r#"struct Bytes {
+    first: u8
+    second: u8
+    third: u8
+    fourth: u8
+    fifth: u8
+    sixth: u8
+    seventh: u8
+    eighth: u8
+    ninth: u8
+}
+
+func main(): i32 {
+    return consume(1, 2, 3, 4, 5, 6, 7, 8, Bytes{
+        first: 1,
+        second: 2,
+        third: 3,
+        fourth: 4,
+        fifth: 5,
+        sixth: 6,
+        seventh: 7,
+        eighth: 8,
+        ninth: 42,
+    })
+}
+
+func consume(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, bytes: Bytes): i32 {
+    if bytes.ninth == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_stack_passed_propagated_direct_aggregate_argument_field_exit_code() {
     let project = TempProject::new("cli-run-stack-passed-propagated-direct-aggregate-arg");
     let source = project.write_source(
@@ -4492,6 +4637,77 @@ func main(): i32 {
 
 func set_code(header: &+Header): void {
     header.code = 42
+    return
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_stack_passed_borrowed_aggregate_field_exit_code() {
+    let project = TempProject::new("cli-run-stack-passed-borrowed-aggregate-field");
+    let source = project.write_source(
+        "stack_passed_borrowed_aggregate_field.nct",
+        r#"struct Packet {
+    code: i32
+    len: usize
+    cap: usize
+}
+
+func main(): i32 {
+    let packet = Packet{ code: 42, len: 7, cap: 9 }
+    return read_code(1, 2, 3, 4, 5, 6, 7, 8, &packet)
+}
+
+func read_code(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, packet: &Packet): i32 {
+    return packet.code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_stack_passed_readwrite_borrowed_aggregate_field_update_exit_code() {
+    let project =
+        TempProject::new("cli-run-stack-passed-readwrite-borrowed-aggregate-field-update");
+    let source = project.write_source(
+        "stack_passed_readwrite_borrowed_aggregate_field_update.nct",
+        r#"struct Packet {
+    code: i32
+    len: usize
+    cap: usize
+}
+
+func main(): i32 {
+    var packet = Packet{ code: 1, len: 7, cap: 9 }
+    set_code(1, 2, 3, 4, 5, 6, 7, 8, &+packet)
+    return packet.code
+}
+
+func set_code(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, packet: &+Packet): void {
+    packet.code = 42
     return
 }
 "#,

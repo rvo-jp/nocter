@@ -77,7 +77,7 @@ Currently buildable:
 - explicit local scalar borrow arguments such as `let result = choose(&value, 42)` and `touch(&+value)`, for `i32`, `u8`, `usize`, and `bool` normal-call parameter positions
 - static string literals and `&str` parameters as call arguments, passed as `ptr,len` ABI word pairs
 - same-file and loaded imported non-generic normal calls returning `&str` in annotated `&str` `let` initializers and as `&str` call or tail-call arguments, with results staged into two local ABI words
-- normal calls with scalar/view, borrow, and supported aggregate arguments can pass ABI words after `x7` through the caller stack argument area; tail calls remain register-only for stack-passed arguments
+- normal calls with scalar/view, borrow, and supported aggregate arguments can pass ABI words after `x7` through the caller stack argument area; tail-position calls that need stack-passed arguments lower through the normal-call-plus-return path
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
 - non-entry functions returning `bool`, `usize`, or direct `&str` literal/parameter/local/tail-call values
 - `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; addition, subtraction, and multiplication emit signed-overflow trap checks, and division and remainder emit zero-divisor plus signed-overflow trap checks

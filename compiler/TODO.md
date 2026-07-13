@@ -21,12 +21,16 @@ Recommended next implementation order:
 
 1. Keep bare interpolation lowering disabled until an explicit allocator source is designed. The explicit `std/mem.page_allocator` + `std/string.with_capacity` + `std/fmt.append_str` + `return move out` shape now builds to Mach-O through the current stub standard-library bodies.
 2. Add the next runtime prerequisites for allocation-backed `String`: full owned aggregate move/drop state tracking beyond the current explicit-move lowering, then target-backed allocation and mutation in `std/mem`, `std/string`, and `std/fmt`.
-3. Use the resolved-type function ABI helper from IR/backend planning before adding broader aggregate storage code. Loaded imported scalar calls, scalar/view arguments, direct and indirect aggregate by-value arguments including stack-passed normal-call ABI words, explicit `move name` aggregate local arguments/returns, local scalar and aggregate slot borrow arguments, scalar/view `var` plus simple assignment, aggregate struct-literal local slots, direct and narrow indirect aggregate normal call-result `let`/`var` slots, fallible direct aggregate call-result slots, supported aggregate slot reassignment including copy struct slot-to-slot assignment, reserved aggregate slot `return move name`, and fallible propagation for the current scalar/view/void plus aggregate call-result subset are already buildable. Tail calls remain register-only for stack-passed arguments.
+3. Use the resolved-type function ABI helper from IR/backend planning before adding broader aggregate storage code. Loaded imported scalar calls, scalar/view arguments, direct and indirect aggregate by-value arguments including stack-passed normal-call ABI words, explicit `move name` aggregate local arguments/returns, local scalar and aggregate slot borrow arguments, scalar/view `var` plus simple assignment, aggregate struct-literal local slots, direct and narrow indirect aggregate normal call-result `let`/`var` slots, fallible direct aggregate call-result slots, supported aggregate slot reassignment including copy struct slot-to-slot assignment, reserved aggregate slot `return move name`, and fallible propagation for the current scalar/view/void plus aggregate call-result subset are already buildable. Tail-position calls that need stack-passed arguments lower through the normal-call-plus-return path.
 4. Lower interpolated strings only after the explicit standard-library construction path has a real allocator source and runtime mutation behavior.
 5. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
+- Current checkpoint: cover stack-passed aggregate argument boundaries
+  - adds native execution coverage for split and fully stack-passed direct aggregate arguments whose final ABI word is partial
+  - adds native execution coverage for stack-passed `&T` field reads and `&+T` field writes through aggregate borrow parameters
+  - confirms stack-passed aggregate pointer words, direct aggregate partial words, and tail-position normal-call fallback all execute through the current backend ABI paths
 - Current checkpoint: lower frame-dependent `never` calls as normal calls
   - lowers `never` calls that need caller frame state, aggregate slot pointers, or stack-passed arguments as `CallVoid` followed by `Trap` instead of emitting unsupported tail calls
   - adds IR coverage for stack-passed scalar `never` calls and aggregate-pointer `never` calls
@@ -46,7 +50,7 @@ Recent committed work:
 - Current checkpoint: cover shifted partial-word direct aggregate arguments
   - adds native execution coverage for 9-byte direct aggregate arguments whose second ABI word is partial
   - covers shifted argument registers, boundary `x6,x7` placement, and propagated fallible direct aggregate call results used as shifted call arguments
-  - confirms the current register-only direct aggregate argument lowering handles partial-word values beyond the already-covered x0/x1 case
+  - confirms direct aggregate argument lowering handles partial-word values beyond the already-covered x0/x1 case
 - Current checkpoint: diagnose implicit non-copy struct assignment
   - type-checks `target = source` as an implicit copy when `source` is another struct binding
   - rejects ordinary structs and aliases to ordinary structs, while allowing `copy struct` and aliases to copy structs
