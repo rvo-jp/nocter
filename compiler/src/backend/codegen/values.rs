@@ -1323,6 +1323,12 @@ impl EntryEmitter {
                 }
             }
             U8Value::StrIndex { source, index } => {
+                if let StrLocation::Parameter(parameter_index) = *source
+                    && !parameter_pair_is_register_passed(parameter_index)
+                {
+                    self.emit_checked_parameter_byte_load(destination, parameter_index, index)?;
+                    return Ok(());
+                }
                 let (ptr, len) = self.str_location_registers(*source)?;
                 self.emit_checked_byte_load(destination, ptr, len, index)?;
             }
@@ -1335,11 +1341,35 @@ impl EntryEmitter {
                     .emit_ldrb_w_reg(destination, XReg::X17, XReg::X16);
             }
             U8Value::SliceIndex { source, index } => {
+                if let SliceLocation::Parameter(parameter_index) = *source
+                    && !parameter_pair_is_register_passed(parameter_index)
+                {
+                    self.emit_checked_parameter_byte_load(destination, parameter_index, index)?;
+                    return Ok(());
+                }
                 let (ptr, len) = self.slice_location_registers(*source)?;
                 self.emit_checked_byte_load(destination, ptr, len, index)?;
             }
         }
 
+        Ok(())
+    }
+
+    fn emit_checked_parameter_byte_load(
+        &mut self,
+        destination: WReg,
+        ptr_word_index: usize,
+        index: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let len_word_index = ptr_word_index
+            .checked_add(1)
+            .ok_or_else(|| byte_load_diagnostic("parameter length word index overflows"))?;
+        self.emit_usize_value_to_x(index, XReg::X16)?;
+        self.emit_parameter_word_to_x(len_word_index, XReg::X17)?;
+        self.emit_index_in_bounds_check(XReg::X16, XReg::X17)?;
+        self.emit_parameter_word_to_x(ptr_word_index, XReg::X17)?;
+        self.encoder
+            .emit_ldrb_w_reg(destination, XReg::X17, XReg::X16);
         Ok(())
     }
 
@@ -1562,6 +1592,20 @@ fn aggregate_load_diagnostic(reason: &str) -> Vec<Diagnostic> {
         "E9005",
         format!("aggregate field load is invalid: {reason}"),
     )]
+}
+
+fn byte_load_diagnostic(reason: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E9005",
+        format!("byte load is invalid: {reason}"),
+    )]
+}
+
+fn parameter_pair_is_register_passed(ptr_word_index: usize) -> bool {
+    let Some(len_word_index) = ptr_word_index.checked_add(1) else {
+        return false;
+    };
+    XReg::argument(ptr_word_index).is_some() && XReg::argument(len_word_index).is_some()
 }
 
 fn aggregate_copy_diagnostic(reason: &str) -> Vec<Diagnostic> {

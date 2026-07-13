@@ -4120,6 +4120,42 @@ func length(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, text
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_forwarded_stack_passed_str_argument_first_byte_exit_code() {
+    let project = TempProject::new("cli-run-forwarded-stack-passed-str-arg-first-byte");
+    let source = project.write_source(
+        "forwarded_stack_passed_str_arg_first_byte.nct",
+        r#"func main(): i32 {
+    let value: i32 = forward(1, 2, 3, 4, 5, 6, 7, 8, "Nocter")
+    if value == 78 {
+        return 42
+    } else {
+        return 1
+    }
+}
+
+func forward(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, text: &str): i32 {
+    return first_byte(1, 2, 3, 4, 5, 6, 7, 8, text)
+}
+
+func first_byte(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, text: &str): i32 {
+    return text[0] as i32
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_stack_passed_indirect_aggregate_argument_field_exit_code() {
     let project = TempProject::new("cli-run-stack-passed-indirect-aggregate-arg");
     let source = project.write_source(
