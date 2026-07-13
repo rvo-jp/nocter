@@ -2486,6 +2486,85 @@ func consume(pair: Pair): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_propagated_small_direct_aggregate_call_argument_field_exit_code() {
+    let project = TempProject::new("cli-run-propagated-small-direct-aggregate-call-argument-field");
+    let source = project.write_source(
+        "propagated_small_direct_aggregate_call_argument_field.nct",
+        r#"struct Code {
+    value: i32
+}
+
+func main(): i32! {
+    return consume(make()?)
+}
+
+func make(): Code! {
+    return Code{ value: 42 }
+}
+
+func consume(code: Code): i32 {
+    return code.value
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_propagated_five_byte_direct_aggregate_call_argument_field_exit_code() {
+    let project =
+        TempProject::new("cli-run-propagated-five-byte-direct-aggregate-call-argument-field");
+    let source = project.write_source(
+        "propagated_five_byte_direct_aggregate_call_argument_field.nct",
+        r#"struct Bytes {
+    first: u8
+    second: u8
+    third: u8
+    fourth: u8
+    fifth: u8
+}
+
+func main(): i32! {
+    return consume(make()?)
+}
+
+func make(): Bytes! {
+    return Bytes{ first: 1, second: 2, third: 3, fourth: 4, fifth: 42 }
+}
+
+func consume(bytes: Bytes): i32 {
+    if bytes.fifth == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_caught_direct_aggregate_call_argument_field_exit_code() {
     let project = TempProject::new("cli-run-caught-direct-aggregate-call-argument-field");
     project.write_nocter_home_file(
