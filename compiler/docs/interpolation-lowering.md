@@ -65,11 +65,13 @@ Already buildable in the narrow scalar subset:
 - explicit `drop name` lowering for reserved aggregate locals whose type declares a drop member
 - straight-line scope-end drop insertion for aggregate locals and by-value aggregate parameters whose type declares a drop member
 - top-level tail-call and terminal-if branch scope-end drop insertion for aggregate locals and by-value aggregate parameters whose type declares a drop member
+- propagation-failure cleanup, supported catch-handler cleanup, and drop-aware whole-binding aggregate replacement
 - distributed `std/mem.page_allocator`, `std/string.with_capacity`, `std/fmt.append_str`, and `return move out` in the explicit construction shape build to Mach-O with the current stub standard-library bodies
 
 Still required before allocation-backed string construction can run:
 
-- propagation-failure cleanup, general branch/loop/catch scope-end drop insertion, replacement drop lowering, and ownership-fact export from type checking to lowering
+- general branch/loop scope-end drop insertion where the standard-library implementation needs non-terminal control flow
+- condition-sensitive ownership effects and drop-obligation export from type checking to lowering
 - target-backed allocation and mutation in `std/mem`, `std/string`, and `std/fmt`
 
 ## Open Language Decision
