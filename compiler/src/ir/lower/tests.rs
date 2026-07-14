@@ -2405,12 +2405,19 @@ func main(): i32 {
                         offset: 0,
                         value: i32_const(3),
                     },
-                    set_return_i32(0),
+                    Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(0),
+                    },
                     Instruction::CallVoid {
                         target: CallTarget::same_file("File.drop"),
                         arguments: vec![ScalarArgument::Borrow(BorrowArgument {
                             source: BorrowSource::AggregateSlot(0),
                         })],
+                    },
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
                     },
                     Instruction::Return,
                 ],
@@ -2602,16 +2609,22 @@ func answer(): i32 {
                 offset: 0,
                 value: i32_const(3),
             },
+            Instruction::CallI32 {
+                destination: I32Location::Local(0),
+                target: CallTarget::same_file("answer"),
+                arguments: vec![],
+            },
             Instruction::CallVoid {
                 target: CallTarget::same_file("File.drop"),
                 arguments: vec![ScalarArgument::Borrow(BorrowArgument {
                     source: BorrowSource::AggregateSlot(0),
                 })],
             },
-            Instruction::TailCall {
-                target: CallTarget::same_file("answer"),
-                arguments: vec![],
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
             },
+            Instruction::Return,
         ],
     );
 }

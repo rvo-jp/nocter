@@ -20,35 +20,44 @@ Adopted user decisions:
 Recommended next implementation order:
 
 1. Keep bare interpolation lowering disabled until an explicit allocator source is designed. The explicit `std/mem.page_allocator` + `std/string.with_capacity` + `std/fmt.append_str` + `return move out` shape now builds to Mach-O through the current stub standard-library bodies.
-2. Add the next runtime prerequisites for allocation-backed `String`: finish propagation-failure plus general branch/loop/catch scope-end drop insertion, add replacement drop lowering, and add target-backed allocation and mutation in `std/mem`, `std/string`, and `std/fmt`.
-3. Use the resolved-type function ABI helper from IR/backend planning before adding broader aggregate storage code. Loaded imported scalar calls, scalar/view arguments, direct and indirect aggregate by-value arguments including stack-passed normal-call ABI words, explicit `move name` aggregate local arguments/returns, explicit `drop name` calls to reachable drop members, straight-line scope-end drop insertion for aggregate locals/parameters with drop glue, moved-value drop suppression in the current lowerable statement subset, local scalar and aggregate slot borrow arguments, scalar/view `var` plus simple assignment, aggregate struct-literal local slots, direct and narrow indirect aggregate normal call-result `let`/`var` slots, fallible direct aggregate call-result slots, supported aggregate slot reassignment including copy struct slot-to-slot assignment, reserved aggregate slot `return move name`, and fallible propagation for the current scalar/view/void plus aggregate call-result subset are already buildable. Tail-position calls that need stack-passed arguments lower through the normal-call-plus-return path.
+2. Add the next runtime prerequisites for allocation-backed `String`: finish general branch/loop/catch scope-end drop insertion and add target-backed allocation and mutation in `std/mem`, `std/string`, and `std/fmt`.
+3. Use the resolved-type function ABI helper from IR/backend planning before adding broader aggregate storage code. Loaded imported scalar calls, scalar/view arguments, direct and indirect aggregate by-value arguments including stack-passed normal-call ABI words, explicit `move name` aggregate local arguments/returns, explicit `drop name` calls to reachable drop members, straight-line scope-end drop insertion for aggregate locals/parameters with drop glue, top-level tail-call and terminal-if branch scope-end drops, propagation-failure cleanup for pending aggregate drops, moved-value drop suppression in the current lowerable statement subset, local scalar and aggregate slot borrow arguments, scalar/view `var` plus simple assignment, aggregate struct-literal local slots, direct and narrow indirect aggregate normal call-result `let`/`var` slots, fallible direct aggregate call-result slots, supported aggregate slot reassignment including copy struct slot-to-slot assignment and drop-aware whole-binding replacement, reserved aggregate slot `return move name`, and fallible propagation for the current scalar/view/void plus aggregate call-result subset are already buildable. Tail-position calls that need stack-passed arguments lower through the normal-call-plus-return path.
 4. Lower interpolated strings only after the explicit standard-library construction path has a real allocator source and runtime mutation behavior.
 5. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, full ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
+- Current checkpoint: lower aggregate replacement drops
+  - stages aggregate reassignment right-hand sides into a temporary slot before touching the existing destination slot
+  - drops the old destination value only after the replacement value has been successfully produced, then copies the replacement into the destination slot
+  - stages primitive return payloads across pending scope-end drop calls so drop glue cannot clobber the final return value
+  - covers explicit replacement drops, fallible aggregate replacement, and native scope-end replacement/drop execution
+- Current checkpoint: clean up drops on fallible propagation
+  - lowers current pending aggregate drops into fallible propagation failure paths instead of returning immediately
+  - preserves the original built-in error code/message payload while cleanup drop glue runs
+  - covers propagated failure cleanup for aggregate scope drops through IR and native execution tests
 - Current checkpoint: track owned aggregate move/drop state
   - adds typecheck-owned initialized/moved/dropped state for non-copy struct bindings in function, method, and drop bodies
   - rejects use-after-move, double move, use-after-explicit-drop, double explicit drop, and explicit drop of copy/non-owned values through normal diagnostics
   - accepts `var` reinitialization after move/drop and keeps copy struct `move name` usable as a copy-like expression
   - propagates simple `if`/`if is`/`if let` and `match` ownership-state joins, including maybe-initialized diagnostics when incoming paths disagree
   - propagates conservative loop state joins and excludes unreachable paths after `return`, `break`, `continue`, and `never` expression statements
-  - keeps moved-value drop suppression data export, scope-end drop insertion, replacement drop lowering, and drop glue disabled
+  - keeps full ownership-fact export from type checking into IR lowering and broad control-flow drop lowering disabled
 - Current checkpoint: lower explicit aggregate drop glue
   - records one drop member per type in resolver metadata while keeping ordinary `func drop`/`.drop()` names separate from the destructor slot
   - type-checks drop member bindings as exactly `&+Self`
   - indexes reachable drop bodies as internal `Type.drop` functions and lowers explicit `drop name` on aggregate locals to `CallVoid` with an aggregate `&+T` borrow argument
-  - keeps automatic scope-end drop insertion, replacement drop lowering, moved-value drop suppression in lowering, and broad aggregate storage disabled
+  - at that checkpoint, automatic scope-end drop insertion, replacement drop lowering, moved-value drop suppression in lowering, and broad aggregate storage were still disabled
 - Current checkpoint: lower straight-line scope-end aggregate drop glue
   - tracks pending drop state in IR lowering for aggregate locals and by-value aggregate parameters whose type has drop glue
   - inserts pending drop calls before top-level straight-line `return`, `return!` success, and static failure returns in entry and non-entry functions
   - suppresses caller-side scope-end drop after explicit `drop name`, explicit `return move name`, and explicit `move name` aggregate arguments in the current lowerable statement subset
   - drops moved by-value aggregate parameters in the callee at its straight-line scope end
-  - keeps propagation-failure plus branch/loop/catch/tail-call scope-end drop insertion, replacement drop lowering, ownership-fact export to lowering, and broad aggregate storage disabled
+  - at that checkpoint, propagation-failure cleanup plus branch/loop/catch/tail-call scope-end drop insertion, replacement drop lowering, ownership-fact export to lowering, and broad aggregate storage were still disabled
 - Current checkpoint: lower scope drops before top-level tail calls and terminal-if returns
   - treats `TailCall` as a scope exit for pending aggregate drop insertion, so top-level tail-return calls run local aggregate drop glue before transferring control
   - clones the lowering context per terminal `if` branch and inserts pending aggregate drops before branch-local direct `return`/tail-call exits
-  - keeps condition-sensitive ownership effects, propagation-failure cleanup, general branch/loop/catch cleanup, replacement drop lowering, ownership-fact export to lowering, and broad aggregate storage disabled
+  - at that checkpoint, condition-sensitive ownership effects, propagation-failure cleanup, general branch/loop/catch cleanup, replacement drop lowering, ownership-fact export to lowering, and broad aggregate storage were still disabled
 
 - Previous checkpoint: cover imported stack-passed aggregate arguments
   - adds native execution coverage for imported direct aggregate parameters whose ABI words are fully stack-passed
@@ -1155,14 +1164,14 @@ All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew s
 
 ## Next Implementation Direction
 
-The scalar `i32` and `usize` backend subsets now have runtime safety checks for `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`.
+The aggregate move/drop backend subset now covers explicit drop glue, straight-line and terminal-if scope-end drops, propagation-failure cleanup, and drop-aware whole-binding replacement.
 
 Recommended next small task for the next session:
 
-1. Follow `compiler/docs/interpolation-lowering.md`: keep bare interpolation lowering disabled until an explicit allocator source is designed, and first make explicit `std/string` construction plus `std/fmt.append_*` calls buildable.
-2. Add only the remaining backend prerequisites needed by that explicit path: aggregate storage outside the supported call-result/struct-literal slot paths and owned aggregate returns/moves.
-3. Consider broader terminal control-flow only after its lowering rules are designed.
-4. Keep unrelated imported calls, aggregates, ownership/drop lowering, general mutable storage, and broader control-flow disabled until their ABI, storage, and join rules are designed.
+1. Follow `compiler/docs/interpolation-lowering.md`: keep bare interpolation lowering disabled until an explicit allocator source is designed and the runtime mutation path is real.
+2. Add only the remaining backend/runtime prerequisites needed by that explicit path: general branch/loop/catch scope-end cleanup where required, target-backed allocation, and `std/string`/`std/fmt` mutation behavior.
+3. Consider broader control-flow lowering only after non-terminal effects, ownership joins, and cleanup insertion rules are designed.
+4. Keep unrelated aggregates, ownership/drop lowering outside the current slot paths, general mutable storage, and broader control-flow disabled until their ABI, storage, and join rules are designed.
 5. Add CLI build/run coverage for any newly buildable source subset.
 
 ## Design Constraints To Preserve
