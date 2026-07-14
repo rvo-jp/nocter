@@ -7,7 +7,7 @@ use super::expressions::{
     mark_fallible_success_returns, success_return_instruction,
 };
 use super::functions::{
-    append_scope_end_drops_before_return, lower_drop_statement, mark_explicit_moves_in_expression,
+    append_scope_end_drops_before_exit, lower_drop_statement, mark_explicit_moves_in_expression,
     mark_lowered_statement_aggregate_uses,
 };
 use crate::ast::{FunctionDecl, Stmt, TypeExpr};
@@ -104,7 +104,7 @@ fn lower_entry_body(
                 && let Some(payload) =
                     lower_error_payload(expression, resolved, root_source, Some(&context))?
             {
-                instructions.extend(append_scope_end_drops_before_return(
+                instructions.extend(append_scope_end_drops_before_exit(
                     lower_fallible_failure(payload),
                     &mut context,
                 )?);
@@ -142,7 +142,7 @@ fn lower_entry_body(
             }
             let return_instructions =
                 mark_fallible_success_returns(return_type, return_instructions);
-            instructions.extend(append_scope_end_drops_before_return(
+            instructions.extend(append_scope_end_drops_before_exit(
                 return_instructions,
                 &mut context,
             )?);
@@ -167,7 +167,7 @@ fn lower_entry_body(
                 {
                     instructions.extend(void_instructions);
                     mark_explicit_moves_in_expression(&statement.expression, &mut context);
-                    instructions.extend(append_scope_end_drops_before_return(
+                    instructions.extend(append_scope_end_drops_before_exit(
                         vec![success_return_instruction(return_type)],
                         &mut context,
                     )?);

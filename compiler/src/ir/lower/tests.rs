@@ -2562,6 +2562,117 @@ func consume(file: File): void {
 }
 
 #[test]
+fn lowers_scope_end_drop_before_tail_call() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 3 }
+    return answer()
+}
+
+func answer(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(3),
+            },
+            Instruction::CallVoid {
+                target: CallTarget::same_file("File.drop"),
+                arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                    source: BorrowSource::AggregateSlot(0),
+                })],
+            },
+            Instruction::TailCall {
+                target: CallTarget::same_file("answer"),
+                arguments: vec![],
+            },
+        ],
+    );
+}
+
+#[test]
+fn lowers_scope_end_drop_inside_terminal_if_branches() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 3 }
+    if true {
+        return 0
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let drop_call = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(3),
+            },
+            Instruction::If {
+                condition: BoolValue::Const(true),
+                then_instructions: vec![set_return_i32(0), drop_call.clone(), Instruction::Return],
+                else_instructions: vec![set_return_i32(1), drop_call, Instruction::Return],
+            },
+        ],
+    );
+}
+
+#[test]
 fn lowers_propagated_indirect_aggregate_call_binding_return() {
     let aggregate_type = Type::Aggregate {
         layout: ValueLayout::new(24, 8),

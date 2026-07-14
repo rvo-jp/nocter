@@ -64,11 +64,12 @@ Already buildable in the narrow scalar subset:
 - `return move name` from reserved aggregate slots, with straight-line, conditional, switch, loop, and reachability ownership-state checking
 - explicit `drop name` lowering for reserved aggregate locals whose type declares a drop member
 - straight-line scope-end drop insertion for aggregate locals and by-value aggregate parameters whose type declares a drop member
+- top-level tail-call and terminal-if branch scope-end drop insertion for aggregate locals and by-value aggregate parameters whose type declares a drop member
 - distributed `std/mem.page_allocator`, `std/string.with_capacity`, `std/fmt.append_str`, and `return move out` in the explicit construction shape build to Mach-O with the current stub standard-library bodies
 
 Still required before allocation-backed string construction can run:
 
-- propagation-failure plus branch/loop/catch/tail-call scope-end drop insertion, replacement drop lowering, and ownership-fact export from type checking to lowering
+- propagation-failure cleanup, general branch/loop/catch scope-end drop insertion, replacement drop lowering, and ownership-fact export from type checking to lowering
 - target-backed allocation and mutation in `std/mem`, `std/string`, and `std/fmt`
 
 ## Open Language Decision

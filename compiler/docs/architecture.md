@@ -203,7 +203,7 @@ Currently not buildable even when it may be checkable:
 - `&str` member operations and view/byte iteration
 - interpolated string construction
 - optional values
-- source-level aggregate moves beyond the supported explicit `move name` argument/return paths, propagation-failure plus branch/loop/catch/tail-call scope-end drop insertion, replacement drop lowering, arrays, general views beyond the listed slice ABI paths, raw pointer expressions beyond closed `std/ptr.from_addr` aggregate fields, methods, traits, generics, and full ownership lowering
+- source-level aggregate moves beyond the supported explicit `move name` argument/return paths, propagation-failure cleanup, general branch/loop/catch scope-end drop insertion, replacement drop lowering, arrays, general views beyond the listed slice ABI paths, raw pointer expressions beyond closed `std/ptr.from_addr` aggregate fields, methods, traits, generics, and full ownership lowering
 
 ### Backend V0 Register Convention
 

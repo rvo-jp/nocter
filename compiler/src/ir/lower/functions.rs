@@ -559,7 +559,7 @@ fn lower_callable_body(
                 && let Some(payload) =
                     lower_error_payload(expression, resolved, root_source, Some(context))?
             {
-                instructions.extend(append_scope_end_drops_before_return(
+                instructions.extend(append_scope_end_drops_before_exit(
                     lower_fallible_failure(payload),
                     context,
                 )?);
@@ -677,7 +677,7 @@ fn lower_callable_body(
             }
             let return_instructions =
                 mark_fallible_success_returns(return_type, return_instructions);
-            instructions.extend(append_scope_end_drops_before_return(
+            instructions.extend(append_scope_end_drops_before_exit(
                 return_instructions,
                 context,
             )?);
@@ -711,7 +711,7 @@ fn lower_callable_body(
                 {
                     instructions.extend(void_instructions);
                     mark_explicit_moves_in_expression(&statement.expression, context);
-                    instructions.extend(append_scope_end_drops_before_return(
+                    instructions.extend(append_scope_end_drops_before_exit(
                         vec![success_return_instruction(return_type)],
                         context,
                     )?);
@@ -842,13 +842,13 @@ pub(super) fn lower_drop_statement(
     }])
 }
 
-pub(super) fn append_scope_end_drops_before_return(
+pub(super) fn append_scope_end_drops_before_exit(
     mut instructions: Vec<Instruction>,
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some(return_index) = instructions
         .iter()
-        .rposition(|instruction| is_scope_exit_return(instruction))
+        .rposition(|instruction| is_scope_exit_instruction(instruction))
     else {
         return Ok(instructions);
     };
@@ -857,12 +857,13 @@ pub(super) fn append_scope_end_drops_before_return(
     Ok(instructions)
 }
 
-fn is_scope_exit_return(instruction: &Instruction) -> bool {
+fn is_scope_exit_instruction(instruction: &Instruction) -> bool {
     matches!(
         instruction,
         Instruction::Return
             | Instruction::ReturnFallibleSuccess
             | Instruction::ReturnFallibleFailure { .. }
+            | Instruction::TailCall { .. }
     )
 }
 

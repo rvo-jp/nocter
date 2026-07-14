@@ -3,6 +3,7 @@ use super::expressions::{
     expression_contains_call, lower_bool_expression_to_value, lower_bool_return_expression,
     lower_i32_return_expression,
 };
+use super::functions::{append_scope_end_drops_before_exit, mark_explicit_moves_in_expression};
 use crate::ast::{BinaryExpr, BinaryOperator, Block, Expr, IfStmt, Stmt};
 use crate::diagnostics::Diagnostic;
 use crate::ir::Instruction;
@@ -157,7 +158,10 @@ fn lower_i32_return_block(
                     "i32",
                 ));
             };
-            lower_i32_return_expression(expression, context)
+            let mut branch_context = context.clone();
+            let return_instructions = lower_i32_return_expression(expression, &branch_context)?;
+            mark_explicit_moves_in_expression(expression, &mut branch_context);
+            append_scope_end_drops_before_exit(return_instructions, &mut branch_context)
         }
         _ => Err(unsupported_terminal_if_diagnostic(
             diagnostic_code,
@@ -182,7 +186,11 @@ fn lower_bool_return_block(
                     "bool",
                 ));
             };
-            lower_bool_return_expression(expression, context, diagnostic_code)
+            let mut branch_context = context.clone();
+            let return_instructions =
+                lower_bool_return_expression(expression, &branch_context, diagnostic_code)?;
+            mark_explicit_moves_in_expression(expression, &mut branch_context);
+            append_scope_end_drops_before_exit(return_instructions, &mut branch_context)
         }
         _ => Err(unsupported_terminal_if_diagnostic(
             diagnostic_code,
