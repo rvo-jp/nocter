@@ -6,6 +6,7 @@ use crate::source::JsonSpan;
 use serde::Serialize;
 
 pub use text::write_text_diagnostics;
+pub use text::write_text_diagnostics_with_sources;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]

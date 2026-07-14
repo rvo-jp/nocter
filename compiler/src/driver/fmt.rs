@@ -1,4 +1,4 @@
-use crate::diagnostics::write_text_diagnostics;
+use crate::diagnostics::{write_text_diagnostics, write_text_diagnostics_with_sources};
 use crate::format::format_source;
 use crate::source::SourceMap;
 use std::fs;
@@ -11,13 +11,13 @@ pub(super) fn run_fmt(file: &Path, check: bool) -> ExitCode {
     let source = match sources.load_file(file) {
         Ok(source) => source,
         Err(diagnostic) => {
-            return write_diagnostics_and_fail(&[diagnostic]);
+            return write_diagnostics_and_fail(&[diagnostic], None);
         }
     };
 
     let output = format_source(&sources, source);
     if !output.is_ok() {
-        return write_diagnostics_and_fail(&output.diagnostics);
+        return write_diagnostics_and_fail(&output.diagnostics, Some(&sources));
     }
 
     let formatted = output
@@ -53,9 +53,17 @@ pub(super) fn run_fmt(file: &Path, check: bool) -> ExitCode {
     }
 }
 
-fn write_diagnostics_and_fail(diagnostics: &[crate::diagnostics::Diagnostic]) -> ExitCode {
+fn write_diagnostics_and_fail(
+    diagnostics: &[crate::diagnostics::Diagnostic],
+    sources: Option<&SourceMap>,
+) -> ExitCode {
     let mut stderr = io::stderr().lock();
-    if let Err(error) = write_text_diagnostics(&mut stderr, diagnostics) {
+    let result = match sources {
+        Some(sources) => write_text_diagnostics_with_sources(&mut stderr, diagnostics, sources),
+        None => write_text_diagnostics(&mut stderr, diagnostics),
+    };
+
+    if let Err(error) = result {
         eprintln!("internal compiler error: failed to write diagnostics: {error}");
         return ExitCode::from(3);
     }

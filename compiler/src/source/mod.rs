@@ -83,6 +83,22 @@ impl SourceFile {
         &self.text
     }
 
+    pub fn line_text(&self, line: usize) -> Option<&str> {
+        if line == 0 {
+            return None;
+        }
+
+        let start = *self.line_starts.get(line - 1)?;
+        let end = self
+            .line_starts
+            .get(line)
+            .copied()
+            .unwrap_or(self.text.len());
+        let line = self.text.get(start..end)?;
+
+        Some(line.strip_suffix('\n').unwrap_or(line))
+    }
+
     pub fn line_column_byte(&self, offset: usize) -> Result<LineColumn, String> {
         if offset > self.text.len() {
             return Err(format!(
@@ -136,6 +152,21 @@ impl SourceMap {
 
     pub fn get(&self, id: SourceId) -> Option<&SourceFile> {
         self.files.get(id.raw() as usize)
+    }
+
+    pub fn file_for_json_span(&self, span: &JsonSpan) -> Option<&SourceFile> {
+        if let Some(absolute_path) = &span.absolute_path
+            && let Some(file) = self.files.iter().find(|file| {
+                file.absolute_path()
+                    .is_some_and(|path| path.to_string_lossy() == absolute_path.as_str())
+            })
+        {
+            return Some(file);
+        }
+
+        self.files
+            .iter()
+            .find(|file| file.display_path() == span.file)
     }
 
     pub(crate) fn sources_with_absolute_paths(&self) -> impl Iterator<Item = (&Path, SourceId)> {
@@ -296,6 +327,18 @@ mod tests {
         assert_eq!(json.start_column_byte, 5);
         assert_eq!(json.end_line, 2);
         assert_eq!(json.end_column_byte, 11);
+    }
+
+    #[test]
+    fn gets_source_line_text_without_newline() {
+        let mut sources = SourceMap::new();
+        let id = sources.add_source("app.nct", None, "one\ntwo\n");
+        let file = sources.get(id).unwrap();
+
+        assert_eq!(file.line_text(1), Some("one"));
+        assert_eq!(file.line_text(2), Some("two"));
+        assert_eq!(file.line_text(3), Some(""));
+        assert_eq!(file.line_text(4), None);
     }
 
     #[test]

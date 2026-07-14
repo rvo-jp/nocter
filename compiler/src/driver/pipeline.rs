@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 struct FrontendOutput {
     root: String,
     root_absolute_path: Option<String>,
+    sources: SourceMap,
     analysis: Option<crate::analysis::CompileUnitAnalysis>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -15,6 +16,7 @@ struct FrontendOutput {
 pub(super) struct CheckOutput {
     pub root: String,
     pub root_absolute_path: Option<String>,
+    pub sources: SourceMap,
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -26,6 +28,7 @@ impl CheckOutput {
 
 pub(super) struct BuildOutput {
     pub output_path: PathBuf,
+    pub sources: SourceMap,
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -46,6 +49,7 @@ pub(super) fn check_file_with_entry_and_target(
     CheckOutput {
         root: output.root,
         root_absolute_path: output.root_absolute_path,
+        sources: output.sources,
         diagnostics: output.diagnostics,
     }
 }
@@ -80,6 +84,7 @@ fn build_file_to_path_with_options(
     if !output.diagnostics.is_empty() {
         return BuildOutput {
             output_path: output_path.to_path_buf(),
+            sources: output.sources,
             diagnostics: output.diagnostics,
         };
     }
@@ -87,6 +92,7 @@ fn build_file_to_path_with_options(
     let Some(analysis) = output.analysis.as_ref() else {
         return BuildOutput {
             output_path: output_path.to_path_buf(),
+            sources: output.sources,
             diagnostics: vec![Diagnostic::error(
                 "E0201",
                 "frontend analysis completed without diagnostics but produced no analysis output",
@@ -106,6 +112,7 @@ fn build_file_to_path_with_options(
 
     BuildOutput {
         output_path: output_path.to_path_buf(),
+        sources: output.sources,
         diagnostics,
     }
 }
@@ -134,6 +141,7 @@ fn analyze_file(file: &Path, options: &FrontendOptions, entry_name: &str) -> Fro
             FrontendOutput {
                 root,
                 root_absolute_path,
+                sources,
                 analysis,
                 diagnostics,
             }
@@ -141,6 +149,7 @@ fn analyze_file(file: &Path, options: &FrontendOptions, entry_name: &str) -> Fro
         Err(diagnostic) => FrontendOutput {
             root: file.to_string_lossy().into_owned(),
             root_absolute_path: canonical_absolute_string(file),
+            sources,
             analysis: None,
             diagnostics: vec![diagnostic],
         },

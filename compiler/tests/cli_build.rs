@@ -1222,6 +1222,40 @@ fn build_command_reports_compile_diagnostics_without_output() {
     );
 }
 
+#[test]
+fn check_command_reports_source_snippet_for_compile_diagnostic() {
+    let project = TempProject::new("cli-check-source-diagnostic");
+    let source = project.write_source(
+        "bad.nct",
+        r#"func main(): i32 {
+    return "bad"
+}
+"#,
+    );
+
+    let output = nocter(&project, ["check", source.to_str().unwrap()]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        output.stdout.is_empty(),
+        "expected empty stdout, got:\n{}",
+        text(&output.stdout)
+    );
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0312]"),
+        "expected return type diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("2 |     return \"bad\""),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("  |            ^^^^^"),
+        "expected source underline, got:\n{stderr}"
+    );
+}
+
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn built_executable_returns_entry_exit_code() {
