@@ -3978,6 +3978,125 @@ func choose(flag: bool): Pair {
 }
 
 #[test]
+fn lowers_direct_aggregate_terminal_if_struct_literal_return_after_scope_drop() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+struct Pair {
+    first: usize
+    second: usize
+}
+
+func main(): i32 {
+    let pair = choose(true)
+    return 0
+}
+
+func choose(flag: bool): Pair {
+    var file = File{ fd: 3 }
+    if flag {
+        return Pair{ first: 1, second: 2 }
+    } else {
+        return Pair{ first: 3, second: 4 }
+    }
+}
+"#,
+    );
+
+    let drop_call = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let pair_layout = ValueLayout::new(16, 8);
+    let function = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "choose")
+        .unwrap();
+    assert_eq!(
+        function,
+        &Function {
+            name: "choose".to_string(),
+            target: CallTarget::same_file("choose"),
+            return_type: Type::DirectAggregate {
+                layout: pair_layout,
+                words: 2,
+            },
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(4, 4),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: i32_const(3),
+                },
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Parameter(0)),
+                    then_instructions: vec![
+                        Instruction::ReserveAggregateSlot {
+                            slot_index: 1,
+                            layout: pair_layout,
+                        },
+                        Instruction::StoreAggregateUsize {
+                            destination: AggregateLocation::Slot(1),
+                            offset: 0,
+                            value: usize_const(1),
+                        },
+                        Instruction::StoreAggregateUsize {
+                            destination: AggregateLocation::Slot(1),
+                            offset: 8,
+                            value: usize_const(2),
+                        },
+                        drop_call.clone(),
+                        Instruction::CopyAggregate {
+                            destination: AggregateLocation::DirectReturn,
+                            source: AggregateLocation::Slot(1),
+                            layout: pair_layout,
+                        },
+                        Instruction::Return,
+                    ],
+                    else_instructions: vec![
+                        Instruction::ReserveAggregateSlot {
+                            slot_index: 1,
+                            layout: pair_layout,
+                        },
+                        Instruction::StoreAggregateUsize {
+                            destination: AggregateLocation::Slot(1),
+                            offset: 0,
+                            value: usize_const(3),
+                        },
+                        Instruction::StoreAggregateUsize {
+                            destination: AggregateLocation::Slot(1),
+                            offset: 8,
+                            value: usize_const(4),
+                        },
+                        drop_call,
+                        Instruction::CopyAggregate {
+                            destination: AggregateLocation::DirectReturn,
+                            source: AggregateLocation::Slot(1),
+                            layout: pair_layout,
+                        },
+                        Instruction::Return,
+                    ],
+                },
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_propagated_direct_aggregate_call_return() {
     let aggregate_type = Type::DirectAggregate {
         layout: ValueLayout::new(16, 8),

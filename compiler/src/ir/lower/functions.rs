@@ -894,6 +894,15 @@ fn lower_terminal_aggregate_return_block(
             if matches!(success_type, Type::DirectAggregate { .. })
                 && !branch_context.pending_aggregate_drops().is_empty()
             {
+                if let Expr::StructLiteral(literal) = unwrap_group(expression) {
+                    return lower_terminal_direct_aggregate_struct_literal_return_with_scope_drops(
+                        literal,
+                        success_type,
+                        function_name,
+                        resolved,
+                        &mut branch_context,
+                    );
+                }
                 return Err(unsupported_terminal_aggregate_if_diagnostic(function_name));
             }
             let return_instructions = lower_aggregate_return_expression(
@@ -916,11 +925,62 @@ fn lower_terminal_aggregate_return_block(
     }
 }
 
+fn lower_terminal_direct_aggregate_struct_literal_return_with_scope_drops(
+    literal: &StructLiteralExpr,
+    success_type: &Type,
+    function_name: &str,
+    resolved: &ResolveOutput,
+    context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let (expected_layout, destination) = aggregate_return_layout_and_destination(success_type);
+    if !matches!(destination, AggregateLocation::DirectReturn)
+        || !supported_aggregate_copy_layout(expected_layout)
+    {
+        return Err(unsupported_terminal_aggregate_if_diagnostic(function_name));
+    }
+
+    let subject = format!("terminal aggregate returns from function `{function_name}`");
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let slot_index = temporaries.next_aggregate_slot();
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index,
+        layout: expected_layout,
+    }];
+    instructions.extend(lower_aggregate_struct_literal_to_location_with_temporaries(
+        literal,
+        expected_layout,
+        AggregateLocation::Slot(slot_index),
+        "E8007",
+        &subject,
+        resolved,
+        context,
+        &mut temporaries,
+    )?);
+
+    let mut tail = append_scope_end_drops_before_exit(vec![Instruction::Return], context)?;
+    let Some(return_index) = tail
+        .iter()
+        .rposition(|instruction| matches!(instruction, Instruction::Return))
+    else {
+        return Ok(instructions);
+    };
+    tail.insert(
+        return_index,
+        Instruction::CopyAggregate {
+            destination,
+            source: AggregateLocation::Slot(slot_index),
+            layout: expected_layout,
+        },
+    );
+    instructions.extend(tail);
+    Ok(instructions)
+}
+
 fn unsupported_terminal_aggregate_if_diagnostic(function_name: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8007",
         format!(
-            "IR v0 can only lower terminal aggregate `if` branches in function `{function_name}` when both branches directly return aggregate values without pending direct-aggregate drop cleanup"
+            "IR v0 can only lower terminal aggregate `if` branches in function `{function_name}` when both branches directly return supported aggregate values; direct aggregate returns with pending drops currently require struct literal branches"
         ),
     )]
 }

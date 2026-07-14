@@ -586,7 +586,17 @@ fn build_command_lowers_direct_aggregate_terminal_if_return() {
     let project = TempProject::new("cli-build-direct-aggregate-terminal-if-return");
     let source = project.write_source(
         "direct_aggregate_terminal_if_return.nct",
-        r#"struct Pair {
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+struct Pair {
     first: i32
     second: i32
 }
@@ -597,6 +607,7 @@ func main(): i32 {
 }
 
 func choose(flag: bool): Pair {
+    var file = File{ fd: 3 }
     if flag {
         return Pair{ first: 42, second: 1 }
     } else {
