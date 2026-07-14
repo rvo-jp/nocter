@@ -894,16 +894,13 @@ fn lower_terminal_aggregate_return_block(
             if matches!(success_type, Type::DirectAggregate { .. })
                 && !branch_context.pending_aggregate_drops().is_empty()
             {
-                if let Expr::StructLiteral(literal) = unwrap_group(expression) {
-                    return lower_terminal_direct_aggregate_struct_literal_return_with_scope_drops(
-                        literal,
-                        success_type,
-                        function_name,
-                        resolved,
-                        &mut branch_context,
-                    );
-                }
-                return Err(unsupported_terminal_aggregate_if_diagnostic(function_name));
+                return lower_terminal_direct_aggregate_return_with_scope_drops(
+                    expression,
+                    success_type,
+                    function_name,
+                    resolved,
+                    &mut branch_context,
+                );
             }
             let return_instructions = lower_aggregate_return_expression(
                 expression,
@@ -925,8 +922,8 @@ fn lower_terminal_aggregate_return_block(
     }
 }
 
-fn lower_terminal_direct_aggregate_struct_literal_return_with_scope_drops(
-    literal: &StructLiteralExpr,
+fn lower_terminal_direct_aggregate_return_with_scope_drops(
+    expression: &Expr,
     success_type: &Type,
     function_name: &str,
     resolved: &ResolveOutput,
@@ -939,22 +936,19 @@ fn lower_terminal_direct_aggregate_struct_literal_return_with_scope_drops(
         return Err(unsupported_terminal_aggregate_if_diagnostic(function_name));
     }
 
-    let subject = format!("terminal aggregate returns from function `{function_name}`");
     let mut temporaries = TemporaryAllocator::new(context)?;
     let slot_index = temporaries.next_aggregate_slot();
     let mut instructions = vec![Instruction::ReserveAggregateSlot {
         slot_index,
         layout: expected_layout,
     }];
-    instructions.extend(lower_aggregate_struct_literal_to_location_with_temporaries(
-        literal,
-        expected_layout,
+    instructions.extend(lower_aggregate_return_expression_to_location(
+        expression,
+        success_type,
         AggregateLocation::Slot(slot_index),
-        "E8007",
-        &subject,
+        function_name,
         resolved,
         context,
-        &mut temporaries,
     )?);
 
     let mut tail = append_scope_end_drops_before_exit(vec![Instruction::Return], context)?;
@@ -980,7 +974,7 @@ fn unsupported_terminal_aggregate_if_diagnostic(function_name: &str) -> Vec<Diag
     vec![Diagnostic::error(
         "E8007",
         format!(
-            "IR v0 can only lower terminal aggregate `if` branches in function `{function_name}` when both branches directly return supported aggregate values; direct aggregate returns with pending drops currently require struct literal branches"
+            "IR v0 can only lower terminal aggregate `if` branches in function `{function_name}` when both branches directly return supported aggregate values"
         ),
     )]
 }
@@ -1482,22 +1476,51 @@ fn lower_aggregate_return_expression(
     resolved: &ResolveOutput,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let (_, destination) = aggregate_return_layout_and_destination(return_type);
+    let mut instructions = lower_aggregate_return_expression_to_location(
+        expression,
+        return_type,
+        destination,
+        function_name,
+        resolved,
+        context,
+    )?;
+    instructions.push(Instruction::Return);
+    Ok(instructions)
+}
+
+fn lower_aggregate_return_expression_to_location(
+    expression: &Expr,
+    return_type: &Type,
+    destination: AggregateLocation,
+    function_name: &str,
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
-        Expr::StructLiteral(literal) => lower_aggregate_struct_literal_return(
+        Expr::StructLiteral(literal) => lower_aggregate_struct_literal_return_to_location(
             literal,
             return_type,
+            destination,
             function_name,
             resolved,
             context,
         ),
-        Expr::Call(call) => lower_aggregate_call_return(call, return_type, function_name, context),
+        Expr::Call(call) => lower_aggregate_call_return_to_location(
+            call,
+            return_type,
+            destination,
+            function_name,
+            context,
+        ),
         Expr::Propagate(propagation) => {
             let Expr::Call(call) = unwrap_group(&propagation.expression) else {
                 return Err(unsupported_aggregate_return_diagnostic(function_name));
             };
-            lower_aggregate_fallible_call_return(
+            lower_aggregate_fallible_call_return_to_location(
                 call,
                 return_type,
+                destination,
                 function_name,
                 context,
                 propagating_failure_mode(context)?,
@@ -1507,9 +1530,10 @@ fn lower_aggregate_return_expression(
             let Expr::Call(call) = unwrap_group(&force.expression) else {
                 return Err(unsupported_aggregate_return_diagnostic(function_name));
             };
-            lower_aggregate_fallible_call_return(
+            lower_aggregate_fallible_call_return_to_location(
                 call,
                 return_type,
+                destination,
                 function_name,
                 context,
                 FallibleFailureMode::Trap,
@@ -1519,39 +1543,47 @@ fn lower_aggregate_return_expression(
             let Expr::Call(call) = unwrap_group(&catch.expression) else {
                 return Err(unsupported_aggregate_return_diagnostic(function_name));
             };
-            lower_aggregate_fallible_call_return(
+            lower_aggregate_fallible_call_return_to_location(
                 call,
                 return_type,
+                destination,
                 function_name,
                 context,
                 lower_catch_failure_mode(catch, context, 0)?,
             )
         }
-        Expr::Identifier(identifier) => lower_aggregate_local_return(
+        Expr::Identifier(identifier) => lower_aggregate_local_return_to_location(
             &identifier.name,
             AggregateValueUse::ImplicitCopy,
             return_type,
+            destination,
             function_name,
             context,
         ),
-        Expr::Member(_) => {
-            lower_aggregate_member_return(expression, return_type, function_name, context)
-        }
+        Expr::Member(_) => lower_aggregate_member_return_to_location(
+            expression,
+            return_type,
+            destination,
+            function_name,
+            context,
+        ),
         Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
             let Expr::Identifier(identifier) = unary.operand.as_ref() else {
                 return Err(unsupported_aggregate_return_diagnostic(function_name));
             };
-            lower_aggregate_local_return(
+            lower_aggregate_local_return_to_location(
                 &identifier.name,
                 AggregateValueUse::ExplicitMove,
                 return_type,
+                destination,
                 function_name,
                 context,
             )
         }
-        Expr::Group(group) => lower_aggregate_return_expression(
+        Expr::Group(group) => lower_aggregate_return_expression_to_location(
             &group.expression,
             return_type,
+            destination,
             function_name,
             resolved,
             context,
@@ -1567,14 +1599,15 @@ fn unwrap_group(expression: &Expr) -> &Expr {
     }
 }
 
-fn lower_aggregate_local_return(
+fn lower_aggregate_local_return_to_location(
     name: &str,
     value_use: AggregateValueUse,
     return_type: &Type,
+    destination: AggregateLocation,
     function_name: &str,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let (expected_layout, destination) = aggregate_return_layout_and_destination(return_type);
+    let (expected_layout, _) = aggregate_return_layout_and_destination(return_type);
     let Some(local) = context.aggregate_local(name) else {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     };
@@ -1585,23 +1618,21 @@ fn lower_aggregate_local_return(
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     }
 
-    Ok(vec![
-        Instruction::CopyAggregate {
-            destination,
-            source: AggregateLocation::Slot(local.slot_index),
-            layout: local.layout,
-        },
-        Instruction::Return,
-    ])
+    Ok(vec![Instruction::CopyAggregate {
+        destination,
+        source: AggregateLocation::Slot(local.slot_index),
+        layout: local.layout,
+    }])
 }
 
-fn lower_aggregate_member_return(
+fn lower_aggregate_member_return_to_location(
     expression: &Expr,
     return_type: &Type,
+    destination: AggregateLocation,
     function_name: &str,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let (expected_layout, destination) = aggregate_return_layout_and_destination(return_type);
+    let (expected_layout, _) = aggregate_return_layout_and_destination(return_type);
     let mut temporaries = TemporaryAllocator::new(context)?;
     let access = lower_aggregate_member_field_access(expression, context, &mut temporaries)?
         .ok_or_else(|| unsupported_aggregate_return_diagnostic(function_name))?;
@@ -1623,13 +1654,13 @@ fn lower_aggregate_member_return(
         source_offset,
         layout,
     });
-    instructions.push(Instruction::Return);
     Ok(instructions)
 }
 
-fn lower_aggregate_fallible_call_return(
+fn lower_aggregate_fallible_call_return_to_location(
     call: &crate::ast::CallExpr,
     return_type: &Type,
+    destination: AggregateLocation,
     function_name: &str,
     context: &LoweringContext,
     failure_mode: FallibleFailureMode,
@@ -1647,8 +1678,7 @@ fn lower_aggregate_fallible_call_return(
 
     let (mut instructions, arguments) =
         lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
-    let success_return = success_return_instruction(context.function_return_type());
-    let (layout, destination) = aggregate_return_layout_and_destination(return_type);
+    let (layout, _) = aggregate_return_layout_and_destination(return_type);
     push_fallible_aggregate_call_instruction(
         &mut instructions,
         return_type,
@@ -1658,13 +1688,13 @@ fn lower_aggregate_fallible_call_return(
         layout,
         failure_mode,
     );
-    instructions.push(success_return);
     Ok(instructions)
 }
 
-fn lower_aggregate_call_return(
+fn lower_aggregate_call_return_to_location(
     call: &crate::ast::CallExpr,
     return_type: &Type,
+    destination: AggregateLocation,
     function_name: &str,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -1681,7 +1711,7 @@ fn lower_aggregate_call_return(
 
     let (mut instructions, arguments) =
         lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
-    let (layout, destination) = aggregate_return_layout_and_destination(return_type);
+    let (layout, _) = aggregate_return_layout_and_destination(return_type);
     push_aggregate_call_instruction(
         &mut instructions,
         return_type,
@@ -1690,18 +1720,18 @@ fn lower_aggregate_call_return(
         arguments,
         layout,
     );
-    instructions.push(Instruction::Return);
     Ok(instructions)
 }
 
-fn lower_aggregate_struct_literal_return(
+fn lower_aggregate_struct_literal_return_to_location(
     literal: &StructLiteralExpr,
     return_type: &Type,
+    destination: AggregateLocation,
     function_name: &str,
     resolved: &ResolveOutput,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let (expected_layout, destination) = aggregate_return_layout_and_destination(return_type);
+    let (expected_layout, _) = aggregate_return_layout_and_destination(return_type);
 
     let subject = format!("returns from function `{function_name}`");
     let lowered_direct = lower_aggregate_struct_literal_to_location(
@@ -1713,7 +1743,7 @@ fn lower_aggregate_struct_literal_return(
         resolved,
         context,
     );
-    let mut instructions = match lowered_direct {
+    Ok(match lowered_direct {
         Ok(instructions) => instructions,
         Err(error) if matches!(destination, AggregateLocation::DirectReturn) => {
             lower_direct_aggregate_struct_literal_return_through_slot(
@@ -1726,9 +1756,7 @@ fn lower_aggregate_struct_literal_return(
             .map_err(|_| error)?
         }
         Err(error) => return Err(error),
-    };
-    instructions.push(Instruction::Return);
-    Ok(instructions)
+    })
 }
 
 fn lower_direct_aggregate_struct_literal_return_through_slot(

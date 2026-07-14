@@ -625,6 +625,53 @@ func choose(flag: bool): Pair {
 }
 
 #[test]
+fn build_command_lowers_direct_aggregate_terminal_if_call_return() {
+    let project = TempProject::new("cli-build-direct-aggregate-terminal-if-call-return");
+    let source = project.write_source(
+        "direct_aggregate_terminal_if_call_return.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+struct Pair {
+    first: i32
+    second: i32
+}
+
+func main(): i32 {
+    let pair = choose(true)
+    return pair.first
+}
+
+func make_pair(first: i32, second: i32): Pair {
+    return Pair{ first: first, second: second }
+}
+
+func choose(flag: bool): Pair {
+    var file = File{ fd: 3 }
+    if flag {
+        return make_pair(42, 1)
+    } else {
+        return make_pair(7, 2)
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_terminal_if_bool_local() {
     let project = TempProject::new("cli-build-terminal-if-bool-local");
     let source = project.write_source(
