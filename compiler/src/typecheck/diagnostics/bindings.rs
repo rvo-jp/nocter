@@ -96,7 +96,7 @@ pub(in crate::typecheck) fn non_copy_struct_assignment_diagnostic(
         .ok()
         .map(Box::new);
     diagnostic.help = Some(format!(
-        "declare `{type_name}` with `copy struct` or use an explicit move once move assignment is supported"
+        "declare `{type_name}` with `copy struct` or write `move {source_name}` to transfer ownership"
     ));
     diagnostic
 }

@@ -1217,6 +1217,37 @@ func touch(value: &+Text): void! {
 }
 
 #[test]
+fn build_command_lowers_moved_aggregate_slot_assignment() {
+    let project = TempProject::new("cli-build-moved-aggregate-slot-assignment");
+    let source = project.write_source(
+        "moved_aggregate_slot_assignment.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var source = File{ fd: 7 }
+    var target = File{ fd: 1 }
+    target = move source
+    return target.fd
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_copy_aggregate_slot_assignment_and_borrow_argument() {
     let project = TempProject::new("cli-build-copy-aggregate-slot-assignment-borrow");
     let source = project.write_source(

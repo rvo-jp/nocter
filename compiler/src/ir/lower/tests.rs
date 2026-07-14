@@ -3589,6 +3589,89 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_replacement_drop_for_moved_aggregate_assignment() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var source = File{ fd: 1 }
+    var target = File{ fd: 2 }
+    target = move source
+    return 0
+}
+"#,
+    );
+
+    let drop_target = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(1),
+        })],
+    };
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(1),
+            },
+            Instruction::ReserveAggregateSlot {
+                slot_index: 1,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(1),
+                offset: 0,
+                value: i32_const(2),
+            },
+            Instruction::ReserveAggregateSlot {
+                slot_index: 2,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::CopyAggregate {
+                destination: AggregateLocation::Slot(2),
+                source: AggregateLocation::Slot(0),
+                layout: ValueLayout::new(4, 4),
+            },
+            drop_target.clone(),
+            Instruction::CopyAggregate {
+                destination: AggregateLocation::Slot(1),
+                source: AggregateLocation::Slot(2),
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: i32_const(0),
+            },
+            drop_target,
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
 fn lowers_replacement_drop_for_fallible_aggregate_assignment() {
     let ir = lower_text_with_std_error(
         r#"from std/error import Error

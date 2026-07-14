@@ -904,6 +904,10 @@ fn lower_aggregate_assignment(
     expression: &Expr,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if aggregate_assignment_moves_from_slot(expression, slot_index, context) {
+        return Err(unsupported_assignment_diagnostic());
+    }
+
     let replacement_drop = replacement_drop_for_aggregate_slot(slot_index, context)?;
     if replacement_drop.is_empty() {
         return lower_aggregate_assignment_to_slot(slot_index, layout, expression, context);
@@ -930,6 +934,25 @@ fn lower_aggregate_assignment(
     Ok(instructions)
 }
 
+fn aggregate_assignment_moves_from_slot(
+    expression: &Expr,
+    destination_slot: usize,
+    context: &LoweringContext,
+) -> bool {
+    let Expr::Unary(unary) = unwrap_group(expression) else {
+        return false;
+    };
+    if unary.operator != UnaryOperator::Move {
+        return false;
+    }
+    let Expr::Identifier(identifier) = unwrap_group(&unary.operand) else {
+        return false;
+    };
+    context
+        .aggregate_slot(&identifier.name)
+        .is_some_and(|(slot_index, _layout)| slot_index == destination_slot)
+}
+
 fn lower_aggregate_assignment_to_slot(
     slot_index: usize,
     layout: ValueLayout,
@@ -943,6 +966,12 @@ fn lower_aggregate_assignment_to_slot(
         Expr::Call(call) => lower_aggregate_call_assignment(slot_index, layout, call, context),
         Expr::Identifier(identifier) => {
             lower_aggregate_copy_assignment(slot_index, layout, &identifier.name, context)
+        }
+        Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
+            let Expr::Identifier(identifier) = unwrap_group(&unary.operand) else {
+                return Err(unsupported_assignment_diagnostic());
+            };
+            lower_aggregate_move_assignment(slot_index, layout, &identifier.name, context)
         }
         Expr::Propagate(propagation) => {
             let Expr::Call(call) = unwrap_group(&propagation.expression) else {
@@ -1000,6 +1029,31 @@ fn lower_aggregate_copy_assignment(
         || destination.layout != destination_layout
         || !source.is_copy
         || !destination.is_copy
+        || !supported_aggregate_copy_layout(destination_layout)
+    {
+        return Err(unsupported_assignment_diagnostic());
+    }
+
+    Ok(vec![Instruction::CopyAggregate {
+        destination: AggregateLocation::Slot(destination_slot),
+        source: AggregateLocation::Slot(source.slot_index),
+        layout: destination_layout,
+    }])
+}
+
+fn lower_aggregate_move_assignment(
+    destination_slot: usize,
+    destination_layout: ValueLayout,
+    source_name: &str,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some(source) = context.aggregate_local(source_name) else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let destination = context.aggregate_local_by_slot(destination_slot);
+    if source.slot_index == destination_slot
+        || source.layout != destination_layout
+        || destination.is_some_and(|destination| destination.layout != destination_layout)
         || !supported_aggregate_copy_layout(destination_layout)
     {
         return Err(unsupported_assignment_diagnostic());

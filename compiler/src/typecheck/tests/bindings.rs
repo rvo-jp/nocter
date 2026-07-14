@@ -155,6 +155,27 @@ func main(): i32 {
 }
 
 #[test]
+fn accepts_assignment_from_moved_non_copy_struct_binding() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    var source = Text{ start: 1, len: 2, capacity: 3 }
+    var target = Text{ start: 4, len: 5, capacity: 6 }
+    target = move source
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn accepts_assignment_from_copy_struct_binding() {
     let diagnostics = check_text(
         r#"copy struct Text {
