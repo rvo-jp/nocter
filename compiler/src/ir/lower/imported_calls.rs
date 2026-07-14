@@ -4,11 +4,12 @@ use crate::ast::{
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{ResolveOutput, Symbol, SymbolKind};
-use crate::source::SourceId;
+use crate::source::{ByteSpan, SourceId, SourceMap};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ImportedCallTarget {
     pub(super) call_name: String,
+    pub(super) span: ByteSpan,
     pub(super) source: ImportedCallSource,
 }
 
@@ -19,14 +20,16 @@ pub(super) enum ImportedCallSource {
 }
 
 pub(super) fn imported_call_diagnostics(
+    sources: &SourceMap,
     function: &FunctionDecl,
     root_source: SourceId,
     resolved: &ResolveOutput,
 ) -> Vec<Diagnostic> {
-    imported_call_diagnostics_for_block(&function.body, root_source, resolved)
+    imported_call_diagnostics_for_block(sources, &function.body, root_source, resolved)
 }
 
 pub(super) fn imported_call_diagnostics_for_block(
+    sources: &SourceMap,
     block: &Block,
     root_source: SourceId,
     resolved: &ResolveOutput,
@@ -34,7 +37,10 @@ pub(super) fn imported_call_diagnostics_for_block(
     imported_call_targets_for_block(block, root_source, resolved)
         .into_iter()
         .filter(|target| matches!(target.source, ImportedCallSource::UnloadedPath(_)))
-        .map(|target| unsupported_imported_call_diagnostic(&target.call_name))
+        .map(|target| {
+            unsupported_imported_call_diagnostic(&target.call_name)
+                .with_primary_span_if_absent(sources, target.span)
+        })
         .collect()
 }
 
@@ -195,6 +201,7 @@ fn collect_expression(
                     symbol,
                     root_source,
                     resolved.call_name_for_diagnostic(call),
+                    call.span,
                 )
             {
                 targets.push(target);
@@ -277,10 +284,12 @@ fn imported_call_target_for_symbol(
     symbol: &Symbol,
     root_source: SourceId,
     call_name: String,
+    span: ByteSpan,
 ) -> Option<ImportedCallTarget> {
     match &symbol.kind {
         SymbolKind::Imported(imported) => Some(ImportedCallTarget {
             call_name,
+            span,
             source: ImportedCallSource::UnloadedPath(imported.path.clone()),
         }),
         SymbolKind::Function(_) | SymbolKind::Primitive(_) | SymbolKind::Type(_)
@@ -288,6 +297,7 @@ fn imported_call_target_for_symbol(
         {
             Some(ImportedCallTarget {
                 call_name,
+                span,
                 source: ImportedCallSource::Loaded(symbol.declaration_span.source),
             })
         }
@@ -308,7 +318,7 @@ fn unsupported_imported_call_diagnostic(call_name: &str) -> Diagnostic {
 mod tests {
     use super::*;
     use crate::resolve::{ImportedSymbol, SymbolId};
-    use crate::source::ByteSpan;
+    use crate::source::{ByteSpan, SourceMap};
 
     #[test]
     fn imported_placeholder_symbol_becomes_unloaded_imported_call_target() {
@@ -323,15 +333,31 @@ mod tests {
             }),
         };
 
+        let call_span = ByteSpan::new(root_source, 30, 37);
         let target =
-            imported_call_target_for_symbol(&symbol, root_source, "print".to_string()).unwrap();
+            imported_call_target_for_symbol(&symbol, root_source, "print".to_string(), call_span)
+                .unwrap();
 
         assert_eq!(
             target,
             ImportedCallTarget {
                 call_name: "print".to_string(),
+                span: call_span,
                 source: ImportedCallSource::UnloadedPath("std/io".to_string()),
             }
         );
+    }
+
+    #[test]
+    fn unsupported_imported_call_diagnostic_can_use_call_span() {
+        let mut sources = SourceMap::new();
+        let source = sources.add_source("app.nct", None, "print()\n");
+        let span = ByteSpan::new(source, 0, 7);
+
+        let diagnostic = unsupported_imported_call_diagnostic("print")
+            .with_primary_span_if_absent(&sources, span);
+
+        assert_eq!(diagnostic.code, "E8006");
+        assert!(diagnostic.primary_span.is_some());
     }
 }

@@ -42,14 +42,18 @@ pub(crate) fn lower_executable_with_entry(
         Item::Function(function) if function.name == entry_name => Some(function),
         _ => None,
     }) else {
-        return Err(vec![Diagnostic::error(
-            "E8000",
-            format!("IR lowering requires entry function `{entry_name}`"),
-        )]);
+        return Err(vec![
+            Diagnostic::error(
+                "E8000",
+                format!("IR lowering requires entry function `{entry_name}`"),
+            )
+            .with_primary_span_if_absent(sources, root.ast.span),
+        ]);
     };
 
     let function_index = FunctionIndex::new(analysis, root.ast.span.source);
-    let diagnostics = imported_call_diagnostics(entry, root.ast.span.source, &root.resolved);
+    let diagnostics =
+        imported_call_diagnostics(sources, entry, root.ast.span.source, &root.resolved);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -208,7 +212,7 @@ fn lower_reachable_functions(
                 ),
             )]);
         };
-        let diagnostics = function.imported_call_diagnostics(root_source);
+        let diagnostics = function.imported_call_diagnostics(sources, root_source);
         if !diagnostics.is_empty() {
             return Err(diagnostics);
         }
@@ -337,13 +341,18 @@ impl<'a> IndexedCallable<'a> {
         }
     }
 
-    fn imported_call_diagnostics(&self, root_source: SourceId) -> Vec<Diagnostic> {
+    fn imported_call_diagnostics(
+        &self,
+        sources: &SourceMap,
+        root_source: SourceId,
+    ) -> Vec<Diagnostic> {
         match &self.declaration {
             IndexedDeclaration::Function(function) => {
-                imported_call_diagnostics(function, root_source, self.resolved)
+                imported_call_diagnostics(sources, function, root_source, self.resolved)
             }
             IndexedDeclaration::Drop { declaration, .. } => {
                 imported_calls::imported_call_diagnostics_for_block(
+                    sources,
                     &declaration.body,
                     root_source,
                     self.resolved,

@@ -871,6 +871,7 @@ func main(): i32 {
 
     assert_eq!(targets.len(), 1);
     assert_eq!(targets[0].call_name, "answer");
+    assert!(targets[0].span.start < targets[0].span.end);
     assert!(matches!(
         targets[0].source,
         super::imported_calls::ImportedCallSource::Loaded(source)
@@ -14630,6 +14631,23 @@ fn reports_unsupported_entry_body() {
     );
 
     assert_eq!(diagnostics[0].code, "E8002");
+}
+
+#[test]
+fn reports_missing_entry_function_with_primary_span() {
+    let fixture = analyze_text_fixture_with_entry(
+        r#"func main(): i32 {
+    return 0
+}
+"#,
+        crate::entry::DEFAULT_ENTRY_NAME,
+    );
+
+    let diagnostics =
+        lower_executable_with_entry(&fixture.analysis, &fixture.sources, "start").unwrap_err();
+
+    assert_eq!(diagnostics[0].code, "E8000");
+    assert!(diagnostics[0].primary_span.is_some());
 }
 
 #[test]
