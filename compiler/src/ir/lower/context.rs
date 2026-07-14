@@ -108,6 +108,7 @@ impl<'a> LoweringContext<'a> {
                     layout: parameter.layout,
                     slot_index: parameter.slot_index,
                     is_copy: parameter.is_copy,
+                    drop_state: AggregateDropState::from_drop_glue(&parameter.drop_glue),
                     drop_glue: parameter.drop_glue,
                 },
                 index: 0,
@@ -287,6 +288,7 @@ impl<'a> LoweringContext<'a> {
                 layout,
                 slot_index,
                 is_copy,
+                drop_state: AggregateDropState::from_drop_glue(&drop_glue),
                 drop_glue,
             },
             index: 0,
@@ -413,6 +415,7 @@ impl<'a> LoweringContext<'a> {
                     slot_index,
                     is_copy,
                     ref drop_glue,
+                    ..
                 } = local.kind
             {
                 return Some(AggregateLocal {
@@ -433,6 +436,7 @@ impl<'a> LoweringContext<'a> {
                 slot_index: local_slot_index,
                 is_copy,
                 ref drop_glue,
+                ..
             } = local.kind
             else {
                 return None;
@@ -447,6 +451,61 @@ impl<'a> LoweringContext<'a> {
             }
             None
         })
+    }
+
+    pub(super) fn mark_aggregate_local_dropped(&mut self, name: &str) {
+        self.update_aggregate_drop_state(name, AggregateDropState::Suppressed);
+    }
+
+    pub(super) fn mark_aggregate_local_moved(&mut self, name: &str) {
+        self.update_aggregate_drop_state(name, AggregateDropState::Suppressed);
+    }
+
+    pub(super) fn mark_aggregate_local_initialized(&mut self, name: &str) {
+        let Some(local) = self
+            .locals
+            .iter_mut()
+            .find(|local| local.name == name && matches!(local.kind, LocalKind::Aggregate { .. }))
+        else {
+            return;
+        };
+        let LocalKind::Aggregate {
+            drop_glue,
+            drop_state,
+            ..
+        } = &mut local.kind
+        else {
+            return;
+        };
+        *drop_state = AggregateDropState::from_drop_glue(drop_glue);
+    }
+
+    pub(super) fn pending_aggregate_drops(&self) -> Vec<PendingAggregateDrop> {
+        self.locals
+            .iter()
+            .rev()
+            .filter_map(|local| {
+                let LocalKind::Aggregate {
+                    layout,
+                    slot_index,
+                    drop_state,
+                    ref drop_glue,
+                    ..
+                } = local.kind
+                else {
+                    return None;
+                };
+                if drop_state != AggregateDropState::NeedsDrop {
+                    return None;
+                }
+                Some(PendingAggregateDrop {
+                    name: local.name.clone(),
+                    slot_index,
+                    layout,
+                    drop_glue: drop_glue.clone()?,
+                })
+            })
+            .collect()
     }
 
     pub(super) fn aggregate_field(
@@ -514,6 +573,20 @@ impl<'a> LoweringContext<'a> {
     fn define_local(&mut self, name: String, kind: LocalKind) {
         let index = self.used_local_abi_words();
         self.locals.push(LocalBinding { name, kind, index });
+    }
+
+    fn update_aggregate_drop_state(&mut self, name: &str, state: AggregateDropState) {
+        let Some(local) = self
+            .locals
+            .iter_mut()
+            .find(|local| local.name == name && matches!(local.kind, LocalKind::Aggregate { .. }))
+        else {
+            return;
+        };
+        let LocalKind::Aggregate { drop_state, .. } = &mut local.kind else {
+            return;
+        };
+        *drop_state = state;
     }
 
     fn used_local_abi_words(&self) -> usize {
@@ -624,6 +697,14 @@ pub(super) struct AggregateLocal {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct PendingAggregateDrop {
+    pub(super) name: String,
+    pub(super) slot_index: usize,
+    pub(super) layout: ValueLayout,
+    pub(super) drop_glue: DropGlue,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct DropGlue {
     pub(super) target: CallTarget,
 }
@@ -669,6 +750,7 @@ enum LocalKind {
         layout: ValueLayout,
         slot_index: usize,
         is_copy: bool,
+        drop_state: AggregateDropState,
         drop_glue: Option<DropGlue>,
     },
 }
@@ -680,6 +762,22 @@ impl LocalKind {
             Self::Str | Self::Slice => 2,
             Self::Error => 4,
             Self::Aggregate { .. } => 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AggregateDropState {
+    NeedsDrop,
+    Suppressed,
+}
+
+impl AggregateDropState {
+    fn from_drop_glue(drop_glue: &Option<DropGlue>) -> Self {
+        if drop_glue.is_some() {
+            Self::NeedsDrop
+        } else {
+            Self::Suppressed
         }
     }
 }

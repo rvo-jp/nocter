@@ -20,10 +20,10 @@ Adopted user decisions:
 Recommended next implementation order:
 
 1. Keep bare interpolation lowering disabled until an explicit allocator source is designed. The explicit `std/mem.page_allocator` + `std/string.with_capacity` + `std/fmt.append_str` + `return move out` shape now builds to Mach-O through the current stub standard-library bodies.
-2. Add the next runtime prerequisites for allocation-backed `String`: expose owned aggregate scope-end drop obligations to lowering, then add automatic/replacement drop lowering and target-backed allocation and mutation in `std/mem`, `std/string`, and `std/fmt`.
-3. Use the resolved-type function ABI helper from IR/backend planning before adding broader aggregate storage code. Loaded imported scalar calls, scalar/view arguments, direct and indirect aggregate by-value arguments including stack-passed normal-call ABI words, explicit `move name` aggregate local arguments/returns, explicit `drop name` calls to reachable drop members, local scalar and aggregate slot borrow arguments, scalar/view `var` plus simple assignment, aggregate struct-literal local slots, direct and narrow indirect aggregate normal call-result `let`/`var` slots, fallible direct aggregate call-result slots, supported aggregate slot reassignment including copy struct slot-to-slot assignment, reserved aggregate slot `return move name`, and fallible propagation for the current scalar/view/void plus aggregate call-result subset are already buildable. Tail-position calls that need stack-passed arguments lower through the normal-call-plus-return path.
+2. Add the next runtime prerequisites for allocation-backed `String`: finish propagation-failure plus branch/loop/catch/tail-call scope-end drop insertion, add replacement drop lowering, and add target-backed allocation and mutation in `std/mem`, `std/string`, and `std/fmt`.
+3. Use the resolved-type function ABI helper from IR/backend planning before adding broader aggregate storage code. Loaded imported scalar calls, scalar/view arguments, direct and indirect aggregate by-value arguments including stack-passed normal-call ABI words, explicit `move name` aggregate local arguments/returns, explicit `drop name` calls to reachable drop members, straight-line scope-end drop insertion for aggregate locals/parameters with drop glue, moved-value drop suppression in the current lowerable statement subset, local scalar and aggregate slot borrow arguments, scalar/view `var` plus simple assignment, aggregate struct-literal local slots, direct and narrow indirect aggregate normal call-result `let`/`var` slots, fallible direct aggregate call-result slots, supported aggregate slot reassignment including copy struct slot-to-slot assignment, reserved aggregate slot `return move name`, and fallible propagation for the current scalar/view/void plus aggregate call-result subset are already buildable. Tail-position calls that need stack-passed arguments lower through the normal-call-plus-return path.
 4. Lower interpolated strings only after the explicit standard-library construction path has a real allocator source and runtime mutation behavior.
-5. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
+5. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, full ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
@@ -39,6 +39,12 @@ Recent committed work:
   - type-checks drop member bindings as exactly `&+Self`
   - indexes reachable drop bodies as internal `Type.drop` functions and lowers explicit `drop name` on aggregate locals to `CallVoid` with an aggregate `&+T` borrow argument
   - keeps automatic scope-end drop insertion, replacement drop lowering, moved-value drop suppression in lowering, and broad aggregate storage disabled
+- Current checkpoint: lower straight-line scope-end aggregate drop glue
+  - tracks pending drop state in IR lowering for aggregate locals and by-value aggregate parameters whose type has drop glue
+  - inserts pending drop calls before top-level straight-line `return`, `return!` success, and static failure returns in entry and non-entry functions
+  - suppresses caller-side scope-end drop after explicit `drop name`, explicit `return move name`, and explicit `move name` aggregate arguments in the current lowerable statement subset
+  - drops moved by-value aggregate parameters in the callee at its straight-line scope end
+  - keeps propagation-failure plus branch/loop/catch/tail-call scope-end drop insertion, replacement drop lowering, ownership-fact export to lowering, and broad aggregate storage disabled
 
 - Previous checkpoint: cover imported stack-passed aggregate arguments
   - adds native execution coverage for imported direct aggregate parameters whose ABI words are fully stack-passed

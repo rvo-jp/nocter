@@ -2369,6 +2369,199 @@ impl File {
 }
 
 #[test]
+fn lowers_scope_end_drop_to_drop_member_call() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 3 }
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: CallTarget::same_file("main"),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::Slot(0),
+                        offset: 0,
+                        value: i32_const(3),
+                    },
+                    set_return_i32(0),
+                    Instruction::CallVoid {
+                        target: CallTarget::same_file("File.drop"),
+                        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                            source: BorrowSource::AggregateSlot(0),
+                        })],
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "File.drop".to_string(),
+                target: CallTarget::same_file("File.drop"),
+                return_type: Type::Void,
+                instructions: vec![Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
+fn suppresses_scope_end_drop_for_moved_aggregate_return() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = make_file()
+    drop file
+    return 0
+}
+
+func make_file(): File {
+    var file = File{ fd: 3 }
+    return move file
+}
+"#,
+    );
+
+    let make_file = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "make_file")
+        .unwrap();
+    assert_eq!(
+        make_file.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(3),
+            },
+            Instruction::CopyAggregate {
+                destination: AggregateLocation::DirectReturn,
+                source: AggregateLocation::Slot(0),
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
+fn transfers_scope_end_drop_to_by_value_aggregate_parameter() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 3 }
+    consume(move file)
+    return 0
+}
+
+func consume(file: File): void {
+    return
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(3),
+            },
+            Instruction::CallVoid {
+                target: CallTarget::same_file("consume"),
+                arguments: vec![ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                    source: AggregateArgumentSource::Slot(0),
+                    layout: ValueLayout::new(4, 4),
+                    words: 1,
+                })],
+            },
+            set_return_i32(0),
+            Instruction::Return,
+        ],
+    );
+
+    let consume = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "consume")
+        .unwrap();
+    assert_eq!(
+        consume.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::CopyAggregate {
+                destination: AggregateLocation::Slot(0),
+                source: AggregateLocation::DirectParameter { start_index: 0 },
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::CallVoid {
+                target: CallTarget::same_file("File.drop"),
+                arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                    source: BorrowSource::AggregateSlot(0),
+                })],
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
 fn lowers_propagated_indirect_aggregate_call_binding_return() {
     let aggregate_type = Type::Aggregate {
         layout: ValueLayout::new(24, 8),

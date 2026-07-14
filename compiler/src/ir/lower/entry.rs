@@ -6,7 +6,10 @@ use super::expressions::{
     lower_i32_return_expression, lower_never_return_expression, lower_void_expression_statement,
     mark_fallible_success_returns, success_return_instruction,
 };
-use super::functions::lower_drop_statement;
+use super::functions::{
+    append_scope_end_drops_before_return, lower_drop_statement, mark_explicit_moves_in_expression,
+    mark_lowered_statement_aggregate_uses,
+};
 use crate::ast::{FunctionDecl, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{CallTarget, Function, Instruction, Type};
@@ -101,7 +104,10 @@ fn lower_entry_body(
                 && let Some(payload) =
                     lower_error_payload(expression, resolved, root_source, Some(&context))?
             {
-                instructions.extend(lower_fallible_failure(payload));
+                instructions.extend(append_scope_end_drops_before_return(
+                    lower_fallible_failure(payload),
+                    &mut context,
+                )?);
                 return Ok(instructions);
             }
 
@@ -131,10 +137,15 @@ fn lower_entry_body(
                 (Type::Never, _) => unreachable!("never entry type is not lowered in v0"),
                 (Type::Fallible(_), _) => unreachable!("fallible success type must be unwrapped"),
             }?;
-            instructions.extend(mark_fallible_success_returns(
-                return_type,
+            if let Some(expression) = &statement.expression {
+                mark_explicit_moves_in_expression(expression, &mut context);
+            }
+            let return_instructions =
+                mark_fallible_success_returns(return_type, return_instructions);
+            instructions.extend(append_scope_end_drops_before_return(
                 return_instructions,
-            ));
+                &mut context,
+            )?);
             Ok(instructions)
         }
         Stmt::If(statement) if success_type == &Type::I32 => {
@@ -155,7 +166,11 @@ fn lower_entry_body(
                         lower_void_expression_statement(&statement.expression, &context)?
                 {
                     instructions.extend(void_instructions);
-                    instructions.push(success_return_instruction(return_type));
+                    mark_explicit_moves_in_expression(&statement.expression, &mut context);
+                    instructions.extend(append_scope_end_drops_before_return(
+                        vec![success_return_instruction(return_type)],
+                        &mut context,
+                    )?);
                     return Ok(instructions);
                 }
 
@@ -200,6 +215,7 @@ fn lower_leading_bindings(
             }
             _ => return Err(unsupported_entry_body_diagnostic()),
         };
+        mark_lowered_statement_aggregate_uses(statement, context);
     }
 
     Ok(instructions)

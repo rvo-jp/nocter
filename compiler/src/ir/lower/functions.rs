@@ -7,7 +7,7 @@ use super::bindings::{lower_assignment, lower_local_binding, type_expr_is_copy_s
 use super::context::{
     AggregateBorrowParameter, AggregateFieldKind, AggregateParameterSource, FunctionNames,
     FunctionSignatures, LoweringAggregateParameter, LoweringContext, LoweringParameterSlots,
-    drop_glue_for_type_expr,
+    PendingAggregateDrop, drop_glue_for_type_expr,
 };
 use super::control_flow::{lower_terminal_bool_if_statement, lower_terminal_i32_if_statement};
 use super::errors::{ErrorPayload, lower_error_payload};
@@ -559,7 +559,10 @@ fn lower_callable_body(
                 && let Some(payload) =
                     lower_error_payload(expression, resolved, root_source, Some(context))?
             {
-                instructions.extend(lower_fallible_failure(payload));
+                instructions.extend(append_scope_end_drops_before_return(
+                    lower_fallible_failure(payload),
+                    context,
+                )?);
                 return Ok(instructions);
             }
 
@@ -669,10 +672,15 @@ fn lower_callable_body(
                     unreachable!("fallible success type must be unwrapped")
                 }
             }?;
-            instructions.extend(mark_fallible_success_returns(
-                return_type,
+            if let Some(expression) = &statement.expression {
+                mark_explicit_moves_in_expression(expression, context);
+            }
+            let return_instructions =
+                mark_fallible_success_returns(return_type, return_instructions);
+            instructions.extend(append_scope_end_drops_before_return(
                 return_instructions,
-            ));
+                context,
+            )?);
             Ok(instructions)
         }
         Stmt::If(statement) if success_type == &Type::I32 => {
@@ -702,7 +710,11 @@ fn lower_callable_body(
                         lower_void_expression_statement(&statement.expression, context)?
                 {
                     instructions.extend(void_instructions);
-                    instructions.push(success_return_instruction(return_type));
+                    mark_explicit_moves_in_expression(&statement.expression, context);
+                    instructions.extend(append_scope_end_drops_before_return(
+                        vec![success_return_instruction(return_type)],
+                        context,
+                    )?);
                     return Ok(instructions);
                 }
 
@@ -795,6 +807,7 @@ fn lower_leading_bindings(
                 )]);
             }
         };
+        mark_lowered_statement_aggregate_uses(statement, context);
     }
 
     Ok(instructions)
@@ -802,12 +815,13 @@ fn lower_leading_bindings(
 
 pub(super) fn lower_drop_statement(
     statement: &DropStmt,
-    context: &LoweringContext,
+    context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some(local) = context.aggregate_local(&statement.name) else {
         return Err(unsupported_drop_statement_diagnostic(&statement.name));
     };
     let Some(drop_glue) = local.drop_glue else {
+        context.mark_aggregate_local_dropped(&statement.name);
         return Ok(Vec::new());
     };
     let Some(parameter_types) = context.call_parameter_types(&drop_glue.target) else {
@@ -819,12 +833,187 @@ pub(super) fn lower_drop_statement(
         return Err(unsupported_drop_statement_diagnostic(&statement.name));
     }
 
+    context.mark_aggregate_local_dropped(&statement.name);
     Ok(vec![Instruction::CallVoid {
         target: drop_glue.target,
         arguments: vec![ScalarArgument::Borrow(BorrowArgument {
             source: BorrowSource::AggregateSlot(local.slot_index),
         })],
     }])
+}
+
+pub(super) fn append_scope_end_drops_before_return(
+    mut instructions: Vec<Instruction>,
+    context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some(return_index) = instructions
+        .iter()
+        .rposition(|instruction| is_scope_exit_return(instruction))
+    else {
+        return Ok(instructions);
+    };
+    let drops = lower_scope_end_drops(context)?;
+    instructions.splice(return_index..return_index, drops);
+    Ok(instructions)
+}
+
+fn is_scope_exit_return(instruction: &Instruction) -> bool {
+    matches!(
+        instruction,
+        Instruction::Return
+            | Instruction::ReturnFallibleSuccess
+            | Instruction::ReturnFallibleFailure { .. }
+    )
+}
+
+fn lower_scope_end_drops(
+    context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let pending = context.pending_aggregate_drops();
+    let mut instructions = Vec::with_capacity(pending.len());
+    for drop_ in &pending {
+        instructions.push(lower_pending_aggregate_drop(drop_, context)?);
+    }
+    for drop_ in &pending {
+        context.mark_aggregate_local_dropped(&drop_.name);
+    }
+    Ok(instructions)
+}
+
+fn lower_pending_aggregate_drop(
+    drop_: &PendingAggregateDrop,
+    context: &LoweringContext,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    let Some(parameter_types) = context.call_parameter_types(&drop_.drop_glue.target) else {
+        return Err(unsupported_drop_statement_diagnostic(&drop_.name));
+    };
+    if parameter_types.len() != 1
+        || !drop_parameter_matches_local(&parameter_types[0], drop_.layout)
+    {
+        return Err(unsupported_drop_statement_diagnostic(&drop_.name));
+    }
+
+    Ok(Instruction::CallVoid {
+        target: drop_.drop_glue.target.clone(),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(drop_.slot_index),
+        })],
+    })
+}
+
+pub(super) fn mark_lowered_statement_aggregate_uses(
+    statement: &Stmt,
+    context: &mut LoweringContext,
+) {
+    match statement {
+        Stmt::Binding(statement) => {
+            mark_explicit_moves_in_expression(&statement.initializer, context);
+        }
+        Stmt::Assignment(statement) => {
+            if let Expr::Identifier(identifier) = unwrap_group(&statement.target) {
+                context.mark_aggregate_local_initialized(&identifier.name);
+            }
+            mark_explicit_moves_in_expression(&statement.value, context);
+        }
+        Stmt::Expression(statement) => {
+            mark_explicit_moves_in_expression(&statement.expression, context);
+        }
+        Stmt::Return(statement) => {
+            if let Some(expression) = &statement.expression {
+                mark_explicit_moves_in_expression(expression, context);
+            }
+        }
+        Stmt::Drop(_)
+        | Stmt::If(_)
+        | Stmt::IfIs(_)
+        | Stmt::IfLet(_)
+        | Stmt::Switch(_)
+        | Stmt::ForRange(_)
+        | Stmt::While(_)
+        | Stmt::WhileLet(_)
+        | Stmt::Loop(_)
+        | Stmt::Break(_)
+        | Stmt::Continue(_) => {}
+    }
+}
+
+pub(super) fn mark_explicit_moves_in_expression(expression: &Expr, context: &mut LoweringContext) {
+    match expression {
+        Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
+            if let Expr::Identifier(identifier) = unwrap_group(&unary.operand) {
+                context.mark_aggregate_local_moved(&identifier.name);
+            } else {
+                mark_explicit_moves_in_expression(&unary.operand, context);
+            }
+        }
+        Expr::ArrayLiteral(literal) => {
+            for element in &literal.elements {
+                mark_explicit_moves_in_expression(element, context);
+            }
+        }
+        Expr::StructLiteral(literal) => {
+            for field in &literal.fields {
+                mark_explicit_moves_in_expression(&field.value, context);
+            }
+        }
+        Expr::Propagate(propagation) => {
+            mark_explicit_moves_in_expression(&propagation.expression, context);
+        }
+        Expr::Force(force) => {
+            mark_explicit_moves_in_expression(&force.expression, context);
+        }
+        Expr::Catch(catch) => {
+            mark_explicit_moves_in_expression(&catch.expression, context);
+        }
+        Expr::Borrow(borrow) => {
+            mark_explicit_moves_in_expression(&borrow.expression, context);
+        }
+        Expr::Unary(unary) => {
+            mark_explicit_moves_in_expression(&unary.operand, context);
+        }
+        Expr::Binary(binary) => {
+            mark_explicit_moves_in_expression(&binary.left, context);
+            mark_explicit_moves_in_expression(&binary.right, context);
+        }
+        Expr::TypeConversion(conversion) => {
+            mark_explicit_moves_in_expression(&conversion.expression, context);
+        }
+        Expr::Call(call) => {
+            mark_explicit_moves_in_expression(&call.callee, context);
+            for argument in &call.arguments {
+                mark_explicit_moves_in_expression(argument, context);
+            }
+        }
+        Expr::Member(member) => {
+            mark_explicit_moves_in_expression(&member.object, context);
+        }
+        Expr::Index(index) => {
+            mark_explicit_moves_in_expression(&index.object, context);
+            mark_explicit_moves_in_expression(&index.index, context);
+        }
+        Expr::Group(group) => {
+            mark_explicit_moves_in_expression(&group.expression, context);
+        }
+        Expr::OptionalDefault(default) => {
+            mark_explicit_moves_in_expression(&default.value, context);
+            mark_explicit_moves_in_expression(&default.default, context);
+        }
+        Expr::PatternConditional(conditional) => {
+            mark_explicit_moves_in_expression(&conditional.target, context);
+        }
+        Expr::InterpolatedString(interpolated) => {
+            for part in &interpolated.parts {
+                if let crate::ast::InterpolatedStringPart::Expression(part) = part {
+                    mark_explicit_moves_in_expression(&part.expression, context);
+                }
+            }
+        }
+        Expr::Identifier(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::StringLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::NoneLiteral(_) => {}
+    }
 }
 
 fn drop_parameter_matches_local(parameter_type: &Type, layout: crate::abi::ValueLayout) -> bool {
