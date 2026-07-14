@@ -29,20 +29,18 @@ Recent committed work:
 
 - Current checkpoint: lower aggregate terminal-if returns
   - lowers non-entry terminal `if` branches returning supported direct or indirect aggregate return expressions
-  - reuses terminal branch-leading binding, explicit `drop`, and void call lowering before aggregate return or nested aggregate terminal-if leaves
+  - reuses terminal branch-leading binding, assignment, explicit `drop`, and void call lowering before aggregate return or nested aggregate terminal-if leaves
   - stages direct aggregate branch returns through branch-local aggregate slots when pending drops must run before returning
   - covers indirect/direct IR lowering plus direct struct-literal, call, and moved-local branch staging coverage, with CLI build coverage for direct aggregate terminal-if returns with pending drop cleanup
 - Current checkpoint: lower branch-local void calls in terminal-if
   - lowers void call expression statements before terminal return or nested terminal-if leaves inside supported terminal `if` branches
   - reuses the same pending scope-end drop cleanup as top-level leading void calls, so aggregate locals are still dropped before leaf returns
-  - keeps branch-local assignments outside the supported branch subset
 - Current checkpoint: lower branch-local explicit drops in terminal-if
   - lowers explicit `drop name` statements before terminal return or nested terminal-if leaves inside supported terminal `if` branches
-  - keeps branch-local assignments outside the supported branch subset
   - covers direct and nested terminal branches plus CLI build coverage for a branch-local explicit drop
 - Current checkpoint: lower nested terminal-if branches
   - recursively lowers terminal `if` branches whose branch body is another terminal `if`, across the existing scalar/view/void and supported aggregate terminal return subset
-  - keeps branch-local assignments outside the supported subset while preserving pending scope-end drop cleanup at every nested leaf return
+  - preserves pending scope-end drop cleanup at every nested leaf return
   - covers nested source `if` lowering for aggregate cleanup, fallible `void!` success conversion, and CLI build coverage
 - Current checkpoint: lower void terminal-if branches
   - lowers terminal `if` branches that directly `return` from entry and non-entry `void` functions

@@ -766,6 +766,47 @@ func choose(flag: bool): Pair {
 }
 
 #[test]
+fn build_command_lowers_direct_aggregate_terminal_if_branch_assignment() {
+    let project = TempProject::new("cli-build-direct-aggregate-terminal-if-branch-assignment");
+    let source = project.write_source(
+        "direct_aggregate_terminal_if_branch_assignment.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = choose(true)
+    drop file
+    return 0
+}
+
+func choose(flag: bool): File {
+    var file = File{ fd: 1 }
+    if flag {
+        file = File{ fd: 2 }
+        return move file
+    } else {
+        file = File{ fd: 3 }
+        return move file
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_terminal_if_bool_local() {
     let project = TempProject::new("cli-build-terminal-if-bool-local");
     let source = project.write_source(

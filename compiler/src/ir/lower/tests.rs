@@ -4607,6 +4607,120 @@ func choose(flag: bool): Pair {
 }
 
 #[test]
+fn lowers_direct_aggregate_terminal_if_branch_assignment_before_moved_return() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = choose(true)
+    drop file
+    return 0
+}
+
+func choose(flag: bool): File {
+    var file = File{ fd: 1 }
+    if flag {
+        file = File{ fd: 2 }
+        return move file
+    } else {
+        file = File{ fd: 3 }
+        return move file
+    }
+}
+"#,
+    );
+
+    let layout = ValueLayout::new(4, 4);
+    let drop_call = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let function = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "choose")
+        .unwrap();
+    assert_eq!(
+        function,
+        &Function {
+            name: "choose".to_string(),
+            target: CallTarget::same_file("choose"),
+            return_type: Type::DirectAggregate { layout, words: 1 },
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout,
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: i32_const(1),
+                },
+                Instruction::If {
+                    condition: BoolValue::Location(BoolLocation::Parameter(0)),
+                    then_instructions: vec![
+                        Instruction::ReserveAggregateSlot {
+                            slot_index: 1,
+                            layout,
+                        },
+                        Instruction::StoreAggregateI32 {
+                            destination: AggregateLocation::Slot(1),
+                            offset: 0,
+                            value: i32_const(2),
+                        },
+                        drop_call.clone(),
+                        Instruction::CopyAggregate {
+                            destination: AggregateLocation::Slot(0),
+                            source: AggregateLocation::Slot(1),
+                            layout,
+                        },
+                        Instruction::CopyAggregate {
+                            destination: AggregateLocation::DirectReturn,
+                            source: AggregateLocation::Slot(0),
+                            layout,
+                        },
+                        Instruction::Return,
+                    ],
+                    else_instructions: vec![
+                        Instruction::ReserveAggregateSlot {
+                            slot_index: 1,
+                            layout,
+                        },
+                        Instruction::StoreAggregateI32 {
+                            destination: AggregateLocation::Slot(1),
+                            offset: 0,
+                            value: i32_const(3),
+                        },
+                        drop_call,
+                        Instruction::CopyAggregate {
+                            destination: AggregateLocation::Slot(0),
+                            source: AggregateLocation::Slot(1),
+                            layout,
+                        },
+                        Instruction::CopyAggregate {
+                            destination: AggregateLocation::DirectReturn,
+                            source: AggregateLocation::Slot(0),
+                            layout,
+                        },
+                        Instruction::Return,
+                    ],
+                },
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_propagated_direct_aggregate_call_return() {
     let aggregate_type = Type::DirectAggregate {
         layout: ValueLayout::new(16, 8),

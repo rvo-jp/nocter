@@ -1,4 +1,4 @@
-use super::bindings::lower_local_binding;
+use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::LoweringContext;
 use super::expressions::{
     expression_contains_call, lower_bool_expression_to_value, lower_bool_return_expression,
@@ -562,6 +562,9 @@ pub(super) fn lower_terminal_branch_leading_statements(
             Stmt::Binding(statement) => {
                 instructions.extend(lower_local_binding(statement, context)?)
             }
+            Stmt::Assignment(statement) => {
+                instructions.extend(lower_assignment(statement, context)?)
+            }
             Stmt::Drop(statement) => instructions.extend(lower_drop_statement(statement, context)?),
             Stmt::Expression(statement) => {
                 let Some(void_instructions) =
@@ -596,7 +599,7 @@ fn unsupported_terminal_if_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower terminal `if` statements for {subject} when both branches contain only supported binding, explicit `drop`, or void call statements followed by returns or nested terminal `if` branches returning `{return_type}`"
+            "IR v0 can only lower terminal `if` statements for {subject} when both branches contain only supported binding, assignment, explicit `drop`, or void call statements followed by returns or nested terminal `if` branches returning `{return_type}`"
         ),
     )]
 }
