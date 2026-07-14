@@ -3739,6 +3739,102 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_replacement_drop_for_moved_aggregate_struct_literal_field_assignment() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+struct Holder {
+    file: File
+}
+
+impl Holder {
+    drop holder: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var source = File{ fd: 1 }
+    var holder = Holder{ file: File{ fd: 2 } }
+    holder = Holder{ file: move source }
+    return holder.file.fd
+}
+"#,
+    );
+
+    let drop_holder = Instruction::CallVoid {
+        target: CallTarget::same_file("Holder.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(1),
+        })],
+    };
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(1),
+            },
+            Instruction::ReserveAggregateSlot {
+                slot_index: 1,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(1),
+                offset: 0,
+                value: i32_const(2),
+            },
+            Instruction::ReserveAggregateSlot {
+                slot_index: 2,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(2),
+                destination_offset: 0,
+                source: AggregateLocation::Slot(0),
+                source_offset: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            drop_holder.clone(),
+            Instruction::CopyAggregate {
+                destination: AggregateLocation::Slot(1),
+                source: AggregateLocation::Slot(2),
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::LoadAggregateI32 {
+                destination: I32Location::Local(0),
+                source: AggregateLocation::Slot(1),
+                offset: 0,
+            },
+            drop_holder,
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
 fn lowers_replacement_drop_for_fallible_aggregate_assignment() {
     let ir = lower_text_with_std_error(
         r#"from std/error import Error
@@ -5177,6 +5273,70 @@ func make(): Header {
                 Instruction::Return,
             ],
         }
+    );
+}
+
+#[test]
+fn lowers_moved_aggregate_struct_literal_field_return() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+struct Holder {
+    file: File
+}
+
+impl Holder {
+    drop holder: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    let holder = make_holder()
+    return holder.file.fd
+}
+
+func make_holder(): Holder {
+    var file = File{ fd: 42 }
+    return Holder{ file: move file }
+}
+"#,
+    );
+
+    let make_holder = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "make_holder")
+        .unwrap();
+    assert_eq!(
+        make_holder.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(42),
+            },
+            Instruction::CopyAggregateRange {
+                destination: AggregateLocation::DirectReturn,
+                destination_offset: 0,
+                source: AggregateLocation::Slot(0),
+                source_offset: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::Return,
+        ],
     );
 }
 
