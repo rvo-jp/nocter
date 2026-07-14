@@ -125,6 +125,35 @@ func main(): i32 {
 }
 
 #[test]
+fn collects_drop_member_signature() {
+    let output = resolve_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let file_symbol = output.symbols.symbol_by_name("File").unwrap();
+    let SymbolKind::Type(TypeSymbol { drop_member, .. }) = &file_symbol.kind else {
+        panic!("expected type symbol");
+    };
+    let drop_member = drop_member.as_ref().expect("expected drop member");
+    assert_eq!(drop_member.target_name, "File.drop");
+    assert_eq!(drop_member.binding.name, "file");
+}
+
+#[test]
 fn collects_trait_symbols() {
     let output = resolve_text(
         r#"pub trait Writer {

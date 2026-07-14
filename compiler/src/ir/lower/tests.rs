@@ -2232,6 +2232,143 @@ func forward(): Text {
 }
 
 #[test]
+fn lowers_explicit_drop_to_drop_member_call() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 3 }
+    drop file
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: CallTarget::same_file("main"),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::Slot(0),
+                        offset: 0,
+                        value: i32_const(3),
+                    },
+                    Instruction::CallVoid {
+                        target: CallTarget::same_file("File.drop"),
+                        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                            source: BorrowSource::AggregateSlot(0),
+                        })],
+                    },
+                    set_return_i32(0),
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "File.drop".to_string(),
+                target: CallTarget::same_file("File.drop"),
+                return_type: Type::Void,
+                instructions: vec![Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
+fn lowers_imported_explicit_drop_to_imported_drop_member_call() {
+    let analysis = analyze_text_with_entry_and_nocter_home_files(
+        r#"from std/file import File
+
+func main(): i32 {
+    var file = File{ fd: 3 }
+    drop file
+    return 0
+}
+"#,
+        crate::entry::DEFAULT_ENTRY_NAME,
+        &[(
+            "std/file.nct",
+            r#"pub struct File {
+    pub fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+"#,
+        )],
+    );
+    let root = analysis.root_file().unwrap();
+    let imported_source = analysis
+        .files
+        .iter()
+        .find(|file| {
+            !file.is_root
+                && file.ast.items.iter().any(|item| {
+                    matches!(item, crate::ast::Item::Struct(struct_) if struct_.name == "File")
+                })
+        })
+        .map(|file| file.ast.span.source)
+        .unwrap();
+
+    let ir = lower_executable_with_entry(&analysis, crate::entry::DEFAULT_ENTRY_NAME).unwrap();
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: CallTarget::same_file("main"),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::Slot(0),
+                        offset: 0,
+                        value: i32_const(3),
+                    },
+                    Instruction::CallVoid {
+                        target: CallTarget::imported(imported_source, "File.drop"),
+                        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                            source: BorrowSource::AggregateSlot(0),
+                        })],
+                    },
+                    set_return_i32(0),
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "File.drop".to_string(),
+                target: CallTarget::imported(imported_source, "File.drop"),
+                return_type: Type::Void,
+                instructions: vec![Instruction::Return],
+            },
+        ])
+    );
+    assert_ne!(imported_source, root.ast.span.source);
+}
+
+#[test]
 fn lowers_propagated_indirect_aggregate_call_binding_return() {
     let aggregate_type = Type::Aggregate {
         layout: ValueLayout::new(24, 8),
@@ -12206,15 +12343,14 @@ fn lower_imported_named_function_with_nocter_home_files(
     let index = FunctionIndex::new(&analysis, root.ast.span.source);
     let function = index.definition(&target).unwrap();
 
-    functions::lower_function(
-        function.declaration,
-        target,
-        index.signatures(),
-        index.names(),
-        root.ast.span.source,
-        function.resolved,
-    )
-    .unwrap()
+    function
+        .lower(
+            target,
+            index.signatures(),
+            index.names(),
+            root.ast.span.source,
+        )
+        .unwrap()
 }
 
 fn lower_named_function_diagnostics_with_signatures(

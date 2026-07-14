@@ -16,10 +16,10 @@ mod tests;
 use super::{CallTarget, Function, IrModule};
 use crate::abi::{AbiType, AbiValue, ValueClassification, abi_value_from_type_expr};
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
-use crate::ast::{FunctionDecl, Item, TypeExpr};
+use crate::ast::{DropDecl, FunctionDecl, ImplMember, Item, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::Type;
-use crate::resolve::ResolveOutput;
+use crate::resolve::{ResolveOutput, drop_function_name};
 use crate::source::SourceId;
 use context::{FunctionNames, FunctionSignature, FunctionSignatures};
 use imported_calls::imported_call_diagnostics;
@@ -201,19 +201,16 @@ fn lower_reachable_functions(
                 ),
             )]);
         };
-        let diagnostics =
-            imported_call_diagnostics(function.declaration, root_source, function.resolved);
+        let diagnostics = function.imported_call_diagnostics(root_source);
         if !diagnostics.is_empty() {
             return Err(diagnostics);
         }
 
-        let function = functions::lower_function(
-            function.declaration,
+        let function = function.lower(
             target,
             function_signatures.clone(),
             function_names.clone(),
             root_source,
-            function.resolved,
         )?;
         queue.extend(reachable_call_targets(&function));
         lowered.push(function);
@@ -223,12 +220,21 @@ fn lower_reachable_functions(
 }
 
 struct FunctionIndex<'a> {
-    definitions: HashMap<CallTarget, IndexedFunction<'a>>,
+    definitions: HashMap<CallTarget, IndexedCallable<'a>>,
 }
 
-struct IndexedFunction<'a> {
-    declaration: &'a FunctionDecl,
+struct IndexedCallable<'a> {
+    declaration: IndexedDeclaration<'a>,
     resolved: &'a ResolveOutput,
+}
+
+enum IndexedDeclaration<'a> {
+    Function(&'a FunctionDecl),
+    Drop {
+        declaration: &'a DropDecl,
+        self_ty: &'a TypeExpr,
+        name: String,
+    },
 }
 
 impl<'a> FunctionIndex<'a> {
@@ -236,21 +242,43 @@ impl<'a> FunctionIndex<'a> {
         let mut definitions = HashMap::new();
         for file in &analysis.files {
             for item in &file.ast.items {
-                let Item::Function(function) = item else {
-                    continue;
-                };
-                let target = if file.ast.span.source == root_source {
-                    CallTarget::same_file(function.name.clone())
-                } else {
-                    CallTarget::imported(file.ast.span.source, function.name.clone())
-                };
-                definitions.insert(target, IndexedFunction::new(function, file));
+                match item {
+                    Item::Function(function) => {
+                        let target = call_target_for_source(
+                            file.ast.span.source,
+                            root_source,
+                            function.name.clone(),
+                        );
+                        definitions.insert(target, IndexedCallable::new_function(function, file));
+                    }
+                    Item::Impl(impl_) if impl_.trait_ty.is_none() => {
+                        let Some(type_name) = impl_target_type_name(&impl_.target_ty) else {
+                            continue;
+                        };
+                        for member in &impl_.members {
+                            let ImplMember::Drop(drop_) = member else {
+                                continue;
+                            };
+                            let name = drop_function_name(type_name);
+                            let target = call_target_for_source(
+                                file.ast.span.source,
+                                root_source,
+                                name.clone(),
+                            );
+                            definitions.insert(
+                                target,
+                                IndexedCallable::new_drop(drop_, &impl_.target_ty, name, file),
+                            );
+                        }
+                    }
+                    _ => {}
+                }
             }
         }
         Self { definitions }
     }
 
-    fn definition(&self, target: &CallTarget) -> Option<&IndexedFunction<'a>> {
+    fn definition(&self, target: &CallTarget) -> Option<&IndexedCallable<'a>> {
         self.definitions.get(target)
     }
 
@@ -259,29 +287,9 @@ impl<'a> FunctionIndex<'a> {
             self.definitions
                 .iter()
                 .filter_map(|(target, function)| {
-                    lower_signature_return_type(
-                        &function.declaration.return_type,
-                        function.resolved,
-                    )
-                    .map(|return_type| {
-                        let parameter_types = function
-                            .declaration
-                            .parameters
-                            .parameters
-                            .iter()
-                            .map(|parameter| {
-                                lower_signature_parameter_type(&parameter.ty, function.resolved)
-                            })
-                            .collect::<Option<Vec<_>>>();
-
-                        (
-                            target.clone(),
-                            FunctionSignature {
-                                return_type,
-                                parameter_types,
-                            },
-                        )
-                    })
+                    function
+                        .signature()
+                        .map(|signature| (target.clone(), signature))
                 })
                 .collect(),
         )
@@ -291,24 +299,148 @@ impl<'a> FunctionIndex<'a> {
         FunctionNames::from_declarations(
             self.definitions
                 .values()
-                .map(|function| {
-                    (
-                        function.declaration.name_span,
-                        function.declaration.name.clone(),
-                    )
-                })
+                .filter_map(|function| function.name_declaration().map(|(span, name)| (span, name)))
                 .collect(),
         )
     }
 }
 
-impl<'a> IndexedFunction<'a> {
-    fn new(declaration: &'a FunctionDecl, file: &'a FileAnalysis) -> Self {
+impl<'a> IndexedCallable<'a> {
+    fn new_function(declaration: &'a FunctionDecl, file: &'a FileAnalysis) -> Self {
         Self {
-            declaration,
+            declaration: IndexedDeclaration::Function(declaration),
             resolved: &file.resolved,
         }
     }
+
+    fn new_drop(
+        declaration: &'a DropDecl,
+        self_ty: &'a TypeExpr,
+        name: String,
+        file: &'a FileAnalysis,
+    ) -> Self {
+        Self {
+            declaration: IndexedDeclaration::Drop {
+                declaration,
+                self_ty,
+                name,
+            },
+            resolved: &file.resolved,
+        }
+    }
+
+    fn imported_call_diagnostics(&self, root_source: SourceId) -> Vec<Diagnostic> {
+        match &self.declaration {
+            IndexedDeclaration::Function(function) => {
+                imported_call_diagnostics(function, root_source, self.resolved)
+            }
+            IndexedDeclaration::Drop { declaration, .. } => {
+                imported_calls::imported_call_diagnostics_for_block(
+                    &declaration.body,
+                    root_source,
+                    self.resolved,
+                )
+            }
+        }
+    }
+
+    fn lower(
+        &self,
+        target: CallTarget,
+        function_signatures: FunctionSignatures,
+        function_names: FunctionNames,
+        root_source: SourceId,
+    ) -> Result<Function, Vec<Diagnostic>> {
+        match &self.declaration {
+            IndexedDeclaration::Function(function) => functions::lower_function(
+                function,
+                target,
+                function_signatures,
+                function_names,
+                root_source,
+                self.resolved,
+            ),
+            IndexedDeclaration::Drop {
+                declaration,
+                self_ty,
+                name,
+            } => functions::lower_drop_function(
+                declaration,
+                self_ty,
+                name.clone(),
+                target,
+                function_signatures,
+                function_names,
+                root_source,
+                self.resolved,
+            ),
+        }
+    }
+
+    fn signature(&self) -> Option<FunctionSignature> {
+        match &self.declaration {
+            IndexedDeclaration::Function(function) => lower_signature_return_type(
+                &function.return_type,
+                self.resolved,
+            )
+            .map(|return_type| {
+                let parameter_types = function
+                    .parameters
+                    .parameters
+                    .iter()
+                    .map(|parameter| lower_signature_parameter_type(&parameter.ty, self.resolved))
+                    .collect::<Option<Vec<_>>>();
+
+                FunctionSignature {
+                    return_type,
+                    parameter_types,
+                }
+            }),
+            IndexedDeclaration::Drop {
+                declaration,
+                self_ty,
+                ..
+            } => {
+                let parameter_ty =
+                    functions::type_expr_with_self_type(&declaration.binding.ty, self_ty);
+                let parameter_type = lower_signature_parameter_type(&parameter_ty, self.resolved)?;
+                Some(FunctionSignature {
+                    return_type: Type::Void,
+                    parameter_types: Some(vec![parameter_type]),
+                })
+            }
+        }
+    }
+
+    fn name_declaration(&self) -> Option<(crate::source::ByteSpan, String)> {
+        match &self.declaration {
+            IndexedDeclaration::Function(function) => {
+                Some((function.name_span, function.name.clone()))
+            }
+            IndexedDeclaration::Drop {
+                declaration, name, ..
+            } => Some((drop_name_span(declaration.span), name.clone())),
+        }
+    }
+}
+
+fn call_target_for_source(source: SourceId, root_source: SourceId, name: String) -> CallTarget {
+    if source == root_source {
+        CallTarget::same_file(name)
+    } else {
+        CallTarget::imported(source, name)
+    }
+}
+
+fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {
+    let TypeExpr::Reference(reference) = ty else {
+        return None;
+    };
+    Some(&reference.name)
+}
+
+fn drop_name_span(span: crate::source::ByteSpan) -> crate::source::ByteSpan {
+    crate::source::ByteSpan::new(span.source, span.start, span.start + "drop".len())
 }
 
 fn describe_call_target(target: &CallTarget) -> String {

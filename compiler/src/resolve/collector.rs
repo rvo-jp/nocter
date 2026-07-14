@@ -3,7 +3,8 @@ use super::diagnostics::{
     builtin_type_declaration_name_reuse_diagnostic, duplicate_visible_name_diagnostic,
 };
 use super::signatures::{
-    alias_type_symbol, associated_function_signatures, duplicate_inherent_member_name_diagnostics,
+    alias_type_symbol, associated_function_signatures, drop_signature,
+    duplicate_inherent_drop_diagnostics, duplicate_inherent_member_name_diagnostics,
     enum_type_symbol, function_signature, impl_target_type_name, method_signatures,
     nominal_type_symbol, primitive_signature, struct_type_symbol,
     type_symbol_accepts_inherent_impl,
@@ -150,16 +151,25 @@ impl Resolver<'_> {
             let mut associated_functions =
                 associated_function_signatures(impl_).collect::<Vec<_>>();
             let mut methods = method_signatures(impl_).collect::<Vec<_>>();
-            let diagnostics = duplicate_inherent_member_name_diagnostics(
+            let mut diagnostics = duplicate_inherent_member_name_diagnostics(
                 self.sources,
                 target_name,
                 type_symbol,
                 impl_,
             );
+            diagnostics.extend(duplicate_inherent_drop_diagnostics(
+                self.sources,
+                target_name,
+                type_symbol,
+                impl_,
+            ));
             type_symbol
                 .associated_functions
                 .append(&mut associated_functions);
             type_symbol.methods.append(&mut methods);
+            if type_symbol.drop_member.is_none() {
+                type_symbol.drop_member = drop_signature(impl_);
+            }
             diagnostics
         };
         self.output.diagnostics.extend(diagnostics);

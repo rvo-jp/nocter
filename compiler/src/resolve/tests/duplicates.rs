@@ -120,6 +120,35 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_duplicate_inherent_drop_members_across_impls() {
+    let output = resolve_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0413");
+}
+
+#[test]
 fn diagnoses_local_shadowing_top_level_function() {
     let output = resolve_text(
         r#"func main(): i32 {

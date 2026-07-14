@@ -6,6 +6,7 @@ mod body;
 mod calls;
 mod controls;
 mod diagnostics;
+mod drop_members;
 mod entry;
 mod environments;
 mod expressions;
@@ -27,6 +28,7 @@ use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
 use crate::source::SourceMap;
 use body::*;
+use drop_members::*;
 use entry::*;
 use ownership::*;
 use returns::*;
@@ -55,6 +57,7 @@ pub fn check_module(
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
 
+    check_drop_members(sources, ast, &mut diagnostics);
     check_sized_value_types(sources, ast, resolved, &mut diagnostics);
     check_body_expressions(sources, ast, resolved, &mut diagnostics);
     check_ownership_states(sources, ast, resolved, &mut diagnostics);

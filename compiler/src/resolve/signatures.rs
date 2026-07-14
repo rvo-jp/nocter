@@ -1,6 +1,6 @@
 use super::{
-    AssociatedFunctionSignature, EnumVariantSignature, FunctionSignature, MethodSignature,
-    ParameterSignature, StructFieldSignature, TypeSymbol, TypeSymbolKind,
+    AssociatedFunctionSignature, DropSignature, EnumVariantSignature, FunctionSignature,
+    MethodSignature, ParameterSignature, StructFieldSignature, TypeSymbol, TypeSymbolKind,
 };
 use crate::ast::{
     AstFile, EnumVariant, FunctionDecl, ImplDecl, ImplMember, MethodDecl, Parameter, PrimitiveDecl,
@@ -33,6 +33,9 @@ pub(super) fn attach_inherent_impl_members_to_symbol(
             .associated_functions
             .extend(associated_function_signatures(impl_));
         symbol.methods.extend(method_signatures(impl_));
+        if symbol.drop_member.is_none() {
+            symbol.drop_member = drop_signature(impl_);
+        }
     }
 }
 
@@ -71,6 +74,18 @@ pub(super) fn method_signatures(impl_: &ImplDecl) -> impl Iterator<Item = Method
     impl_.members.iter().filter_map(|member| match member {
         ImplMember::Method(method) => Some(method_signature(method)),
         ImplMember::Function(_) | ImplMember::Drop(_) => None,
+    })
+}
+
+pub(super) fn drop_signature(impl_: &ImplDecl) -> Option<DropSignature> {
+    let target_name = impl_target_type_name(&impl_.target_ty)?;
+    impl_.members.iter().find_map(|member| match member {
+        ImplMember::Drop(drop_) => Some(DropSignature {
+            name_span: drop_name_span(drop_.span),
+            target_name: drop_function_name(target_name),
+            binding: parameter_signature(&drop_.binding),
+        }),
+        ImplMember::Function(_) | ImplMember::Method(_) => None,
     })
 }
 
@@ -115,12 +130,47 @@ pub(super) fn duplicate_inherent_member_name_diagnostics(
     diagnostics
 }
 
+pub(super) fn duplicate_inherent_drop_diagnostics(
+    sources: &SourceMap,
+    target_name: &str,
+    type_symbol: &TypeSymbol,
+    impl_: &ImplDecl,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let Some(drop_) = impl_.members.iter().find_map(|member| match member {
+        ImplMember::Drop(drop_) => Some(drop_),
+        ImplMember::Function(_) | ImplMember::Method(_) => None,
+    }) else {
+        return diagnostics;
+    };
+
+    if let Some(existing) = &type_symbol.drop_member {
+        diagnostics.push(duplicate_inherent_member_name_diagnostic(
+            sources,
+            target_name,
+            "drop",
+            existing.name_span,
+            drop_name_span(drop_.span),
+        ));
+    }
+
+    diagnostics
+}
+
 pub(super) fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {
     let TypeExpr::Reference(reference) = ty else {
         return None;
     };
 
     Some(&reference.name)
+}
+
+pub(crate) fn drop_function_name(type_name: &str) -> String {
+    format!("{type_name}.drop")
+}
+
+fn drop_name_span(span: ByteSpan) -> ByteSpan {
+    ByteSpan::new(span.source, span.start, span.start + "drop".len())
 }
 
 pub(super) fn function_signature(function: &FunctionDecl) -> FunctionSignature {
@@ -147,6 +197,7 @@ pub(super) fn alias_type_symbol(canonical_name: String, alias_target: TypeExpr) 
         variants: Vec::new(),
         associated_functions: Vec::new(),
         methods: Vec::new(),
+        drop_member: None,
     }
 }
 
@@ -160,6 +211,7 @@ pub(super) fn nominal_type_symbol(canonical_name: String, kind: TypeSymbolKind) 
         variants: Vec::new(),
         associated_functions: Vec::new(),
         methods: Vec::new(),
+        drop_member: None,
     }
 }
 
@@ -186,6 +238,7 @@ pub(super) fn struct_type_symbol(
         variants: Vec::new(),
         associated_functions: Vec::new(),
         methods: Vec::new(),
+        drop_member: None,
     }
 }
 
@@ -206,6 +259,7 @@ pub(super) fn enum_type_symbol(canonical_name: String, variants: &[EnumVariant])
             .collect(),
         associated_functions: Vec::new(),
         methods: Vec::new(),
+        drop_member: None,
     }
 }
 

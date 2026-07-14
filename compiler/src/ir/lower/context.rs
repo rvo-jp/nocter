@@ -1,5 +1,5 @@
 use crate::abi::ValueLayout;
-use crate::ast::CallExpr;
+use crate::ast::{CallExpr, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateLocation, BoolLocation, CallTarget, I32Location, SliceLocation, StrLocation, Type,
@@ -48,6 +48,7 @@ pub(super) struct LoweringAggregateParameter {
     pub(super) slot_index: usize,
     pub(super) source: AggregateParameterSource,
     pub(super) is_copy: bool,
+    pub(super) drop_glue: Option<DropGlue>,
     pub(super) fields: Vec<AggregateField>,
 }
 
@@ -107,6 +108,7 @@ impl<'a> LoweringContext<'a> {
                     layout: parameter.layout,
                     slot_index: parameter.slot_index,
                     is_copy: parameter.is_copy,
+                    drop_glue: parameter.drop_glue,
                 },
                 index: 0,
             });
@@ -275,6 +277,7 @@ impl<'a> LoweringContext<'a> {
         name: String,
         layout: ValueLayout,
         is_copy: bool,
+        drop_glue: Option<DropGlue>,
         fields: Vec<AggregateField>,
     ) -> usize {
         let slot_index = self.next_aggregate_slot_index();
@@ -284,6 +287,7 @@ impl<'a> LoweringContext<'a> {
                 layout,
                 slot_index,
                 is_copy,
+                drop_glue,
             },
             index: 0,
         });
@@ -408,12 +412,14 @@ impl<'a> LoweringContext<'a> {
                     layout,
                     slot_index,
                     is_copy,
+                    ref drop_glue,
                 } = local.kind
             {
                 return Some(AggregateLocal {
                     slot_index,
                     layout,
                     is_copy,
+                    drop_glue: drop_glue.clone(),
                 });
             }
             None
@@ -426,6 +432,7 @@ impl<'a> LoweringContext<'a> {
                 layout,
                 slot_index: local_slot_index,
                 is_copy,
+                ref drop_glue,
             } = local.kind
             else {
                 return None;
@@ -435,6 +442,7 @@ impl<'a> LoweringContext<'a> {
                     slot_index: local_slot_index,
                     layout,
                     is_copy,
+                    drop_glue: drop_glue.clone(),
                 });
             }
             None
@@ -523,6 +531,11 @@ impl<'a> LoweringContext<'a> {
             .filter(|local| matches!(local.kind, LocalKind::Aggregate { .. }))
             .count()
     }
+
+    pub(super) fn drop_glue_for_type_expr(&self, ty: &TypeExpr) -> Option<DropGlue> {
+        let (root_source, resolved) = self.resolved_calls()?;
+        drop_glue_for_type_expr(ty, root_source, resolved)
+    }
 }
 
 #[derive(Clone)]
@@ -602,11 +615,17 @@ struct LocalBinding {
     index: usize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct AggregateLocal {
     pub(super) slot_index: usize,
     pub(super) layout: ValueLayout,
     pub(super) is_copy: bool,
+    pub(super) drop_glue: Option<DropGlue>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct DropGlue {
+    pub(super) target: CallTarget,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -637,7 +656,7 @@ pub(super) enum AggregateFieldKind {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum LocalKind {
     I32,
     U8,
@@ -650,11 +669,12 @@ enum LocalKind {
         layout: ValueLayout,
         slot_index: usize,
         is_copy: bool,
+        drop_glue: Option<DropGlue>,
     },
 }
 
 impl LocalKind {
-    fn abi_word_count(self) -> usize {
+    fn abi_word_count(&self) -> usize {
         match self {
             Self::I32 | Self::U8 | Self::Usize | Self::Bool => 1,
             Self::Str | Self::Slice => 2,
@@ -662,6 +682,27 @@ impl LocalKind {
             Self::Aggregate { .. } => 0,
         }
     }
+}
+
+pub(super) fn drop_glue_for_type_expr(
+    ty: &TypeExpr,
+    root_source: SourceId,
+    resolved: &ResolveOutput,
+) -> Option<DropGlue> {
+    let TypeExpr::Reference(reference) = ty else {
+        return None;
+    };
+    let (symbol, type_symbol) = resolved.type_symbol_definition_by_name(&reference.name)?;
+    let drop_member = type_symbol.drop_member.as_ref()?;
+    let target = if symbol.declaration_span.source == root_source {
+        CallTarget::same_file(drop_member.target_name.clone())
+    } else {
+        CallTarget::imported(
+            symbol.declaration_span.source,
+            drop_member.target_name.clone(),
+        )
+    };
+    Some(DropGlue { target })
 }
 
 const MAX_LOCAL_ABI_WORDS: usize = 7;

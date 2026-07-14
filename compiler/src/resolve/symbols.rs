@@ -122,6 +122,14 @@ impl ResolveOutput {
         }
     }
 
+    pub fn type_symbol_definition_by_name(&self, name: &str) -> Option<(&Symbol, &TypeSymbol)> {
+        let symbol = self.symbols.symbol_by_name(name)?;
+        match &symbol.kind {
+            SymbolKind::Type(type_symbol) => Some((symbol, type_symbol)),
+            SymbolKind::Function(_) | SymbolKind::Primitive(_) | SymbolKind::Imported(_) => None,
+        }
+    }
+
     pub fn type_symbol_by_canonical_name(&self, canonical_name: &str) -> Option<&TypeSymbol> {
         self.symbols
             .symbols
@@ -280,6 +288,7 @@ pub struct TypeSymbol {
     pub variants: Vec<EnumVariantSignature>,
     pub associated_functions: Vec<AssociatedFunctionSignature>,
     pub methods: Vec<MethodSignature>,
+    pub drop_member: Option<DropSignature>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -323,6 +332,13 @@ pub struct MethodSignature {
     pub is_accessible: bool,
     pub receiver: ParameterSignature,
     pub signature: FunctionSignature,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DropSignature {
+    pub name_span: ByteSpan,
+    pub target_name: String,
+    pub binding: ParameterSignature,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

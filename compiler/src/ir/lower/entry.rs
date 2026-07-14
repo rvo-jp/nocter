@@ -6,6 +6,7 @@ use super::expressions::{
     lower_i32_return_expression, lower_never_return_expression, lower_void_expression_statement,
     mark_fallible_success_returns, success_return_instruction,
 };
+use super::functions::lower_drop_statement;
 use crate::ast::{FunctionDecl, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{CallTarget, Function, Instruction, Type};
@@ -193,6 +194,9 @@ fn lower_leading_bindings(
                     return Err(unsupported_entry_body_diagnostic());
                 };
                 instructions.extend(void_instructions);
+            }
+            Stmt::Drop(statement) => {
+                instructions.extend(lower_drop_statement(statement, context)?);
             }
             _ => return Err(unsupported_entry_body_diagnostic()),
         };

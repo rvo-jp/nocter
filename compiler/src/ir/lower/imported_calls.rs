@@ -23,20 +23,37 @@ pub(super) fn imported_call_diagnostics(
     root_source: SourceId,
     resolved: &ResolveOutput,
 ) -> Vec<Diagnostic> {
-    imported_call_targets(function, root_source, resolved)
+    imported_call_diagnostics_for_block(&function.body, root_source, resolved)
+}
+
+pub(super) fn imported_call_diagnostics_for_block(
+    block: &Block,
+    root_source: SourceId,
+    resolved: &ResolveOutput,
+) -> Vec<Diagnostic> {
+    imported_call_targets_for_block(block, root_source, resolved)
         .into_iter()
         .filter(|target| matches!(target.source, ImportedCallSource::UnloadedPath(_)))
         .map(|target| unsupported_imported_call_diagnostic(&target.call_name))
         .collect()
 }
 
+#[cfg(test)]
 pub(super) fn imported_call_targets(
     function: &FunctionDecl,
     root_source: SourceId,
     resolved: &ResolveOutput,
 ) -> Vec<ImportedCallTarget> {
+    imported_call_targets_for_block(&function.body, root_source, resolved)
+}
+
+fn imported_call_targets_for_block(
+    block: &Block,
+    root_source: SourceId,
+    resolved: &ResolveOutput,
+) -> Vec<ImportedCallTarget> {
     let mut targets = Vec::new();
-    collect_block(&function.body, root_source, resolved, &mut targets);
+    collect_block(block, root_source, resolved, &mut targets);
     targets
 }
 

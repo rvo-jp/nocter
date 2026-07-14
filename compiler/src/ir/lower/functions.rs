@@ -7,6 +7,7 @@ use super::bindings::{lower_assignment, lower_local_binding, type_expr_is_copy_s
 use super::context::{
     AggregateBorrowParameter, AggregateFieldKind, AggregateParameterSource, FunctionNames,
     FunctionSignatures, LoweringAggregateParameter, LoweringContext, LoweringParameterSlots,
+    drop_glue_for_type_expr,
 };
 use super::control_flow::{lower_terminal_bool_if_statement, lower_terminal_i32_if_statement};
 use super::errors::{ErrorPayload, lower_error_payload};
@@ -18,9 +19,16 @@ use super::expressions::{
     lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
 };
 use crate::abi::{AbiType, AbiValue, ValueClassification, abi_value_from_type_expr};
-use crate::ast::{Expr, FunctionDecl, Parameter, Stmt, StructLiteralExpr, TypeExpr, UnaryOperator};
+use crate::ast::{
+    ArrayType, Block, BorrowType, DropDecl, DropStmt, Expr, FallibleType, FunctionDecl,
+    GenericType, OptionalType, Parameter, PointerType, Stmt, StructLiteralExpr, TypeExpr,
+    UnaryOperator, ViewType,
+};
 use crate::diagnostics::Diagnostic;
-use crate::ir::{AggregateLocation, CallTarget, FallibleFailureMode, Function, Instruction, Type};
+use crate::ir::{
+    AggregateLocation, BorrowArgument, BorrowSource, CallTarget, FallibleFailureMode, Function,
+    Instruction, ScalarArgument, Type,
+};
 use crate::resolve::ResolveOutput;
 use crate::source::SourceId;
 
@@ -42,7 +50,12 @@ pub(super) fn lower_function(
         )]);
     }
 
-    let parameters = lower_scalar_parameters(function, resolved)?;
+    let parameters = lower_scalar_parameters(
+        &function.name,
+        &function.parameters.parameters,
+        root_source,
+        resolved,
+    )?;
     let parameter_setup = lower_aggregate_parameter_setup(&parameters);
     let return_type = lower_function_return_type(&function.return_type, &function.name, resolved)?;
     let success_type = return_type.success_type().clone();
@@ -55,8 +68,9 @@ pub(super) fn lower_function(
     .with_function_return_type(return_type.clone())
     .with_call_resolution(root_source, resolved, function_names);
     let mut instructions = parameter_setup;
-    instructions.extend(lower_function_body(
-        function,
+    instructions.extend(lower_callable_body(
+        &function.name,
+        &function.body,
         &return_type,
         root_source,
         resolved,
@@ -71,8 +85,56 @@ pub(super) fn lower_function(
     })
 }
 
+pub(super) fn lower_drop_function(
+    drop_: &DropDecl,
+    self_ty: &TypeExpr,
+    name: String,
+    target: CallTarget,
+    function_signatures: FunctionSignatures,
+    function_names: FunctionNames,
+    root_source: SourceId,
+    resolved: &ResolveOutput,
+) -> Result<Function, Vec<Diagnostic>> {
+    let binding = Parameter {
+        span: drop_.binding.span,
+        name: drop_.binding.name.clone(),
+        name_span: drop_.binding.name_span,
+        ty: type_expr_with_self_type(&drop_.binding.ty, self_ty),
+    };
+    let parameters =
+        lower_scalar_parameters(&name, std::slice::from_ref(&binding), root_source, resolved)?;
+    let parameter_setup = lower_aggregate_parameter_setup(&parameters);
+    let return_type = Type::Void;
+    let mut context = LoweringContext::new(
+        name.clone(),
+        return_type.clone(),
+        function_signatures,
+        parameters,
+    )
+    .with_function_return_type(return_type.clone())
+    .with_call_resolution(root_source, resolved, function_names);
+    let mut instructions = parameter_setup;
+    instructions.extend(lower_callable_body(
+        &name,
+        &drop_.body,
+        &return_type,
+        root_source,
+        resolved,
+        &mut context,
+    )?);
+
+    Ok(Function {
+        name,
+        target,
+        return_type,
+        instructions,
+    })
+}
+
 fn lower_scalar_parameters(
-    function: &FunctionDecl,
+    function_name: &str,
+    parameters: &[Parameter],
+    root_source: SourceId,
     resolved: &ResolveOutput,
 ) -> Result<LoweringParameterSlots, Vec<Diagnostic>> {
     let mut i32_parameters = Vec::new();
@@ -83,8 +145,8 @@ fn lower_scalar_parameters(
     let mut slice_parameters = Vec::new();
     let mut aggregate_parameters = Vec::new();
     let mut aggregate_borrow_parameters = Vec::new();
-    for parameter in &function.parameters.parameters {
-        match lower_scalar_parameter_kind(parameter, &function.name, resolved)? {
+    for parameter in parameters {
+        match lower_scalar_parameter_kind(parameter, function_name, resolved)? {
             ScalarParameterKind::I32 => {
                 i32_parameters.push(Some(parameter.name.clone()));
                 u8_parameters.push(None);
@@ -187,6 +249,7 @@ fn lower_scalar_parameters(
                     slot_index: aggregate_parameters.len(),
                     source: AggregateParameterSource::Indirect { parameter_index },
                     is_copy: type_expr_is_copy_struct(&parameter.ty, resolved),
+                    drop_glue: drop_glue_for_type_expr(&parameter.ty, root_source, resolved),
                     fields,
                 });
             }
@@ -210,6 +273,7 @@ fn lower_scalar_parameters(
                     slot_index: aggregate_parameters.len(),
                     source: AggregateParameterSource::Direct { start_index, words },
                     is_copy: type_expr_is_copy_struct(&parameter.ty, resolved),
+                    drop_glue: drop_glue_for_type_expr(&parameter.ty, root_source, resolved),
                     fields,
                 });
             }
@@ -459,22 +523,23 @@ fn aggregate_type_from_abi_value(value: &AbiValue) -> Option<Type> {
     }
 }
 
-fn lower_function_body(
-    function: &FunctionDecl,
+fn lower_callable_body(
+    function_name: &str,
+    body: &Block,
     return_type: &Type,
     root_source: SourceId,
     resolved: &ResolveOutput,
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let success_type = return_type.success_type();
-    let statements = function.body.statements.as_slice();
+    let statements = body.statements.as_slice();
 
     if statements.is_empty() && *success_type == Type::Void {
         return Ok(vec![success_return_instruction(return_type)]);
     }
 
     let Some((last, leading)) = statements.split_last() else {
-        return Err(unsupported_function_body_diagnostic(&function.name));
+        return Err(unsupported_function_body_diagnostic(function_name));
     };
 
     let mut instructions = lower_leading_bindings(leading, context)?;
@@ -515,7 +580,7 @@ fn lower_function_body(
                     lower_aggregate_return_expression(
                         expression,
                         success_type,
-                        &function.name,
+                        function_name,
                         resolved,
                         context,
                     )
@@ -524,7 +589,7 @@ fn lower_function_body(
                     "E8007",
                     format!(
                         "IR v0 can only lower never function `{}` returns from `never` calls",
-                        function.name
+                        function_name
                     ),
                 )]),
                 (Type::Void, None) => Ok(vec![Instruction::Return]),
@@ -532,49 +597,49 @@ fn lower_function_body(
                     "E8007",
                     format!(
                         "IR v0 cannot lower value returns from void function `{}`",
-                        function.name
+                        function_name
                     ),
                 )]),
                 (Type::I32, None) => Err(vec![Diagnostic::error(
                     "E8007",
                     format!(
                         "IR v0 cannot lower bare returns from i32 function `{}`",
-                        function.name
+                        function_name
                     ),
                 )]),
                 (Type::U8, None) => Err(vec![Diagnostic::error(
                     "E8007",
                     format!(
                         "IR v0 cannot lower bare returns from u8 function `{}`",
-                        function.name
+                        function_name
                     ),
                 )]),
                 (Type::Usize, None) => Err(vec![Diagnostic::error(
                     "E8007",
                     format!(
                         "IR v0 cannot lower bare returns from usize function `{}`",
-                        function.name
+                        function_name
                     ),
                 )]),
                 (Type::Bool, None) => Err(vec![Diagnostic::error(
                     "E8007",
                     format!(
                         "IR v0 cannot lower bare returns from bool function `{}`",
-                        function.name
+                        function_name
                     ),
                 )]),
                 (Type::Str, None) => Err(vec![Diagnostic::error(
                     "E8007",
                     format!(
                         "IR v0 cannot lower bare returns from &str function `{}`",
-                        function.name
+                        function_name
                     ),
                 )]),
                 (Type::Slice { .. }, None) => Err(vec![Diagnostic::error(
                     "E8007",
                     format!(
                         "IR v0 cannot lower bare returns from slice function `{}`",
-                        function.name
+                        function_name
                     ),
                 )]),
                 (Type::Aggregate { .. } | Type::DirectAggregate { .. }, None) => {
@@ -582,7 +647,7 @@ fn lower_function_body(
                         "E8007",
                         format!(
                             "IR v0 cannot lower bare returns from aggregate function `{}`",
-                            function.name
+                            function_name
                         ),
                     )])
                 }
@@ -590,14 +655,14 @@ fn lower_function_body(
                     "E8007",
                     format!(
                         "IR v0 cannot lower borrow returns from function `{}`",
-                        function.name
+                        function_name
                     ),
                 )]),
                 (Type::Never, None) => Err(vec![Diagnostic::error(
                     "E8007",
                     format!(
                         "IR v0 cannot lower bare returns from never function `{}`",
-                        function.name
+                        function_name
                     ),
                 )]),
                 (Type::Fallible(_), _) => {
@@ -641,12 +706,57 @@ fn lower_function_body(
                     return Ok(instructions);
                 }
 
-                return Err(unsupported_function_body_diagnostic(&function.name));
+                return Err(unsupported_function_body_diagnostic(function_name));
             };
             instructions.extend(terminating_instructions);
             Ok(instructions)
         }
-        _ => Err(unsupported_function_body_diagnostic(&function.name)),
+        _ => Err(unsupported_function_body_diagnostic(function_name)),
+    }
+}
+
+pub(super) fn type_expr_with_self_type(ty: &TypeExpr, self_ty: &TypeExpr) -> TypeExpr {
+    match ty {
+        TypeExpr::Reference(reference) if reference.name == "Self" => self_ty.clone(),
+        TypeExpr::Reference(_) => ty.clone(),
+        TypeExpr::Generic(generic) => TypeExpr::Generic(GenericType {
+            span: generic.span,
+            name: generic.name.clone(),
+            name_span: generic.name_span,
+            arguments: generic
+                .arguments
+                .iter()
+                .map(|argument| type_expr_with_self_type(argument, self_ty))
+                .collect(),
+        }),
+        TypeExpr::Pointer(pointer) => TypeExpr::Pointer(PointerType {
+            span: pointer.span,
+            inner: Box::new(type_expr_with_self_type(&pointer.inner, self_ty)),
+        }),
+        TypeExpr::Borrow(borrow) => TypeExpr::Borrow(BorrowType {
+            span: borrow.span,
+            is_readwrite: borrow.is_readwrite,
+            inner: Box::new(type_expr_with_self_type(&borrow.inner, self_ty)),
+        }),
+        TypeExpr::View(view) => TypeExpr::View(ViewType {
+            span: view.span,
+            is_readwrite: view.is_readwrite,
+            element: Box::new(type_expr_with_self_type(&view.element, self_ty)),
+        }),
+        TypeExpr::Array(array) => TypeExpr::Array(ArrayType {
+            span: array.span,
+            element: Box::new(type_expr_with_self_type(&array.element, self_ty)),
+            length: array.length.clone(),
+        }),
+        TypeExpr::Optional(optional) => TypeExpr::Optional(OptionalType {
+            span: optional.span,
+            inner: Box::new(type_expr_with_self_type(&optional.inner, self_ty)),
+        }),
+        TypeExpr::Fallible(fallible) => TypeExpr::Fallible(FallibleType {
+            span: fallible.span,
+            success: Box::new(type_expr_with_self_type(&fallible.success, self_ty)),
+            error: Box::new(type_expr_with_self_type(&fallible.error, self_ty)),
+        }),
     }
 }
 
@@ -670,21 +780,79 @@ fn lower_leading_bindings(
                 else {
                     return Err(vec![Diagnostic::error(
                         "E8007",
-                        "IR v0 can only lower leading scalar local bindings, scalar assignments, or void call statements before `return`",
+                        "IR v0 can only lower leading scalar local bindings, scalar assignments, drop statements, or void call statements before `return`",
                     )]);
                 };
                 instructions.extend(void_instructions);
             }
+            Stmt::Drop(statement) => {
+                instructions.extend(lower_drop_statement(statement, context)?);
+            }
             _ => {
                 return Err(vec![Diagnostic::error(
                     "E8007",
-                    "IR v0 can only lower leading scalar local bindings, scalar assignments, or void call statements before `return`",
+                    "IR v0 can only lower leading scalar local bindings, scalar assignments, drop statements, or void call statements before `return`",
                 )]);
             }
         };
     }
 
     Ok(instructions)
+}
+
+pub(super) fn lower_drop_statement(
+    statement: &DropStmt,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some(local) = context.aggregate_local(&statement.name) else {
+        return Err(unsupported_drop_statement_diagnostic(&statement.name));
+    };
+    let Some(drop_glue) = local.drop_glue else {
+        return Ok(Vec::new());
+    };
+    let Some(parameter_types) = context.call_parameter_types(&drop_glue.target) else {
+        return Err(unsupported_drop_statement_diagnostic(&statement.name));
+    };
+    if parameter_types.len() != 1
+        || !drop_parameter_matches_local(&parameter_types[0], local.layout)
+    {
+        return Err(unsupported_drop_statement_diagnostic(&statement.name));
+    }
+
+    Ok(vec![Instruction::CallVoid {
+        target: drop_glue.target,
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(local.slot_index),
+        })],
+    }])
+}
+
+fn drop_parameter_matches_local(parameter_type: &Type, layout: crate::abi::ValueLayout) -> bool {
+    let Type::Borrow {
+        is_readwrite: true,
+        inner,
+    } = parameter_type
+    else {
+        return false;
+    };
+
+    match inner.as_ref() {
+        Type::Aggregate {
+            layout: parameter_layout,
+        }
+        | Type::DirectAggregate {
+            layout: parameter_layout,
+            ..
+        } => *parameter_layout == layout,
+        _ => false,
+    }
+}
+
+fn unsupported_drop_statement_diagnostic(name: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8008",
+        format!("IR v0 cannot lower drop statement for binding `{name}`"),
+    )]
 }
 
 fn lower_aggregate_return_expression(

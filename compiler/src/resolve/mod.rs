@@ -13,11 +13,13 @@ mod symbols;
 mod tests;
 
 pub use symbols::{
-    AssociatedFunctionSignature, EnumVariantSignature, FunctionSignature, ImportAccess,
-    ImportSource, ImportSourceMap, ImportedSymbol, LocalSymbol, LocalSymbolId, LocalSymbolKind,
-    MethodSignature, ParameterSignature, ResolveOutput, StructFieldSignature, Symbol, SymbolId,
-    SymbolKind, SymbolTable, TypeSymbol, TypeSymbolKind,
+    AssociatedFunctionSignature, DropSignature, EnumVariantSignature, FunctionSignature,
+    ImportAccess, ImportSource, ImportSourceMap, ImportedSymbol, LocalSymbol, LocalSymbolId,
+    LocalSymbolKind, MethodSignature, ParameterSignature, ResolveOutput, StructFieldSignature,
+    Symbol, SymbolId, SymbolKind, SymbolTable, TypeSymbol, TypeSymbolKind,
 };
+
+pub(crate) use signatures::drop_function_name;
 
 use module_index::ModuleIndex;
 

@@ -2,6 +2,7 @@ mod arrays;
 mod bindings;
 mod calls;
 mod control_flow;
+mod drop_members;
 mod entry;
 mod fallible;
 mod methods;

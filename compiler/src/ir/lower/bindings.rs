@@ -86,9 +86,15 @@ fn lower_aggregate_struct_literal_binding(
     validate_aggregate_binding_layout(value.layout)?;
 
     let is_copy = type_expr_is_copy_struct(&literal.ty, resolved);
+    let drop_glue = context.drop_glue_for_type_expr(&literal.ty);
     let fields = aggregate_fields_from_type_expr(&literal.ty, resolved).unwrap_or_default();
-    let slot_index =
-        context.define_aggregate_local(statement.name.clone(), value.layout, is_copy, fields);
+    let slot_index = context.define_aggregate_local(
+        statement.name.clone(),
+        value.layout,
+        is_copy,
+        drop_glue,
+        fields,
+    );
     let mut instructions = vec![Instruction::ReserveAggregateSlot {
         slot_index,
         layout: value.layout,
@@ -167,9 +173,10 @@ fn lower_aggregate_normal_call_binding(
     validate_aggregate_binding_layout(layout)?;
 
     let is_copy = call_success_type_is_copy_struct(call, context);
+    let drop_glue = call_success_drop_glue(call, context);
     let fields = call_success_aggregate_fields(call, context);
     let slot_index =
-        context.define_aggregate_local(statement.name.clone(), layout, is_copy, fields);
+        context.define_aggregate_local(statement.name.clone(), layout, is_copy, drop_glue, fields);
     let (mut instructions, arguments) =
         lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
     instructions.insert(0, Instruction::ReserveAggregateSlot { slot_index, layout });
@@ -204,9 +211,10 @@ fn lower_aggregate_fallible_call_binding(
     validate_aggregate_binding_layout(layout)?;
 
     let is_copy = call_success_type_is_copy_struct(call, context);
+    let drop_glue = call_success_drop_glue(call, context);
     let fields = call_success_aggregate_fields(call, context);
     let slot_index =
-        context.define_aggregate_local(statement.name.clone(), layout, is_copy, fields);
+        context.define_aggregate_local(statement.name.clone(), layout, is_copy, drop_glue, fields);
     let (mut instructions, arguments) =
         lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
     instructions.insert(0, Instruction::ReserveAggregateSlot { slot_index, layout });
@@ -272,7 +280,7 @@ fn lower_aggregate_local_member_binding(
     }
 
     let slot_index =
-        context.define_aggregate_local(statement.name.clone(), layout, is_copy, fields);
+        context.define_aggregate_local(statement.name.clone(), layout, is_copy, None, fields);
     Ok(Some(vec![
         Instruction::ReserveAggregateSlot { slot_index, layout },
         Instruction::CopyAggregateRange {
@@ -316,7 +324,7 @@ fn lower_aggregate_call_member_binding(
 
     let is_copy = call_success_type_is_copy_struct(call, context);
     let slot_index =
-        context.define_aggregate_local(statement.name.clone(), layout, is_copy, fields);
+        context.define_aggregate_local(statement.name.clone(), layout, is_copy, None, fields);
     let mut temporaries = TemporaryAllocator::new(context)?;
     let source_slot = temporaries.next_aggregate_slot();
     let mut instructions = vec![
@@ -385,7 +393,7 @@ fn lower_aggregate_fallible_call_member_binding(
 
     let is_copy = call_success_type_is_copy_struct(call, context);
     let slot_index =
-        context.define_aggregate_local(statement.name.clone(), layout, is_copy, fields);
+        context.define_aggregate_local(statement.name.clone(), layout, is_copy, None, fields);
     let mut temporaries = TemporaryAllocator::new(context)?;
     let source_slot = temporaries.next_aggregate_slot();
     let mut instructions = vec![
@@ -1249,6 +1257,17 @@ fn call_success_aggregate_fields(
         return Vec::new();
     };
     aggregate_fields_from_type_expr(&signature.return_type, resolved).unwrap_or_default()
+}
+
+fn call_success_drop_glue(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> Option<super::context::DropGlue> {
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return None;
+    };
+    let signature = resolved.call_signature_for_call(call)?;
+    context.drop_glue_for_type_expr(&signature.return_type)
 }
 
 pub(super) fn type_expr_is_copy_struct(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
