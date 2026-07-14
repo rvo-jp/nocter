@@ -27,6 +27,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: copy unaligned direct aggregate parameter ranges
+  - removes the backend-only 8-byte alignment restriction for `CopyAggregateRange` sources from `AggregateLocation::DirectParameter`
+  - builds direct-parameter range copy scratch values byte-by-byte when the source offset is unaligned or crosses ABI words
+  - adds backend coverage for a stack-passed direct aggregate parameter range crossing from ABI word 8 to word 9
 - Current checkpoint: load stack-passed direct aggregate parameter fields in backend
   - changes direct aggregate parameter field-load emission to read ABI parameter words through the shared register-or-stack helper
   - preserves register-passed direct aggregate parameter loads while allowing hand-built IR to read direct aggregate words after `x7`

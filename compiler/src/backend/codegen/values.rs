@@ -548,13 +548,11 @@ impl EntryEmitter {
                 self.emit_aggregate_copy_memory_chunk_to_scratch(XReg::X17, offset, chunk_bytes)?;
             }
             AggregateCopySource::DirectParameter { start_index } => {
-                let word_index = usize::try_from(offset / AGGREGATE_USIZE_STORE_BYTES)
-                    .map_err(|_error| aggregate_copy_diagnostic("copy word index overflows"))?;
-                let register_index = start_index
-                    .checked_add(word_index)
-                    .ok_or_else(|| aggregate_copy_diagnostic("copy word index overflows"))?;
-                validate_aggregate_copy_chunk_bytes(chunk_bytes)?;
-                self.emit_parameter_word_to_x(register_index, XReg::X16)?;
+                self.emit_direct_aggregate_parameter_chunk_to_scratch(
+                    start_index,
+                    offset,
+                    chunk_bytes,
+                )?;
             }
         }
         Ok(())
@@ -868,6 +866,49 @@ impl EntryEmitter {
         }
         if destination != WReg::W16 {
             self.encoder.emit_mov_w(destination, WReg::W16);
+        }
+        Ok(())
+    }
+
+    fn emit_direct_aggregate_parameter_chunk_to_scratch(
+        &mut self,
+        start_index: usize,
+        offset: u32,
+        chunk_bytes: u32,
+    ) -> Result<(), Vec<Diagnostic>> {
+        validate_aggregate_copy_chunk_bytes(chunk_bytes)?;
+        if offset.is_multiple_of(AGGREGATE_USIZE_STORE_BYTES)
+            && chunk_bytes == AGGREGATE_USIZE_STORE_BYTES
+        {
+            let word_index = usize::try_from(offset / AGGREGATE_USIZE_STORE_BYTES)
+                .map_err(|_error| aggregate_copy_diagnostic("copy word index overflows"))?;
+            let parameter_index = start_index
+                .checked_add(word_index)
+                .ok_or_else(|| aggregate_copy_diagnostic("copy word index overflows"))?;
+            self.emit_parameter_word_to_x(parameter_index, XReg::X16)?;
+            return Ok(());
+        }
+
+        self.encoder.emit_movz_x(XReg::X16, 0, MoveWideShift::Lsl0);
+        for byte_offset in 0..chunk_bytes {
+            let source_offset = offset
+                .checked_add(byte_offset)
+                .ok_or_else(|| aggregate_copy_diagnostic("source byte offset overflows"))?;
+            let word_index = usize::try_from(source_offset / AGGREGATE_USIZE_STORE_BYTES)
+                .map_err(|_error| aggregate_copy_diagnostic("copy word index overflows"))?;
+            let parameter_index = start_index
+                .checked_add(word_index)
+                .ok_or_else(|| aggregate_copy_diagnostic("copy word index overflows"))?;
+            let word_byte_offset = source_offset % AGGREGATE_USIZE_STORE_BYTES;
+
+            self.emit_parameter_word_to_x(parameter_index, XReg::X17)?;
+            if word_byte_offset != 0 {
+                self.encoder
+                    .emit_lsr_x_imm(XReg::X17, XReg::X17, word_byte_offset * 8);
+            }
+            self.encoder.emit_lsl_x_imm(XReg::X17, XReg::X17, 56);
+            self.encoder.emit_lsr_x_imm(XReg::X17, XReg::X17, 56);
+            self.emit_aggregate_copy_byte_to_scratch(byte_offset);
         }
         Ok(())
     }
@@ -1723,18 +1764,9 @@ fn validate_aggregate_copy_source_range(
             source_slot.size(),
             "source range exceeds aggregate slot size",
         ),
-        AggregateCopySource::Parameter(_) | AggregateCopySource::StackParameterPointer { .. } => {
-            Ok(())
-        }
-        AggregateCopySource::DirectParameter { .. } => {
-            if source_offset.is_multiple_of(AGGREGATE_USIZE_STORE_BYTES) {
-                Ok(())
-            } else {
-                Err(aggregate_copy_diagnostic(
-                    "direct aggregate parameter range offset must be 8-byte aligned",
-                ))
-            }
-        }
+        AggregateCopySource::Parameter(_)
+        | AggregateCopySource::StackParameterPointer { .. }
+        | AggregateCopySource::DirectParameter { .. } => Ok(()),
     }
 }
 

@@ -2244,6 +2244,53 @@ mod tests {
     }
 
     #[test]
+    fn aggregate_range_copy_from_stack_passed_direct_parameter_reads_unaligned_bytes() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(8, 1),
+                },
+                Instruction::CopyAggregateRange {
+                    destination: AggregateLocation::Slot(0),
+                    destination_offset: 0,
+                    source: AggregateLocation::DirectParameter { start_index: 8 },
+                    source_offset: 4,
+                    layout: ValueLayout::new(5, 1),
+                },
+                set_return_i32(0),
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_sp(XReg::X17, 16)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_sp(XReg::X17, 24)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_lsr_x_imm(XReg::X17, XReg::X17, 32)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_strb_w_sp(WReg::W17, 0)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_strb_w_sp(WReg::W17, 4)
+        ));
+    }
+
+    #[test]
     fn aggregate_copy_from_slot_to_return_copies_words_to_x8_destination() {
         let module = IrModule::new(vec![
             Function {
