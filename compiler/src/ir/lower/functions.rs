@@ -2,8 +2,9 @@ use super::aggregates::{
     aggregate_fields_from_type_expr, lower_aggregate_struct_literal_to_location,
     lower_aggregate_struct_literal_to_location_with_temporaries, push_aggregate_call_instruction,
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
+    type_expr_is_copy_struct,
 };
-use super::bindings::{lower_assignment, lower_local_binding, type_expr_is_copy_struct};
+use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{
     AggregateBorrowParameter, AggregateFieldKind, AggregateParameterSource, FunctionNames,
     FunctionSignatures, LoweringAggregateParameter, LoweringContext, LoweringParameterSlots,
@@ -1866,6 +1867,7 @@ fn lower_aggregate_struct_literal_return_to_location(
     let (expected_layout, _) = aggregate_return_layout_and_destination(return_type);
 
     let subject = format!("returns from function `{function_name}`");
+    let aggregate_slot_mark = context.aggregate_slot_mark();
     let lowered_direct = lower_aggregate_struct_literal_to_location(
         literal,
         expected_layout,
@@ -1878,6 +1880,7 @@ fn lower_aggregate_struct_literal_return_to_location(
     Ok(match lowered_direct {
         Ok(instructions) => instructions,
         Err(error) if matches!(destination, AggregateLocation::DirectReturn) => {
+            context.restore_aggregate_slot_mark(aggregate_slot_mark);
             lower_direct_aggregate_struct_literal_return_through_slot(
                 literal,
                 expected_layout,

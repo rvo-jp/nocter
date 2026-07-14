@@ -12,8 +12,8 @@ use crate::ir::{
     AggregateLocation, CallTarget, FallibleFailureMode, Instruction, ScalarArgument, Type,
     UsizeValue,
 };
-use crate::resolve::ResolveOutput;
-use std::collections::HashMap;
+use crate::resolve::{ResolveOutput, StructFieldSignature, TypeSymbolKind};
+use std::collections::{HashMap, HashSet};
 
 pub(super) fn supported_aggregate_copy_layout(layout: ValueLayout) -> bool {
     layout.size > 0
@@ -23,6 +23,42 @@ pub(super) fn aggregate_type_layout(ty: &Type) -> Option<ValueLayout> {
     match ty {
         Type::Aggregate { layout } | Type::DirectAggregate { layout, .. } => Some(*layout),
         _ => None,
+    }
+}
+
+pub(super) fn type_expr_is_copy_struct(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    type_expr_is_copy_struct_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn type_expr_is_copy_struct_inner(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> bool {
+    match ty {
+        TypeExpr::Reference(reference) => {
+            let Some(symbol) = resolved.type_symbol_by_name(&reference.name) else {
+                return false;
+            };
+            match symbol.kind {
+                TypeSymbolKind::Struct => symbol.is_copy,
+                TypeSymbolKind::Alias => {
+                    if !resolving_names.insert(symbol.canonical_name.clone()) {
+                        return false;
+                    }
+                    let is_copy = symbol.alias_target.as_ref().is_some_and(|target| {
+                        type_expr_is_copy_struct_inner(target, resolved, resolving_names)
+                    });
+                    resolving_names.remove(&symbol.canonical_name);
+                    is_copy
+                }
+                TypeSymbolKind::Enum | TypeSymbolKind::Trait => false,
+            }
+        }
+        TypeExpr::Fallible(fallible) => {
+            type_expr_is_copy_struct_inner(&fallible.success, resolved, resolving_names)
+        }
+        _ => false,
     }
 }
 
@@ -232,18 +268,58 @@ pub(super) fn aggregate_fields_from_type_expr(
         return Some(Vec::new());
     };
     let struct_layout = layout_struct(&fields).ok()?;
+    let source_fields = struct_field_signatures_from_type_expr(ty, resolved)?;
+    if fields.len() != source_fields.len() {
+        return None;
+    }
 
     let mut aggregate_fields = Vec::new();
-    for (field, layout) in fields.iter().zip(struct_layout.fields.iter()) {
-        collect_aggregate_fields(&field.name, &field.ty, layout.offset, &mut aggregate_fields)?;
+    for ((field, layout), source_field) in fields
+        .iter()
+        .zip(struct_layout.fields.iter())
+        .zip(source_fields.iter())
+    {
+        collect_aggregate_fields(
+            &field.name,
+            &field.ty,
+            Some(&source_field.ty),
+            layout.offset,
+            resolved,
+            &mut aggregate_fields,
+        )?;
     }
     Some(aggregate_fields)
+}
+
+fn struct_field_signatures_from_type_expr<'a>(
+    ty: &'a TypeExpr,
+    resolved: &'a ResolveOutput,
+) -> Option<&'a [StructFieldSignature]> {
+    match ty {
+        TypeExpr::Reference(reference) => {
+            let symbol = resolved.type_symbol_by_name(&reference.name)?;
+            match symbol.kind {
+                TypeSymbolKind::Struct => Some(&symbol.fields),
+                TypeSymbolKind::Alias => {
+                    let target = symbol.alias_target.as_ref()?;
+                    struct_field_signatures_from_type_expr(target, resolved)
+                }
+                TypeSymbolKind::Enum | TypeSymbolKind::Trait => None,
+            }
+        }
+        TypeExpr::Fallible(fallible) => {
+            struct_field_signatures_from_type_expr(&fallible.success, resolved)
+        }
+        _ => None,
+    }
 }
 
 fn collect_aggregate_fields(
     name: &str,
     ty: &AbiType,
+    source_ty: Option<&TypeExpr>,
     base_offset: u64,
+    resolved: &ResolveOutput,
     aggregate_fields: &mut Vec<AggregateField>,
 ) -> Option<()> {
     if let Some(kind) = aggregate_field_kind_from_abi_type(ty) {
@@ -252,6 +328,7 @@ fn collect_aggregate_fields(
             name: name.to_string(),
             offset,
             kind,
+            is_copy: true,
         });
         return Some(());
     }
@@ -262,8 +339,27 @@ fn collect_aggregate_fields(
     let struct_layout = layout_struct(fields).ok()?;
     let offset = u32::try_from(base_offset).ok()?;
     let mut nested_fields = Vec::new();
-    for (field, layout) in fields.iter().zip(struct_layout.fields.iter()) {
-        collect_aggregate_fields(&field.name, &field.ty, layout.offset, &mut nested_fields)?;
+    let nested_source_fields = if let Some(source_ty) = source_ty {
+        let source_fields = struct_field_signatures_from_type_expr(source_ty, resolved)?;
+        if fields.len() != source_fields.len() {
+            return None;
+        }
+        Some(source_fields)
+    } else {
+        None
+    };
+    for (index, (field, layout)) in fields.iter().zip(struct_layout.fields.iter()).enumerate() {
+        let nested_source_ty = nested_source_fields
+            .and_then(|source_fields| source_fields.get(index))
+            .map(|field| &field.ty);
+        collect_aggregate_fields(
+            &field.name,
+            &field.ty,
+            nested_source_ty,
+            layout.offset,
+            resolved,
+            &mut nested_fields,
+        )?;
     }
     aggregate_fields.push(AggregateField {
         name: name.to_string(),
@@ -272,14 +368,20 @@ fn collect_aggregate_fields(
             layout: ValueLayout::new(struct_layout.size, struct_layout.align),
             fields: nested_fields,
         },
+        is_copy: source_ty.is_some_and(|ty| type_expr_is_copy_struct(ty, resolved)),
     });
 
-    for (field, layout) in fields.iter().zip(struct_layout.fields.iter()) {
+    for (index, (field, layout)) in fields.iter().zip(struct_layout.fields.iter()).enumerate() {
         let offset = base_offset.checked_add(layout.offset)?;
+        let nested_source_ty = nested_source_fields
+            .and_then(|source_fields| source_fields.get(index))
+            .map(|field| &field.ty);
         collect_aggregate_fields(
             &format!("{name}.{}", field.name),
             &field.ty,
+            nested_source_ty,
             offset,
+            resolved,
             aggregate_fields,
         )?;
     }

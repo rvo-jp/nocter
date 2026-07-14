@@ -1303,6 +1303,72 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_lowers_copy_aggregate_field_from_non_copy_owner() {
+    let project = TempProject::new("cli-build-copy-aggregate-field-non-copy-owner");
+    let source = project.write_source(
+        "copy_aggregate_field_non_copy_owner.nct",
+        r#"copy struct Header {
+    code: i32
+    len: i32
+}
+
+struct Packet {
+    prefix: i32
+    header: Header
+    tail: i32
+}
+
+func main(): i32 {
+    let packet = Packet{ prefix: 1, header: Header{ code: 40, len: 2 }, tail: 3 }
+    let header = packet.header
+    return header.code + header.len
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_lowers_copy_aggregate_field_from_non_copy_call_result() {
+    let project = TempProject::new("cli-build-copy-aggregate-field-non-copy-call-result");
+    let source = project.write_source(
+        "copy_aggregate_field_non_copy_call_result.nct",
+        r#"copy struct Header {
+    code: i32
+    len: i32
+}
+
+struct Packet {
+    prefix: i32
+    header: Header
+    tail: i32
+}
+
+func make_packet(): Packet {
+    return Packet{ prefix: 1, header: Header{ code: 40, len: 2 }, tail: 3 }
+}
+
+func main(): i32 {
+    let header = make_packet().header
+    let again = header
+    return again.code + again.len
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_moved_aggregate_struct_literal_field() {
     let project = TempProject::new("cli-build-moved-aggregate-struct-literal-field");
     let source = project.write_source(

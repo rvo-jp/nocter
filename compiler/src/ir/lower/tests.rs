@@ -7188,6 +7188,263 @@ func read_code(): i32 {
 }
 
 #[test]
+fn lowers_copy_aggregate_field_binding_from_non_copy_owner() {
+    let function = lower_named_function(
+        r#"copy struct Header {
+    code: i32
+    len: i32
+}
+
+struct Packet {
+    prefix: i32
+    header: Header
+    tail: i32
+}
+
+func main(): i32 {
+    return 0
+}
+
+func read_code(): i32 {
+    let packet = Packet{ prefix: 1, header: Header{ code: 40, len: 2 }, tail: 3 }
+    let header = packet.header
+    return header.code + header.len
+}
+"#,
+        "read_code",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "read_code".to_string(),
+            target: CallTarget::same_file("read_code"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(16, 4),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: i32_const(1),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 4,
+                    value: i32_const(40),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 8,
+                    value: i32_const(2),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 12,
+                    value: i32_const(3),
+                },
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 1,
+                    layout: ValueLayout::new(8, 4),
+                },
+                Instruction::CopyAggregateRange {
+                    destination: AggregateLocation::Slot(1),
+                    destination_offset: 0,
+                    source: AggregateLocation::Slot(0),
+                    source_offset: 4,
+                    layout: ValueLayout::new(8, 4),
+                },
+                Instruction::LoadAggregateI32 {
+                    destination: I32Location::Local(0),
+                    source: AggregateLocation::Slot(1),
+                    offset: 0,
+                },
+                Instruction::LoadAggregateI32 {
+                    destination: I32Location::Local(1),
+                    source: AggregateLocation::Slot(1),
+                    offset: 4,
+                },
+                Instruction::AddI32 {
+                    destination: I32Location::Return,
+                    left: i32_local(0),
+                    right: i32_local(1),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_copy_aggregate_field_binding_from_non_copy_call_result() {
+    let packet_type = Type::DirectAggregate {
+        layout: ValueLayout::new(16, 4),
+        words: 2,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    code: i32
+    len: i32
+}
+
+struct Packet {
+    prefix: i32
+    header: Header
+    tail: i32
+}
+
+func make_packet(): Packet {
+    return Packet{ prefix: 1, header: Header{ code: 40, len: 2 }, tail: 3 }
+}
+
+func main(): i32 {
+    return 0
+}
+
+func read_code(): i32 {
+    let header = make_packet().header
+    let again = header
+    return again.code + again.len
+}
+"#,
+        "read_code",
+        function_signatures(vec![("make_packet", packet_type, vec![])]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "read_code".to_string(),
+            target: CallTarget::same_file("read_code"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(8, 4),
+                },
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 1,
+                    layout: ValueLayout::new(16, 4),
+                },
+                Instruction::CallDirectAggregate {
+                    destination: AggregateLocation::Slot(1),
+                    target: CallTarget::same_file("make_packet"),
+                    arguments: vec![],
+                    layout: ValueLayout::new(16, 4),
+                },
+                Instruction::CopyAggregateRange {
+                    destination: AggregateLocation::Slot(0),
+                    destination_offset: 0,
+                    source: AggregateLocation::Slot(1),
+                    source_offset: 4,
+                    layout: ValueLayout::new(8, 4),
+                },
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 2,
+                    layout: ValueLayout::new(8, 4),
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Slot(2),
+                    source: AggregateLocation::Slot(0),
+                    layout: ValueLayout::new(8, 4),
+                },
+                Instruction::LoadAggregateI32 {
+                    destination: I32Location::Local(0),
+                    source: AggregateLocation::Slot(2),
+                    offset: 0,
+                },
+                Instruction::LoadAggregateI32 {
+                    destination: I32Location::Local(1),
+                    source: AggregateLocation::Slot(2),
+                    offset: 4,
+                },
+                Instruction::AddI32 {
+                    destination: I32Location::Return,
+                    left: i32_local(0),
+                    right: i32_local(1),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_copy_aggregate_field_binding_from_non_copy_fallible_call_result() {
+    let packet_type = Type::Fallible(Box::new(Type::DirectAggregate {
+        layout: ValueLayout::new(16, 4),
+        words: 2,
+    }));
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    code: i32
+    len: i32
+}
+
+struct Packet {
+    prefix: i32
+    header: Header
+    tail: i32
+}
+
+func make_packet(): Packet! {
+    return Packet{ prefix: 1, header: Header{ code: 40, len: 2 }, tail: 3 }
+}
+
+func main(): i32 {
+    return 0
+}
+
+func read_code(): i32! {
+    let header = make_packet()?.header
+    let again = header
+    return again.code + again.len
+}
+"#,
+        "read_code",
+        function_signatures(vec![("make_packet", packet_type, vec![])]),
+    )
+    .unwrap();
+
+    assert_eq!(function.return_type, Type::Fallible(Box::new(Type::I32)));
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CallFallibleDirectAggregate {
+                destination: AggregateLocation::Slot(1),
+                target: CallTarget::same_file("make_packet"),
+                arguments: vec![],
+                layout: ValueLayout::new(16, 4),
+                failure_mode: FallibleFailureMode::Propagate,
+            }),
+        "{function:?}"
+    );
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(0),
+                destination_offset: 0,
+                source: AggregateLocation::Slot(1),
+                source_offset: 4,
+                layout: ValueLayout::new(8, 4),
+            }),
+        "{function:?}"
+    );
+    assert!(
+        function.instructions.contains(&Instruction::CopyAggregate {
+            destination: AggregateLocation::Slot(2),
+            source: AggregateLocation::Slot(0),
+            layout: ValueLayout::new(8, 4),
+        }),
+        "{function:?}"
+    );
+}
+
+#[test]
 fn lowers_moved_aggregate_struct_literal_field() {
     let ir = lower_text(
         r#"struct File {

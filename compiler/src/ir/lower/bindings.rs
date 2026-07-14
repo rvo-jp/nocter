@@ -3,6 +3,7 @@ use super::aggregates::{
     lower_aggregate_struct_literal_to_location,
     lower_aggregate_struct_literal_to_location_at_offset, push_aggregate_call_instruction,
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
+    type_expr_is_copy_struct,
 };
 use super::context::{AggregateFieldKind, LoweringContext};
 use super::expressions::{
@@ -27,8 +28,6 @@ use crate::ir::{
     AggregateLocation, BoolLocation, FallibleFailureMode, I32Location, Instruction, SliceLocation,
     StrLocation, Type, U8Location, UsizeLocation,
 };
-use crate::resolve::{ResolveOutput, TypeSymbolKind};
-use std::collections::HashSet;
 
 pub(super) fn lower_local_binding(
     statement: &BindingStmt,
@@ -412,16 +411,19 @@ fn lower_aggregate_call_member_binding(
         return Ok(None);
     };
     let source_offset = field.offset;
+    let is_copy = field.is_copy;
     let AggregateFieldKind::Aggregate { layout, fields } = field.kind else {
         return Ok(None);
     };
-    if !supported_aggregate_copy_layout(layout) || !supported_aggregate_copy_layout(source_layout) {
+    if !is_copy
+        || !supported_aggregate_copy_layout(layout)
+        || !supported_aggregate_copy_layout(source_layout)
+    {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower aggregate member bindings from supported aggregate fields",
+            "IR v0 can only lower aggregate member bindings from copy aggregate fields",
         ));
     }
 
-    let is_copy = call_success_type_is_copy_struct(call, context);
     let slot_index =
         context.define_aggregate_local(statement.name.clone(), layout, is_copy, None, fields);
     let mut temporaries = TemporaryAllocator::new(context)?;
@@ -481,16 +483,19 @@ fn lower_aggregate_fallible_call_member_binding(
         return Ok(None);
     };
     let source_offset = field.offset;
+    let is_copy = field.is_copy;
     let AggregateFieldKind::Aggregate { layout, fields } = field.kind else {
         return Ok(None);
     };
-    if !supported_aggregate_copy_layout(layout) || !supported_aggregate_copy_layout(source_layout) {
+    if !is_copy
+        || !supported_aggregate_copy_layout(layout)
+        || !supported_aggregate_copy_layout(source_layout)
+    {
         return Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower aggregate member bindings from supported fallible aggregate fields",
+            "IR v0 can only lower aggregate member bindings from copy fallible aggregate fields",
         ));
     }
 
-    let is_copy = call_success_type_is_copy_struct(call, context);
     let slot_index =
         context.define_aggregate_local(statement.name.clone(), layout, is_copy, None, fields);
     let mut temporaries = TemporaryAllocator::new(context)?;
@@ -1453,42 +1458,6 @@ fn call_success_drop_glue(
     };
     let signature = resolved.call_signature_for_call(call)?;
     context.drop_glue_for_type_expr(&signature.return_type)
-}
-
-pub(super) fn type_expr_is_copy_struct(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    type_expr_is_copy_struct_inner(ty, resolved, &mut HashSet::new())
-}
-
-fn type_expr_is_copy_struct_inner(
-    ty: &TypeExpr,
-    resolved: &ResolveOutput,
-    resolving_names: &mut HashSet<String>,
-) -> bool {
-    match ty {
-        TypeExpr::Reference(reference) => {
-            let Some(symbol) = resolved.type_symbol_by_name(&reference.name) else {
-                return false;
-            };
-            match symbol.kind {
-                TypeSymbolKind::Struct => symbol.is_copy,
-                TypeSymbolKind::Alias => {
-                    if !resolving_names.insert(symbol.canonical_name.clone()) {
-                        return false;
-                    }
-                    let is_copy = symbol.alias_target.as_ref().is_some_and(|target| {
-                        type_expr_is_copy_struct_inner(target, resolved, resolving_names)
-                    });
-                    resolving_names.remove(&symbol.canonical_name);
-                    is_copy
-                }
-                TypeSymbolKind::Enum | TypeSymbolKind::Trait => false,
-            }
-        }
-        TypeExpr::Fallible(fallible) => {
-            type_expr_is_copy_struct_inner(&fallible.success, resolved, resolving_names)
-        }
-        _ => false,
-    }
 }
 
 fn unsupported_binding_diagnostic(message: &'static str) -> Vec<Diagnostic> {

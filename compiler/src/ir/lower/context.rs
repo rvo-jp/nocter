@@ -7,9 +7,10 @@ use crate::ir::{
 };
 use crate::resolve::{ResolveOutput, SymbolKind};
 use crate::source::{ByteSpan, SourceId};
+use std::cell::Cell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
-#[derive(Clone)]
 pub(super) struct LoweringContext<'a> {
     function_name: String,
     return_type: Type,
@@ -27,6 +28,31 @@ pub(super) struct LoweringContext<'a> {
     locals: Vec<LocalBinding>,
     aggregate_fields: HashMap<usize, Vec<AggregateField>>,
     aggregate_borrows: Vec<AggregateBorrowParameter>,
+    next_aggregate_slot_index: Rc<Cell<usize>>,
+}
+
+impl<'a> Clone for LoweringContext<'a> {
+    fn clone(&self) -> Self {
+        Self {
+            function_name: self.function_name.clone(),
+            return_type: self.return_type.clone(),
+            function_return_type: self.function_return_type.clone(),
+            function_signatures: self.function_signatures.clone(),
+            call_resolution: self.call_resolution.clone(),
+            function_names: self.function_names.clone(),
+            i32_parameters: self.i32_parameters.clone(),
+            u8_parameters: self.u8_parameters.clone(),
+            usize_parameters: self.usize_parameters.clone(),
+            bool_parameters: self.bool_parameters.clone(),
+            str_parameters: self.str_parameters.clone(),
+            slice_parameters: self.slice_parameters.clone(),
+            reserved_local_abi_words: self.reserved_local_abi_words,
+            locals: self.locals.clone(),
+            aggregate_fields: self.aggregate_fields.clone(),
+            aggregate_borrows: self.aggregate_borrows.clone(),
+            next_aggregate_slot_index: Rc::new(Cell::new(self.next_aggregate_slot_index.get())),
+        }
+    }
 }
 
 #[derive(Default)]
@@ -90,6 +116,7 @@ impl<'a> LoweringContext<'a> {
             locals: Vec::new(),
             aggregate_fields: HashMap::new(),
             aggregate_borrows: Vec::new(),
+            next_aggregate_slot_index: Rc::new(Cell::new(0)),
         }
     }
 
@@ -101,6 +128,12 @@ impl<'a> LoweringContext<'a> {
     ) -> Self {
         let mut locals = Vec::new();
         let mut aggregate_fields = HashMap::new();
+        let next_aggregate_slot_index = parameters
+            .aggregates
+            .iter()
+            .map(|parameter| parameter.slot_index + 1)
+            .max()
+            .unwrap_or(0);
         for parameter in parameters.aggregates {
             locals.push(LocalBinding {
                 name: parameter.name,
@@ -133,6 +166,7 @@ impl<'a> LoweringContext<'a> {
             locals,
             aggregate_fields,
             aggregate_borrows: parameters.aggregate_borrows,
+            next_aggregate_slot_index: Rc::new(Cell::new(next_aggregate_slot_index)),
         }
     }
 
@@ -281,7 +315,7 @@ impl<'a> LoweringContext<'a> {
         drop_glue: Option<DropGlue>,
         fields: Vec<AggregateField>,
     ) -> usize {
-        let slot_index = self.next_aggregate_slot_index();
+        let slot_index = self.reserve_aggregate_slot_index();
         self.locals.push(LocalBinding {
             name,
             kind: LocalKind::Aggregate {
@@ -571,7 +605,7 @@ impl<'a> LoweringContext<'a> {
                 offset: field.offset,
                 kind: field.kind.clone(),
                 is_readwrite: true,
-                is_copy: aggregate.is_copy,
+                is_copy: field.is_copy,
             })
     }
 
@@ -593,7 +627,7 @@ impl<'a> LoweringContext<'a> {
                 offset: field.offset,
                 kind: field.kind.clone(),
                 is_readwrite: borrow.is_readwrite,
-                is_copy: true,
+                is_copy: field.is_copy,
             })
     }
 
@@ -637,11 +671,22 @@ impl<'a> LoweringContext<'a> {
                 .sum::<usize>()
     }
 
-    pub(super) fn next_aggregate_slot_index(&self) -> usize {
-        self.locals
-            .iter()
-            .filter(|local| matches!(local.kind, LocalKind::Aggregate { .. }))
-            .count()
+    pub(super) fn reserve_aggregate_slot_index(&self) -> usize {
+        let slot_index = self.next_aggregate_slot_index.get();
+        self.next_aggregate_slot_index.set(slot_index + 1);
+        slot_index
+    }
+
+    pub(super) fn aggregate_slot_mark(&self) -> usize {
+        self.next_aggregate_slot_index.get()
+    }
+
+    pub(super) fn restore_aggregate_slot_mark(&self, mark: usize) {
+        self.next_aggregate_slot_index.set(mark);
+    }
+
+    pub(super) fn aggregate_slot_counter(&self) -> Rc<Cell<usize>> {
+        self.next_aggregate_slot_index.clone()
     }
 
     pub(super) fn drop_glue_for_type_expr(&self, ty: &TypeExpr) -> Option<DropGlue> {
@@ -753,6 +798,7 @@ pub(super) struct AggregateField {
     pub(super) name: String,
     pub(super) offset: u32,
     pub(super) kind: AggregateFieldKind,
+    pub(super) is_copy: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

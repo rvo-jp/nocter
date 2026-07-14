@@ -4,6 +4,8 @@ use crate::ir::{
     BoolLocation, I32Location, I32Value, Instruction, SliceLocation, SliceValue, StrLocation,
     StrValue, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
+use std::cell::Cell;
+use std::rc::Rc;
 
 pub(super) struct LoweredI32Value {
     pub(super) instructions: Vec<Instruction>,
@@ -32,14 +34,14 @@ pub(super) struct LoweredSliceValue {
 
 pub(in crate::ir::lower) struct TemporaryAllocator {
     next_index: usize,
-    next_aggregate_slot_index: usize,
+    aggregate_slot_counter: Rc<Cell<usize>>,
 }
 
 impl TemporaryAllocator {
     pub(in crate::ir::lower) fn new(context: &LoweringContext) -> Result<Self, Vec<Diagnostic>> {
         Ok(Self {
             next_index: context.first_temporary_local_index()?,
-            next_aggregate_slot_index: context.next_aggregate_slot_index(),
+            aggregate_slot_counter: context.aggregate_slot_counter(),
         })
     }
 
@@ -68,8 +70,8 @@ impl TemporaryAllocator {
     }
 
     pub(in crate::ir::lower) fn next_aggregate_slot(&mut self) -> usize {
-        let slot_index = self.next_aggregate_slot_index;
-        self.next_aggregate_slot_index += 1;
+        let slot_index = self.aggregate_slot_counter.get();
+        self.aggregate_slot_counter.set(slot_index + 1);
         slot_index
     }
 
