@@ -27,6 +27,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: lower nested terminal-if branches
+  - recursively lowers terminal `if` branches whose branch body is another terminal `if`, across the existing `i32`/`u8`/`usize`/`bool`/`void`/`&str`/u8-slice terminal return subset
+  - keeps branch-local aggregate slot creation outside the supported subset while preserving pending scope-end drop cleanup at every nested leaf return
+  - covers nested source `if` lowering for aggregate cleanup, fallible `void!` success conversion, and CLI build coverage
 - Current checkpoint: lower void terminal-if branches
   - lowers terminal `if` branches that directly `return` from entry and non-entry `void` functions
   - reuses branch-local scope-end drop cleanup for `void` terminal branches so owned aggregate locals are dropped before returning

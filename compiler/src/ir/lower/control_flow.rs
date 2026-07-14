@@ -81,36 +81,14 @@ pub(super) fn lower_terminal_u8_if_statement(
     diagnostic_code: &'static str,
     subject: &str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let Some(else_block) = &statement.else_block else {
-        return Err(unsupported_terminal_if_diagnostic(
-            diagnostic_code,
-            subject,
-            "u8",
-        ));
-    };
-
-    lower_terminal_condition(
-        &statement.condition,
-        lower_scalar_return_block(
-            &statement.then_block,
-            context,
-            return_type,
-            diagnostic_code,
-            subject,
-            "u8",
-            lower_u8_return_expression,
-        )?,
-        lower_scalar_return_block(
-            else_block,
-            context,
-            return_type,
-            diagnostic_code,
-            subject,
-            "u8",
-            lower_u8_return_expression,
-        )?,
+    lower_terminal_scalar_if_statement(
+        statement,
         context,
+        return_type,
         diagnostic_code,
+        subject,
+        "u8",
+        lower_u8_return_expression,
     )
 }
 
@@ -121,36 +99,14 @@ pub(super) fn lower_terminal_usize_if_statement(
     diagnostic_code: &'static str,
     subject: &str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let Some(else_block) = &statement.else_block else {
-        return Err(unsupported_terminal_if_diagnostic(
-            diagnostic_code,
-            subject,
-            "usize",
-        ));
-    };
-
-    lower_terminal_condition(
-        &statement.condition,
-        lower_scalar_return_block(
-            &statement.then_block,
-            context,
-            return_type,
-            diagnostic_code,
-            subject,
-            "usize",
-            lower_usize_return_expression,
-        )?,
-        lower_scalar_return_block(
-            else_block,
-            context,
-            return_type,
-            diagnostic_code,
-            subject,
-            "usize",
-            lower_usize_return_expression,
-        )?,
+    lower_terminal_scalar_if_statement(
+        statement,
         context,
+        return_type,
         diagnostic_code,
+        subject,
+        "usize",
+        lower_usize_return_expression,
     )
 }
 
@@ -161,36 +117,14 @@ pub(super) fn lower_terminal_str_if_statement(
     diagnostic_code: &'static str,
     subject: &str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let Some(else_block) = &statement.else_block else {
-        return Err(unsupported_terminal_if_diagnostic(
-            diagnostic_code,
-            subject,
-            "&str",
-        ));
-    };
-
-    lower_terminal_condition(
-        &statement.condition,
-        lower_scalar_return_block(
-            &statement.then_block,
-            context,
-            return_type,
-            diagnostic_code,
-            subject,
-            "&str",
-            lower_str_return_expression,
-        )?,
-        lower_scalar_return_block(
-            else_block,
-            context,
-            return_type,
-            diagnostic_code,
-            subject,
-            "&str",
-            lower_str_return_expression,
-        )?,
+    lower_terminal_scalar_if_statement(
+        statement,
         context,
+        return_type,
         diagnostic_code,
+        subject,
+        "&str",
+        lower_str_return_expression,
     )
 }
 
@@ -205,6 +139,27 @@ pub(super) fn lower_terminal_slice_if_statement(
         Type::Slice { is_readwrite: true } => "&+[u8]",
         _ => "&[u8]",
     };
+
+    lower_terminal_scalar_if_statement(
+        statement,
+        context,
+        return_type,
+        diagnostic_code,
+        subject,
+        return_label,
+        lower_slice_return_expression,
+    )
+}
+
+fn lower_terminal_scalar_if_statement(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    return_label: &str,
+    lower_return_expression: ReturnLowerer,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some(else_block) = &statement.else_block else {
         return Err(unsupported_terminal_if_diagnostic(
             diagnostic_code,
@@ -222,7 +177,7 @@ pub(super) fn lower_terminal_slice_if_statement(
             diagnostic_code,
             subject,
             return_label,
-            lower_slice_return_expression,
+            lower_return_expression,
         )?,
         lower_scalar_return_block(
             else_block,
@@ -231,7 +186,7 @@ pub(super) fn lower_terminal_slice_if_statement(
             diagnostic_code,
             subject,
             return_label,
-            lower_slice_return_expression,
+            lower_return_expression,
         )?,
         context,
         diagnostic_code,
@@ -241,7 +196,7 @@ pub(super) fn lower_terminal_slice_if_statement(
 pub(super) fn lower_terminal_void_if_statement(
     statement: &IfStmt,
     context: &LoweringContext,
-    _return_type: &Type,
+    return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -255,8 +210,14 @@ pub(super) fn lower_terminal_void_if_statement(
 
     lower_terminal_condition(
         &statement.condition,
-        lower_void_return_block(&statement.then_block, context, diagnostic_code, subject)?,
-        lower_void_return_block(else_block, context, diagnostic_code, subject)?,
+        lower_void_return_block(
+            &statement.then_block,
+            context,
+            return_type,
+            diagnostic_code,
+            subject,
+        )?,
+        lower_void_return_block(else_block, context, return_type, diagnostic_code, subject)?,
         context,
         diagnostic_code,
     )
@@ -380,6 +341,13 @@ fn lower_i32_return_block(
             mark_explicit_moves_in_expression(expression, &mut branch_context);
             append_scope_end_drops_before_exit(return_instructions, &mut branch_context)
         }
+        [Stmt::If(statement)] => lower_terminal_i32_if_statement(
+            statement,
+            context,
+            return_type,
+            diagnostic_code,
+            subject,
+        ),
         _ => Err(unsupported_terminal_if_diagnostic(
             diagnostic_code,
             subject,
@@ -418,6 +386,13 @@ fn lower_bool_return_block(
             mark_explicit_moves_in_expression(expression, &mut branch_context);
             append_scope_end_drops_before_exit(return_instructions, &mut branch_context)
         }
+        [Stmt::If(statement)] => lower_terminal_bool_if_statement(
+            statement,
+            context,
+            return_type,
+            diagnostic_code,
+            subject,
+        ),
         _ => Err(unsupported_terminal_if_diagnostic(
             diagnostic_code,
             subject,
@@ -457,6 +432,15 @@ fn lower_scalar_return_block(
             mark_explicit_moves_in_expression(expression, &mut branch_context);
             append_scope_end_drops_before_exit(return_instructions, &mut branch_context)
         }
+        [Stmt::If(statement)] => lower_terminal_scalar_if_statement(
+            statement,
+            context,
+            return_type,
+            diagnostic_code,
+            subject,
+            return_label,
+            lower_return_expression,
+        ),
         _ => Err(unsupported_terminal_if_diagnostic(
             diagnostic_code,
             subject,
@@ -468,6 +452,7 @@ fn lower_scalar_return_block(
 fn lower_void_return_block(
     block: &Block,
     context: &LoweringContext,
+    return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -476,6 +461,13 @@ fn lower_void_return_block(
             let mut branch_context = context.clone();
             append_scope_end_drops_before_exit(vec![Instruction::Return], &mut branch_context)
         }
+        [Stmt::If(statement)] => lower_terminal_void_if_statement(
+            statement,
+            context,
+            return_type,
+            diagnostic_code,
+            subject,
+        ),
         _ => Err(unsupported_terminal_if_diagnostic(
             diagnostic_code,
             subject,

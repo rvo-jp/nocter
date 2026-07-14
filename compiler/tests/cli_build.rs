@@ -484,6 +484,32 @@ fn build_command_lowers_terminal_if() {
 }
 
 #[test]
+fn build_command_lowers_nested_terminal_if() {
+    let project = TempProject::new("cli-build-nested-terminal-if");
+    let source = project.write_source(
+        "nested_terminal_if.nct",
+        r#"func main(): i32 {
+    if true {
+        if false {
+            return 1
+        } else {
+            return 0
+        }
+    } else {
+        return 2
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_terminal_if_bool_local() {
     let project = TempProject::new("cli-build-terminal-if-bool-local");
     let source = project.write_source(
