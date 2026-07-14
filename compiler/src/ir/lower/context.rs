@@ -460,6 +460,11 @@ impl<'a> LoweringContext<'a> {
         })
     }
 
+    pub(super) fn aggregate_local_fields(&self, name: &str) -> Option<Vec<AggregateField>> {
+        let local = self.aggregate_local(name)?;
+        self.aggregate_fields.get(&local.slot_index).cloned()
+    }
+
     pub(super) fn mark_aggregate_local_dropped(&mut self, name: &str) {
         self.update_aggregate_drop_state(name, AggregateDropState::Suppressed);
     }
