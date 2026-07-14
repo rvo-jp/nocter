@@ -7,8 +7,8 @@ use super::expressions::{
     mark_fallible_success_returns, success_return_instruction,
 };
 use super::functions::{
-    append_scope_end_drops_before_exit, lower_drop_statement, mark_explicit_moves_in_expression,
-    mark_lowered_statement_aggregate_uses,
+    append_scope_end_drops_before_exit, lower_drop_statement, lower_value_return_with_scope_drops,
+    mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
 };
 use crate::ast::{FunctionDecl, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
@@ -108,6 +108,19 @@ fn lower_entry_body(
                     lower_fallible_failure(payload),
                     &mut context,
                 )?);
+                return Ok(instructions);
+            }
+
+            if let Some(expression) = &statement.expression
+                && let Some(return_instructions) = lower_value_return_with_scope_drops(
+                    success_type,
+                    expression,
+                    return_type,
+                    &mut context,
+                )?
+            {
+                mark_explicit_moves_in_expression(expression, &mut context);
+                instructions.extend(return_instructions);
                 return Ok(instructions);
             }
 

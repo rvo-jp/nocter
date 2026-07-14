@@ -515,6 +515,33 @@ impl<'a> LoweringContext<'a> {
             .collect()
     }
 
+    pub(super) fn pending_aggregate_drop_by_slot(
+        &self,
+        slot_index: usize,
+    ) -> Option<PendingAggregateDrop> {
+        self.locals.iter().find_map(|local| {
+            let LocalKind::Aggregate {
+                layout,
+                slot_index: local_slot_index,
+                drop_state,
+                ref drop_glue,
+                ..
+            } = local.kind
+            else {
+                return None;
+            };
+            if local_slot_index != slot_index || drop_state != AggregateDropState::NeedsDrop {
+                return None;
+            }
+            Some(PendingAggregateDrop {
+                name: local.name.clone(),
+                slot_index,
+                layout,
+                drop_glue: drop_glue.clone()?,
+            })
+        })
+    }
+
     pub(super) fn aggregate_field(
         &self,
         aggregate_name: &str,

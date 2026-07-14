@@ -3703,6 +3703,61 @@ func touch2(a: i32, b: i32): void {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_runs_replacement_and_scope_end_drops() {
+    let project = TempProject::new("cli-run-replacement-drop");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"from std/io_impl import write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "targets/arm64-darwin/std/io_impl.nct",
+        r#"pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "replacement_drop.nct",
+        r#"from std/log import write
+
+struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        write("drop\n")!
+        return
+    }
+}
+
+func main(): i32! {
+    var file = File{ fd: 1 }
+    file = File{ fd: 42 }
+    return file.fd
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"drop\ndrop\n");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_caught_indirect_aggregate_call_argument_field_exit_code() {
     let project = TempProject::new("cli-run-caught-indirect-aggregate-call-argument-field");
     project.write_nocter_home_file(

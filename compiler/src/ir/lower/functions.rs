@@ -12,10 +12,13 @@ use super::context::{
 use super::control_flow::{lower_terminal_bool_if_statement, lower_terminal_i32_if_statement};
 use super::errors::{ErrorPayload, lower_error_payload};
 use super::expressions::{
-    TemporaryAllocator, lower_aggregate_member_field_access, lower_bool_return_expression,
-    lower_call_arguments_to_scalar_arguments, lower_catch_failure_mode,
-    lower_i32_return_expression, lower_never_return_expression, lower_slice_return_expression,
-    lower_str_return_expression, lower_u8_return_expression, lower_usize_return_expression,
+    TemporaryAllocator, lower_aggregate_member_field_access, lower_bool_expression_to_location,
+    lower_bool_return_expression, lower_call_arguments_to_scalar_arguments,
+    lower_catch_failure_mode, lower_i32_expression_to_location, lower_i32_return_expression,
+    lower_never_return_expression, lower_slice_expression_to_location,
+    lower_slice_return_expression, lower_str_expression_to_location, lower_str_return_expression,
+    lower_u8_expression_to_location, lower_u8_return_expression,
+    lower_usize_expression_to_location, lower_usize_return_expression,
     lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
 };
 use crate::abi::{AbiType, AbiValue, ValueClassification, abi_value_from_type_expr};
@@ -26,8 +29,10 @@ use crate::ast::{
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    AggregateLocation, BorrowArgument, BorrowSource, CallTarget, FallibleFailureMode, Function,
-    Instruction, ScalarArgument, Type,
+    AggregateLocation, BoolLocation, BoolValue, BorrowArgument, BorrowSource, CallTarget,
+    FallibleFailureMode, Function, I32Location, I32Value, Instruction, ScalarArgument,
+    SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation,
+    UsizeValue,
 };
 use crate::resolve::ResolveOutput;
 use crate::source::SourceId;
@@ -566,6 +571,19 @@ fn lower_callable_body(
                 return Ok(instructions);
             }
 
+            if let Some(expression) = &statement.expression
+                && let Some(return_instructions) = lower_value_return_with_scope_drops(
+                    success_type,
+                    expression,
+                    return_type,
+                    context,
+                )?
+            {
+                mark_explicit_moves_in_expression(expression, context);
+                instructions.extend(return_instructions);
+                return Ok(instructions);
+            }
+
             let return_instructions = match (success_type, &statement.expression) {
                 (Type::I32, Some(expression)) => lower_i32_return_expression(expression, context),
                 (Type::U8, Some(expression)) => lower_u8_return_expression(expression, context),
@@ -727,6 +745,147 @@ fn lower_callable_body(
     }
 }
 
+pub(super) fn lower_value_return_with_scope_drops(
+    success_type: &Type,
+    expression: &Expr,
+    return_type: &Type,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    if context.pending_aggregate_drops().is_empty() {
+        return Ok(None);
+    }
+
+    let mut instructions = match success_type {
+        Type::I32 => {
+            let temporary = context.next_i32_local_location()?;
+            let expression_context = context.with_reserved_local_abi_words(1);
+            let mut instructions =
+                lower_i32_expression_to_location(expression, temporary, &expression_context)?;
+            append_scope_drops_then_restore_return(
+                &mut instructions,
+                vec![Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: I32Value::Location(temporary),
+                }],
+                return_type,
+                context,
+            )?;
+            instructions
+        }
+        Type::U8 => {
+            let temporary = context.next_u8_local_location()?;
+            let expression_context = context.with_reserved_local_abi_words(1);
+            let mut instructions =
+                lower_u8_expression_to_location(expression, temporary, &expression_context)?;
+            append_scope_drops_then_restore_return(
+                &mut instructions,
+                vec![Instruction::SetU8 {
+                    destination: U8Location::Return,
+                    value: U8Value::Location(temporary),
+                }],
+                return_type,
+                context,
+            )?;
+            instructions
+        }
+        Type::Usize => {
+            let temporary = context.next_usize_local_location()?;
+            let expression_context = context.with_reserved_local_abi_words(1);
+            let mut instructions =
+                lower_usize_expression_to_location(expression, temporary, &expression_context)?;
+            append_scope_drops_then_restore_return(
+                &mut instructions,
+                vec![Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: UsizeValue::Location(temporary),
+                }],
+                return_type,
+                context,
+            )?;
+            instructions
+        }
+        Type::Bool => {
+            let temporary = context.next_bool_local_location()?;
+            let expression_context = context.with_reserved_local_abi_words(1);
+            let mut instructions = lower_bool_expression_to_location(
+                expression,
+                temporary,
+                &expression_context,
+                "E8007",
+            )?;
+            append_scope_drops_then_restore_return(
+                &mut instructions,
+                vec![Instruction::SetBool {
+                    destination: BoolLocation::Return,
+                    value: BoolValue::Location(temporary),
+                }],
+                return_type,
+                context,
+            )?;
+            instructions
+        }
+        Type::Str => {
+            let temporary = context.next_str_local_location()?;
+            let expression_context = context.with_reserved_local_abi_words(2);
+            let mut instructions =
+                lower_str_expression_to_location(expression, temporary, &expression_context)?;
+            append_scope_drops_then_restore_return(
+                &mut instructions,
+                vec![Instruction::SetStr {
+                    destination: StrLocation::Return,
+                    value: StrValue::Location(temporary),
+                }],
+                return_type,
+                context,
+            )?;
+            instructions
+        }
+        Type::Slice { .. } => {
+            let temporary = context.next_slice_local_location()?;
+            let expression_context = context.with_reserved_local_abi_words(2);
+            let mut instructions =
+                lower_slice_expression_to_location(expression, temporary, &expression_context)?;
+            append_scope_drops_then_restore_return(
+                &mut instructions,
+                vec![Instruction::SetSlice {
+                    destination: SliceLocation::Return,
+                    value: SliceValue::Location(temporary),
+                }],
+                return_type,
+                context,
+            )?;
+            instructions
+        }
+        Type::Aggregate { .. }
+        | Type::DirectAggregate { .. }
+        | Type::Void
+        | Type::Never
+        | Type::Borrow { .. }
+        | Type::Fallible(_) => return Ok(None),
+    };
+
+    Ok(Some(std::mem::take(&mut instructions)))
+}
+
+fn append_scope_drops_then_restore_return(
+    instructions: &mut Vec<Instruction>,
+    restore_return: Vec<Instruction>,
+    return_type: &Type,
+    context: &mut LoweringContext,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut tail =
+        append_scope_end_drops_before_exit(vec![success_return_instruction(return_type)], context)?;
+    let Some(return_index) = tail
+        .iter()
+        .rposition(|instruction| is_scope_exit_instruction(instruction))
+    else {
+        return Ok(());
+    };
+    tail.splice(return_index..return_index, restore_return);
+    instructions.extend(tail);
+    Ok(())
+}
+
 pub(super) fn type_expr_with_self_type(ty: &TypeExpr, self_ty: &TypeExpr) -> TypeExpr {
     match ty {
         TypeExpr::Reference(reference) if reference.name == "Self" => self_ty.clone(),
@@ -871,6 +1030,16 @@ pub(super) fn propagating_failure_mode(
         message,
         instructions,
     })
+}
+
+pub(super) fn replacement_drop_for_aggregate_slot(
+    slot_index: usize,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some(drop_) = context.pending_aggregate_drop_by_slot(slot_index) else {
+        return Ok(Vec::new());
+    };
+    Ok(vec![lower_pending_aggregate_drop(&drop_, context)?])
 }
 
 fn lower_scope_end_drop_instructions(

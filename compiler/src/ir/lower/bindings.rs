@@ -16,7 +16,7 @@ use super::expressions::{
     lower_u8_expression_to_location, lower_u8_expression_to_word,
     lower_usize_expression_to_location, lower_usize_expression_to_word,
 };
-use super::functions::propagating_failure_mode;
+use super::functions::{propagating_failure_mode, replacement_drop_for_aggregate_slot};
 use crate::abi::{ValueLayout, abi_value_from_type_expr};
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, BinaryOperator, BindingStmt, CallExpr, Expr, MemberExpr,
@@ -523,7 +523,7 @@ fn unwrap_group(expression: &Expr) -> &Expr {
 
 pub(super) fn lower_assignment(
     statement: &AssignmentStmt,
-    context: &LoweringContext,
+    context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if statement.operator != AssignmentOperator::Assign {
         return Err(unsupported_assignment_diagnostic());
@@ -541,7 +541,7 @@ pub(super) fn lower_assignment(
 fn lower_identifier_assignment(
     identifier: &crate::ast::IdentifierExpr,
     value: &Expr,
-    context: &LoweringContext,
+    context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if let Some(destination) = context.i32_location(&identifier.name) {
         let I32Location::Local(_) = destination else {
@@ -899,6 +899,38 @@ fn aggregate_assignment_root_and_path<'a>(expression: &'a Expr) -> Option<(&'a s
 }
 
 fn lower_aggregate_assignment(
+    slot_index: usize,
+    layout: ValueLayout,
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let replacement_drop = replacement_drop_for_aggregate_slot(slot_index, context)?;
+    if replacement_drop.is_empty() {
+        return lower_aggregate_assignment_to_slot(slot_index, layout, expression, context);
+    }
+
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let replacement_slot = temporaries.next_aggregate_slot();
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index: replacement_slot,
+        layout,
+    }];
+    instructions.extend(lower_aggregate_assignment_to_slot(
+        replacement_slot,
+        layout,
+        expression,
+        context,
+    )?);
+    instructions.extend(replacement_drop);
+    instructions.push(Instruction::CopyAggregate {
+        destination: AggregateLocation::Slot(slot_index),
+        source: AggregateLocation::Slot(replacement_slot),
+        layout,
+    });
+    Ok(instructions)
+}
+
+fn lower_aggregate_assignment_to_slot(
     slot_index: usize,
     layout: ValueLayout,
     expression: &Expr,
