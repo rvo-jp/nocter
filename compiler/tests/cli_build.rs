@@ -722,6 +722,50 @@ func touch(file: &+File): void {
 }
 
 #[test]
+fn build_command_lowers_direct_aggregate_terminal_if_branch_local_binding() {
+    let project = TempProject::new("cli-build-direct-aggregate-terminal-if-branch-local-binding");
+    let source = project.write_source(
+        "direct_aggregate_terminal_if_branch_local_binding.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+struct Pair {
+    first: i32
+    second: i32
+}
+
+func main(): i32 {
+    let pair = choose(true)
+    return pair.first
+}
+
+func choose(flag: bool): Pair {
+    if flag {
+        var file = File{ fd: 1 }
+        return Pair{ first: 42, second: 1 }
+    } else {
+        var file = File{ fd: 2 }
+        return Pair{ first: 7, second: 2 }
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_terminal_if_bool_local() {
     let project = TempProject::new("cli-build-terminal-if-bool-local");
     let source = project.write_source(

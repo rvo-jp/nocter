@@ -1,3 +1,4 @@
+use super::bindings::lower_local_binding;
 use super::context::LoweringContext;
 use super::expressions::{
     expression_contains_call, lower_bool_expression_to_value, lower_bool_return_expression,
@@ -6,7 +7,7 @@ use super::expressions::{
 };
 use super::functions::{
     append_scope_end_drops_before_exit, lower_drop_statement, lower_value_return_with_scope_drops,
-    mark_explicit_moves_in_expression,
+    mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
 };
 use crate::ast::{BinaryExpr, BinaryOperator, Block, Expr, IfStmt, Stmt};
 use crate::diagnostics::Diagnostic;
@@ -558,6 +559,9 @@ pub(super) fn lower_terminal_branch_leading_statements(
     let mut instructions = Vec::new();
     for statement in statements {
         match statement {
+            Stmt::Binding(statement) => {
+                instructions.extend(lower_local_binding(statement, context)?)
+            }
             Stmt::Drop(statement) => instructions.extend(lower_drop_statement(statement, context)?),
             Stmt::Expression(statement) => {
                 let Some(void_instructions) =
@@ -570,7 +574,6 @@ pub(super) fn lower_terminal_branch_leading_statements(
                     ));
                 };
                 instructions.extend(void_instructions);
-                mark_explicit_moves_in_expression(&statement.expression, context);
             }
             _ => {
                 return Err(unsupported_terminal_if_diagnostic(
@@ -580,6 +583,7 @@ pub(super) fn lower_terminal_branch_leading_statements(
                 ));
             }
         }
+        mark_lowered_statement_aggregate_uses(statement, context);
     }
     Ok(instructions)
 }
@@ -592,7 +596,7 @@ fn unsupported_terminal_if_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower terminal `if` statements for {subject} when both branches contain only explicit `drop` or void call statements followed by returns or nested terminal `if` branches returning `{return_type}`"
+            "IR v0 can only lower terminal `if` statements for {subject} when both branches contain only supported binding, explicit `drop`, or void call statements followed by returns or nested terminal `if` branches returning `{return_type}`"
         ),
     )]
 }
