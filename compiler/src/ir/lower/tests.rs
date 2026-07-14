@@ -2797,6 +2797,93 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_scope_end_drop_inside_usize_terminal_if_branches() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    let value: usize = choose(true)
+    if value == 7 {
+        return 0
+    } else {
+        return 1
+    }
+}
+
+func choose(flag: bool): usize {
+    var file = File{ fd: 3 }
+    if flag {
+        return 7
+    } else {
+        return 9
+    }
+}
+"#,
+    );
+
+    let drop_call = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let choose = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "choose")
+        .unwrap();
+    assert_eq!(
+        choose.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(3),
+            },
+            Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Parameter(0)),
+                then_instructions: vec![
+                    Instruction::SetUsize {
+                        destination: UsizeLocation::Local(0),
+                        value: usize_const(7),
+                    },
+                    drop_call.clone(),
+                    Instruction::SetUsize {
+                        destination: UsizeLocation::Return,
+                        value: usize_local(0),
+                    },
+                    Instruction::Return,
+                ],
+                else_instructions: vec![
+                    Instruction::SetUsize {
+                        destination: UsizeLocation::Local(0),
+                        value: usize_const(9),
+                    },
+                    drop_call,
+                    Instruction::SetUsize {
+                        destination: UsizeLocation::Return,
+                        value: usize_local(0),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ],
+    );
+}
+
+#[test]
 fn lowers_pending_aggregate_drop_for_fallible_propagation_cleanup() {
     let ir = lower_text_with_std_error(
         r#"from std/error import Error
@@ -11728,6 +11815,141 @@ func enabled(): bool {
                     ],
                 },
             ],
+        }
+    );
+}
+
+#[test]
+fn lowers_u8_returning_function_with_terminal_if() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func choose(flag: bool): u8 {
+    if flag {
+        return 7
+    } else {
+        return 9
+    }
+}
+"#,
+        "choose",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "choose".to_string(),
+            target: crate::ir::CallTarget::same_file("choose".to_string()),
+            return_type: Type::U8,
+            instructions: vec![Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Parameter(0)),
+                then_instructions: vec![
+                    Instruction::SetU8 {
+                        destination: U8Location::Return,
+                        value: u8_const(7),
+                    },
+                    Instruction::Return,
+                ],
+                else_instructions: vec![
+                    Instruction::SetU8 {
+                        destination: U8Location::Return,
+                        value: u8_const(9),
+                    },
+                    Instruction::Return,
+                ],
+            }],
+        }
+    );
+}
+
+#[test]
+fn lowers_str_returning_function_with_terminal_if() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func choose(flag: bool): &str {
+    if flag {
+        return "yes"
+    } else {
+        return "no"
+    }
+}
+"#,
+        "choose",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "choose".to_string(),
+            target: crate::ir::CallTarget::same_file("choose".to_string()),
+            return_type: Type::Str,
+            instructions: vec![Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Parameter(0)),
+                then_instructions: vec![
+                    Instruction::SetStr {
+                        destination: StrLocation::Return,
+                        value: str_static_value(b"yes"),
+                    },
+                    Instruction::Return,
+                ],
+                else_instructions: vec![
+                    Instruction::SetStr {
+                        destination: StrLocation::Return,
+                        value: str_static_value(b"no"),
+                    },
+                    Instruction::Return,
+                ],
+            }],
+        }
+    );
+}
+
+#[test]
+fn lowers_slice_returning_function_with_terminal_if() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func choose(left: &[u8], right: &[u8], flag: bool): &[u8] {
+    if flag {
+        return left
+    } else {
+        return right
+    }
+}
+"#,
+        "choose",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "choose".to_string(),
+            target: crate::ir::CallTarget::same_file("choose".to_string()),
+            return_type: readonly_u8_slice_type(),
+            instructions: vec![Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Parameter(4)),
+                then_instructions: vec![
+                    Instruction::SetSlice {
+                        destination: SliceLocation::Return,
+                        value: SliceValue::Location(SliceLocation::Parameter(0)),
+                    },
+                    Instruction::Return,
+                ],
+                else_instructions: vec![
+                    Instruction::SetSlice {
+                        destination: SliceLocation::Return,
+                        value: SliceValue::Location(SliceLocation::Parameter(2)),
+                    },
+                    Instruction::Return,
+                ],
+            }],
         }
     );
 }

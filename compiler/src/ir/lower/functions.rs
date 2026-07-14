@@ -9,7 +9,11 @@ use super::context::{
     FunctionSignatures, LoweringAggregateParameter, LoweringContext, LoweringParameterSlots,
     PendingAggregateDrop, drop_glue_for_type_expr,
 };
-use super::control_flow::{lower_terminal_bool_if_statement, lower_terminal_i32_if_statement};
+use super::control_flow::{
+    lower_terminal_bool_if_statement, lower_terminal_i32_if_statement,
+    lower_terminal_slice_if_statement, lower_terminal_str_if_statement,
+    lower_terminal_u8_if_statement, lower_terminal_usize_if_statement,
+};
 use super::errors::{ErrorPayload, lower_error_payload};
 use super::expressions::{
     TemporaryAllocator, lower_aggregate_member_field_access, lower_bool_expression_to_location,
@@ -713,6 +717,62 @@ fn lower_callable_body(
         }
         Stmt::If(statement) if success_type == &Type::Bool => {
             let branch_instructions = lower_terminal_bool_if_statement(
+                statement,
+                context,
+                return_type,
+                "E8007",
+                "functions",
+            )?;
+            instructions.extend(mark_fallible_success_returns(
+                return_type,
+                branch_instructions,
+            ));
+            Ok(instructions)
+        }
+        Stmt::If(statement) if success_type == &Type::U8 => {
+            let branch_instructions = lower_terminal_u8_if_statement(
+                statement,
+                context,
+                return_type,
+                "E8007",
+                "functions",
+            )?;
+            instructions.extend(mark_fallible_success_returns(
+                return_type,
+                branch_instructions,
+            ));
+            Ok(instructions)
+        }
+        Stmt::If(statement) if success_type == &Type::Usize => {
+            let branch_instructions = lower_terminal_usize_if_statement(
+                statement,
+                context,
+                return_type,
+                "E8007",
+                "functions",
+            )?;
+            instructions.extend(mark_fallible_success_returns(
+                return_type,
+                branch_instructions,
+            ));
+            Ok(instructions)
+        }
+        Stmt::If(statement) if success_type == &Type::Str => {
+            let branch_instructions = lower_terminal_str_if_statement(
+                statement,
+                context,
+                return_type,
+                "E8007",
+                "functions",
+            )?;
+            instructions.extend(mark_fallible_success_returns(
+                return_type,
+                branch_instructions,
+            ));
+            Ok(instructions)
+        }
+        Stmt::If(statement) if matches!(success_type, Type::Slice { .. }) => {
+            let branch_instructions = lower_terminal_slice_if_statement(
                 statement,
                 context,
                 return_type,

@@ -310,6 +310,37 @@ func size(): usize {
 }
 
 #[test]
+fn build_command_lowers_usize_terminal_if_function() {
+    let project = TempProject::new("cli-build-usize-terminal-if-function");
+    let source = project.write_source(
+        "usize_terminal_if_function.nct",
+        r#"func main(): i32 {
+    let value: usize = choose(true)
+    if value == 7 {
+        return 0
+    } else {
+        return 1
+    }
+}
+
+func choose(flag: bool): usize {
+    if flag {
+        return 7
+    } else {
+        return 9
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_usize_arithmetic_and_shifts() {
     let project = TempProject::new("cli-build-usize-arithmetic-shifts");
     let source = project.write_source(

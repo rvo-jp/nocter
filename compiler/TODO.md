@@ -27,6 +27,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: broaden non-entry terminal-if returns
+  - lowers non-entry terminal `if` branches returning `u8`, `usize`, `&str`, and u8 slices in addition to the existing `i32`/`bool` paths
+  - reuses the existing branch-local scope-end drop staging so primitive/view return payloads are preserved across pending aggregate drop calls
+  - adds IR coverage for u8/usize/str/slice terminal-if returns, usize branch-local drop cleanup, and CLI build coverage for a usize terminal-if helper
 - Current checkpoint: render CLI diagnostics with source snippets
   - keeps compiler-owned `Diagnostic` JSON shape unchanged while letting text rendering consult the loaded `SourceMap`
   - makes `check`, `build`, `run`, and `fmt` print the primary source line plus a caret underline when a diagnostic span resolves to loaded source text
