@@ -27,6 +27,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: load stack-passed direct aggregate parameter fields in backend
+  - changes direct aggregate parameter field-load emission to read ABI parameter words through the shared register-or-stack helper
+  - preserves register-passed direct aggregate parameter loads while allowing hand-built IR to read direct aggregate words after `x7`
+  - adds backend coverage for stack-passed direct aggregate `u8` and `usize` field loads
 - Current checkpoint: cover stack-passed aggregate parameter returns
   - adds native execution coverage for fully stack-passed direct aggregate parameters copied into callee slots and returned by name
   - adds native execution coverage for fully stack-passed indirect aggregate parameter pointers copied into callee slots and returned by name

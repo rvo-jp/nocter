@@ -2168,6 +2168,82 @@ mod tests {
     }
 
     #[test]
+    fn direct_aggregate_parameter_u8_field_load_reads_stack_word() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "read".to_string(),
+                target: crate::ir::CallTarget::same_file("read".to_string()),
+                return_type: Type::U8,
+                instructions: vec![
+                    Instruction::LoadAggregateU8 {
+                        destination: U8Location::Return,
+                        source: AggregateLocation::DirectParameter { start_index: 8 },
+                        offset: 4,
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_sp(XReg::X16, 0)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_lsr_x_imm(XReg::X16, XReg::X16, 32)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_lsl_x_imm(XReg::X16, XReg::X16, 56)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_lsr_x_imm(XReg::X16, XReg::X16, 56)
+        ));
+    }
+
+    #[test]
+    fn direct_aggregate_parameter_usize_field_load_reads_stack_word() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "read".to_string(),
+                target: crate::ir::CallTarget::same_file("read".to_string()),
+                return_type: Type::Usize,
+                instructions: vec![
+                    Instruction::LoadAggregateUsize {
+                        destination: UsizeLocation::Return,
+                        source: AggregateLocation::DirectParameter { start_index: 8 },
+                        offset: 8,
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_sp(XReg::X0, 8)
+        ));
+    }
+
+    #[test]
     fn aggregate_copy_from_slot_to_return_copies_words_to_x8_destination() {
         let module = IrModule::new(vec![
             Function {

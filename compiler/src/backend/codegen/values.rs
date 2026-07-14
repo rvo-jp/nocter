@@ -192,11 +192,9 @@ impl EntryEmitter {
                 self.encoder.emit_ldr_x_imm(destination, base, offset);
             }
             AggregateLocation::DirectParameter { start_index } => {
-                let source =
-                    direct_aggregate_parameter_word_register(start_index, offset, "usize field")?;
-                if source != destination {
-                    self.encoder.emit_mov_x(destination, source);
-                }
+                let word_index =
+                    direct_aggregate_parameter_word_index(start_index, offset, "usize field")?;
+                self.emit_parameter_word_to_x(word_index, destination)?;
             }
             AggregateLocation::Return | AggregateLocation::DirectReturn => {
                 return Err(aggregate_load_diagnostic(
@@ -231,14 +229,14 @@ impl EntryEmitter {
                 self.encoder.emit_ldr_w_imm(destination, base, offset);
             }
             AggregateLocation::DirectParameter { start_index } => {
-                let (source, byte_offset) = direct_aggregate_parameter_chunk_source(
+                let (word_index, byte_offset) = direct_aggregate_parameter_chunk_source(
                     start_index,
                     offset,
                     AGGREGATE_I32_STORE_BYTES,
                     "i32 field",
                 )?;
                 self.emit_direct_aggregate_parameter_chunk_to_w(
-                    source,
+                    word_index,
                     byte_offset,
                     AGGREGATE_I32_STORE_BYTES,
                     destination,
@@ -276,14 +274,14 @@ impl EntryEmitter {
                 self.encoder.emit_ldrb_w_imm(destination, base, offset);
             }
             AggregateLocation::DirectParameter { start_index } => {
-                let (source, byte_offset) = direct_aggregate_parameter_chunk_source(
+                let (word_index, byte_offset) = direct_aggregate_parameter_chunk_source(
                     start_index,
                     offset,
                     AGGREGATE_U8_STORE_BYTES,
                     "u8 field",
                 )?;
                 self.emit_direct_aggregate_parameter_chunk_to_w(
-                    source,
+                    word_index,
                     byte_offset,
                     AGGREGATE_U8_STORE_BYTES,
                     destination,
@@ -321,14 +319,14 @@ impl EntryEmitter {
                 self.encoder.emit_ldrb_w_imm(destination, base, offset);
             }
             AggregateLocation::DirectParameter { start_index } => {
-                let (source, byte_offset) = direct_aggregate_parameter_chunk_source(
+                let (word_index, byte_offset) = direct_aggregate_parameter_chunk_source(
                     start_index,
                     offset,
                     AGGREGATE_U8_STORE_BYTES,
                     "bool field",
                 )?;
                 self.emit_direct_aggregate_parameter_chunk_to_w(
-                    source,
+                    word_index,
                     byte_offset,
                     AGGREGATE_U8_STORE_BYTES,
                     destination,
@@ -841,7 +839,7 @@ impl EntryEmitter {
 
     fn emit_direct_aggregate_parameter_chunk_to_w(
         &mut self,
-        source: XReg,
+        word_index: usize,
         byte_offset: u32,
         chunk_bytes: u32,
         destination: WReg,
@@ -850,7 +848,7 @@ impl EntryEmitter {
 
         if byte_offset == 0
             && chunk_bytes == AGGREGATE_I32_STORE_BYTES
-            && let Some(source) = w_reg_for_x_reg(source)
+            && let Some(source) = WReg::argument(word_index)
         {
             if source != destination {
                 self.encoder.emit_mov_w(destination, source);
@@ -858,9 +856,7 @@ impl EntryEmitter {
             return Ok(());
         }
 
-        if source != XReg::X16 {
-            self.encoder.emit_mov_x(XReg::X16, source);
-        }
+        self.emit_parameter_word_to_x(word_index, XReg::X16)?;
         if byte_offset != 0 {
             self.encoder
                 .emit_lsr_x_imm(XReg::X16, XReg::X16, byte_offset * 8);
@@ -1517,11 +1513,11 @@ fn validate_aggregate_i32_field_offset(offset: u32) -> Result<(), Vec<Diagnostic
     Ok(())
 }
 
-fn direct_aggregate_parameter_word_register(
+fn direct_aggregate_parameter_word_index(
     start_index: usize,
     offset: u32,
     subject: &str,
-) -> Result<XReg, Vec<Diagnostic>> {
+) -> Result<usize, Vec<Diagnostic>> {
     if !offset.is_multiple_of(AGGREGATE_USIZE_STORE_BYTES) {
         return Err(direct_aggregate_parameter_load_diagnostic(
             subject,
@@ -1532,7 +1528,7 @@ fn direct_aggregate_parameter_word_register(
     let word_index = usize::try_from(offset / AGGREGATE_USIZE_STORE_BYTES).map_err(|_error| {
         direct_aggregate_parameter_load_diagnostic(subject, "word index overflows")
     })?;
-    direct_aggregate_parameter_register(start_index, word_index, subject)
+    direct_aggregate_parameter_word_index_from_word(start_index, word_index, subject)
 }
 
 fn direct_aggregate_parameter_chunk_source(
@@ -1540,7 +1536,7 @@ fn direct_aggregate_parameter_chunk_source(
     offset: u32,
     chunk_bytes: u32,
     subject: &str,
-) -> Result<(XReg, u32), Vec<Diagnostic>> {
+) -> Result<(usize, u32), Vec<Diagnostic>> {
     validate_aggregate_copy_chunk_bytes(chunk_bytes)?;
 
     let byte_offset = offset % AGGREGATE_USIZE_STORE_BYTES;
@@ -1557,21 +1553,20 @@ fn direct_aggregate_parameter_chunk_source(
     let word_index = usize::try_from(offset / AGGREGATE_USIZE_STORE_BYTES).map_err(|_error| {
         direct_aggregate_parameter_load_diagnostic(subject, "word index overflows")
     })?;
-    let register = direct_aggregate_parameter_register(start_index, word_index, subject)?;
-    Ok((register, byte_offset))
+    let word_index =
+        direct_aggregate_parameter_word_index_from_word(start_index, word_index, subject)?;
+    Ok((word_index, byte_offset))
 }
 
-fn direct_aggregate_parameter_register(
+fn direct_aggregate_parameter_word_index_from_word(
     start_index: usize,
     word_index: usize,
     subject: &str,
-) -> Result<XReg, Vec<Diagnostic>> {
+) -> Result<usize, Vec<Diagnostic>> {
     let register_index = start_index.checked_add(word_index).ok_or_else(|| {
         direct_aggregate_parameter_load_diagnostic(subject, "register index overflows")
     })?;
-    XReg::argument(register_index).ok_or_else(|| {
-        direct_aggregate_parameter_load_diagnostic(subject, "register is unavailable")
-    })
+    Ok(register_index)
 }
 
 fn direct_aggregate_parameter_load_diagnostic(subject: &str, reason: &str) -> Vec<Diagnostic> {
