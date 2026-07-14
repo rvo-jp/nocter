@@ -27,6 +27,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: lower void terminal-if branches
+  - lowers terminal `if` branches that directly `return` from entry and non-entry `void` functions
+  - reuses branch-local scope-end drop cleanup for `void` terminal branches so owned aggregate locals are dropped before returning
+  - covers non-entry `void` branch lowering, entry aggregate cleanup, fallible `void!` success conversion, and CLI build coverage for a `void` terminal-if helper
 - Current checkpoint: broaden non-entry terminal-if returns
   - lowers non-entry terminal `if` branches returning `u8`, `usize`, `&str`, and u8 slices in addition to the existing `i32`/`bool` paths
   - reuses the existing branch-local scope-end drop staging so primitive/view return payloads are preserved across pending aggregate drop calls

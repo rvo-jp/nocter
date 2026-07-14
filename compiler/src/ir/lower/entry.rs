@@ -1,6 +1,6 @@
 use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{FunctionNames, FunctionSignatures, LoweringContext};
-use super::control_flow::lower_terminal_i32_if_statement;
+use super::control_flow::{lower_terminal_i32_if_statement, lower_terminal_void_if_statement};
 use super::errors::{ErrorPayload, lower_error_payload};
 use super::expressions::{
     lower_i32_return_expression, lower_never_return_expression, lower_void_expression_statement,
@@ -159,6 +159,20 @@ fn lower_entry_body(
         }
         Stmt::If(statement) if success_type == &Type::I32 => {
             let branch_instructions = lower_terminal_i32_if_statement(
+                statement,
+                &context,
+                return_type,
+                "E8002",
+                "entry functions",
+            )?;
+            instructions.extend(mark_fallible_success_returns(
+                return_type,
+                branch_instructions,
+            ));
+            Ok(instructions)
+        }
+        Stmt::If(statement) if success_type == &Type::Void => {
+            let branch_instructions = lower_terminal_void_if_statement(
                 statement,
                 &context,
                 return_type,

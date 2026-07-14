@@ -238,6 +238,30 @@ pub(super) fn lower_terminal_slice_if_statement(
     )
 }
 
+pub(super) fn lower_terminal_void_if_statement(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    _return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some(else_block) = &statement.else_block else {
+        return Err(unsupported_terminal_if_diagnostic(
+            diagnostic_code,
+            subject,
+            "void",
+        ));
+    };
+
+    lower_terminal_condition(
+        &statement.condition,
+        lower_void_return_block(&statement.then_block, context, diagnostic_code, subject)?,
+        lower_void_return_block(else_block, context, diagnostic_code, subject)?,
+        context,
+        diagnostic_code,
+    )
+}
+
 fn lower_terminal_condition(
     condition: &Expr,
     then_instructions: Vec<Instruction>,
@@ -437,6 +461,25 @@ fn lower_scalar_return_block(
             diagnostic_code,
             subject,
             return_label,
+        )),
+    }
+}
+
+fn lower_void_return_block(
+    block: &Block,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    subject: &str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match block.statements.as_slice() {
+        [Stmt::Return(statement)] if statement.expression.is_none() => {
+            let mut branch_context = context.clone();
+            append_scope_end_drops_before_exit(vec![Instruction::Return], &mut branch_context)
+        }
+        _ => Err(unsupported_terminal_if_diagnostic(
+            diagnostic_code,
+            subject,
+            "void",
         )),
     }
 }

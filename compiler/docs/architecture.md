@@ -184,7 +184,7 @@ Currently buildable:
 - `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; addition, subtraction, and multiplication trap on signed overflow, and division and remainder trap on zero divisors and signed division overflow
 - `i32` shifts with `<<` and `>>` used in lowerable `i32` expressions; shift counts trap when negative or greater than or equal to 32
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` or `usize` comparisons used in lowerable bool expressions
-- terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over literal/local operands, or `i32`/`usize` comparison conditions and direct entry `i32`, or non-entry `i32`, `u8`, `usize`, `bool`, `&str`, or u8 slice returns in both branches
+- terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over literal/local operands, or `i32`/`usize` comparison conditions and direct entry `i32`/`void`, or non-entry `i32`, `u8`, `usize`, `bool`, `void`, `&str`, or u8 slice returns in both branches
 - non-entry `never` functions that end with a lowerable call returning `never`; frame-dependent, aggregate-pointer, or stack-passed `never` calls lower as normal calls followed by a trap guard
 - the `std/os/macos.trap` and `std/os/macos.unreachable` target primitives as ARM64 `brk #0`
 - simple fallible entry success

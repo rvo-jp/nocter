@@ -13,6 +13,7 @@ use super::control_flow::{
     lower_terminal_bool_if_statement, lower_terminal_i32_if_statement,
     lower_terminal_slice_if_statement, lower_terminal_str_if_statement,
     lower_terminal_u8_if_statement, lower_terminal_usize_if_statement,
+    lower_terminal_void_if_statement,
 };
 use super::errors::{ErrorPayload, lower_error_payload};
 use super::expressions::{
@@ -773,6 +774,20 @@ fn lower_callable_body(
         }
         Stmt::If(statement) if matches!(success_type, Type::Slice { .. }) => {
             let branch_instructions = lower_terminal_slice_if_statement(
+                statement,
+                context,
+                return_type,
+                "E8007",
+                "functions",
+            )?;
+            instructions.extend(mark_fallible_success_returns(
+                return_type,
+                branch_instructions,
+            ));
+            Ok(instructions)
+        }
+        Stmt::If(statement) if success_type == &Type::Void => {
+            let branch_instructions = lower_terminal_void_if_statement(
                 statement,
                 context,
                 return_type,

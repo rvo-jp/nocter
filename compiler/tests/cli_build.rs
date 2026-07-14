@@ -341,6 +341,33 @@ func choose(flag: bool): usize {
 }
 
 #[test]
+fn build_command_lowers_void_terminal_if_function() {
+    let project = TempProject::new("cli-build-void-terminal-if-function");
+    let source = project.write_source(
+        "void_terminal_if_function.nct",
+        r#"func main(): i32 {
+    run(true)
+    return 0
+}
+
+func run(flag: bool): void {
+    if flag {
+        return
+    } else {
+        return
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_usize_arithmetic_and_shifts() {
     let project = TempProject::new("cli-build-usize-arithmetic-shifts");
     let source = project.write_source(

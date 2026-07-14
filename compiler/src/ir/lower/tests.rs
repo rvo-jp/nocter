@@ -2884,6 +2884,118 @@ func choose(flag: bool): usize {
 }
 
 #[test]
+fn lowers_void_terminal_if_function() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    run(true)
+    return 0
+}
+
+func run(flag: bool): void {
+    if flag {
+        return
+    } else {
+        return
+    }
+}
+"#,
+    );
+
+    let run = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "run")
+        .unwrap();
+    assert_eq!(
+        run.instructions,
+        vec![Instruction::If {
+            condition: BoolValue::Location(BoolLocation::Parameter(0)),
+            then_instructions: vec![Instruction::Return],
+            else_instructions: vec![Instruction::Return],
+        }],
+    );
+}
+
+#[test]
+fn lowers_scope_end_drop_inside_void_terminal_if_branches() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): void {
+    var file = File{ fd: 3 }
+    if true {
+        return
+    } else {
+        return
+    }
+}
+"#,
+    );
+
+    let drop_call = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(3),
+            },
+            Instruction::If {
+                condition: BoolValue::Const(true),
+                then_instructions: vec![drop_call.clone(), Instruction::Return],
+                else_instructions: vec![drop_call, Instruction::Return],
+            },
+        ],
+    );
+}
+
+#[test]
+fn lowers_fallible_void_terminal_if_entry() {
+    let ir = lower_text(
+        r#"func main(): void! {
+    if true {
+        return
+    } else {
+        return
+    }
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![Instruction::If {
+            condition: BoolValue::Const(true),
+            then_instructions: vec![Instruction::ReturnFallibleSuccess],
+            else_instructions: vec![Instruction::ReturnFallibleSuccess],
+        }],
+    );
+}
+
+#[test]
 fn lowers_pending_aggregate_drop_for_fallible_propagation_cleanup() {
     let ir = lower_text_with_std_error(
         r#"from std/error import Error
