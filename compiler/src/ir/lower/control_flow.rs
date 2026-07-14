@@ -3,14 +3,18 @@ use super::expressions::{
     expression_contains_call, lower_bool_expression_to_value, lower_bool_return_expression,
     lower_i32_return_expression,
 };
-use super::functions::{append_scope_end_drops_before_exit, mark_explicit_moves_in_expression};
+use super::functions::{
+    append_scope_end_drops_before_exit, lower_value_return_with_scope_drops,
+    mark_explicit_moves_in_expression,
+};
 use crate::ast::{BinaryExpr, BinaryOperator, Block, Expr, IfStmt, Stmt};
 use crate::diagnostics::Diagnostic;
-use crate::ir::Instruction;
+use crate::ir::{Instruction, Type};
 
 pub(super) fn lower_terminal_i32_if_statement(
     statement: &IfStmt,
     context: &LoweringContext,
+    return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -24,8 +28,14 @@ pub(super) fn lower_terminal_i32_if_statement(
 
     lower_terminal_condition(
         &statement.condition,
-        lower_i32_return_block(&statement.then_block, context, diagnostic_code, subject)?,
-        lower_i32_return_block(else_block, context, diagnostic_code, subject)?,
+        lower_i32_return_block(
+            &statement.then_block,
+            context,
+            return_type,
+            diagnostic_code,
+            subject,
+        )?,
+        lower_i32_return_block(else_block, context, return_type, diagnostic_code, subject)?,
         context,
         diagnostic_code,
     )
@@ -34,6 +44,7 @@ pub(super) fn lower_terminal_i32_if_statement(
 pub(super) fn lower_terminal_bool_if_statement(
     statement: &IfStmt,
     context: &LoweringContext,
+    return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -47,8 +58,14 @@ pub(super) fn lower_terminal_bool_if_statement(
 
     lower_terminal_condition(
         &statement.condition,
-        lower_bool_return_block(&statement.then_block, context, diagnostic_code, subject)?,
-        lower_bool_return_block(else_block, context, diagnostic_code, subject)?,
+        lower_bool_return_block(
+            &statement.then_block,
+            context,
+            return_type,
+            diagnostic_code,
+            subject,
+        )?,
+        lower_bool_return_block(else_block, context, return_type, diagnostic_code, subject)?,
         context,
         diagnostic_code,
     )
@@ -146,6 +163,7 @@ fn unwrap_group(expression: &Expr) -> &Expr {
 fn lower_i32_return_block(
     block: &Block,
     context: &LoweringContext,
+    return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -159,6 +177,14 @@ fn lower_i32_return_block(
                 ));
             };
             let mut branch_context = context.clone();
+            if let Some(return_instructions) = lower_value_return_with_scope_drops(
+                return_type.success_type(),
+                expression,
+                return_type,
+                &mut branch_context,
+            )? {
+                return Ok(return_instructions);
+            }
             let return_instructions = lower_i32_return_expression(expression, &branch_context)?;
             mark_explicit_moves_in_expression(expression, &mut branch_context);
             append_scope_end_drops_before_exit(return_instructions, &mut branch_context)
@@ -174,6 +200,7 @@ fn lower_i32_return_block(
 fn lower_bool_return_block(
     block: &Block,
     context: &LoweringContext,
+    return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -187,6 +214,14 @@ fn lower_bool_return_block(
                 ));
             };
             let mut branch_context = context.clone();
+            if let Some(return_instructions) = lower_value_return_with_scope_drops(
+                return_type.success_type(),
+                expression,
+                return_type,
+                &mut branch_context,
+            )? {
+                return Ok(return_instructions);
+            }
             let return_instructions =
                 lower_bool_return_expression(expression, &branch_context, diagnostic_code)?;
             mark_explicit_moves_in_expression(expression, &mut branch_context);

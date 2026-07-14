@@ -579,7 +579,6 @@ fn lower_callable_body(
                     context,
                 )?
             {
-                mark_explicit_moves_in_expression(expression, context);
                 instructions.extend(return_instructions);
                 return Ok(instructions);
             }
@@ -690,9 +689,6 @@ fn lower_callable_body(
                     unreachable!("fallible success type must be unwrapped")
                 }
             }?;
-            if let Some(expression) = &statement.expression {
-                mark_explicit_moves_in_expression(expression, context);
-            }
             let return_instructions =
                 mark_fallible_success_returns(return_type, return_instructions);
             instructions.extend(append_scope_end_drops_before_exit(
@@ -702,8 +698,13 @@ fn lower_callable_body(
             Ok(instructions)
         }
         Stmt::If(statement) if success_type == &Type::I32 => {
-            let branch_instructions =
-                lower_terminal_i32_if_statement(statement, context, "E8007", "functions")?;
+            let branch_instructions = lower_terminal_i32_if_statement(
+                statement,
+                context,
+                return_type,
+                "E8007",
+                "functions",
+            )?;
             instructions.extend(mark_fallible_success_returns(
                 return_type,
                 branch_instructions,
@@ -711,8 +712,13 @@ fn lower_callable_body(
             Ok(instructions)
         }
         Stmt::If(statement) if success_type == &Type::Bool => {
-            let branch_instructions =
-                lower_terminal_bool_if_statement(statement, context, "E8007", "functions")?;
+            let branch_instructions = lower_terminal_bool_if_statement(
+                statement,
+                context,
+                return_type,
+                "E8007",
+                "functions",
+            )?;
             instructions.extend(mark_fallible_success_returns(
                 return_type,
                 branch_instructions,
@@ -751,6 +757,7 @@ pub(super) fn lower_value_return_with_scope_drops(
     return_type: &Type,
     context: &mut LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    mark_explicit_moves_in_expression(expression, context);
     if context.pending_aggregate_drops().is_empty() {
         return Ok(None);
     }

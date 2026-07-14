@@ -3703,6 +3703,82 @@ func touch2(a: i32, b: i32): void {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_runs_catch_failure_scope_drop_cleanup() {
+    let project = TempProject::new("cli-run-catch-cleanup-drop");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+impl Error {
+    pub func new(code: ErrorCode, message: &str): Error {
+        return new_error(code, message)
+    }
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"from std/io_impl import write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "targets/arm64-darwin/std/io_impl.nct",
+        r#"pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "catch_cleanup_drop.nct",
+        r#"from std/error import Error
+from std/log import write
+
+struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        write("drop\n")!
+        return
+    }
+}
+
+func main(): i32! {
+    var file = File{ fd: 3 }
+    let value = fail() catch error {
+        return Error.new("app.outer", error.message)
+    }
+    return value
+}
+
+func fail(): i32! {
+    return Error.new("app.inner", "failed")
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"drop\n");
+    assert_eq!(output.stderr, b"app.outer: failed\n");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_runs_replacement_and_scope_end_drops() {
     let project = TempProject::new("cli-run-replacement-drop");
     project.write_nocter_home_file(
@@ -3753,6 +3829,64 @@ func main(): i32! {
         text(&output.stderr)
     );
     assert_eq!(output.stdout, b"drop\ndrop\n");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_preserves_terminal_if_return_value_after_scope_drop() {
+    let project = TempProject::new("cli-run-terminal-if-return-drop");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"from std/io_impl import write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "targets/arm64-darwin/std/io_impl.nct",
+        r#"pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "terminal_if_return_drop.nct",
+        r#"from std/log import write
+
+struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        write("drop\n")!
+        return
+    }
+}
+
+func main(): i32! {
+    var file = File{ fd: 42 }
+    if true {
+        return file.fd
+    } else {
+        return 7
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"drop\n");
     assert!(output.stderr.is_empty());
 }
 

@@ -119,7 +119,6 @@ fn lower_entry_body(
                     &mut context,
                 )?
             {
-                mark_explicit_moves_in_expression(expression, &mut context);
                 instructions.extend(return_instructions);
                 return Ok(instructions);
             }
@@ -150,9 +149,6 @@ fn lower_entry_body(
                 (Type::Never, _) => unreachable!("never entry type is not lowered in v0"),
                 (Type::Fallible(_), _) => unreachable!("fallible success type must be unwrapped"),
             }?;
-            if let Some(expression) = &statement.expression {
-                mark_explicit_moves_in_expression(expression, &mut context);
-            }
             let return_instructions =
                 mark_fallible_success_returns(return_type, return_instructions);
             instructions.extend(append_scope_end_drops_before_exit(
@@ -162,8 +158,13 @@ fn lower_entry_body(
             Ok(instructions)
         }
         Stmt::If(statement) if success_type == &Type::I32 => {
-            let branch_instructions =
-                lower_terminal_i32_if_statement(statement, &context, "E8002", "entry functions")?;
+            let branch_instructions = lower_terminal_i32_if_statement(
+                statement,
+                &context,
+                return_type,
+                "E8002",
+                "entry functions",
+            )?;
             instructions.extend(mark_fallible_success_returns(
                 return_type,
                 branch_instructions,

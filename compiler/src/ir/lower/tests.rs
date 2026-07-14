@@ -2569,6 +2569,95 @@ func consume(file: File): void {
 }
 
 #[test]
+fn suppresses_scope_end_drop_for_moved_aggregate_tail_return_argument() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 3 }
+    return consume(move file)
+}
+
+func consume(file: File): i32 {
+    return file.fd
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(3),
+            },
+            Instruction::TailCall {
+                target: CallTarget::same_file("consume"),
+                arguments: vec![ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                    source: AggregateArgumentSource::Slot(0),
+                    layout: ValueLayout::new(4, 4),
+                    words: 1,
+                })],
+            },
+        ],
+    );
+
+    let consume = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "consume")
+        .unwrap();
+    assert_eq!(
+        consume.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::CopyAggregate {
+                destination: AggregateLocation::Slot(0),
+                source: AggregateLocation::DirectParameter { start_index: 0 },
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::LoadAggregateI32 {
+                destination: I32Location::Local(0),
+                source: AggregateLocation::Slot(0),
+                offset: 0,
+            },
+            Instruction::CallVoid {
+                target: CallTarget::same_file("File.drop"),
+                arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                    source: BorrowSource::AggregateSlot(0),
+                })],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
 fn lowers_scope_end_drop_before_tail_call() {
     let ir = lower_text(
         r#"struct File {
@@ -2678,8 +2767,30 @@ func main(): i32 {
             },
             Instruction::If {
                 condition: BoolValue::Const(true),
-                then_instructions: vec![set_return_i32(0), drop_call.clone(), Instruction::Return],
-                else_instructions: vec![set_return_i32(1), drop_call, Instruction::Return],
+                then_instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(0),
+                    },
+                    drop_call.clone(),
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
+                    Instruction::Return,
+                ],
+                else_instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(1),
+                    },
+                    drop_call,
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
+                    Instruction::Return,
+                ],
             },
         ],
     );
@@ -10838,6 +10949,75 @@ func answer(): i32! {
                 Instruction::ReturnFallibleSuccess,
             ],
         }
+    );
+}
+
+#[test]
+fn lowers_pending_aggregate_drop_for_catch_failure_return_cleanup() {
+    let ir = lower_text_with_std_error(
+        r#"from std/error import Error
+
+struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32! {
+    var file = File{ fd: 3 }
+    let value = answer() catch error {
+        return Error.new("app.answer", error.message)
+    }
+    return value
+}
+
+func answer(): i32! {
+    return Error.new("app.inner", "inner failed")
+}
+"#,
+    );
+
+    let drop_call = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    let Some(Instruction::CallFallibleI32 {
+        failure_mode:
+            FallibleFailureMode::Catch {
+                code,
+                message,
+                instructions,
+            },
+        ..
+    }) = main
+        .instructions
+        .iter()
+        .find(|instruction| matches!(instruction, Instruction::CallFallibleI32 { .. }))
+    else {
+        panic!("missing fallible i32 catch call: {main:?}");
+    };
+    assert_eq!(*code, StrLocation::Local(1));
+    assert_eq!(*message, StrLocation::Local(3));
+    assert_eq!(
+        instructions,
+        &vec![
+            drop_call,
+            Instruction::ReturnFallibleFailure {
+                code: StrValue::StaticBytes(b"app.answer".to_vec()),
+                message: StrValue::Location(StrLocation::Local(3)),
+            },
+        ],
     );
 }
 

@@ -5,7 +5,10 @@ use super::aggregates::{
 use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{AggregateFieldKind, LoweringContext};
 use super::errors::{ErrorPayload, lower_error_payload};
-use super::functions::propagating_failure_mode;
+use super::functions::{
+    append_scope_end_drops_before_exit, lower_value_return_with_scope_drops,
+    mark_lowered_statement_aggregate_uses, propagating_failure_mode,
+};
 use super::literals::{
     lower_i32_literal, lower_str_literal, lower_u8_literal, lower_usize_literal,
 };
@@ -448,7 +451,22 @@ fn lower_catch_block(
                 && let Some(payload) =
                     lower_error_payload(expression, resolved, root_source, Some(context))?
             {
-                instructions.extend(lower_fallible_failure(payload));
+                instructions.extend(append_scope_end_drops_before_exit(
+                    lower_fallible_failure(payload),
+                    context,
+                )?);
+                return Ok(instructions);
+            }
+
+            if let Some(expression) = &statement.expression
+                && let Some(return_instructions) = lower_value_return_with_scope_drops(
+                    &success_type,
+                    expression,
+                    &function_return_type,
+                    context,
+                )?
+            {
+                instructions.extend(return_instructions);
                 return Ok(instructions);
             }
 
@@ -482,10 +500,12 @@ fn lower_catch_block(
                     unreachable!("fallible success type must be unwrapped")
                 }
             }?;
-            instructions.extend(mark_fallible_success_returns(
-                &function_return_type,
+            let return_instructions =
+                mark_fallible_success_returns(&function_return_type, return_instructions);
+            instructions.extend(append_scope_end_drops_before_exit(
                 return_instructions,
-            ));
+                context,
+            )?);
             Ok(instructions)
         }
         Stmt::Expression(statement) => {
@@ -497,7 +517,10 @@ fn lower_catch_block(
                         lower_void_expression_statement(&statement.expression, context)?
                 {
                     instructions.extend(void_instructions);
-                    instructions.push(success_return_instruction(&function_return_type));
+                    instructions.extend(append_scope_end_drops_before_exit(
+                        vec![success_return_instruction(&function_return_type)],
+                        context,
+                    )?);
                     return Ok(instructions);
                 }
 
@@ -534,6 +557,7 @@ fn lower_catch_leading_statements(
             }
             _ => return Err(unsupported_catch_block_diagnostic()),
         }
+        mark_lowered_statement_aggregate_uses(statement, context);
     }
 
     Ok(instructions)
