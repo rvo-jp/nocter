@@ -27,6 +27,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: cover imported aggregate call ABI
+  - adds native execution coverage for imported direct aggregate call results passed by value to imported functions
+  - adds native execution coverage for imported indirect aggregate call results passed by value to imported functions
+  - confirms imported `CallTarget` patching uses the same direct and indirect aggregate ABI paths as same-file calls
 - Current checkpoint: copy unaligned direct aggregate parameter ranges
   - removes the backend-only 8-byte alignment restriction for `CopyAggregateRange` sources from `AggregateLocation::DirectParameter`
   - builds direct-parameter range copy scratch values byte-by-byte when the source offset is unaligned or crosses ABI words

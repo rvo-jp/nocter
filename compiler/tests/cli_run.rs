@@ -194,6 +194,91 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_imported_direct_aggregate_call_exit_code() {
+    let project = TempProject::new("cli-run-imported-direct-aggregate-call");
+    project.write_nocter_home_file(
+        "std/text.nct",
+        r#"pub copy struct Pair {
+    pub first: i32
+    pub second: i32
+}
+
+pub func make_pair(): Pair {
+    return Pair{ first: 7, second: 42 }
+}
+
+pub func read_second(pair: Pair): i32 {
+    return pair.second
+}
+"#,
+    );
+    let source = project.write_source(
+        "imported_direct_aggregate_call.nct",
+        r#"from std/text import Pair, make_pair, read_second
+
+func main(): i32 {
+    let pair = make_pair()
+    return read_second(pair)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_imported_indirect_aggregate_call_exit_code() {
+    let project = TempProject::new("cli-run-imported-indirect-aggregate-call");
+    project.write_nocter_home_file(
+        "std/text.nct",
+        r#"pub copy struct Big {
+    pub first: usize
+    pub second: usize
+    pub code: i32
+}
+
+pub func make_big(): Big {
+    return Big{ first: 1, second: 2, code: 42 }
+}
+
+pub func read_code(value: Big): i32 {
+    return value.code
+}
+"#,
+    );
+    let source = project.write_source(
+        "imported_indirect_aggregate_call.nct",
+        r#"from std/text import Big, make_big, read_code
+
+func main(): i32 {
+    let value = make_big()
+    return read_code(value)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_i32_function_call_with_arguments_exit_code() {
     let project = TempProject::new("cli-run-function-arguments");
     let source = project.write_source(
