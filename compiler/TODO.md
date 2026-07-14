@@ -27,6 +27,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: cover imported stack-passed aggregate arguments
+  - adds native execution coverage for imported direct aggregate parameters whose ABI words are fully stack-passed
+  - adds native execution coverage for imported indirect aggregate parameter pointers passed after the first eight argument words
+  - confirms imported call patching, outgoing stack argument setup, and callee aggregate parameter setup compose across module boundaries
 - Current checkpoint: cover imported aggregate call ABI
   - adds native execution coverage for imported direct aggregate call results passed by value to imported functions
   - adds native execution coverage for imported indirect aggregate call results passed by value to imported functions

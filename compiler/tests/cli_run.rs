@@ -279,6 +279,102 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_imported_stack_passed_direct_aggregate_argument_exit_code() {
+    let project = TempProject::new("cli-run-imported-stack-passed-direct-aggregate-arg");
+    project.write_nocter_home_file(
+        "std/text.nct",
+        r#"pub copy struct Bytes {
+    pub first: u8
+    pub second: u8
+    pub third: u8
+    pub fourth: u8
+    pub fifth: u8
+    pub sixth: u8
+    pub seventh: u8
+    pub eighth: u8
+    pub ninth: u8
+}
+
+pub func read_ninth(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, bytes: Bytes): i32 {
+    if bytes.ninth == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+    let source = project.write_source(
+        "imported_stack_passed_direct_aggregate_arg.nct",
+        r#"from std/text import Bytes, read_ninth
+
+func main(): i32 {
+    return read_ninth(1, 2, 3, 4, 5, 6, 7, 8, Bytes{
+        first: 1,
+        second: 2,
+        third: 3,
+        fourth: 4,
+        fifth: 5,
+        sixth: 6,
+        seventh: 7,
+        eighth: 8,
+        ninth: 42,
+    })
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_imported_stack_passed_indirect_aggregate_argument_exit_code() {
+    let project = TempProject::new("cli-run-imported-stack-passed-indirect-aggregate-arg");
+    project.write_nocter_home_file(
+        "std/text.nct",
+        r#"pub copy struct Big {
+    pub first: usize
+    pub second: usize
+    pub code: i32
+}
+
+pub func read_code(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, value: Big): i32 {
+    return value.code
+}
+"#,
+    );
+    let source = project.write_source(
+        "imported_stack_passed_indirect_aggregate_arg.nct",
+        r#"from std/text import Big, read_code
+
+func main(): i32 {
+    return read_code(1, 2, 3, 4, 5, 6, 7, 8, Big{ first: 10, second: 20, code: 42 })
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_i32_function_call_with_arguments_exit_code() {
     let project = TempProject::new("cli-run-function-arguments");
     let source = project.write_source(
