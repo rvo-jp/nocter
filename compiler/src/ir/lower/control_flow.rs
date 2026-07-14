@@ -5,7 +5,7 @@ use super::expressions::{
     lower_u8_return_expression, lower_usize_return_expression,
 };
 use super::functions::{
-    append_scope_end_drops_before_exit, lower_value_return_with_scope_drops,
+    append_scope_end_drops_before_exit, lower_drop_statement, lower_value_return_with_scope_drops,
     mark_explicit_moves_in_expression,
 };
 use crate::ast::{BinaryExpr, BinaryOperator, Block, Expr, IfStmt, Stmt};
@@ -319,8 +319,18 @@ fn lower_i32_return_block(
     diagnostic_code: &'static str,
     subject: &str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    match block.statements.as_slice() {
-        [Stmt::Return(statement)] => {
+    let (terminal, leading) = split_terminal_branch_block(block, diagnostic_code, subject, "i32")?;
+    let mut branch_context = context.clone();
+    let mut instructions = lower_terminal_branch_leading_drops(
+        leading,
+        &mut branch_context,
+        diagnostic_code,
+        subject,
+        "i32",
+    )?;
+
+    match terminal {
+        Stmt::Return(statement) => {
             let Some(expression) = &statement.expression else {
                 return Err(unsupported_terminal_if_diagnostic(
                     diagnostic_code,
@@ -328,26 +338,30 @@ fn lower_i32_return_block(
                     "i32",
                 ));
             };
-            let mut branch_context = context.clone();
             if let Some(return_instructions) = lower_value_return_with_scope_drops(
                 return_type.success_type(),
                 expression,
                 return_type,
                 &mut branch_context,
             )? {
-                return Ok(return_instructions);
+                instructions.extend(return_instructions);
+                return Ok(instructions);
             }
             let return_instructions = lower_i32_return_expression(expression, &branch_context)?;
             mark_explicit_moves_in_expression(expression, &mut branch_context);
-            append_scope_end_drops_before_exit(return_instructions, &mut branch_context)
+            instructions.extend(return_instructions);
+            append_scope_end_drops_before_exit(instructions, &mut branch_context)
         }
-        [Stmt::If(statement)] => lower_terminal_i32_if_statement(
-            statement,
-            context,
-            return_type,
-            diagnostic_code,
-            subject,
-        ),
+        Stmt::If(statement) => {
+            instructions.extend(lower_terminal_i32_if_statement(
+                statement,
+                &branch_context,
+                return_type,
+                diagnostic_code,
+                subject,
+            )?);
+            Ok(instructions)
+        }
         _ => Err(unsupported_terminal_if_diagnostic(
             diagnostic_code,
             subject,
@@ -363,8 +377,18 @@ fn lower_bool_return_block(
     diagnostic_code: &'static str,
     subject: &str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    match block.statements.as_slice() {
-        [Stmt::Return(statement)] => {
+    let (terminal, leading) = split_terminal_branch_block(block, diagnostic_code, subject, "bool")?;
+    let mut branch_context = context.clone();
+    let mut instructions = lower_terminal_branch_leading_drops(
+        leading,
+        &mut branch_context,
+        diagnostic_code,
+        subject,
+        "bool",
+    )?;
+
+    match terminal {
+        Stmt::Return(statement) => {
             let Some(expression) = &statement.expression else {
                 return Err(unsupported_terminal_if_diagnostic(
                     diagnostic_code,
@@ -372,27 +396,31 @@ fn lower_bool_return_block(
                     "bool",
                 ));
             };
-            let mut branch_context = context.clone();
             if let Some(return_instructions) = lower_value_return_with_scope_drops(
                 return_type.success_type(),
                 expression,
                 return_type,
                 &mut branch_context,
             )? {
-                return Ok(return_instructions);
+                instructions.extend(return_instructions);
+                return Ok(instructions);
             }
             let return_instructions =
                 lower_bool_return_expression(expression, &branch_context, diagnostic_code)?;
             mark_explicit_moves_in_expression(expression, &mut branch_context);
-            append_scope_end_drops_before_exit(return_instructions, &mut branch_context)
+            instructions.extend(return_instructions);
+            append_scope_end_drops_before_exit(instructions, &mut branch_context)
         }
-        [Stmt::If(statement)] => lower_terminal_bool_if_statement(
-            statement,
-            context,
-            return_type,
-            diagnostic_code,
-            subject,
-        ),
+        Stmt::If(statement) => {
+            instructions.extend(lower_terminal_bool_if_statement(
+                statement,
+                &branch_context,
+                return_type,
+                diagnostic_code,
+                subject,
+            )?);
+            Ok(instructions)
+        }
         _ => Err(unsupported_terminal_if_diagnostic(
             diagnostic_code,
             subject,
@@ -410,8 +438,19 @@ fn lower_scalar_return_block(
     return_label: &str,
     lower_return_expression: ReturnLowerer,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    match block.statements.as_slice() {
-        [Stmt::Return(statement)] => {
+    let (terminal, leading) =
+        split_terminal_branch_block(block, diagnostic_code, subject, return_label)?;
+    let mut branch_context = context.clone();
+    let mut instructions = lower_terminal_branch_leading_drops(
+        leading,
+        &mut branch_context,
+        diagnostic_code,
+        subject,
+        return_label,
+    )?;
+
+    match terminal {
+        Stmt::Return(statement) => {
             let Some(expression) = &statement.expression else {
                 return Err(unsupported_terminal_if_diagnostic(
                     diagnostic_code,
@@ -419,28 +458,32 @@ fn lower_scalar_return_block(
                     return_label,
                 ));
             };
-            let mut branch_context = context.clone();
             if let Some(return_instructions) = lower_value_return_with_scope_drops(
                 return_type.success_type(),
                 expression,
                 return_type,
                 &mut branch_context,
             )? {
-                return Ok(return_instructions);
+                instructions.extend(return_instructions);
+                return Ok(instructions);
             }
             let return_instructions = lower_return_expression(expression, &branch_context)?;
             mark_explicit_moves_in_expression(expression, &mut branch_context);
-            append_scope_end_drops_before_exit(return_instructions, &mut branch_context)
+            instructions.extend(return_instructions);
+            append_scope_end_drops_before_exit(instructions, &mut branch_context)
         }
-        [Stmt::If(statement)] => lower_terminal_scalar_if_statement(
-            statement,
-            context,
-            return_type,
-            diagnostic_code,
-            subject,
-            return_label,
-            lower_return_expression,
-        ),
+        Stmt::If(statement) => {
+            instructions.extend(lower_terminal_scalar_if_statement(
+                statement,
+                &branch_context,
+                return_type,
+                diagnostic_code,
+                subject,
+                return_label,
+                lower_return_expression,
+            )?);
+            Ok(instructions)
+        }
         _ => Err(unsupported_terminal_if_diagnostic(
             diagnostic_code,
             subject,
@@ -456,24 +499,76 @@ fn lower_void_return_block(
     diagnostic_code: &'static str,
     subject: &str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    match block.statements.as_slice() {
-        [Stmt::Return(statement)] if statement.expression.is_none() => {
-            let mut branch_context = context.clone();
-            append_scope_end_drops_before_exit(vec![Instruction::Return], &mut branch_context)
+    let (terminal, leading) = split_terminal_branch_block(block, diagnostic_code, subject, "void")?;
+    let mut branch_context = context.clone();
+    let mut instructions = lower_terminal_branch_leading_drops(
+        leading,
+        &mut branch_context,
+        diagnostic_code,
+        subject,
+        "void",
+    )?;
+
+    match terminal {
+        Stmt::Return(statement) if statement.expression.is_none() => {
+            instructions.push(Instruction::Return);
+            append_scope_end_drops_before_exit(instructions, &mut branch_context)
         }
-        [Stmt::If(statement)] => lower_terminal_void_if_statement(
-            statement,
-            context,
-            return_type,
-            diagnostic_code,
-            subject,
-        ),
+        Stmt::If(statement) => {
+            instructions.extend(lower_terminal_void_if_statement(
+                statement,
+                &branch_context,
+                return_type,
+                diagnostic_code,
+                subject,
+            )?);
+            Ok(instructions)
+        }
         _ => Err(unsupported_terminal_if_diagnostic(
             diagnostic_code,
             subject,
             "void",
         )),
     }
+}
+
+fn split_terminal_branch_block<'a>(
+    block: &'a Block,
+    diagnostic_code: &'static str,
+    subject: &str,
+    return_label: &str,
+) -> Result<(&'a Stmt, &'a [Stmt]), Vec<Diagnostic>> {
+    let Some((terminal, leading)) = block.statements.split_last() else {
+        return Err(unsupported_terminal_if_diagnostic(
+            diagnostic_code,
+            subject,
+            return_label,
+        ));
+    };
+    Ok((terminal, leading))
+}
+
+fn lower_terminal_branch_leading_drops(
+    statements: &[Stmt],
+    context: &mut LoweringContext,
+    diagnostic_code: &'static str,
+    subject: &str,
+    return_label: &str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut instructions = Vec::new();
+    for statement in statements {
+        match statement {
+            Stmt::Drop(statement) => instructions.extend(lower_drop_statement(statement, context)?),
+            _ => {
+                return Err(unsupported_terminal_if_diagnostic(
+                    diagnostic_code,
+                    subject,
+                    return_label,
+                ));
+            }
+        }
+    }
+    Ok(instructions)
 }
 
 fn unsupported_terminal_if_diagnostic(
@@ -484,7 +579,7 @@ fn unsupported_terminal_if_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower terminal `if` statements for {subject} when both branches directly return `{return_type}`"
+            "IR v0 can only lower terminal `if` statements for {subject} when both branches contain only explicit `drop` statements followed by returns or nested terminal `if` branches returning `{return_type}`"
         ),
     )]
 }

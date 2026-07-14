@@ -27,6 +27,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: lower branch-local explicit drops in terminal-if
+  - lowers explicit `drop name` statements before terminal return or nested terminal-if leaves inside supported terminal `if` branches
+  - keeps branch-local bindings, assignments, void calls, and aggregate slot creation outside the supported branch subset
+  - covers direct and nested terminal branches plus CLI build coverage for a branch-local explicit drop
 - Current checkpoint: lower nested terminal-if branches
   - recursively lowers terminal `if` branches whose branch body is another terminal `if`, across the existing `i32`/`u8`/`usize`/`bool`/`void`/`&str`/u8-slice terminal return subset
   - keeps branch-local aggregate slot creation outside the supported subset while preserving pending scope-end drop cleanup at every nested leaf return

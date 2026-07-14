@@ -510,6 +510,40 @@ fn build_command_lowers_nested_terminal_if() {
 }
 
 #[test]
+fn build_command_lowers_terminal_if_branch_drop() {
+    let project = TempProject::new("cli-build-terminal-if-branch-drop");
+    let source = project.write_source(
+        "terminal_if_branch_drop.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 3 }
+    if true {
+        drop file
+        return 0
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_terminal_if_bool_local() {
     let project = TempProject::new("cli-build-terminal-if-bool-local");
     let source = project.write_source(

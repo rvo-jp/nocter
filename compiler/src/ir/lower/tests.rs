@@ -2797,6 +2797,74 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_branch_explicit_drop_before_terminal_if_return() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 3 }
+    if true {
+        drop file
+        return 0
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let drop_call = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(3),
+            },
+            Instruction::If {
+                condition: BoolValue::Const(true),
+                then_instructions: vec![drop_call.clone(), set_return_i32(0), Instruction::Return],
+                else_instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(1),
+                    },
+                    drop_call,
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ],
+    );
+}
+
+#[test]
 fn lowers_scope_end_drop_inside_usize_terminal_if_branches() {
     let ir = lower_text(
         r#"struct File {
@@ -3075,6 +3143,85 @@ func main(): i32 {
                         Instruction::Return,
                     ],
                 }],
+                else_instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(2),
+                    },
+                    drop_call,
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ],
+    );
+}
+
+#[test]
+fn lowers_branch_explicit_drop_before_nested_terminal_if() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 3 }
+    if true {
+        drop file
+        if false {
+            return 0
+        } else {
+            return 1
+        }
+    } else {
+        return 2
+    }
+}
+"#,
+    );
+
+    let drop_call = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(3),
+            },
+            Instruction::If {
+                condition: BoolValue::Const(true),
+                then_instructions: vec![
+                    drop_call.clone(),
+                    Instruction::If {
+                        condition: BoolValue::Const(false),
+                        then_instructions: vec![set_return_i32(0), Instruction::Return],
+                        else_instructions: vec![set_return_i32(1), Instruction::Return],
+                    },
+                ],
                 else_instructions: vec![
                     Instruction::SetI32 {
                         destination: I32Location::Local(0),
