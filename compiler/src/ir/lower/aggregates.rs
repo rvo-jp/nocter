@@ -6,7 +6,7 @@ use super::expressions::{
 };
 use super::functions::propagating_failure_mode;
 use crate::abi::{AbiType, ValueLayout, abi_value_from_type_expr, layout_of, layout_struct};
-use crate::ast::{CallExpr, Expr, StructLiteralExpr, TypeExpr};
+use crate::ast::{CallExpr, Expr, StructLiteralExpr, TypeExpr, UnaryOperator};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateLocation, CallTarget, FallibleFailureMode, Instruction, ScalarArgument, Type,
@@ -398,6 +398,35 @@ fn lower_aggregate_field_to_location(
                     };
                     if source.layout != expected_layout
                         || !source.is_copy
+                        || !supported_aggregate_copy_layout(expected_layout)
+                    {
+                        return Err(unsupported_aggregate_struct_literal_diagnostic(
+                            diagnostic_code,
+                            subject,
+                        ));
+                    }
+                    Ok(vec![Instruction::CopyAggregateRange {
+                        destination,
+                        destination_offset: offset,
+                        source: AggregateLocation::Slot(source.slot_index),
+                        source_offset: 0,
+                        layout: expected_layout,
+                    }])
+                }
+                Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
+                    let Expr::Identifier(identifier) = unary.operand.as_ref() else {
+                        return Err(unsupported_aggregate_struct_literal_diagnostic(
+                            diagnostic_code,
+                            subject,
+                        ));
+                    };
+                    let Some(source) = context.aggregate_local(&identifier.name) else {
+                        return Err(unsupported_aggregate_struct_literal_diagnostic(
+                            diagnostic_code,
+                            subject,
+                        ));
+                    };
+                    if source.layout != expected_layout
                         || !supported_aggregate_copy_layout(expected_layout)
                     {
                         return Err(unsupported_aggregate_struct_literal_diagnostic(

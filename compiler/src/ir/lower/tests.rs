@@ -6956,6 +6956,85 @@ func read_code(): i32 {
 }
 
 #[test]
+fn lowers_moved_aggregate_struct_literal_field() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+struct Holder {
+    file: File
+}
+
+impl Holder {
+    drop holder: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 42 }
+    var holder = Holder{ file: move file }
+    return holder.file.fd
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(42),
+            },
+            Instruction::ReserveAggregateSlot {
+                slot_index: 1,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(1),
+                destination_offset: 0,
+                source: AggregateLocation::Slot(0),
+                source_offset: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::LoadAggregateI32 {
+                destination: I32Location::Local(0),
+                source: AggregateLocation::Slot(1),
+                offset: 0,
+            },
+            Instruction::CallVoid {
+                target: CallTarget::same_file("Holder.drop"),
+                arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                    source: BorrowSource::AggregateSlot(1),
+                })],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
 fn lowers_nested_aggregate_field_value_argument() {
     let aggregate_type = Type::DirectAggregate {
         layout: ValueLayout::new(16, 8),
