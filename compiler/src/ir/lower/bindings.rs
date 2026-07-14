@@ -52,6 +52,10 @@ pub(super) fn lower_local_binding(
         return Ok(instructions);
     }
 
+    if let Some(instructions) = lower_aggregate_copy_binding(statement, context)? {
+        return Ok(instructions);
+    }
+
     if let Some(instructions) = lower_aggregate_move_binding(statement, context)? {
         return Ok(instructions);
     }
@@ -233,6 +237,47 @@ fn lower_aggregate_fallible_call_binding(
         failure_mode,
     );
     Ok(Some(instructions))
+}
+
+fn lower_aggregate_copy_binding(
+    statement: &BindingStmt,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = unwrap_group(&statement.initializer) else {
+        return Ok(None);
+    };
+    let Some(source) = context.aggregate_local(&identifier.name) else {
+        return Ok(None);
+    };
+    if !source.is_copy || !supported_aggregate_copy_layout(source.layout) {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 can only lower aggregate copy bindings from copy aggregate locals",
+        ));
+    }
+    let Some(fields) = context.aggregate_local_fields(&identifier.name) else {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 cannot lower aggregate copy bindings without aggregate field metadata",
+        ));
+    };
+
+    let slot_index = context.define_aggregate_local(
+        statement.name.clone(),
+        source.layout,
+        source.is_copy,
+        source.drop_glue.clone(),
+        fields,
+    );
+    Ok(Some(vec![
+        Instruction::ReserveAggregateSlot {
+            slot_index,
+            layout: source.layout,
+        },
+        Instruction::CopyAggregate {
+            destination: AggregateLocation::Slot(slot_index),
+            source: AggregateLocation::Slot(source.slot_index),
+            layout: source.layout,
+        },
+    ]))
 }
 
 fn lower_aggregate_move_binding(

@@ -2577,6 +2577,78 @@ func make_file(): File {
 }
 
 #[test]
+fn lowers_copy_aggregate_binding_from_copy_local() {
+    let function = lower_named_function(
+        r#"copy struct Pair {
+    left: i32
+    right: i32
+}
+
+func main(): i32 {
+    return 0
+}
+
+func use_pair(): i32 {
+    let source = Pair{ left: 40, right: 2 }
+    let target = source
+    return target.left + target.right
+}
+"#,
+        "use_pair",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "use_pair".to_string(),
+            target: CallTarget::same_file("use_pair"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(8, 4),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: i32_const(40),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 4,
+                    value: i32_const(2),
+                },
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 1,
+                    layout: ValueLayout::new(8, 4),
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Slot(1),
+                    source: AggregateLocation::Slot(0),
+                    layout: ValueLayout::new(8, 4),
+                },
+                Instruction::LoadAggregateI32 {
+                    destination: I32Location::Local(0),
+                    source: AggregateLocation::Slot(1),
+                    offset: 0,
+                },
+                Instruction::LoadAggregateI32 {
+                    destination: I32Location::Local(1),
+                    source: AggregateLocation::Slot(1),
+                    offset: 4,
+                },
+                Instruction::AddI32 {
+                    destination: I32Location::Return,
+                    left: i32_local(0),
+                    right: i32_local(1),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn suppresses_scope_end_drop_for_moved_aggregate_binding() {
     let ir = lower_text(
         r#"struct File {

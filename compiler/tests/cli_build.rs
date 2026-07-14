@@ -1278,6 +1278,31 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_lowers_copy_aggregate_binding() {
+    let project = TempProject::new("cli-build-copy-aggregate-binding");
+    let source = project.write_source(
+        "copy_aggregate_binding.nct",
+        r#"copy struct Pair {
+    left: i32
+    right: i32
+}
+
+func main(): i32 {
+    let source = Pair{ left: 40, right: 2 }
+    let target = source
+    return target.left + target.right
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_moved_aggregate_struct_literal_field() {
     let project = TempProject::new("cli-build-moved-aggregate-struct-literal-field");
     let source = project.write_source(
