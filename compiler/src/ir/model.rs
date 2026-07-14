@@ -338,6 +338,11 @@ pub(crate) enum Instruction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum FallibleFailureMode {
     Propagate,
+    PropagateWithCleanup {
+        code: StrLocation,
+        message: StrLocation,
+        instructions: Vec<Instruction>,
+    },
     Trap,
     Catch {
         code: StrLocation,

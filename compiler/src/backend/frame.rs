@@ -571,6 +571,9 @@ fn record_failure_mode_aggregate_slot_requests(
 ) -> Result<(), Vec<Diagnostic>> {
     match failure_mode {
         FallibleFailureMode::Propagate | FallibleFailureMode::Trap => Ok(()),
+        FallibleFailureMode::PropagateWithCleanup { instructions, .. } => {
+            record_instruction_list_aggregate_slot_requests(instructions, requests)
+        }
         FallibleFailureMode::Catch { instructions, .. } => {
             record_instruction_list_aggregate_slot_requests(instructions, requests)
         }
@@ -603,6 +606,9 @@ fn record_aggregate_slot_request(
 fn failure_mode_max_call_argument_count(failure_mode: &FallibleFailureMode) -> usize {
     match failure_mode {
         FallibleFailureMode::Propagate | FallibleFailureMode::Trap => 0,
+        FallibleFailureMode::PropagateWithCleanup { instructions, .. } => {
+            max_call_argument_count(instructions)
+        }
         FallibleFailureMode::Catch { instructions, .. } => max_call_argument_count(instructions),
     }
 }
@@ -610,7 +616,9 @@ fn failure_mode_max_call_argument_count(failure_mode: &FallibleFailureMode) -> u
 fn failure_mode_requires_frame(failure_mode: &FallibleFailureMode) -> bool {
     match failure_mode {
         FallibleFailureMode::Propagate | FallibleFailureMode::Trap => false,
-        FallibleFailureMode::Catch { .. } => true,
+        FallibleFailureMode::PropagateWithCleanup { .. } | FallibleFailureMode::Catch { .. } => {
+            true
+        }
     }
 }
 
@@ -969,6 +977,15 @@ fn record_failure_mode_scalar_locals(
 ) {
     match failure_mode {
         FallibleFailureMode::Propagate | FallibleFailureMode::Trap => {}
+        FallibleFailureMode::PropagateWithCleanup {
+            code,
+            message,
+            instructions,
+        } => {
+            record_str_location(*code, highest_local_index);
+            record_str_location(*message, highest_local_index);
+            record_instruction_list_scalar_locals(instructions, highest_local_index);
+        }
         FallibleFailureMode::Catch {
             code,
             message,

@@ -5,6 +5,7 @@ use super::aggregates::{
 use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{AggregateFieldKind, LoweringContext};
 use super::errors::{ErrorPayload, lower_error_payload};
+use super::functions::propagating_failure_mode;
 use super::literals::{
     lower_i32_literal, lower_str_literal, lower_u8_literal, lower_usize_literal,
 };
@@ -69,7 +70,7 @@ pub(super) fn lower_i32_expression_to_location(
             &propagation.expression,
             destination,
             context,
-            FallibleFailureMode::Propagate,
+            propagating_failure_mode(context)?,
         ),
         Expr::Force(force) => lower_i32_fallible_expression_to_location(
             &force.expression,
@@ -132,7 +133,7 @@ pub(super) fn lower_u8_expression_to_location(
             &propagation.expression,
             destination,
             context,
-            FallibleFailureMode::Propagate,
+            propagating_failure_mode(context)?,
         ),
         Expr::Force(force) => lower_u8_fallible_expression_to_location(
             &force.expression,
@@ -207,7 +208,7 @@ pub(super) fn lower_usize_expression_to_location(
             &propagation.expression,
             destination,
             context,
-            FallibleFailureMode::Propagate,
+            propagating_failure_mode(context)?,
         ),
         Expr::Force(force) => lower_usize_fallible_expression_to_location(
             &force.expression,
@@ -270,7 +271,7 @@ pub(super) fn lower_str_expression_to_location(
             &propagation.expression,
             destination,
             context,
-            FallibleFailureMode::Propagate,
+            propagating_failure_mode(context)?,
         ),
         Expr::Force(force) => lower_str_fallible_expression_to_location(
             &force.expression,
@@ -310,7 +311,7 @@ pub(super) fn lower_slice_expression_to_location(
             &propagation.expression,
             destination,
             context,
-            FallibleFailureMode::Propagate,
+            propagating_failure_mode(context)?,
         ),
         Expr::Force(force) => lower_slice_fallible_expression_to_location(
             &force.expression,
@@ -357,7 +358,7 @@ pub(super) fn lower_void_expression_statement(
         Expr::Propagate(propagation) => lower_fallible_void_expression_statement(
             &propagation.expression,
             context,
-            FallibleFailureMode::Propagate,
+            propagating_failure_mode(context)?,
         ),
         Expr::Force(force) => lower_fallible_void_expression_statement(
             &force.expression,
@@ -770,7 +771,7 @@ fn lower_i32_expression_to_value(
                     &propagation.expression,
                     temporary,
                     context,
-                    FallibleFailureMode::Propagate,
+                    propagating_failure_mode(context)?,
                 )?,
                 value: I32Value::Location(temporary),
             })
@@ -869,7 +870,7 @@ fn lower_u8_expression_to_value(
                     &propagation.expression,
                     temporary,
                     context,
-                    FallibleFailureMode::Propagate,
+                    propagating_failure_mode(context)?,
                 )?,
                 value: U8Value::Location(temporary),
             })
@@ -1034,7 +1035,7 @@ fn lower_usize_expression_to_value(
                     &propagation.expression,
                     temporary,
                     context,
-                    FallibleFailureMode::Propagate,
+                    propagating_failure_mode(context)?,
                 )?,
                 value: UsizeValue::Location(temporary),
             })
@@ -1124,7 +1125,7 @@ fn lower_str_expression_to_value(
                     &propagation.expression,
                     temporary,
                     context,
-                    FallibleFailureMode::Propagate,
+                    propagating_failure_mode(context)?,
                 )?,
                 value: StrValue::Location(temporary),
             })
@@ -1187,7 +1188,7 @@ fn lower_slice_expression_to_value(
                     &propagation.expression,
                     temporary,
                     context,
-                    FallibleFailureMode::Propagate,
+                    propagating_failure_mode(context)?,
                 )?,
                 value: SliceValue::Location(temporary),
             })
@@ -1599,7 +1600,7 @@ pub(super) fn lower_bool_expression_to_location(
             destination,
             context,
             diagnostic_code,
-            FallibleFailureMode::Propagate,
+            propagating_failure_mode(context)?,
         ),
         Expr::Force(force) => lower_bool_fallible_expression_to_location(
             &force.expression,
@@ -1938,7 +1939,7 @@ fn aggregate_member_root_and_path<'a>(
                 return Ok(None);
             };
             Ok(Some((
-                AggregateMemberRoot::FallibleCall(call, FallibleFailureMode::Propagate),
+                AggregateMemberRoot::FallibleCall(call, propagating_failure_mode(context)?),
                 Vec::new(),
             )))
         }
@@ -2164,7 +2165,7 @@ fn lower_bool_expression_to_value_with_temporaries(
                     temporary,
                     context,
                     diagnostic_code,
-                    FallibleFailureMode::Propagate,
+                    propagating_failure_mode(context)?,
                 )?,
                 value: BoolValue::Location(temporary),
             })

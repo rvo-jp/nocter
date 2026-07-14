@@ -132,6 +132,9 @@ fn collect_failure_mode_reachable_call_targets(
 ) {
     match failure_mode {
         FallibleFailureMode::Propagate | FallibleFailureMode::Trap => {}
+        FallibleFailureMode::PropagateWithCleanup { instructions, .. } => {
+            collect_reachable_call_targets(instructions, targets);
+        }
         FallibleFailureMode::Catch { instructions, .. } => {
             collect_reachable_call_targets(instructions, targets);
         }

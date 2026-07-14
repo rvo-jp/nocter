@@ -3648,6 +3648,61 @@ func consume(pair: Pair): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_preserves_propagated_failure_payload_after_scope_drop() {
+    let project = TempProject::new("cli-run-propagate-cleanup-drop");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+impl Error {
+    pub func new(code: ErrorCode, message: &str): Error {
+        return new_error(code, message)
+    }
+}
+"#,
+    );
+    let source = project.write_source(
+        "propagate_cleanup_drop.nct",
+        r#"from std/error import Error
+
+struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        touch2(file.fd, 99)
+        return
+    }
+}
+
+func main(): void! {
+    var file = File{ fd: 3 }
+    fail()?
+}
+
+func fail(): void! {
+    return Error.new("app.failed", "failed")
+}
+
+func touch2(a: i32, b: i32): void {
+    return
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(output.stderr, b"app.failed: failed\n");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_caught_indirect_aggregate_call_argument_field_exit_code() {
     let project = TempProject::new("cli-run-caught-indirect-aggregate-call-argument-field");
     project.write_nocter_home_file(

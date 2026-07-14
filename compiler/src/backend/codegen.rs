@@ -759,6 +759,15 @@ impl EntryEmitter {
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
         match failure_mode {
             FallibleFailureMode::Propagate => self.emit_return(frame),
+            FallibleFailureMode::PropagateWithCleanup { .. } => {
+                let Some(frame) = frame else {
+                    return Err(vec![Diagnostic::error(
+                        "E9005",
+                        "propagate cleanup emission requires a stack frame",
+                    )]);
+                };
+                self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
+            }
             FallibleFailureMode::Trap => self.emit_trap(),
             FallibleFailureMode::Catch { .. } => {
                 let Some(frame) = frame else {
@@ -781,6 +790,23 @@ impl EntryEmitter {
     ) -> Result<(), Vec<Diagnostic>> {
         match failure_mode {
             FallibleFailureMode::Propagate => {
+                self.emit_return(Some(frame));
+                Ok(())
+            }
+            FallibleFailureMode::PropagateWithCleanup {
+                code,
+                message,
+                instructions,
+            } => {
+                self.emit_scalar_reloads(frame)?;
+                self.emit_x_pair_to_str_location(XReg::X1, XReg::X2, *code)?;
+                self.emit_x_pair_to_str_location(XReg::X3, XReg::X4, *message)?;
+                for instruction in instructions {
+                    self.emit_instruction(instruction, Some(frame), return_type)?;
+                }
+                self.emit_str_value_to_x_pair(&StrValue::Location(*code), XReg::X1, XReg::X2)?;
+                self.emit_str_value_to_x_pair(&StrValue::Location(*message), XReg::X3, XReg::X4)?;
+                emit_mov_i32_to_w0(&mut self.encoder, 1);
                 self.emit_return(Some(frame));
                 Ok(())
             }

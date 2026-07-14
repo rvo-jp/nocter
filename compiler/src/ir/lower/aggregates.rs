@@ -4,6 +4,7 @@ use super::expressions::{
     lower_call_arguments_to_scalar_arguments_with_temporaries, lower_catch_failure_mode,
     lower_i32_expression_to_word, lower_u8_expression_to_word, lower_usize_expression_to_word,
 };
+use super::functions::propagating_failure_mode;
 use crate::abi::{AbiType, ValueLayout, abi_value_from_type_expr, layout_of, layout_struct};
 use crate::ast::{CallExpr, Expr, StructLiteralExpr, TypeExpr};
 use crate::diagnostics::Diagnostic;
@@ -438,7 +439,7 @@ fn lower_aggregate_field_to_location(
                         subject,
                         context,
                         temporaries,
-                        FallibleFailureMode::Propagate,
+                        propagating_failure_mode(context)?,
                     )
                 }
                 Expr::Force(force) => {

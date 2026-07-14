@@ -4,6 +4,7 @@ use super::super::aggregates::{
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
 };
 use super::super::context::{AggregateFieldKind, LoweringContext};
+use super::super::functions::propagating_failure_mode;
 use super::temporaries::TemporaryAllocator;
 use super::{
     lower_aggregate_member_field_access, lower_bool_expression_to_value_with_temporaries,
@@ -355,7 +356,8 @@ pub(super) fn lower_fallible_void_normal_call(
         instructions.push(match failure_mode {
             FallibleFailureMode::Propagate => Instruction::PropagateFailure,
             FallibleFailureMode::Trap => Instruction::TrapOnFailure,
-            FallibleFailureMode::Catch { .. } => Instruction::CheckFailure { failure_mode },
+            FallibleFailureMode::PropagateWithCleanup { .. }
+            | FallibleFailureMode::Catch { .. } => Instruction::CheckFailure { failure_mode },
         });
         return Ok(instructions);
     }
@@ -745,7 +747,7 @@ fn lower_aggregate_argument_source(
                 callee_name,
                 context,
                 temporaries,
-                FallibleFailureMode::Propagate,
+                propagating_failure_mode(context)?,
             )
         }
         Expr::Force(force) => {

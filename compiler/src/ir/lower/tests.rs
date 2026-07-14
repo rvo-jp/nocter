@@ -2673,6 +2673,70 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_pending_aggregate_drop_for_fallible_propagation_cleanup() {
+    let ir = lower_text_with_std_error(
+        r#"from std/error import Error
+
+struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): void! {
+    var file = File{ fd: 3 }
+    fail()?
+}
+
+func fail(): void! {
+    return Error.new("app.fail", "failed")
+}
+"#,
+    );
+
+    let drop_call = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(3),
+            },
+            Instruction::CallFallibleVoid {
+                target: CallTarget::same_file("fail"),
+                arguments: vec![],
+                failure_mode: FallibleFailureMode::PropagateWithCleanup {
+                    code: StrLocation::Local(0),
+                    message: StrLocation::Local(2),
+                    instructions: vec![drop_call.clone()],
+                },
+            },
+            drop_call,
+            Instruction::ReturnFallibleSuccess,
+        ],
+    );
+}
+
+#[test]
 fn lowers_propagated_indirect_aggregate_call_binding_return() {
     let aggregate_type = Type::Aggregate {
         layout: ValueLayout::new(24, 8),

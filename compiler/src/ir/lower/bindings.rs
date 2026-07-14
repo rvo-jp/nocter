@@ -16,6 +16,7 @@ use super::expressions::{
     lower_u8_expression_to_location, lower_u8_expression_to_word,
     lower_usize_expression_to_location, lower_usize_expression_to_word,
 };
+use super::functions::propagating_failure_mode;
 use crate::abi::{ValueLayout, abi_value_from_type_expr};
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, BinaryOperator, BindingStmt, CallExpr, Expr, MemberExpr,
@@ -124,7 +125,7 @@ fn lower_aggregate_call_binding(
             lower_aggregate_fallible_call_binding(
                 statement,
                 call,
-                FallibleFailureMode::Propagate,
+                propagating_failure_mode(context)?,
                 context,
             )
         }
@@ -464,7 +465,7 @@ fn aggregate_member_binding_root_and_path<'a>(
                 return Ok(None);
             };
             Ok(Some((
-                AggregateMemberBindingRoot::FallibleCall(call, FallibleFailureMode::Propagate),
+                AggregateMemberBindingRoot::FallibleCall(call, propagating_failure_mode(context)?),
                 Vec::new(),
             )))
         }
@@ -708,7 +709,7 @@ fn lower_aggregate_member_value_assignment(
                 destination_offset,
                 layout,
                 call,
-                FallibleFailureMode::Propagate,
+                propagating_failure_mode(context)?,
                 context,
             )
         }
@@ -919,7 +920,7 @@ fn lower_aggregate_assignment(
                 slot_index,
                 layout,
                 call,
-                FallibleFailureMode::Propagate,
+                propagating_failure_mode(context)?,
                 context,
             )
         }

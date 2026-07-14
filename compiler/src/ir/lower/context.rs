@@ -310,6 +310,13 @@ impl<'a> LoweringContext<'a> {
         Ok((StrLocation::Local(index), StrLocation::Local(index + 2)))
     }
 
+    pub(super) fn next_error_local_locations(
+        &self,
+    ) -> Result<(StrLocation, StrLocation), Vec<Diagnostic>> {
+        let index = self.next_local_index(LocalKind::Error.abi_word_count())?;
+        Ok((StrLocation::Local(index), StrLocation::Local(index + 2)))
+    }
+
     pub(super) fn i32_location(&self, name: &str) -> Option<I32Location> {
         self.locals
             .iter()

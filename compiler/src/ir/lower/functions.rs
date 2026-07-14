@@ -852,8 +852,35 @@ pub(super) fn append_scope_end_drops_before_exit(
     else {
         return Ok(instructions);
     };
-    let drops = lower_scope_end_drops(context)?;
+    let drops = lower_scope_end_drop_instructions(context)?;
     instructions.splice(return_index..return_index, drops);
+    mark_pending_aggregate_drops(context);
+    Ok(instructions)
+}
+
+pub(super) fn propagating_failure_mode(
+    context: &LoweringContext,
+) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
+    let instructions = lower_scope_end_drop_instructions(context)?;
+    if instructions.is_empty() {
+        return Ok(FallibleFailureMode::Propagate);
+    }
+    let (code, message) = context.next_error_local_locations()?;
+    Ok(FallibleFailureMode::PropagateWithCleanup {
+        code,
+        message,
+        instructions,
+    })
+}
+
+fn lower_scope_end_drop_instructions(
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let pending = context.pending_aggregate_drops();
+    let mut instructions = Vec::with_capacity(pending.len());
+    for drop_ in &pending {
+        instructions.push(lower_pending_aggregate_drop(drop_, context)?);
+    }
     Ok(instructions)
 }
 
@@ -867,18 +894,11 @@ fn is_scope_exit_instruction(instruction: &Instruction) -> bool {
     )
 }
 
-fn lower_scope_end_drops(
-    context: &mut LoweringContext,
-) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+fn mark_pending_aggregate_drops(context: &mut LoweringContext) {
     let pending = context.pending_aggregate_drops();
-    let mut instructions = Vec::with_capacity(pending.len());
-    for drop_ in &pending {
-        instructions.push(lower_pending_aggregate_drop(drop_, context)?);
-    }
     for drop_ in &pending {
         context.mark_aggregate_local_dropped(&drop_.name);
     }
-    Ok(instructions)
 }
 
 fn lower_pending_aggregate_drop(
@@ -1070,7 +1090,7 @@ fn lower_aggregate_return_expression(
                 return_type,
                 function_name,
                 context,
-                FallibleFailureMode::Propagate,
+                propagating_failure_mode(context)?,
             )
         }
         Expr::Force(force) => {
