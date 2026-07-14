@@ -371,6 +371,7 @@ fn check_statement_ownership(
                 ownership,
             );
 
+            let mut branch_ownerships = Vec::new();
             for arm in &statement.arms {
                 let mut arm_environment = environment_for_switch_arm(arm, resolved, environment);
                 let mut arm_ownership = ownership.clone();
@@ -390,6 +391,7 @@ fn check_statement_ownership(
                     &mut arm_environment,
                     &mut arm_ownership,
                 );
+                branch_ownerships.push(arm_ownership);
             }
             if let Some(else_arm) = &statement.else_arm {
                 let mut else_environment = environment.clone();
@@ -402,7 +404,11 @@ fn check_statement_ownership(
                     &mut else_environment,
                     &mut else_ownership,
                 );
+                branch_ownerships.push(else_ownership);
+            } else {
+                branch_ownerships.push(ownership.clone());
             }
+            ownership.join_branches(&branch_ownerships);
         }
         Stmt::While(statement) => {
             check_expression_ownership(
@@ -1023,19 +1029,28 @@ impl OwnershipState {
     ) {
         let original = self.clone();
         let else_ownership = else_ownership.unwrap_or(&original);
+        self.join_branches(&[then_ownership.clone(), else_ownership.clone()]);
+    }
 
+    fn join_branches(&mut self, branch_ownerships: &[OwnershipState]) {
+        if branch_ownerships.is_empty() {
+            return;
+        }
         for (name, binding) in &mut self.bindings {
-            let then_state = then_ownership
+            let mut joined_state = branch_ownerships[0]
                 .bindings
                 .get(name)
                 .map(|binding| binding.state)
                 .unwrap_or(binding.state);
-            let else_state = else_ownership
-                .bindings
-                .get(name)
-                .map(|binding| binding.state)
-                .unwrap_or(binding.state);
-            binding.state = BindingState::join(then_state, else_state);
+            for branch_ownership in &branch_ownerships[1..] {
+                let branch_state = branch_ownership
+                    .bindings
+                    .get(name)
+                    .map(|binding| binding.state)
+                    .unwrap_or(binding.state);
+                joined_state = BindingState::join(joined_state, branch_state);
+            }
+            binding.state = joined_state;
         }
     }
 
