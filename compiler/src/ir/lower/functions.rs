@@ -10,7 +10,7 @@ use super::context::{
     PendingAggregateDrop, drop_glue_for_type_expr,
 };
 use super::control_flow::{
-    lower_terminal_bool_if_statement, lower_terminal_i32_if_statement,
+    lower_terminal_bool_if_statement, lower_terminal_condition, lower_terminal_i32_if_statement,
     lower_terminal_slice_if_statement, lower_terminal_str_if_statement,
     lower_terminal_u8_if_statement, lower_terminal_usize_if_statement,
     lower_terminal_void_if_statement,
@@ -29,7 +29,7 @@ use super::expressions::{
 use crate::abi::{AbiType, AbiValue, ValueClassification, abi_value_from_type_expr};
 use crate::ast::{
     ArrayType, Block, BorrowType, DropDecl, DropStmt, Expr, FallibleType, FunctionDecl,
-    GenericType, OptionalType, Parameter, PointerType, Stmt, StructLiteralExpr, TypeExpr,
+    GenericType, IfStmt, OptionalType, Parameter, PointerType, Stmt, StructLiteralExpr, TypeExpr,
     UnaryOperator, ViewType,
 };
 use crate::diagnostics::Diagnostic;
@@ -800,6 +800,25 @@ fn lower_callable_body(
             ));
             Ok(instructions)
         }
+        Stmt::If(statement)
+            if matches!(
+                success_type,
+                Type::Aggregate { .. } | Type::DirectAggregate { .. }
+            ) =>
+        {
+            let branch_instructions = lower_terminal_aggregate_if_statement(
+                statement,
+                context,
+                success_type,
+                function_name,
+                resolved,
+            )?;
+            instructions.extend(mark_fallible_success_returns(
+                return_type,
+                branch_instructions,
+            ));
+            Ok(instructions)
+        }
         Stmt::Expression(statement) => {
             let Some(terminating_instructions) =
                 lower_never_return_expression(&statement.expression, context)?
@@ -824,6 +843,86 @@ fn lower_callable_body(
         }
         _ => Err(unsupported_function_body_diagnostic(function_name)),
     }
+}
+
+fn lower_terminal_aggregate_if_statement(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    success_type: &Type,
+    function_name: &str,
+    resolved: &ResolveOutput,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some(else_block) = &statement.else_block else {
+        return Err(unsupported_terminal_aggregate_if_diagnostic(function_name));
+    };
+
+    lower_terminal_condition(
+        &statement.condition,
+        lower_terminal_aggregate_return_block(
+            &statement.then_block,
+            context,
+            success_type,
+            function_name,
+            resolved,
+        )?,
+        lower_terminal_aggregate_return_block(
+            else_block,
+            context,
+            success_type,
+            function_name,
+            resolved,
+        )?,
+        context,
+        "E8007",
+    )
+}
+
+fn lower_terminal_aggregate_return_block(
+    block: &Block,
+    context: &LoweringContext,
+    success_type: &Type,
+    function_name: &str,
+    resolved: &ResolveOutput,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match block.statements.as_slice() {
+        [Stmt::Return(statement)] => {
+            let Some(expression) = &statement.expression else {
+                return Err(unsupported_terminal_aggregate_if_diagnostic(function_name));
+            };
+            let mut branch_context = context.clone();
+            mark_explicit_moves_in_expression(expression, &mut branch_context);
+            if matches!(success_type, Type::DirectAggregate { .. })
+                && !branch_context.pending_aggregate_drops().is_empty()
+            {
+                return Err(unsupported_terminal_aggregate_if_diagnostic(function_name));
+            }
+            let return_instructions = lower_aggregate_return_expression(
+                expression,
+                success_type,
+                function_name,
+                resolved,
+                &branch_context,
+            )?;
+            append_scope_end_drops_before_exit(return_instructions, &mut branch_context)
+        }
+        [Stmt::If(statement)] => lower_terminal_aggregate_if_statement(
+            statement,
+            context,
+            success_type,
+            function_name,
+            resolved,
+        ),
+        _ => Err(unsupported_terminal_aggregate_if_diagnostic(function_name)),
+    }
+}
+
+fn unsupported_terminal_aggregate_if_diagnostic(function_name: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8007",
+        format!(
+            "IR v0 can only lower terminal aggregate `if` branches in function `{function_name}` when both branches directly return aggregate values without pending direct-aggregate drop cleanup"
+        ),
+    )]
 }
 
 pub(super) fn lower_value_return_with_scope_drops(

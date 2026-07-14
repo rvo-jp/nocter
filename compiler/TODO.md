@@ -27,6 +27,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: lower aggregate terminal-if returns
+  - lowers non-entry terminal `if` branches returning direct or indirect aggregate struct literals
+  - reuses terminal condition lowering, including nested terminal condition support, while keeping pending direct-aggregate drop cleanup unsupported until direct-return staging is designed
+  - covers indirect/direct IR lowering and CLI build coverage for a direct aggregate terminal-if return
 - Current checkpoint: lower branch-local void calls in terminal-if
   - lowers void call expression statements before terminal return or nested terminal-if leaves inside supported terminal `if` branches
   - reuses the same pending scope-end drop cleanup as top-level leading void calls, so aggregate locals are still dropped before leaf returns

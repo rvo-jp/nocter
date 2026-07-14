@@ -1689,6 +1689,81 @@ func make(): Text {
 }
 
 #[test]
+fn lowers_indirect_aggregate_terminal_if_struct_literal_return() {
+    let function = lower_named_function(
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func choose(flag: bool): Text {
+    if flag {
+        return Text{ start: 1, len: 2, capacity: 3 }
+    } else {
+        return Text{ start: 4, len: 5, capacity: 6 }
+    }
+}
+"#,
+        "choose",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "choose".to_string(),
+            target: CallTarget::same_file("choose"),
+            return_type: Type::Aggregate {
+                layout: ValueLayout::new(24, 8),
+            },
+            instructions: vec![Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Parameter(0)),
+                then_instructions: vec![
+                    Instruction::StoreAggregateUsize {
+                        destination: AggregateLocation::Return,
+                        offset: 0,
+                        value: usize_const(1),
+                    },
+                    Instruction::StoreAggregateUsize {
+                        destination: AggregateLocation::Return,
+                        offset: 8,
+                        value: usize_const(2),
+                    },
+                    Instruction::StoreAggregateUsize {
+                        destination: AggregateLocation::Return,
+                        offset: 16,
+                        value: usize_const(3),
+                    },
+                    Instruction::Return,
+                ],
+                else_instructions: vec![
+                    Instruction::StoreAggregateUsize {
+                        destination: AggregateLocation::Return,
+                        offset: 0,
+                        value: usize_const(4),
+                    },
+                    Instruction::StoreAggregateUsize {
+                        destination: AggregateLocation::Return,
+                        offset: 8,
+                        value: usize_const(5),
+                    },
+                    Instruction::StoreAggregateUsize {
+                        destination: AggregateLocation::Return,
+                        offset: 16,
+                        value: usize_const(6),
+                    },
+                    Instruction::Return,
+                ],
+            }],
+        }
+    );
+}
+
+#[test]
 fn lowers_indirect_aggregate_scalar_struct_literal_return() {
     let function = lower_named_function(
         r#"struct Header {
@@ -3833,6 +3908,71 @@ func make(): Pair {
                 },
                 Instruction::Return,
             ],
+        }
+    );
+}
+
+#[test]
+fn lowers_direct_aggregate_terminal_if_struct_literal_return() {
+    let function = lower_named_function(
+        r#"struct Pair {
+    first: usize
+    second: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func choose(flag: bool): Pair {
+    if flag {
+        return Pair{ first: 1, second: 2 }
+    } else {
+        return Pair{ first: 3, second: 4 }
+    }
+}
+"#,
+        "choose",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "choose".to_string(),
+            target: CallTarget::same_file("choose"),
+            return_type: Type::DirectAggregate {
+                layout: ValueLayout::new(16, 8),
+                words: 2,
+            },
+            instructions: vec![Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Parameter(0)),
+                then_instructions: vec![
+                    Instruction::StoreAggregateUsize {
+                        destination: AggregateLocation::DirectReturn,
+                        offset: 0,
+                        value: usize_const(1),
+                    },
+                    Instruction::StoreAggregateUsize {
+                        destination: AggregateLocation::DirectReturn,
+                        offset: 8,
+                        value: usize_const(2),
+                    },
+                    Instruction::Return,
+                ],
+                else_instructions: vec![
+                    Instruction::StoreAggregateUsize {
+                        destination: AggregateLocation::DirectReturn,
+                        offset: 0,
+                        value: usize_const(3),
+                    },
+                    Instruction::StoreAggregateUsize {
+                        destination: AggregateLocation::DirectReturn,
+                        offset: 8,
+                        value: usize_const(4),
+                    },
+                    Instruction::Return,
+                ],
+            }],
         }
     );
 }

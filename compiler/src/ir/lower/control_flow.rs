@@ -223,7 +223,7 @@ pub(super) fn lower_terminal_void_if_statement(
     )
 }
 
-fn lower_terminal_condition(
+pub(super) fn lower_terminal_condition(
     condition: &Expr,
     then_instructions: Vec<Instruction>,
     else_instructions: Vec<Instruction>,
