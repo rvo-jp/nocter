@@ -1588,6 +1588,44 @@ func check(pair: Pair): i32 {
 }
 
 #[test]
+fn build_command_rejects_use_after_moved_non_copy_aggregate() {
+    let project = TempProject::new("cli-build-reject-use-after-moved-non-copy-aggregate");
+    let source = project.write_source(
+        "use_after_moved_non_copy_aggregate.nct",
+        r#"struct Pair {
+    a: i32
+    b: i32
+    c: i32
+    d: i32
+}
+
+func main(): i32 {
+    let pair = Pair{ a: 10, b: 20, c: 7, d: 5 }
+    let total = check(move pair)
+    return total + pair.a
+}
+
+func check(pair: Pair): i32 {
+    return pair.a + pair.b + pair.c + pair.d
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let stderr = text(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E0385]"),
+        "expected ownership diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("because it was moved"),
+        "expected moved-state diagnostic, got:\n{stderr}"
+    );
+}
+
+#[test]
 fn build_command_rejects_implicit_non_copy_aggregate_argument() {
     let project = TempProject::new("cli-build-reject-implicit-non-copy-aggregate-argument");
     let source = project.write_source(

@@ -14,6 +14,7 @@ mod fallible;
 mod model;
 mod numeric;
 mod operations;
+mod ownership;
 mod returns;
 mod sized;
 mod strings;
@@ -27,6 +28,7 @@ use crate::resolve::ResolveOutput;
 use crate::source::SourceMap;
 use body::*;
 use entry::*;
+use ownership::*;
 use returns::*;
 use sized::*;
 
@@ -55,6 +57,7 @@ pub fn check_module(
 
     check_sized_value_types(sources, ast, resolved, &mut diagnostics);
     check_body_expressions(sources, ast, resolved, &mut diagnostics);
+    check_ownership_states(sources, ast, resolved, &mut diagnostics);
     check_return_types(sources, ast, resolved, &mut diagnostics);
 
     diagnostics

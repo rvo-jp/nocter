@@ -7,6 +7,7 @@ mod fallible;
 mod methods;
 mod operators;
 mod optional;
+mod ownership;
 mod returns;
 mod strings;
 mod structs;
