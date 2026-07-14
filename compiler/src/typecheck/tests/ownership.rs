@@ -193,3 +193,118 @@ func main(): i32 {
     assert!(diagnostics[0].message.contains("holder"));
     assert!(diagnostics[0].message.contains("moved"));
 }
+
+#[test]
+fn diagnoses_maybe_uninitialized_after_one_if_branch_moves() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    start: i32
+    len: i32
+    capacity: i32
+}
+
+func main(): i32 {
+    let text = Text{ start: 1, len: 42, capacity: 3 }
+    if true {
+        let length = take(move text)
+    }
+    return text.len
+}
+
+func take(text: Text): i32 {
+    return text.len
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0385");
+    assert!(diagnostics[0].message.contains("may be uninitialized"));
+}
+
+#[test]
+fn diagnoses_uninitialized_after_both_if_branches_move() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    start: i32
+    len: i32
+    capacity: i32
+}
+
+func main(): i32 {
+    let text = Text{ start: 1, len: 42, capacity: 3 }
+    if true {
+        let first = take(move text)
+    } else {
+        let second = take(move text)
+    }
+    return text.len
+}
+
+func take(text: Text): i32 {
+    return text.len
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0385");
+    assert!(diagnostics[0].message.contains("moved"));
+}
+
+#[test]
+fn diagnoses_uninitialized_after_if_branches_move_and_drop() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    start: i32
+    len: i32
+    capacity: i32
+}
+
+func main(): i32 {
+    let text = Text{ start: 1, len: 42, capacity: 3 }
+    if true {
+        let length = take(move text)
+    } else {
+        drop text
+    }
+    return text.len
+}
+
+func take(text: Text): i32 {
+    return text.len
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0385");
+    assert!(diagnostics[0].message.contains("is uninitialized"));
+}
+
+#[test]
+fn accepts_if_branch_reinitialization_after_move() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    start: i32
+    len: i32
+    capacity: i32
+}
+
+func main(): i32 {
+    var text = Text{ start: 1, len: 20, capacity: 3 }
+    if true {
+        let first = take(move text)
+        text = Text{ start: 4, len: 22, capacity: 6 }
+    }
+    return text.len
+}
+
+func take(text: Text): i32 {
+    return text.len
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}

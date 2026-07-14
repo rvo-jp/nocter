@@ -268,6 +268,9 @@ fn check_statement_ownership(
                     &mut else_environment,
                     &mut else_ownership,
                 );
+                ownership.join_conditional(&then_ownership, Some(&else_ownership));
+            } else {
+                ownership.join_conditional(&then_ownership, None);
             }
         }
         Stmt::IfIs(statement) => {
@@ -310,6 +313,9 @@ fn check_statement_ownership(
                     &mut else_environment,
                     &mut else_ownership,
                 );
+                ownership.join_conditional(&then_ownership, Some(&else_ownership));
+            } else {
+                ownership.join_conditional(&then_ownership, None);
             }
         }
         Stmt::IfLet(statement) => {
@@ -350,6 +356,9 @@ fn check_statement_ownership(
                     &mut else_environment,
                     &mut else_ownership,
                 );
+                ownership.join_conditional(&then_ownership, Some(&else_ownership));
+            } else {
+                ownership.join_conditional(&then_ownership, None);
             }
         }
         Stmt::Switch(statement) => {
@@ -1007,6 +1016,29 @@ impl OwnershipState {
         true
     }
 
+    fn join_conditional(
+        &mut self,
+        then_ownership: &OwnershipState,
+        else_ownership: Option<&OwnershipState>,
+    ) {
+        let original = self.clone();
+        let else_ownership = else_ownership.unwrap_or(&original);
+
+        for (name, binding) in &mut self.bindings {
+            let then_state = then_ownership
+                .bindings
+                .get(name)
+                .map(|binding| binding.state)
+                .unwrap_or(binding.state);
+            let else_state = else_ownership
+                .bindings
+                .get(name)
+                .map(|binding| binding.state)
+                .unwrap_or(binding.state);
+            binding.state = BindingState::join(then_state, else_state);
+        }
+    }
+
     fn move_binding(
         &mut self,
         sources: &SourceMap,
@@ -1053,13 +1085,54 @@ enum BindingState {
     Initialized { span: ByteSpan },
     Moved { span: ByteSpan },
     Dropped { span: ByteSpan },
+    Uninitialized { span: ByteSpan },
+    MaybeInitialized { span: ByteSpan },
 }
 
 impl BindingState {
+    fn join(left: Self, right: Self) -> Self {
+        match (left, right) {
+            (BindingState::Initialized { span }, BindingState::Initialized { .. }) => {
+                BindingState::Initialized { span }
+            }
+            (BindingState::Moved { span }, BindingState::Moved { .. }) => {
+                BindingState::Moved { span }
+            }
+            (BindingState::Dropped { span }, BindingState::Dropped { .. }) => {
+                BindingState::Dropped { span }
+            }
+            (BindingState::Uninitialized { span }, BindingState::Uninitialized { .. }) => {
+                BindingState::Uninitialized { span }
+            }
+            (
+                BindingState::Moved { span }
+                | BindingState::Dropped { span }
+                | BindingState::Uninitialized { span },
+                BindingState::Moved { .. }
+                | BindingState::Dropped { .. }
+                | BindingState::Uninitialized { .. },
+            ) => BindingState::Uninitialized { span },
+            (BindingState::MaybeInitialized { span }, _)
+            | (_, BindingState::MaybeInitialized { span }) => {
+                BindingState::MaybeInitialized { span }
+            }
+            (BindingState::Initialized { .. }, BindingState::Moved { span })
+            | (BindingState::Moved { span }, BindingState::Initialized { .. })
+            | (BindingState::Initialized { .. }, BindingState::Dropped { span })
+            | (BindingState::Dropped { span }, BindingState::Initialized { .. })
+            | (BindingState::Initialized { .. }, BindingState::Uninitialized { span })
+            | (BindingState::Uninitialized { span }, BindingState::Initialized { .. }) => {
+                BindingState::MaybeInitialized { span }
+            }
+        }
+    }
+
     fn previous_action(self) -> &'static str {
         match self {
             BindingState::Moved { .. } => "moved",
             BindingState::Dropped { .. } => "dropped",
+            BindingState::Uninitialized { .. } => "uninitialized",
+            BindingState::MaybeInitialized { .. } => "maybe uninitialized",
             BindingState::Initialized { .. } => "initialized",
         }
     }
@@ -1068,7 +1141,9 @@ impl BindingState {
         match self {
             BindingState::Initialized { span }
             | BindingState::Moved { span }
-            | BindingState::Dropped { span } => span,
+            | BindingState::Dropped { span }
+            | BindingState::Uninitialized { span }
+            | BindingState::MaybeInitialized { span } => span,
         }
     }
 }

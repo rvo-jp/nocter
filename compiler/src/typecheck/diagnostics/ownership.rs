@@ -8,14 +8,27 @@ pub(in crate::typecheck) fn uninitialized_binding_diagnostic(
     previous_action: &str,
     previous_span: ByteSpan,
 ) -> Diagnostic {
-    let mut diagnostic = Diagnostic::error(
-        "E0385",
-        format!("cannot {action} `{name}` because it was {previous_action}"),
-    );
+    let maybe_uninitialized = previous_action == "maybe uninitialized";
+    let uninitialized = previous_action == "uninitialized";
+    let message = if maybe_uninitialized {
+        format!("cannot {action} `{name}` because it may be uninitialized")
+    } else if uninitialized {
+        format!("cannot {action} `{name}` because it is uninitialized")
+    } else {
+        format!("cannot {action} `{name}` because it was {previous_action}")
+    };
+    let mut diagnostic = Diagnostic::error("E0385", message);
     diagnostic.primary_span = sources.span_to_json(use_span).ok().map(Box::new);
     if let Ok(span) = sources.span_to_json(previous_span) {
+        let note_message = if maybe_uninitialized {
+            format!("`{name}` may have been moved or dropped on an earlier path")
+        } else if uninitialized {
+            format!("`{name}` was moved or dropped on all incoming paths")
+        } else {
+            format!("`{name}` was {previous_action} here")
+        };
         diagnostic.notes.push(DiagnosticNote {
-            message: format!("`{name}` was {previous_action} here"),
+            message: note_message,
             span: Some(span),
         });
     }

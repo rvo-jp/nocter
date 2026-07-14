@@ -20,7 +20,7 @@ Adopted user decisions:
 Recommended next implementation order:
 
 1. Keep bare interpolation lowering disabled until an explicit allocator source is designed. The explicit `std/mem.page_allocator` + `std/string.with_capacity` + `std/fmt.append_str` + `return move out` shape now builds to Mach-O through the current stub standard-library bodies.
-2. Add the next runtime prerequisites for allocation-backed `String`: extend the initial straight-line owned aggregate move/drop state checks to full control-flow joins, then target-backed allocation and mutation in `std/mem`, `std/string`, and `std/fmt`.
+2. Add the next runtime prerequisites for allocation-backed `String`: extend the initial straight-line and simple conditional owned aggregate move/drop state checks to broader switch/loop/reachability joins, then target-backed allocation and mutation in `std/mem`, `std/string`, and `std/fmt`.
 3. Use the resolved-type function ABI helper from IR/backend planning before adding broader aggregate storage code. Loaded imported scalar calls, scalar/view arguments, direct and indirect aggregate by-value arguments including stack-passed normal-call ABI words, explicit `move name` aggregate local arguments/returns, local scalar and aggregate slot borrow arguments, scalar/view `var` plus simple assignment, aggregate struct-literal local slots, direct and narrow indirect aggregate normal call-result `let`/`var` slots, fallible direct aggregate call-result slots, supported aggregate slot reassignment including copy struct slot-to-slot assignment, reserved aggregate slot `return move name`, and fallible propagation for the current scalar/view/void plus aggregate call-result subset are already buildable. Tail-position calls that need stack-passed arguments lower through the normal-call-plus-return path.
 4. Lower interpolated strings only after the explicit standard-library construction path has a real allocator source and runtime mutation behavior.
 5. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
@@ -31,7 +31,8 @@ Recent committed work:
   - adds typecheck-owned initialized/moved/dropped state for non-copy struct bindings in function, method, and drop bodies
   - rejects use-after-move, double move, use-after-explicit-drop, double explicit drop, and explicit drop of copy/non-owned values through normal diagnostics
   - accepts `var` reinitialization after move/drop and keeps copy struct `move name` usable as a copy-like expression
-  - keeps control-flow state joins, moved-value drop suppression, replacement drop lowering, and drop glue disabled
+  - propagates simple `if`/`if is`/`if let` ownership-state joins, including maybe-initialized diagnostics when incoming paths disagree
+  - keeps switch/loop/reachability joins, moved-value drop suppression, replacement drop lowering, and drop glue disabled
 
 - Previous checkpoint: cover imported stack-passed aggregate arguments
   - adds native execution coverage for imported direct aggregate parameters whose ABI words are fully stack-passed

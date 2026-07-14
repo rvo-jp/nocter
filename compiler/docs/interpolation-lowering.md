@@ -61,12 +61,12 @@ Already buildable in the narrow scalar subset:
 - aggregate slot reassignment from supported struct literals, normal or propagated fallible aggregate call results, and matching copy struct local aggregate slots
 - local aggregate slot borrow argument lowering for `&T` and `&+T` normal-call parameters
 - return-by-name from reserved aggregate slots
-- `return move name` from reserved aggregate slots, with straight-line ownership-state checking but without drop lowering
+- `return move name` from reserved aggregate slots, with straight-line and simple conditional ownership-state checking but without drop lowering
 - distributed `std/mem.page_allocator`, `std/string.with_capacity`, `std/fmt.append_str`, and `return move out` in the explicit construction shape build to Mach-O with the current stub standard-library bodies
 
 Still required before allocation-backed string construction can run:
 
-- control-flow-joined owned aggregate move/drop state tracking and drop lowering beyond reserved-slot `return move name`
+- broader switch/loop/reachability owned aggregate move/drop state joins and drop lowering beyond reserved-slot `return move name`
 - target-backed allocation and mutation in `std/mem`, `std/string`, and `std/fmt`
 
 ## Open Language Decision
