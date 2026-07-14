@@ -29,6 +29,7 @@ Recent committed work:
 
 - Current checkpoint: lower aggregate terminal-if returns
   - lowers non-entry terminal `if` branches returning supported direct or indirect aggregate return expressions
+  - reuses terminal branch-leading explicit `drop` and void call lowering before aggregate return or nested aggregate terminal-if leaves
   - stages direct aggregate branch returns through branch-local aggregate slots when pending drops must run before returning
   - covers indirect/direct IR lowering plus direct struct-literal, call, and moved-local branch staging coverage, with CLI build coverage for direct aggregate terminal-if returns with pending drop cleanup
 - Current checkpoint: lower branch-local void calls in terminal-if
@@ -37,7 +38,7 @@ Recent committed work:
   - keeps branch-local bindings, assignments, and aggregate slot creation outside the supported branch subset
 - Current checkpoint: lower branch-local explicit drops in terminal-if
   - lowers explicit `drop name` statements before terminal return or nested terminal-if leaves inside supported terminal `if` branches
-  - keeps branch-local bindings, assignments, void calls, and aggregate slot creation outside the supported branch subset
+  - keeps branch-local bindings, assignments, and aggregate slot creation outside the supported branch subset
   - covers direct and nested terminal branches plus CLI build coverage for a branch-local explicit drop
 - Current checkpoint: lower nested terminal-if branches
   - recursively lowers terminal `if` branches whose branch body is another terminal `if`, across the existing `i32`/`u8`/`usize`/`bool`/`void`/`&str`/u8-slice terminal return subset

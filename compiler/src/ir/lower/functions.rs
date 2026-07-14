@@ -10,10 +10,11 @@ use super::context::{
     PendingAggregateDrop, drop_glue_for_type_expr,
 };
 use super::control_flow::{
-    lower_terminal_bool_if_statement, lower_terminal_condition, lower_terminal_i32_if_statement,
-    lower_terminal_slice_if_statement, lower_terminal_str_if_statement,
-    lower_terminal_u8_if_statement, lower_terminal_usize_if_statement,
-    lower_terminal_void_if_statement,
+    lower_terminal_bool_if_statement, lower_terminal_branch_leading_statements,
+    lower_terminal_condition, lower_terminal_i32_if_statement, lower_terminal_slice_if_statement,
+    lower_terminal_str_if_statement, lower_terminal_u8_if_statement,
+    lower_terminal_usize_if_statement, lower_terminal_void_if_statement,
+    split_terminal_branch_block,
 };
 use super::errors::{ErrorPayload, lower_error_payload};
 use super::expressions::{
@@ -884,23 +885,34 @@ fn lower_terminal_aggregate_return_block(
     function_name: &str,
     resolved: &ResolveOutput,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    match block.statements.as_slice() {
-        [Stmt::Return(statement)] => {
+    let (terminal, leading) =
+        split_terminal_branch_block(block, "E8007", "functions", "aggregate")?;
+    let mut branch_context = context.clone();
+    let mut instructions = lower_terminal_branch_leading_statements(
+        leading,
+        &mut branch_context,
+        "E8007",
+        "functions",
+        "aggregate",
+    )?;
+
+    match terminal {
+        Stmt::Return(statement) => {
             let Some(expression) = &statement.expression else {
                 return Err(unsupported_terminal_aggregate_if_diagnostic(function_name));
             };
-            let mut branch_context = context.clone();
             mark_explicit_moves_in_expression(expression, &mut branch_context);
             if matches!(success_type, Type::DirectAggregate { .. })
                 && !branch_context.pending_aggregate_drops().is_empty()
             {
-                return lower_terminal_direct_aggregate_return_with_scope_drops(
+                instructions.extend(lower_terminal_direct_aggregate_return_with_scope_drops(
                     expression,
                     success_type,
                     function_name,
                     resolved,
                     &mut branch_context,
-                );
+                )?);
+                return Ok(instructions);
             }
             let return_instructions = lower_aggregate_return_expression(
                 expression,
@@ -909,15 +921,22 @@ fn lower_terminal_aggregate_return_block(
                 resolved,
                 &branch_context,
             )?;
-            append_scope_end_drops_before_exit(return_instructions, &mut branch_context)
+            instructions.extend(append_scope_end_drops_before_exit(
+                return_instructions,
+                &mut branch_context,
+            )?);
+            Ok(instructions)
         }
-        [Stmt::If(statement)] => lower_terminal_aggregate_if_statement(
-            statement,
-            context,
-            success_type,
-            function_name,
-            resolved,
-        ),
+        Stmt::If(statement) => {
+            instructions.extend(lower_terminal_aggregate_if_statement(
+                statement,
+                &branch_context,
+                success_type,
+                function_name,
+                resolved,
+            )?);
+            Ok(instructions)
+        }
         _ => Err(unsupported_terminal_aggregate_if_diagnostic(function_name)),
     }
 }
@@ -974,7 +993,7 @@ fn unsupported_terminal_aggregate_if_diagnostic(function_name: &str) -> Vec<Diag
     vec![Diagnostic::error(
         "E8007",
         format!(
-            "IR v0 can only lower terminal aggregate `if` branches in function `{function_name}` when both branches directly return supported aggregate values"
+            "IR v0 can only lower terminal aggregate `if` branches in function `{function_name}` when both branches contain supported leading statements followed by aggregate returns or nested terminal aggregate `if` branches"
         ),
     )]
 }

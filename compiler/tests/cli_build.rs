@@ -672,6 +672,56 @@ func choose(flag: bool): Pair {
 }
 
 #[test]
+fn build_command_lowers_direct_aggregate_terminal_if_branch_leading_statements() {
+    let project =
+        TempProject::new("cli-build-direct-aggregate-terminal-if-branch-leading-statements");
+    let source = project.write_source(
+        "direct_aggregate_terminal_if_branch_leading_statements.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+struct Pair {
+    first: i32
+    second: i32
+}
+
+func main(): i32 {
+    let pair = choose(true)
+    return pair.first
+}
+
+func choose(flag: bool): Pair {
+    var file = File{ fd: 3 }
+    if flag {
+        drop file
+        return Pair{ first: 42, second: 1 }
+    } else {
+        touch(&+file)
+        return Pair{ first: 7, second: 2 }
+    }
+}
+
+func touch(file: &+File): void {
+    return
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_terminal_if_bool_local() {
     let project = TempProject::new("cli-build-terminal-if-bool-local");
     let source = project.write_source(

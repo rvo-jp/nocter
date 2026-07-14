@@ -532,7 +532,7 @@ fn lower_void_return_block(
     }
 }
 
-fn split_terminal_branch_block<'a>(
+pub(super) fn split_terminal_branch_block<'a>(
     block: &'a Block,
     diagnostic_code: &'static str,
     subject: &str,
@@ -548,7 +548,7 @@ fn split_terminal_branch_block<'a>(
     Ok((terminal, leading))
 }
 
-fn lower_terminal_branch_leading_statements(
+pub(super) fn lower_terminal_branch_leading_statements(
     statements: &[Stmt],
     context: &mut LoweringContext,
     diagnostic_code: &'static str,
