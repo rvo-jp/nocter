@@ -384,3 +384,133 @@ func take(text: Text): i32 {
     assert_eq!(diagnostics[0].code, "E0385");
     assert!(diagnostics[0].message.contains("may be uninitialized"));
 }
+
+#[test]
+fn accepts_unreachable_use_after_returning_move() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    start: i32
+    len: i32
+    capacity: i32
+}
+
+func main(): i32 {
+    let text = Text{ start: 1, len: 42, capacity: 3 }
+    return take(move text)
+    return text.len
+}
+
+func take(text: Text): i32 {
+    return text.len
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_if_branch_return_after_move_without_poisoning_fallthrough() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    start: i32
+    len: i32
+    capacity: i32
+}
+
+func main(): i32 {
+    let text = Text{ start: 1, len: 42, capacity: 3 }
+    if true {
+        return take(move text)
+    }
+    return text.len
+}
+
+func take(text: Text): i32 {
+    return text.len
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_maybe_uninitialized_after_while_body_moves() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    start: i32
+    len: i32
+    capacity: i32
+}
+
+func main(): i32 {
+    let text = Text{ start: 1, len: 42, capacity: 3 }
+    while true {
+        let length = take(move text)
+    }
+    return text.len
+}
+
+func take(text: Text): i32 {
+    return text.len
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0385");
+    assert!(diagnostics[0].message.contains("may be uninitialized"));
+}
+
+#[test]
+fn accepts_while_body_reinitialization_after_move() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    start: i32
+    len: i32
+    capacity: i32
+}
+
+func main(): i32 {
+    var text = Text{ start: 1, len: 20, capacity: 3 }
+    while true {
+        let length = take(move text)
+        text = Text{ start: 4, len: 22, capacity: 6 }
+    }
+    return text.len
+}
+
+func take(text: Text): i32 {
+    return text.len
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_uninitialized_after_loop_break_drops() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    start: i32
+    len: i32
+    capacity: i32
+}
+
+func main(): i32 {
+    let text = Text{ start: 1, len: 42, capacity: 3 }
+    loop {
+        drop text
+        break
+    }
+    return text.len
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0385");
+    assert!(diagnostics[0].message.contains("dropped"));
+}

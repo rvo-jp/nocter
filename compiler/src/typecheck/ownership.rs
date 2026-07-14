@@ -143,9 +143,9 @@ fn check_block_ownership(
     diagnostics: &mut Vec<Diagnostic>,
     environment: &mut TypeEnvironment,
     ownership: &mut OwnershipState,
-) {
+) -> FlowState {
     for statement in &block.statements {
-        check_statement_ownership(
+        let flow = check_statement_ownership(
             sources,
             statement,
             resolved,
@@ -153,7 +153,11 @@ fn check_block_ownership(
             environment,
             ownership,
         );
+        if !flow.reaches_end {
+            return flow;
+        }
     }
+    FlowState::fallthrough()
 }
 
 fn check_statement_ownership(
@@ -163,7 +167,7 @@ fn check_statement_ownership(
     diagnostics: &mut Vec<Diagnostic>,
     environment: &mut TypeEnvironment,
     ownership: &mut OwnershipState,
-) {
+) -> FlowState {
     match statement {
         Stmt::Return(statement) => {
             if let Some(expression) = &statement.expression {
@@ -176,6 +180,7 @@ fn check_statement_ownership(
                     ownership,
                 );
             }
+            FlowState::terminal()
         }
         Stmt::Binding(statement) => {
             check_expression_ownership(
@@ -187,10 +192,12 @@ fn check_statement_ownership(
                 ownership,
             );
             let initializer_type = expression_type(&statement.initializer, resolved, environment);
+            let initializer_reaches_end = initializer_type != Type::Never;
+            let mut flow = FlowState::fallthrough();
             if let Some(else_block) = &statement.else_block {
                 let mut else_environment = environment.clone();
                 let mut else_ownership = ownership.clone();
-                check_block_ownership(
+                let else_flow = check_block_ownership(
                     sources,
                     else_block,
                     resolved,
@@ -198,6 +205,15 @@ fn check_statement_ownership(
                     &mut else_environment,
                     &mut else_ownership,
                 );
+                // The successful binding path continues below. Break/continue from
+                // the else path must still propagate to the surrounding construct.
+                if !initializer_reaches_end {
+                    return else_flow;
+                }
+                flow.extend_nested(else_flow);
+            }
+            if !initializer_reaches_end {
+                return FlowState::terminal();
             }
             let binding_type =
                 continuing_binding_type(statement, initializer_type, resolved, environment);
@@ -212,6 +228,8 @@ fn check_statement_ownership(
                 &binding_type,
                 resolved,
             );
+            flow.reaches_end = true;
+            flow
         }
         Stmt::Assignment(statement) => {
             check_assignment_target_ownership(
@@ -236,6 +254,11 @@ fn check_statement_ownership(
             {
                 ownership.define_binding(identifier.name.clone(), identifier.span, ty, resolved);
             }
+            if expression_type(&statement.value, resolved, environment) == Type::Never {
+                FlowState::terminal()
+            } else {
+                FlowState::fallthrough()
+            }
         }
         Stmt::If(statement) => {
             check_expression_ownership(
@@ -249,7 +272,7 @@ fn check_statement_ownership(
 
             let mut then_environment = environment.clone();
             let mut then_ownership = ownership.clone();
-            check_block_ownership(
+            let then_flow = check_block_ownership(
                 sources,
                 &statement.then_block,
                 resolved,
@@ -257,10 +280,16 @@ fn check_statement_ownership(
                 &mut then_environment,
                 &mut then_ownership,
             );
+            let then_reaches_end = then_flow.reaches_end;
+            let mut flow = FlowState::from_nested(then_flow);
+            let mut incoming = Vec::new();
+            if then_reaches_end {
+                incoming.push(then_ownership);
+            }
             if let Some(else_block) = &statement.else_block {
                 let mut else_environment = environment.clone();
                 let mut else_ownership = ownership.clone();
-                check_block_ownership(
+                let else_flow = check_block_ownership(
                     sources,
                     else_block,
                     resolved,
@@ -268,10 +297,19 @@ fn check_statement_ownership(
                     &mut else_environment,
                     &mut else_ownership,
                 );
-                ownership.join_conditional(&then_ownership, Some(&else_ownership));
+                let else_reaches_end = else_flow.reaches_end;
+                flow.extend_nested(else_flow);
+                if else_reaches_end {
+                    incoming.push(else_ownership);
+                }
             } else {
-                ownership.join_conditional(&then_ownership, None);
+                incoming.push(ownership.clone());
             }
+            flow.reaches_end = !incoming.is_empty();
+            if flow.reaches_end {
+                ownership.join_branches(&incoming);
+            }
+            flow
         }
         Stmt::IfIs(statement) => {
             check_expression_ownership(
@@ -294,7 +332,7 @@ fn check_statement_ownership(
                     resolved,
                 );
             }
-            check_block_ownership(
+            let then_flow = check_block_ownership(
                 sources,
                 &statement.then_block,
                 resolved,
@@ -302,10 +340,16 @@ fn check_statement_ownership(
                 &mut then_environment,
                 &mut then_ownership,
             );
+            let then_reaches_end = then_flow.reaches_end;
+            let mut flow = FlowState::from_nested(then_flow);
+            let mut incoming = Vec::new();
+            if then_reaches_end {
+                incoming.push(then_ownership);
+            }
             if let Some(else_block) = &statement.else_block {
                 let mut else_environment = environment.clone();
                 let mut else_ownership = ownership.clone();
-                check_block_ownership(
+                let else_flow = check_block_ownership(
                     sources,
                     else_block,
                     resolved,
@@ -313,10 +357,19 @@ fn check_statement_ownership(
                     &mut else_environment,
                     &mut else_ownership,
                 );
-                ownership.join_conditional(&then_ownership, Some(&else_ownership));
+                let else_reaches_end = else_flow.reaches_end;
+                flow.extend_nested(else_flow);
+                if else_reaches_end {
+                    incoming.push(else_ownership);
+                }
             } else {
-                ownership.join_conditional(&then_ownership, None);
+                incoming.push(ownership.clone());
             }
+            flow.reaches_end = !incoming.is_empty();
+            if flow.reaches_end {
+                ownership.join_branches(&incoming);
+            }
+            flow
         }
         Stmt::IfLet(statement) => {
             check_expression_ownership(
@@ -337,7 +390,7 @@ fn check_statement_ownership(
                 &then_environment,
                 resolved,
             );
-            check_block_ownership(
+            let then_flow = check_block_ownership(
                 sources,
                 &statement.then_block,
                 resolved,
@@ -345,10 +398,16 @@ fn check_statement_ownership(
                 &mut then_environment,
                 &mut then_ownership,
             );
+            let then_reaches_end = then_flow.reaches_end;
+            let mut flow = FlowState::from_nested(then_flow);
+            let mut incoming = Vec::new();
+            if then_reaches_end {
+                incoming.push(then_ownership);
+            }
             if let Some(else_block) = &statement.else_block {
                 let mut else_environment = environment.clone();
                 let mut else_ownership = ownership.clone();
-                check_block_ownership(
+                let else_flow = check_block_ownership(
                     sources,
                     else_block,
                     resolved,
@@ -356,10 +415,19 @@ fn check_statement_ownership(
                     &mut else_environment,
                     &mut else_ownership,
                 );
-                ownership.join_conditional(&then_ownership, Some(&else_ownership));
+                let else_reaches_end = else_flow.reaches_end;
+                flow.extend_nested(else_flow);
+                if else_reaches_end {
+                    incoming.push(else_ownership);
+                }
             } else {
-                ownership.join_conditional(&then_ownership, None);
+                incoming.push(ownership.clone());
             }
+            flow.reaches_end = !incoming.is_empty();
+            if flow.reaches_end {
+                ownership.join_branches(&incoming);
+            }
+            flow
         }
         Stmt::Switch(statement) => {
             check_expression_ownership(
@@ -371,6 +439,7 @@ fn check_statement_ownership(
                 ownership,
             );
 
+            let mut flow = FlowState::terminal();
             let mut branch_ownerships = Vec::new();
             for arm in &statement.arms {
                 let mut arm_environment = environment_for_switch_arm(arm, resolved, environment);
@@ -383,7 +452,7 @@ fn check_statement_ownership(
                         resolved,
                     );
                 }
-                check_block_ownership(
+                let arm_flow = check_block_ownership(
                     sources,
                     &arm.body,
                     resolved,
@@ -391,12 +460,15 @@ fn check_statement_ownership(
                     &mut arm_environment,
                     &mut arm_ownership,
                 );
-                branch_ownerships.push(arm_ownership);
+                if arm_flow.reaches_end {
+                    branch_ownerships.push(arm_ownership);
+                }
+                flow.extend_nested(arm_flow);
             }
             if let Some(else_arm) = &statement.else_arm {
                 let mut else_environment = environment.clone();
                 let mut else_ownership = ownership.clone();
-                check_block_ownership(
+                let else_flow = check_block_ownership(
                     sources,
                     &else_arm.body,
                     resolved,
@@ -404,11 +476,18 @@ fn check_statement_ownership(
                     &mut else_environment,
                     &mut else_ownership,
                 );
-                branch_ownerships.push(else_ownership);
+                if else_flow.reaches_end {
+                    branch_ownerships.push(else_ownership);
+                }
+                flow.extend_nested(else_flow);
             } else {
                 branch_ownerships.push(ownership.clone());
             }
-            ownership.join_branches(&branch_ownerships);
+            flow.reaches_end = !branch_ownerships.is_empty();
+            if flow.reaches_end {
+                ownership.join_branches(&branch_ownerships);
+            }
+            flow
         }
         Stmt::While(statement) => {
             check_expression_ownership(
@@ -422,7 +501,7 @@ fn check_statement_ownership(
 
             let mut body_environment = environment.clone();
             let mut body_ownership = ownership.clone();
-            check_block_ownership(
+            let body_flow = check_block_ownership(
                 sources,
                 &statement.body,
                 resolved,
@@ -430,6 +509,14 @@ fn check_statement_ownership(
                 &mut body_environment,
                 &mut body_ownership,
             );
+            let mut incoming = vec![ownership.clone()];
+            if body_flow.reaches_end {
+                incoming.push(body_ownership);
+            }
+            incoming.extend(body_flow.break_states.iter().cloned());
+            incoming.extend(body_flow.continue_states.iter().cloned());
+            ownership.join_branches(&incoming);
+            FlowState::fallthrough()
         }
         Stmt::WhileLet(statement) => {
             check_expression_ownership(
@@ -450,7 +537,7 @@ fn check_statement_ownership(
                 &body_environment,
                 resolved,
             );
-            check_block_ownership(
+            let body_flow = check_block_ownership(
                 sources,
                 &statement.body,
                 resolved,
@@ -458,6 +545,14 @@ fn check_statement_ownership(
                 &mut body_environment,
                 &mut body_ownership,
             );
+            let mut incoming = vec![ownership.clone()];
+            if body_flow.reaches_end {
+                incoming.push(body_ownership);
+            }
+            incoming.extend(body_flow.break_states.iter().cloned());
+            incoming.extend(body_flow.continue_states.iter().cloned());
+            ownership.join_branches(&incoming);
+            FlowState::fallthrough()
         }
         Stmt::ForRange(statement) => {
             check_expression_ownership(
@@ -479,7 +574,7 @@ fn check_statement_ownership(
             let mut body_environment =
                 environment_for_for_range_binding(statement, resolved, environment);
             let mut body_ownership = ownership.clone();
-            check_block_ownership(
+            let body_flow = check_block_ownership(
                 sources,
                 &statement.body,
                 resolved,
@@ -487,11 +582,19 @@ fn check_statement_ownership(
                 &mut body_environment,
                 &mut body_ownership,
             );
+            let mut incoming = vec![ownership.clone()];
+            if body_flow.reaches_end {
+                incoming.push(body_ownership);
+            }
+            incoming.extend(body_flow.break_states.iter().cloned());
+            incoming.extend(body_flow.continue_states.iter().cloned());
+            ownership.join_branches(&incoming);
+            FlowState::fallthrough()
         }
         Stmt::Loop(statement) => {
             let mut body_environment = environment.clone();
             let mut body_ownership = ownership.clone();
-            check_block_ownership(
+            let body_flow = check_block_ownership(
                 sources,
                 &statement.body,
                 resolved,
@@ -499,6 +602,17 @@ fn check_statement_ownership(
                 &mut body_environment,
                 &mut body_ownership,
             );
+            let mut incoming = body_flow.break_states.clone();
+            if body_flow.reaches_end {
+                incoming.push(body_ownership);
+            }
+            incoming.extend(body_flow.continue_states.iter().cloned());
+            if incoming.is_empty() {
+                FlowState::terminal()
+            } else {
+                ownership.join_branches(&incoming);
+                FlowState::fallthrough()
+            }
         }
         Stmt::Drop(statement) => {
             let Some(ty) = environment.get(&statement.name) else {
@@ -508,7 +622,7 @@ fn check_statement_ownership(
                     statement.name_span,
                     None,
                 ));
-                return;
+                return FlowState::fallthrough();
             };
             if non_copy_struct_type_name(ty, resolved).is_none() {
                 diagnostics.push(invalid_drop_target_diagnostic(
@@ -517,7 +631,7 @@ fn check_statement_ownership(
                     statement.name_span,
                     Some(ty),
                 ));
-                return;
+                return FlowState::fallthrough();
             }
             ownership.ensure_binding_from_environment(
                 &statement.name,
@@ -526,6 +640,7 @@ fn check_statement_ownership(
                 resolved,
             );
             ownership.drop_binding(sources, &statement.name, statement.name_span, diagnostics);
+            FlowState::fallthrough()
         }
         Stmt::Expression(statement) => {
             check_expression_ownership(
@@ -536,8 +651,14 @@ fn check_statement_ownership(
                 environment,
                 ownership,
             );
+            if expression_type(&statement.expression, resolved, environment) == Type::Never {
+                FlowState::terminal()
+            } else {
+                FlowState::fallthrough()
+            }
         }
-        Stmt::Break(_) | Stmt::Continue(_) => {}
+        Stmt::Break(_) => FlowState::break_with(ownership.clone()),
+        Stmt::Continue(_) => FlowState::continue_with(ownership.clone()),
     }
 }
 
@@ -930,6 +1051,56 @@ fn non_copy_struct_type_name<'a>(ty: &Type, resolved: &'a ResolveOutput) -> Opti
         .map(|symbol| symbol.canonical_name.as_str())
 }
 
+#[derive(Debug, Clone)]
+struct FlowState {
+    reaches_end: bool,
+    break_states: Vec<OwnershipState>,
+    continue_states: Vec<OwnershipState>,
+}
+
+impl FlowState {
+    fn fallthrough() -> Self {
+        Self {
+            reaches_end: true,
+            break_states: Vec::new(),
+            continue_states: Vec::new(),
+        }
+    }
+
+    fn terminal() -> Self {
+        Self {
+            reaches_end: false,
+            break_states: Vec::new(),
+            continue_states: Vec::new(),
+        }
+    }
+
+    fn break_with(state: OwnershipState) -> Self {
+        Self {
+            reaches_end: false,
+            break_states: vec![state],
+            continue_states: Vec::new(),
+        }
+    }
+
+    fn continue_with(state: OwnershipState) -> Self {
+        Self {
+            reaches_end: false,
+            break_states: Vec::new(),
+            continue_states: vec![state],
+        }
+    }
+
+    fn from_nested(flow: FlowState) -> Self {
+        flow
+    }
+
+    fn extend_nested(&mut self, flow: FlowState) {
+        self.break_states.extend(flow.break_states);
+        self.continue_states.extend(flow.continue_states);
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 struct OwnershipState {
     bindings: HashMap<String, OwnedBinding>,
@@ -1020,16 +1191,6 @@ impl OwnershipState {
             return false;
         };
         true
-    }
-
-    fn join_conditional(
-        &mut self,
-        then_ownership: &OwnershipState,
-        else_ownership: Option<&OwnershipState>,
-    ) {
-        let original = self.clone();
-        let else_ownership = else_ownership.unwrap_or(&original);
-        self.join_branches(&[then_ownership.clone(), else_ownership.clone()]);
     }
 
     fn join_branches(&mut self, branch_ownerships: &[OwnershipState]) {
