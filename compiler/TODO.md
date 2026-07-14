@@ -27,6 +27,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: lower branch-local void calls in terminal-if
+  - lowers void call expression statements before terminal return or nested terminal-if leaves inside supported terminal `if` branches
+  - reuses the same pending scope-end drop cleanup as top-level leading void calls, so aggregate locals are still dropped before leaf returns
+  - keeps branch-local bindings, assignments, and aggregate slot creation outside the supported branch subset
 - Current checkpoint: lower branch-local explicit drops in terminal-if
   - lowers explicit `drop name` statements before terminal return or nested terminal-if leaves inside supported terminal `if` branches
   - keeps branch-local bindings, assignments, void calls, and aggregate slot creation outside the supported branch subset

@@ -2,7 +2,7 @@ use super::context::LoweringContext;
 use super::expressions::{
     expression_contains_call, lower_bool_expression_to_value, lower_bool_return_expression,
     lower_i32_return_expression, lower_slice_return_expression, lower_str_return_expression,
-    lower_u8_return_expression, lower_usize_return_expression,
+    lower_u8_return_expression, lower_usize_return_expression, lower_void_expression_statement,
 };
 use super::functions::{
     append_scope_end_drops_before_exit, lower_drop_statement, lower_value_return_with_scope_drops,
@@ -321,7 +321,7 @@ fn lower_i32_return_block(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let (terminal, leading) = split_terminal_branch_block(block, diagnostic_code, subject, "i32")?;
     let mut branch_context = context.clone();
-    let mut instructions = lower_terminal_branch_leading_drops(
+    let mut instructions = lower_terminal_branch_leading_statements(
         leading,
         &mut branch_context,
         diagnostic_code,
@@ -379,7 +379,7 @@ fn lower_bool_return_block(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let (terminal, leading) = split_terminal_branch_block(block, diagnostic_code, subject, "bool")?;
     let mut branch_context = context.clone();
-    let mut instructions = lower_terminal_branch_leading_drops(
+    let mut instructions = lower_terminal_branch_leading_statements(
         leading,
         &mut branch_context,
         diagnostic_code,
@@ -441,7 +441,7 @@ fn lower_scalar_return_block(
     let (terminal, leading) =
         split_terminal_branch_block(block, diagnostic_code, subject, return_label)?;
     let mut branch_context = context.clone();
-    let mut instructions = lower_terminal_branch_leading_drops(
+    let mut instructions = lower_terminal_branch_leading_statements(
         leading,
         &mut branch_context,
         diagnostic_code,
@@ -501,7 +501,7 @@ fn lower_void_return_block(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let (terminal, leading) = split_terminal_branch_block(block, diagnostic_code, subject, "void")?;
     let mut branch_context = context.clone();
-    let mut instructions = lower_terminal_branch_leading_drops(
+    let mut instructions = lower_terminal_branch_leading_statements(
         leading,
         &mut branch_context,
         diagnostic_code,
@@ -548,7 +548,7 @@ fn split_terminal_branch_block<'a>(
     Ok((terminal, leading))
 }
 
-fn lower_terminal_branch_leading_drops(
+fn lower_terminal_branch_leading_statements(
     statements: &[Stmt],
     context: &mut LoweringContext,
     diagnostic_code: &'static str,
@@ -559,6 +559,19 @@ fn lower_terminal_branch_leading_drops(
     for statement in statements {
         match statement {
             Stmt::Drop(statement) => instructions.extend(lower_drop_statement(statement, context)?),
+            Stmt::Expression(statement) => {
+                let Some(void_instructions) =
+                    lower_void_expression_statement(&statement.expression, context)?
+                else {
+                    return Err(unsupported_terminal_if_diagnostic(
+                        diagnostic_code,
+                        subject,
+                        return_label,
+                    ));
+                };
+                instructions.extend(void_instructions);
+                mark_explicit_moves_in_expression(&statement.expression, context);
+            }
             _ => {
                 return Err(unsupported_terminal_if_diagnostic(
                     diagnostic_code,
@@ -579,7 +592,7 @@ fn unsupported_terminal_if_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower terminal `if` statements for {subject} when both branches contain only explicit `drop` statements followed by returns or nested terminal `if` branches returning `{return_type}`"
+            "IR v0 can only lower terminal `if` statements for {subject} when both branches contain only explicit `drop` or void call statements followed by returns or nested terminal `if` branches returning `{return_type}`"
         ),
     )]
 }
