@@ -53,6 +53,7 @@ Recent committed work:
 - Current checkpoint: render CLI diagnostics with source snippets
   - keeps compiler-owned `Diagnostic` JSON shape unchanged while letting text rendering consult the loaded `SourceMap`
   - makes `check`, `build`, `run`, and `fmt` print the primary source line plus a caret underline when a diagnostic span resolves to loaded source text
+  - passes the loaded `SourceMap` through build/backend IR lowering so E800x lowering diagnostics can fill missing primary spans from the relevant declaration, statement, or expression
   - preserves the old compact text form for diagnostics without spans or without available source text
 - Current checkpoint: stage terminal-if returns and clean up catch handlers
   - stages terminal-if branch value returns across pending aggregate drop calls, matching top-level return staging

@@ -14,26 +14,35 @@ use crate::ast::{FunctionDecl, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{CallTarget, Function, Instruction, Type};
 use crate::resolve::ResolveOutput;
-use crate::source::SourceId;
+use crate::source::{ByteSpan, SourceId, SourceMap};
 
 pub(super) fn lower_entry_function(
     function: &FunctionDecl,
+    sources: &SourceMap,
     function_signatures: FunctionSignatures,
     function_names: FunctionNames,
     root_source: SourceId,
     resolved: &ResolveOutput,
 ) -> Result<Function, Vec<Diagnostic>> {
     if !function.generics.parameters.is_empty() || !function.parameters.parameters.is_empty() {
-        return Err(vec![Diagnostic::error(
-            "E8001",
-            "IR v0 can only lower a non-generic zero-parameter entry function",
-        )]);
+        let span = function.generics.span.unwrap_or(function.parameters.span);
+        return Err(attach_primary_span_if_absent(
+            vec![Diagnostic::error(
+                "E8001",
+                "IR v0 can only lower a non-generic zero-parameter entry function",
+            )],
+            sources,
+            span,
+        ));
     }
 
-    let return_type = lower_entry_return_type(&function.return_type)?;
+    let return_type = lower_entry_return_type(&function.return_type).map_err(|diagnostics| {
+        attach_primary_span_if_absent(diagnostics, sources, function.return_type.span())
+    })?;
     let instructions = lower_entry_body(
         function,
         &return_type,
+        sources,
         function_signatures,
         function_names,
         root_source,
@@ -64,6 +73,7 @@ fn lower_entry_return_type(ty: &TypeExpr) -> Result<Type, Vec<Diagnostic>> {
 fn lower_entry_body(
     function: &FunctionDecl,
     return_type: &Type,
+    sources: &SourceMap,
     function_signatures: FunctionSignatures,
     function_names: FunctionNames,
     root_source: SourceId,
@@ -77,7 +87,11 @@ fn lower_entry_body(
     }
 
     let Some((last, leading)) = statements.split_last() else {
-        return Err(unsupported_entry_body_diagnostic());
+        return Err(attach_primary_span_if_absent(
+            unsupported_entry_body_diagnostic(),
+            sources,
+            function.body.span,
+        ));
     };
 
     let mut context = LoweringContext::empty(
@@ -87,13 +101,21 @@ fn lower_entry_body(
     )
     .with_function_return_type(return_type.clone())
     .with_call_resolution(root_source, resolved, function_names);
-    let mut instructions = lower_leading_bindings(leading, &mut context)?;
+    let mut instructions =
+        lower_leading_bindings(leading, &mut context).map_err(|diagnostics| {
+            let span = leading
+                .first()
+                .map_or(function.body.span, |statement| statement.span());
+            attach_primary_span_if_absent(diagnostics, sources, span)
+        })?;
 
     match last {
         Stmt::Return(statement) => {
             if let Some(expression) = &statement.expression
                 && let Some(return_instructions) =
-                    lower_never_return_expression(expression, &context)?
+                    lower_never_return_expression(expression, &context).map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, expression.span())
+                    })?
             {
                 instructions.extend(return_instructions);
                 return Ok(instructions);
@@ -102,7 +124,11 @@ fn lower_entry_body(
             if let Some(expression) = &statement.expression
                 && matches!(return_type, Type::Fallible(_))
                 && let Some(payload) =
-                    lower_error_payload(expression, resolved, root_source, Some(&context))?
+                    lower_error_payload(expression, resolved, root_source, Some(&context)).map_err(
+                        |diagnostics| {
+                            attach_primary_span_if_absent(diagnostics, sources, expression.span())
+                        },
+                    )?
             {
                 instructions.extend(append_scope_end_drops_before_exit(
                     lower_fallible_failure(payload),
@@ -117,7 +143,10 @@ fn lower_entry_body(
                     expression,
                     return_type,
                     &mut context,
-                )?
+                )
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, expression.span())
+                })?
             {
                 instructions.extend(return_instructions);
                 return Ok(instructions);
@@ -148,7 +177,14 @@ fn lower_entry_body(
                 (Type::Bool, _) => unreachable!("bool entry type is not lowered in v0"),
                 (Type::Never, _) => unreachable!("never entry type is not lowered in v0"),
                 (Type::Fallible(_), _) => unreachable!("fallible success type must be unwrapped"),
-            }?;
+            }
+            .map_err(|diagnostics| {
+                let span = statement
+                    .expression
+                    .as_ref()
+                    .map_or(statement.span, |expression| expression.span());
+                attach_primary_span_if_absent(diagnostics, sources, span)
+            })?;
             let return_instructions =
                 mark_fallible_success_returns(return_type, return_instructions);
             instructions.extend(append_scope_end_drops_before_exit(
@@ -164,7 +200,10 @@ fn lower_entry_body(
                 return_type,
                 "E8002",
                 "entry functions",
-            )?;
+            )
+            .map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, statement.span)
+            })?;
             instructions.extend(mark_fallible_success_returns(
                 return_type,
                 branch_instructions,
@@ -178,7 +217,10 @@ fn lower_entry_body(
                 return_type,
                 "E8002",
                 "entry functions",
-            )?;
+            )
+            .map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, statement.span)
+            })?;
             instructions.extend(mark_fallible_success_returns(
                 return_type,
                 branch_instructions,
@@ -186,12 +228,25 @@ fn lower_entry_body(
             Ok(instructions)
         }
         Stmt::Expression(statement) => {
-            let Some(terminating_instructions) =
-                lower_never_return_expression(&statement.expression, &context)?
+            let Some(terminating_instructions) = lower_never_return_expression(
+                &statement.expression,
+                &context,
+            )
+            .map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, statement.expression.span())
+            })?
             else {
                 if success_type == &Type::Void
                     && let Some(void_instructions) =
-                        lower_void_expression_statement(&statement.expression, &context)?
+                        lower_void_expression_statement(&statement.expression, &context).map_err(
+                            |diagnostics| {
+                                attach_primary_span_if_absent(
+                                    diagnostics,
+                                    sources,
+                                    statement.expression.span(),
+                                )
+                            },
+                        )?
                 {
                     instructions.extend(void_instructions);
                     mark_explicit_moves_in_expression(&statement.expression, &mut context);
@@ -202,13 +257,32 @@ fn lower_entry_body(
                     return Ok(instructions);
                 }
 
-                return Err(unsupported_entry_body_diagnostic());
+                return Err(attach_primary_span_if_absent(
+                    unsupported_entry_body_diagnostic(),
+                    sources,
+                    statement.span,
+                ));
             };
             instructions.extend(terminating_instructions);
             Ok(instructions)
         }
-        _ => Err(unsupported_entry_body_diagnostic()),
+        _ => Err(attach_primary_span_if_absent(
+            unsupported_entry_body_diagnostic(),
+            sources,
+            last.span(),
+        )),
     }
+}
+
+fn attach_primary_span_if_absent(
+    diagnostics: Vec<Diagnostic>,
+    sources: &SourceMap,
+    span: ByteSpan,
+) -> Vec<Diagnostic> {
+    diagnostics
+        .into_iter()
+        .map(|diagnostic| diagnostic.with_primary_span_if_absent(sources, span))
+        .collect()
 }
 
 fn lower_fallible_failure(payload: ErrorPayload) -> Vec<Instruction> {

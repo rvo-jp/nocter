@@ -1,6 +1,6 @@
 use super::*;
 use crate::abi::ValueLayout;
-use crate::analysis::{CompileUnit, analyze_compile_unit_with_entry};
+use crate::analysis::{CompileUnit, CompileUnitAnalysis, analyze_compile_unit_with_entry};
 use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::ir::{
@@ -586,7 +586,7 @@ func choose(code: i32, flag: bool, size: usize): bool {
 
 #[test]
 fn lowers_imported_i32_normal_call() {
-    let analysis = analyze_text_with_entry_and_nocter_home_files(
+    let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
         r#"from std/math import answer
 
 func main(): i32 {
@@ -603,6 +603,7 @@ func main(): i32 {
 "#,
         )],
     );
+    let analysis = &fixture.analysis;
     let root = analysis.root_file().unwrap();
     let imported_source = analysis
         .files
@@ -616,7 +617,9 @@ func main(): i32 {
         .map(|file| file.ast.span.source)
         .unwrap();
 
-    let ir = lower_executable_with_entry(&analysis, crate::entry::DEFAULT_ENTRY_NAME).unwrap();
+    let ir =
+        lower_executable_with_entry(analysis, &fixture.sources, crate::entry::DEFAULT_ENTRY_NAME)
+            .unwrap();
 
     assert_eq!(
         ir,
@@ -651,7 +654,7 @@ func main(): i32 {
 
 #[test]
 fn lowers_imported_bool_normal_call_in_terminal_if_condition() {
-    let analysis = analyze_text_with_entry_and_nocter_home_files(
+    let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
         r#"from std/flags import ready
 
 func main(): i32 {
@@ -671,6 +674,7 @@ func main(): i32 {
 "#,
         )],
     );
+    let analysis = &fixture.analysis;
     let imported_source = analysis
         .files
         .iter()
@@ -683,7 +687,9 @@ func main(): i32 {
         .map(|file| file.ast.span.source)
         .unwrap();
 
-    let ir = lower_executable_with_entry(&analysis, crate::entry::DEFAULT_ENTRY_NAME).unwrap();
+    let ir =
+        lower_executable_with_entry(analysis, &fixture.sources, crate::entry::DEFAULT_ENTRY_NAME)
+            .unwrap();
 
     assert_eq!(
         ir,
@@ -723,7 +729,7 @@ func main(): i32 {
 
 #[test]
 fn imported_alias_call_uses_imported_declaration_name_as_target() {
-    let analysis = analyze_text_with_entry_and_nocter_home_files(
+    let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
         r#"from std/math import answer as imported_answer
 
 func main(): i32 {
@@ -739,6 +745,7 @@ func main(): i32 {
 "#,
         )],
     );
+    let analysis = &fixture.analysis;
     let imported_source = analysis
         .files
         .iter()
@@ -751,7 +758,9 @@ func main(): i32 {
         .map(|file| file.ast.span.source)
         .unwrap();
 
-    let ir = lower_executable_with_entry(&analysis, crate::entry::DEFAULT_ENTRY_NAME).unwrap();
+    let ir =
+        lower_executable_with_entry(analysis, &fixture.sources, crate::entry::DEFAULT_ENTRY_NAME)
+            .unwrap();
 
     assert_eq!(
         ir.functions
@@ -774,7 +783,7 @@ func main(): i32 {
 
 #[test]
 fn lowers_never_function_returning_target_trap_primitive() {
-    let analysis = analyze_text_with_entry_and_nocter_home_files(
+    let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
         r#"from std/process import abort
 
 func main(): i32 {
@@ -784,6 +793,7 @@ func main(): i32 {
         crate::entry::DEFAULT_ENTRY_NAME,
         &[std_process_file(), std_macos_file()],
     );
+    let analysis = &fixture.analysis;
     let process_source = analysis
         .files
         .iter()
@@ -796,7 +806,9 @@ func main(): i32 {
         .map(|file| file.ast.span.source)
         .unwrap();
 
-    let ir = lower_executable_with_entry(&analysis, crate::entry::DEFAULT_ENTRY_NAME).unwrap();
+    let ir =
+        lower_executable_with_entry(analysis, &fixture.sources, crate::entry::DEFAULT_ENTRY_NAME)
+            .unwrap();
 
     assert_eq!(
         ir,
@@ -2366,7 +2378,7 @@ func main(): i32 {
 
 #[test]
 fn lowers_imported_explicit_drop_to_imported_drop_member_call() {
-    let analysis = analyze_text_with_entry_and_nocter_home_files(
+    let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
         r#"from std/file import File
 
 func main(): i32 {
@@ -2390,6 +2402,7 @@ impl File {
 "#,
         )],
     );
+    let analysis = &fixture.analysis;
     let root = analysis.root_file().unwrap();
     let imported_source = analysis
         .files
@@ -2403,7 +2416,9 @@ impl File {
         .map(|file| file.ast.span.source)
         .unwrap();
 
-    let ir = lower_executable_with_entry(&analysis, crate::entry::DEFAULT_ENTRY_NAME).unwrap();
+    let ir =
+        lower_executable_with_entry(analysis, &fixture.sources, crate::entry::DEFAULT_ENTRY_NAME)
+            .unwrap();
 
     assert_eq!(
         ir,
@@ -8738,7 +8753,7 @@ func consume(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, pair: Pair)
 
 #[test]
 fn lowers_imported_i32_call_target_when_boundary_is_bypassed() {
-    let analysis = analyze_text_with_entry_and_nocter_home_files(
+    let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
         r#"from std/math import answer
 
 func main(): i32 {
@@ -8755,6 +8770,7 @@ func main(): i32 {
 "#,
         )],
     );
+    let analysis = &fixture.analysis;
     let root = analysis.root_file().unwrap();
     let imported_source = analysis
         .files
@@ -8784,6 +8800,7 @@ func main(): i32 {
 
     let function = entry::lower_entry_function(
         entry,
+        &fixture.sources,
         index.signatures(),
         index.names(),
         root.ast.span.source,
@@ -14635,8 +14652,8 @@ fn lower_text_with_entry(text: &str, entry_name: &str) -> IrModule {
     let diagnostics = lower_text_diagnostics_with_entry(text, entry_name);
     match diagnostics.as_slice() {
         [] => {
-            let analysis = analyze_text_with_entry(text, entry_name);
-            lower_executable_with_entry(&analysis, entry_name).unwrap()
+            let fixture = analyze_text_fixture_with_entry(text, entry_name);
+            lower_executable_with_entry(&fixture.analysis, &fixture.sources, entry_name).unwrap()
         }
         diagnostics => panic!("unexpected diagnostics: {diagnostics:?}"),
     }
@@ -14648,8 +14665,9 @@ fn lower_text_with_std_error(text: &str) -> IrModule {
 
 fn lower_text_with_nocter_home_files(text: &str, home_files: &[(&str, &str)]) -> IrModule {
     let entry_name = crate::entry::DEFAULT_ENTRY_NAME;
-    let analysis = analyze_text_with_entry_and_nocter_home_files(text, entry_name, home_files);
-    lower_executable_with_entry(&analysis, entry_name).unwrap()
+    let fixture =
+        analyze_text_fixture_with_entry_and_nocter_home_files(text, entry_name, home_files);
+    lower_executable_with_entry(&fixture.analysis, &fixture.sources, entry_name).unwrap()
 }
 
 fn lower_named_function(text: &str, function_name: &str) -> Function {
@@ -14666,7 +14684,8 @@ fn lower_named_function_with_signatures(
     function_name: &str,
     function_signatures: context::FunctionSignatures,
 ) -> Result<Function, Vec<Diagnostic>> {
-    let analysis = analyze_text_with_entry(text, crate::entry::DEFAULT_ENTRY_NAME);
+    let fixture = analyze_text_fixture_with_entry(text, crate::entry::DEFAULT_ENTRY_NAME);
+    let analysis = &fixture.analysis;
     let root = analysis.root_file().unwrap();
     let Some(crate::ast::Item::Function(function)) = root.ast.items.iter().find(|item| {
         matches!(item, crate::ast::Item::Function(function) if function.name == function_name)
@@ -14676,6 +14695,7 @@ fn lower_named_function_with_signatures(
 
     functions::lower_function(
         function,
+        &fixture.sources,
         CallTarget::same_file(function_name),
         function_signatures,
         context::FunctionNames::default(),
@@ -14689,11 +14709,12 @@ fn lower_imported_named_function_with_nocter_home_files(
     function_name: &str,
     home_files: &[(&str, &str)],
 ) -> Function {
-    let analysis = analyze_text_with_entry_and_nocter_home_files(
+    let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
         text,
         crate::entry::DEFAULT_ENTRY_NAME,
         home_files,
     );
+    let analysis = &fixture.analysis;
     let root = analysis.root_file().unwrap();
     let imported_source = analysis
         .files
@@ -14713,6 +14734,7 @@ fn lower_imported_named_function_with_nocter_home_files(
     function
         .lower(
             target,
+            &fixture.sources,
             index.signatures(),
             index.names(),
             root.ast.span.source,
@@ -14952,23 +14974,31 @@ fn lower_text_diagnostics(text: &str) -> Vec<Diagnostic> {
 
 fn lower_text_diagnostics_with_std_error(text: &str) -> Vec<Diagnostic> {
     let entry_name = crate::entry::DEFAULT_ENTRY_NAME;
-    let analysis =
-        analyze_text_with_entry_and_nocter_home_files(text, entry_name, &[std_error_file()]);
-    match lower_executable_with_entry(&analysis, entry_name) {
+    let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
+        text,
+        entry_name,
+        &[std_error_file()],
+    );
+    match lower_executable_with_entry(&fixture.analysis, &fixture.sources, entry_name) {
         Ok(_) => Vec::new(),
         Err(diagnostics) => diagnostics,
     }
 }
 
 fn lower_text_diagnostics_with_entry(text: &str, entry_name: &str) -> Vec<Diagnostic> {
-    let analysis = analyze_text_with_entry(text, entry_name);
-    match lower_executable_with_entry(&analysis, entry_name) {
+    let fixture = analyze_text_fixture_with_entry(text, entry_name);
+    match lower_executable_with_entry(&fixture.analysis, &fixture.sources, entry_name) {
         Ok(_) => Vec::new(),
         Err(diagnostics) => diagnostics,
     }
 }
 
-fn analyze_text_with_entry(text: &str, entry_name: &str) -> crate::analysis::CompileUnitAnalysis {
+struct LoweringFixture {
+    sources: SourceMap,
+    analysis: CompileUnitAnalysis,
+}
+
+fn analyze_text_with_entry(text: &str, entry_name: &str) -> CompileUnitAnalysis {
     analyze_text_with_entry_and_nocter_home_files(text, entry_name, &[])
 }
 
@@ -14976,7 +15006,19 @@ fn analyze_text_with_entry_and_nocter_home_files(
     text: &str,
     entry_name: &str,
     home_files: &[(&str, &str)],
-) -> crate::analysis::CompileUnitAnalysis {
+) -> CompileUnitAnalysis {
+    analyze_text_fixture_with_entry_and_nocter_home_files(text, entry_name, home_files).analysis
+}
+
+fn analyze_text_fixture_with_entry(text: &str, entry_name: &str) -> LoweringFixture {
+    analyze_text_fixture_with_entry_and_nocter_home_files(text, entry_name, &[])
+}
+
+fn analyze_text_fixture_with_entry_and_nocter_home_files(
+    text: &str,
+    entry_name: &str,
+    home_files: &[(&str, &str)],
+) -> LoweringFixture {
     let mut sources = SourceMap::new();
     let source = sources.add_source("app.nct", None, text);
     let temp_root = make_temp_project();
@@ -14994,7 +15036,7 @@ fn analyze_text_with_entry_and_nocter_home_files(
     let analysis = analyze_compile_unit_with_entry(&sources, &unit, entry_name);
     let diagnostics = analysis.diagnostics();
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
-    analysis
+    LoweringFixture { sources, analysis }
 }
 
 fn std_error_file() -> (&'static str, &'static str) {

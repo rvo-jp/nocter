@@ -1598,6 +1598,14 @@ fn build_command_reports_compile_diagnostics_without_output() {
         "expected return type diagnostic, got:\n{stderr}"
     );
     assert!(
+        stderr.contains("2 |     return \"bad\""),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("  |            ^^^^^"),
+        "expected source underline, got:\n{stderr}"
+    );
+    assert!(
         !executable.exists(),
         "build should not leave an executable after compile diagnostics"
     );
@@ -2075,6 +2083,14 @@ func check(pair: Pair): i32 {
         stderr.contains("aggregate` arguments for function `check`"),
         "expected non-copy aggregate argument lowering diagnostic, got:\n{stderr}"
     );
+    assert!(
+        stderr.contains("|     return check(pair)"),
+        "expected source line for aggregate argument diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("|            ^^^^^^^^^^^"),
+        "expected source underline for aggregate argument diagnostic, got:\n{stderr}"
+    );
 }
 
 #[test]
@@ -2110,6 +2126,14 @@ func make(): Text {
     assert!(
         stderr.contains("aggregate returns from function `make`"),
         "expected non-copy aggregate return lowering diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("|     return text"),
+        "expected source line for aggregate return diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("|            ^^^^"),
+        "expected source underline for aggregate return diagnostic, got:\n{stderr}"
     );
 }
 

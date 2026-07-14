@@ -20,7 +20,7 @@ use crate::ast::{DropDecl, FunctionDecl, ImplMember, Item, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::Type;
 use crate::resolve::{ResolveOutput, drop_function_name};
-use crate::source::SourceId;
+use crate::source::{ByteSpan, SourceId, SourceMap};
 use context::{FunctionNames, FunctionSignature, FunctionSignatures};
 use imported_calls::imported_call_diagnostics;
 use reachability::reachable_call_targets;
@@ -28,6 +28,7 @@ use std::collections::{HashMap, HashSet};
 
 pub(crate) fn lower_executable_with_entry(
     analysis: &CompileUnitAnalysis,
+    sources: &SourceMap,
     entry_name: &str,
 ) -> Result<IrModule, Vec<Diagnostic>> {
     let Some(root) = analysis.root_file() else {
@@ -55,13 +56,17 @@ pub(crate) fn lower_executable_with_entry(
 
     let function_signatures = function_index.signatures();
     let function_names = function_index.names();
-    let mut functions = vec![entry::lower_entry_function(
-        entry,
-        function_signatures.clone(),
-        function_names.clone(),
-        root.ast.span.source,
-        &root.resolved,
-    )?];
+    let mut functions = vec![
+        entry::lower_entry_function(
+            entry,
+            sources,
+            function_signatures.clone(),
+            function_names.clone(),
+            root.ast.span.source,
+            &root.resolved,
+        )
+        .map_err(|diagnostics| attach_primary_span_if_absent(diagnostics, sources, entry.span))?,
+    ];
     lower_reachable_functions(
         &mut functions,
         &function_index,
@@ -69,6 +74,7 @@ pub(crate) fn lower_executable_with_entry(
         &function_names,
         entry_name,
         root.ast.span.source,
+        sources,
     )?;
 
     Ok(IrModule::new(functions))
@@ -183,6 +189,7 @@ fn lower_reachable_functions(
     function_names: &FunctionNames,
     entry_name: &str,
     root_source: SourceId,
+    sources: &SourceMap,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut seen = HashSet::from([CallTarget::same_file(entry_name)]);
     let mut queue = reachable_call_targets(&lowered[0]);
@@ -208,6 +215,7 @@ fn lower_reachable_functions(
 
         let function = function.lower(
             target,
+            sources,
             function_signatures.clone(),
             function_names.clone(),
             root_source,
@@ -347,13 +355,16 @@ impl<'a> IndexedCallable<'a> {
     fn lower(
         &self,
         target: CallTarget,
+        sources: &SourceMap,
         function_signatures: FunctionSignatures,
         function_names: FunctionNames,
         root_source: SourceId,
     ) -> Result<Function, Vec<Diagnostic>> {
+        let span = self.declaration.span();
         match &self.declaration {
             IndexedDeclaration::Function(function) => functions::lower_function(
                 function,
+                sources,
                 target,
                 function_signatures,
                 function_names,
@@ -368,6 +379,7 @@ impl<'a> IndexedCallable<'a> {
                 declaration,
                 self_ty,
                 name.clone(),
+                sources,
                 target,
                 function_signatures,
                 function_names,
@@ -375,6 +387,7 @@ impl<'a> IndexedCallable<'a> {
                 self.resolved,
             ),
         }
+        .map_err(|diagnostics| attach_primary_span_if_absent(diagnostics, sources, span))
     }
 
     fn signature(&self) -> Option<FunctionSignature> {
@@ -422,6 +435,26 @@ impl<'a> IndexedCallable<'a> {
             } => Some((drop_name_span(declaration.span), name.clone())),
         }
     }
+}
+
+impl IndexedDeclaration<'_> {
+    fn span(&self) -> ByteSpan {
+        match self {
+            IndexedDeclaration::Function(function) => function.span,
+            IndexedDeclaration::Drop { declaration, .. } => declaration.span,
+        }
+    }
+}
+
+fn attach_primary_span_if_absent(
+    diagnostics: Vec<Diagnostic>,
+    sources: &SourceMap,
+    span: ByteSpan,
+) -> Vec<Diagnostic> {
+    diagnostics
+        .into_iter()
+        .map(|diagnostic| diagnostic.with_primary_span_if_absent(sources, span))
+        .collect()
 }
 
 fn call_target_for_source(source: SourceId, root_source: SourceId, name: String) -> CallTarget {

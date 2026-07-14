@@ -2,7 +2,7 @@
 
 mod text;
 
-use crate::source::JsonSpan;
+use crate::source::{ByteSpan, JsonSpan, SourceMap};
 use serde::Serialize;
 
 pub use text::write_text_diagnostics;
@@ -36,6 +36,13 @@ impl Diagnostic {
             notes: Vec::new(),
             help: None,
         }
+    }
+
+    pub fn with_primary_span_if_absent(mut self, sources: &SourceMap, span: ByteSpan) -> Self {
+        if self.primary_span.is_none() {
+            self.primary_span = sources.span_to_json(span).ok().map(Box::new);
+        }
+        self
     }
 }
 

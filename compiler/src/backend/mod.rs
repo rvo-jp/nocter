@@ -7,6 +7,7 @@ mod output;
 use crate::analysis::CompileUnitAnalysis;
 use crate::diagnostics::Diagnostic;
 use crate::ir::lower_executable_with_entry;
+use crate::source::SourceMap;
 use crate::target::DEFAULT_TARGET;
 use crate::target::macho::{ExecutableImage, write_arm64_macos_executable_with_data};
 use codegen::generate_arm64_darwin_entry;
@@ -15,6 +16,7 @@ use std::path::Path;
 
 pub(crate) struct BuildRequest<'a> {
     pub(crate) analysis: &'a CompileUnitAnalysis,
+    pub(crate) sources: &'a SourceMap,
     pub(crate) output_path: &'a Path,
     pub(crate) target: &'a str,
     pub(crate) entry_name: &'a str,
@@ -23,6 +25,7 @@ pub(crate) struct BuildRequest<'a> {
 pub(crate) fn build_executable(request: BuildRequest<'_>) -> Result<(), Vec<Diagnostic>> {
     let BuildRequest {
         analysis,
+        sources,
         output_path,
         target,
         entry_name,
@@ -35,7 +38,7 @@ pub(crate) fn build_executable(request: BuildRequest<'_>) -> Result<(), Vec<Diag
         )]);
     }
 
-    let ir = lower_executable_with_entry(analysis, entry_name)?;
+    let ir = lower_executable_with_entry(analysis, sources, entry_name)?;
     let machine_code = generate_arm64_darwin_entry(&ir, entry_name)?;
     let executable_image: ExecutableImage =
         write_arm64_macos_executable_with_data(&machine_code.text, &machine_code.read_only_data);

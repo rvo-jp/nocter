@@ -102,6 +102,7 @@ fn build_file_to_path_with_options(
 
     let diagnostics = match build_executable(BuildRequest {
         analysis,
+        sources: &output.sources,
         output_path,
         target: options.target.as_str(),
         entry_name,

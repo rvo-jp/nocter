@@ -41,10 +41,11 @@ use crate::ir::{
     UsizeValue,
 };
 use crate::resolve::ResolveOutput;
-use crate::source::SourceId;
+use crate::source::{ByteSpan, SourceId, SourceMap};
 
 pub(super) fn lower_function(
     function: &FunctionDecl,
+    sources: &SourceMap,
     target: CallTarget,
     function_signatures: FunctionSignatures,
     function_names: FunctionNames,
@@ -52,13 +53,17 @@ pub(super) fn lower_function(
     resolved: &ResolveOutput,
 ) -> Result<Function, Vec<Diagnostic>> {
     if !function.generics.parameters.is_empty() {
-        return Err(vec![Diagnostic::error(
-            "E8007",
-            format!(
-                "IR v0 can only lower non-generic functions, got `{}`",
-                function.name
-            ),
-        )]);
+        return Err(attach_primary_span_if_absent(
+            vec![Diagnostic::error(
+                "E8007",
+                format!(
+                    "IR v0 can only lower non-generic functions, got `{}`",
+                    function.name
+                ),
+            )],
+            sources,
+            function.generics.span.unwrap_or(function.span),
+        ));
     }
 
     let parameters = lower_scalar_parameters(
@@ -66,9 +71,23 @@ pub(super) fn lower_function(
         &function.parameters.parameters,
         root_source,
         resolved,
-    )?;
+        sources,
+    )
+    .map_err(|diagnostics| {
+        attach_primary_span_if_absent(diagnostics, sources, function.parameters.span)
+    })?;
     let parameter_setup = lower_aggregate_parameter_setup(&parameters);
-    let return_type = lower_function_return_type(&function.return_type, &function.name, resolved)?;
+    let return_type =
+        match lower_function_return_type(&function.return_type, &function.name, resolved) {
+            Ok(return_type) => return_type,
+            Err(diagnostics) => {
+                return Err(attach_primary_span_if_absent(
+                    diagnostics,
+                    sources,
+                    function.return_type.span(),
+                ));
+            }
+        };
     let success_type = return_type.success_type().clone();
     let mut context = LoweringContext::new(
         function.name.clone(),
@@ -85,6 +104,7 @@ pub(super) fn lower_function(
         &return_type,
         root_source,
         resolved,
+        sources,
         &mut context,
     )?);
 
@@ -100,6 +120,7 @@ pub(super) fn lower_drop_function(
     drop_: &DropDecl,
     self_ty: &TypeExpr,
     name: String,
+    sources: &SourceMap,
     target: CallTarget,
     function_signatures: FunctionSignatures,
     function_names: FunctionNames,
@@ -112,8 +133,14 @@ pub(super) fn lower_drop_function(
         name_span: drop_.binding.name_span,
         ty: type_expr_with_self_type(&drop_.binding.ty, self_ty),
     };
-    let parameters =
-        lower_scalar_parameters(&name, std::slice::from_ref(&binding), root_source, resolved)?;
+    let parameters = lower_scalar_parameters(
+        &name,
+        std::slice::from_ref(&binding),
+        root_source,
+        resolved,
+        sources,
+    )
+    .map_err(|diagnostics| attach_primary_span_if_absent(diagnostics, sources, binding.span))?;
     let parameter_setup = lower_aggregate_parameter_setup(&parameters);
     let return_type = Type::Void;
     let mut context = LoweringContext::new(
@@ -131,6 +158,7 @@ pub(super) fn lower_drop_function(
         &return_type,
         root_source,
         resolved,
+        sources,
         &mut context,
     )?);
 
@@ -147,6 +175,7 @@ fn lower_scalar_parameters(
     parameters: &[Parameter],
     root_source: SourceId,
     resolved: &ResolveOutput,
+    sources: &SourceMap,
 ) -> Result<LoweringParameterSlots, Vec<Diagnostic>> {
     let mut i32_parameters = Vec::new();
     let mut u8_parameters = Vec::new();
@@ -157,7 +186,9 @@ fn lower_scalar_parameters(
     let mut aggregate_parameters = Vec::new();
     let mut aggregate_borrow_parameters = Vec::new();
     for parameter in parameters {
-        match lower_scalar_parameter_kind(parameter, function_name, resolved)? {
+        match lower_scalar_parameter_kind(parameter, function_name, resolved).map_err(
+            |diagnostics| attach_primary_span_if_absent(diagnostics, sources, parameter.span),
+        )? {
             ScalarParameterKind::I32 => {
                 i32_parameters.push(Some(parameter.name.clone()));
                 u8_parameters.push(None);
@@ -540,6 +571,7 @@ fn lower_callable_body(
     return_type: &Type,
     root_source: SourceId,
     resolved: &ResolveOutput,
+    sources: &SourceMap,
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let success_type = return_type.success_type();
@@ -550,16 +582,27 @@ fn lower_callable_body(
     }
 
     let Some((last, leading)) = statements.split_last() else {
-        return Err(unsupported_function_body_diagnostic(function_name));
+        return Err(attach_primary_span_if_absent(
+            unsupported_function_body_diagnostic(function_name),
+            sources,
+            body.span,
+        ));
     };
 
-    let mut instructions = lower_leading_bindings(leading, context)?;
+    let mut instructions = lower_leading_bindings(leading, context).map_err(|diagnostics| {
+        let span = leading
+            .first()
+            .map_or(body.span, |statement| statement.span());
+        attach_primary_span_if_absent(diagnostics, sources, span)
+    })?;
 
     match last {
         Stmt::Return(statement) => {
             if let Some(expression) = &statement.expression
                 && let Some(return_instructions) =
-                    lower_never_return_expression(expression, context)?
+                    lower_never_return_expression(expression, context).map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, expression.span())
+                    })?
             {
                 instructions.extend(return_instructions);
                 return Ok(instructions);
@@ -568,7 +611,11 @@ fn lower_callable_body(
             if let Some(expression) = &statement.expression
                 && matches!(return_type, Type::Fallible(_))
                 && let Some(payload) =
-                    lower_error_payload(expression, resolved, root_source, Some(context))?
+                    lower_error_payload(expression, resolved, root_source, Some(context)).map_err(
+                        |diagnostics| {
+                            attach_primary_span_if_absent(diagnostics, sources, expression.span())
+                        },
+                    )?
             {
                 instructions.extend(append_scope_end_drops_before_exit(
                     lower_fallible_failure(payload),
@@ -583,7 +630,10 @@ fn lower_callable_body(
                     expression,
                     return_type,
                     context,
-                )?
+                )
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, expression.span())
+                })?
             {
                 instructions.extend(return_instructions);
                 return Ok(instructions);
@@ -694,7 +744,14 @@ fn lower_callable_body(
                 (Type::Fallible(_), _) => {
                     unreachable!("fallible success type must be unwrapped")
                 }
-            }?;
+            }
+            .map_err(|diagnostics| {
+                let span = statement
+                    .expression
+                    .as_ref()
+                    .map_or(statement.span, |expression| expression.span());
+                attach_primary_span_if_absent(diagnostics, sources, span)
+            })?;
             let return_instructions =
                 mark_fallible_success_returns(return_type, return_instructions);
             instructions.extend(append_scope_end_drops_before_exit(
@@ -710,7 +767,10 @@ fn lower_callable_body(
                 return_type,
                 "E8007",
                 "functions",
-            )?;
+            )
+            .map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, statement.span)
+            })?;
             instructions.extend(mark_fallible_success_returns(
                 return_type,
                 branch_instructions,
@@ -724,7 +784,10 @@ fn lower_callable_body(
                 return_type,
                 "E8007",
                 "functions",
-            )?;
+            )
+            .map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, statement.span)
+            })?;
             instructions.extend(mark_fallible_success_returns(
                 return_type,
                 branch_instructions,
@@ -738,7 +801,10 @@ fn lower_callable_body(
                 return_type,
                 "E8007",
                 "functions",
-            )?;
+            )
+            .map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, statement.span)
+            })?;
             instructions.extend(mark_fallible_success_returns(
                 return_type,
                 branch_instructions,
@@ -752,7 +818,10 @@ fn lower_callable_body(
                 return_type,
                 "E8007",
                 "functions",
-            )?;
+            )
+            .map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, statement.span)
+            })?;
             instructions.extend(mark_fallible_success_returns(
                 return_type,
                 branch_instructions,
@@ -766,7 +835,10 @@ fn lower_callable_body(
                 return_type,
                 "E8007",
                 "functions",
-            )?;
+            )
+            .map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, statement.span)
+            })?;
             instructions.extend(mark_fallible_success_returns(
                 return_type,
                 branch_instructions,
@@ -780,7 +852,10 @@ fn lower_callable_body(
                 return_type,
                 "E8007",
                 "functions",
-            )?;
+            )
+            .map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, statement.span)
+            })?;
             instructions.extend(mark_fallible_success_returns(
                 return_type,
                 branch_instructions,
@@ -794,7 +869,10 @@ fn lower_callable_body(
                 return_type,
                 "E8007",
                 "functions",
-            )?;
+            )
+            .map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, statement.span)
+            })?;
             instructions.extend(mark_fallible_success_returns(
                 return_type,
                 branch_instructions,
@@ -813,7 +891,10 @@ fn lower_callable_body(
                 success_type,
                 function_name,
                 resolved,
-            )?;
+            )
+            .map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, statement.span)
+            })?;
             instructions.extend(mark_fallible_success_returns(
                 return_type,
                 branch_instructions,
@@ -821,12 +902,25 @@ fn lower_callable_body(
             Ok(instructions)
         }
         Stmt::Expression(statement) => {
-            let Some(terminating_instructions) =
-                lower_never_return_expression(&statement.expression, context)?
+            let Some(terminating_instructions) = lower_never_return_expression(
+                &statement.expression,
+                context,
+            )
+            .map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, statement.expression.span())
+            })?
             else {
                 if success_type == &Type::Void
                     && let Some(void_instructions) =
-                        lower_void_expression_statement(&statement.expression, context)?
+                        lower_void_expression_statement(&statement.expression, context).map_err(
+                            |diagnostics| {
+                                attach_primary_span_if_absent(
+                                    diagnostics,
+                                    sources,
+                                    statement.expression.span(),
+                                )
+                            },
+                        )?
                 {
                     instructions.extend(void_instructions);
                     mark_explicit_moves_in_expression(&statement.expression, context);
@@ -837,13 +931,32 @@ fn lower_callable_body(
                     return Ok(instructions);
                 }
 
-                return Err(unsupported_function_body_diagnostic(function_name));
+                return Err(attach_primary_span_if_absent(
+                    unsupported_function_body_diagnostic(function_name),
+                    sources,
+                    statement.span,
+                ));
             };
             instructions.extend(terminating_instructions);
             Ok(instructions)
         }
-        _ => Err(unsupported_function_body_diagnostic(function_name)),
+        _ => Err(attach_primary_span_if_absent(
+            unsupported_function_body_diagnostic(function_name),
+            sources,
+            last.span(),
+        )),
     }
+}
+
+fn attach_primary_span_if_absent(
+    diagnostics: Vec<Diagnostic>,
+    sources: &SourceMap,
+    span: ByteSpan,
+) -> Vec<Diagnostic> {
+    diagnostics
+        .into_iter()
+        .map(|diagnostic| diagnostic.with_primary_span_if_absent(sources, span))
+        .collect()
 }
 
 fn lower_terminal_aggregate_if_statement(
