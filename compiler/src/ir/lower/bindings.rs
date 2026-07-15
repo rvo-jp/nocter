@@ -167,11 +167,10 @@ fn lower_aggregate_normal_call_binding(
     call: &CallExpr,
     context: &mut LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
-    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+    let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Ok(None);
     };
 
-    let target = context.call_target(call, &identifier.name);
     let Some(return_type) = context.call_return_type(&target).cloned() else {
         return Ok(None);
     };
@@ -186,7 +185,7 @@ fn lower_aggregate_normal_call_binding(
     let slot_index =
         context.define_aggregate_local(statement.name.clone(), layout, is_copy, drop_glue, fields);
     let (mut instructions, arguments) =
-        lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
+        lower_call_arguments_to_scalar_arguments(call, &target, &call_name, context)?;
     instructions.insert(0, Instruction::ReserveAggregateSlot { slot_index, layout });
     push_aggregate_call_instruction(
         &mut instructions,
@@ -205,11 +204,10 @@ fn lower_aggregate_fallible_call_binding(
     failure_mode: FallibleFailureMode,
     context: &mut LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
-    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+    let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Ok(None);
     };
 
-    let target = context.call_target(call, &identifier.name);
     let Some(Type::Fallible(success)) = context.call_return_type(&target).cloned() else {
         return Ok(None);
     };
@@ -224,7 +222,7 @@ fn lower_aggregate_fallible_call_binding(
     let slot_index =
         context.define_aggregate_local(statement.name.clone(), layout, is_copy, drop_glue, fields);
     let (mut instructions, arguments) =
-        lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
+        lower_call_arguments_to_scalar_arguments(call, &target, &call_name, context)?;
     instructions.insert(0, Instruction::ReserveAggregateSlot { slot_index, layout });
     push_fallible_aggregate_call_instruction(
         &mut instructions,
@@ -397,10 +395,9 @@ fn lower_aggregate_call_member_binding(
     field_path: &str,
     context: &mut LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
-    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+    let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Ok(None);
     };
-    let target = context.call_target(call, &identifier.name);
     let Some(return_type) = context.call_return_type(&target).cloned() else {
         return Ok(None);
     };
@@ -439,7 +436,7 @@ fn lower_aggregate_call_member_binding(
         lower_call_arguments_to_scalar_arguments_with_temporaries(
             call,
             &target,
-            &identifier.name,
+            &call_name,
             context,
             &mut temporaries,
         )?;
@@ -469,10 +466,9 @@ fn lower_aggregate_fallible_call_member_binding(
     failure_mode: FallibleFailureMode,
     context: &mut LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
-    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+    let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Ok(None);
     };
-    let target = context.call_target(call, &identifier.name);
     let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
         return Ok(None);
     };
@@ -511,7 +507,7 @@ fn lower_aggregate_fallible_call_member_binding(
         lower_call_arguments_to_scalar_arguments_with_temporaries(
             call,
             &target,
-            &identifier.name,
+            &call_name,
             context,
             &mut temporaries,
         )?;
@@ -884,10 +880,9 @@ fn lower_aggregate_call_member_value_assignment(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+    let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_assignment_diagnostic());
     };
-    let target = context.call_target(call, &identifier.name);
     let Some(return_type) = context.call_return_type(&target).cloned() else {
         return Err(unsupported_assignment_diagnostic());
     };
@@ -908,7 +903,7 @@ fn lower_aggregate_call_member_value_assignment(
         lower_call_arguments_to_scalar_arguments_with_temporaries(
             call,
             &target,
-            &identifier.name,
+            &call_name,
             context,
             &mut temporaries,
         )?;
@@ -939,10 +934,9 @@ fn lower_aggregate_fallible_call_member_value_assignment(
     failure_mode: FallibleFailureMode,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+    let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_assignment_diagnostic());
     };
-    let target = context.call_target(call, &identifier.name);
     let Some(Type::Fallible(success)) = context.call_return_type(&target).cloned() else {
         return Err(unsupported_assignment_diagnostic());
     };
@@ -963,7 +957,7 @@ fn lower_aggregate_fallible_call_member_value_assignment(
         lower_call_arguments_to_scalar_arguments_with_temporaries(
             call,
             &target,
-            &identifier.name,
+            &call_name,
             context,
             &mut temporaries,
         )?;
@@ -1200,11 +1194,10 @@ fn lower_aggregate_call_assignment(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+    let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_assignment_diagnostic());
     };
 
-    let target = context.call_target(call, &identifier.name);
     let Some(return_type) = context.call_return_type(&target).cloned() else {
         return Err(unsupported_assignment_diagnostic());
     };
@@ -1216,7 +1209,7 @@ fn lower_aggregate_call_assignment(
     }
 
     let (mut instructions, arguments) =
-        lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
+        lower_call_arguments_to_scalar_arguments(call, &target, &call_name, context)?;
     push_aggregate_call_instruction(
         &mut instructions,
         &return_type,
@@ -1235,11 +1228,10 @@ fn lower_aggregate_fallible_call_assignment(
     failure_mode: FallibleFailureMode,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+    let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_assignment_diagnostic());
     };
 
-    let target = context.call_target(call, &identifier.name);
     let Some(Type::Fallible(success)) = context.call_return_type(&target) else {
         return Err(unsupported_assignment_diagnostic());
     };
@@ -1251,7 +1243,7 @@ fn lower_aggregate_fallible_call_assignment(
     }
 
     let (mut instructions, arguments) =
-        lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
+        lower_call_arguments_to_scalar_arguments(call, &target, &call_name, context)?;
     push_fallible_aggregate_call_instruction(
         &mut instructions,
         success.as_ref(),
@@ -1364,11 +1356,10 @@ fn scalar_binding_kind(
 fn expression_is_bool_returning_call(expression: &Expr, context: &LoweringContext) -> bool {
     match expression {
         Expr::Call(call) => {
-            let Expr::Identifier(identifier) = call.callee.as_ref() else {
+            let Some((target, _call_name)) = context.direct_call_target_and_name(call) else {
                 return false;
             };
-            context.call_return_type(&context.call_target(call, &identifier.name))
-                == Some(&Type::Bool)
+            context.call_return_type(&target) == Some(&Type::Bool)
         }
         Expr::Unary(unary) => {
             unary.operator == UnaryOperator::LogicalNot

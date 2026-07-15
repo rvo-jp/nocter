@@ -346,10 +346,9 @@ pub(super) fn lower_void_expression_statement(
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => {
-            let Expr::Identifier(identifier) = call.callee.as_ref() else {
+            let Some((target, _call_name)) = context.direct_call_target_and_name(call) else {
                 return Ok(None);
             };
-            let target = context.call_target(call, &identifier.name);
             if context.call_return_type(&target) != Some(&Type::Void) {
                 return Ok(None);
             }
@@ -384,13 +383,12 @@ fn lower_fallible_void_expression_statement(
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => {
-            let Expr::Identifier(identifier) = call.callee.as_ref() else {
-                return Ok(None);
-            };
-            let target = context.call_target(call, &identifier.name);
+            let target = context
+                .direct_call_target_and_name(call)
+                .map(|(target, _call_name)| target);
             if !primitive_write_text_raw_call(call, context)
                 && !matches!(
-                    context.call_return_type(&target),
+                    target.as_ref().and_then(|target| context.call_return_type(target)),
                     Some(Type::Fallible(success)) if success.as_ref() == &Type::Void
                 )
             {
@@ -1423,22 +1421,20 @@ pub(super) fn lower_never_return_expression(
     match expression {
         Expr::Call(call) if primitive_trap_call(call, context) => Ok(Some(vec![Instruction::Trap])),
         Expr::Call(call) => {
-            let Expr::Identifier(identifier) = call.callee.as_ref() else {
+            let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
                 return Ok(None);
             };
-            let target = context.call_target(call, &identifier.name);
             if context.call_return_type(&target) != Some(&Type::Never) {
                 return Ok(None);
             }
 
             let mut temporaries = TemporaryAllocator::new(context)?;
             let (mut instructions, arguments) =
-                lower_call_arguments(call, &target, &identifier.name, context, &mut temporaries)?;
+                lower_call_arguments(call, &target, &call_name, context, &mut temporaries)?;
             let requires_current_frame = arguments
                 .iter()
                 .any(never_tail_call_argument_requires_current_frame);
-            if requires_current_frame || call_arguments_require_stack(&arguments, &identifier.name)?
-            {
+            if requires_current_frame || call_arguments_require_stack(&arguments, &call_name)? {
                 instructions.push(Instruction::CallVoid { target, arguments });
                 instructions.push(Instruction::Trap);
                 return Ok(Some(instructions));
@@ -2006,10 +2002,9 @@ fn lower_aggregate_call_member_field_access(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Option<LoweredAggregateFieldAccess>, Vec<Diagnostic>> {
-    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+    let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Ok(None);
     };
-    let target = context.call_target(call, &identifier.name);
     let Some(return_type) = context.call_return_type(&target).cloned() else {
         return Ok(None);
     };
@@ -2026,7 +2021,7 @@ fn lower_aggregate_call_member_field_access(
     let slot_index = temporaries.next_aggregate_slot();
     let mut instructions = vec![Instruction::ReserveAggregateSlot { slot_index, layout }];
     let (mut argument_instructions, arguments) =
-        lower_call_arguments(call, &target, &identifier.name, context, temporaries)?;
+        lower_call_arguments(call, &target, &call_name, context, temporaries)?;
     instructions.append(&mut argument_instructions);
     push_aggregate_call_instruction(
         &mut instructions,
@@ -2053,10 +2048,9 @@ fn lower_aggregate_fallible_call_member_field_access(
     temporaries: &mut TemporaryAllocator,
     failure_mode: FallibleFailureMode,
 ) -> Result<Option<LoweredAggregateFieldAccess>, Vec<Diagnostic>> {
-    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+    let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Ok(None);
     };
-    let target = context.call_target(call, &identifier.name);
     let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
         return Ok(None);
     };
@@ -2073,7 +2067,7 @@ fn lower_aggregate_fallible_call_member_field_access(
     let slot_index = temporaries.next_aggregate_slot();
     let mut instructions = vec![Instruction::ReserveAggregateSlot { slot_index, layout }];
     let (mut argument_instructions, arguments) =
-        lower_call_arguments(call, &target, &identifier.name, context, temporaries)?;
+        lower_call_arguments(call, &target, &call_name, context, temporaries)?;
     instructions.append(&mut argument_instructions);
     push_fallible_aggregate_call_instruction(
         &mut instructions,
@@ -2601,10 +2595,7 @@ fn byte_collection_expression_kind(
             }
         }
         Expr::Call(call) => {
-            let Expr::Identifier(identifier) = call.callee.as_ref() else {
-                return None;
-            };
-            let target = context.call_target(call, &identifier.name);
+            let (target, _call_name) = context.direct_call_target_and_name(call)?;
             match context.call_return_type(&target) {
                 Some(Type::Str) => Some(ByteCollectionKind::Str),
                 Some(Type::Slice { .. }) => Some(ByteCollectionKind::Slice),

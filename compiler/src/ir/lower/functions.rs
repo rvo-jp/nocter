@@ -1973,10 +1973,9 @@ fn lower_aggregate_fallible_call_return_to_location(
     context: &LoweringContext,
     failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+    let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     };
-    let target = context.call_target(call, &identifier.name);
     let Some(Type::Fallible(success_type)) = context.call_return_type(&target) else {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     };
@@ -1985,7 +1984,7 @@ fn lower_aggregate_fallible_call_return_to_location(
     }
 
     let (mut instructions, arguments) =
-        lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
+        lower_call_arguments_to_scalar_arguments(call, &target, &call_name, context)?;
     let (layout, _) = aggregate_return_layout_and_destination(return_type);
     push_fallible_aggregate_call_instruction(
         &mut instructions,
@@ -2006,10 +2005,9 @@ fn lower_aggregate_call_return_to_location(
     function_name: &str,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+    let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     };
-    let target = context.call_target(call, &identifier.name);
     let Some(callee_return_type) = context.call_return_type(&target) else {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     };
@@ -2018,7 +2016,7 @@ fn lower_aggregate_call_return_to_location(
     }
 
     let (mut instructions, arguments) =
-        lower_call_arguments_to_scalar_arguments(call, &target, &identifier.name, context)?;
+        lower_call_arguments_to_scalar_arguments(call, &target, &call_name, context)?;
     let (layout, _) = aggregate_return_layout_and_destination(return_type);
     push_aggregate_call_instruction(
         &mut instructions,
