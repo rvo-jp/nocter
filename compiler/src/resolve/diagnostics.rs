@@ -72,6 +72,31 @@ pub(super) fn duplicate_inherent_member_name_diagnostic(
     diagnostic
 }
 
+pub(super) fn invalid_associated_function_owner_diagnostic(
+    sources: &SourceMap,
+    owner_name: &str,
+    owner_span: ByteSpan,
+    reason: &str,
+    declaration_span: Option<ByteSpan>,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0414",
+        format!("associated function owner `{owner_name}` {reason}"),
+    );
+    diagnostic.primary_span = sources.span_to_json(owner_span).ok().map(Box::new);
+    if let Some(declaration_span) = declaration_span
+        && let Ok(span) = sources.span_to_json(declaration_span)
+    {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "owner name resolves here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help =
+        Some("define associated functions for the nominal type in the same module".to_string());
+    diagnostic
+}
+
 pub(super) fn unloaded_import_diagnostic(
     sources: &SourceMap,
     import_path: &str,

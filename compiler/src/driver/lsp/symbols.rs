@@ -136,10 +136,10 @@ fn impl_member_document_symbol(text: &str, member: &ImplMember) -> Value {
     match member {
         ImplMember::Function(function) => document_symbol(
             text,
-            &function.name,
+            &function.member_name,
             LSP_SYMBOL_KIND_FUNCTION,
             function.span,
-            function.name_span,
+            function.member_name_span,
             Vec::new(),
         ),
         ImplMember::Method(method) => method_document_symbol(text, method),

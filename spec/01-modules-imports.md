@@ -221,11 +221,9 @@ pub struct Config {
     pub name: &str
 }
 
-impl Config {
-    pub func default(): Config {
-        return Config{
-            name: "Nocter",
-        }
+pub func Config.default(): Config {
+    return Config{
+        name: "Nocter",
     }
 }
 ```
@@ -396,11 +394,11 @@ pub struct File {
     fd: i32
 }
 
-impl File {
-    pub func open(path: &str): File! {
-        ...
-    }
+pub func File.open(path: &str): File! {
+    ...
+}
 
+impl File {
     method (file: &Self).raw_fd(): i32 {
         return file.fd
     }
@@ -435,8 +433,8 @@ Rules:
 - Struct fields are private by default.
 - Public struct fields must be marked with `pub`.
 - `pub(nocter)` struct fields are visible only to modules inside the active Nocter home.
-- Functions and methods inside `impl` blocks are private by default.
-- Public associated functions and methods must be marked with `pub`.
+- Functions and methods are private by default.
+- Public associated functions declared as `func Type.name` and public methods inside `impl` blocks must be marked with `pub`.
 - Nocter-distribution-internal associated functions and methods may be marked with `pub(nocter)`.
 - `impl` blocks themselves are not marked `pub`.
 - Enum variants follow the visibility of their enum in the initial design.

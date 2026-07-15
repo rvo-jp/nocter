@@ -62,17 +62,17 @@ func main(): i32 {
 }
 
 #[test]
-fn parses_impl_trait_methods_and_generic_bounds() {
+fn parses_qualified_associated_functions_impl_trait_methods_and_generic_bounds() {
     let output = parse_text(
         r#"pub struct Counter {
     value: i32
 }
 
-impl Counter {
-    pub func zero(): i32 {
-        return 0
-    }
+pub func Counter.zero(): i32 {
+    return 0
+}
 
+impl Counter {
     pub method (counter: &+Self).add(value: i32): void {
         return
     }
@@ -105,7 +105,15 @@ func main(): i32 {
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
 
-    let Item::Impl(inherent_impl) = &ast.items[1] else {
+    let Item::Function(associated_function) = &ast.items[1] else {
+        panic!("expected associated function");
+    };
+    assert_eq!(associated_function.name, "Counter.zero");
+    assert_eq!(associated_function.member_name, "zero");
+    let owner = associated_function.owner.as_ref().unwrap();
+    assert_eq!(owner.name, "Counter");
+
+    let Item::Impl(inherent_impl) = &ast.items[2] else {
         panic!("expected inherent impl");
     };
     assert!(inherent_impl.trait_ty.is_none());
@@ -113,17 +121,13 @@ func main(): i32 {
         &inherent_impl.target_ty,
         TypeExpr::Reference(reference) if reference.name == "Counter"
     ));
-    assert!(matches!(
-        &inherent_impl.members[0],
-        ImplMember::Function(function) if function.name == "zero"
-    ));
-    let ImplMember::Method(method) = &inherent_impl.members[1] else {
+    let ImplMember::Method(method) = &inherent_impl.members[0] else {
         panic!("expected method");
     };
     assert_eq!(method.name, "add");
     assert!(method.body.is_some());
     assert!(matches!(&method.receiver.ty, TypeExpr::Borrow(_)));
-    let ImplMember::Drop(drop_) = &inherent_impl.members[2] else {
+    let ImplMember::Drop(drop_) = &inherent_impl.members[1] else {
         panic!("expected drop member");
     };
     assert_eq!(drop_.binding.name, "counter");
@@ -132,7 +136,7 @@ func main(): i32 {
         TypeExpr::Borrow(borrow) if borrow.is_readwrite
     ));
 
-    let Item::Trait(trait_) = &ast.items[2] else {
+    let Item::Trait(trait_) = &ast.items[3] else {
         panic!("expected trait");
     };
     assert_eq!(trait_.visibility, Visibility::Public);
@@ -141,7 +145,7 @@ func main(): i32 {
     assert_eq!(trait_.methods[0].name, "write");
     assert!(trait_.methods[0].body.is_none());
 
-    let Item::Impl(trait_impl) = &ast.items[3] else {
+    let Item::Impl(trait_impl) = &ast.items[4] else {
         panic!("expected trait impl");
     };
     assert!(trait_impl.trait_ty.is_some());
@@ -150,7 +154,7 @@ func main(): i32 {
         TypeExpr::Reference(reference) if reference.name == "Counter"
     ));
 
-    let Item::Function(function) = &ast.items[4] else {
+    let Item::Function(function) = &ast.items[5] else {
         panic!("expected generic function");
     };
     assert_eq!(function.generics.parameters.len(), 1);
@@ -159,6 +163,25 @@ func main(): i32 {
         &function.generics.parameters[0].bound,
         Some(TypeExpr::Reference(reference)) if reference.name == "Writer"
     ));
+}
+
+#[test]
+fn rejects_function_members_in_impl_blocks() {
+    let output = parse_text(
+        r#"struct Counter {
+    value: i32
+}
+
+impl Counter {
+    func zero(): i32 {
+        return 0
+    }
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(output.diagnostics[0].message.contains("func Type.name"));
 }
 
 #[test]

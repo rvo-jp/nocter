@@ -118,10 +118,8 @@ func main(): i32 {
     pub x: i32
 }
 
-impl Point {
-    pub func origin(): Point {
-        return Point{ x: 0 }
-    }
+pub func Point.origin(): Point {
+    return Point{ x: 0 }
 }
 "#,
     )
@@ -156,11 +154,11 @@ func main(): i32 {
     pub x: i32
 }
 
-impl Point {
-    pub func origin(): Point {
-        return Point{ x: 0 }
-    }
+pub func Point.origin(): Point {
+    return Point{ x: 0 }
+}
 
+impl Point {
     pub method (point: Self).x_value(): i32 {
         return point.x
     }
@@ -231,11 +229,11 @@ func main(): i32 {
     pub x: i32
 }
 
-impl Point {
-    pub func origin(): Point {
-        return Point{ x: 0 }
-    }
+pub func Point.origin(): Point {
+    return Point{ x: 0 }
+}
 
+impl Point {
     pub method (point: Self).origin(): i32 {
         return point.x
     }

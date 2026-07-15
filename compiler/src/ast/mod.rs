@@ -80,12 +80,21 @@ pub struct ImportedName {
 pub struct FunctionDecl {
     pub span: ByteSpan,
     pub visibility: Visibility,
+    pub owner: Option<FunctionOwner>,
     pub name: String,
     pub name_span: ByteSpan,
+    pub member_name: String,
+    pub member_name_span: ByteSpan,
     pub generics: GenericParamList,
     pub parameters: ParameterList,
     pub return_type: TypeExpr,
     pub body: Block,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FunctionOwner {
+    pub name: String,
+    pub name_span: ByteSpan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

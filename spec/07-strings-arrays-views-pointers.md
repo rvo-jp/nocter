@@ -407,8 +407,9 @@ func open(path: &str): File! {
 Adopted method surface direction:
 
 ```nct
+pub func String.copy(allocator: &+Allocator, text: &str): String!
+
 impl String {
-    pub func copy(allocator: &+Allocator, text: &str): String!
     pub method (text: &Self).view(): &str
 }
 

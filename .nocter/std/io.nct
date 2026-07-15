@@ -44,12 +44,12 @@ pub func stderr(): File {
     return File { fd: stderr_impl(), close_on_drop: false }
 }
 
-impl File {
-    pub func open(path: &str): File! {
-        let fd = open_read_impl(path)?
-        return File { fd: fd, close_on_drop: true }
-    }
+pub func File.open(path: &str): File! {
+    let fd = open_read_impl(path)?
+    return File { fd: fd, close_on_drop: true }
+}
 
+impl File {
     pub method (file: &+Self).read(buffer: &+[u8]): usize! {
         return unsupported()
     }

@@ -609,12 +609,10 @@ Rules:
 When initialization logic or validation is needed, use an ordinary associated function.
 
 ```nct
-impl User {
-    pub func create(id: u64, name: String): User {
-        return User{
-            id: id,
-            name: move name,
-        }
+pub func User.create(id: u64, name: String): User {
+    return User{
+        id: id,
+        name: move name,
     }
 }
 ```

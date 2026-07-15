@@ -292,7 +292,7 @@ impl ImplMember {
         match self {
             ImplMember::Function(function) => JsonAstNode::with_value(
                 "associated_function_decl",
-                function.name.clone(),
+                function.member_name.clone(),
                 json_span(sources, function.span),
                 vec![
                     visibility_json(function.visibility),

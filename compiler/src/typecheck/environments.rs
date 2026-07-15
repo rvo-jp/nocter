@@ -6,7 +6,7 @@ use super::type_expr::{
     type_expr_display_lossy, type_expr_to_type, type_expr_to_type_in_environment,
 };
 use crate::ast::{
-    Expr, ForRangeStmt, IfIsStmt, IfLetStmt, ImplDecl, MethodDecl, Parameter,
+    Expr, ForRangeStmt, FunctionDecl, IfIsStmt, IfLetStmt, ImplDecl, MethodDecl, Parameter,
     PatternConditionalArm, SwitchArm, WhileLetStmt,
 };
 use crate::resolve::{ResolveOutput, TypeSymbolKind};
@@ -28,6 +28,33 @@ pub(super) fn environment_for_parameters_with_self_type(
     let mut environment = TypeEnvironment::with_self_type(self_type);
     define_parameters_in_environment(parameters, resolved, &mut environment);
     environment
+}
+
+pub(super) fn environment_for_function(
+    function: &FunctionDecl,
+    resolved: &ResolveOutput,
+) -> TypeEnvironment {
+    match function_self_type(function, resolved) {
+        Some(self_type) => environment_for_parameters_with_self_type(
+            &function.parameters.parameters,
+            resolved,
+            self_type,
+        ),
+        None => environment_for_parameters(&function.parameters.parameters, resolved),
+    }
+}
+
+pub(super) fn function_self_type(
+    function: &FunctionDecl,
+    resolved: &ResolveOutput,
+) -> Option<Type> {
+    let owner = function.owner.as_ref()?;
+    Some(
+        resolved
+            .type_symbol_by_name(&owner.name)
+            .map(|symbol| Type::Named(symbol.canonical_name.clone()))
+            .unwrap_or_else(|| Type::Unresolved(owner.name.clone())),
+    )
 }
 
 pub(super) fn environment_for_method(

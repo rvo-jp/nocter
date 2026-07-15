@@ -95,10 +95,8 @@ fn accepts_associated_function_return_type() {
     x: i32
 }
 
-impl Point {
-    pub func origin(): Self {
-        return Self{ x: 0 }
-    }
+pub func Point.origin(): Self {
+    return Self{ x: 0 }
 }
 
 func main(): i32 {
@@ -117,10 +115,8 @@ fn diagnoses_associated_function_argument_count_mismatch() {
     value: i32
 }
 
-impl Parser {
-    pub func parse(value: i32): i32 {
-        return value
-    }
+pub func Parser.parse(value: i32): i32 {
+    return value
 }
 
 func main(): i32 {
@@ -141,10 +137,8 @@ fn diagnoses_associated_function_argument_type_mismatch() {
     value: i32
 }
 
-impl Parser {
-    pub func parse(value: i32): i32 {
-        return value
-    }
+pub func Parser.parse(value: i32): i32 {
+    return value
 }
 
 func main(): i32 {
@@ -164,10 +158,8 @@ fn diagnoses_associated_function_body_return_type_mismatch() {
     value: i32
 }
 
-impl Parser {
-    pub func parse(): i32 {
-        return "bad"
-    }
+pub func Parser.parse(): i32 {
+    return "bad"
 }
 
 func main(): i32 {
@@ -192,10 +184,8 @@ fn diagnoses_associated_function_body_call_argument_mismatch() {
     value: i32
 }
 
-impl Parser {
-    pub func parse(): i32 {
-        return needs_value()
-    }
+pub func Parser.parse(): i32 {
+    return needs_value()
 }
 
 func needs_value(value: i32): i32 {

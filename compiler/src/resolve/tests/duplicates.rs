@@ -37,20 +37,56 @@ func answer(): i32 {
 }
 
 #[test]
-fn diagnoses_duplicate_inherent_associated_function_names_in_same_impl() {
+fn diagnoses_associated_function_owner_that_is_not_a_type() {
+    let output = resolve_text(
+        r#"func Parser(): i32 {
+    return 0
+}
+
+func Parser.new(): i32 {
+    return 1
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0414");
+}
+
+#[test]
+fn diagnoses_unknown_associated_function_owner() {
+    let output = resolve_text(
+        r#"func Parser.new(): i32 {
+    return 1
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0414");
+}
+
+#[test]
+fn diagnoses_duplicate_inherent_associated_function_names() {
     let output = resolve_text(
         r#"struct File {
     fd: i32
 }
 
-impl File {
-    func open(): i32 {
-        return 0
-    }
+func File.open(): i32 {
+    return 0
+}
 
-    func open(path: &str): i32 {
-        return 1
-    }
+func File.open(path: &str): i32 {
+    return 1
 }
 
 func main(): i32 {
@@ -99,11 +135,11 @@ fn diagnoses_duplicate_inherent_function_and_method_name() {
     fd: i32
 }
 
-impl File {
-    func open(): i32 {
-        return 0
-    }
+func File.open(): i32 {
+    return 0
+}
 
+impl File {
     method (file: Self).open(): i32 {
         return file.fd
     }

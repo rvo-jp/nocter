@@ -396,10 +396,8 @@ impl TempProject {
                 "pub type Error = error\n",
                 "pub(nocter) primitive new_error(code: &str, message: &str): error\n",
                 "\n",
-                "impl Error {\n",
-                "    pub func new(code: ErrorCode, message: &str): Error {\n",
-                "        return new_error(code, message)\n",
-                "    }\n",
+                "pub func Error.new(code: ErrorCode, message: &str): Error {\n",
+                "    return new_error(code, message)\n",
                 "}\n",
             ),
         )

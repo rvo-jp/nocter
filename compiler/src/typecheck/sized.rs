@@ -1,6 +1,7 @@
 mod value;
 mod walk;
 
+use super::environments::function_self_type;
 use super::model::Type;
 use super::type_expr::type_expr_to_type_with_self_type;
 use crate::ast::{
@@ -23,7 +24,8 @@ pub(super) fn check_sized_value_types(
     for item in &ast.items {
         match item {
             Item::Function(function) => {
-                check_function(sources, function, resolved, None, diagnostics);
+                let self_type = function_self_type(function, resolved);
+                check_function(sources, function, resolved, self_type.as_ref(), diagnostics);
             }
             Item::Primitive(primitive) => {
                 check_primitive(sources, primitive, resolved, diagnostics);

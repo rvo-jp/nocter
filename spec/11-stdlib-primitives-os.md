@@ -107,9 +107,7 @@ Initial public surface direction:
 pub type ErrorCode = &str
 pub type Error = error
 
-impl Error {
-    pub func new(code: ErrorCode, message: &str): Error
-}
+pub func Error.new(code: ErrorCode, message: &str): Error
 ```
 
 Initial standard-library implementation boundary:
@@ -117,10 +115,8 @@ Initial standard-library implementation boundary:
 ```nct
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-impl Error {
-    pub func new(code: ErrorCode, message: &str): Error {
-        return new_error(code, message)
-    }
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
 }
 ```
 
@@ -183,8 +179,9 @@ pub struct File {
     ...
 }
 
+pub func File.open(path: &str): File!
+
 impl File {
-    pub func open(path: &str): File!
     pub method (file: &+Self).read(buffer: &+[u8]): usize!
     pub method (file: &+Self).write(bytes: &[u8]): void!
     pub method (file: &+Self).write_text(text: &str): void!

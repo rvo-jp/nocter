@@ -1,13 +1,14 @@
 use super::builtins::is_reserved_type_declaration_name;
 use super::diagnostics::{
     builtin_type_declaration_name_reuse_diagnostic, duplicate_visible_name_diagnostic,
+    invalid_associated_function_owner_diagnostic,
 };
 use super::signatures::{
-    alias_type_symbol, associated_function_signatures, drop_signature,
-    duplicate_inherent_drop_diagnostics, duplicate_inherent_member_name_diagnostics,
-    enum_type_symbol, function_signature, impl_target_type_name, method_signatures,
-    nominal_type_symbol, primitive_signature, struct_type_symbol,
-    type_symbol_accepts_inherent_impl,
+    alias_type_symbol, associated_function_signature, associated_function_signatures,
+    drop_signature, duplicate_inherent_drop_diagnostics,
+    duplicate_inherent_member_name_diagnostics, enum_type_symbol, function_signature,
+    impl_target_type_name, method_signatures, nominal_type_symbol, primitive_signature,
+    struct_type_symbol, type_symbol_accepts_inherent_impl,
 };
 use super::{Resolver, SymbolKind, TypeSymbol, TypeSymbolKind};
 use crate::ast::{AstFile, FunctionDecl, ImplDecl, Item, PrimitiveDecl};
@@ -20,7 +21,10 @@ impl Resolver<'_> {
                 Item::Use(item) => self.collect_use_symbols(item),
                 Item::Import(item) => self.collect_import_namespace_symbol(item),
                 Item::FromImport(item) => self.collect_imported_symbols(item),
-                Item::Function(function) => self.collect_function_symbol(function),
+                Item::Function(function) if function.owner.is_none() => {
+                    self.collect_function_symbol(function);
+                }
+                Item::Function(_) => {}
                 Item::Primitive(primitive) => self.collect_primitive_symbol(primitive),
                 Item::TypeAlias(alias) => self.collect_type_symbol(
                     alias.name.clone(),
@@ -47,6 +51,14 @@ impl Resolver<'_> {
                     nominal_type_symbol(trait_.name.clone(), TypeSymbolKind::Trait),
                 ),
                 Item::Impl(_) => {}
+            }
+        }
+
+        for item in &ast.items {
+            if let Item::Function(function) = item
+                && function.owner.is_some()
+            {
+                self.collect_top_level_associated_function(function);
             }
         }
 
@@ -97,6 +109,83 @@ impl Resolver<'_> {
             primitive.name_span,
             SymbolKind::Primitive(primitive_signature(primitive)),
         );
+    }
+
+    fn collect_top_level_associated_function(&mut self, function: &FunctionDecl) {
+        let Some(owner) = &function.owner else {
+            return;
+        };
+        let Some(symbol_id) = self.output.symbols.by_name.get(&owner.name).copied() else {
+            self.output
+                .diagnostics
+                .push(invalid_associated_function_owner_diagnostic(
+                    self.sources,
+                    &owner.name,
+                    owner.name_span,
+                    "must name a type declared in this module",
+                    None,
+                ));
+            return;
+        };
+        let Some(symbol) = self
+            .output
+            .symbols
+            .symbols
+            .get_mut(symbol_id.raw() as usize)
+        else {
+            return;
+        };
+
+        if symbol.declaration_span.source != function.name_span.source {
+            self.output
+                .diagnostics
+                .push(invalid_associated_function_owner_diagnostic(
+                    self.sources,
+                    &owner.name,
+                    owner.name_span,
+                    "must be defined in the same module as the associated function",
+                    Some(symbol.declaration_span),
+                ));
+            return;
+        }
+
+        let symbol_declaration_span = symbol.declaration_span;
+        let SymbolKind::Type(type_symbol) = &mut symbol.kind else {
+            self.output
+                .diagnostics
+                .push(invalid_associated_function_owner_diagnostic(
+                    self.sources,
+                    &owner.name,
+                    owner.name_span,
+                    "must name a type declared in this module",
+                    Some(symbol_declaration_span),
+                ));
+            return;
+        };
+
+        if !type_symbol_accepts_inherent_impl(type_symbol) {
+            self.output
+                .diagnostics
+                .push(invalid_associated_function_owner_diagnostic(
+                    self.sources,
+                    &owner.name,
+                    owner.name_span,
+                    "must name a nominal type that accepts inherent members",
+                    Some(symbol_declaration_span),
+                ));
+            return;
+        }
+
+        let diagnostics = duplicate_associated_function_name_diagnostics(
+            self.sources,
+            &owner.name,
+            type_symbol,
+            function,
+        );
+        type_symbol
+            .associated_functions
+            .push(associated_function_signature(function));
+        self.output.diagnostics.extend(diagnostics);
     }
 
     fn collect_type_symbol(
@@ -174,4 +263,38 @@ impl Resolver<'_> {
         };
         self.output.diagnostics.extend(diagnostics);
     }
+}
+
+fn duplicate_associated_function_name_diagnostics(
+    sources: &crate::source::SourceMap,
+    target_name: &str,
+    type_symbol: &TypeSymbol,
+    function: &FunctionDecl,
+) -> Vec<crate::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let name = function.member_name.as_str();
+    if let Some(first_span) = type_symbol
+        .associated_functions
+        .iter()
+        .find(|associated| associated.name == name)
+        .map(|associated| associated.name_span)
+        .or_else(|| {
+            type_symbol
+                .methods
+                .iter()
+                .find(|method| method.name == name)
+                .map(|method| method.name_span)
+        })
+    {
+        diagnostics.push(
+            super::diagnostics::duplicate_inherent_member_name_diagnostic(
+                sources,
+                target_name,
+                name,
+                first_span,
+                function.member_name_span,
+            ),
+        );
+    }
+    diagnostics
 }

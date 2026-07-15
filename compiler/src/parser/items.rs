@@ -1,8 +1,9 @@
 use super::{ParseResult, Parser};
 use crate::ast::{
-    AstFile, DropDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl, ImplDecl, ImplMember,
-    ImportAlias, ImportItem, ImportedName, Item, MethodDecl, ModulePath, Parameter, ParameterList,
-    PrimitiveDecl, StructDecl, StructField, TraitDecl, TypeAliasDecl, UseItem, Visibility,
+    AstFile, DropDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl, FunctionOwner,
+    ImplDecl, ImplMember, ImportAlias, ImportItem, ImportedName, Item, MethodDecl, ModulePath,
+    Parameter, ParameterList, PrimitiveDecl, StructDecl, StructField, TraitDecl, TypeAliasDecl,
+    UseItem, Visibility,
 };
 use crate::lexer::Keyword;
 use crate::source::ByteSpan;
@@ -221,7 +222,30 @@ impl Parser<'_> {
         visibility: Visibility,
     ) -> ParseResult<FunctionDecl> {
         let start = self.expect_keyword(Keyword::Func, "`func`")?;
-        let name = self.expect_identifier("expected function name after `func`")?;
+        let first_name = self.expect_identifier("expected function name after `func`")?;
+        let (owner, name, name_span, member_name, member_name_span) =
+            if self.match_punctuation(".").is_some() {
+                let member =
+                    self.expect_identifier("expected associated function name after `.`")?;
+                (
+                    Some(FunctionOwner {
+                        name: first_name.value.clone(),
+                        name_span: first_name.span,
+                    }),
+                    format!("{}.{}", first_name.value, member.value),
+                    self.span(first_name.span.start, member.span.end),
+                    member.value,
+                    member.span,
+                )
+            } else {
+                (
+                    None,
+                    first_name.value.clone(),
+                    first_name.span,
+                    first_name.value,
+                    first_name.span,
+                )
+            };
         let generics = self.parse_generic_param_list()?;
         let parameters = self.parse_parameter_list()?;
         self.expect_punctuation(":", "`:`")?;
@@ -232,8 +256,11 @@ impl Parser<'_> {
         Ok(FunctionDecl {
             span: self.span(start.span.start, end),
             visibility,
-            name: name.value,
-            name_span: name.span,
+            owner,
+            name,
+            name_span,
+            member_name,
+            member_name_span,
             generics,
             parameters,
             return_type,
@@ -444,9 +471,10 @@ impl Parser<'_> {
 
             let visibility = self.parse_visibility()?;
             if self.at_keyword(Keyword::Func) {
-                members.push(ImplMember::Function(
-                    self.parse_function_decl_data(visibility)?,
-                ));
+                self.error_current(
+                    "`func` declarations are written at top level as `func Type.name(...)` in v0",
+                );
+                return Err(());
             } else if self.at_keyword(Keyword::Method) {
                 members.push(ImplMember::Method(
                     self.parse_method_decl(visibility, true)?,

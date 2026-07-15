@@ -21,6 +21,10 @@ pub(super) fn attach_inherent_impl_members_to_symbol(
         return;
     }
 
+    symbol
+        .associated_functions
+        .extend(top_level_associated_function_signatures(ast, type_name));
+
     for item in &ast.items {
         let crate::ast::Item::Impl(impl_) = item else {
             continue;
@@ -59,15 +63,34 @@ pub(super) fn associated_function_signatures(
     impl_: &ImplDecl,
 ) -> impl Iterator<Item = AssociatedFunctionSignature> + '_ {
     impl_.members.iter().filter_map(|member| match member {
-        ImplMember::Function(function) => Some(AssociatedFunctionSignature {
-            name: function.name.clone(),
-            name_span: function.name_span,
-            visibility: function.visibility,
-            is_accessible: true,
-            signature: function_signature(function),
-        }),
+        ImplMember::Function(function) => Some(associated_function_signature(function)),
         ImplMember::Method(_) | ImplMember::Drop(_) => None,
     })
+}
+
+pub(super) fn top_level_associated_function_signatures<'a>(
+    ast: &'a AstFile,
+    type_name: &'a str,
+) -> impl Iterator<Item = AssociatedFunctionSignature> + 'a {
+    ast.items.iter().filter_map(move |item| {
+        let crate::ast::Item::Function(function) = item else {
+            return None;
+        };
+        let owner = function.owner.as_ref()?;
+        (owner.name == type_name).then(|| associated_function_signature(function))
+    })
+}
+
+pub(super) fn associated_function_signature(
+    function: &FunctionDecl,
+) -> AssociatedFunctionSignature {
+    AssociatedFunctionSignature {
+        name: function.member_name.clone(),
+        name_span: function.member_name_span,
+        visibility: function.visibility,
+        is_accessible: true,
+        signature: function_signature(function),
+    }
 }
 
 pub(super) fn method_signatures(impl_: &ImplDecl) -> impl Iterator<Item = MethodSignature> + '_ {
@@ -107,7 +130,9 @@ pub(super) fn duplicate_inherent_member_name_diagnostics(
 
     for member in &impl_.members {
         let (name, span) = match member {
-            ImplMember::Function(function) => (function.name.as_str(), function.name_span),
+            ImplMember::Function(function) => {
+                (function.member_name.as_str(), function.member_name_span)
+            }
             ImplMember::Method(method) => (method.name.as_str(), method.name_span),
             ImplMember::Drop(_) => continue,
         };

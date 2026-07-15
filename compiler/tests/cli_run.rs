@@ -3630,10 +3630,8 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-impl Error {
-    pub func new(code: ErrorCode, message: &str): Error {
-        return new_error(code, message)
-    }
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
 }
 "#,
     );
@@ -3684,10 +3682,8 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-impl Error {
-    pub func new(code: ErrorCode, message: &str): Error {
-        return new_error(code, message)
-    }
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
 }
 "#,
     );
@@ -3734,10 +3730,8 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-impl Error {
-    pub func new(code: ErrorCode, message: &str): Error {
-        return new_error(code, message)
-    }
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
 }
 "#,
     );
@@ -3789,10 +3783,8 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-impl Error {
-    pub func new(code: ErrorCode, message: &str): Error {
-        return new_error(code, message)
-    }
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
 }
 "#,
     );
@@ -3978,10 +3970,8 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-impl Error {
-    pub func new(code: ErrorCode, message: &str): Error {
-        return new_error(code, message)
-    }
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
 }
 "#,
     );
@@ -4034,10 +4024,8 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-impl Error {
-    pub func new(code: ErrorCode, message: &str): Error {
-        return new_error(code, message)
-    }
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
 }
 "#,
     );
@@ -4089,10 +4077,8 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-impl Error {
-    pub func new(code: ErrorCode, message: &str): Error {
-        return new_error(code, message)
-    }
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
 }
 "#,
     );
@@ -4143,10 +4129,8 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-impl Error {
-    pub func new(code: ErrorCode, message: &str): Error {
-        return new_error(code, message)
-    }
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
 }
 "#,
     );
@@ -4193,10 +4177,8 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-impl Error {
-    pub func new(code: ErrorCode, message: &str): Error {
-        return new_error(code, message)
-    }
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
 }
 "#,
     );
@@ -4244,10 +4226,8 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-impl Error {
-    pub func new(code: ErrorCode, message: &str): Error {
-        return new_error(code, message)
-    }
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
 }
 "#,
     );
@@ -4301,10 +4281,8 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-impl Error {
-    pub func new(code: ErrorCode, message: &str): Error {
-        return new_error(code, message)
-    }
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
 }
 "#,
     );
@@ -4357,10 +4335,8 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-impl Error {
-    pub func new(code: ErrorCode, message: &str): Error {
-        return new_error(code, message)
-    }
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
 }
 "#,
     );
@@ -4421,10 +4397,8 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-impl Error {
-    pub func new(code: ErrorCode, message: &str): Error {
-        return new_error(code, message)
-    }
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
 }
 "#,
     );
@@ -4484,10 +4458,8 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-impl Error {
-    pub func new(code: ErrorCode, message: &str): Error {
-        return new_error(code, message)
-    }
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
 }
 "#,
     );
@@ -4543,10 +4515,8 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-impl Error {
-    pub func new(code: ErrorCode, message: &str): Error {
-        return new_error(code, message)
-    }
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
 }
 "#,
     );
@@ -6190,10 +6160,8 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-impl Error {
-    pub func new(code: ErrorCode, message: &str): Error {
-        return new_error(code, message)
-    }
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
 }
 "#,
     );
@@ -6225,10 +6193,8 @@ pub type Error = error
 
 pub(nocter) primitive new_error(code: &str, message: &str): error
 
-impl Error {
-    pub func new(code: ErrorCode, message: &str): Error {
-        return new_error(code, message)
-    }
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
 }
 "#,
     );

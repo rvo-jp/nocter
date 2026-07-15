@@ -2,8 +2,8 @@ use super::bindings::continuing_binding_type;
 use super::calls::{method_member_for_call, resolved_method_for_call};
 use super::diagnostics::{invalid_drop_target_diagnostic, uninitialized_binding_diagnostic};
 use super::environments::{
-    environment_for_catch, environment_for_for_range_binding, environment_for_if_is_binding,
-    environment_for_if_let_binding, environment_for_method, environment_for_parameters,
+    environment_for_catch, environment_for_for_range_binding, environment_for_function,
+    environment_for_if_is_binding, environment_for_if_let_binding, environment_for_method,
     environment_for_parameters_with_self_type, environment_for_pattern_conditional_arm,
     environment_for_switch_arm, environment_for_while_let_binding, impl_self_type,
 };
@@ -26,8 +26,7 @@ pub(super) fn check_ownership_states(
     for item in &ast.items {
         match item {
             Item::Function(function) => {
-                let mut environment =
-                    environment_for_parameters(&function.parameters.parameters, resolved);
+                let mut environment = environment_for_function(function, resolved);
                 let mut ownership = OwnershipState::default();
                 ownership.define_parameters(
                     &function.parameters.parameters,

@@ -14,8 +14,8 @@ use super::diagnostics::{
     readwrite_borrow_requires_writable_place_diagnostic,
 };
 use super::environments::{
-    environment_for_catch, environment_for_for_range_binding, environment_for_if_is_binding,
-    environment_for_if_let_binding, environment_for_method, environment_for_parameters,
+    environment_for_catch, environment_for_for_range_binding, environment_for_function,
+    environment_for_if_is_binding, environment_for_if_let_binding, environment_for_method,
     environment_for_parameters_with_self_type, environment_for_pattern_conditional_arm,
     environment_for_switch_arm, environment_for_while_let_binding, impl_self_type,
 };
@@ -50,8 +50,7 @@ pub(super) fn check_body_expressions(
     for item in &ast.items {
         match item {
             Item::Function(function) => {
-                let mut environment =
-                    environment_for_parameters(&function.parameters.parameters, resolved);
+                let mut environment = environment_for_function(function, resolved);
                 check_block_expressions(
                     sources,
                     &function.body,

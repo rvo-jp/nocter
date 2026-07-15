@@ -115,7 +115,7 @@ impl Resolver<'_> {
     fn collect_public_exports(&mut self, ast: &AstFile, access: ImportAccess, module_path: &str) {
         for item in &ast.items {
             match item {
-                Item::Function(function) => {
+                Item::Function(function) if function.owner.is_none() => {
                     let imported = ImportableSymbol {
                         declaration_span: function.name_span,
                         visibility: function.visibility,
@@ -197,7 +197,11 @@ impl Resolver<'_> {
                 Item::FromImport(item) if item.visibility == Visibility::Public => {
                     self.collect_public_reexports(item, access);
                 }
-                Item::Use(_) | Item::Import(_) | Item::FromImport(_) | Item::Impl(_) => {}
+                Item::Function(_)
+                | Item::Use(_)
+                | Item::Import(_)
+                | Item::FromImport(_)
+                | Item::Impl(_) => {}
             }
         }
     }
@@ -311,11 +315,13 @@ impl ImportableSymbol {
 
 fn direct_importable_symbol(ast: &AstFile, name: &str) -> Option<ImportableSymbol> {
     ast.items.iter().find_map(|item| match item {
-        Item::Function(function) if function.name == name => Some(ImportableSymbol {
-            declaration_span: function.name_span,
-            visibility: function.visibility,
-            kind: SymbolKind::Function(function_signature(function)),
-        }),
+        Item::Function(function) if function.owner.is_none() && function.name == name => {
+            Some(ImportableSymbol {
+                declaration_span: function.name_span,
+                visibility: function.visibility,
+                kind: SymbolKind::Function(function_signature(function)),
+            })
+        }
         Item::Primitive(primitive) if primitive.name == name => Some(ImportableSymbol {
             declaration_span: primitive.name_span,
             visibility: primitive.visibility,

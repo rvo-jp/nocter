@@ -5,18 +5,16 @@ The specification entry point is [README.md](README.md).
 
 ## Impl Blocks
 
-Adopted: `impl` associates functions and methods with a type. It is not a class declaration and does not introduce inheritance.
+Adopted: `impl` associates receiver methods with a type. It is not a class declaration and does not introduce inheritance.
 
-`func` inside an `impl` defines an associated function. It has no receiver and is called through the type.
+Associated functions are declared at top level with a qualified function name. They have no receiver and are called through the type.
 
 ```nct
-impl WordStats {
-    pub func empty(): WordStats {
-        return WordStats{
-            bytes: 0,
-            lines: 0,
-            words: 0,
-        }
+pub func WordStats.empty(): WordStats {
+    return WordStats{
+        bytes: 0,
+        lines: 0,
+        words: 0,
     }
 }
 ```
@@ -43,7 +41,7 @@ impl WordStats {
 stats.add_word()
 ```
 
-`Self` is type-position syntax inside an `impl` block. It is not an ordinary identifier and is not resolved through normal name lookup. In `impl WordStats`, `Self` means `WordStats`.
+`Self` is type-position syntax inside an `impl` block and inside a qualified associated function declaration such as `func WordStats.empty`. It is not an ordinary identifier and is not resolved through normal name lookup. In `impl WordStats` or `func WordStats.empty`, `Self` means `WordStats`.
 
 Nocter does not reserve `self` or `this`. The receiver name is chosen by the author. `self` may be used as an ordinary receiver name, but it has no special meaning. The restrictions on `Self` are specified in [Values and Types](02-values-types.md#self-type-syntax).
 
@@ -84,7 +82,7 @@ Call rules:
 - Associated function and method arguments follow the positional argument rules in [Control Flow](03-control-flow.md#function-calls-and-arguments).
 - `Type.method(&value, args)` and `Type.method(&+value, args)` are invalid in the initial design.
 - `value.function(args)` is invalid when `function` is only an associated `func`.
-- `func` and `method` share the same member namespace for a type. Defining both with the same name for the same type is an error in the initial design.
+- `func Type.name` and `method` share the same member namespace for a type. Defining both with the same member name for the same type is an error in the initial design.
 - Enum variants also occupy the type member namespace. An associated `func` or `method` cannot reuse an enum variant member name in v0.
 - If method lookup finds multiple valid candidates, the call is ambiguous and is a compile error.
 - The initial design has no qualified method-call escape hatch for ambiguity resolution.
@@ -124,11 +122,12 @@ Ambiguity is a compile error. The initial language has no syntax such as `Trait.
 
 Initial implementation order:
 
-1. `impl Type { ... }`
-2. `Self` inside `impl`
-3. associated function calls such as `Type.function(...)`
-4. method declarations
-5. method calls such as `value.method(...)`
+1. `impl Type { ... }` receiver methods
+2. `Self` inside `impl` and `func Type.name`
+3. associated function declarations such as `func Type.function(...)`
+4. associated function calls such as `Type.function(...)`
+5. method declarations
+6. method calls such as `value.method(...)`
 
 ## Traits
 
@@ -152,7 +151,7 @@ impl Writer for File {
 }
 ```
 
-The `impl Trait for Type` block may contain only the members required by the trait. Extra associated functions or methods belong in an inherent `impl Type` block.
+The `impl Trait for Type` block may contain only the members required by the trait. Extra associated functions are declared as `func Type.name(...)` at top level. Extra receiver methods belong in an inherent `impl Type` block.
 
 Each required trait method must be implemented exactly once, and its signature must match the trait declaration after substituting `Self` with the implementing type.
 
