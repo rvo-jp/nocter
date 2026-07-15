@@ -1146,6 +1146,18 @@ impl EntryEmitter {
                         format!("borrow argument source local {index} has no spill slot"),
                     )]
                 })?,
+            BorrowSource::I32(I32Location::Parameter(index))
+            | BorrowSource::U8(U8Location::Parameter(index))
+            | BorrowSource::Usize(UsizeLocation::Parameter(index))
+            | BorrowSource::Bool(BoolLocation::Parameter(index)) => frame
+                .parameter_spill_slot(index)
+                .map(|slot| slot.offset())
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9005",
+                        format!("borrow argument source parameter {index} has no spill slot"),
+                    )]
+                })?,
             BorrowSource::AggregateSlot(slot_index) => frame
                 .aggregate_slot(slot_index)
                 .map(|slot| slot.offset())
@@ -1155,10 +1167,10 @@ impl EntryEmitter {
                         format!("borrow argument aggregate slot {slot_index} is not reserved"),
                     )]
                 })?,
-            BorrowSource::I32(I32Location::Return | I32Location::Parameter(_))
-            | BorrowSource::U8(U8Location::Return | U8Location::Parameter(_))
-            | BorrowSource::Usize(UsizeLocation::Return | UsizeLocation::Parameter(_))
-            | BorrowSource::Bool(BoolLocation::Return | BoolLocation::Parameter(_)) => {
+            BorrowSource::I32(I32Location::Return)
+            | BorrowSource::U8(U8Location::Return)
+            | BorrowSource::Usize(UsizeLocation::Return)
+            | BorrowSource::Bool(BoolLocation::Return) => {
                 return Err(vec![Diagnostic::error(
                     "E9005",
                     "borrow argument emission requires a local source",

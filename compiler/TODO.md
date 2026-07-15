@@ -283,7 +283,8 @@ Recent committed work:
   - adds explicit `&expr` / `&+expr` AST nodes, parser support, formatting, JSON AST output, resolver traversal, LSP hover traversal, and type-checking
   - requires `&+` operands to be writable local `var` bindings in the current narrow checker
   - lowers local scalar borrow arguments for normal calls as one ABI word by passing the address of the caller spill slot
-  - keeps tail calls with borrow arguments disabled to avoid passing addresses into a caller frame that has already been released
+  - lowers readonly scalar parameter borrow arguments by spilling the parameter word in the callee frame and passing that spill-slot address
+  - lowers source tail-position calls with borrow arguments through the normal-call-plus-return path to avoid passing addresses into a caller frame that has already been released
 - Current checkpoint: lower scalar var assignment
   - type-checks assignment to immutable `let` bindings and parameters, plus assignment value type mismatches
   - lowers stack-backed scalar/view `var` bindings and simple whole-binding `=` assignment for `i32`, `u8`, `usize`, `bool`, `&str`, and slices in the current leading-statement subset

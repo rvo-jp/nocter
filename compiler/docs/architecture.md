@@ -178,7 +178,7 @@ Currently buildable:
 - nested scalar tail-call arguments such as `return outer(inner())`, for `i32`, `usize`, and `bool` parameter positions
 - static string literals and `&str` parameters as call arguments, passed as `ptr,len` ABI word pairs
 - same-file and loaded imported non-generic normal calls returning `&str` in annotated `&str` `let` initializers and as `&str` call or tail-call arguments, with results staged into two local ABI words
-- normal calls across scalar `i32`/`usize`/`bool`, local scalar borrow, `&str`, slices, and supported aggregate arguments, including ABI words after `x7` passed through the caller stack argument area
+- normal calls across scalar `i32`/`usize`/`bool`, local and readonly parameter scalar borrow, `&str`, slices, and supported aggregate arguments, including ABI words after `x7` passed through the caller stack argument area
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
 - non-entry functions returning `bool`, `usize`, or direct `&str` literal/parameter/local/tail-call values
 - `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; addition, subtraction, and multiplication trap on signed overflow, and division and remainder trap on zero divisors and signed division overflow

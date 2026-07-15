@@ -53,7 +53,7 @@ Already buildable in the narrow scalar subset:
 - scalar call-result staging and scalar tail-call staging
 - fallible propagation for non-entry functions and ordinary calls returning `T!` in the current scalar/view/void call subset
 - stack-backed scalar/view `var` bindings and simple whole-binding `=` assignment
-- local scalar borrow argument lowering for `&T` and `&+T` normal-call parameters
+- local scalar borrow argument lowering for `&T` and `&+T` normal-call parameters, plus readonly scalar parameter borrow argument lowering
 - ABI-indirect aggregate call-result `let`/`var` slots, including propagated fallible aggregate calls
 - direct aggregate normal-call result `let`/`var` slots for 16-byte-or-smaller values such as `std/mem.Allocator`
 - fallible direct aggregate call-result `let`/`var` slots for 16-byte-or-smaller values such as `std/mem.Allocator`

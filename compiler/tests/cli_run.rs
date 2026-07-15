@@ -5170,6 +5170,68 @@ func set_code(header: &+Header): void {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_passes_scalar_parameter_borrow_argument() {
+    let project = TempProject::new("cli-run-scalar-parameter-borrow-argument");
+    let source = project.write_source(
+        "scalar_parameter_borrow_argument.nct",
+        r#"func main(): i32 {
+    return caller(7)
+}
+
+func caller(value: i32): i32 {
+    return choose(&value, 42)
+}
+
+func choose(value: &i32, code: i32): i32 {
+    return code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_passes_stack_scalar_parameter_borrow_argument() {
+    let project = TempProject::new("cli-run-stack-scalar-parameter-borrow-argument");
+    let source = project.write_source(
+        "stack_scalar_parameter_borrow_argument.nct",
+        r#"func main(): i32 {
+    return caller(1, 2, 3, 4, 5, 6, 7, 8, 9)
+}
+
+func caller(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, value: i32): i32 {
+    return choose(&value, 42)
+}
+
+func choose(value: &i32, code: i32): i32 {
+    return code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_stack_passed_borrowed_aggregate_field_exit_code() {
     let project = TempProject::new("cli-run-stack-passed-borrowed-aggregate-field");
     let source = project.write_source(

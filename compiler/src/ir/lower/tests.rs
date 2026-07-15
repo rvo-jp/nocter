@@ -11056,6 +11056,59 @@ func choose(value: &i32, code: i32): i32 {
 }
 
 #[test]
+fn lowers_scalar_parameter_borrow_call_argument() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func caller(value: i32): i32 {
+    return choose(&value, 42)
+}
+
+func choose(value: &i32, code: i32): i32 {
+    return code
+}
+"#,
+        "caller",
+        function_signatures(vec![(
+            "choose",
+            Type::I32,
+            vec![
+                Type::Borrow {
+                    is_readwrite: false,
+                    inner: Box::new(Type::I32),
+                },
+                Type::I32,
+            ],
+        )]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "caller".to_string(),
+            target: crate::ir::CallTarget::same_file("caller".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::CallI32 {
+                    destination: I32Location::Return,
+                    target: CallTarget::same_file("choose"),
+                    arguments: vec![
+                        ScalarArgument::Borrow(BorrowArgument {
+                            source: BorrowSource::I32(I32Location::Parameter(0)),
+                        }),
+                        ScalarArgument::I32(I32Value::Const(42)),
+                    ],
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_str_parameter_forwarding_call_argument() {
     let ir = lower_text(
         r#"func main(): i32 {

@@ -5,6 +5,7 @@ use crate::ir::{
     I32Location, I32Value, Instruction, ScalarArgument, SliceLocation, SliceValue, StrLocation,
     StrValue, U8Location, U8Value, UsizeLocation, UsizeValue,
 };
+use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum FunctionFrame {
@@ -16,6 +17,7 @@ pub(super) enum FunctionFrame {
 pub(super) struct FrameLayout {
     frame_size: u32,
     saved_x30_offset: u32,
+    parameter_spill_slots: Vec<ParameterSpillSlot>,
     scalar_spill_slots: Vec<ScalarSpillSlot>,
     argument_staging_slots: Vec<ArgumentStagingSlot>,
     aggregate_slots: Vec<AggregateSlot>,
@@ -28,6 +30,20 @@ impl FrameLayout {
 
     pub(super) fn saved_x30_offset(&self) -> u32 {
         self.saved_x30_offset
+    }
+
+    pub(super) fn parameter_spill_slots(&self) -> &[ParameterSpillSlot] {
+        &self.parameter_spill_slots
+    }
+
+    pub(super) fn parameter_spill_slot(
+        &self,
+        parameter_index: usize,
+    ) -> Option<ParameterSpillSlot> {
+        self.parameter_spill_slots
+            .iter()
+            .copied()
+            .find(|slot| slot.parameter_index == parameter_index)
     }
 
     pub(super) fn scalar_spill_slots(&self) -> &[ScalarSpillSlot] {
@@ -62,7 +78,12 @@ impl FrameLayout {
         scalar_spill_count: usize,
         argument_staging_count: usize,
     ) -> Result<Self, Vec<Diagnostic>> {
-        Self::for_slot_counts_with_aggregate_slots(scalar_spill_count, argument_staging_count, &[])
+        Self::for_slot_counts_with_parameter_spills_and_aggregate_slots(
+            scalar_spill_count,
+            argument_staging_count,
+            &[],
+            &[],
+        )
     }
 
     #[allow(dead_code)]
@@ -71,6 +92,29 @@ impl FrameLayout {
         argument_staging_count: usize,
         aggregate_slot_requests: &[AggregateSlotRequest],
     ) -> Result<Self, Vec<Diagnostic>> {
+        Self::for_slot_counts_with_parameter_spills_and_aggregate_slots(
+            scalar_spill_count,
+            argument_staging_count,
+            &[],
+            aggregate_slot_requests,
+        )
+    }
+
+    fn for_slot_counts_with_parameter_spills_and_aggregate_slots(
+        scalar_spill_count: usize,
+        argument_staging_count: usize,
+        parameter_spill_requests: &[usize],
+        aggregate_slot_requests: &[AggregateSlotRequest],
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let mut parameter_spill_requests = parameter_spill_requests.to_vec();
+        parameter_spill_requests.sort_unstable();
+        parameter_spill_requests.dedup();
+        let parameter_spill_bytes = parameter_spill_requests
+            .len()
+            .checked_mul(SCALAR_SLOT_SIZE)
+            .ok_or_else(|| {
+                frame_too_large_diagnostic("parameter spill slot count overflows host usize")
+            })?;
         let scalar_spill_bytes = scalar_spill_count
             .checked_mul(SCALAR_SLOT_SIZE)
             .ok_or_else(|| {
@@ -81,8 +125,9 @@ impl FrameLayout {
             .ok_or_else(|| {
                 frame_too_large_diagnostic("argument staging slot count overflows host usize")
             })?;
-        let scalar_slot_bytes = scalar_spill_bytes
-            .checked_add(argument_staging_bytes)
+        let scalar_slot_bytes = parameter_spill_bytes
+            .checked_add(scalar_spill_bytes)
+            .and_then(|bytes| bytes.checked_add(argument_staging_bytes))
             .ok_or_else(|| frame_too_large_diagnostic("scalar slot bytes overflow host usize"))?;
         let (aggregate_slots, aggregate_slot_bytes) =
             aggregate_slots(aggregate_slot_requests, scalar_slot_bytes)?;
@@ -107,9 +152,29 @@ impl FrameLayout {
             ));
         }
 
+        let mut parameter_spill_slots = Vec::with_capacity(parameter_spill_requests.len());
+        for (slot_index, parameter_index) in parameter_spill_requests.into_iter().enumerate() {
+            let offset = slot_index.checked_mul(SCALAR_SLOT_SIZE).ok_or_else(|| {
+                frame_too_large_diagnostic("parameter spill slot offset overflows host usize")
+            })?;
+            if offset > LDR_STR_X_SP_MAX_BYTE_OFFSET as usize {
+                return Err(frame_too_large_diagnostic(
+                    "parameter spill slot exceeds ARM64 x-register load/store immediate range",
+                ));
+            }
+            parameter_spill_slots.push(ParameterSpillSlot {
+                parameter_index,
+                offset: offset as u32,
+            });
+        }
+
         let mut scalar_spill_slots = Vec::with_capacity(scalar_spill_count);
         for local_index in 0..scalar_spill_count {
-            let offset = local_index * SCALAR_SLOT_SIZE;
+            let offset = parameter_spill_bytes
+                .checked_add(local_index * SCALAR_SLOT_SIZE)
+                .ok_or_else(|| {
+                    frame_too_large_diagnostic("scalar spill slot offset overflows host usize")
+                })?;
             if offset > LDR_STR_X_SP_MAX_BYTE_OFFSET as usize {
                 return Err(frame_too_large_diagnostic(
                     "scalar spill slot exceeds ARM64 x-register load/store immediate range",
@@ -123,8 +188,9 @@ impl FrameLayout {
 
         let mut argument_staging_slots = Vec::with_capacity(argument_staging_count);
         for argument_index in 0..argument_staging_count {
-            let offset = scalar_spill_bytes
-                .checked_add(argument_index * SCALAR_SLOT_SIZE)
+            let offset = parameter_spill_bytes
+                .checked_add(scalar_spill_bytes)
+                .and_then(|bytes| bytes.checked_add(argument_index * SCALAR_SLOT_SIZE))
                 .ok_or_else(|| {
                     frame_too_large_diagnostic("argument staging slot offset overflows host usize")
                 })?;
@@ -142,10 +208,27 @@ impl FrameLayout {
         Ok(Self {
             frame_size: frame_size as u32,
             saved_x30_offset: saved_x30_offset as u32,
+            parameter_spill_slots,
             scalar_spill_slots,
             argument_staging_slots,
             aggregate_slots,
         })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct ParameterSpillSlot {
+    parameter_index: usize,
+    offset: u32,
+}
+
+impl ParameterSpillSlot {
+    pub(super) fn parameter_index(self) -> usize {
+        self.parameter_index
+    }
+
+    pub(super) fn offset(self) -> u32 {
+        self.offset
     }
 }
 
@@ -225,19 +308,24 @@ impl AggregateSlot {
 
 pub(super) fn plan_function_frame(function: &Function) -> Result<FunctionFrame, Vec<Diagnostic>> {
     let aggregate_slot_requests = aggregate_slot_requests(&function.instructions)?;
-    if !function_requires_frame(&function.instructions) && aggregate_slot_requests.is_empty() {
+    let parameter_spill_requests = parameter_spill_requests(&function.instructions);
+    if !function_requires_frame(&function.instructions)
+        && aggregate_slot_requests.is_empty()
+        && parameter_spill_requests.is_empty()
+    {
         return Ok(FunctionFrame::Frameless);
     }
 
     let scalar_spill_count = scalar_spill_slot_count(&function.instructions);
     let argument_staging_count = max_call_argument_count(&function.instructions);
 
-    if aggregate_slot_requests.is_empty() {
+    if aggregate_slot_requests.is_empty() && parameter_spill_requests.is_empty() {
         FrameLayout::for_slot_counts(scalar_spill_count, argument_staging_count)
     } else {
-        FrameLayout::for_slot_counts_with_aggregate_slots(
+        FrameLayout::for_slot_counts_with_parameter_spills_and_aggregate_slots(
             scalar_spill_count,
             argument_staging_count,
+            &parameter_spill_requests,
             &aggregate_slot_requests,
         )
     }
@@ -343,6 +431,12 @@ fn scalar_spill_slot_count(instructions: &[Instruction]) -> usize {
     let mut highest_local_index = None;
     record_instruction_list_scalar_locals(instructions, &mut highest_local_index);
     highest_local_index.map_or(0, |index| index + 1)
+}
+
+fn parameter_spill_requests(instructions: &[Instruction]) -> Vec<usize> {
+    let mut requests = BTreeSet::new();
+    record_instruction_list_parameter_spill_requests(instructions, &mut requests);
+    requests.into_iter().collect()
 }
 
 fn max_call_argument_count(instructions: &[Instruction]) -> usize {
@@ -647,6 +741,185 @@ fn failure_mode_requires_frame(failure_mode: &FallibleFailureMode) -> bool {
         FallibleFailureMode::PropagateWithCleanup { .. } | FallibleFailureMode::Catch { .. } => {
             true
         }
+    }
+}
+
+fn record_instruction_list_parameter_spill_requests(
+    instructions: &[Instruction],
+    requests: &mut BTreeSet<usize>,
+) {
+    for instruction in instructions {
+        record_instruction_parameter_spill_requests(instruction, requests);
+    }
+}
+
+fn record_instruction_parameter_spill_requests(
+    instruction: &Instruction,
+    requests: &mut BTreeSet<usize>,
+) {
+    match instruction {
+        Instruction::CallI32 { arguments, .. }
+        | Instruction::CallU8 { arguments, .. }
+        | Instruction::CallUsize { arguments, .. }
+        | Instruction::CallBool { arguments, .. }
+        | Instruction::CallStr { arguments, .. }
+        | Instruction::CallSlice { arguments, .. }
+        | Instruction::CallAggregate { arguments, .. }
+        | Instruction::CallDirectAggregate { arguments, .. }
+        | Instruction::CallVoid { arguments, .. }
+        | Instruction::TailCall { arguments, .. } => {
+            record_scalar_arguments_parameter_spill_requests(arguments, requests);
+        }
+        Instruction::CallFallibleI32 {
+            arguments,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallFallibleU8 {
+            arguments,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallFallibleUsize {
+            arguments,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallFallibleBool {
+            arguments,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallFallibleStr {
+            arguments,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallFallibleSlice {
+            arguments,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallFallibleDirectAggregate {
+            arguments,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallFallibleAggregate {
+            arguments,
+            failure_mode,
+            ..
+        }
+        | Instruction::CallFallibleVoid {
+            arguments,
+            failure_mode,
+            ..
+        } => {
+            record_scalar_arguments_parameter_spill_requests(arguments, requests);
+            record_failure_mode_parameter_spill_requests(failure_mode, requests);
+        }
+        Instruction::If {
+            then_instructions,
+            else_instructions,
+            ..
+        } => {
+            record_instruction_list_parameter_spill_requests(then_instructions, requests);
+            record_instruction_list_parameter_spill_requests(else_instructions, requests);
+        }
+        Instruction::While {
+            condition_instructions,
+            body_instructions,
+            ..
+        } => {
+            record_instruction_list_parameter_spill_requests(condition_instructions, requests);
+            record_instruction_list_parameter_spill_requests(body_instructions, requests);
+        }
+        Instruction::CheckFailure { failure_mode } => {
+            record_failure_mode_parameter_spill_requests(failure_mode, requests);
+        }
+        Instruction::PropagateFailure
+        | Instruction::TrapOnFailure
+        | Instruction::ReturnFallibleSuccess
+        | Instruction::ReturnFallibleFailure { .. }
+        | Instruction::WriteStr { .. }
+        | Instruction::ReserveAggregateSlot { .. }
+        | Instruction::StoreAggregateUsize { .. }
+        | Instruction::StoreAggregateI32 { .. }
+        | Instruction::StoreAggregateU8 { .. }
+        | Instruction::StoreAggregateBool { .. }
+        | Instruction::LoadAggregateUsize { .. }
+        | Instruction::LoadAggregateI32 { .. }
+        | Instruction::LoadAggregateU8 { .. }
+        | Instruction::LoadAggregateBool { .. }
+        | Instruction::CopyAggregate { .. }
+        | Instruction::CopyAggregateRange { .. }
+        | Instruction::SetI32 { .. }
+        | Instruction::SetU8 { .. }
+        | Instruction::SetUsize { .. }
+        | Instruction::SetBool { .. }
+        | Instruction::SetStr { .. }
+        | Instruction::SetSlice { .. }
+        | Instruction::AddI32 { .. }
+        | Instruction::SubtractI32 { .. }
+        | Instruction::MultiplyI32 { .. }
+        | Instruction::DivideI32 { .. }
+        | Instruction::RemainderI32 { .. }
+        | Instruction::ShiftLeftI32 { .. }
+        | Instruction::ShiftRightI32 { .. }
+        | Instruction::AddUsize { .. }
+        | Instruction::SubtractUsize { .. }
+        | Instruction::MultiplyUsize { .. }
+        | Instruction::DivideUsize { .. }
+        | Instruction::RemainderUsize { .. }
+        | Instruction::ShiftLeftUsize { .. }
+        | Instruction::ShiftRightUsize { .. }
+        | Instruction::Trap
+        | Instruction::Break
+        | Instruction::Continue
+        | Instruction::Return => {}
+    }
+}
+
+fn record_failure_mode_parameter_spill_requests(
+    failure_mode: &FallibleFailureMode,
+    requests: &mut BTreeSet<usize>,
+) {
+    match failure_mode {
+        FallibleFailureMode::Propagate | FallibleFailureMode::Trap => {}
+        FallibleFailureMode::PropagateWithCleanup { instructions, .. }
+        | FallibleFailureMode::Catch { instructions, .. } => {
+            record_instruction_list_parameter_spill_requests(instructions, requests);
+        }
+    }
+}
+
+fn record_scalar_arguments_parameter_spill_requests(
+    arguments: &[ScalarArgument],
+    requests: &mut BTreeSet<usize>,
+) {
+    for argument in arguments {
+        if let ScalarArgument::Borrow(argument) = argument {
+            record_borrow_source_parameter_spill_request(argument.source, requests);
+        }
+    }
+}
+
+fn record_borrow_source_parameter_spill_request(
+    source: BorrowSource,
+    requests: &mut BTreeSet<usize>,
+) {
+    match source {
+        BorrowSource::I32(I32Location::Parameter(index))
+        | BorrowSource::U8(U8Location::Parameter(index))
+        | BorrowSource::Usize(UsizeLocation::Parameter(index))
+        | BorrowSource::Bool(BoolLocation::Parameter(index)) => {
+            requests.insert(index);
+        }
+        BorrowSource::I32(I32Location::Return | I32Location::Local(_))
+        | BorrowSource::U8(U8Location::Return | U8Location::Local(_))
+        | BorrowSource::Usize(UsizeLocation::Return | UsizeLocation::Local(_))
+        | BorrowSource::Bool(BoolLocation::Return | BoolLocation::Local(_))
+        | BorrowSource::AggregateSlot(_) => {}
     }
 }
 
@@ -1251,9 +1524,9 @@ const LDR_STR_X_SP_MAX_BYTE_OFFSET: u32 = 0x0fff * 8;
 mod tests {
     use super::*;
     use crate::ir::{
-        AggregateArgument, AggregateArgumentSource, BoolComparisonOperator, CallTarget,
-        DirectAggregateArgument, FallibleFailureMode, ScalarArgument, SliceLocation, SliceValue,
-        StrValue, Type,
+        AggregateArgument, AggregateArgumentSource, BoolComparisonOperator, BorrowArgument,
+        CallTarget, DirectAggregateArgument, FallibleFailureMode, ScalarArgument, SliceLocation,
+        SliceValue, StrValue, Type,
     };
 
     #[test]
@@ -1331,6 +1604,53 @@ mod tests {
                     offset: 32
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn computes_parameter_spill_slots_below_scalar_and_argument_slots() {
+        let layout = FrameLayout::for_slot_counts_with_parameter_spills_and_aggregate_slots(
+            2,
+            1,
+            &[8, 0, 8],
+            &[],
+        )
+        .unwrap();
+
+        assert_eq!(layout.frame_size(), 48);
+        assert_eq!(layout.saved_x30_offset(), 40);
+        assert_eq!(
+            layout.parameter_spill_slots(),
+            &[
+                ParameterSpillSlot {
+                    parameter_index: 0,
+                    offset: 0
+                },
+                ParameterSpillSlot {
+                    parameter_index: 8,
+                    offset: 8
+                },
+            ]
+        );
+        assert_eq!(
+            layout.scalar_spill_slots(),
+            &[
+                ScalarSpillSlot {
+                    local_index: 0,
+                    offset: 16
+                },
+                ScalarSpillSlot {
+                    local_index: 1,
+                    offset: 24
+                },
+            ]
+        );
+        assert_eq!(
+            layout.argument_staging_slots(),
+            &[ArgumentStagingSlot {
+                abi_word_index: 0,
+                offset: 32
+            }]
         );
     }
 
@@ -1808,6 +2128,37 @@ mod tests {
         assert_eq!(
             frame,
             FunctionFrame::Framed(FrameLayout::for_slot_counts(3, 1).unwrap())
+        );
+    }
+
+    #[test]
+    fn call_with_scalar_parameter_borrow_reserves_parameter_spill_slot() {
+        let function = Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![Instruction::CallI32 {
+                destination: I32Location::Return,
+                target: CallTarget::same_file("inspect"),
+                arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                    source: BorrowSource::I32(I32Location::Parameter(8)),
+                })],
+            }],
+        };
+
+        let frame = plan_function_frame(&function).unwrap();
+
+        assert_eq!(
+            frame,
+            FunctionFrame::Framed(
+                FrameLayout::for_slot_counts_with_parameter_spills_and_aggregate_slots(
+                    0,
+                    1,
+                    &[8],
+                    &[]
+                )
+                .unwrap()
+            )
         );
     }
 

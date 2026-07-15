@@ -1022,6 +1022,7 @@ fn lower_borrow_argument(
     let source = match inner.as_ref() {
         Type::I32 => match context.i32_location(&identifier.name) {
             Some(I32Location::Local(index)) => BorrowSource::I32(I32Location::Local(index)),
+            Some(I32Location::Parameter(index)) => BorrowSource::I32(I32Location::Parameter(index)),
             _ => {
                 return Err(unsupported_borrow_argument_diagnostic(
                     callee_name,
@@ -1031,6 +1032,7 @@ fn lower_borrow_argument(
         },
         Type::U8 => match context.u8_location(&identifier.name) {
             Some(U8Location::Local(index)) => BorrowSource::U8(U8Location::Local(index)),
+            Some(U8Location::Parameter(index)) => BorrowSource::U8(U8Location::Parameter(index)),
             _ => {
                 return Err(unsupported_borrow_argument_diagnostic(
                     callee_name,
@@ -1040,6 +1042,9 @@ fn lower_borrow_argument(
         },
         Type::Usize => match context.usize_location(&identifier.name) {
             Some(UsizeLocation::Local(index)) => BorrowSource::Usize(UsizeLocation::Local(index)),
+            Some(UsizeLocation::Parameter(index)) => {
+                BorrowSource::Usize(UsizeLocation::Parameter(index))
+            }
             _ => {
                 return Err(unsupported_borrow_argument_diagnostic(
                     callee_name,
@@ -1049,6 +1054,9 @@ fn lower_borrow_argument(
         },
         Type::Bool => match context.bool_location(&identifier.name) {
             Some(BoolLocation::Local(index)) => BorrowSource::Bool(BoolLocation::Local(index)),
+            Some(BoolLocation::Parameter(index)) => {
+                BorrowSource::Bool(BoolLocation::Parameter(index))
+            }
             _ => {
                 return Err(unsupported_borrow_argument_diagnostic(
                     callee_name,

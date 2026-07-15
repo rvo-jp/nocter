@@ -116,7 +116,7 @@ impl EntryEmitter {
             }
             FunctionFrame::Framed(layout) => {
                 self.current_frame_size = Some(layout.frame_size());
-                self.emit_prologue(layout);
+                self.emit_prologue(layout)?;
                 Some(layout)
             }
         };
@@ -857,10 +857,15 @@ impl EntryEmitter {
         }
     }
 
-    fn emit_prologue(&mut self, frame: &FrameLayout) {
+    fn emit_prologue(&mut self, frame: &FrameLayout) -> Result<(), Vec<Diagnostic>> {
         self.encoder.emit_sub_sp_imm(frame.frame_size());
         self.encoder
             .emit_str_x_sp(XReg::X30, frame.saved_x30_offset());
+        for slot in frame.parameter_spill_slots() {
+            self.emit_parameter_word_to_x(slot.parameter_index(), XReg::X16)?;
+            self.encoder.emit_str_x_sp(XReg::X16, slot.offset());
+        }
+        Ok(())
     }
 
     fn emit_epilogue(&mut self, frame: &FrameLayout) {
@@ -1814,6 +1819,89 @@ mod tests {
                 0xc0, 0x03, 0x5f, 0xd6, // ret
             ]
         );
+    }
+
+    #[test]
+    fn normal_call_can_pass_scalar_parameter_borrow() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![Instruction::TailCall {
+                    target: CallTarget::same_file("caller"),
+                    arguments: vec![ScalarArgument::I32(i32_const(7))],
+                }],
+            },
+            Function {
+                name: "caller".to_string(),
+                target: crate::ir::CallTarget::same_file("caller".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::CallI32 {
+                        destination: I32Location::Return,
+                        target: CallTarget::same_file("choose"),
+                        arguments: vec![
+                            ScalarArgument::Borrow(BorrowArgument {
+                                source: BorrowSource::I32(I32Location::Parameter(0)),
+                            }),
+                            ScalarArgument::I32(i32_const(42)),
+                        ],
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "choose".to_string(),
+                target: crate::ir::CallTarget::same_file("choose".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(42), Instruction::Return],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(!code.text.is_empty());
+    }
+
+    #[test]
+    fn normal_call_can_pass_stack_scalar_parameter_borrow() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "caller".to_string(),
+                target: crate::ir::CallTarget::same_file("caller".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::CallI32 {
+                        destination: I32Location::Return,
+                        target: CallTarget::same_file("choose"),
+                        arguments: vec![
+                            ScalarArgument::Borrow(BorrowArgument {
+                                source: BorrowSource::I32(I32Location::Parameter(8)),
+                            }),
+                            ScalarArgument::I32(i32_const(42)),
+                        ],
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "choose".to_string(),
+                target: crate::ir::CallTarget::same_file("choose".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(42), Instruction::Return],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(!code.text.is_empty());
     }
 
     #[test]
