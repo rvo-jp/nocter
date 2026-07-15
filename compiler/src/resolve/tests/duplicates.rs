@@ -156,6 +156,50 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_associated_function_name_that_reuses_enum_variant() {
+    let output = resolve_text(
+        r#"enum AppError {
+    missing_path
+}
+
+func AppError.missing_path(): i32 {
+    return 0
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0413");
+}
+
+#[test]
+fn diagnoses_method_name_that_reuses_enum_variant() {
+    let output = resolve_text(
+        r#"enum AppError {
+    missing_path
+}
+
+impl AppError {
+    method (error: Self).missing_path(): i32 {
+        return 0
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0413");
+}
+
+#[test]
 fn diagnoses_duplicate_inherent_drop_members_across_impls() {
     let output = resolve_text(
         r#"struct File {

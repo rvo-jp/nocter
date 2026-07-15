@@ -108,6 +108,10 @@ pub(super) fn duplicate_inherent_member_name_diagnostics(
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     let mut seen = HashMap::<&str, ByteSpan>::new();
+    for variant in &type_symbol.variants {
+        seen.entry(variant.name.as_str())
+            .or_insert(variant.name_span);
+    }
     for function in &type_symbol.associated_functions {
         seen.entry(function.name.as_str())
             .or_insert(function.name_span);

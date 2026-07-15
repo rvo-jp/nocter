@@ -269,10 +269,17 @@ fn duplicate_associated_function_name_diagnostics(
     let mut diagnostics = Vec::new();
     let name = function.member_name.as_str();
     if let Some(first_span) = type_symbol
-        .associated_functions
+        .variants
         .iter()
-        .find(|associated| associated.name == name)
-        .map(|associated| associated.name_span)
+        .find(|variant| variant.name == name)
+        .map(|variant| variant.name_span)
+        .or_else(|| {
+            type_symbol
+                .associated_functions
+                .iter()
+                .find(|associated| associated.name == name)
+                .map(|associated| associated.name_span)
+        })
         .or_else(|| {
             type_symbol
                 .methods
