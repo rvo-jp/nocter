@@ -6,7 +6,8 @@ use super::expressions::{
     lower_u8_return_expression, lower_usize_return_expression, lower_void_expression_statement,
 };
 use super::functions::{
-    append_scope_end_drops_before_exit, lower_drop_statement, lower_value_return_with_scope_drops,
+    append_scope_end_drops_before_exit, lower_drop_statement,
+    lower_scope_end_drops_for_locals_since, lower_value_return_with_scope_drops,
     mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
 };
 use crate::ast::{BinaryExpr, BinaryOperator, Block, Expr, IfStmt, Stmt};
@@ -248,6 +249,91 @@ pub(super) fn lower_terminal_condition(
         then_instructions,
         else_instructions,
     });
+    Ok(instructions)
+}
+
+pub(super) fn lower_nonterminal_if_statement(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    subject: &str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let then_instructions =
+        lower_nonterminal_if_block(&statement.then_block, context, diagnostic_code, subject)?;
+    let else_instructions = if let Some(else_block) = &statement.else_block {
+        lower_nonterminal_if_block(else_block, context, diagnostic_code, subject)?
+    } else {
+        Vec::new()
+    };
+
+    lower_terminal_condition(
+        &statement.condition,
+        then_instructions,
+        else_instructions,
+        context,
+        diagnostic_code,
+    )
+}
+
+fn lower_nonterminal_if_block(
+    block: &Block,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    subject: &str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut branch_context = context.clone();
+    let local_mark = branch_context.local_mark();
+    let mut instructions = lower_nonterminal_if_block_statements(
+        &block.statements,
+        &mut branch_context,
+        diagnostic_code,
+        subject,
+    )?;
+    instructions.extend(lower_scope_end_drops_for_locals_since(
+        &mut branch_context,
+        local_mark,
+    )?);
+    Ok(instructions)
+}
+
+fn lower_nonterminal_if_block_statements(
+    statements: &[Stmt],
+    context: &mut LoweringContext,
+    diagnostic_code: &'static str,
+    subject: &str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut instructions = Vec::new();
+    for statement in statements {
+        match statement {
+            Stmt::Binding(statement) => {
+                instructions.extend(lower_local_binding(statement, context)?)
+            }
+            Stmt::Expression(statement) => {
+                let Some(void_instructions) =
+                    lower_void_expression_statement(&statement.expression, context)?
+                else {
+                    return Err(unsupported_nonterminal_if_diagnostic(
+                        diagnostic_code,
+                        subject,
+                    ));
+                };
+                instructions.extend(void_instructions);
+            }
+            Stmt::If(statement) => instructions.extend(lower_nonterminal_if_statement(
+                statement,
+                context,
+                diagnostic_code,
+                subject,
+            )?),
+            _ => {
+                return Err(unsupported_nonterminal_if_diagnostic(
+                    diagnostic_code,
+                    subject,
+                ));
+            }
+        }
+        mark_lowered_statement_aggregate_uses(statement, context);
+    }
     Ok(instructions)
 }
 
@@ -600,6 +686,18 @@ fn unsupported_terminal_if_diagnostic(
         diagnostic_code,
         format!(
             "IR v0 can only lower terminal `if` statements for {subject} when both branches contain only supported binding, assignment, explicit `drop`, or void call statements followed by returns or nested terminal `if` branches returning `{return_type}`"
+        ),
+    )]
+}
+
+fn unsupported_nonterminal_if_diagnostic(
+    diagnostic_code: &'static str,
+    subject: &str,
+) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        diagnostic_code,
+        format!(
+            "IR v0 can only lower non-terminal `if` statements for {subject} when branches contain supported local bindings, void call statements, or nested non-terminal `if` statements"
         ),
     )]
 }

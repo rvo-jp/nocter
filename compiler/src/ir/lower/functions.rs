@@ -11,8 +11,9 @@ use super::context::{
     PendingAggregateDrop, drop_glue_for_type_expr,
 };
 use super::control_flow::{
-    lower_terminal_bool_if_statement, lower_terminal_branch_leading_statements,
-    lower_terminal_condition, lower_terminal_i32_if_statement, lower_terminal_slice_if_statement,
+    lower_nonterminal_if_statement, lower_terminal_bool_if_statement,
+    lower_terminal_branch_leading_statements, lower_terminal_condition,
+    lower_terminal_i32_if_statement, lower_terminal_slice_if_statement,
     lower_terminal_str_if_statement, lower_terminal_u8_if_statement,
     lower_terminal_usize_if_statement, lower_terminal_void_if_statement,
     split_terminal_branch_block,
@@ -1327,10 +1328,18 @@ fn lower_leading_bindings(
             Stmt::Drop(statement) => {
                 instructions.extend(lower_drop_statement(statement, context)?);
             }
+            Stmt::If(statement) => {
+                instructions.extend(lower_nonterminal_if_statement(
+                    statement,
+                    context,
+                    "E8007",
+                    "functions",
+                )?);
+            }
             _ => {
                 return Err(vec![Diagnostic::error(
                     "E8007",
-                    "IR v0 can only lower leading scalar local bindings, scalar assignments, drop statements, or void call statements before `return`",
+                    "IR v0 can only lower leading scalar local bindings, scalar assignments, drop statements, void call statements, or supported non-terminal `if` statements before `return`",
                 )]);
             }
         };
@@ -1408,6 +1417,21 @@ pub(super) fn replacement_drop_for_aggregate_slot(
         return Ok(Vec::new());
     };
     Ok(vec![lower_pending_aggregate_drop(&drop_, context)?])
+}
+
+pub(super) fn lower_scope_end_drops_for_locals_since(
+    context: &mut LoweringContext,
+    local_mark: usize,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let pending = context.pending_aggregate_drops_since(local_mark);
+    let mut instructions = Vec::with_capacity(pending.len());
+    for drop_ in &pending {
+        instructions.push(lower_pending_aggregate_drop(drop_, context)?);
+    }
+    for drop_ in &pending {
+        context.mark_aggregate_local_dropped(&drop_.name);
+    }
+    Ok(instructions)
 }
 
 fn lower_scope_end_drop_instructions(

@@ -544,6 +544,83 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_lowers_nonterminal_if_branch_scope_drop() {
+    let project = TempProject::new("cli-build-nonterminal-if-branch-scope-drop");
+    let source = project.write_source(
+        "nonterminal_if_branch_scope_drop.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    if true {
+        var file = File{ fd: 1 }
+    } else {
+        var file = File{ fd: 2 }
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_lowers_nonterminal_if_distinct_branch_aggregate_layouts() {
+    let project = TempProject::new("cli-build-nonterminal-if-distinct-branch-layouts");
+    let source = project.write_source(
+        "nonterminal_if_distinct_branch_layouts.nct",
+        r#"struct Small {
+    value: i32
+}
+
+impl Small {
+    drop small: &+Self {
+        return
+    }
+}
+
+struct Wide {
+    left: i32
+    right: i32
+}
+
+impl Wide {
+    drop wide: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    if true {
+        var small = Small{ value: 1 }
+    } else {
+        var wide = Wide{ left: 2, right: 3 }
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_terminal_if_branch_void_call() {
     let project = TempProject::new("cli-build-terminal-if-branch-void-call");
     let source = project.write_source(

@@ -254,6 +254,7 @@ The backend currently supports the normal-call register and stack-argument porti
 - indirect aggregate parameters, arguments, and returns larger than 16 bytes by pointer ABI word or caller-provided return storage
 - aggregate call-result slots for normal, propagated fallible, forced fallible, and caught fallible calls in the narrow expression positions lowered by IR
 - aggregate slot-to-slot copies, aggregate struct-literal slots including explicit aggregate field moves, aggregate copy bindings and copy aggregate field bindings from non-copy local or call-result owners, explicit aggregate move bindings, and aggregate slot borrow arguments for the current supported field and assignment paths
+- branch-local aggregate slots and scope-end drops for the supported non-terminal `if` subset
 
 Stack-passed normal-call arguments are buildable for the current scalar/view and supported aggregate subset. Tail calls with stack-passed arguments are lowered through the normal-call-plus-return path rather than emitted as stack-argument tail calls.
 
@@ -262,7 +263,7 @@ Stack-passed normal-call arguments are buildable for the current scalar/view and
 Do not combine normal-call work with:
 
 - stack-backed `var` and reassignment
-- general loops or non-terminal control flow
+- general loops or broader non-terminal control flow
 - imported calls or external linking
 - aggregate forms outside the current supported slot/call-result subset
 - ownership/drop lowering

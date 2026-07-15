@@ -50,7 +50,7 @@ impl<'a> Clone for LoweringContext<'a> {
             locals: self.locals.clone(),
             aggregate_fields: self.aggregate_fields.clone(),
             aggregate_borrows: self.aggregate_borrows.clone(),
-            next_aggregate_slot_index: Rc::new(Cell::new(self.next_aggregate_slot_index.get())),
+            next_aggregate_slot_index: self.next_aggregate_slot_index.clone(),
         }
     }
 }
@@ -528,6 +528,42 @@ impl<'a> LoweringContext<'a> {
 
     pub(super) fn pending_aggregate_drops(&self) -> Vec<PendingAggregateDrop> {
         self.locals
+            .iter()
+            .rev()
+            .filter_map(|local| {
+                let LocalKind::Aggregate {
+                    layout,
+                    slot_index,
+                    drop_state,
+                    ref drop_glue,
+                    ..
+                } = local.kind
+                else {
+                    return None;
+                };
+                if drop_state != AggregateDropState::NeedsDrop {
+                    return None;
+                }
+                Some(PendingAggregateDrop {
+                    name: local.name.clone(),
+                    slot_index,
+                    layout,
+                    drop_glue: drop_glue.clone()?,
+                })
+            })
+            .collect()
+    }
+
+    pub(super) fn local_mark(&self) -> usize {
+        self.locals.len()
+    }
+
+    pub(super) fn pending_aggregate_drops_since(
+        &self,
+        local_mark: usize,
+    ) -> Vec<PendingAggregateDrop> {
+        let locals = self.locals.get(local_mark..).unwrap_or(&[]);
+        locals
             .iter()
             .rev()
             .filter_map(|local| {
