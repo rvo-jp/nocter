@@ -136,9 +136,6 @@ fn check_impl(
     let self_type = type_expr_to_type_with_self_type(&impl_.target_ty, resolved, None);
     for member in &impl_.members {
         match member {
-            ImplMember::Function(function) => {
-                check_function(sources, function, resolved, Some(&self_type), diagnostics);
-            }
             ImplMember::Method(method) => {
                 let prefix = format!("method `{}`", method.name);
                 check_method_with_prefix(

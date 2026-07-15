@@ -67,27 +67,6 @@ fn check_impl_member_ownership(
 
     for member in &impl_.members {
         match member {
-            ImplMember::Function(function) => {
-                let mut environment = environment_for_parameters_with_self_type(
-                    &function.parameters.parameters,
-                    resolved,
-                    self_type.clone(),
-                );
-                let mut ownership = OwnershipState::default();
-                ownership.define_parameters(
-                    &function.parameters.parameters,
-                    &environment,
-                    resolved,
-                );
-                check_block_ownership(
-                    sources,
-                    &function.body,
-                    resolved,
-                    diagnostics,
-                    &mut environment,
-                    &mut ownership,
-                );
-            }
             ImplMember::Method(method) => {
                 let Some(body) = &method.body else {
                     continue;

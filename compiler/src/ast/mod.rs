@@ -176,7 +176,6 @@ pub struct ImplDecl {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ImplMember {
-    Function(FunctionDecl),
     Method(MethodDecl),
     Drop(DropDecl),
 }

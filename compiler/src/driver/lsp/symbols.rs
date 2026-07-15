@@ -134,14 +134,6 @@ fn item_document_symbol(text: &str, item: &Item) -> Option<Value> {
 
 fn impl_member_document_symbol(text: &str, member: &ImplMember) -> Value {
     match member {
-        ImplMember::Function(function) => document_symbol(
-            text,
-            &function.member_name,
-            LSP_SYMBOL_KIND_FUNCTION,
-            function.span,
-            function.member_name_span,
-            Vec::new(),
-        ),
         ImplMember::Method(method) => method_document_symbol(text, method),
         ImplMember::Drop(drop_) => document_symbol(
             text,

@@ -33,11 +33,6 @@ impl Resolver<'_> {
     fn resolve_impl_bodies(&mut self, impl_: &ImplDecl) {
         for member in &impl_.members {
             match member {
-                ImplMember::Function(function) => {
-                    let mut scope = Scope::new();
-                    self.define_parameters(&function.parameters.parameters, &mut scope);
-                    self.resolve_block(&function.body, &mut scope);
-                }
                 ImplMember::Method(method) => {
                     let Some(body) = &method.body else {
                         continue;

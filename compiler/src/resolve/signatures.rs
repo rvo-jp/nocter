@@ -33,9 +33,6 @@ pub(super) fn attach_inherent_impl_members_to_symbol(
             continue;
         }
 
-        symbol
-            .associated_functions
-            .extend(associated_function_signatures(impl_));
         symbol.methods.extend(method_signatures(impl_));
         if symbol.drop_member.is_none() {
             symbol.drop_member = drop_signature(impl_);
@@ -57,15 +54,6 @@ fn type_symbol_is_error_alias(symbol: &TypeSymbol) -> bool {
         symbol.alias_target.as_ref(),
         Some(TypeExpr::Reference(reference)) if reference.name == "error"
     )
-}
-
-pub(super) fn associated_function_signatures(
-    impl_: &ImplDecl,
-) -> impl Iterator<Item = AssociatedFunctionSignature> + '_ {
-    impl_.members.iter().filter_map(|member| match member {
-        ImplMember::Function(function) => Some(associated_function_signature(function)),
-        ImplMember::Method(_) | ImplMember::Drop(_) => None,
-    })
 }
 
 pub(super) fn top_level_associated_function_signatures<'a>(
@@ -96,7 +84,7 @@ pub(super) fn associated_function_signature(
 pub(super) fn method_signatures(impl_: &ImplDecl) -> impl Iterator<Item = MethodSignature> + '_ {
     impl_.members.iter().filter_map(|member| match member {
         ImplMember::Method(method) => Some(method_signature(method)),
-        ImplMember::Function(_) | ImplMember::Drop(_) => None,
+        ImplMember::Drop(_) => None,
     })
 }
 
@@ -108,7 +96,7 @@ pub(super) fn drop_signature(impl_: &ImplDecl) -> Option<DropSignature> {
             target_name: drop_function_name(target_name),
             binding: parameter_signature(&drop_.binding),
         }),
-        ImplMember::Function(_) | ImplMember::Method(_) => None,
+        ImplMember::Method(_) => None,
     })
 }
 
@@ -130,9 +118,6 @@ pub(super) fn duplicate_inherent_member_name_diagnostics(
 
     for member in &impl_.members {
         let (name, span) = match member {
-            ImplMember::Function(function) => {
-                (function.member_name.as_str(), function.member_name_span)
-            }
             ImplMember::Method(method) => (method.name.as_str(), method.name_span),
             ImplMember::Drop(_) => continue,
         };
@@ -164,7 +149,7 @@ pub(super) fn duplicate_inherent_drop_diagnostics(
     let mut diagnostics = Vec::new();
     let Some(drop_) = impl_.members.iter().find_map(|member| match member {
         ImplMember::Drop(drop_) => Some(drop_),
-        ImplMember::Function(_) | ImplMember::Method(_) => None,
+        ImplMember::Method(_) => None,
     }) else {
         return diagnostics;
     };

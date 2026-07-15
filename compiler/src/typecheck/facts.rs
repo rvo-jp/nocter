@@ -128,11 +128,6 @@ impl TypecheckFactCollector<'_> {
                 self.collect_type_expr_references(&impl_.target_ty);
                 for member in &impl_.members {
                     match member {
-                        ImplMember::Function(function) => {
-                            self.collect_generic_param_type_references(&function.generics);
-                            self.collect_parameter_type_references(&function.parameters.parameters);
-                            self.collect_type_expr_references(&function.return_type);
-                        }
                         ImplMember::Method(method) => {
                             self.collect_method_signature_type_references(method);
                         }
@@ -171,15 +166,6 @@ impl TypecheckFactCollector<'_> {
 
         for member in &impl_.members {
             match member {
-                ImplMember::Function(function) => {
-                    let mut environment = environment_for_parameters_with_self_type(
-                        &function.parameters.parameters,
-                        self.resolved,
-                        self_type.clone(),
-                    );
-                    self.record_parameter_bindings(&function.parameters.parameters, &environment);
-                    self.collect_block_facts(&function.body, &mut environment);
-                }
                 ImplMember::Method(method) => {
                     let Some(body) = &method.body else {
                         continue;

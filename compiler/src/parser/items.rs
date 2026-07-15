@@ -495,7 +495,7 @@ impl Parser<'_> {
                 has_drop_member = true;
                 members.push(ImplMember::Drop(self.parse_drop_decl()?));
             } else {
-                self.error_current("expected `func`, `method`, or `drop` in impl block");
+                self.error_current("expected `method` or `drop` in impl block");
                 return Err(());
             }
 

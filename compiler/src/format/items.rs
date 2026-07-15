@@ -195,7 +195,6 @@ impl Formatter {
 
     fn format_impl_member(&mut self, member: &ImplMember) {
         match member {
-            ImplMember::Function(function) => self.format_function_decl(function),
             ImplMember::Method(method) => self.format_method_decl(method),
             ImplMember::Drop(drop_) => self.format_drop_decl(drop_),
         }

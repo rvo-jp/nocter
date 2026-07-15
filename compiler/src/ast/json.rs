@@ -290,18 +290,6 @@ impl GenericParam {
 impl ImplMember {
     fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
         match self {
-            ImplMember::Function(function) => JsonAstNode::with_value(
-                "associated_function_decl",
-                function.member_name.clone(),
-                json_span(sources, function.span),
-                vec![
-                    visibility_json(function.visibility),
-                    function.generics.to_json(sources),
-                    function.parameters.to_json(sources),
-                    function.return_type.to_json(sources),
-                    function.body.to_json(sources),
-                ],
-            ),
             ImplMember::Method(method) => method.to_json(sources),
             ImplMember::Drop(drop_) => JsonAstNode::with_value(
                 "drop_decl",

@@ -4,11 +4,11 @@ use super::diagnostics::{
     invalid_associated_function_owner_diagnostic,
 };
 use super::signatures::{
-    alias_type_symbol, associated_function_signature, associated_function_signatures,
-    drop_signature, duplicate_inherent_drop_diagnostics,
-    duplicate_inherent_member_name_diagnostics, enum_type_symbol, function_signature,
-    impl_target_type_name, method_signatures, nominal_type_symbol, primitive_signature,
-    struct_type_symbol, type_symbol_accepts_inherent_impl,
+    alias_type_symbol, associated_function_signature, drop_signature,
+    duplicate_inherent_drop_diagnostics, duplicate_inherent_member_name_diagnostics,
+    enum_type_symbol, function_signature, impl_target_type_name, method_signatures,
+    nominal_type_symbol, primitive_signature, struct_type_symbol,
+    type_symbol_accepts_inherent_impl,
 };
 use super::{Resolver, SymbolKind, TypeSymbol, TypeSymbolKind};
 use crate::ast::{AstFile, FunctionDecl, ImplDecl, Item, PrimitiveDecl};
@@ -237,8 +237,6 @@ impl Resolver<'_> {
                 return;
             }
 
-            let mut associated_functions =
-                associated_function_signatures(impl_).collect::<Vec<_>>();
             let mut methods = method_signatures(impl_).collect::<Vec<_>>();
             let mut diagnostics = duplicate_inherent_member_name_diagnostics(
                 self.sources,
@@ -252,9 +250,6 @@ impl Resolver<'_> {
                 type_symbol,
                 impl_,
             ));
-            type_symbol
-                .associated_functions
-                .append(&mut associated_functions);
             type_symbol.methods.append(&mut methods);
             if type_symbol.drop_member.is_none() {
                 type_symbol.drop_member = drop_signature(impl_);

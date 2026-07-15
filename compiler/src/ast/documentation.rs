@@ -61,10 +61,6 @@ fn collect_impl_member_targets(
     targets: &mut Vec<DocumentationTarget>,
 ) {
     match member {
-        ImplMember::Function(function) => {
-            push_target(text, function.span, targets);
-            collect_block_targets(text, &function.body, targets);
-        }
         ImplMember::Method(method) => {
             push_target(text, method.span, targets);
             if let Some(body) = &method.body {

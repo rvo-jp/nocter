@@ -291,14 +291,6 @@ fn collect_item_resolved_hover_symbols(
         Item::Impl(impl_) => {
             for member in &impl_.members {
                 match member {
-                    ImplMember::Function(function) => {
-                        collect_block_resolved_hover_symbols(
-                            &function.body,
-                            resolved,
-                            offset,
-                            candidates,
-                        );
-                    }
                     ImplMember::Method(method) => {
                         if let Some(body) = &method.body {
                             collect_block_resolved_hover_symbols(
@@ -775,15 +767,6 @@ fn collect_item_hover_symbols(text: &str, item: &Item, symbols: &mut Vec<HoverSy
         Item::Impl(impl_) => {
             for member in &impl_.members {
                 match member {
-                    ImplMember::Function(function) => {
-                        push_function_hover_symbol(text, function, symbols);
-                        collect_parameter_hover_symbols(
-                            text,
-                            &function.parameters.parameters,
-                            symbols,
-                        );
-                        collect_block_hover_symbols(text, &function.body, symbols);
-                    }
                     ImplMember::Method(method) => {
                         collect_method_hover_symbols(text, method, symbols)
                     }

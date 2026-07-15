@@ -75,34 +75,6 @@ fn check_impl_member_return_types(
 
     for member in &impl_.members {
         match member {
-            ImplMember::Function(function) => {
-                let context = ReturnContext::new(
-                    CallableKind::AssociatedFunction(impl_member_name(
-                        impl_,
-                        &function.member_name,
-                    )),
-                    type_expr_to_type_with_self_type(
-                        &function.return_type,
-                        resolved,
-                        Some(&self_type),
-                    ),
-                    function.return_type.span(),
-                );
-                let mut environment = environment_for_parameters_with_self_type(
-                    &function.parameters.parameters,
-                    resolved,
-                    self_type.clone(),
-                );
-                check_fallible_success_type(sources, &context, diagnostics);
-                check_block_returns(
-                    sources,
-                    &function.body,
-                    &context,
-                    resolved,
-                    diagnostics,
-                    &mut environment,
-                );
-            }
             ImplMember::Method(method) => {
                 let Some(body) = &method.body else {
                     continue;

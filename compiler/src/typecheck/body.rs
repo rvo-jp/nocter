@@ -85,21 +85,6 @@ fn check_impl_member_expressions(
 
     for member in &impl_.members {
         match member {
-            ImplMember::Function(function) => {
-                let mut environment = environment_for_parameters_with_self_type(
-                    &function.parameters.parameters,
-                    resolved,
-                    self_type.clone(),
-                );
-                check_block_expressions(
-                    sources,
-                    &function.body,
-                    resolved,
-                    diagnostics,
-                    &mut environment,
-                    0,
-                );
-            }
             ImplMember::Method(method) => {
                 let Some(body) = &method.body else {
                     continue;
