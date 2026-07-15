@@ -316,6 +316,10 @@ pub(super) fn enum_variant_member_type(
 }
 
 pub(super) fn enum_variant_call_type(call: &CallExpr, resolved: &ResolveOutput) -> Option<Type> {
+    if resolved.associated_function_for_call(call).is_some() {
+        return None;
+    }
+
     enum_member_for_call(call).and_then(|member| enum_variant_member_type(member, resolved))
 }
 
@@ -360,6 +364,10 @@ pub(super) fn check_enum_variant_call(
     let Some(member) = enum_member_for_call(call) else {
         return;
     };
+    if resolved.associated_function_for_call(call).is_some() {
+        return;
+    }
+
     let Some(enum_symbol) = enum_symbol_for_member(member, resolved) else {
         return;
     };

@@ -95,17 +95,16 @@ pub(super) fn expression_type(
                 return Type::Primitive("usize".to_string());
             }
 
-            enum_variant_call_type(expression, resolved).unwrap_or_else(|| {
-                resolved_call_signature(resolved, expression, environment)
-                    .map(|signature| {
-                        type_expr_to_type_with_self_type(
-                            &signature.signature.return_type,
-                            resolved,
-                            signature.self_type.as_ref(),
-                        )
-                    })
-                    .unwrap_or(Type::Unknown)
-            })
+            resolved_call_signature(resolved, expression, environment)
+                .map(|signature| {
+                    type_expr_to_type_with_self_type(
+                        &signature.signature.return_type,
+                        resolved,
+                        signature.self_type.as_ref(),
+                    )
+                })
+                .or_else(|| enum_variant_call_type(expression, resolved))
+                .unwrap_or(Type::Unknown)
         }
         Expr::Group(expression) => expression_type(&expression.expression, resolved, environment),
         Expr::Index(expression) => index_expression_type(expression, resolved, environment),

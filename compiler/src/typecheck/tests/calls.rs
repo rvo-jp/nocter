@@ -109,6 +109,26 @@ func main(): i32 {
 }
 
 #[test]
+fn accepts_enum_associated_function_return_type() {
+    let diagnostics = check_text(
+        r#"enum Choice {
+    empty
+}
+
+pub func Choice.answer(): i32 {
+    return 42
+}
+
+func main(): i32 {
+    return Choice.answer()
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_associated_function_argument_count_mismatch() {
     let diagnostics = check_text(
         r#"struct Parser {
