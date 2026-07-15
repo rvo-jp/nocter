@@ -612,16 +612,24 @@ pub(super) fn lower_call_arguments(
         }
     }
 
-    validate_call_argument_abi_word_count(callee_name, &arguments)?;
+    let actual_abi_words = validate_call_argument_abi_word_count(callee_name, &arguments)?;
+    if let Some(expected_abi_words) = context.call_parameter_abi_word_count(target) {
+        if actual_abi_words != expected_abi_words {
+            return Err(call_argument_abi_word_count_mismatch_diagnostic(
+                callee_name,
+                expected_abi_words,
+                actual_abi_words,
+            ));
+        }
+    }
     Ok((instructions, arguments))
 }
 
 fn validate_call_argument_abi_word_count(
     callee_name: &str,
     arguments: &[ScalarArgument],
-) -> Result<(), Vec<Diagnostic>> {
-    let _count = call_argument_abi_word_count(arguments, callee_name)?;
-    Ok(())
+) -> Result<usize, Vec<Diagnostic>> {
+    call_argument_abi_word_count(arguments, callee_name)
 }
 
 pub(super) fn call_arguments_require_stack(
@@ -649,6 +657,19 @@ fn call_argument_abi_word_count_overflow_diagnostic(callee_name: &str) -> Vec<Di
     vec![Diagnostic::error(
         "E8006",
         format!("IR v0 call argument ABI word count overflows for function `{callee_name}`"),
+    )]
+}
+
+fn call_argument_abi_word_count_mismatch_diagnostic(
+    callee_name: &str,
+    expected: usize,
+    actual: usize,
+) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8006",
+        format!(
+            "IR v0 lowered call arguments for function `{callee_name}` into {actual} ABI words, but the resolved signature expects {expected}"
+        ),
     )]
 }
 
@@ -1137,7 +1158,7 @@ fn lower_legacy_i32_call_arguments(
         arguments.push(ScalarArgument::I32(argument.value));
     }
 
-    validate_call_argument_abi_word_count(callee_name, &arguments)?;
+    let _actual_abi_words = validate_call_argument_abi_word_count(callee_name, &arguments)?;
     Ok((instructions, arguments))
 }
 

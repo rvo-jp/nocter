@@ -268,6 +268,10 @@ impl<'a> LoweringContext<'a> {
         self.function_signatures.parameter_types(target)
     }
 
+    pub(super) fn call_parameter_abi_word_count(&self, target: &CallTarget) -> Option<usize> {
+        self.function_signatures.parameter_abi_word_count(target)
+    }
+
     pub(super) fn call_target(&self, call: &CallExpr, fallback_name: &str) -> CallTarget {
         let Some(resolution) = &self.call_resolution else {
             return CallTarget::same_file(fallback_name);
@@ -846,6 +850,7 @@ impl FunctionSignatures {
                         FunctionSignature {
                             return_type,
                             parameter_types: None,
+                            parameter_abi_word_count: None,
                         },
                     )
                 })
@@ -868,12 +873,19 @@ impl FunctionSignatures {
             .get(target)
             .and_then(|signature| signature.parameter_types.as_deref())
     }
+
+    pub(super) fn parameter_abi_word_count(&self, target: &CallTarget) -> Option<usize> {
+        self.signatures
+            .get(target)
+            .and_then(|signature| signature.parameter_abi_word_count)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct FunctionSignature {
     pub(super) return_type: Type,
     pub(super) parameter_types: Option<Vec<Type>>,
+    pub(super) parameter_abi_word_count: Option<usize>,
 }
 
 #[derive(Clone)]

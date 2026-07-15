@@ -14,12 +14,17 @@ mod reachability;
 mod tests;
 
 use super::{CallTarget, Function, IrModule};
-use crate::abi::{AbiType, AbiValue, ValueClassification, abi_value_from_type_expr};
+use crate::abi::{
+    AbiType, AbiValue, ValueClassification, abi_value_from_type_expr, function_abi_from_signature,
+};
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
-use crate::ast::{DropDecl, FunctionDecl, ImplMember, Item, TypeExpr};
+use crate::ast::{DropDecl, FunctionDecl, ImplMember, Item, Parameter, TypeExpr, TypeReference};
 use crate::diagnostics::Diagnostic;
 use crate::ir::Type;
-use crate::resolve::{ResolveOutput, drop_function_name};
+use crate::resolve::{
+    FunctionSignature as ResolvedFunctionSignature, ParameterSignature, ResolveOutput,
+    drop_function_name,
+};
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use context::{FunctionNames, FunctionSignature, FunctionSignatures};
 use imported_calls::imported_call_diagnostics;
@@ -401,23 +406,33 @@ impl<'a> IndexedCallable<'a> {
 
     fn signature(&self) -> Option<FunctionSignature> {
         match &self.declaration {
-            IndexedDeclaration::Function(function) => lower_signature_return_type(
-                &function.return_type,
-                self.resolved,
-            )
-            .map(|return_type| {
-                let parameter_types = function
-                    .parameters
-                    .parameters
-                    .iter()
-                    .map(|parameter| lower_signature_parameter_type(&parameter.ty, self.resolved))
-                    .collect::<Option<Vec<_>>>();
+            IndexedDeclaration::Function(function) => {
+                let resolved_signature = resolved_function_signature(
+                    &function.parameters.parameters,
+                    function.return_type.clone(),
+                );
+                lower_signature_return_type(&function.return_type, self.resolved).map(
+                    |return_type| {
+                        let parameter_types = function
+                            .parameters
+                            .parameters
+                            .iter()
+                            .map(|parameter| {
+                                lower_signature_parameter_type(&parameter.ty, self.resolved)
+                            })
+                            .collect::<Option<Vec<_>>>();
 
-                FunctionSignature {
-                    return_type,
-                    parameter_types,
-                }
-            }),
+                        FunctionSignature {
+                            return_type,
+                            parameter_types,
+                            parameter_abi_word_count: parameter_abi_word_count(
+                                &resolved_signature,
+                                self.resolved,
+                            ),
+                        }
+                    },
+                )
+            }
             IndexedDeclaration::Drop {
                 declaration,
                 self_ty,
@@ -426,9 +441,22 @@ impl<'a> IndexedCallable<'a> {
                 let parameter_ty =
                     functions::type_expr_with_self_type(&declaration.binding.ty, self_ty);
                 let parameter_type = lower_signature_parameter_type(&parameter_ty, self.resolved)?;
+                let resolved_signature = resolved_function_signature(
+                    &[Parameter {
+                        span: declaration.binding.span,
+                        name: declaration.binding.name.clone(),
+                        name_span: declaration.binding.name_span,
+                        ty: parameter_ty,
+                    }],
+                    void_type_expr(declaration.span),
+                );
                 Some(FunctionSignature {
                     return_type: Type::Void,
                     parameter_types: Some(vec![parameter_type]),
+                    parameter_abi_word_count: parameter_abi_word_count(
+                        &resolved_signature,
+                        self.resolved,
+                    ),
                 })
             }
         }
@@ -446,6 +474,39 @@ impl<'a> IndexedCallable<'a> {
     }
 }
 
+fn resolved_function_signature(
+    parameters: &[Parameter],
+    return_type: TypeExpr,
+) -> ResolvedFunctionSignature {
+    ResolvedFunctionSignature {
+        parameters: parameters
+            .iter()
+            .map(|parameter| ParameterSignature {
+                name: parameter.name.clone(),
+                name_span: parameter.name_span,
+                ty: parameter.ty.clone(),
+            })
+            .collect(),
+        return_type,
+    }
+}
+
+fn parameter_abi_word_count(
+    signature: &ResolvedFunctionSignature,
+    resolved: &ResolveOutput,
+) -> Option<usize> {
+    function_abi_from_signature(signature, resolved)
+        .ok()
+        .map(|abi| abi.parameter_abi_word_count())
+}
+
+fn void_type_expr(span: ByteSpan) -> TypeExpr {
+    TypeExpr::Reference(TypeReference {
+        span,
+        name: "void".to_string(),
+    })
+}
+
 impl IndexedDeclaration<'_> {
     fn span(&self) -> ByteSpan {
         match self {
@@ -453,17 +514,6 @@ impl IndexedDeclaration<'_> {
             IndexedDeclaration::Drop { declaration, .. } => declaration.span,
         }
     }
-}
-
-fn attach_primary_span_if_absent(
-    diagnostics: Vec<Diagnostic>,
-    sources: &SourceMap,
-    span: ByteSpan,
-) -> Vec<Diagnostic> {
-    diagnostics
-        .into_iter()
-        .map(|diagnostic| diagnostic.with_primary_span_if_absent(sources, span))
-        .collect()
 }
 
 fn call_target_for_source(source: SourceId, root_source: SourceId, name: String) -> CallTarget {
@@ -475,14 +525,25 @@ fn call_target_for_source(source: SourceId, root_source: SourceId, name: String)
 }
 
 fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {
-    let TypeExpr::Reference(reference) = ty else {
-        return None;
-    };
-    Some(&reference.name)
+    match ty {
+        TypeExpr::Reference(reference) => Some(&reference.name),
+        _ => None,
+    }
 }
 
-fn drop_name_span(span: crate::source::ByteSpan) -> crate::source::ByteSpan {
-    crate::source::ByteSpan::new(span.source, span.start, span.start + "drop".len())
+fn drop_name_span(span: ByteSpan) -> ByteSpan {
+    ByteSpan::new(span.source, span.start, span.start + "drop".len())
+}
+
+fn attach_primary_span_if_absent(
+    diagnostics: Vec<Diagnostic>,
+    sources: &SourceMap,
+    span: ByteSpan,
+) -> Vec<Diagnostic> {
+    diagnostics
+        .into_iter()
+        .map(|diagnostic| diagnostic.with_primary_span_if_absent(sources, span))
+        .collect()
 }
 
 fn describe_call_target(target: &CallTarget) -> String {

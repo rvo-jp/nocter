@@ -941,6 +941,10 @@ func consume(bytes: &[u8], scratch: &+[u8]): i32 {
         signatures.parameter_types(&CallTarget::same_file("consume")),
         Some(vec![readonly_u8_slice_type(), readwrite_u8_slice_type()].as_slice())
     );
+    assert_eq!(
+        signatures.parameter_abi_word_count(&CallTarget::same_file("consume")),
+        Some(4)
+    );
 }
 
 #[test]
@@ -1049,6 +1053,10 @@ func consume(text: Text, header: Header): i32 {
             ]
             .as_slice()
         )
+    );
+    assert_eq!(
+        signatures.parameter_abi_word_count(&CallTarget::same_file("consume")),
+        Some(3)
     );
 }
 
@@ -16807,6 +16815,7 @@ fn function_signatures(signatures: Vec<(&str, Type, Vec<Type>)>) -> context::Fun
                     context::FunctionSignature {
                         return_type,
                         parameter_types: Some(parameter_types),
+                        parameter_abi_word_count: None,
                     },
                 )
             })

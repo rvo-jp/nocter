@@ -27,6 +27,9 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: index parameter ABI word counts from function ABI
+  - records `FunctionAbi::parameter_abi_word_count` on IR lowering call signatures when the resolved signature can be classified
+  - checks lowered call argument ABI word counts against the indexed callee ABI count so signature/lowering drift is diagnosed before backend codegen
 - Current checkpoint: centralize lowering parameter ABI slot allocation
   - moves IR lowering's parameter ABI-word table growth into `LoweringParameterSlots`
   - keeps scalar, view, borrow, direct aggregate, and indirect aggregate parameter word cursors aligned through one helper before wiring broader `FunctionAbi` planning into lowering
