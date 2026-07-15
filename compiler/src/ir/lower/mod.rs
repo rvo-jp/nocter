@@ -15,7 +15,8 @@ mod tests;
 
 use super::{CallTarget, Function, IrModule};
 use crate::abi::{
-    AbiType, AbiValue, ValueClassification, abi_value_from_type_expr, function_abi_from_signature,
+    AbiType, AbiValue, ValueClassification, abi_value_from_type_expr,
+    function_parameter_abi_word_count_from_signature,
 };
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{DropDecl, FunctionDecl, ImplMember, Item, Parameter, TypeExpr, TypeReference};
@@ -495,9 +496,7 @@ fn parameter_abi_word_count(
     signature: &ResolvedFunctionSignature,
     resolved: &ResolveOutput,
 ) -> Option<usize> {
-    function_abi_from_signature(signature, resolved)
-        .ok()
-        .map(|abi| abi.parameter_abi_word_count())
+    function_parameter_abi_word_count_from_signature(signature, resolved).ok()
 }
 
 fn void_type_expr(span: ByteSpan) -> TypeExpr {

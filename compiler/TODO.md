@@ -29,6 +29,7 @@ Recent committed work:
 
 - Current checkpoint: index parameter ABI word counts from function ABI
   - records `FunctionAbi::parameter_abi_word_count` on IR lowering call signatures when the resolved signature can be classified
+  - uses a parameter-only ABI helper so fallible return signatures still expose their argument ABI word count
   - checks lowered call argument ABI word counts against the indexed callee ABI count so signature/lowering drift is diagnosed before backend codegen
 - Current checkpoint: centralize lowering parameter ABI slot allocation
   - moves IR lowering's parameter ABI-word table growth into `LoweringParameterSlots`

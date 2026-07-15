@@ -948,6 +948,33 @@ func consume(bytes: &[u8], scratch: &+[u8]): i32 {
 }
 
 #[test]
+fn indexes_fallible_function_signature_parameter_abi_word_count() {
+    let analysis = analyze_text_with_entry(
+        r#"func main(): i32 {
+    return 0
+}
+
+func load(text: &str, count: usize): i32! {
+    return 1
+}
+"#,
+        crate::entry::DEFAULT_ENTRY_NAME,
+    );
+    let root = analysis.root_file().unwrap();
+    let index = FunctionIndex::new(&analysis, root.ast.span.source);
+    let signatures = index.signatures();
+
+    assert_eq!(
+        signatures.return_type(&CallTarget::same_file("load")),
+        Some(&Type::Fallible(Box::new(Type::I32)))
+    );
+    assert_eq!(
+        signatures.parameter_abi_word_count(&CallTarget::same_file("load")),
+        Some(3)
+    );
+}
+
+#[test]
 fn indexes_indirect_aggregate_function_signature_return_type() {
     let analysis = analyze_text_with_entry(
         r#"struct Text {

@@ -292,6 +292,20 @@ pub fn function_abi_from_signature(
     })
 }
 
+pub fn function_parameter_abi_word_count_from_signature(
+    signature: &FunctionSignature,
+    resolved: &ResolveOutput,
+) -> Result<usize, AbiTypeError> {
+    let mut count = 0_usize;
+    for parameter in &signature.parameters {
+        let value = abi_value_from_type_expr(&parameter.ty, resolved)?;
+        count = count
+            .checked_add(value.parameter_abi_word_count())
+            .ok_or(AbiTypeError::Layout(LayoutError::SizeOverflow))?;
+    }
+    Ok(count)
+}
+
 pub fn abi_type_from_type_expr(
     ty: &TypeExpr,
     resolved: &ResolveOutput,
@@ -469,7 +483,7 @@ mod tests {
     use super::{
         AbiField, AbiReturn, AbiType, ParameterPassing, ReturnPassing, ValueClassification,
         ValueLayout, abi_type_from_type_expr, classify_value, function_abi_from_signature,
-        layout_of, layout_struct,
+        function_parameter_abi_word_count_from_signature, layout_of, layout_struct,
     };
     use crate::ast::Item;
     use crate::lexer::lex;
@@ -688,6 +702,20 @@ func done(): void {
 
         assert_eq!(abi.parameter_abi_word_count(), 9);
         assert!(!abi.parameters_fit_registers());
+    }
+
+    #[test]
+    fn counts_parameters_for_fallible_return_signatures() {
+        let (_ast, resolved) = parse_and_resolve(
+            r#"func load(text: &str, count: usize): i32! {
+}
+"#,
+        );
+        let signature = resolved_function_signature(&resolved, "load");
+
+        let count = function_parameter_abi_word_count_from_signature(signature, &resolved).unwrap();
+
+        assert_eq!(count, 3);
     }
 
     fn parse_and_resolve(text: &str) -> (crate::ast::AstFile, crate::resolve::ResolveOutput) {
