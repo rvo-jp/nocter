@@ -816,6 +816,38 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_lowers_return_in_nonterminal_while_body() {
+    let project = TempProject::new("cli-build-return-in-nonterminal-while-body");
+    let source = project.write_source(
+        "return_in_nonterminal_while_body.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    while false {
+        var file = File{ fd: 1 }
+        return 7
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_terminal_if_branch_void_call() {
     let project = TempProject::new("cli-build-terminal-if-branch-void-call");
     let source = project.write_source(

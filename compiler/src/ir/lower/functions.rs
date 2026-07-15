@@ -32,8 +32,8 @@ use super::expressions::{
 use crate::abi::{AbiType, AbiValue, ValueClassification, abi_value_from_type_expr};
 use crate::ast::{
     ArrayType, Block, BorrowType, DropDecl, DropStmt, Expr, FallibleType, FunctionDecl,
-    GenericType, IfStmt, OptionalType, Parameter, PointerType, Stmt, StructLiteralExpr, TypeExpr,
-    UnaryOperator, ViewType,
+    GenericType, IfStmt, OptionalType, Parameter, PointerType, ReturnStmt, Stmt, StructLiteralExpr,
+    TypeExpr, UnaryOperator, ViewType,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -571,7 +571,7 @@ fn lower_callable_body(
     function_name: &str,
     body: &Block,
     return_type: &Type,
-    root_source: SourceId,
+    _root_source: SourceId,
     resolved: &ResolveOutput,
     sources: &SourceMap,
     context: &mut LoweringContext,
@@ -600,153 +600,9 @@ fn lower_callable_body(
 
     match last {
         Stmt::Return(statement) => {
-            if let Some(expression) = &statement.expression
-                && let Some(return_instructions) =
-                    lower_never_return_expression(expression, context).map_err(|diagnostics| {
-                        attach_primary_span_if_absent(diagnostics, sources, expression.span())
-                    })?
-            {
-                instructions.extend(return_instructions);
-                return Ok(instructions);
-            }
-
-            if let Some(expression) = &statement.expression
-                && matches!(return_type, Type::Fallible(_))
-                && let Some(payload) =
-                    lower_error_payload(expression, resolved, root_source, Some(context)).map_err(
-                        |diagnostics| {
-                            attach_primary_span_if_absent(diagnostics, sources, expression.span())
-                        },
-                    )?
-            {
-                instructions.extend(append_scope_end_drops_before_exit(
-                    lower_fallible_failure(payload),
-                    context,
-                )?);
-                return Ok(instructions);
-            }
-
-            if let Some(expression) = &statement.expression
-                && let Some(return_instructions) = lower_value_return_with_scope_drops(
-                    success_type,
-                    expression,
-                    return_type,
-                    context,
-                )
-                .map_err(|diagnostics| {
-                    attach_primary_span_if_absent(diagnostics, sources, expression.span())
-                })?
-            {
-                instructions.extend(return_instructions);
-                return Ok(instructions);
-            }
-
-            let return_instructions = match (success_type, &statement.expression) {
-                (Type::I32, Some(expression)) => lower_i32_return_expression(expression, context),
-                (Type::U8, Some(expression)) => lower_u8_return_expression(expression, context),
-                (Type::Usize, Some(expression)) => {
-                    lower_usize_return_expression(expression, context)
-                }
-                (Type::Bool, Some(expression)) => {
-                    lower_bool_return_expression(expression, context, "E8007")
-                }
-                (Type::Str, Some(expression)) => lower_str_return_expression(expression, context),
-                (Type::Slice { .. }, Some(expression)) => {
-                    lower_slice_return_expression(expression, context)
-                }
-                (Type::Aggregate { .. } | Type::DirectAggregate { .. }, Some(expression)) => {
-                    lower_aggregate_return_expression(
-                        expression,
-                        success_type,
-                        function_name,
-                        resolved,
-                        context,
-                    )
-                }
-                (Type::Never, Some(_)) => Err(vec![Diagnostic::error(
-                    "E8007",
-                    format!(
-                        "IR v0 can only lower never function `{}` returns from `never` calls",
-                        function_name
-                    ),
-                )]),
-                (Type::Void, None) => Ok(vec![Instruction::Return]),
-                (Type::Void, Some(_)) => Err(vec![Diagnostic::error(
-                    "E8007",
-                    format!(
-                        "IR v0 cannot lower value returns from void function `{}`",
-                        function_name
-                    ),
-                )]),
-                (Type::I32, None) => Err(vec![Diagnostic::error(
-                    "E8007",
-                    format!(
-                        "IR v0 cannot lower bare returns from i32 function `{}`",
-                        function_name
-                    ),
-                )]),
-                (Type::U8, None) => Err(vec![Diagnostic::error(
-                    "E8007",
-                    format!(
-                        "IR v0 cannot lower bare returns from u8 function `{}`",
-                        function_name
-                    ),
-                )]),
-                (Type::Usize, None) => Err(vec![Diagnostic::error(
-                    "E8007",
-                    format!(
-                        "IR v0 cannot lower bare returns from usize function `{}`",
-                        function_name
-                    ),
-                )]),
-                (Type::Bool, None) => Err(vec![Diagnostic::error(
-                    "E8007",
-                    format!(
-                        "IR v0 cannot lower bare returns from bool function `{}`",
-                        function_name
-                    ),
-                )]),
-                (Type::Str, None) => Err(vec![Diagnostic::error(
-                    "E8007",
-                    format!(
-                        "IR v0 cannot lower bare returns from &str function `{}`",
-                        function_name
-                    ),
-                )]),
-                (Type::Slice { .. }, None) => Err(vec![Diagnostic::error(
-                    "E8007",
-                    format!(
-                        "IR v0 cannot lower bare returns from slice function `{}`",
-                        function_name
-                    ),
-                )]),
-                (Type::Aggregate { .. } | Type::DirectAggregate { .. }, None) => {
-                    Err(vec![Diagnostic::error(
-                        "E8007",
-                        format!(
-                            "IR v0 cannot lower bare returns from aggregate function `{}`",
-                            function_name
-                        ),
-                    )])
-                }
-                (Type::Borrow { .. }, _) => Err(vec![Diagnostic::error(
-                    "E8007",
-                    format!(
-                        "IR v0 cannot lower borrow returns from function `{}`",
-                        function_name
-                    ),
-                )]),
-                (Type::Never, None) => Err(vec![Diagnostic::error(
-                    "E8007",
-                    format!(
-                        "IR v0 cannot lower bare returns from never function `{}`",
-                        function_name
-                    ),
-                )]),
-                (Type::Fallible(_), _) => {
-                    unreachable!("fallible success type must be unwrapped")
-                }
-            }
+            let return_instructions = lower_return_statement_with_scope_drops(
+                statement, context, "E8007",
+            )
             .map_err(|diagnostics| {
                 let span = statement
                     .expression
@@ -754,12 +610,7 @@ fn lower_callable_body(
                     .map_or(statement.span, |expression| expression.span());
                 attach_primary_span_if_absent(diagnostics, sources, span)
             })?;
-            let return_instructions =
-                mark_fallible_success_returns(return_type, return_instructions);
-            instructions.extend(append_scope_end_drops_before_exit(
-                return_instructions,
-                context,
-            )?);
+            instructions.extend(return_instructions);
             Ok(instructions)
         }
         Stmt::If(statement) if success_type == &Type::I32 => {
@@ -948,6 +799,147 @@ fn lower_callable_body(
             last.span(),
         )),
     }
+}
+
+pub(super) fn lower_return_statement_with_scope_drops(
+    statement: &ReturnStmt,
+    context: &mut LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let return_type = context.function_return_type().clone();
+    let success_type = return_type.success_type().clone();
+    let function_name = context.function_name().to_string();
+
+    if let Some(expression) = &statement.expression
+        && let Some(return_instructions) = lower_never_return_expression(expression, context)?
+    {
+        return Ok(return_instructions);
+    }
+
+    if let Some(expression) = &statement.expression
+        && matches!(return_type, Type::Fallible(_))
+        && let Some((root_source, resolved)) = context.resolved_calls()
+        && let Some(payload) =
+            lower_error_payload(expression, resolved, root_source, Some(context))?
+    {
+        return append_scope_end_drops_before_exit(lower_fallible_failure(payload), context);
+    }
+
+    if let Some(expression) = &statement.expression
+        && let Some(return_instructions) =
+            lower_value_return_with_scope_drops(&success_type, expression, &return_type, context)?
+    {
+        return Ok(return_instructions);
+    }
+
+    let return_instructions = match (&success_type, &statement.expression) {
+        (Type::I32, Some(expression)) => lower_i32_return_expression(expression, context),
+        (Type::U8, Some(expression)) => lower_u8_return_expression(expression, context),
+        (Type::Usize, Some(expression)) => lower_usize_return_expression(expression, context),
+        (Type::Bool, Some(expression)) => {
+            lower_bool_return_expression(expression, context, diagnostic_code)
+        }
+        (Type::Str, Some(expression)) => lower_str_return_expression(expression, context),
+        (Type::Slice { .. }, Some(expression)) => {
+            lower_slice_return_expression(expression, context)
+        }
+        (Type::Aggregate { .. } | Type::DirectAggregate { .. }, Some(expression)) => {
+            let Some((_root_source, resolved)) = context.resolved_calls() else {
+                return Err(unsupported_return_diagnostic(
+                    diagnostic_code,
+                    &function_name,
+                    "aggregate",
+                ));
+            };
+            lower_aggregate_return_expression(
+                expression,
+                &success_type,
+                &function_name,
+                resolved,
+                context,
+            )
+        }
+        (Type::Never, Some(_)) => Err(vec![Diagnostic::error(
+            diagnostic_code,
+            format!(
+                "IR v0 can only lower never function `{function_name}` returns from `never` calls"
+            ),
+        )]),
+        (Type::Void, None) => Ok(vec![Instruction::Return]),
+        (Type::Void, Some(_)) => Err(vec![Diagnostic::error(
+            diagnostic_code,
+            format!("IR v0 cannot lower value returns from void function `{function_name}`"),
+        )]),
+        (Type::I32, None) => Err(unsupported_bare_return_diagnostic(
+            diagnostic_code,
+            &function_name,
+            "i32",
+        )),
+        (Type::U8, None) => Err(unsupported_bare_return_diagnostic(
+            diagnostic_code,
+            &function_name,
+            "u8",
+        )),
+        (Type::Usize, None) => Err(unsupported_bare_return_diagnostic(
+            diagnostic_code,
+            &function_name,
+            "usize",
+        )),
+        (Type::Bool, None) => Err(unsupported_bare_return_diagnostic(
+            diagnostic_code,
+            &function_name,
+            "bool",
+        )),
+        (Type::Str, None) => Err(unsupported_bare_return_diagnostic(
+            diagnostic_code,
+            &function_name,
+            "&str",
+        )),
+        (Type::Slice { .. }, None) => Err(unsupported_bare_return_diagnostic(
+            diagnostic_code,
+            &function_name,
+            "slice",
+        )),
+        (Type::Aggregate { .. } | Type::DirectAggregate { .. }, None) => Err(
+            unsupported_bare_return_diagnostic(diagnostic_code, &function_name, "aggregate"),
+        ),
+        (Type::Borrow { .. }, _) => Err(unsupported_return_diagnostic(
+            diagnostic_code,
+            &function_name,
+            "borrow",
+        )),
+        (Type::Never, None) => Err(unsupported_bare_return_diagnostic(
+            diagnostic_code,
+            &function_name,
+            "never",
+        )),
+        (Type::Fallible(_), _) => unreachable!("fallible success type must be unwrapped"),
+    }?;
+
+    let return_instructions = mark_fallible_success_returns(&return_type, return_instructions);
+    append_scope_end_drops_before_exit(return_instructions, context)
+}
+
+fn unsupported_bare_return_diagnostic(
+    diagnostic_code: &'static str,
+    function_name: &str,
+    return_label: &str,
+) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        diagnostic_code,
+        format!("IR v0 cannot lower bare returns from {return_label} function `{function_name}`"),
+    )]
+}
+
+fn unsupported_return_diagnostic(
+    diagnostic_code: &'static str,
+    function_name: &str,
+    return_label: &str,
+) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        diagnostic_code,
+        format!("IR v0 cannot lower {return_label} returns from function `{function_name}`"),
+    )]
 }
 
 fn attach_primary_span_if_absent(

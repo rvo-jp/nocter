@@ -3068,6 +3068,87 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_return_inside_nonterminal_if_branch_with_outer_scope_cleanup() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 1 }
+    if ready() {
+        return 7
+    }
+    return 0
+}
+
+func ready(): bool {
+    return true
+}
+"#,
+    );
+
+    let drop_file = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(1),
+            },
+            call_bool(BoolLocation::Local(0), "ready", vec![]),
+            Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Local(0)),
+                then_instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(7),
+                    },
+                    drop_file.clone(),
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
+                    Instruction::Return,
+                ],
+                else_instructions: vec![],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: i32_const(0),
+            },
+            drop_file,
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
 fn lowers_scope_end_drop_inside_nonterminal_while_body() {
     let ir = lower_text(
         r#"struct File {
@@ -3321,6 +3402,81 @@ func main(): i32 {
                             source: BorrowSource::AggregateSlot(0),
                         })],
                     },
+                ],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_const(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
+fn lowers_return_inside_nonterminal_while_body_with_body_scope_cleanup() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    while ready() {
+        var file = File{ fd: 1 }
+        return 7
+    }
+    return 0
+}
+
+func ready(): bool {
+    return false
+}
+"#,
+    );
+
+    let drop_file = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::While {
+                condition_instructions: vec![call_bool(BoolLocation::Local(0), "ready", vec![],)],
+                condition: BoolValue::Location(BoolLocation::Local(0)),
+                body_instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::Slot(0),
+                        offset: 0,
+                        value: i32_const(1),
+                    },
+                    Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(7),
+                    },
+                    drop_file,
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
+                    Instruction::Return,
                 ],
             },
             Instruction::SetI32 {

@@ -8,8 +8,9 @@ use super::expressions::{
 use super::functions::{
     append_scope_end_drops_before_exit, expression_contains_explicit_aggregate_move,
     expression_contains_explicit_aggregate_move_outside, lower_drop_statement,
-    lower_scope_end_drops_for_locals_since, lower_value_return_with_scope_drops,
-    mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
+    lower_return_statement_with_scope_drops, lower_scope_end_drops_for_locals_since,
+    lower_value_return_with_scope_drops, mark_explicit_moves_in_expression,
+    mark_lowered_statement_aggregate_uses,
 };
 use crate::ast::{BinaryExpr, BinaryOperator, Block, Expr, IfStmt, Stmt, WhileStmt};
 use crate::diagnostics::Diagnostic;
@@ -450,6 +451,15 @@ fn lower_nonterminal_loop_block_statements(
                     ));
                 }
                 instructions.extend(lower_drop_statement(statement, context)?);
+            }
+            Stmt::Return(statement) => {
+                instructions.extend(lower_return_statement_with_scope_drops(
+                    statement,
+                    context,
+                    diagnostic_code,
+                )?);
+                ends_execution = true;
+                break;
             }
             Stmt::If(statement) => {
                 let lowered = lower_nonterminal_if_statement(
@@ -919,7 +929,7 @@ fn unsupported_nonterminal_if_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower non-terminal `if`/`while` statements for {subject} when branches contain supported local bindings, branch/body-local assignments or explicit aggregate drops, void call statements, or nested non-terminal `if`/`while` statements"
+            "IR v0 can only lower non-terminal `if`/`while` statements for {subject} when branches contain supported local bindings, branch/body-local assignments or explicit aggregate drops, void call statements, returns, or nested non-terminal `if`/`while` statements"
         ),
     )]
 }
