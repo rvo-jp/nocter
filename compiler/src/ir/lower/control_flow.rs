@@ -303,6 +303,7 @@ fn lower_nonterminal_while_block(
     let mut instructions = lower_nonterminal_loop_block_statements(
         &block.statements,
         &mut body_context,
+        local_mark,
         diagnostic_code,
         subject,
     )?;
@@ -324,6 +325,7 @@ fn lower_nonterminal_if_block(
     let mut instructions = lower_nonterminal_loop_block_statements(
         &block.statements,
         &mut branch_context,
+        local_mark,
         diagnostic_code,
         subject,
     )?;
@@ -337,6 +339,7 @@ fn lower_nonterminal_if_block(
 fn lower_nonterminal_loop_block_statements(
     statements: &[Stmt],
     context: &mut LoweringContext,
+    local_mark: usize,
     diagnostic_code: &'static str,
     subject: &str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -356,6 +359,15 @@ fn lower_nonterminal_loop_block_statements(
                     ));
                 };
                 instructions.extend(void_instructions);
+            }
+            Stmt::Drop(statement) => {
+                if !context.aggregate_local_defined_since(&statement.name, local_mark) {
+                    return Err(unsupported_nonterminal_if_diagnostic(
+                        diagnostic_code,
+                        subject,
+                    ));
+                }
+                instructions.extend(lower_drop_statement(statement, context)?);
             }
             Stmt::If(statement) => instructions.extend(lower_nonterminal_if_statement(
                 statement,
@@ -741,7 +753,7 @@ fn unsupported_nonterminal_if_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower non-terminal `if`/`while` statements for {subject} when branches contain supported local bindings, void call statements, or nested non-terminal `if`/`while` statements"
+            "IR v0 can only lower non-terminal `if`/`while` statements for {subject} when branches contain supported local bindings, branch/body-local explicit aggregate drops, void call statements, or nested non-terminal `if`/`while` statements"
         ),
     )]
 }

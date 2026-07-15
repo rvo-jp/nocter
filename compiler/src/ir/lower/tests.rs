@@ -2892,6 +2892,68 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_explicit_drop_inside_nonterminal_if_branch_without_scope_end_duplicate() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    if true {
+        var file = File{ fd: 1 }
+        drop file
+    }
+    return 0
+}
+"#,
+    );
+
+    let explicit_drop = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::If {
+                condition: BoolValue::Const(true),
+                then_instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::Slot(0),
+                        offset: 0,
+                        value: i32_const(1),
+                    },
+                    explicit_drop,
+                ],
+                else_instructions: vec![],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_const(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
 fn lowers_scope_end_drop_inside_nonterminal_while_body() {
     let ir = lower_text(
         r#"struct File {
@@ -2959,6 +3021,99 @@ func touch(): void {
             Instruction::Return,
         ],
     );
+}
+
+#[test]
+fn lowers_explicit_drop_inside_nonterminal_while_body_without_scope_end_duplicate() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    while ready() {
+        var file = File{ fd: 1 }
+        drop file
+    }
+    return 0
+}
+
+func ready(): bool {
+    return false
+}
+"#,
+    );
+
+    let explicit_drop = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::While {
+                condition_instructions: vec![call_bool(BoolLocation::Local(0), "ready", vec![],)],
+                condition: BoolValue::Location(BoolLocation::Local(0)),
+                body_instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::Slot(0),
+                        offset: 0,
+                        value: i32_const(1),
+                    },
+                    explicit_drop,
+                ],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_const(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
+fn rejects_outer_explicit_drop_inside_nonterminal_while_body() {
+    let diagnostics = lower_text_diagnostics(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 1 }
+    while false {
+        drop file
+    }
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics[0].code, "E8002");
+    assert!(diagnostics[0].message.contains("branch/body-local"));
 }
 
 #[test]
