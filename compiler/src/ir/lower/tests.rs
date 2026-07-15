@@ -733,6 +733,78 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_imported_i32_associated_function_normal_call() {
+    let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
+        r#"from std/point import Point
+
+func main(): i32 {
+    let value = Point.origin()
+    return value
+}
+"#,
+        crate::entry::DEFAULT_ENTRY_NAME,
+        &[(
+            "std/point.nct",
+            r#"pub struct Point {
+    x: i32
+}
+
+pub func Point.origin(): i32 {
+    return 42
+}
+"#,
+        )],
+    );
+    let analysis = &fixture.analysis;
+    let root = analysis.root_file().unwrap();
+    let imported_source = analysis
+        .files
+        .iter()
+        .find(|file| {
+            !file.is_root
+                && file.ast.items.iter().any(|item| {
+                    matches!(item, crate::ast::Item::Function(function) if function.name == "Point.origin")
+                })
+        })
+        .map(|file| file.ast.span.source)
+        .unwrap();
+
+    let ir =
+        lower_executable_with_entry(analysis, &fixture.sources, crate::entry::DEFAULT_ENTRY_NAME)
+            .unwrap();
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: CallTarget::same_file("main"),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::CallI32 {
+                        destination: I32Location::Local(0),
+                        target: CallTarget::imported(imported_source, "Point.origin"),
+                        arguments: vec![],
+                    },
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "Point.origin".to_string(),
+                target: CallTarget::imported(imported_source, "Point.origin"),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(42), Instruction::Return],
+            },
+        ])
+    );
+    assert_ne!(root.ast.span.source, imported_source);
+}
+
+#[test]
 fn lowers_imported_bool_normal_call_in_terminal_if_condition() {
     let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
         r#"from std/flags import ready
