@@ -68,6 +68,7 @@ high addresses
 
 sp + frame_size - 8    saved x30
 ...                    reserved padding for 16-byte alignment
+sp + param_spill(n)    parameter ABI word spill slots for framed functions that need them
 sp + spill_offset(n)   scalar spill slots for caller-live locals
 sp                     bottom of frame after prologue
 
@@ -83,6 +84,7 @@ The prologue for a framed function is:
 ```text
 sub sp, sp, #frame_size
 str x30, [sp, #saved_x30_offset]
+str xN, [sp, #param_spill_offset]  ; only for referenced parameter words that must survive calls
 ```
 
 The epilogue before every non-tail `ret` is:
@@ -107,6 +109,8 @@ The process entry stub can remain special-purpose: it calls the selected entry w
 
 For v0, keep local allocation simple and conservative.
 The existing `w9` through `w15` scalar locals may remain as the fast local representation, but every normal call site must spill all currently defined scalar locals before the call and reload them after the call.
+When a framed function contains a normal call or syscall, parameter ABI words referenced by later lowerable code are spilled in the prologue and subsequent parameter reads use those spill slots.
+Readonly scalar parameter borrow arguments use the same parameter spill slots to produce a stable address.
 
 This is intentionally broader than liveness requires.
 It is correct for the current straight-line and terminal-if subset, avoids building a dataflow liveness pass too early, and gives later work a stable place to replace conservative spilling with live-range-aware spilling.

@@ -5232,6 +5232,38 @@ func choose(value: &i32, code: i32): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_preserves_scalar_parameter_after_normal_call() {
+    let project = TempProject::new("cli-run-preserve-scalar-parameter-after-normal-call");
+    let source = project.write_source(
+        "preserve_scalar_parameter_after_normal_call.nct",
+        r#"func main(): i32 {
+    return caller(42)
+}
+
+func caller(value: i32): i32 {
+    let ignored = choose(1)
+    return value
+}
+
+func choose(value: i32): i32 {
+    return value + 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_stack_passed_borrowed_aggregate_field_exit_code() {
     let project = TempProject::new("cli-run-stack-passed-borrowed-aggregate-field");
     let source = project.write_source(

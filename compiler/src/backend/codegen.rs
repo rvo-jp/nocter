@@ -36,6 +36,7 @@ struct EntryEmitter {
     tail_call_patches: Vec<FunctionCallPatch>,
     loop_contexts: Vec<LoopContext>,
     current_frame_size: Option<u32>,
+    current_parameter_spill_offsets: HashMap<usize, u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -55,6 +56,7 @@ impl EntryEmitter {
             tail_call_patches: Vec::new(),
             loop_contexts: Vec::new(),
             current_frame_size: None,
+            current_parameter_spill_offsets: HashMap::new(),
         }
     }
 
@@ -109,6 +111,8 @@ impl EntryEmitter {
         frame: &FunctionFrame,
     ) -> Result<(), Vec<Diagnostic>> {
         let previous_frame_size = self.current_frame_size;
+        let previous_parameter_spill_offsets =
+            std::mem::take(&mut self.current_parameter_spill_offsets);
         let frame = match frame {
             FunctionFrame::Frameless => {
                 self.current_frame_size = Some(0);
@@ -116,6 +120,11 @@ impl EntryEmitter {
             }
             FunctionFrame::Framed(layout) => {
                 self.current_frame_size = Some(layout.frame_size());
+                self.current_parameter_spill_offsets = layout
+                    .parameter_spill_slots()
+                    .iter()
+                    .map(|slot| (slot.parameter_index(), slot.offset()))
+                    .collect();
                 self.emit_prologue(layout)?;
                 Some(layout)
             }
@@ -128,6 +137,7 @@ impl EntryEmitter {
             Ok(())
         })();
         self.current_frame_size = previous_frame_size;
+        self.current_parameter_spill_offsets = previous_parameter_spill_offsets;
         result
     }
 
@@ -862,7 +872,7 @@ impl EntryEmitter {
         self.encoder
             .emit_str_x_sp(XReg::X30, frame.saved_x30_offset());
         for slot in frame.parameter_spill_slots() {
-            self.emit_parameter_word_to_x(slot.parameter_index(), XReg::X16)?;
+            self.emit_unspilled_parameter_word_to_x(slot.parameter_index(), XReg::X16)?;
             self.encoder.emit_str_x_sp(XReg::X16, slot.offset());
         }
         Ok(())
@@ -1609,7 +1619,7 @@ mod tests {
         let code = generate_arm64_darwin_entry(&module, "main").unwrap();
 
         assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
-        assert!(contains_instruction(&code.text, [0x00, 0x68, 0x70, 0x38])); // ldrb w0, [x0, x16]
+        assert!(contains_instruction(&code.text, [0x20, 0x6a, 0x70, 0x38])); // ldrb w0, [x17, x16]
     }
 
     #[test]
@@ -1707,7 +1717,7 @@ mod tests {
 
         let code = generate_arm64_darwin_entry(&module, "main").unwrap();
 
-        assert!(contains_instruction(&code.text, [0x00, 0x68, 0x70, 0x38])); // ldrb w0, [x0, x16]
+        assert!(contains_instruction(&code.text, [0x20, 0x6a, 0x70, 0x38])); // ldrb w0, [x17, x16]
     }
 
     #[test]
@@ -1742,7 +1752,7 @@ mod tests {
 
         let code = generate_arm64_darwin_entry(&module, "main").unwrap();
 
-        assert!(contains_instruction(&code.text, [0x10, 0x68, 0x70, 0x38])); // ldrb w16, [x0, x16]
+        assert!(contains_instruction(&code.text, [0x30, 0x6a, 0x70, 0x38])); // ldrb w16, [x17, x16]
         assert!(contains_instruction(&code.text, [0x20, 0x00, 0x80, 0x52])); // mov w0, #1
     }
 

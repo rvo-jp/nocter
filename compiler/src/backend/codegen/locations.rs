@@ -10,6 +10,19 @@ impl EntryEmitter {
         index: usize,
         destination: XReg,
     ) -> Result<(), Vec<Diagnostic>> {
+        if let Some(offset) = self.current_parameter_spill_offsets.get(&index) {
+            self.encoder.emit_ldr_x_sp(destination, *offset);
+            return Ok(());
+        }
+
+        self.emit_unspilled_parameter_word_to_x(index, destination)
+    }
+
+    pub(super) fn emit_unspilled_parameter_word_to_x(
+        &mut self,
+        index: usize,
+        destination: XReg,
+    ) -> Result<(), Vec<Diagnostic>> {
         if let Some(source) = XReg::argument(index) {
             if source != destination {
                 self.encoder.emit_mov_x(destination, source);
@@ -27,6 +40,11 @@ impl EntryEmitter {
         index: usize,
         destination: WReg,
     ) -> Result<(), Vec<Diagnostic>> {
+        if let Some(offset) = self.current_parameter_spill_offsets.get(&index) {
+            self.encoder.emit_ldr_w_sp(destination, *offset);
+            return Ok(());
+        }
+
         if let Some(source) = WReg::argument(index) {
             if source != destination {
                 self.encoder.emit_mov_w(destination, source);

@@ -1360,9 +1360,7 @@ impl EntryEmitter {
                 }
             }
             U8Value::StrIndex { source, index } => {
-                if let StrLocation::Parameter(parameter_index) = *source
-                    && !parameter_pair_is_register_passed(parameter_index)
-                {
+                if let StrLocation::Parameter(parameter_index) = *source {
                     self.emit_checked_parameter_byte_load(destination, parameter_index, index)?;
                     return Ok(());
                 }
@@ -1378,9 +1376,7 @@ impl EntryEmitter {
                     .emit_ldrb_w_reg(destination, XReg::X17, XReg::X16);
             }
             U8Value::SliceIndex { source, index } => {
-                if let SliceLocation::Parameter(parameter_index) = *source
-                    && !parameter_pair_is_register_passed(parameter_index)
-                {
+                if let SliceLocation::Parameter(parameter_index) = *source {
                     self.emit_checked_parameter_byte_load(destination, parameter_index, index)?;
                     return Ok(());
                 }
@@ -1635,13 +1631,6 @@ fn byte_load_diagnostic(reason: &str) -> Vec<Diagnostic> {
         "E9005",
         format!("byte load is invalid: {reason}"),
     )]
-}
-
-fn parameter_pair_is_register_passed(ptr_word_index: usize) -> bool {
-    let Some(len_word_index) = ptr_word_index.checked_add(1) else {
-        return false;
-    };
-    XReg::argument(ptr_word_index).is_some() && XReg::argument(len_word_index).is_some()
 }
 
 fn aggregate_copy_diagnostic(reason: &str) -> Vec<Diagnostic> {
