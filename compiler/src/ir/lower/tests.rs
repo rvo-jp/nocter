@@ -2954,6 +2954,120 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_assignment_to_nonterminal_if_branch_local_scalar() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    if true {
+        var value = 1
+        value = 2
+    }
+    return 0
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::If {
+                condition: BoolValue::Const(true),
+                then_instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(1),
+                    },
+                    Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(2),
+                    },
+                ],
+                else_instructions: vec![],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_const(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
+fn lowers_local_aggregate_move_inside_nonterminal_if_branch() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    if true {
+        var file = File{ fd: 1 }
+        var moved = move file
+    }
+    return 0
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::If {
+                condition: BoolValue::Const(true),
+                then_instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::Slot(0),
+                        offset: 0,
+                        value: i32_const(1),
+                    },
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 1,
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::CopyAggregate {
+                        destination: AggregateLocation::Slot(1),
+                        source: AggregateLocation::Slot(0),
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::CallVoid {
+                        target: CallTarget::same_file("File.drop"),
+                        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                            source: BorrowSource::AggregateSlot(1),
+                        })],
+                    },
+                ],
+                else_instructions: vec![],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_const(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
 fn lowers_scope_end_drop_inside_nonterminal_while_body() {
     let ir = lower_text(
         r#"struct File {
@@ -3090,6 +3204,135 @@ func ready(): bool {
 }
 
 #[test]
+fn lowers_assignment_to_nonterminal_while_body_local_scalar() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    while ready() {
+        var value = 1
+        value = 2
+    }
+    return 0
+}
+
+func ready(): bool {
+    return false
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::While {
+                condition_instructions: vec![call_bool(BoolLocation::Local(0), "ready", vec![],)],
+                condition: BoolValue::Location(BoolLocation::Local(0)),
+                body_instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(1),
+                    },
+                    Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(2),
+                    },
+                ],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_const(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
+fn lowers_assignment_to_nonterminal_while_body_local_aggregate_with_replacement_drop() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    while false {
+        var file = File{ fd: 1 }
+        file = File{ fd: 2 }
+    }
+    return 0
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::While {
+                condition_instructions: vec![],
+                condition: BoolValue::Const(false),
+                body_instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::Slot(0),
+                        offset: 0,
+                        value: i32_const(1),
+                    },
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 1,
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::Slot(1),
+                        offset: 0,
+                        value: i32_const(2),
+                    },
+                    Instruction::CallVoid {
+                        target: CallTarget::same_file("File.drop"),
+                        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                            source: BorrowSource::AggregateSlot(0),
+                        })],
+                    },
+                    Instruction::CopyAggregate {
+                        destination: AggregateLocation::Slot(0),
+                        source: AggregateLocation::Slot(1),
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::CallVoid {
+                        target: CallTarget::same_file("File.drop"),
+                        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                            source: BorrowSource::AggregateSlot(0),
+                        })],
+                    },
+                ],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_const(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
 fn rejects_outer_explicit_drop_inside_nonterminal_while_body() {
     let diagnostics = lower_text_diagnostics(
         r#"struct File {
@@ -3106,6 +3349,50 @@ func main(): i32 {
     var file = File{ fd: 1 }
     while false {
         drop file
+    }
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics[0].code, "E8002");
+    assert!(diagnostics[0].message.contains("branch/body-local"));
+}
+
+#[test]
+fn rejects_outer_assignment_inside_nonterminal_while_body() {
+    let diagnostics = lower_text_diagnostics(
+        r#"func main(): i32 {
+    var value = 1
+    while false {
+        value = 2
+    }
+    return value
+}
+"#,
+    );
+
+    assert_eq!(diagnostics[0].code, "E8002");
+    assert!(diagnostics[0].message.contains("branch/body-local"));
+}
+
+#[test]
+fn rejects_outer_aggregate_move_binding_inside_nonterminal_if_branch() {
+    let diagnostics = lower_text_diagnostics(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 1 }
+    if true {
+        var moved = move file
     }
     return 0
 }

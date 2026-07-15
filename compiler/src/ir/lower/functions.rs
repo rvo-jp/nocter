@@ -1611,69 +1611,149 @@ pub(super) fn expression_contains_explicit_aggregate_move(
     expression: &Expr,
     context: &LoweringContext,
 ) -> bool {
+    expression_contains_explicit_aggregate_move_matching(expression, context, &|name, context| {
+        context.aggregate_local(name).is_some()
+    })
+}
+
+pub(super) fn expression_contains_explicit_aggregate_move_outside(
+    expression: &Expr,
+    context: &LoweringContext,
+    local_mark: usize,
+) -> bool {
+    expression_contains_explicit_aggregate_move_matching(expression, context, &|name, context| {
+        context.aggregate_local(name).is_some()
+            && !context.aggregate_local_defined_since(name, local_mark)
+    })
+}
+
+fn expression_contains_explicit_aggregate_move_matching(
+    expression: &Expr,
+    context: &LoweringContext,
+    matches_move: &impl Fn(&str, &LoweringContext) -> bool,
+) -> bool {
     match expression {
         Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
             if let Expr::Identifier(identifier) = unwrap_group(&unary.operand) {
-                context.aggregate_local(&identifier.name).is_some()
+                matches_move(&identifier.name, context)
             } else {
-                expression_contains_explicit_aggregate_move(&unary.operand, context)
+                expression_contains_explicit_aggregate_move_matching(
+                    &unary.operand,
+                    context,
+                    matches_move,
+                )
             }
         }
-        Expr::ArrayLiteral(literal) => literal
-            .elements
-            .iter()
-            .any(|element| expression_contains_explicit_aggregate_move(element, context)),
-        Expr::StructLiteral(literal) => literal
-            .fields
-            .iter()
-            .any(|field| expression_contains_explicit_aggregate_move(&field.value, context)),
-        Expr::Propagate(propagation) => {
-            expression_contains_explicit_aggregate_move(&propagation.expression, context)
-        }
-        Expr::Force(force) => {
-            expression_contains_explicit_aggregate_move(&force.expression, context)
-        }
-        Expr::Catch(catch) => {
-            expression_contains_explicit_aggregate_move(&catch.expression, context)
-        }
-        Expr::Borrow(borrow) => {
-            expression_contains_explicit_aggregate_move(&borrow.expression, context)
-        }
-        Expr::Unary(unary) => expression_contains_explicit_aggregate_move(&unary.operand, context),
+        Expr::ArrayLiteral(literal) => literal.elements.iter().any(|element| {
+            expression_contains_explicit_aggregate_move_matching(element, context, matches_move)
+        }),
+        Expr::StructLiteral(literal) => literal.fields.iter().any(|field| {
+            expression_contains_explicit_aggregate_move_matching(
+                &field.value,
+                context,
+                matches_move,
+            )
+        }),
+        Expr::Propagate(propagation) => expression_contains_explicit_aggregate_move_matching(
+            &propagation.expression,
+            context,
+            matches_move,
+        ),
+        Expr::Force(force) => expression_contains_explicit_aggregate_move_matching(
+            &force.expression,
+            context,
+            matches_move,
+        ),
+        Expr::Catch(catch) => expression_contains_explicit_aggregate_move_matching(
+            &catch.expression,
+            context,
+            matches_move,
+        ),
+        Expr::Borrow(borrow) => expression_contains_explicit_aggregate_move_matching(
+            &borrow.expression,
+            context,
+            matches_move,
+        ),
+        Expr::Unary(unary) => expression_contains_explicit_aggregate_move_matching(
+            &unary.operand,
+            context,
+            matches_move,
+        ),
         Expr::Binary(binary) => {
-            expression_contains_explicit_aggregate_move(&binary.left, context)
-                || expression_contains_explicit_aggregate_move(&binary.right, context)
+            expression_contains_explicit_aggregate_move_matching(
+                &binary.left,
+                context,
+                matches_move,
+            ) || expression_contains_explicit_aggregate_move_matching(
+                &binary.right,
+                context,
+                matches_move,
+            )
         }
-        Expr::TypeConversion(conversion) => {
-            expression_contains_explicit_aggregate_move(&conversion.expression, context)
-        }
+        Expr::TypeConversion(conversion) => expression_contains_explicit_aggregate_move_matching(
+            &conversion.expression,
+            context,
+            matches_move,
+        ),
         Expr::Call(call) => {
-            expression_contains_explicit_aggregate_move(&call.callee, context)
-                || call
-                    .arguments
-                    .iter()
-                    .any(|argument| expression_contains_explicit_aggregate_move(argument, context))
+            expression_contains_explicit_aggregate_move_matching(
+                &call.callee,
+                context,
+                matches_move,
+            ) || call.arguments.iter().any(|argument| {
+                expression_contains_explicit_aggregate_move_matching(
+                    argument,
+                    context,
+                    matches_move,
+                )
+            })
         }
-        Expr::Member(member) => {
-            expression_contains_explicit_aggregate_move(&member.object, context)
-        }
+        Expr::Member(member) => expression_contains_explicit_aggregate_move_matching(
+            &member.object,
+            context,
+            matches_move,
+        ),
         Expr::Index(index) => {
-            expression_contains_explicit_aggregate_move(&index.object, context)
-                || expression_contains_explicit_aggregate_move(&index.index, context)
+            expression_contains_explicit_aggregate_move_matching(
+                &index.object,
+                context,
+                matches_move,
+            ) || expression_contains_explicit_aggregate_move_matching(
+                &index.index,
+                context,
+                matches_move,
+            )
         }
-        Expr::Group(group) => {
-            expression_contains_explicit_aggregate_move(&group.expression, context)
-        }
+        Expr::Group(group) => expression_contains_explicit_aggregate_move_matching(
+            &group.expression,
+            context,
+            matches_move,
+        ),
         Expr::OptionalDefault(default) => {
-            expression_contains_explicit_aggregate_move(&default.value, context)
-                || expression_contains_explicit_aggregate_move(&default.default, context)
+            expression_contains_explicit_aggregate_move_matching(
+                &default.value,
+                context,
+                matches_move,
+            ) || expression_contains_explicit_aggregate_move_matching(
+                &default.default,
+                context,
+                matches_move,
+            )
         }
         Expr::PatternConditional(conditional) => {
-            expression_contains_explicit_aggregate_move(&conditional.target, context)
+            expression_contains_explicit_aggregate_move_matching(
+                &conditional.target,
+                context,
+                matches_move,
+            )
         }
         Expr::InterpolatedString(interpolated) => interpolated.parts.iter().any(|part| {
             if let crate::ast::InterpolatedStringPart::Expression(part) = part {
-                expression_contains_explicit_aggregate_move(&part.expression, context)
+                expression_contains_explicit_aggregate_move_matching(
+                    &part.expression,
+                    context,
+                    matches_move,
+                )
             } else {
                 false
             }

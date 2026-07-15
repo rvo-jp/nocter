@@ -566,6 +566,14 @@ impl<'a> LoweringContext<'a> {
             .any(|local| local.name == name && matches!(local.kind, LocalKind::Aggregate { .. }))
     }
 
+    pub(super) fn local_defined_since(&self, name: &str, local_mark: usize) -> bool {
+        self.locals
+            .get(local_mark..)
+            .unwrap_or(&[])
+            .iter()
+            .any(|local| local.name == name)
+    }
+
     pub(super) fn pending_aggregate_drops_since(
         &self,
         local_mark: usize,

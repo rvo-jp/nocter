@@ -684,6 +684,38 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_lowers_nonterminal_while_body_local_aggregate_replacement() {
+    let project = TempProject::new("cli-build-nonterminal-while-body-local-aggregate-replacement");
+    let source = project.write_source(
+        "nonterminal_while_body_local_aggregate_replacement.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    while false {
+        var file = File{ fd: 1 }
+        file = File{ fd: 2 }
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_nonterminal_while_break_cleanup() {
     let project = TempProject::new("cli-build-nonterminal-while-break-cleanup");
     let source = project.write_source(

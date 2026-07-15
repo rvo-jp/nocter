@@ -7,9 +7,9 @@ use super::expressions::{
 };
 use super::functions::{
     append_scope_end_drops_before_exit, expression_contains_explicit_aggregate_move,
-    lower_drop_statement, lower_scope_end_drops_for_locals_since,
-    lower_value_return_with_scope_drops, mark_explicit_moves_in_expression,
-    mark_lowered_statement_aggregate_uses,
+    expression_contains_explicit_aggregate_move_outside, lower_drop_statement,
+    lower_scope_end_drops_for_locals_since, lower_value_return_with_scope_drops,
+    mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
 };
 use crate::ast::{BinaryExpr, BinaryOperator, Block, Expr, IfStmt, Stmt, WhileStmt};
 use crate::diagnostics::Diagnostic;
@@ -376,9 +376,50 @@ fn lower_nonterminal_loop_block_statements(
     for statement in statements {
         match statement {
             Stmt::Binding(statement) => {
+                if expression_contains_explicit_aggregate_move_outside(
+                    &statement.initializer,
+                    context,
+                    local_mark,
+                ) {
+                    return Err(unsupported_nonterminal_if_diagnostic(
+                        diagnostic_code,
+                        subject,
+                    ));
+                }
                 instructions.extend(lower_local_binding(statement, context)?)
             }
+            Stmt::Assignment(statement) => {
+                let Some(target_name) = assignment_target_root_name(&statement.target) else {
+                    return Err(unsupported_nonterminal_if_diagnostic(
+                        diagnostic_code,
+                        subject,
+                    ));
+                };
+                if !context.local_defined_since(target_name, local_mark)
+                    || expression_contains_explicit_aggregate_move_outside(
+                        &statement.value,
+                        context,
+                        local_mark,
+                    )
+                {
+                    return Err(unsupported_nonterminal_if_diagnostic(
+                        diagnostic_code,
+                        subject,
+                    ));
+                }
+                instructions.extend(lower_assignment(statement, context)?);
+            }
             Stmt::Expression(statement) => {
+                if expression_contains_explicit_aggregate_move_outside(
+                    &statement.expression,
+                    context,
+                    local_mark,
+                ) {
+                    return Err(unsupported_nonterminal_if_diagnostic(
+                        diagnostic_code,
+                        subject,
+                    ));
+                }
                 let Some(void_instructions) =
                     lower_void_expression_statement(&statement.expression, context)?
                 else {
@@ -521,6 +562,14 @@ fn unwrap_group(expression: &Expr) -> &Expr {
     match expression {
         Expr::Group(group) => unwrap_group(&group.expression),
         _ => expression,
+    }
+}
+
+fn assignment_target_root_name(expression: &Expr) -> Option<&str> {
+    match unwrap_group(expression) {
+        Expr::Identifier(identifier) => Some(&identifier.name),
+        Expr::Member(member) => assignment_target_root_name(&member.object),
+        _ => None,
     }
 }
 
@@ -822,7 +871,7 @@ fn unsupported_nonterminal_if_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower non-terminal `if`/`while` statements for {subject} when branches contain supported local bindings, branch/body-local explicit aggregate drops, void call statements, or nested non-terminal `if`/`while` statements"
+            "IR v0 can only lower non-terminal `if`/`while` statements for {subject} when branches contain supported local bindings, branch/body-local assignments or explicit aggregate drops, void call statements, or nested non-terminal `if`/`while` statements"
         ),
     )]
 }
