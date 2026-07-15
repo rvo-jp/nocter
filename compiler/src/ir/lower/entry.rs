@@ -322,6 +322,7 @@ fn lower_leading_bindings(
                 instructions.extend(lower_nonterminal_if_statement(
                     statement,
                     context,
+                    None,
                     "E8002",
                     "entry functions",
                 )?);

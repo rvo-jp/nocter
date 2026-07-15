@@ -1,4 +1,4 @@
-use super::{BRANCH_MAX_BYTE_OFFSET, BRANCH_MIN_BYTE_OFFSET, EntryEmitter};
+use super::{BRANCH_MAX_BYTE_OFFSET, BRANCH_MIN_BYTE_OFFSET, EntryEmitter, LoopContext};
 use crate::backend::frame::FrameLayout;
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -51,6 +51,10 @@ impl EntryEmitter {
         return_type: &Type,
     ) -> Result<(), Vec<Diagnostic>> {
         let loop_start_offset = self.encoder.position();
+        self.loop_contexts.push(LoopContext {
+            start_offset: loop_start_offset,
+            break_branches: Vec::new(),
+        });
 
         for instruction in condition_instructions {
             self.emit_instruction(instruction, frame, return_type)?;
@@ -71,8 +75,46 @@ impl EntryEmitter {
             )?;
         }
 
+        let loop_context = self
+            .loop_contexts
+            .pop()
+            .expect("while emission must have a loop context");
         self.patch_branch_placeholders_to_current(branches_to_end, "while end target")?;
+        self.patch_branch_placeholders_to_current(loop_context.break_branches, "break target")?;
         Ok(())
+    }
+
+    pub(super) fn emit_break(&mut self) -> Result<(), Vec<Diagnostic>> {
+        if self.loop_contexts.is_empty() {
+            return Err(vec![Diagnostic::error(
+                "E9006",
+                "codegen received `break` outside a loop",
+            )]);
+        }
+
+        let branch = self.emit_branch_placeholder();
+        self.loop_contexts
+            .last_mut()
+            .expect("loop context must exist after non-empty check")
+            .break_branches
+            .push(branch);
+        Ok(())
+    }
+
+    pub(super) fn emit_continue(&mut self) -> Result<(), Vec<Diagnostic>> {
+        let Some(loop_start_offset) = self
+            .loop_contexts
+            .last()
+            .map(|context| context.start_offset)
+        else {
+            return Err(vec![Diagnostic::error(
+                "E9006",
+                "codegen received `continue` outside a loop",
+            )]);
+        };
+
+        let branch = self.emit_branch_placeholder();
+        self.patch_branch_placeholder_to_offset(branch, loop_start_offset, "continue target")
     }
 
     pub(super) fn emit_bool_false_branch_placeholders(
@@ -336,7 +378,9 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::ReturnFallibleSuccess
             | Instruction::ReturnFallibleFailure { .. }
             | Instruction::TailCall { .. }
-            | Instruction::Trap,
+            | Instruction::Trap
+            | Instruction::Break
+            | Instruction::Continue,
         ) => true,
         Some(Instruction::If {
             then_instructions,

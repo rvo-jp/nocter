@@ -684,6 +684,70 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_lowers_nonterminal_while_break_cleanup() {
+    let project = TempProject::new("cli-build-nonterminal-while-break-cleanup");
+    let source = project.write_source(
+        "nonterminal_while_break_cleanup.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    while false {
+        var file = File{ fd: 1 }
+        break
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_lowers_nonterminal_while_continue_cleanup() {
+    let project = TempProject::new("cli-build-nonterminal-while-continue-cleanup");
+    let source = project.write_source(
+        "nonterminal_while_continue_cleanup.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    while false {
+        var file = File{ fd: 1 }
+        continue
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_terminal_if_branch_void_call() {
     let project = TempProject::new("cli-build-terminal-if-branch-void-call");
     let source = project.write_source(

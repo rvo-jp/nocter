@@ -333,6 +333,8 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::ShiftLeftUsize { .. }
         | Instruction::ShiftRightUsize { .. }
         | Instruction::Trap
+        | Instruction::Break
+        | Instruction::Continue
         | Instruction::Return => false,
     }
 }
@@ -432,7 +434,9 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         Instruction::PropagateFailure
         | Instruction::TrapOnFailure
         | Instruction::ReturnFallibleSuccess
-        | Instruction::ReturnFallibleFailure { .. } => 0,
+        | Instruction::ReturnFallibleFailure { .. }
+        | Instruction::Break
+        | Instruction::Continue => 0,
         Instruction::WriteStr { .. }
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::StoreAggregateUsize { .. }
@@ -583,6 +587,8 @@ fn record_instruction_aggregate_slot_requests(
         | Instruction::CallVoid { .. }
         | Instruction::TailCall { .. }
         | Instruction::Trap
+        | Instruction::Break
+        | Instruction::Continue
         | Instruction::Return => Ok(()),
     }
 }
@@ -665,6 +671,8 @@ fn record_instruction_scalar_locals(
         | Instruction::CopyAggregate { .. }
         | Instruction::CopyAggregateRange { .. }
         | Instruction::Trap
+        | Instruction::Break
+        | Instruction::Continue
         | Instruction::Return => {}
         Instruction::CheckFailure { failure_mode } => {
             record_failure_mode_scalar_locals(failure_mode, highest_local_index);

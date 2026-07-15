@@ -327,6 +327,8 @@ pub(crate) enum Instruction {
         condition: BoolValue,
         body_instructions: Vec<Instruction>,
     },
+    Break,
+    Continue,
     PropagateFailure,
     TrapOnFailure,
     CheckFailure {

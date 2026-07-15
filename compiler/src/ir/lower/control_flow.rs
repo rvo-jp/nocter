@@ -255,13 +255,25 @@ pub(super) fn lower_terminal_condition(
 pub(super) fn lower_nonterminal_if_statement(
     statement: &IfStmt,
     context: &LoweringContext,
+    loop_scope_mark: Option<usize>,
     diagnostic_code: &'static str,
     subject: &str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let then_instructions =
-        lower_nonterminal_if_block(&statement.then_block, context, diagnostic_code, subject)?;
+    let then_instructions = lower_nonterminal_if_block(
+        &statement.then_block,
+        context,
+        loop_scope_mark,
+        diagnostic_code,
+        subject,
+    )?;
     let else_instructions = if let Some(else_block) = &statement.else_block {
-        lower_nonterminal_if_block(else_block, context, diagnostic_code, subject)?
+        lower_nonterminal_if_block(
+            else_block,
+            context,
+            loop_scope_mark,
+            diagnostic_code,
+            subject,
+        )?
     } else {
         Vec::new()
     };
@@ -304,6 +316,7 @@ fn lower_nonterminal_while_block(
         &block.statements,
         &mut body_context,
         local_mark,
+        Some(local_mark),
         diagnostic_code,
         subject,
     )?;
@@ -317,6 +330,7 @@ fn lower_nonterminal_while_block(
 fn lower_nonterminal_if_block(
     block: &Block,
     context: &LoweringContext,
+    loop_scope_mark: Option<usize>,
     diagnostic_code: &'static str,
     subject: &str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -326,6 +340,7 @@ fn lower_nonterminal_if_block(
         &block.statements,
         &mut branch_context,
         local_mark,
+        loop_scope_mark,
         diagnostic_code,
         subject,
     )?;
@@ -340,6 +355,7 @@ fn lower_nonterminal_loop_block_statements(
     statements: &[Stmt],
     context: &mut LoweringContext,
     local_mark: usize,
+    loop_scope_mark: Option<usize>,
     diagnostic_code: &'static str,
     subject: &str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -372,6 +388,7 @@ fn lower_nonterminal_loop_block_statements(
             Stmt::If(statement) => instructions.extend(lower_nonterminal_if_statement(
                 statement,
                 context,
+                loop_scope_mark,
                 diagnostic_code,
                 subject,
             )?),
@@ -381,6 +398,26 @@ fn lower_nonterminal_loop_block_statements(
                 diagnostic_code,
                 subject,
             )?),
+            Stmt::Break(_) => {
+                instructions.extend(lower_nonterminal_loop_control_statement(
+                    Instruction::Break,
+                    context,
+                    loop_scope_mark,
+                    diagnostic_code,
+                    subject,
+                )?);
+                break;
+            }
+            Stmt::Continue(_) => {
+                instructions.extend(lower_nonterminal_loop_control_statement(
+                    Instruction::Continue,
+                    context,
+                    loop_scope_mark,
+                    diagnostic_code,
+                    subject,
+                )?);
+                break;
+            }
             _ => {
                 return Err(unsupported_nonterminal_if_diagnostic(
                     diagnostic_code,
@@ -390,6 +427,25 @@ fn lower_nonterminal_loop_block_statements(
         }
         mark_lowered_statement_aggregate_uses(statement, context);
     }
+    Ok(instructions)
+}
+
+fn lower_nonterminal_loop_control_statement(
+    instruction: Instruction,
+    context: &mut LoweringContext,
+    loop_scope_mark: Option<usize>,
+    diagnostic_code: &'static str,
+    subject: &str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some(loop_scope_mark) = loop_scope_mark else {
+        return Err(unsupported_nonterminal_if_diagnostic(
+            diagnostic_code,
+            subject,
+        ));
+    };
+
+    let mut instructions = lower_scope_end_drops_for_locals_since(context, loop_scope_mark)?;
+    instructions.push(instruction);
     Ok(instructions)
 }
 

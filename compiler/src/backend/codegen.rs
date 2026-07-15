@@ -34,7 +34,14 @@ struct EntryEmitter {
     function_offsets: HashMap<FunctionSymbol, usize>,
     call_patches: Vec<FunctionCallPatch>,
     tail_call_patches: Vec<FunctionCallPatch>,
+    loop_contexts: Vec<LoopContext>,
     current_frame_size: Option<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LoopContext {
+    start_offset: usize,
+    break_branches: Vec<control_flow::BranchPatch>,
 }
 
 impl EntryEmitter {
@@ -46,6 +53,7 @@ impl EntryEmitter {
             function_offsets: HashMap::new(),
             call_patches: Vec::new(),
             tail_call_patches: Vec::new(),
+            loop_contexts: Vec::new(),
             current_frame_size: None,
         }
     }
@@ -598,6 +606,12 @@ impl EntryEmitter {
                     frame,
                     return_type,
                 )?;
+            }
+            Instruction::Break => {
+                self.emit_break()?;
+            }
+            Instruction::Continue => {
+                self.emit_continue()?;
             }
             Instruction::PropagateFailure => {
                 self.emit_propagate_failure(frame)?;
@@ -3514,6 +3528,72 @@ mod tests {
                 0x03, 0x00, 0x00, 0x14, // b while end
                 0x20, 0x00, 0x80, 0x52, // movz w0, #1
                 0xfe, 0xff, 0xff, 0x17, // b while condition
+                0x40, 0x00, 0x80, 0x52, // movz w0, #2
+                0xc0, 0x03, 0x5f, 0xd6, // ret
+            ]
+        );
+    }
+
+    #[test]
+    fn generates_while_break_to_loop_end() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::While {
+                    condition_instructions: vec![],
+                    condition: BoolValue::Const(true),
+                    body_instructions: vec![Instruction::Break],
+                },
+                set_return_i32(2),
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert_eq!(
+            code.text,
+            vec![
+                0x04, 0x00, 0x00, 0x94, // bl main
+                0x30, 0x00, 0x80, 0x52, // movz w16, #1
+                0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
+                0x01, 0x10, 0x00, 0xd4, // svc #0x80
+                0x01, 0x00, 0x00, 0x14, // b while end
+                0x40, 0x00, 0x80, 0x52, // movz w0, #2
+                0xc0, 0x03, 0x5f, 0xd6, // ret
+            ]
+        );
+    }
+
+    #[test]
+    fn generates_while_continue_to_loop_start() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::While {
+                    condition_instructions: vec![],
+                    condition: BoolValue::Const(true),
+                    body_instructions: vec![Instruction::Continue],
+                },
+                set_return_i32(2),
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert_eq!(
+            code.text,
+            vec![
+                0x04, 0x00, 0x00, 0x94, // bl main
+                0x30, 0x00, 0x80, 0x52, // movz w16, #1
+                0x10, 0x40, 0xa0, 0x72, // movk w16, #0x0200, lsl #16
+                0x01, 0x10, 0x00, 0xd4, // svc #0x80
+                0x00, 0x00, 0x00, 0x14, // b while condition
                 0x40, 0x00, 0x80, 0x52, // movz w0, #2
                 0xc0, 0x03, 0x5f, 0xd6, // ret
             ]

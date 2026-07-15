@@ -129,6 +129,8 @@ fn collect_reachable_call_targets(
             | Instruction::ShiftLeftUsize { .. }
             | Instruction::ShiftRightUsize { .. }
             | Instruction::Trap
+            | Instruction::Break
+            | Instruction::Continue
             | Instruction::Return => {}
         }
     }
