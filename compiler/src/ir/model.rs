@@ -322,6 +322,11 @@ pub(crate) enum Instruction {
         then_instructions: Vec<Instruction>,
         else_instructions: Vec<Instruction>,
     },
+    While {
+        condition_instructions: Vec<Instruction>,
+        condition: BoolValue,
+        body_instructions: Vec<Instruction>,
+    },
     PropagateFailure,
     TrapOnFailure,
     CheckFailure {

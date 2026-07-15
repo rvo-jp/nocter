@@ -11,9 +11,9 @@ use super::context::{
     PendingAggregateDrop, drop_glue_for_type_expr,
 };
 use super::control_flow::{
-    lower_nonterminal_if_statement, lower_terminal_bool_if_statement,
-    lower_terminal_branch_leading_statements, lower_terminal_condition,
-    lower_terminal_i32_if_statement, lower_terminal_slice_if_statement,
+    lower_nonterminal_if_statement, lower_nonterminal_while_statement,
+    lower_terminal_bool_if_statement, lower_terminal_branch_leading_statements,
+    lower_terminal_condition, lower_terminal_i32_if_statement, lower_terminal_slice_if_statement,
     lower_terminal_str_if_statement, lower_terminal_u8_if_statement,
     lower_terminal_usize_if_statement, lower_terminal_void_if_statement,
     split_terminal_branch_block,
@@ -1336,10 +1336,18 @@ fn lower_leading_bindings(
                     "functions",
                 )?);
             }
+            Stmt::While(statement) => {
+                instructions.extend(lower_nonterminal_while_statement(
+                    statement,
+                    context,
+                    "E8007",
+                    "functions",
+                )?);
+            }
             _ => {
                 return Err(vec![Diagnostic::error(
                     "E8007",
-                    "IR v0 can only lower leading scalar local bindings, scalar assignments, drop statements, void call statements, or supported non-terminal `if` statements before `return`",
+                    "IR v0 can only lower leading scalar local bindings, scalar assignments, drop statements, void call statements, or supported non-terminal `if`/`while` statements before `return`",
                 )]);
             }
         };

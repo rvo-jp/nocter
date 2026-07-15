@@ -1,8 +1,8 @@
 use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{FunctionNames, FunctionSignatures, LoweringContext};
 use super::control_flow::{
-    lower_nonterminal_if_statement, lower_terminal_i32_if_statement,
-    lower_terminal_void_if_statement,
+    lower_nonterminal_if_statement, lower_nonterminal_while_statement,
+    lower_terminal_i32_if_statement, lower_terminal_void_if_statement,
 };
 use super::errors::{ErrorPayload, lower_error_payload};
 use super::expressions::{
@@ -326,6 +326,14 @@ fn lower_leading_bindings(
                     "entry functions",
                 )?);
             }
+            Stmt::While(statement) => {
+                instructions.extend(lower_nonterminal_while_statement(
+                    statement,
+                    context,
+                    "E8002",
+                    "entry functions",
+                )?);
+            }
             _ => return Err(unsupported_entry_body_diagnostic()),
         };
         mark_lowered_statement_aggregate_uses(statement, context);
@@ -337,6 +345,6 @@ fn lower_leading_bindings(
 fn unsupported_entry_body_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8002",
-        "IR v0 can only lower entry function bodies containing leading scalar local bindings, scalar assignments, drop statements, void call statements, or supported non-terminal `if` statements followed by `return`, a static error constructor failure return, or a void return",
+        "IR v0 can only lower entry function bodies containing leading scalar local bindings, scalar assignments, drop statements, void call statements, or supported non-terminal `if`/`while` statements followed by `return`, a static error constructor failure return, or a void return",
     )]
 }

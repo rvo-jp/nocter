@@ -185,7 +185,7 @@ Currently buildable:
 - `i32` shifts with `<<` and `>>` used in lowerable `i32` expressions; shift counts trap when negative or greater than or equal to 32
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` or `usize` comparisons used in lowerable bool expressions
 - terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over literal/local operands, or `i32`/`usize` comparison conditions and supported leading bindings, assignments, explicit `drop`, or void call statements before direct or nested terminal branches returning entry `i32`/`void`, or non-entry `i32`, `u8`, `usize`, `bool`, `void`, `&str`, u8 slices, or supported aggregate return expressions, including direct aggregate branches staged across pending drops
-- non-terminal `if` statements before a final return, when branches contain supported local bindings, void call statements, or nested non-terminal `if` statements; branch-local aggregate values with drop glue are dropped at branch scope end
+- non-terminal `if` and `while` statements before a final return, when branches/bodies contain supported local bindings, void call statements, or nested supported non-terminal `if`/`while` statements; branch/body-local aggregate values with drop glue are dropped at scope end, and lowerable `while` condition instructions are re-evaluated at the loop head
 - non-entry `never` functions that end with a lowerable call returning `never`; frame-dependent, aggregate-pointer, or stack-passed `never` calls lower as normal calls followed by a trap guard
 - the `std/os/macos.trap` and `std/os/macos.unreachable` target primitives as ARM64 `brk #0`
 - simple fallible entry success
@@ -198,13 +198,13 @@ Currently buildable:
 Currently not buildable even when it may be checkable:
 
 - general local storage beyond the listed scalar/view and aggregate slot paths
-- general `if` forms beyond the supported terminal and branch-local non-terminal subsets, `while`, `loop`, range `for`, and `match`
+- general `if`/`while` forms beyond the supported terminal and branch/body-local non-terminal subsets, `while let`, `break`, `continue`, `loop`, range `for`, and `match`
 - unloaded imported function placeholders
 - `usize` arithmetic and `usize` entry return values
 - `&str` member operations and view/byte iteration
 - interpolated string construction
 - optional values
-- source-level aggregate moves beyond the supported explicit `move name` argument/return/binding/assignment/struct-literal-field paths, general branch/loop/catch scope-end drop insertion, arrays, general views beyond the listed slice ABI paths, raw pointer expressions beyond closed `std/ptr.from_addr` aggregate fields, methods, traits, generics, and full ownership lowering
+- source-level aggregate moves beyond the supported explicit `move name` argument/return/binding/assignment/struct-literal-field paths, broad branch/loop/catch scope-end drop insertion, arrays, general views beyond the listed slice ABI paths, raw pointer expressions beyond closed `std/ptr.from_addr` aggregate fields, methods, traits, generics, and full ownership lowering
 
 ### Backend V0 Register Convention
 
@@ -226,7 +226,7 @@ Calls in the current buildable subset can receive static string literals, existi
 Non-entry functions can directly return static string literals, `&str` parameters, `&str` locals, or tail calls to `&str` functions, with `&str` returns occupying `x0,x1`.
 The frame, spill/reload, and normal-call implementation order is tracked in `backend-v0.md`.
 `backend/frame.rs` owns the fixed v0 frame layout planner: frame size, saved `x30` offset, scalar spill-slot offsets, stack-backed argument staging offsets, and reserved aggregate stack slots for narrow aggregate result staging and aggregate borrow argument addresses.
-Frame-only IR `ReserveAggregateSlot` markers carry ABI `ValueLayout` requests into the planner; the planner collects them from nested instruction lists and catch handlers, deduplicates matching slot indexes, and codegen treats the marker as a no-op after prologue allocation.
+Frame-only IR `ReserveAggregateSlot` markers carry ABI `ValueLayout` requests into the planner; the planner collects them from nested instruction lists, supported `if`/`while` bodies, and catch handlers, deduplicates matching slot indexes, and codegen treats the marker as a no-op after prologue allocation.
 IR function signatures preserve ABI-indirect aggregate returns as `Type::Aggregate { layout }`, direct aggregate returns as `Type::DirectAggregate { layout, words }`, and aggregate borrow parameters as one-word borrows, so lowering can distinguish owned aggregate return and borrow shapes before aggregate value construction is broadly buildable.
 IR `CallAggregate` and `CallFallibleAggregate` lower calls that return indirect aggregate values by passing either the current return-storage pointer or a reserved destination slot address in ABI register `x8`; source lowering emits them for indirect aggregate return calls, narrow indirect aggregate call result bindings, and supported aggregate slot assignments.
 IR `CallDirectAggregate` lowers calls that return 16-byte-or-smaller direct aggregate values in `x0,x1`, either leaving them in the direct return registers or storing them into a reserved aggregate slot.

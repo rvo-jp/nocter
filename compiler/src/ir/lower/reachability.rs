@@ -81,6 +81,14 @@ fn collect_reachable_call_targets(
                 collect_reachable_call_targets(then_instructions, targets);
                 collect_reachable_call_targets(else_instructions, targets);
             }
+            Instruction::While {
+                condition_instructions,
+                body_instructions,
+                ..
+            } => {
+                collect_reachable_call_targets(condition_instructions, targets);
+                collect_reachable_call_targets(body_instructions, targets);
+            }
             Instruction::CheckFailure { failure_mode } => {
                 collect_failure_mode_reachable_call_targets(failure_mode, targets);
             }
@@ -184,6 +192,37 @@ mod tests {
                 CallTarget::same_file("first"),
                 CallTarget::same_file("then_target"),
                 CallTarget::same_file("else_target"),
+            ]
+        );
+    }
+
+    #[test]
+    fn collects_reachable_call_targets_from_while_conditions_and_bodies() {
+        let function = Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![Instruction::While {
+                condition_instructions: vec![Instruction::CallBool {
+                    destination: crate::ir::BoolLocation::Local(0),
+                    target: CallTarget::same_file("condition_target"),
+                    arguments: vec![],
+                }],
+                condition: BoolValue::Location(crate::ir::BoolLocation::Local(0)),
+                body_instructions: vec![Instruction::CallVoid {
+                    target: CallTarget::same_file("body_target"),
+                    arguments: vec![ScalarArgument::I32(I32Value::Const(1))],
+                }],
+            }],
+        };
+
+        assert_eq!(
+            reachable_call_targets(&function)
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec![
+                CallTarget::same_file("condition_target"),
+                CallTarget::same_file("body_target"),
             ]
         );
     }

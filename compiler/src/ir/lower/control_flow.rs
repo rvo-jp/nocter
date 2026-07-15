@@ -10,7 +10,7 @@ use super::functions::{
     lower_scope_end_drops_for_locals_since, lower_value_return_with_scope_drops,
     mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
 };
-use crate::ast::{BinaryExpr, BinaryOperator, Block, Expr, IfStmt, Stmt};
+use crate::ast::{BinaryExpr, BinaryOperator, Block, Expr, IfStmt, Stmt, WhileStmt};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{Instruction, Type};
 
@@ -275,6 +275,44 @@ pub(super) fn lower_nonterminal_if_statement(
     )
 }
 
+pub(super) fn lower_nonterminal_while_statement(
+    statement: &WhileStmt,
+    context: &mut LoweringContext,
+    diagnostic_code: &'static str,
+    subject: &str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let condition = lower_bool_expression_to_value(&statement.condition, context, diagnostic_code)?;
+    let body_instructions =
+        lower_nonterminal_while_block(&statement.body, context, diagnostic_code, subject)?;
+
+    Ok(vec![Instruction::While {
+        condition_instructions: condition.instructions,
+        condition: condition.value,
+        body_instructions,
+    }])
+}
+
+fn lower_nonterminal_while_block(
+    block: &Block,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    subject: &str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut body_context = context.clone();
+    let local_mark = body_context.local_mark();
+    let mut instructions = lower_nonterminal_loop_block_statements(
+        &block.statements,
+        &mut body_context,
+        diagnostic_code,
+        subject,
+    )?;
+    instructions.extend(lower_scope_end_drops_for_locals_since(
+        &mut body_context,
+        local_mark,
+    )?);
+    Ok(instructions)
+}
+
 fn lower_nonterminal_if_block(
     block: &Block,
     context: &LoweringContext,
@@ -283,7 +321,7 @@ fn lower_nonterminal_if_block(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut branch_context = context.clone();
     let local_mark = branch_context.local_mark();
-    let mut instructions = lower_nonterminal_if_block_statements(
+    let mut instructions = lower_nonterminal_loop_block_statements(
         &block.statements,
         &mut branch_context,
         diagnostic_code,
@@ -296,7 +334,7 @@ fn lower_nonterminal_if_block(
     Ok(instructions)
 }
 
-fn lower_nonterminal_if_block_statements(
+fn lower_nonterminal_loop_block_statements(
     statements: &[Stmt],
     context: &mut LoweringContext,
     diagnostic_code: &'static str,
@@ -320,6 +358,12 @@ fn lower_nonterminal_if_block_statements(
                 instructions.extend(void_instructions);
             }
             Stmt::If(statement) => instructions.extend(lower_nonterminal_if_statement(
+                statement,
+                context,
+                diagnostic_code,
+                subject,
+            )?),
+            Stmt::While(statement) => instructions.extend(lower_nonterminal_while_statement(
                 statement,
                 context,
                 diagnostic_code,
@@ -697,7 +741,7 @@ fn unsupported_nonterminal_if_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower non-terminal `if` statements for {subject} when branches contain supported local bindings, void call statements, or nested non-terminal `if` statements"
+            "IR v0 can only lower non-terminal `if`/`while` statements for {subject} when branches contain supported local bindings, void call statements, or nested non-terminal `if`/`while` statements"
         ),
     )]
 }

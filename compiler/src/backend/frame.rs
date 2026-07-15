@@ -257,6 +257,14 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         } => {
             function_requires_frame(then_instructions) || function_requires_frame(else_instructions)
         }
+        Instruction::While {
+            condition_instructions,
+            body_instructions,
+            ..
+        } => {
+            function_requires_frame(condition_instructions)
+                || function_requires_frame(body_instructions)
+        }
         Instruction::CallI32 { .. }
         | Instruction::CallFallibleI32 { .. }
         | Instruction::CallU8 { .. }
@@ -412,6 +420,12 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
             ..
         } => max_call_argument_count(then_instructions)
             .max(max_call_argument_count(else_instructions)),
+        Instruction::While {
+            condition_instructions,
+            body_instructions,
+            ..
+        } => max_call_argument_count(condition_instructions)
+            .max(max_call_argument_count(body_instructions)),
         Instruction::CheckFailure { failure_mode } => {
             failure_mode_max_call_argument_count(failure_mode)
         }
@@ -504,6 +518,14 @@ fn record_instruction_aggregate_slot_requests(
         } => {
             record_instruction_list_aggregate_slot_requests(then_instructions, requests)?;
             record_instruction_list_aggregate_slot_requests(else_instructions, requests)
+        }
+        Instruction::While {
+            condition_instructions,
+            body_instructions,
+            ..
+        } => {
+            record_instruction_list_aggregate_slot_requests(condition_instructions, requests)?;
+            record_instruction_list_aggregate_slot_requests(body_instructions, requests)
         }
         Instruction::CallFallibleI32 { failure_mode, .. }
         | Instruction::CallFallibleU8 { failure_mode, .. }
@@ -968,6 +990,15 @@ fn record_instruction_scalar_locals(
             record_instruction_list_scalar_locals(then_instructions, highest_local_index);
             record_instruction_list_scalar_locals(else_instructions, highest_local_index);
         }
+        Instruction::While {
+            condition_instructions,
+            condition,
+            body_instructions,
+        } => {
+            record_instruction_list_scalar_locals(condition_instructions, highest_local_index);
+            record_bool_value(condition, highest_local_index);
+            record_instruction_list_scalar_locals(body_instructions, highest_local_index);
+        }
     }
 }
 
@@ -1427,6 +1458,44 @@ mod tests {
                     align: 16,
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn plans_frame_slots_from_while_condition_and_body() {
+        let function = Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Void,
+            instructions: vec![
+                Instruction::While {
+                    condition_instructions: vec![Instruction::CallBool {
+                        destination: BoolLocation::Local(2),
+                        target: CallTarget::same_file("ready"),
+                        arguments: vec![],
+                    }],
+                    condition: BoolValue::Location(BoolLocation::Local(2)),
+                    body_instructions: vec![Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(8, 8),
+                    }],
+                },
+                Instruction::Return,
+            ],
+        };
+
+        let frame = plan_function_frame(&function).unwrap();
+
+        assert_eq!(
+            frame,
+            FunctionFrame::Framed(
+                FrameLayout::for_slot_counts_with_aggregate_slots(
+                    3,
+                    0,
+                    &[AggregateSlotRequest::new(0, ValueLayout::new(8, 8))]
+                )
+                .unwrap()
+            )
         );
     }
 

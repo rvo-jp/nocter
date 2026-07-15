@@ -42,6 +42,39 @@ impl EntryEmitter {
         Ok(())
     }
 
+    pub(super) fn emit_while(
+        &mut self,
+        condition_instructions: &[Instruction],
+        condition: &BoolValue,
+        body_instructions: &[Instruction],
+        frame: Option<&FrameLayout>,
+        return_type: &Type,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let loop_start_offset = self.encoder.position();
+
+        for instruction in condition_instructions {
+            self.emit_instruction(instruction, frame, return_type)?;
+        }
+
+        let branches_to_end = self.emit_bool_false_branch_placeholders(condition)?;
+
+        for instruction in body_instructions {
+            self.emit_instruction(instruction, frame, return_type)?;
+        }
+
+        if !instruction_list_ends_execution(body_instructions) {
+            let branch_to_start = self.emit_branch_placeholder();
+            self.patch_branch_placeholder_to_offset(
+                branch_to_start,
+                loop_start_offset,
+                "while loop target",
+            )?;
+        }
+
+        self.patch_branch_placeholders_to_current(branches_to_end, "while end target")?;
+        Ok(())
+    }
+
     pub(super) fn emit_bool_false_branch_placeholders(
         &mut self,
         value: &BoolValue,
@@ -221,25 +254,38 @@ impl EntryEmitter {
         branch: BranchPatch,
         target_description: &str,
     ) -> Result<(), Vec<Diagnostic>> {
+        self.patch_branch_placeholder_to_offset(branch, self.encoder.position(), target_description)
+    }
+
+    pub(super) fn patch_branch_placeholder_to_offset(
+        &mut self,
+        branch: BranchPatch,
+        target_offset: usize,
+        target_description: &str,
+    ) -> Result<(), Vec<Diagnostic>> {
         match branch {
             BranchPatch::Unconditional { instruction_offset } => {
-                self.patch_branch_to_current(instruction_offset, target_description)
+                self.patch_branch_to_offset(instruction_offset, target_offset, target_description)
             }
             BranchPatch::Conditional {
                 instruction_offset,
                 condition,
-            } => {
-                self.patch_cond_branch_to_current(instruction_offset, condition, target_description)
-            }
+            } => self.patch_cond_branch_to_offset(
+                instruction_offset,
+                condition,
+                target_offset,
+                target_description,
+            ),
         }
     }
 
-    fn patch_branch_to_current(
+    fn patch_branch_to_offset(
         &mut self,
         instruction_offset: usize,
+        target_offset: usize,
         target_description: &str,
     ) -> Result<(), Vec<Diagnostic>> {
-        let byte_offset = self.encoder.position() as i64 - instruction_offset as i64;
+        let byte_offset = target_offset as i64 - instruction_offset as i64;
         if !(BRANCH_MIN_BYTE_OFFSET..=BRANCH_MAX_BYTE_OFFSET).contains(&byte_offset) {
             return Err(vec![Diagnostic::error(
                 "E9001",
@@ -251,13 +297,14 @@ impl EntryEmitter {
         Ok(())
     }
 
-    fn patch_cond_branch_to_current(
+    fn patch_cond_branch_to_offset(
         &mut self,
         instruction_offset: usize,
         condition: BranchCondition,
+        target_offset: usize,
         target_description: &str,
     ) -> Result<(), Vec<Diagnostic>> {
-        let byte_offset = self.encoder.position() as i64 - instruction_offset as i64;
+        let byte_offset = target_offset as i64 - instruction_offset as i64;
         if !(COND_BRANCH_MIN_BYTE_OFFSET..=COND_BRANCH_MAX_BYTE_OFFSET).contains(&byte_offset) {
             return Err(vec![Diagnostic::error(
                 "E9001",
@@ -300,6 +347,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
                 && instruction_list_ends_execution(then_instructions)
                 && instruction_list_ends_execution(else_instructions)
         }
+        Some(Instruction::While { .. }) => false,
         Some(
             Instruction::WriteStr { .. }
             | Instruction::ReserveAggregateSlot { .. }
