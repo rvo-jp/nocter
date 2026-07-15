@@ -67,6 +67,65 @@ pub(super) struct LoweringParameterSlots {
     pub(super) aggregate_borrows: Vec<AggregateBorrowParameter>,
 }
 
+impl LoweringParameterSlots {
+    pub(super) fn push_i32_parameter(&mut self, name: String) {
+        self.push_abi_word(Some(name), None, None, None, None, None);
+    }
+
+    pub(super) fn push_u8_parameter(&mut self, name: String) {
+        self.push_abi_word(None, Some(name), None, None, None, None);
+    }
+
+    pub(super) fn push_usize_parameter(&mut self, name: String) {
+        self.push_abi_word(None, None, Some(name), None, None, None);
+    }
+
+    pub(super) fn push_bool_parameter(&mut self, name: String) {
+        self.push_abi_word(None, None, None, Some(name), None, None);
+    }
+
+    pub(super) fn push_str_parameter(&mut self, name: String) {
+        self.push_abi_word(None, None, None, None, Some(name), None);
+    }
+
+    pub(super) fn push_slice_parameter(&mut self, name: String) {
+        self.push_abi_word(None, None, None, None, None, Some(name));
+    }
+
+    pub(super) fn push_empty_abi_word(&mut self) {
+        self.push_abi_word(None, None, None, None, None, None);
+    }
+
+    pub(super) fn reserve_empty_abi_words(&mut self, words: usize) -> usize {
+        let start_index = self.next_parameter_index();
+        for _ in 0..words {
+            self.push_empty_abi_word();
+        }
+        start_index
+    }
+
+    fn next_parameter_index(&self) -> usize {
+        self.i32.len()
+    }
+
+    fn push_abi_word(
+        &mut self,
+        i32_name: Option<String>,
+        u8_name: Option<String>,
+        usize_name: Option<String>,
+        bool_name: Option<String>,
+        str_name: Option<String>,
+        slice_name: Option<String>,
+    ) {
+        self.i32.push(i32_name);
+        self.u8.push(u8_name);
+        self.usize.push(usize_name);
+        self.bool.push(bool_name);
+        self.str.push(str_name);
+        self.slice.push(slice_name);
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct LoweringAggregateParameter {
     pub(super) name: String,

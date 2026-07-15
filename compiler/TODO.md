@@ -27,6 +27,9 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: centralize lowering parameter ABI slot allocation
+  - moves IR lowering's parameter ABI-word table growth into `LoweringParameterSlots`
+  - keeps scalar, view, borrow, direct aggregate, and indirect aggregate parameter word cursors aligned through one helper before wiring broader `FunctionAbi` planning into lowering
 - Current checkpoint: preserve parameter words in framed calls
   - spills referenced parameter ABI words in framed functions that contain normal calls or syscalls, so later parameter reads do not observe caller-clobbered argument/return registers
   - reuses the same parameter spill slots for readonly scalar parameter borrow arguments

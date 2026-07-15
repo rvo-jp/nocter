@@ -179,99 +179,41 @@ fn lower_scalar_parameters(
     resolved: &ResolveOutput,
     sources: &SourceMap,
 ) -> Result<LoweringParameterSlots, Vec<Diagnostic>> {
-    let mut i32_parameters = Vec::new();
-    let mut u8_parameters = Vec::new();
-    let mut usize_parameters = Vec::new();
-    let mut bool_parameters = Vec::new();
-    let mut str_parameters = Vec::new();
-    let mut slice_parameters = Vec::new();
-    let mut aggregate_parameters = Vec::new();
-    let mut aggregate_borrow_parameters = Vec::new();
+    let mut slots = LoweringParameterSlots::default();
     for parameter in parameters {
         match lower_scalar_parameter_kind(parameter, function_name, resolved).map_err(
             |diagnostics| attach_primary_span_if_absent(diagnostics, sources, parameter.span),
         )? {
             ScalarParameterKind::I32 => {
-                i32_parameters.push(Some(parameter.name.clone()));
-                u8_parameters.push(None);
-                usize_parameters.push(None);
-                bool_parameters.push(None);
-                str_parameters.push(None);
-                slice_parameters.push(None);
+                slots.push_i32_parameter(parameter.name.clone());
             }
             ScalarParameterKind::U8 => {
-                i32_parameters.push(None);
-                u8_parameters.push(Some(parameter.name.clone()));
-                usize_parameters.push(None);
-                bool_parameters.push(None);
-                str_parameters.push(None);
-                slice_parameters.push(None);
+                slots.push_u8_parameter(parameter.name.clone());
             }
             ScalarParameterKind::Usize => {
-                i32_parameters.push(None);
-                u8_parameters.push(None);
-                usize_parameters.push(Some(parameter.name.clone()));
-                bool_parameters.push(None);
-                str_parameters.push(None);
-                slice_parameters.push(None);
+                slots.push_usize_parameter(parameter.name.clone());
             }
             ScalarParameterKind::Bool => {
-                i32_parameters.push(None);
-                u8_parameters.push(None);
-                usize_parameters.push(None);
-                bool_parameters.push(Some(parameter.name.clone()));
-                str_parameters.push(None);
-                slice_parameters.push(None);
+                slots.push_bool_parameter(parameter.name.clone());
             }
             ScalarParameterKind::Str => {
-                i32_parameters.push(None);
-                u8_parameters.push(None);
-                usize_parameters.push(None);
-                bool_parameters.push(None);
-                str_parameters.push(Some(parameter.name.clone()));
-                slice_parameters.push(None);
-                i32_parameters.push(None);
-                u8_parameters.push(None);
-                usize_parameters.push(None);
-                bool_parameters.push(None);
-                str_parameters.push(None);
-                slice_parameters.push(None);
+                slots.push_str_parameter(parameter.name.clone());
+                slots.push_empty_abi_word();
             }
             ScalarParameterKind::Slice => {
-                i32_parameters.push(None);
-                u8_parameters.push(None);
-                usize_parameters.push(None);
-                bool_parameters.push(None);
-                str_parameters.push(None);
-                slice_parameters.push(Some(parameter.name.clone()));
-                i32_parameters.push(None);
-                u8_parameters.push(None);
-                usize_parameters.push(None);
-                bool_parameters.push(None);
-                str_parameters.push(None);
-                slice_parameters.push(None);
+                slots.push_slice_parameter(parameter.name.clone());
+                slots.push_empty_abi_word();
             }
             ScalarParameterKind::Borrow => {
-                i32_parameters.push(None);
-                u8_parameters.push(None);
-                usize_parameters.push(None);
-                bool_parameters.push(None);
-                str_parameters.push(None);
-                slice_parameters.push(None);
+                slots.push_empty_abi_word();
             }
             ScalarParameterKind::BorrowAggregate {
                 layout,
                 is_readwrite,
                 fields,
             } => {
-                let parameter_index = i32_parameters.len();
-                i32_parameters.push(None);
-                u8_parameters.push(None);
-                usize_parameters.push(None);
-                bool_parameters.push(None);
-                str_parameters.push(None);
-                slice_parameters.push(None);
-                aggregate_borrow_parameters.push(AggregateBorrowParameter {
+                let parameter_index = slots.reserve_empty_abi_words(1);
+                slots.aggregate_borrows.push(AggregateBorrowParameter {
                     name: parameter.name.clone(),
                     layout,
                     parameter_index,
@@ -280,17 +222,12 @@ fn lower_scalar_parameters(
                 });
             }
             ScalarParameterKind::AggregateIndirect { layout, fields } => {
-                let parameter_index = i32_parameters.len();
-                i32_parameters.push(None);
-                u8_parameters.push(None);
-                usize_parameters.push(None);
-                bool_parameters.push(None);
-                str_parameters.push(None);
-                slice_parameters.push(None);
-                aggregate_parameters.push(LoweringAggregateParameter {
+                let parameter_index = slots.reserve_empty_abi_words(1);
+                let slot_index = slots.aggregates.len();
+                slots.aggregates.push(LoweringAggregateParameter {
                     name: parameter.name.clone(),
                     layout,
-                    slot_index: aggregate_parameters.len(),
+                    slot_index,
                     source: AggregateParameterSource::Indirect { parameter_index },
                     is_copy: type_expr_is_copy_struct(&parameter.ty, resolved),
                     drop_glue: drop_glue_for_type_expr(&parameter.ty, root_source, resolved),
@@ -302,19 +239,12 @@ fn lower_scalar_parameters(
                 words,
                 fields,
             } => {
-                let start_index = i32_parameters.len();
-                for _ in 0..words {
-                    i32_parameters.push(None);
-                    u8_parameters.push(None);
-                    usize_parameters.push(None);
-                    bool_parameters.push(None);
-                    str_parameters.push(None);
-                    slice_parameters.push(None);
-                }
-                aggregate_parameters.push(LoweringAggregateParameter {
+                let start_index = slots.reserve_empty_abi_words(words);
+                let slot_index = slots.aggregates.len();
+                slots.aggregates.push(LoweringAggregateParameter {
                     name: parameter.name.clone(),
                     layout,
-                    slot_index: aggregate_parameters.len(),
+                    slot_index,
                     source: AggregateParameterSource::Direct { start_index, words },
                     is_copy: type_expr_is_copy_struct(&parameter.ty, resolved),
                     drop_glue: drop_glue_for_type_expr(&parameter.ty, root_source, resolved),
@@ -324,16 +254,7 @@ fn lower_scalar_parameters(
         }
     }
 
-    Ok(LoweringParameterSlots {
-        i32: i32_parameters,
-        u8: u8_parameters,
-        usize: usize_parameters,
-        bool: bool_parameters,
-        str: str_parameters,
-        slice: slice_parameters,
-        aggregates: aggregate_parameters,
-        aggregate_borrows: aggregate_borrow_parameters,
-    })
+    Ok(slots)
 }
 
 fn lower_aggregate_parameter_setup(parameters: &LoweringParameterSlots) -> Vec<Instruction> {
