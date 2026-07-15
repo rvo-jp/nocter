@@ -1361,6 +1361,40 @@ mod tests {
     }
 
     #[test]
+    fn tail_call_rejects_borrow_arguments() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(7),
+                    },
+                    Instruction::TailCall {
+                        target: CallTarget::same_file("consume"),
+                        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                            source: BorrowSource::I32(I32Location::Local(0)),
+                        })],
+                    },
+                ],
+            },
+            Function {
+                name: "consume".to_string(),
+                target: crate::ir::CallTarget::same_file("consume".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+        ]);
+
+        let diagnostics = generate_arm64_darwin_entry(&module, "main").unwrap_err();
+
+        assert_eq!(diagnostics[0].code, "E9003");
+        assert!(diagnostics[0].message.contains("borrow arguments"));
+    }
+
+    #[test]
     fn emits_trap_instruction() {
         let function = Function {
             name: "abort".to_string(),

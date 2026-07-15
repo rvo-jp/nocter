@@ -1899,6 +1899,45 @@ func consume(header: Header): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_preserves_direct_aggregate_parameter_after_normal_call() {
+    let project = TempProject::new("cli-run-preserve-direct-aggregate-param");
+    let source = project.write_source(
+        "preserve_direct_aggregate_param.nct",
+        r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    return consume(Header{ tag: 7, ok: true, code: 42, len: 11 })
+}
+
+func consume(header: Header): i32 {
+    let ignored = noise()
+    return header.code
+}
+
+func noise(): i32 {
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_direct_aggregate_argument_between_scalars_exit_code() {
     let project = TempProject::new("cli-run-direct-aggregate-arg-between-scalars");
     let source = project.write_source(
@@ -1949,6 +1988,44 @@ func main(): i32 {
 
 func consume(prefix: i32, value: Big, suffix: i32): i32 {
     return value.code + suffix
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_preserves_indirect_aggregate_parameter_after_normal_call() {
+    let project = TempProject::new("cli-run-preserve-indirect-aggregate-param");
+    let source = project.write_source(
+        "preserve_indirect_aggregate_param.nct",
+        r#"struct Big {
+    first: usize
+    second: usize
+    code: i32
+}
+
+func main(): i32 {
+    return consume(Big{ first: 10, second: 20, code: 42 })
+}
+
+func consume(value: Big): i32 {
+    let ignored = noise()
+    return value.code
+}
+
+func noise(): i32 {
+    return 1
 }
 "#,
     );

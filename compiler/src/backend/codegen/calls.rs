@@ -37,6 +37,12 @@ impl EntryEmitter {
         frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
         if !arguments.is_empty() {
+            if tail_call_has_borrow_argument(arguments) {
+                return Err(vec![Diagnostic::error(
+                    "E9003",
+                    "tail call emission does not support borrow arguments",
+                )]);
+            }
             if call_argument_abi_word_count(arguments) > ARGUMENT_REGISTER_COUNT {
                 return Err(vec![Diagnostic::error(
                     "E9003",
@@ -1079,6 +1085,12 @@ fn staging_slot(
 
 fn call_argument_abi_word_count(arguments: &[ScalarArgument]) -> usize {
     arguments.iter().map(ScalarArgument::abi_word_count).sum()
+}
+
+fn tail_call_has_borrow_argument(arguments: &[ScalarArgument]) -> bool {
+    arguments
+        .iter()
+        .any(|argument| matches!(argument, ScalarArgument::Borrow(_)))
 }
 
 fn outgoing_stack_argument_area_size(abi_word_count: usize) -> Result<u32, Vec<Diagnostic>> {

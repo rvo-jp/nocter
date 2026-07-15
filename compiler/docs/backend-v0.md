@@ -153,6 +153,8 @@ This makes source calls such as `swap(b, a)` safe when `a` and `b` already live 
 Tail calls with arguments require a frame for staging even when the function has no normal calls.
 Tail calls without arguments can remain frameless.
 Nested scalar tail-call arguments use the same source-level expression staging as normal-call arguments before the final frame restore and branch.
+Direct backend `TailCall` emission rejects borrow arguments because their addresses can point into the caller frame after the tail-call epilogue has released it.
+Source lowering must route tail-position calls with borrow arguments through the normal-call-plus-return path.
 
 ### IR Shape
 
