@@ -4,14 +4,14 @@ use super::control_flow::{
     lower_nonterminal_if_statement, lower_nonterminal_while_statement,
     lower_terminal_i32_if_statement, lower_terminal_void_if_statement,
 };
-use super::errors::{ErrorPayload, lower_error_payload};
 use super::expressions::{
-    lower_i32_return_expression, lower_never_return_expression, lower_void_expression_statement,
-    mark_fallible_success_returns, success_return_instruction,
+    lower_never_return_expression, lower_void_expression_statement, mark_fallible_success_returns,
+    success_return_instruction,
 };
 use super::functions::{
-    append_scope_end_drops_before_exit, lower_drop_statement, lower_value_return_with_scope_drops,
-    mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
+    append_scope_end_drops_before_exit, lower_drop_statement,
+    lower_return_statement_with_scope_drops, mark_explicit_moves_in_expression,
+    mark_lowered_statement_aggregate_uses,
 };
 use crate::ast::{FunctionDecl, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
@@ -114,86 +114,17 @@ fn lower_entry_body(
 
     match last {
         Stmt::Return(statement) => {
-            if let Some(expression) = &statement.expression
-                && let Some(return_instructions) =
-                    lower_never_return_expression(expression, &context).map_err(|diagnostics| {
-                        attach_primary_span_if_absent(diagnostics, sources, expression.span())
-                    })?
-            {
-                instructions.extend(return_instructions);
-                return Ok(instructions);
-            }
-
-            if let Some(expression) = &statement.expression
-                && matches!(return_type, Type::Fallible(_))
-                && let Some(payload) =
-                    lower_error_payload(expression, resolved, root_source, Some(&context)).map_err(
-                        |diagnostics| {
-                            attach_primary_span_if_absent(diagnostics, sources, expression.span())
-                        },
-                    )?
-            {
-                instructions.extend(append_scope_end_drops_before_exit(
-                    lower_fallible_failure(payload),
-                    &mut context,
-                )?);
-                return Ok(instructions);
-            }
-
-            if let Some(expression) = &statement.expression
-                && let Some(return_instructions) = lower_value_return_with_scope_drops(
-                    success_type,
-                    expression,
-                    return_type,
-                    &mut context,
-                )
-                .map_err(|diagnostics| {
-                    attach_primary_span_if_absent(diagnostics, sources, expression.span())
-                })?
-            {
-                instructions.extend(return_instructions);
-                return Ok(instructions);
-            }
-
-            let return_instructions = match (success_type, &statement.expression) {
-                (Type::I32, Some(expression)) => lower_i32_return_expression(expression, &context),
-                (Type::U8, _) => unreachable!("u8 entry type is not lowered in v0"),
-                (Type::Usize, _) => unreachable!("usize entry type is not lowered in v0"),
-                (Type::Str, _) => unreachable!("str entry type is not lowered in v0"),
-                (Type::Slice { .. }, _) => unreachable!("slice entry type is not lowered in v0"),
-                (Type::Aggregate { .. }, _) => {
-                    unreachable!("aggregate entry type is not lowered in v0")
-                }
-                (Type::DirectAggregate { .. }, _) => {
-                    unreachable!("direct aggregate entry type is not lowered in v0")
-                }
-                (Type::Void, None) => Ok(vec![Instruction::Return]),
-                (Type::Void, Some(_)) => Err(vec![Diagnostic::error(
-                    "E8002",
-                    "IR v0 cannot lower value returns from `void` entry function",
-                )]),
-                (Type::I32, None) => Err(vec![Diagnostic::error(
-                    "E8002",
-                    "IR v0 cannot lower bare returns from `i32` entry function",
-                )]),
-                (Type::Borrow { .. }, _) => unreachable!("borrow entry type is not lowered in v0"),
-                (Type::Bool, _) => unreachable!("bool entry type is not lowered in v0"),
-                (Type::Never, _) => unreachable!("never entry type is not lowered in v0"),
-                (Type::Fallible(_), _) => unreachable!("fallible success type must be unwrapped"),
-            }
-            .map_err(|diagnostics| {
-                let span = statement
-                    .expression
-                    .as_ref()
-                    .map_or(statement.span, |expression| expression.span());
-                attach_primary_span_if_absent(diagnostics, sources, span)
-            })?;
             let return_instructions =
-                mark_fallible_success_returns(return_type, return_instructions);
-            instructions.extend(append_scope_end_drops_before_exit(
-                return_instructions,
-                &mut context,
-            )?);
+                lower_return_statement_with_scope_drops(statement, &mut context, "E8002").map_err(
+                    |diagnostics| {
+                        let span = statement
+                            .expression
+                            .as_ref()
+                            .map_or(statement.span, |expression| expression.span());
+                        attach_primary_span_if_absent(diagnostics, sources, span)
+                    },
+                )?;
+            instructions.extend(return_instructions);
             Ok(instructions)
         }
         Stmt::If(statement) if success_type == &Type::I32 => {
@@ -286,11 +217,6 @@ fn attach_primary_span_if_absent(
         .into_iter()
         .map(|diagnostic| diagnostic.with_primary_span_if_absent(sources, span))
         .collect()
-}
-
-fn lower_fallible_failure(payload: ErrorPayload) -> Vec<Instruction> {
-    let (code, message) = payload.into_str_values();
-    vec![Instruction::ReturnFallibleFailure { code, message }]
 }
 
 fn lower_leading_bindings(
