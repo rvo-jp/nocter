@@ -17,6 +17,11 @@ use crate::ir::{Instruction, Type};
 
 type ReturnLowerer = fn(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>;
 
+struct LoweredNonterminalBlock {
+    instructions: Vec<Instruction>,
+    ends_execution: bool,
+}
+
 pub(super) fn lower_terminal_i32_if_statement(
     statement: &IfStmt,
     context: &LoweringContext,
@@ -325,7 +330,7 @@ fn lower_nonterminal_while_block(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut body_context = context.clone();
     let local_mark = body_context.local_mark();
-    let mut instructions = lower_nonterminal_loop_block_statements(
+    let lowered = lower_nonterminal_loop_block_statements(
         &block.statements,
         &mut body_context,
         local_mark,
@@ -333,10 +338,13 @@ fn lower_nonterminal_while_block(
         diagnostic_code,
         subject,
     )?;
-    instructions.extend(lower_scope_end_drops_for_locals_since(
-        &mut body_context,
-        local_mark,
-    )?);
+    let mut instructions = lowered.instructions;
+    if !lowered.ends_execution {
+        instructions.extend(lower_scope_end_drops_for_locals_since(
+            &mut body_context,
+            local_mark,
+        )?);
+    }
     Ok(instructions)
 }
 
@@ -349,7 +357,7 @@ fn lower_nonterminal_if_block(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut branch_context = context.clone();
     let local_mark = branch_context.local_mark();
-    let mut instructions = lower_nonterminal_loop_block_statements(
+    let lowered = lower_nonterminal_loop_block_statements(
         &block.statements,
         &mut branch_context,
         local_mark,
@@ -357,10 +365,13 @@ fn lower_nonterminal_if_block(
         diagnostic_code,
         subject,
     )?;
-    instructions.extend(lower_scope_end_drops_for_locals_since(
-        &mut branch_context,
-        local_mark,
-    )?);
+    let mut instructions = lowered.instructions;
+    if !lowered.ends_execution {
+        instructions.extend(lower_scope_end_drops_for_locals_since(
+            &mut branch_context,
+            local_mark,
+        )?);
+    }
     Ok(instructions)
 }
 
@@ -371,8 +382,9 @@ fn lower_nonterminal_loop_block_statements(
     loop_scope_mark: Option<usize>,
     diagnostic_code: &'static str,
     subject: &str,
-) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+) -> Result<LoweredNonterminalBlock, Vec<Diagnostic>> {
     let mut instructions = Vec::new();
+    let mut ends_execution = false;
     for statement in statements {
         match statement {
             Stmt::Binding(statement) => {
@@ -439,13 +451,17 @@ fn lower_nonterminal_loop_block_statements(
                 }
                 instructions.extend(lower_drop_statement(statement, context)?);
             }
-            Stmt::If(statement) => instructions.extend(lower_nonterminal_if_statement(
-                statement,
-                context,
-                loop_scope_mark,
-                diagnostic_code,
-                subject,
-            )?),
+            Stmt::If(statement) => {
+                let lowered = lower_nonterminal_if_statement(
+                    statement,
+                    context,
+                    loop_scope_mark,
+                    diagnostic_code,
+                    subject,
+                )?;
+                ends_execution = instruction_list_ends_execution(&lowered);
+                instructions.extend(lowered);
+            }
             Stmt::While(statement) => instructions.extend(lower_nonterminal_while_statement(
                 statement,
                 context,
@@ -460,6 +476,7 @@ fn lower_nonterminal_loop_block_statements(
                     diagnostic_code,
                     subject,
                 )?);
+                ends_execution = true;
                 break;
             }
             Stmt::Continue(_) => {
@@ -470,6 +487,7 @@ fn lower_nonterminal_loop_block_statements(
                     diagnostic_code,
                     subject,
                 )?);
+                ends_execution = true;
                 break;
             }
             _ => {
@@ -480,8 +498,14 @@ fn lower_nonterminal_loop_block_statements(
             }
         }
         mark_lowered_statement_aggregate_uses(statement, context);
+        if ends_execution {
+            break;
+        }
     }
-    Ok(instructions)
+    Ok(LoweredNonterminalBlock {
+        instructions,
+        ends_execution,
+    })
 }
 
 fn lower_nonterminal_loop_control_statement(
@@ -570,6 +594,30 @@ fn assignment_target_root_name(expression: &Expr) -> Option<&str> {
         Expr::Identifier(identifier) => Some(&identifier.name),
         Expr::Member(member) => assignment_target_root_name(&member.object),
         _ => None,
+    }
+}
+
+fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
+    match instructions.last() {
+        Some(
+            Instruction::Return
+            | Instruction::ReturnFallibleSuccess
+            | Instruction::ReturnFallibleFailure { .. }
+            | Instruction::TailCall { .. }
+            | Instruction::Trap
+            | Instruction::Break
+            | Instruction::Continue,
+        ) => true,
+        Some(Instruction::If {
+            then_instructions,
+            else_instructions,
+            ..
+        }) => {
+            !else_instructions.is_empty()
+                && instruction_list_ends_execution(then_instructions)
+                && instruction_list_ends_execution(else_instructions)
+        }
+        _ => false,
     }
 }
 
