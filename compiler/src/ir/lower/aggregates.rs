@@ -704,13 +704,12 @@ fn lower_aggregate_call_field_value_to_location(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+    let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_aggregate_struct_literal_diagnostic(
             diagnostic_code,
             subject,
         ));
     };
-    let target = context.call_target(call, &identifier.name);
     let Some(return_type) = context.call_return_type(&target).cloned() else {
         return Err(unsupported_aggregate_struct_literal_diagnostic(
             diagnostic_code,
@@ -739,7 +738,7 @@ fn lower_aggregate_call_field_value_to_location(
         lower_call_arguments_to_scalar_arguments_with_temporaries(
             call,
             &target,
-            &identifier.name,
+            &call_name,
             context,
             temporaries,
         )?;
@@ -773,13 +772,12 @@ fn lower_aggregate_fallible_call_field_value_to_location(
     temporaries: &mut TemporaryAllocator,
     failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let Expr::Identifier(identifier) = call.callee.as_ref() else {
+    let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_aggregate_struct_literal_diagnostic(
             diagnostic_code,
             subject,
         ));
     };
-    let target = context.call_target(call, &identifier.name);
     let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
         return Err(unsupported_aggregate_struct_literal_diagnostic(
             diagnostic_code,
@@ -808,7 +806,7 @@ fn lower_aggregate_fallible_call_field_value_to_location(
         lower_call_arguments_to_scalar_arguments_with_temporaries(
             call,
             &target,
-            &identifier.name,
+            &call_name,
             context,
             temporaries,
         )?;

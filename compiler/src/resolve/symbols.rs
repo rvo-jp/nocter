@@ -318,6 +318,7 @@ pub struct StructFieldSignature {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssociatedFunctionSignature {
     pub name: String,
+    pub target_name: String,
     pub name_span: ByteSpan,
     pub visibility: Visibility,
     pub is_accessible: bool,

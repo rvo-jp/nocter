@@ -1,5 +1,5 @@
 use crate::abi::ValueLayout;
-use crate::ast::{CallExpr, TypeExpr};
+use crate::ast::{CallExpr, Expr, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateLocation, BoolLocation, CallTarget, I32Location, SliceLocation, StrLocation, Type,
@@ -281,10 +281,41 @@ impl<'a> LoweringContext<'a> {
         self.function_signatures.parameter_abi_word_count(target)
     }
 
+    pub(super) fn direct_call_target_and_name(
+        &self,
+        call: &CallExpr,
+    ) -> Option<(CallTarget, String)> {
+        match call.callee.as_ref() {
+            Expr::Identifier(identifier) => Some((
+                self.call_target(call, &identifier.name),
+                identifier.name.clone(),
+            )),
+            Expr::Member(_) => {
+                let resolution = self.call_resolution.as_ref()?;
+                let (_owner, function) = resolution.resolved.associated_function_for_call(call)?;
+                let target = call_target_for_source(
+                    function.name_span.source,
+                    resolution.root_source,
+                    function.target_name.clone(),
+                );
+                Some((target, function.target_name.clone()))
+            }
+            _ => None,
+        }
+    }
+
     pub(super) fn call_target(&self, call: &CallExpr, fallback_name: &str) -> CallTarget {
         let Some(resolution) = &self.call_resolution else {
             return CallTarget::same_file(fallback_name);
         };
+        if let Some((_owner, function)) = resolution.resolved.associated_function_for_call(call) {
+            return call_target_for_source(
+                function.name_span.source,
+                resolution.root_source,
+                function.target_name.clone(),
+            );
+        }
+
         let Some(symbol) = resolution.resolved.symbol_for_call(call) else {
             return CallTarget::same_file(fallback_name);
         };
@@ -816,6 +847,14 @@ impl<'a> LoweringContext<'a> {
     pub(super) fn drop_glue_for_type_expr(&self, ty: &TypeExpr) -> Option<DropGlue> {
         let (root_source, resolved) = self.resolved_calls()?;
         drop_glue_for_type_expr(ty, root_source, resolved)
+    }
+}
+
+fn call_target_for_source(source: SourceId, root_source: SourceId, name: String) -> CallTarget {
+    if source == root_source {
+        CallTarget::same_file(name)
+    } else {
+        CallTarget::imported(source, name)
     }
 }
 

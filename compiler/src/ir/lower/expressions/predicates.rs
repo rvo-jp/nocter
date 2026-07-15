@@ -3,8 +3,8 @@ use super::super::context::{AggregateFieldKind, LoweringContext};
 use super::super::literals::{lower_i32_literal, lower_u8_literal, lower_usize_literal};
 use super::aggregate_call_field;
 use crate::ast::{
-    BinaryExpr, BinaryOperator, Expr, InterpolatedStringPart, TypeConversionExpr, TypeExpr,
-    UnaryOperator,
+    BinaryExpr, BinaryOperator, CallExpr, Expr, InterpolatedStringPart, TypeConversionExpr,
+    TypeExpr, UnaryOperator,
 };
 use crate::ir::Type;
 
@@ -344,13 +344,7 @@ fn expressions_are_lowerable_u8_expressions(
 
 fn expression_is_lowerable_u8_expression(expression: &Expr, context: &LoweringContext) -> bool {
     match expression {
-        Expr::Call(call) => {
-            let Expr::Identifier(identifier) = call.callee.as_ref() else {
-                return false;
-            };
-            context.call_return_type(&context.call_target(call, &identifier.name))
-                == Some(&Type::U8)
-        }
+        Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::U8),
         Expr::Index(index) => {
             expression_is_lowerable_byte_index_object(&index.object, context)
                 && expression_is_lowerable_usize_expression(&index.index, context)
@@ -369,13 +363,7 @@ fn expression_is_lowerable_u8_expression(expression: &Expr, context: &LoweringCo
 fn expression_is_known_u8_expression(expression: &Expr, context: &LoweringContext) -> bool {
     match expression {
         Expr::Identifier(identifier) => context.u8_location(&identifier.name).is_some(),
-        Expr::Call(call) => {
-            let Expr::Identifier(identifier) = call.callee.as_ref() else {
-                return false;
-            };
-            context.call_return_type(&context.call_target(call, &identifier.name))
-                == Some(&Type::U8)
-        }
+        Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::U8),
         Expr::Index(index) => expression_is_lowerable_byte_index_object(&index.object, context),
         Expr::TypeConversion(conversion) if type_conversion_target_is(conversion, "u8") => true,
         Expr::Member(_) => {
@@ -402,11 +390,8 @@ fn expression_is_lowerable_byte_index_object(expression: &Expr, context: &Loweri
                 || context.slice_location(&identifier.name).is_some()
         }
         Expr::Call(call) => {
-            let Expr::Identifier(identifier) = call.callee.as_ref() else {
-                return false;
-            };
             matches!(
-                context.call_return_type(&context.call_target(call, &identifier.name)),
+                direct_call_return_type(call, context),
                 Some(Type::Str | Type::Slice { .. })
             )
         }
@@ -421,13 +406,7 @@ fn type_conversion_target_is(conversion: &TypeConversionExpr, name: &str) -> boo
 
 fn expression_is_lowerable_usize_expression(expression: &Expr, context: &LoweringContext) -> bool {
     match expression {
-        Expr::Call(call) => {
-            let Expr::Identifier(identifier) = call.callee.as_ref() else {
-                return false;
-            };
-            context.call_return_type(&context.call_target(call, &identifier.name))
-                == Some(&Type::Usize)
-        }
+        Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::Usize),
         Expr::Binary(binary) if is_usize_binary_operator(binary.operator) => {
             expression_is_lowerable_usize_expression(&binary.left, context)
                 && expression_is_lowerable_usize_expression(&binary.right, context)
@@ -450,13 +429,7 @@ fn expression_is_lowerable_usize_value(expression: &Expr, context: &LoweringCont
 
 fn expression_is_lowerable_i32_expression(expression: &Expr, context: &LoweringContext) -> bool {
     match expression {
-        Expr::Call(call) => {
-            let Expr::Identifier(identifier) = call.callee.as_ref() else {
-                return false;
-            };
-            context.call_return_type(&context.call_target(call, &identifier.name))
-                == Some(&Type::I32)
-        }
+        Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::I32),
         Expr::Binary(binary) if is_i32_binary_operator(binary.operator) => {
             expression_is_lowerable_i32_expression(&binary.left, context)
                 && expression_is_lowerable_i32_expression(&binary.right, context)
@@ -548,10 +521,7 @@ fn aggregate_call_field_kind(
     member_name: &str,
     context: &LoweringContext,
 ) -> Option<AggregateFieldKind> {
-    let Expr::Identifier(identifier) = call.callee.as_ref() else {
-        return None;
-    };
-    let target = context.call_target(call, &identifier.name);
+    let (target, _) = context.direct_call_target_and_name(call)?;
     let layout = aggregate_type_layout(context.call_return_type(&target)?)?;
     if !supported_aggregate_copy_layout(layout) {
         return None;
@@ -565,10 +535,7 @@ fn aggregate_fallible_call_field_kind(
     member_name: &str,
     context: &LoweringContext,
 ) -> Option<AggregateFieldKind> {
-    let Expr::Identifier(identifier) = call.callee.as_ref() else {
-        return None;
-    };
-    let target = context.call_target(call, &identifier.name);
+    let (target, _) = context.direct_call_target_and_name(call)?;
     let layout = match context.call_return_type(&target)? {
         Type::Fallible(success_type) => aggregate_type_layout(success_type.as_ref())?,
         _ => return None,
@@ -622,16 +589,15 @@ fn expression_is_lowerable_bool_comparison_operand_or_call(
 
 fn expression_is_direct_bool_returning_call(expression: &Expr, context: &LoweringContext) -> bool {
     match expression {
-        Expr::Call(call) => {
-            let Expr::Identifier(identifier) = call.callee.as_ref() else {
-                return false;
-            };
-            context.call_return_type(&context.call_target(call, &identifier.name))
-                == Some(&Type::Bool)
-        }
+        Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::Bool),
         Expr::Group(group) => expression_is_direct_bool_returning_call(&group.expression, context),
         _ => false,
     }
+}
+
+fn direct_call_return_type<'a>(call: &CallExpr, context: &'a LoweringContext) -> Option<&'a Type> {
+    let (target, _) = context.direct_call_target_and_name(call)?;
+    context.call_return_type(&target)
 }
 
 fn unwrap_group(expression: &Expr) -> &Expr {

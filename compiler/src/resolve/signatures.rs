@@ -74,6 +74,7 @@ pub(super) fn associated_function_signature(
 ) -> AssociatedFunctionSignature {
     AssociatedFunctionSignature {
         name: function.member_name.clone(),
+        target_name: function.name.clone(),
         name_span: function.member_name_span,
         visibility: function.visibility,
         is_accessible: true,

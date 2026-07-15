@@ -108,6 +108,86 @@ func answer(): i32 {
 }
 
 #[test]
+fn lowers_entry_i32_associated_function_call_target() {
+    let ir = lower_text(
+        r#"struct Point {
+    x: i32
+}
+
+func Point.origin(): i32 {
+    return 42
+}
+
+func main(): i32 {
+    return Point.origin()
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![tail_call("Point.origin", vec![])],
+            },
+            Function {
+                name: "Point.origin".to_string(),
+                target: crate::ir::CallTarget::same_file("Point.origin".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(42), Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
+fn lowers_entry_i32_let_initializer_associated_function_call_target() {
+    let ir = lower_text(
+        r#"struct Point {
+    x: i32
+}
+
+func Point.origin(): i32 {
+    return 42
+}
+
+func main(): i32 {
+    let value = Point.origin()
+    return value
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_i32(I32Location::Local(0), "Point.origin", vec![]),
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "Point.origin".to_string(),
+                target: crate::ir::CallTarget::same_file("Point.origin".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(42), Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
 fn lowers_entry_usize_let_binding_then_usize_condition() {
     let ir = lower_text(
         r#"func main(): i32 {
