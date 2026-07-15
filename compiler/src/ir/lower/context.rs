@@ -104,6 +104,15 @@ impl LoweringParameterSlots {
         start_index
     }
 
+    pub(super) fn parameter_abi_word_count(&self) -> usize {
+        debug_assert_eq!(self.i32.len(), self.u8.len());
+        debug_assert_eq!(self.i32.len(), self.usize.len());
+        debug_assert_eq!(self.i32.len(), self.bool.len());
+        debug_assert_eq!(self.i32.len(), self.str.len());
+        debug_assert_eq!(self.i32.len(), self.slice.len());
+        self.i32.len()
+    }
+
     fn next_parameter_index(&self) -> usize {
         self.i32.len()
     }

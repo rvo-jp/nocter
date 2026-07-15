@@ -27,6 +27,9 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: validate callee parameter slots against function ABI
+  - exposes the ABI word count represented by IR lowering's parameter slot tables
+  - checks each lowered function/drop parameter table against the parameter-only function ABI helper before backend planning
 - Current checkpoint: index parameter ABI word counts from function ABI
   - records `FunctionAbi::parameter_abi_word_count` on IR lowering call signatures when the resolved signature can be classified
   - uses a parameter-only ABI helper so fallible return signatures still expose their argument ABI word count

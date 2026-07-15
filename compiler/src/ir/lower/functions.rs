@@ -29,11 +29,14 @@ use super::expressions::{
     lower_usize_expression_to_location, lower_usize_return_expression,
     lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
 };
-use crate::abi::{AbiType, AbiValue, ValueClassification, abi_value_from_type_expr};
+use crate::abi::{
+    AbiType, AbiValue, ValueClassification, abi_value_from_type_expr,
+    function_parameter_abi_word_count_from_signature,
+};
 use crate::ast::{
     ArrayType, Block, BorrowType, DropDecl, DropStmt, Expr, FallibleType, FunctionDecl,
     GenericType, IfStmt, OptionalType, Parameter, PointerType, ReturnStmt, Stmt, StructLiteralExpr,
-    TypeExpr, UnaryOperator, ViewType,
+    TypeExpr, TypeReference, UnaryOperator, ViewType,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -42,7 +45,9 @@ use crate::ir::{
     SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation,
     UsizeValue,
 };
-use crate::resolve::ResolveOutput;
+use crate::resolve::{
+    FunctionSignature as ResolvedFunctionSignature, ParameterSignature, ResolveOutput,
+};
 use crate::source::{ByteSpan, SourceId, SourceMap};
 
 pub(super) fn lower_function(
@@ -74,6 +79,16 @@ pub(super) fn lower_function(
         root_source,
         resolved,
         sources,
+    )
+    .map_err(|diagnostics| {
+        attach_primary_span_if_absent(diagnostics, sources, function.parameters.span)
+    })?;
+    validate_parameter_slots_match_function_abi(
+        &function.name,
+        &function.parameters.parameters,
+        &function.return_type,
+        resolved,
+        &parameters,
     )
     .map_err(|diagnostics| {
         attach_primary_span_if_absent(diagnostics, sources, function.parameters.span)
@@ -141,6 +156,14 @@ pub(super) fn lower_drop_function(
         root_source,
         resolved,
         sources,
+    )
+    .map_err(|diagnostics| attach_primary_span_if_absent(diagnostics, sources, binding.span))?;
+    validate_parameter_slots_match_function_abi(
+        &name,
+        std::slice::from_ref(&binding),
+        &void_type_expr(drop_.span),
+        resolved,
+        &parameters,
     )
     .map_err(|diagnostics| attach_primary_span_if_absent(diagnostics, sources, binding.span))?;
     let parameter_setup = lower_aggregate_parameter_setup(&parameters);
@@ -255,6 +278,53 @@ fn lower_scalar_parameters(
     }
 
     Ok(slots)
+}
+
+fn validate_parameter_slots_match_function_abi(
+    function_name: &str,
+    parameters: &[Parameter],
+    return_type: &TypeExpr,
+    resolved: &ResolveOutput,
+    slots: &LoweringParameterSlots,
+) -> Result<(), Vec<Diagnostic>> {
+    let signature = resolved_function_signature(parameters, return_type.clone());
+    let expected = function_parameter_abi_word_count_from_signature(&signature, resolved)
+        .map_err(|_error| unsupported_parameter_type_diagnostic(function_name))?;
+    let actual = slots.parameter_abi_word_count();
+    if actual == expected {
+        return Ok(());
+    }
+
+    Err(vec![Diagnostic::error(
+        "E8007",
+        format!(
+            "IR v0 lowered parameters for function `{function_name}` into {actual} ABI words, but the resolved ABI expects {expected}"
+        ),
+    )])
+}
+
+fn resolved_function_signature(
+    parameters: &[Parameter],
+    return_type: TypeExpr,
+) -> ResolvedFunctionSignature {
+    ResolvedFunctionSignature {
+        parameters: parameters
+            .iter()
+            .map(|parameter| ParameterSignature {
+                name: parameter.name.clone(),
+                name_span: parameter.name_span,
+                ty: parameter.ty.clone(),
+            })
+            .collect(),
+        return_type,
+    }
+}
+
+fn void_type_expr(span: ByteSpan) -> TypeExpr {
+    TypeExpr::Reference(TypeReference {
+        span,
+        name: "void".to_string(),
+    })
 }
 
 fn lower_aggregate_parameter_setup(parameters: &LoweringParameterSlots) -> Vec<Instruction> {
