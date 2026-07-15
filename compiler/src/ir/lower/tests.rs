@@ -3249,6 +3249,69 @@ func ready(): bool {
 }
 
 #[test]
+fn rejects_explicit_aggregate_move_in_terminal_if_condition() {
+    let diagnostics = lower_text_diagnostics(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func consume(file: File): bool {
+    return true
+}
+
+func main(): i32 {
+    var file = File{ fd: 1 }
+    if consume(move file) {
+        return 0
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics[0].code, "E8002");
+    assert!(diagnostics[0].message.contains("control-flow conditions"));
+}
+
+#[test]
+fn rejects_explicit_aggregate_move_in_nonterminal_while_condition() {
+    let diagnostics = lower_text_diagnostics(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func consume(file: File): bool {
+    return true
+}
+
+func main(): i32 {
+    var file = File{ fd: 1 }
+    while consume(move file) {
+        break
+    }
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics[0].code, "E8002");
+    assert!(diagnostics[0].message.contains("control-flow conditions"));
+}
+
+#[test]
 fn transfers_scope_end_drop_to_by_value_aggregate_parameter() {
     let ir = lower_text(
         r#"struct File {

@@ -1607,6 +1607,85 @@ pub(super) fn mark_explicit_moves_in_expression(expression: &Expr, context: &mut
     }
 }
 
+pub(super) fn expression_contains_explicit_aggregate_move(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    match expression {
+        Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
+            if let Expr::Identifier(identifier) = unwrap_group(&unary.operand) {
+                context.aggregate_local(&identifier.name).is_some()
+            } else {
+                expression_contains_explicit_aggregate_move(&unary.operand, context)
+            }
+        }
+        Expr::ArrayLiteral(literal) => literal
+            .elements
+            .iter()
+            .any(|element| expression_contains_explicit_aggregate_move(element, context)),
+        Expr::StructLiteral(literal) => literal
+            .fields
+            .iter()
+            .any(|field| expression_contains_explicit_aggregate_move(&field.value, context)),
+        Expr::Propagate(propagation) => {
+            expression_contains_explicit_aggregate_move(&propagation.expression, context)
+        }
+        Expr::Force(force) => {
+            expression_contains_explicit_aggregate_move(&force.expression, context)
+        }
+        Expr::Catch(catch) => {
+            expression_contains_explicit_aggregate_move(&catch.expression, context)
+        }
+        Expr::Borrow(borrow) => {
+            expression_contains_explicit_aggregate_move(&borrow.expression, context)
+        }
+        Expr::Unary(unary) => expression_contains_explicit_aggregate_move(&unary.operand, context),
+        Expr::Binary(binary) => {
+            expression_contains_explicit_aggregate_move(&binary.left, context)
+                || expression_contains_explicit_aggregate_move(&binary.right, context)
+        }
+        Expr::TypeConversion(conversion) => {
+            expression_contains_explicit_aggregate_move(&conversion.expression, context)
+        }
+        Expr::Call(call) => {
+            expression_contains_explicit_aggregate_move(&call.callee, context)
+                || call
+                    .arguments
+                    .iter()
+                    .any(|argument| expression_contains_explicit_aggregate_move(argument, context))
+        }
+        Expr::Member(member) => {
+            expression_contains_explicit_aggregate_move(&member.object, context)
+        }
+        Expr::Index(index) => {
+            expression_contains_explicit_aggregate_move(&index.object, context)
+                || expression_contains_explicit_aggregate_move(&index.index, context)
+        }
+        Expr::Group(group) => {
+            expression_contains_explicit_aggregate_move(&group.expression, context)
+        }
+        Expr::OptionalDefault(default) => {
+            expression_contains_explicit_aggregate_move(&default.value, context)
+                || expression_contains_explicit_aggregate_move(&default.default, context)
+        }
+        Expr::PatternConditional(conditional) => {
+            expression_contains_explicit_aggregate_move(&conditional.target, context)
+        }
+        Expr::InterpolatedString(interpolated) => interpolated.parts.iter().any(|part| {
+            if let crate::ast::InterpolatedStringPart::Expression(part) = part {
+                expression_contains_explicit_aggregate_move(&part.expression, context)
+            } else {
+                false
+            }
+        }),
+        Expr::Identifier(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::StringLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::NoneLiteral(_) => false,
+    }
+}
+
 fn drop_parameter_matches_local(parameter_type: &Type, layout: crate::abi::ValueLayout) -> bool {
     let Type::Borrow {
         is_readwrite: true,

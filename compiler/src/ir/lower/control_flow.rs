@@ -6,9 +6,10 @@ use super::expressions::{
     lower_u8_return_expression, lower_usize_return_expression, lower_void_expression_statement,
 };
 use super::functions::{
-    append_scope_end_drops_before_exit, lower_drop_statement,
-    lower_scope_end_drops_for_locals_since, lower_value_return_with_scope_drops,
-    mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
+    append_scope_end_drops_before_exit, expression_contains_explicit_aggregate_move,
+    lower_drop_statement, lower_scope_end_drops_for_locals_since,
+    lower_value_return_with_scope_drops, mark_explicit_moves_in_expression,
+    mark_lowered_statement_aggregate_uses,
 };
 use crate::ast::{BinaryExpr, BinaryOperator, Block, Expr, IfStmt, Stmt, WhileStmt};
 use crate::diagnostics::Diagnostic;
@@ -232,6 +233,12 @@ pub(super) fn lower_terminal_condition(
     context: &LoweringContext,
     diagnostic_code: &'static str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if expression_contains_explicit_aggregate_move(condition, context) {
+        return Err(unsupported_control_flow_condition_move_diagnostic(
+            diagnostic_code,
+        ));
+    }
+
     if let Some(binary) = short_circuit_condition_with_call(condition) {
         return lower_short_circuit_terminal_condition(
             binary,
@@ -293,6 +300,12 @@ pub(super) fn lower_nonterminal_while_statement(
     diagnostic_code: &'static str,
     subject: &str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if expression_contains_explicit_aggregate_move(&statement.condition, context) {
+        return Err(unsupported_control_flow_condition_move_diagnostic(
+            diagnostic_code,
+        ));
+    }
+
     let condition = lower_bool_expression_to_value(&statement.condition, context, diagnostic_code)?;
     let body_instructions =
         lower_nonterminal_while_block(&statement.body, context, diagnostic_code, subject)?;
@@ -811,5 +824,14 @@ fn unsupported_nonterminal_if_diagnostic(
         format!(
             "IR v0 can only lower non-terminal `if`/`while` statements for {subject} when branches contain supported local bindings, branch/body-local explicit aggregate drops, void call statements, or nested non-terminal `if`/`while` statements"
         ),
+    )]
+}
+
+fn unsupported_control_flow_condition_move_diagnostic(
+    diagnostic_code: &'static str,
+) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        diagnostic_code,
+        "IR v0 cannot lower control-flow conditions that explicitly move aggregate values",
     )]
 }
