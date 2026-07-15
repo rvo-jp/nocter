@@ -274,16 +274,7 @@ pub fn function_abi_from_signature(
     signature: &FunctionSignature,
     resolved: &ResolveOutput,
 ) -> Result<FunctionAbi, AbiTypeError> {
-    let parameters = signature
-        .parameters
-        .iter()
-        .map(|parameter| {
-            Ok(AbiParameter {
-                name: parameter.name.clone(),
-                value: abi_value_from_type_expr(&parameter.ty, resolved)?,
-            })
-        })
-        .collect::<Result<Vec<_>, AbiTypeError>>()?;
+    let parameters = function_parameters_abi_from_signature(signature, resolved)?;
     let return_value = abi_return_from_type_expr(&signature.return_type, resolved)?;
 
     Ok(FunctionAbi {
@@ -292,15 +283,30 @@ pub fn function_abi_from_signature(
     })
 }
 
+pub fn function_parameters_abi_from_signature(
+    signature: &FunctionSignature,
+    resolved: &ResolveOutput,
+) -> Result<Vec<AbiParameter>, AbiTypeError> {
+    signature
+        .parameters
+        .iter()
+        .map(|parameter| {
+            Ok(AbiParameter {
+                name: parameter.name.clone(),
+                value: abi_value_from_type_expr(&parameter.ty, resolved)?,
+            })
+        })
+        .collect()
+}
+
 pub fn function_parameter_abi_word_count_from_signature(
     signature: &FunctionSignature,
     resolved: &ResolveOutput,
 ) -> Result<usize, AbiTypeError> {
     let mut count = 0_usize;
-    for parameter in &signature.parameters {
-        let value = abi_value_from_type_expr(&parameter.ty, resolved)?;
+    for parameter in function_parameters_abi_from_signature(signature, resolved)? {
         count = count
-            .checked_add(value.parameter_abi_word_count())
+            .checked_add(parameter.value.parameter_abi_word_count())
             .ok_or(AbiTypeError::Layout(LayoutError::SizeOverflow))?;
     }
     Ok(count)
@@ -483,7 +489,8 @@ mod tests {
     use super::{
         AbiField, AbiReturn, AbiType, ParameterPassing, ReturnPassing, ValueClassification,
         ValueLayout, abi_type_from_type_expr, classify_value, function_abi_from_signature,
-        function_parameter_abi_word_count_from_signature, layout_of, layout_struct,
+        function_parameter_abi_word_count_from_signature, function_parameters_abi_from_signature,
+        layout_of, layout_struct,
     };
     use crate::ast::Item;
     use crate::lexer::lex;
@@ -716,6 +723,38 @@ func done(): void {
         let count = function_parameter_abi_word_count_from_signature(signature, &resolved).unwrap();
 
         assert_eq!(count, 3);
+    }
+
+    #[test]
+    fn classifies_parameters_without_return_layout() {
+        let (_ast, resolved) = parse_and_resolve(
+            r#"struct Text {
+    ptr: *u8
+    len: usize
+    capacity: usize
+}
+
+func load(text: Text, view: &str): i32! {
+}
+"#,
+        );
+        let signature = resolved_function_signature(&resolved, "load");
+
+        let parameters = function_parameters_abi_from_signature(signature, &resolved).unwrap();
+
+        assert_eq!(parameters.len(), 2);
+        assert_eq!(parameters[0].name, "text");
+        assert_eq!(parameters[0].value.layout, ValueLayout::new(24, 8));
+        assert_eq!(
+            parameters[0].value.classification,
+            ValueClassification::Indirect
+        );
+        assert_eq!(parameters[1].name, "view");
+        assert_eq!(parameters[1].value.ty, AbiType::StrView);
+        assert_eq!(
+            parameters[1].value.classification,
+            ValueClassification::Direct { words: 2 }
+        );
     }
 
     fn parse_and_resolve(text: &str) -> (crate::ast::AstFile, crate::resolve::ResolveOutput) {

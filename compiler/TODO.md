@@ -27,6 +27,9 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: expose parameter-only function ABI metadata
+  - adds a parameter-only function ABI helper that returns classified `AbiParameter` values without requiring the return type to be ABI-lowerable
+  - reuses that helper for parameter ABI word counts, keeping count/layout/classification on one path
 - Current checkpoint: validate callee parameter slots against function ABI
   - exposes the ABI word count represented by IR lowering's parameter slot tables
   - checks each lowered function/drop parameter table against the parameter-only function ABI helper before backend planning
