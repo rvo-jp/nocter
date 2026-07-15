@@ -7775,6 +7775,35 @@ func update_code(): i32 {
 }
 
 #[test]
+fn rejects_non_copy_aggregate_field_assignment() {
+    let diagnostics = lower_text_diagnostics(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+struct Holder {
+    file: File
+}
+
+func main(): i32 {
+    var holder = Holder{ file: File{ fd: 1 } }
+    holder.file = File{ fd: 2 }
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics[0].code, "E8008");
+    assert!(diagnostics[0].message.contains("copy aggregate fields"));
+}
+
+#[test]
 fn lowers_nested_borrowed_aggregate_parameter_field_return() {
     let function = lower_named_function(
         r#"struct Header {

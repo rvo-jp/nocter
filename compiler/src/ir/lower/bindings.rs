@@ -711,6 +711,7 @@ fn lower_aggregate_field_assignment(
     }
     let destination = field.source;
     let offset = field.offset;
+    let field_is_copy = field.is_copy;
     match field.kind {
         AggregateFieldKind::I32 => {
             let (mut instructions, value) = lower_i32_expression_to_word(value, context)?;
@@ -749,6 +750,9 @@ fn lower_aggregate_field_assignment(
             Ok(lowered.instructions)
         }
         AggregateFieldKind::Aggregate { layout, .. } => {
+            if !field_is_copy {
+                return Err(unsupported_assignment_diagnostic());
+            }
             lower_aggregate_member_value_assignment(destination, offset, layout, value, context)
         }
     }
@@ -1467,7 +1471,7 @@ fn unsupported_binding_diagnostic(message: &'static str) -> Vec<Diagnostic> {
 fn unsupported_assignment_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8008",
-        "IR v0 can only lower simple `=` assignment to scalar local bindings or aggregate slots",
+        "IR v0 can only lower simple `=` assignment to scalar local bindings, scalar aggregate fields, aggregate slots, or copy aggregate fields",
     )]
 }
 
