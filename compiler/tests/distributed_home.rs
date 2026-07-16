@@ -1,6 +1,8 @@
+use serde_json::{Value, json};
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const NOCTER: &str = env!("CARGO_BIN_EXE_nocter");
@@ -77,6 +79,83 @@ fn installed_nocter_uses_executable_parent_as_home_without_env() {
         output.stderr.is_empty(),
         "expected empty stderr, got:\n{}",
         text(&output.stderr)
+    );
+}
+
+#[test]
+fn installed_nocter_lsp_uses_executable_parent_as_home_without_env() {
+    let install = TempProject::new("distributed-home-lsp-installed-layout");
+    let home = install.root().join(".nocter");
+    write_minimal_nocter_home(&home);
+
+    let installed = home.join("nocter");
+    fs::copy(NOCTER, &installed).unwrap();
+    fs::set_permissions(&installed, fs::metadata(NOCTER).unwrap().permissions()).unwrap();
+
+    let workspace = install.root().join("workspace");
+    fs::create_dir_all(&workspace).unwrap();
+    let source = workspace.join("app.nct");
+    let source_text = "func main(): i32 {\n    return 0\n}\n";
+    fs::write(&source, source_text).unwrap();
+    let uri = file_uri(&source);
+
+    let output = nocter_lsp(
+        &installed,
+        &workspace,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
+    );
+
+    let diagnostics = read_frames(&output.stdout)
+        .into_iter()
+        .find(|message| message["method"] == "textDocument/publishDiagnostics")
+        .and_then(|message| message["params"]["diagnostics"].as_array().cloned())
+        .expect("expected diagnostics notification");
+    assert!(
+        diagnostics.is_empty(),
+        "installed LSP should resolve std/prelude without NOCTER_HOME, got:\n{diagnostics:#?}"
     );
 }
 
@@ -693,6 +772,79 @@ fn nocter_run(project: &TempProject, source: &Path) -> Output {
         .env("NOCTER_HOME", distributed_home())
         .output()
         .unwrap()
+}
+
+fn nocter_lsp(nocter: &Path, current_dir: &Path, messages: &[Value]) -> Output {
+    let mut child = Command::new(nocter)
+        .arg("lsp")
+        .current_dir(current_dir)
+        .env_remove("NOCTER_HOME")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    {
+        let stdin = child.stdin.as_mut().unwrap();
+        for message in messages {
+            write_frame(stdin, message);
+        }
+    }
+    drop(child.stdin.take());
+
+    child.wait_with_output().unwrap()
+}
+
+fn write_frame<W: Write>(writer: &mut W, message: &Value) {
+    let body = serde_json::to_vec(message).unwrap();
+    write!(writer, "Content-Length: {}\r\n\r\n", body.len()).unwrap();
+    writer.write_all(&body).unwrap();
+}
+
+fn read_frames(bytes: &[u8]) -> Vec<Value> {
+    let mut messages = Vec::new();
+    let mut index = 0;
+
+    while index < bytes.len() {
+        let header_end = find_header_end(&bytes[index..]).expect("expected LSP header") + index;
+        let header = std::str::from_utf8(&bytes[index..header_end]).unwrap();
+        let content_length = header
+            .lines()
+            .find_map(|line| line.strip_prefix("Content-Length:"))
+            .and_then(|value| value.trim().parse::<usize>().ok())
+            .expect("expected Content-Length header");
+        let body_start = header_end + 4;
+        let body_end = body_start + content_length;
+        messages.push(serde_json::from_slice(&bytes[body_start..body_end]).unwrap());
+        index = body_end;
+    }
+
+    messages
+}
+
+fn find_header_end(bytes: &[u8]) -> Option<usize> {
+    bytes.windows(4).position(|window| window == b"\r\n\r\n")
+}
+
+fn file_uri(path: &Path) -> String {
+    format!("file://{}", path.to_string_lossy())
+}
+
+fn write_minimal_nocter_home(home: &Path) {
+    fs::create_dir_all(home.join("std")).unwrap();
+    fs::create_dir_all(home.join("targets/arm64-darwin/std")).unwrap();
+    fs::write(
+        home.join("VERSION"),
+        fs::read_to_string(distributed_home().join("VERSION")).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        home.join("MANIFEST.json"),
+        fs::read_to_string(distributed_home().join("MANIFEST.json")).unwrap(),
+    )
+    .unwrap();
+    fs::write(home.join("std/prelude.nct"), "pub type Int = i32\n").unwrap();
 }
 
 fn assert_success(output: &Output) {
