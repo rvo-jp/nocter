@@ -2548,6 +2548,142 @@ mod tests {
     }
 
     #[test]
+    fn aggregate_range_copy_from_stack_passed_direct_parameter_after_call_uses_spills() {
+        let layout = ValueLayout::new(9, 1);
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "identity".to_string(),
+                target: crate::ir::CallTarget::same_file("identity".to_string()),
+                return_type: Type::DirectAggregate { layout, words: 2 },
+                instructions: vec![
+                    Instruction::CallVoid {
+                        target: CallTarget::same_file("effect"),
+                        arguments: vec![],
+                    },
+                    Instruction::CopyAggregateRange {
+                        destination: AggregateLocation::DirectReturn,
+                        destination_offset: 0,
+                        source: AggregateLocation::DirectParameter { start_index: 8 },
+                        source_offset: 0,
+                        layout,
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "effect".to_string(),
+                target: crate::ir::CallTarget::same_file("effect".to_string()),
+                return_type: Type::Void,
+                instructions: vec![Instruction::Return],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_x_sp(XReg::X16, 0)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_x_sp(XReg::X16, 8)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_sp(XReg::X16, 0)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_mov_x(XReg::X0, XReg::X16)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_sp(XReg::X17, 8)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_mov_x(XReg::X1, XReg::X16)
+        ));
+    }
+
+    #[test]
+    fn aggregate_range_copy_to_borrowed_parameter_after_call_uses_spilled_parameter_pointer() {
+        let layout = ValueLayout::new(16, 8);
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "set_header".to_string(),
+                target: crate::ir::CallTarget::same_file("set_header".to_string()),
+                return_type: Type::Void,
+                instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout,
+                    },
+                    Instruction::StoreAggregateUsize {
+                        destination: AggregateLocation::Slot(0),
+                        offset: 0,
+                        value: UsizeValue::Const(7),
+                    },
+                    Instruction::StoreAggregateUsize {
+                        destination: AggregateLocation::Slot(0),
+                        offset: 8,
+                        value: UsizeValue::Const(42),
+                    },
+                    Instruction::CallVoid {
+                        target: CallTarget::same_file("effect"),
+                        arguments: vec![],
+                    },
+                    Instruction::CopyAggregateRange {
+                        destination: AggregateLocation::Parameter(0),
+                        destination_offset: 8,
+                        source: AggregateLocation::Slot(0),
+                        source_offset: 0,
+                        layout,
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "effect".to_string(),
+                target: crate::ir::CallTarget::same_file("effect".to_string()),
+                return_type: Type::Void,
+                instructions: vec![Instruction::Return],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_x_sp(XReg::X16, 0)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_sp(XReg::X17, 0)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_x_imm(XReg::X16, XReg::X17, 8)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_x_imm(XReg::X16, XReg::X17, 16)
+        ));
+    }
+
+    #[test]
     fn aggregate_copy_from_slot_to_return_copies_words_to_x8_destination() {
         let module = IrModule::new(vec![
             Function {

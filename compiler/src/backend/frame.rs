@@ -2657,6 +2657,89 @@ mod tests {
     }
 
     #[test]
+    fn aggregate_range_copy_from_direct_parameter_after_call_reserves_parameter_spill_slots() {
+        let function = Function {
+            name: "identity".to_string(),
+            target: crate::ir::CallTarget::same_file("identity".to_string()),
+            return_type: Type::DirectAggregate {
+                layout: ValueLayout::new(9, 1),
+                words: 2,
+            },
+            instructions: vec![
+                Instruction::CallVoid {
+                    target: CallTarget::same_file("effect"),
+                    arguments: vec![],
+                },
+                Instruction::CopyAggregateRange {
+                    destination: AggregateLocation::DirectReturn,
+                    destination_offset: 0,
+                    source: AggregateLocation::DirectParameter { start_index: 8 },
+                    source_offset: 0,
+                    layout: ValueLayout::new(9, 1),
+                },
+                Instruction::Return,
+            ],
+        };
+
+        let frame = plan_function_frame(&function).unwrap();
+
+        assert_eq!(
+            frame,
+            FunctionFrame::Framed(
+                FrameLayout::for_slot_counts_with_parameter_spills_and_aggregate_slots(
+                    0,
+                    0,
+                    &[8, 9],
+                    &[]
+                )
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn aggregate_range_copy_to_borrowed_parameter_after_call_reserves_parameter_spill_slot() {
+        let function = Function {
+            name: "set_header".to_string(),
+            target: crate::ir::CallTarget::same_file("set_header".to_string()),
+            return_type: Type::Void,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::CallVoid {
+                    target: CallTarget::same_file("effect"),
+                    arguments: vec![],
+                },
+                Instruction::CopyAggregateRange {
+                    destination: AggregateLocation::Parameter(0),
+                    destination_offset: 8,
+                    source: AggregateLocation::Slot(0),
+                    source_offset: 0,
+                    layout: ValueLayout::new(16, 8),
+                },
+                Instruction::Return,
+            ],
+        };
+
+        let frame = plan_function_frame(&function).unwrap();
+
+        assert_eq!(
+            frame,
+            FunctionFrame::Framed(
+                FrameLayout::for_slot_counts_with_parameter_spills_and_aggregate_slots(
+                    0,
+                    0,
+                    &[0],
+                    &[AggregateSlotRequest::new(0, ValueLayout::new(16, 8))]
+                )
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
     fn counts_scalar_slots_from_nested_i32_and_bool_locals() {
         let instructions = vec![Instruction::If {
             condition: BoolValue::BoolComparison {

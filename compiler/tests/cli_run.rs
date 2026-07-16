@@ -5069,6 +5069,65 @@ func identity(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, by
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_preserves_stack_passed_direct_aggregate_parameter_return_after_normal_call() {
+    let project = TempProject::new("cli-run-preserve-stack-direct-aggregate-return-after-call");
+    let source = project.write_source(
+        "preserve_stack_direct_aggregate_return_after_call.nct",
+        r#"copy struct Bytes {
+    first: u8
+    second: u8
+    third: u8
+    fourth: u8
+    fifth: u8
+    sixth: u8
+    seventh: u8
+    eighth: u8
+    ninth: u8
+}
+
+func main(): i32 {
+    let bytes = identity(1, 2, 3, 4, 5, 6, 7, 8, Bytes{
+        first: 1,
+        second: 2,
+        third: 3,
+        fourth: 4,
+        fifth: 5,
+        sixth: 6,
+        seventh: 7,
+        eighth: 8,
+        ninth: 42,
+    })
+    if bytes.ninth == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+
+func identity(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, bytes: Bytes): Bytes {
+    let ignored = noise()
+    return bytes
+}
+
+func noise(): i32 {
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_stack_passed_indirect_aggregate_parameter_return_by_name_exit_code() {
     let project =
         TempProject::new("cli-run-stack-passed-indirect-aggregate-parameter-return-by-name");
@@ -5402,6 +5461,58 @@ func main(): i32 {
 func set_code(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, packet: &+Packet): void {
     packet.code = 42
     return
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_preserves_stack_passed_nested_aggregate_field_update_after_normal_call() {
+    let project = TempProject::new("cli-run-stack-passed-nested-aggregate-field-update-after-call");
+    let source = project.write_source(
+        "stack_passed_nested_aggregate_field_update_after_call.nct",
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    var packet = Packet{
+        prefix: 1,
+        header: Header{ tag: 1, ok: false, code: 1, len: 2 },
+        tail: 3,
+    }
+    set_header(1, 2, 3, 4, 5, 6, 7, 8, &+packet)
+    return packet.header.code
+}
+
+func set_header(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, packet: &+Packet): void {
+    let ignored = noise()
+    packet.header = Header{ tag: 7, ok: true, code: 42, len: 11 }
+    return
+}
+
+func noise(): i32 {
+    return 1
 }
 "#,
     );
