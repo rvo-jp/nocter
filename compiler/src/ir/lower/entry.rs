@@ -1,5 +1,5 @@
 use super::bindings::{lower_assignment, lower_local_binding};
-use super::context::{FunctionNames, FunctionSignatures, LoweringContext};
+use super::context::{ErrorPayloads, FunctionNames, FunctionSignatures, LoweringContext};
 use super::control_flow::{
     lower_nonterminal_if_statement, lower_nonterminal_while_statement,
     lower_terminal_i32_if_statement, lower_terminal_void_if_statement,
@@ -28,6 +28,7 @@ pub(super) fn lower_entry_function(
     root_source: SourceId,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
     if !function.generics.parameters.is_empty() || !function.parameters.parameters.is_empty() {
         let span = function.generics.span.unwrap_or(function.parameters.span);
@@ -53,6 +54,7 @@ pub(super) fn lower_entry_function(
         root_source,
         resolved,
         typecheck_facts,
+        error_payloads,
     )?;
 
     Ok(Function {
@@ -85,6 +87,7 @@ fn lower_entry_body(
     root_source: SourceId,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    error_payloads: ErrorPayloads,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let success_type = return_type.success_type();
     let statements = function.body.statements.as_slice();
@@ -107,7 +110,8 @@ fn lower_entry_body(
         function_signatures,
     )
     .with_function_return_type(return_type.clone())
-    .with_call_resolution(root_source, resolved, typecheck_facts, function_names);
+    .with_call_resolution(root_source, resolved, typecheck_facts, function_names)
+    .with_error_payloads(error_payloads);
     let mut instructions = lower_leading_bindings(leading, &mut context, sources)?;
 
     match last {

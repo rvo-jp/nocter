@@ -12,6 +12,10 @@ use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use super::errors::ErrorPayload;
+
+pub(super) type ErrorPayloads = HashMap<CallTarget, ErrorPayload>;
+
 pub(super) struct LoweringContext<'a> {
     function_name: String,
     return_type: Type,
@@ -29,6 +33,7 @@ pub(super) struct LoweringContext<'a> {
     locals: Vec<LocalBinding>,
     aggregate_fields: HashMap<usize, Vec<AggregateField>>,
     aggregate_borrows: Vec<AggregateBorrowParameter>,
+    error_payloads: ErrorPayloads,
     next_aggregate_slot_index: Rc<Cell<usize>>,
 }
 
@@ -51,6 +56,7 @@ impl<'a> Clone for LoweringContext<'a> {
             locals: self.locals.clone(),
             aggregate_fields: self.aggregate_fields.clone(),
             aggregate_borrows: self.aggregate_borrows.clone(),
+            error_payloads: self.error_payloads.clone(),
             next_aggregate_slot_index: self.next_aggregate_slot_index.clone(),
         }
     }
@@ -185,6 +191,7 @@ impl<'a> LoweringContext<'a> {
             locals: Vec::new(),
             aggregate_fields: HashMap::new(),
             aggregate_borrows: Vec::new(),
+            error_payloads: ErrorPayloads::default(),
             next_aggregate_slot_index: Rc::new(Cell::new(0)),
         }
     }
@@ -235,6 +242,7 @@ impl<'a> LoweringContext<'a> {
             locals,
             aggregate_fields,
             aggregate_borrows: parameters.aggregate_borrows,
+            error_payloads: ErrorPayloads::default(),
             next_aggregate_slot_index: Rc::new(Cell::new(next_aggregate_slot_index)),
         }
     }
@@ -257,6 +265,11 @@ impl<'a> LoweringContext<'a> {
 
     pub(super) fn with_function_return_type(mut self, return_type: Type) -> Self {
         self.function_return_type = return_type;
+        self
+    }
+
+    pub(super) fn with_error_payloads(mut self, error_payloads: ErrorPayloads) -> Self {
+        self.error_payloads = error_payloads;
         self
     }
 
@@ -308,6 +321,11 @@ impl<'a> LoweringContext<'a> {
             }
             _ => None,
         }
+    }
+
+    pub(super) fn error_payload_for_call(&self, call: &CallExpr) -> Option<ErrorPayload> {
+        let (target, _) = self.direct_call_target_and_name(call)?;
+        self.error_payloads.get(&target).cloned()
     }
 
     pub(super) fn call_target(&self, call: &CallExpr, fallback_name: &str) -> CallTarget {

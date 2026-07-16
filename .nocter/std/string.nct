@@ -88,6 +88,10 @@ pub func view(text: &String): &str {
 
 pub func String.push_str(text: &+String, value: &str): void! {
     let value_len: usize = value.len()
+    if value_len > 18446744073709551615 - text.len {
+        return capacity_overflow()
+    }
+
     let new_len: usize = text.len + value_len
     if new_len <= text.capacity {
         copy_str_to_ptr(text.ptr, text.len, value)

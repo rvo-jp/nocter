@@ -6,6 +6,7 @@ use crate::literals::decode_string_literal_bytes;
 use crate::resolve::{FunctionSignature, ResolveOutput, SymbolKind};
 use crate::source::SourceId;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ErrorPayload {
     code: StrValue,
     message: StrValue,
@@ -28,7 +29,7 @@ pub(super) fn lower_error_payload(
     };
 
     if !is_error_constructor_call(call, resolved, root_source) {
-        return Ok(None);
+        return Ok(context.and_then(|context| context.error_payload_for_call(call)));
     }
 
     if call.arguments.len() != 2 {

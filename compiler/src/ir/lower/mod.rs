@@ -20,7 +20,7 @@ use crate::abi::{
 };
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    DropDecl, FunctionDecl, ImplMember, Item, MethodDecl, Parameter, TypeExpr, TypeReference,
+    DropDecl, FunctionDecl, ImplMember, Item, MethodDecl, Parameter, Stmt, TypeExpr, TypeReference,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::Type;
@@ -29,7 +29,7 @@ use crate::resolve::{
     drop_function_name,
 };
 use crate::source::{ByteSpan, SourceId, SourceMap};
-use context::{FunctionNames, FunctionSignature, FunctionSignatures};
+use context::{ErrorPayloads, FunctionNames, FunctionSignature, FunctionSignatures};
 use imported_calls::imported_call_diagnostics;
 use reachability::reachable_call_targets;
 use std::collections::{HashMap, HashSet};
@@ -68,6 +68,7 @@ pub(crate) fn lower_executable_with_entry(
 
     let function_signatures = function_index.signatures();
     let function_names = function_index.names();
+    let error_payloads = function_index.error_payloads(root.ast.span.source);
     let mut functions = vec![
         entry::lower_entry_function(
             entry,
@@ -77,6 +78,7 @@ pub(crate) fn lower_executable_with_entry(
             root.ast.span.source,
             &root.resolved,
             &root.typecheck_facts,
+            error_payloads.clone(),
         )
         .map_err(|diagnostics| attach_primary_span_if_absent(diagnostics, sources, entry.span))?,
     ];
@@ -85,6 +87,7 @@ pub(crate) fn lower_executable_with_entry(
         &function_index,
         &function_signatures,
         &function_names,
+        &error_payloads,
         entry_name,
         root.ast.span.source,
         sources,
@@ -200,6 +203,7 @@ fn lower_reachable_functions(
     function_index: &FunctionIndex<'_>,
     function_signatures: &FunctionSignatures,
     function_names: &FunctionNames,
+    error_payloads: &ErrorPayloads,
     entry_name: &str,
     root_source: SourceId,
     sources: &SourceMap,
@@ -231,6 +235,7 @@ fn lower_reachable_functions(
             sources,
             function_signatures.clone(),
             function_names.clone(),
+            error_payloads.clone(),
             root_source,
         )?;
         queue.extend(reachable_call_targets(&function));
@@ -354,6 +359,17 @@ impl<'a> FunctionIndex<'a> {
                 .collect(),
         )
     }
+
+    fn error_payloads(&self, root_source: SourceId) -> ErrorPayloads {
+        self.definitions
+            .iter()
+            .filter_map(|(target, function)| {
+                function
+                    .static_error_payload(root_source)
+                    .map(|payload| (target.clone(), payload))
+            })
+            .collect()
+    }
 }
 
 impl<'a> IndexedCallable<'a> {
@@ -431,12 +447,26 @@ impl<'a> IndexedCallable<'a> {
         }
     }
 
+    fn static_error_payload(&self, root_source: SourceId) -> Option<errors::ErrorPayload> {
+        let IndexedDeclaration::Function(function) = &self.declaration else {
+            return None;
+        };
+        let [Stmt::Return(statement)] = function.body.statements.as_slice() else {
+            return None;
+        };
+        let expression = statement.expression.as_ref()?;
+        errors::lower_error_payload(expression, self.resolved, root_source, None)
+            .ok()
+            .flatten()
+    }
+
     fn lower(
         &self,
         target: CallTarget,
         sources: &SourceMap,
         function_signatures: FunctionSignatures,
         function_names: FunctionNames,
+        error_payloads: ErrorPayloads,
         root_source: SourceId,
     ) -> Result<Function, Vec<Diagnostic>> {
         let span = self.declaration.span();
@@ -450,6 +480,7 @@ impl<'a> IndexedCallable<'a> {
                 root_source,
                 self.resolved,
                 self.typecheck_facts,
+                error_payloads,
             ),
             IndexedDeclaration::Drop {
                 declaration,
@@ -466,6 +497,7 @@ impl<'a> IndexedCallable<'a> {
                 root_source,
                 self.resolved,
                 self.typecheck_facts,
+                error_payloads,
             ),
             IndexedDeclaration::Method {
                 declaration,
@@ -482,6 +514,7 @@ impl<'a> IndexedCallable<'a> {
                 root_source,
                 self.resolved,
                 self.typecheck_facts,
+                error_payloads,
             ),
         }
         .map_err(|diagnostics| attach_primary_span_if_absent(diagnostics, sources, span))

@@ -11095,6 +11095,7 @@ func main(): i32 {
         root.ast.span.source,
         &root.resolved,
         &root.typecheck_facts,
+        index.error_payloads(root.ast.span.source),
     )
     .unwrap();
 
@@ -14712,6 +14713,40 @@ func fail(): void! {
 }
 
 #[test]
+fn lowers_fallible_void_function_static_error_helper_failure() {
+    let ir = lower_text_with_std_error(
+        r#"from std/error import Error
+
+func main(): void! {
+    fail()?
+}
+
+func fail(): void! {
+    return app_failed()
+}
+
+func app_failed(): error {
+    return Error.new("app.failed", "failed")
+}
+"#,
+    );
+
+    let fail = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "fail")
+        .unwrap();
+
+    assert_eq!(
+        fail.instructions,
+        vec![Instruction::ReturnFallibleFailure {
+            code: StrValue::StaticBytes(b"app.failed".to_vec()),
+            message: StrValue::StaticBytes(b"failed".to_vec()),
+        }]
+    );
+}
+
+#[test]
 fn lowers_fallible_i32_catch_failure_return() {
     let ir = lower_text_with_std_error(
         r#"from std/error import Error
@@ -17065,6 +17100,7 @@ fn lower_named_function_with_signatures(
         root.ast.span.source,
         &root.resolved,
         &root.typecheck_facts,
+        context::ErrorPayloads::default(),
     )
 }
 
@@ -17101,6 +17137,7 @@ fn lower_imported_named_function_with_nocter_home_files(
             &fixture.sources,
             index.signatures(),
             index.names(),
+            index.error_payloads(root.ast.span.source),
             root.ast.span.source,
         )
         .unwrap()

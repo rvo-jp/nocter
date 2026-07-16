@@ -7,9 +7,9 @@ use super::aggregates::{
 };
 use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{
-    AggregateBorrowParameter, AggregateFieldKind, AggregateParameterSource, FunctionNames,
-    FunctionSignatures, LoweringAggregateParameter, LoweringContext, LoweringParameterSlots,
-    PendingAggregateDrop, drop_glue_for_type_expr,
+    AggregateBorrowParameter, AggregateFieldKind, AggregateParameterSource, ErrorPayloads,
+    FunctionNames, FunctionSignatures, LoweringAggregateParameter, LoweringContext,
+    LoweringParameterSlots, PendingAggregateDrop, drop_glue_for_type_expr,
 };
 use super::control_flow::{
     lower_nonterminal_if_statement, lower_nonterminal_while_statement,
@@ -61,6 +61,7 @@ pub(super) fn lower_function(
     root_source: SourceId,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
     if !function.generics.parameters.is_empty() {
         return Err(attach_primary_span_if_absent(
@@ -116,7 +117,8 @@ pub(super) fn lower_function(
         parameters,
     )
     .with_function_return_type(return_type.clone())
-    .with_call_resolution(root_source, resolved, typecheck_facts, function_names);
+    .with_call_resolution(root_source, resolved, typecheck_facts, function_names)
+    .with_error_payloads(error_payloads);
     let mut instructions = parameter_setup;
     instructions.extend(lower_callable_body(
         &function.name,
@@ -147,6 +149,7 @@ pub(super) fn lower_drop_function(
     root_source: SourceId,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
     let binding = Parameter {
         span: drop_.binding.span,
@@ -179,7 +182,8 @@ pub(super) fn lower_drop_function(
         parameters,
     )
     .with_function_return_type(return_type.clone())
-    .with_call_resolution(root_source, resolved, typecheck_facts, function_names);
+    .with_call_resolution(root_source, resolved, typecheck_facts, function_names)
+    .with_error_payloads(error_payloads);
     let mut instructions = parameter_setup;
     instructions.extend(lower_callable_body(
         &name,
@@ -210,6 +214,7 @@ pub(super) fn lower_method_function(
     root_source: SourceId,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
     let Some(body) = &method.body else {
         return Err(attach_primary_span_if_absent(
@@ -257,7 +262,8 @@ pub(super) fn lower_method_function(
         parameter_slots,
     )
     .with_function_return_type(return_type.clone())
-    .with_call_resolution(root_source, resolved, typecheck_facts, function_names);
+    .with_call_resolution(root_source, resolved, typecheck_facts, function_names)
+    .with_error_payloads(error_payloads);
     let mut instructions = parameter_setup;
     instructions.extend(lower_callable_body(
         &name,

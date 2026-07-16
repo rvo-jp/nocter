@@ -182,6 +182,36 @@ func main(): i32 {
     assert_success(&output);
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_error_helper_return_runs() {
+    let project = TempProject::new("distributed-home-error-helper-return-run");
+    let source = project.write_source(
+        "error_helper_return.nct",
+        r#"from std/mem import invalid_argument
+
+func main(): void! {
+    return invalid_argument()
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert_eq!(
+        output.stderr,
+        b"std.mem.invalid_argument: invalid allocation request\n"
+    );
+}
+
 #[test]
 fn distributed_std_string_empty_passes_check() {
     let project = TempProject::new("distributed-home-string-empty");
