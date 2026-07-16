@@ -56,7 +56,8 @@ Recent committed work:
   - reuses the same parameter spill slots for readonly scalar parameter borrow arguments
   - keeps tail-call-only frames from adding value-parameter spills because those paths stage arguments before releasing the frame
 - Current checkpoint: tighten supported non-terminal control flow
-  - lowers branch/body-local assignments in the narrow non-terminal `if`/`while` subset while rejecting outer local assignments and outer aggregate moves there
+  - lowers branch/body-local assignments in the narrow non-terminal `if`/`while` subset while rejecting outer local assignments and outer aggregate moves there except direct `move name` bindings immediately followed by a function return
+  - lowers outer aggregate explicit drops immediately followed by a function return while still rejecting fallthrough and loop-control outer drops
   - keeps explicit aggregate moves out of control-flow conditions because condition effects are not joined into the outer drop state
   - skips unreachable scope-end drops after nested non-terminal `if` branches whose then/else arms both end in `break`/`continue`/terminal IR
   - lowers supported return statements inside the narrow non-terminal subset through shared return cleanup, while keeping broader ownership joins and condition-sensitive effects disabled until their lowering rules are designed

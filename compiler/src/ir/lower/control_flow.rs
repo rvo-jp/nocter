@@ -452,13 +452,15 @@ fn lower_nonterminal_loop_block_statements(
 ) -> Result<LoweredNonterminalBlock, Vec<Diagnostic>> {
     let mut instructions = Vec::new();
     let mut ends_execution = false;
-    for statement in statements {
+    for (index, statement) in statements.iter().enumerate() {
         match statement {
             Stmt::Binding(statement) => {
                 if expression_contains_explicit_aggregate_move_outside(
                     &statement.initializer,
                     context,
                     local_mark,
+                ) && !outer_aggregate_move_binding_before_return_allowed(
+                    statement, context, local_mark, statements, index,
                 ) {
                     return Err(attach_primary_span_if_absent(
                         unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
@@ -521,7 +523,9 @@ fn lower_nonterminal_loop_block_statements(
                 instructions.extend(void_instructions);
             }
             Stmt::Drop(statement) => {
-                if !context.aggregate_local_defined_since(&statement.name, local_mark) {
+                if !context.aggregate_local_defined_since(&statement.name, local_mark)
+                    && !next_statement_returns_from_function(statements, index)
+                {
                     return Err(attach_primary_span_if_absent(
                         unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
                         sources,
@@ -624,6 +628,39 @@ fn lower_nonterminal_loop_block_statements(
         instructions,
         ends_execution,
     })
+}
+
+fn next_statement_returns_from_function(statements: &[Stmt], index: usize) -> bool {
+    matches!(statements.get(index + 1), Some(Stmt::Return(_)))
+}
+
+fn outer_aggregate_move_binding_before_return_allowed(
+    statement: &crate::ast::BindingStmt,
+    context: &LoweringContext,
+    local_mark: usize,
+    statements: &[Stmt],
+    index: usize,
+) -> bool {
+    next_statement_returns_from_function(statements, index)
+        && direct_outer_aggregate_move(&statement.initializer, context, local_mark)
+}
+
+fn direct_outer_aggregate_move(
+    expression: &Expr,
+    context: &LoweringContext,
+    local_mark: usize,
+) -> bool {
+    let Expr::Unary(unary) = unwrap_group(expression) else {
+        return false;
+    };
+    if unary.operator != crate::ast::UnaryOperator::Move {
+        return false;
+    }
+    let Expr::Identifier(identifier) = unwrap_group(&unary.operand) else {
+        return false;
+    };
+    context.aggregate_local(&identifier.name).is_some()
+        && !context.aggregate_local_defined_since(&identifier.name, local_mark)
 }
 
 fn lower_nonterminal_loop_control_statement(

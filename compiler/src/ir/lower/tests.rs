@@ -3361,6 +3361,172 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_outer_explicit_drop_inside_nonterminal_if_branch_before_return() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 1 }
+    if true {
+        drop file
+        return 1
+    }
+    return 0
+}
+"#,
+    );
+
+    let drop_file = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(1),
+            },
+            Instruction::If {
+                condition: BoolValue::Const(true),
+                then_instructions: vec![
+                    drop_file.clone(),
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_const(1),
+                    },
+                    Instruction::Return,
+                ],
+                else_instructions: vec![],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: i32_const(0),
+            },
+            drop_file,
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
+fn lowers_outer_aggregate_move_binding_inside_nonterminal_if_branch_before_return() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 3 }
+    if true {
+        var moved = move file
+        return moved.fd
+    }
+    return 0
+}
+"#,
+    );
+
+    let drop_original = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let drop_moved = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(1),
+        })],
+    };
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(3),
+            },
+            Instruction::If {
+                condition: BoolValue::Const(true),
+                then_instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 1,
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::CopyAggregate {
+                        destination: AggregateLocation::Slot(1),
+                        source: AggregateLocation::Slot(0),
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::LoadAggregateI32 {
+                        destination: I32Location::Local(0),
+                        source: AggregateLocation::Slot(1),
+                        offset: 0,
+                    },
+                    drop_moved,
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
+                    Instruction::Return,
+                ],
+                else_instructions: vec![],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: i32_const(0),
+            },
+            drop_original,
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
 fn lowers_assignment_to_nonterminal_if_branch_local_scalar() {
     let ir = lower_text(
         r#"func main(): i32 {
