@@ -32,6 +32,7 @@ pub(super) fn lower_terminal_i32_if_statement(
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
+    sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some(else_block) = &statement.else_block else {
         return Err(unsupported_terminal_if_diagnostic(
@@ -49,8 +50,16 @@ pub(super) fn lower_terminal_i32_if_statement(
             return_type,
             diagnostic_code,
             subject,
+            sources,
         )?,
-        lower_i32_return_block(else_block, context, return_type, diagnostic_code, subject)?,
+        lower_i32_return_block(
+            else_block,
+            context,
+            return_type,
+            diagnostic_code,
+            subject,
+            sources,
+        )?,
         context,
         diagnostic_code,
     )
@@ -62,6 +71,7 @@ pub(super) fn lower_terminal_bool_if_statement(
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
+    sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some(else_block) = &statement.else_block else {
         return Err(unsupported_terminal_if_diagnostic(
@@ -79,8 +89,16 @@ pub(super) fn lower_terminal_bool_if_statement(
             return_type,
             diagnostic_code,
             subject,
+            sources,
         )?,
-        lower_bool_return_block(else_block, context, return_type, diagnostic_code, subject)?,
+        lower_bool_return_block(
+            else_block,
+            context,
+            return_type,
+            diagnostic_code,
+            subject,
+            sources,
+        )?,
         context,
         diagnostic_code,
     )
@@ -92,6 +110,7 @@ pub(super) fn lower_terminal_u8_if_statement(
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
+    sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     lower_terminal_scalar_if_statement(
         statement,
@@ -101,6 +120,7 @@ pub(super) fn lower_terminal_u8_if_statement(
         subject,
         "u8",
         lower_u8_return_expression,
+        sources,
     )
 }
 
@@ -110,6 +130,7 @@ pub(super) fn lower_terminal_usize_if_statement(
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
+    sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     lower_terminal_scalar_if_statement(
         statement,
@@ -119,6 +140,7 @@ pub(super) fn lower_terminal_usize_if_statement(
         subject,
         "usize",
         lower_usize_return_expression,
+        sources,
     )
 }
 
@@ -128,6 +150,7 @@ pub(super) fn lower_terminal_str_if_statement(
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
+    sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     lower_terminal_scalar_if_statement(
         statement,
@@ -137,6 +160,7 @@ pub(super) fn lower_terminal_str_if_statement(
         subject,
         "&str",
         lower_str_return_expression,
+        sources,
     )
 }
 
@@ -146,6 +170,7 @@ pub(super) fn lower_terminal_slice_if_statement(
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
+    sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let return_label = match return_type.success_type() {
         Type::Slice { is_readwrite: true } => "&+[u8]",
@@ -160,6 +185,7 @@ pub(super) fn lower_terminal_slice_if_statement(
         subject,
         return_label,
         lower_slice_return_expression,
+        sources,
     )
 }
 
@@ -171,6 +197,7 @@ fn lower_terminal_scalar_if_statement(
     subject: &str,
     return_label: &str,
     lower_return_expression: ReturnLowerer,
+    sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some(else_block) = &statement.else_block else {
         return Err(unsupported_terminal_if_diagnostic(
@@ -190,6 +217,7 @@ fn lower_terminal_scalar_if_statement(
             subject,
             return_label,
             lower_return_expression,
+            sources,
         )?,
         lower_scalar_return_block(
             else_block,
@@ -199,6 +227,7 @@ fn lower_terminal_scalar_if_statement(
             subject,
             return_label,
             lower_return_expression,
+            sources,
         )?,
         context,
         diagnostic_code,
@@ -211,6 +240,7 @@ pub(super) fn lower_terminal_void_if_statement(
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
+    sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some(else_block) = &statement.else_block else {
         return Err(unsupported_terminal_if_diagnostic(
@@ -228,8 +258,16 @@ pub(super) fn lower_terminal_void_if_statement(
             return_type,
             diagnostic_code,
             subject,
+            sources,
         )?,
-        lower_void_return_block(else_block, context, return_type, diagnostic_code, subject)?,
+        lower_void_return_block(
+            else_block,
+            context,
+            return_type,
+            diagnostic_code,
+            subject,
+            sources,
+        )?,
         context,
         diagnostic_code,
     )
@@ -712,6 +750,7 @@ fn lower_i32_return_block(
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
+    sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let (terminal, leading) = split_terminal_branch_block(block, diagnostic_code, subject, "i32")?;
     let mut branch_context = context.clone();
@@ -721,6 +760,7 @@ fn lower_i32_return_block(
         diagnostic_code,
         subject,
         "i32",
+        sources,
     )?;
 
     match terminal {
@@ -753,6 +793,7 @@ fn lower_i32_return_block(
                 return_type,
                 diagnostic_code,
                 subject,
+                sources,
             )?);
             Ok(instructions)
         }
@@ -770,6 +811,7 @@ fn lower_bool_return_block(
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
+    sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let (terminal, leading) = split_terminal_branch_block(block, diagnostic_code, subject, "bool")?;
     let mut branch_context = context.clone();
@@ -779,6 +821,7 @@ fn lower_bool_return_block(
         diagnostic_code,
         subject,
         "bool",
+        sources,
     )?;
 
     match terminal {
@@ -812,6 +855,7 @@ fn lower_bool_return_block(
                 return_type,
                 diagnostic_code,
                 subject,
+                sources,
             )?);
             Ok(instructions)
         }
@@ -831,6 +875,7 @@ fn lower_scalar_return_block(
     subject: &str,
     return_label: &str,
     lower_return_expression: ReturnLowerer,
+    sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let (terminal, leading) =
         split_terminal_branch_block(block, diagnostic_code, subject, return_label)?;
@@ -841,6 +886,7 @@ fn lower_scalar_return_block(
         diagnostic_code,
         subject,
         return_label,
+        sources,
     )?;
 
     match terminal {
@@ -875,6 +921,7 @@ fn lower_scalar_return_block(
                 subject,
                 return_label,
                 lower_return_expression,
+                sources,
             )?);
             Ok(instructions)
         }
@@ -892,6 +939,7 @@ fn lower_void_return_block(
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
+    sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let (terminal, leading) = split_terminal_branch_block(block, diagnostic_code, subject, "void")?;
     let mut branch_context = context.clone();
@@ -901,6 +949,7 @@ fn lower_void_return_block(
         diagnostic_code,
         subject,
         "void",
+        sources,
     )?;
 
     match terminal {
@@ -915,6 +964,7 @@ fn lower_void_return_block(
                 return_type,
                 diagnostic_code,
                 subject,
+                sources,
             )?);
             Ok(instructions)
         }
@@ -948,34 +998,48 @@ pub(super) fn lower_terminal_branch_leading_statements(
     diagnostic_code: &'static str,
     subject: &str,
     return_label: &str,
+    sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut instructions = Vec::new();
     for statement in statements {
         match statement {
-            Stmt::Binding(statement) => {
-                instructions.extend(lower_local_binding(statement, context)?)
-            }
-            Stmt::Assignment(statement) => {
-                instructions.extend(lower_assignment(statement, context)?)
-            }
-            Stmt::Drop(statement) => instructions.extend(lower_drop_statement(statement, context)?),
+            Stmt::Binding(statement) => instructions.extend(
+                lower_local_binding(statement, context).map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                })?,
+            ),
+            Stmt::Assignment(statement) => instructions.extend(
+                lower_assignment(statement, context).map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                })?,
+            ),
+            Stmt::Drop(statement) => instructions.extend(
+                lower_drop_statement(statement, context).map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                })?,
+            ),
             Stmt::Expression(statement) => {
-                let Some(void_instructions) =
-                    lower_void_expression_statement(&statement.expression, context)?
+                let Some(void_instructions) = lower_void_expression_statement(
+                    &statement.expression,
+                    context,
+                )
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.expression.span())
+                })?
                 else {
-                    return Err(unsupported_terminal_if_diagnostic(
-                        diagnostic_code,
-                        subject,
-                        return_label,
+                    return Err(attach_primary_span_if_absent(
+                        unsupported_terminal_if_diagnostic(diagnostic_code, subject, return_label),
+                        sources,
+                        statement.span,
                     ));
                 };
                 instructions.extend(void_instructions);
             }
             _ => {
-                return Err(unsupported_terminal_if_diagnostic(
-                    diagnostic_code,
-                    subject,
-                    return_label,
+                return Err(attach_primary_span_if_absent(
+                    unsupported_terminal_if_diagnostic(diagnostic_code, subject, return_label),
+                    sources,
+                    statement.span(),
                 ));
             }
         }

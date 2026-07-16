@@ -700,6 +700,7 @@ fn lower_callable_body(
                 return_type,
                 "E8007",
                 "functions",
+                sources,
             )
             .map_err(|diagnostics| {
                 attach_primary_span_if_absent(diagnostics, sources, statement.span)
@@ -717,6 +718,7 @@ fn lower_callable_body(
                 return_type,
                 "E8007",
                 "functions",
+                sources,
             )
             .map_err(|diagnostics| {
                 attach_primary_span_if_absent(diagnostics, sources, statement.span)
@@ -734,6 +736,7 @@ fn lower_callable_body(
                 return_type,
                 "E8007",
                 "functions",
+                sources,
             )
             .map_err(|diagnostics| {
                 attach_primary_span_if_absent(diagnostics, sources, statement.span)
@@ -751,6 +754,7 @@ fn lower_callable_body(
                 return_type,
                 "E8007",
                 "functions",
+                sources,
             )
             .map_err(|diagnostics| {
                 attach_primary_span_if_absent(diagnostics, sources, statement.span)
@@ -768,6 +772,7 @@ fn lower_callable_body(
                 return_type,
                 "E8007",
                 "functions",
+                sources,
             )
             .map_err(|diagnostics| {
                 attach_primary_span_if_absent(diagnostics, sources, statement.span)
@@ -785,6 +790,7 @@ fn lower_callable_body(
                 return_type,
                 "E8007",
                 "functions",
+                sources,
             )
             .map_err(|diagnostics| {
                 attach_primary_span_if_absent(diagnostics, sources, statement.span)
@@ -802,6 +808,7 @@ fn lower_callable_body(
                 return_type,
                 "E8007",
                 "functions",
+                sources,
             )
             .map_err(|diagnostics| {
                 attach_primary_span_if_absent(diagnostics, sources, statement.span)
@@ -824,6 +831,7 @@ fn lower_callable_body(
                 success_type,
                 function_name,
                 resolved,
+                sources,
             )
             .map_err(|diagnostics| {
                 attach_primary_span_if_absent(diagnostics, sources, statement.span)
@@ -1039,6 +1047,7 @@ fn lower_terminal_aggregate_if_statement(
     success_type: &Type,
     function_name: &str,
     resolved: &ResolveOutput,
+    sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let Some(else_block) = &statement.else_block else {
         return Err(unsupported_terminal_aggregate_if_diagnostic(function_name));
@@ -1052,6 +1061,7 @@ fn lower_terminal_aggregate_if_statement(
             success_type,
             function_name,
             resolved,
+            sources,
         )?,
         lower_terminal_aggregate_return_block(
             else_block,
@@ -1059,6 +1069,7 @@ fn lower_terminal_aggregate_if_statement(
             success_type,
             function_name,
             resolved,
+            sources,
         )?,
         context,
         "E8007",
@@ -1071,6 +1082,7 @@ fn lower_terminal_aggregate_return_block(
     success_type: &Type,
     function_name: &str,
     resolved: &ResolveOutput,
+    sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let (terminal, leading) =
         split_terminal_branch_block(block, "E8007", "functions", "aggregate")?;
@@ -1081,6 +1093,7 @@ fn lower_terminal_aggregate_return_block(
         "E8007",
         "functions",
         "aggregate",
+        sources,
     )?;
 
     match terminal {
@@ -1121,6 +1134,7 @@ fn lower_terminal_aggregate_return_block(
                 success_type,
                 function_name,
                 resolved,
+                sources,
             )?);
             Ok(instructions)
         }

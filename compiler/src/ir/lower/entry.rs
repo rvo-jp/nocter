@@ -132,6 +132,7 @@ fn lower_entry_body(
                 return_type,
                 "E8002",
                 "entry functions",
+                sources,
             )
             .map_err(|diagnostics| {
                 attach_primary_span_if_absent(diagnostics, sources, statement.span)
@@ -149,6 +150,7 @@ fn lower_entry_body(
                 return_type,
                 "E8002",
                 "entry functions",
+                sources,
             )
             .map_err(|diagnostics| {
                 attach_primary_span_if_absent(diagnostics, sources, statement.span)

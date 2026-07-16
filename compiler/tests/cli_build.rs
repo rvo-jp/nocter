@@ -1365,6 +1365,103 @@ fn build_command_reports_unsupported_nonterminal_while_binding_span() {
 }
 
 #[test]
+fn build_command_reports_unsupported_terminal_if_branch_binding_span() {
+    let project = TempProject::new("cli-build-terminal-if-branch-binding-span");
+    let source = project.write_source(
+        "terminal_if_branch_binding_span.nct",
+        r#"func main(): i32 {
+    let ready = true
+    if ready {
+        let ok = true
+        let same = !ok == ready
+        return 1
+    } else {
+        return 0
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E8008]"),
+        "expected IR lowering diagnostic, got:\n{stderr}"
+    );
+    let lines: Vec<&str> = stderr.lines().collect();
+    let source_line = lines
+        .iter()
+        .position(|line| line.contains("5 |         let same = !ok == ready"))
+        .unwrap_or_else(|| panic!("expected source line for unsupported binding, got:\n{stderr}"));
+    assert!(
+        lines
+            .get(source_line + 1)
+            .is_some_and(|line| line.contains("^^^^")),
+        "expected source underline for unsupported binding, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after compile diagnostics"
+    );
+}
+
+#[test]
+fn build_command_reports_unsupported_terminal_aggregate_branch_binding_span() {
+    let project = TempProject::new("cli-build-terminal-aggregate-branch-binding-span");
+    let source = project.write_source(
+        "terminal_aggregate_branch_binding_span.nct",
+        r#"func main(): i32 {
+    return make(true).len
+}
+
+struct Text {
+    start: i32
+    len: i32
+    capacity: i32
+}
+
+func make(flag: bool): Text {
+    if flag {
+        let ok = true
+        let same = !ok == flag
+        return Text{ start: 1, len: 42, capacity: 99 }
+    } else {
+        return Text{ start: 2, len: 7, capacity: 11 }
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E8008]"),
+        "expected IR lowering diagnostic, got:\n{stderr}"
+    );
+    let lines: Vec<&str> = stderr.lines().collect();
+    let source_line = lines
+        .iter()
+        .position(|line| line.contains("14 |         let same = !ok == flag"))
+        .unwrap_or_else(|| panic!("expected source line for unsupported binding, got:\n{stderr}"));
+    assert!(
+        lines
+            .get(source_line + 1)
+            .is_some_and(|line| line.contains("^^^^")),
+        "expected source underline for unsupported binding, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after compile diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_unsupported_compound_bool_equality_condition() {
     let project = TempProject::new("cli-build-compound-bool-equality-condition");
     let source = project.write_source(
