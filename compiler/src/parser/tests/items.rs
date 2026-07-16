@@ -354,6 +354,51 @@ func main(): i32 {
 }
 
 #[test]
+fn parses_target_directive_on_primitive_declaration() {
+    let (sources, output) = parse_text_with_sources(
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Primitive(primitive) = &ast.items[0] else {
+        panic!("expected primitive declaration");
+    };
+    let target = primitive
+        .target
+        .as_ref()
+        .expect("expected target directive");
+    assert_eq!(target.target, "arm64-darwin");
+    assert_eq!(target.span.start, 0);
+    assert_eq!(primitive.span.start, 0);
+
+    let json = ast.to_json(&sources);
+    let directive = find_json_node(&json, "target_directive").expect("expected target directive");
+    assert_eq!(directive.value.as_deref(), Some("arm64-darwin"));
+}
+
+#[test]
+fn rejects_target_directive_on_ordinary_function() {
+    let output = parse_text(
+        r#"#target("arm64-darwin")
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1);
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("applies only to primitive")
+    );
+}
+
+#[test]
 fn ast_json_includes_attached_documentation() {
     let (sources, output) = parse_text_with_sources(
         r#"//! File docs.

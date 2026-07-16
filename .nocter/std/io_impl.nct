@@ -1,11 +1,12 @@
 //! macOS raw file-descriptor helpers behind the user-facing `std/io` API.
 //!
-//! These helpers are target-overlay standard-library functions, not compiler
-//! primitives. `std/io` owns the public File API and keeps this module internal
-//! to the active Nocter home with `pub(nocter)`.
+//! These helpers are target-specific standard-library functions. `std/io` owns
+//! the public File API and keeps this module internal to the active Nocter home
+//! with `pub(nocter)`.
 
 from std/error import Error
 
+#target("arm64-darwin")
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 
 pub(nocter) func stdout(): i32 {

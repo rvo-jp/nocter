@@ -14,7 +14,7 @@ Import paths use `/` as the path separator:
 ```text
 examples/word_count.nct                                  => examples/word_count
 ~/.nocter/std/io.nct                                     => std/io
-~/.nocter/targets/arm64-darwin/std/os/macos.nct           => std/os/macos
+~/.nocter/std/os/macos.nct                               => std/os/macos
 ```
 
 The file path is the source of truth. There is no separate module name inside the file.
@@ -143,7 +143,6 @@ Initial rules:
 - The synthetic prelude does not propagate from one file to another; each user project file gets its own synthetic prelude.
 - The synthetic prelude is not applied to files inside the active Nocter home.
 - The synthetic prelude is not applied to common standard-library files under `std/`.
-- The synthetic prelude is not applied to active target overlay files under `targets/<target>/std/`.
 - The synthetic prelude is not applied to `std/prelude.nct` itself.
 - An explicit source-level `use std/prelude` is accepted in a user project module but is redundant.
 - An explicit source-level `use std/prelude` does not introduce names twice and does not collide with the synthetic prelude.
@@ -272,7 +271,6 @@ Diagnostic display path rules:
 - The canonical absolute path is intended for editor integrations, LSP document mapping, and compiler de-duplication.
 - If a file is under the command working directory, the display path is relative to that working directory.
 - If a file is under the common Nocter home `std/`, the display path starts with `std/`.
-- If a file is under the active target overlay, the display path starts with `targets/<target>/std/`.
 - Otherwise, the display path is the canonical absolute path.
 - Display paths use `/` as the separator in diagnostics, even on future non-macOS hosts.
 
@@ -295,9 +293,9 @@ absolute:     /Users/me/.nocter/std/io.nct
 ```text
 Nocter home:  /Users/me/.nocter
 target:       arm64-darwin
-source file:  /Users/me/.nocter/targets/arm64-darwin/std/os/macos.nct
-display:      targets/arm64-darwin/std/os/macos.nct
-absolute:     /Users/me/.nocter/targets/arm64-darwin/std/os/macos.nct
+source file:  /Users/me/.nocter/std/os/macos.nct
+display:      std/os/macos.nct
+absolute:     /Users/me/.nocter/std/os/macos.nct
 ```
 
 ## Import Path Resolution
@@ -330,10 +328,9 @@ Non-relative paths are resolved inside the active Nocter home, normally `~/.noct
 
 Release archive names include the host, such as `nocter-v0.1.0-arm64-darwin.tar.gz`, but the archive root is `.nocter/`. Import resolution depends on the active Nocter home path, not on the release archive filename.
 
-For `std/...` paths, the active target overlay is searched before the common standard library:
+For `std/...` paths, the common standard-library directory is searched:
 
 ```text
-~/.nocter/targets/arm64-darwin/std/io.nct
 ~/.nocter/std/io.nct
 ```
 
@@ -353,7 +350,6 @@ Rules:
 - `.` is not a module separator in import paths.
 - `.nct` is not written in import declarations.
 - Directory modules such as `std/io/mod.nct` or `std/io/index.nct` are not part of the initial design.
-- If a `std/...` file exists in both the active target overlay and common `std/`, the active target overlay wins.
 - The compiler locates Nocter home from `NOCTER_HOME` if set, otherwise from the resolved real path of the running `nocter` executable and its parent directory.
 - The compiler does not automatically search `cwd/.nocter` or `~/.nocter`.
 - The repository development output directory `.nocter/` may act as Nocter home during local development. This is a development detail, not the user-facing installation convention.
@@ -418,7 +414,7 @@ Rules:
 - Top-level definitions are private to their module by default.
 - `pub` on a top-level definition makes it importable from other modules.
 - `pub(nocter)` on a top-level definition makes it importable only from modules inside the active Nocter home.
-- The active Nocter home includes the common `std/` and active target overlay `targets/<target>/std/`.
+- The active Nocter home includes the common `std/` tree.
 - `pub(nocter)` is intended for distributed standard-library internals such as restricted pointer APIs and target primitive boundaries.
 - `pub(nocter)` may be written only in modules inside the active Nocter home.
 - `pub(nocter)` is not user-project package visibility.
@@ -468,16 +464,13 @@ Initial rules:
 - Initial design does not support `mod.nct` directory modules.
 - Standard library modules live under `std`.
 - `~/.nocter/std/io.nct` resolves from import path `std/io` when the active Nocter home is `~/.nocter`.
-- `~/.nocter/targets/arm64-darwin/std/os/macos.nct` resolves from import path `std/os/macos` when the active target is `arm64-darwin`.
+- `~/.nocter/std/os/macos.nct` resolves from import path `std/os/macos`.
 
 Import roots:
 
 1. The current file directory for `./` and `../` paths.
-2. The active target standard-library overlay for `std/...` paths.
-3. The common standard library directory for `std/...` paths.
-4. The active Nocter home root for other non-relative paths.
-
-If a `std/...` module exists in both the active target overlay and the common standard library, the active target overlay wins. This allows a target to replace an entire standard-library module when a shared implementation is not suitable.
+2. The common standard library directory for `std/...` paths.
+3. The active Nocter home root for other non-relative paths.
 
 The compiler locates Nocter home in this order:
 

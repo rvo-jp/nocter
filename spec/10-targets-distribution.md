@@ -33,21 +33,19 @@ Rules:
 - Future targets should be added by introducing new target backends and target-specific standard-library primitive boundaries.
 - Future targets must not require ordinary user code to mention CPU instructions, object formats, or OS syscall details.
 - Future cross compilation is selected by an explicit target option such as `--target x64-linux`.
-- A recognized target name is not the same as an implemented target. A target becomes implemented only when its backend, executable writer, primitive set, and target standard-library overlay exist.
+- A recognized target name is not the same as an implemented target. A target becomes implemented only when its backend, executable writer, primitive set, and target-gated standard-library boundary exist.
 
 Current target-specific standard-library boundary:
 
 ```text
-~/.nocter/targets/arm64-darwin/std/os/macos.nct
+~/.nocter/std/os/macos.nct
 ```
 
-Future target-specific boundaries may use parallel target overlays such as:
+Future target-specific boundaries may use ordinary modules under `std/` with `#target("...")` on the primitive declarations, such as:
 
 ```text
-~/.nocter/targets/x64-linux/std/os/linux.nct
-~/.nocter/targets/arm64-linux/std/os/linux.nct
-~/.nocter/targets/x64-windows/std/os/windows.nct
-~/.nocter/targets/arm64-windows/std/os/windows.nct
+~/.nocter/std/os/linux.nct
+~/.nocter/std/os/windows.nct
 ```
 
 These future files are not part of the initial implementation goal.
@@ -82,7 +80,6 @@ nocter-v<version>-arm64-darwin.tar.gz
     VERSION
     MANIFEST.json
     std/
-    targets/
 ```
 
 The archive root is always `.nocter/`. Users install Nocter by extracting the archive so that `.nocter/` becomes `~/.nocter/`, or by moving the extracted `.nocter/` to another chosen Nocter home.
@@ -98,32 +95,22 @@ The installed layout is:
         prelude.nct
         fmt.nct
         io.nct
+        io_impl.nct
         mem.nct
+        mem_impl.nct
         os.nct
+        process.nct
         ptr.nct
         string.nct
-    targets/
-        arm64-darwin/
-            std/
-                io_impl.nct
-                process.nct
-                os/
-                    macos.nct
-        x64-linux/
-            std/
-        arm64-linux/
-            std/
-        x64-windows/
-            std/
-        arm64-windows/
-            std/
+        os/
+            macos.nct
 ```
 
 The `host` part in the archive name identifies the environment that runs the `nocter` compiler binary. The first host is `arm64-darwin`. Future downloaded archives may use names such as `nocter-v<version>-x64-linux.tar.gz` or `nocter-v<version>-arm64-linux.tar.gz`, but each archive still extracts a `.nocter/` root.
 
-The installed Nocter home contains common standard-library source files and one or more target overlays under `targets/<target>/`.
+The installed Nocter home contains standard-library source files under `std/`. Target-dependent primitive declarations in those files use `#target("...")`; ordinary public wrapper functions remain normal functions.
 
-Because cross compilation beyond `arm64-darwin` is not part of the initial implementation, the default active target is the host target. For example, the `arm64-darwin` archive contains the compiler that runs on ARM64 macOS, and `targets/arm64-darwin/` contains the standard-library primitive boundary for the `arm64-darwin` target.
+Because cross compilation beyond `arm64-darwin` is not part of the initial implementation, the default active target is the host target. For example, the `arm64-darwin` archive contains the compiler that runs on ARM64 macOS, and `std/os/macos.nct` contains the `#target("arm64-darwin")` primitive boundary for that target.
 
 ## Release Metadata
 
@@ -135,7 +122,6 @@ Adopted: each Nocter home contains simple release metadata at its root.
     VERSION
     MANIFEST.json
     std/
-    targets/
 ```
 
 `VERSION` is a single UTF-8 text line containing the release version:
@@ -162,7 +148,6 @@ Adopted: each Nocter home contains simple release metadata at its root.
   "implemented_targets": [
     {
       "name": "arm64-darwin",
-      "std_path": "targets/arm64-darwin/std",
       "backend": "arm64",
       "executable": "macho",
       "os": "darwin"
@@ -184,7 +169,6 @@ Rules:
 - `MANIFEST.json.implemented_targets` lists implemented targets bundled with this Nocter home, not merely reserved target names.
 - `compiler.path` is `nocter` and is relative to Nocter home.
 - `std.path` is `std` and is relative to Nocter home.
-- `implemented_targets[*].std_path` is relative to Nocter home and must exist.
 - v1 does not include a compiler checksum. Checksum metadata should be added only after the release pipeline and hash verification rules are designed.
 - The source repository tag for release `0.1.0` is `v0.1.0`.
 - The GitHub Release asset for the first host is `nocter-v0.1.0-arm64-darwin.tar.gz`.
@@ -200,16 +184,16 @@ Resolution order:
 
 Rules:
 
-- `NOCTER_HOME` must point to a Nocter home directory, not to `std/` or `targets/`.
+- `NOCTER_HOME` must point to a Nocter home directory, not to `std/`.
 - The executable path resolution should resolve symlinks when the host can provide the real executable path.
 - `cwd/.nocter` is not searched automatically.
 - `~/.nocter` is not searched automatically.
 - The parent directory of the running `nocter` binary works naturally when the user runs `~/.nocter/nocter` through `PATH`.
 - If the user copies or symlinks `nocter` outside Nocter home and executable-path resolution no longer points into Nocter home, the user must set `NOCTER_HOME`.
-- The selected Nocter home must contain `VERSION`, `MANIFEST.json`, `std/`, and `targets/`.
+- The selected Nocter home must contain `VERSION`, `MANIFEST.json`, and `std/`.
 - The compiler should report a command-line or Nocter-home error if the selected home is missing required files.
 
-Future cross compilation adds target overlays and compiler backends to the installed Nocter home:
+Future cross compilation adds target-gated standard-library primitive declarations and compiler backends to the installed Nocter home:
 
 ```text
 ~/.nocter/
@@ -217,17 +201,10 @@ Future cross compilation adds target overlays and compiler backends to the insta
     VERSION
     MANIFEST.json
     std/
-    targets/
-        arm64-darwin/
-            std/
-        x64-linux/
-            std/
-        arm64-linux/
-            std/
-        x64-windows/
-            std/
-        arm64-windows/
-            std/
+        os/
+            macos.nct
+            linux.nct
+            windows.nct
 ```
 
 Initial command-line direction:

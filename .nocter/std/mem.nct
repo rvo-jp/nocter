@@ -6,8 +6,8 @@
 //! provenance from the `region ... using ...` language construct.
 //!
 //! The public functions below are ordinary standard-library APIs. Allocation is
-//! not part of the compiler primitive set in v0; target overlays provide the
-//! OS boundary behind this common API.
+//! not part of the compiler primitive set in v0; target-gated std internals
+//! provide the OS boundary behind this common API.
 
 from std/error import Error
 from std/mem_impl import alloc_pages as alloc_pages_impl

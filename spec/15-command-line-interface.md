@@ -70,11 +70,10 @@ Rules:
 - `doctor` does not take a root file.
 - `doctor` does not build, run, check, format, or execute user code.
 - `doctor` resolves Nocter home using the rules in [Targets and Distribution](10-targets-distribution.md#nocter-home-resolution).
-- `doctor` checks that `VERSION`, `MANIFEST.json`, `std/`, and `targets/` exist.
+- `doctor` checks that `VERSION`, `MANIFEST.json`, and `std/` exist.
 - `doctor` checks that `VERSION` matches `MANIFEST.json`'s `release`.
 - `doctor` checks that `MANIFEST.json.host` matches the running compiler's host.
 - `doctor` checks that `MANIFEST.json.default_target` is listed in `MANIFEST.json.implemented_targets`.
-- `doctor` checks that each implemented target listed in `MANIFEST.json.implemented_targets` has an existing `std_path`.
 - `doctor` checks that the common `std/` directory is present.
 - v1 does not check a compiler binary checksum because `MANIFEST.json` v1 does not include checksum metadata.
 - Human-readable output goes to stdout on success and stderr on failure.

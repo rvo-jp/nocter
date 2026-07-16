@@ -32,7 +32,6 @@ pub(super) struct StandardLibrary {
 #[serde(deny_unknown_fields)]
 pub(super) struct ImplementedTarget {
     pub name: String,
-    pub std_path: PathBuf,
     pub backend: String,
     pub executable: String,
     pub os: String,

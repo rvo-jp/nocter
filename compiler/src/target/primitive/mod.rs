@@ -70,6 +70,7 @@ impl PrimitiveSpec {
 
     fn matches(self, actual: &PrimitiveSignature) -> bool {
         self.visibility == actual.visibility
+            && self.target == actual.target.as_deref()
             && self.generics == actual.generics
             && self.parameters.len() == actual.parameters.len()
             && self
@@ -81,6 +82,10 @@ impl PrimitiveSpec {
     }
 
     fn source_signature(self) -> String {
+        let target = self
+            .target
+            .map(|target| format!("#target(\"{target}\")\n"))
+            .unwrap_or_default();
         let visibility = match self.visibility {
             Visibility::Private => "",
             Visibility::Public => "pub ",
@@ -99,7 +104,7 @@ impl PrimitiveSpec {
             .join(", ");
 
         format!(
-            "{visibility}primitive {}{generics}({parameters}): {}",
+            "{target}{visibility}primitive {}{generics}({parameters}): {}",
             self.name, self.return_type
         )
     }
@@ -114,6 +119,7 @@ struct PrimitiveParameterSpec {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct PrimitiveSignature {
     visibility: Visibility,
+    target: Option<String>,
     generics: Vec<String>,
     parameters: Vec<PrimitiveParameter>,
     return_type: String,
@@ -123,6 +129,10 @@ impl PrimitiveSignature {
     fn from_decl(primitive: &PrimitiveDecl) -> Self {
         Self {
             visibility: primitive.visibility,
+            target: primitive
+                .target
+                .as_ref()
+                .map(|directive| directive.target.clone()),
             generics: primitive
                 .generics
                 .parameters

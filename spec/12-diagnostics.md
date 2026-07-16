@@ -235,7 +235,7 @@ Adopted: common Nocter-specific mistakes should have dedicated diagnostics inste
 Required v0 diagnostic families:
 
 - Root file path missing, not found, or not a `.nct` file.
-- Nocter home missing, not a directory, or missing required entries such as `VERSION`, `MANIFEST.json`, `std/`, or `targets/`.
+- Nocter home missing, not a directory, or missing required entries such as `VERSION`, `MANIFEST.json`, or `std/`.
 - Malformed `MANIFEST.json`, release mismatch between `VERSION` and manifest, host mismatch, or default target missing from implemented target list.
 - Source file is not valid UTF-8.
 - Unsupported source line ending, such as a bare carriage return.

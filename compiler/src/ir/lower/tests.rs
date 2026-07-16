@@ -17471,15 +17471,16 @@ pub func print(text: &str): void! {
 
 fn std_io_impl_file() -> (&'static str, &'static str) {
     (
-        "targets/arm64-darwin/std/io_impl.nct",
-        r#"pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+        "std/io_impl.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     )
 }
 
 fn std_process_file() -> (&'static str, &'static str) {
     (
-        "targets/arm64-darwin/std/process.nct",
+        "std/process.nct",
         r#"from std/os/macos import trap
 
 pub func abort(): never {
@@ -17491,9 +17492,11 @@ pub func abort(): never {
 
 fn std_macos_file() -> (&'static str, &'static str) {
     (
-        "targets/arm64-darwin/std/os/macos.nct",
-        r#"pub(nocter) primitive trap(): never
+        "std/os/macos.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive trap(): never
 
+#target("arm64-darwin")
 pub(nocter) primitive unreachable(): never
 "#,
     )
@@ -17526,7 +17529,6 @@ fn make_temp_project() -> PathBuf {
 fn make_nocter_home(root: &Path) -> PathBuf {
     let home = root.join(".nocter");
     fs::create_dir_all(home.join("std")).unwrap();
-    fs::create_dir_all(home.join("targets/arm64-darwin/std")).unwrap();
     fs::write(home.join("std/prelude.nct"), "").unwrap();
     home
 }

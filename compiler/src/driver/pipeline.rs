@@ -936,8 +936,9 @@ pub func fail_write(): void! {
         )
         .unwrap();
         fs::write(
-            nocter_home.join("targets/arm64-darwin/std/io_impl.nct"),
-            r#"pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+            nocter_home.join("std/io_impl.nct"),
+            r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
         )
         .unwrap();
@@ -1257,8 +1258,9 @@ pub func write(text: &str): void! {
         )
         .unwrap();
         fs::write(
-            nocter_home.join("targets/arm64-darwin/std/io_impl.nct"),
-            r#"pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+            nocter_home.join("std/io_impl.nct"),
+            r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
         )
         .unwrap();
@@ -1378,8 +1380,9 @@ pub func print(text: &str): void! {
         )
         .unwrap();
         fs::write(
-            nocter_home.join("targets/arm64-darwin/std/io_impl.nct"),
-            r#"pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+            nocter_home.join("std/io_impl.nct"),
+            r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
         )
         .unwrap();
@@ -1429,7 +1432,6 @@ func main(): void! {
     fn make_nocter_home(root: &Path) -> PathBuf {
         let home = root.join(".nocter");
         fs::create_dir_all(home.join("std")).unwrap();
-        fs::create_dir_all(home.join("targets/arm64-darwin/std")).unwrap();
         fs::write(home.join("std/prelude.nct"), "pub type Int = i32\n").unwrap();
         home
     }

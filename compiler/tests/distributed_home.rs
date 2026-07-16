@@ -49,7 +49,6 @@ fn installed_nocter_uses_executable_parent_as_home_without_env() {
     )
     .unwrap();
     fs::create_dir_all(home.join("std")).unwrap();
-    fs::create_dir_all(home.join("targets/arm64-darwin/std")).unwrap();
 
     let installed = home.join("nocter");
     fs::copy(NOCTER, &installed).unwrap();
@@ -928,7 +927,6 @@ fn file_uri(path: &Path) -> String {
 
 fn write_minimal_nocter_home(home: &Path) {
     fs::create_dir_all(home.join("std")).unwrap();
-    fs::create_dir_all(home.join("targets/arm64-darwin/std")).unwrap();
     fs::write(
         home.join("VERSION"),
         fs::read_to_string(distributed_home().join("VERSION")).unwrap(),

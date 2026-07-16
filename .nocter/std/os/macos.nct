@@ -1,11 +1,11 @@
 //! macOS-specific primitive boundary for Nocter's initial arm64-macos target.
 //!
-//! This file lives in the active target overlay:
-//! `.nocter/targets/arm64-darwin/std/os/macos.nct`
+//! This file lives in the common standard library:
+//! `.nocter/std/os/macos.nct`
 //!
 //! These declarations are the narrow low-level bridge used by the standard
-//! library. They are not ordinary function bodies and they are not inline
-//! assembly. The compiler lowers them directly for the active target backend.
+//! library. Primitive declarations are target-gated with `#target`; ordinary
+//! wrappers remain normal standard-library functions.
 
 from std/os import OSError, OSErrorKind, Platform
 
@@ -37,19 +37,23 @@ pub(nocter) func kind_from_errno(error: Errno): OSErrorKind {
 // macOS syscall number constants belong in this module. The exact constant
 // list is filled in as each wrapper is implemented.
 
+#target("arm64-darwin")
 pub(nocter) primitive syscall0(number: usize): SyscallResult
 
+#target("arm64-darwin")
 pub(nocter) primitive syscall1(
     number: usize,
     a0: usize,
 ): SyscallResult
 
+#target("arm64-darwin")
 pub(nocter) primitive syscall2(
     number: usize,
     a0: usize,
     a1: usize,
 ): SyscallResult
 
+#target("arm64-darwin")
 pub(nocter) primitive syscall3(
     number: usize,
     a0: usize,
@@ -57,6 +61,7 @@ pub(nocter) primitive syscall3(
     a2: usize,
 ): SyscallResult
 
+#target("arm64-darwin")
 pub(nocter) primitive syscall4(
     number: usize,
     a0: usize,
@@ -65,6 +70,7 @@ pub(nocter) primitive syscall4(
     a3: usize,
 ): SyscallResult
 
+#target("arm64-darwin")
 pub(nocter) primitive syscall5(
     number: usize,
     a0: usize,
@@ -74,6 +80,7 @@ pub(nocter) primitive syscall5(
     a4: usize,
 ): SyscallResult
 
+#target("arm64-darwin")
 pub(nocter) primitive syscall6(
     number: usize,
     a0: usize,
@@ -84,6 +91,8 @@ pub(nocter) primitive syscall6(
     a5: usize,
 ): SyscallResult
 
+#target("arm64-darwin")
 pub(nocter) primitive trap(): never
 
+#target("arm64-darwin")
 pub(nocter) primitive unreachable(): never

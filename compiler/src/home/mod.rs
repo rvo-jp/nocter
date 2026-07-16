@@ -57,7 +57,6 @@ pub(crate) fn validate_nocter_home(home: &Path) -> Vec<String> {
     };
 
     require_dir(home, "std", &mut errors);
-    require_dir(home, "targets", &mut errors);
 
     if let (Some(version), Some(manifest)) = (version.as_deref(), manifest.as_ref()) {
         validate_manifest(home, version, manifest, &mut errors);
@@ -232,14 +231,6 @@ fn validate_manifest(home: &Path, version: &str, manifest: &Manifest, errors: &m
                 ));
             }
         }
-
-        validate_relative_path("implemented_targets[].std_path", &target.std_path, errors);
-        if !home.join(&target.std_path).is_dir() {
-            errors.push(format!(
-                "target std_path directory is missing `{}`",
-                home.join(&target.std_path).display()
-            ));
-        }
     }
 
     if !names.contains(manifest.default_target.as_str()) {
@@ -316,7 +307,6 @@ mod tests {
     fn validates_nocter_home_shape() {
         let root = make_temp_home("home-shape");
         fs::create_dir_all(root.join("std")).unwrap();
-        fs::create_dir_all(root.join("targets/arm64-darwin/std")).unwrap();
         fs::write(root.join("VERSION"), "0.1.0\n").unwrap();
         fs::write(
             root.join("MANIFEST.json"),
@@ -332,10 +322,9 @@ mod tests {
   "std": {
     "path": "std"
   },
-  "implemented_targets": [
+    "implemented_targets": [
     {
       "name": "arm64-darwin",
-      "std_path": "targets/arm64-darwin/std",
       "backend": "arm64",
       "executable": "macho",
       "os": "darwin"

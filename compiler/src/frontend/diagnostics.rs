@@ -40,7 +40,7 @@ pub(super) fn import_load_diagnostic(
                 .to_string()
         }
         ImportPathKind::NonRelative => {
-            "non-relative imports are resolved inside the active Nocter home; `std/...` searches the active target overlay before common `std/`"
+            "non-relative imports are resolved inside the active Nocter home; `std/...` searches common `std/`"
                 .to_string()
         }
     });
@@ -100,7 +100,7 @@ pub(super) fn primitive_outside_nocter_home_diagnostic(
     );
     diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
     diagnostic.help = Some(format!(
-        "move the declaration under `std/` or `targets/{target}/std/` inside the active Nocter home"
+        "move the declaration under `std/` inside the active Nocter home for target `{target}`"
     ));
     diagnostic
 }

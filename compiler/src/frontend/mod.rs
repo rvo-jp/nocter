@@ -71,6 +71,8 @@ pub(crate) fn load_compile_unit(
             }
         };
 
+        filter_target_primitives(&mut ast, &options.target);
+
         if should_synthesize_prelude(sources, source, &ast, options, &mut resolved_nocter_home) {
             synthesize_prelude_use(source, &mut ast);
         }
@@ -155,6 +157,16 @@ pub(crate) fn load_compile_unit(
     Ok(CompileUnit::new(root_ast, files, import_sources))
 }
 
+fn filter_target_primitives(ast: &mut AstFile, target: &str) {
+    ast.items.retain(|item| match item {
+        Item::Primitive(primitive) => primitive
+            .target
+            .as_ref()
+            .is_none_or(|directive| directive.target == target),
+        _ => true,
+    });
+}
+
 fn validate_primitive_declarations(
     sources: &SourceMap,
     source: SourceId,
@@ -223,15 +235,13 @@ fn validate_primitive_declarations(
         .collect()
 }
 
-fn primitive_module_path(source_path: &Path, home: &Path, target: &str) -> Option<String> {
+fn primitive_module_path(source_path: &Path, home: &Path, _target: &str) -> Option<String> {
     let home = canonicalize_existing(home);
     let common_std = home.join("std");
-    let target_std = home.join("targets").join(target).join("std");
 
     source_path
-        .strip_prefix(target_std)
+        .strip_prefix(common_std)
         .ok()
-        .or_else(|| source_path.strip_prefix(common_std).ok())
         .and_then(std_relative_module_path)
 }
 

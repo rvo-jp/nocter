@@ -101,11 +101,19 @@ pub struct FunctionOwner {
 pub struct PrimitiveDecl {
     pub span: ByteSpan,
     pub visibility: Visibility,
+    pub target: Option<TargetDirective>,
     pub name: String,
     pub name_span: ByteSpan,
     pub generics: GenericParamList,
     pub parameters: ParameterList,
     pub return_type: TypeExpr,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetDirective {
+    pub span: ByteSpan,
+    pub target_span: ByteSpan,
+    pub target: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

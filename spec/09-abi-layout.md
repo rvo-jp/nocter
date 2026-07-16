@@ -245,5 +245,5 @@ The ABI should not be changed casually. Changes require updating:
 - data layout
 - type checking assumptions for layout-sensitive constructs
 - primitive lowering
-- standard-library target overlays
+- target-gated standard-library internals
 - tests for calls, returns, aggregate layout, optionals, fallible values, and drop glue

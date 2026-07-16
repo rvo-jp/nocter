@@ -1,6 +1,6 @@
 //! macOS page-allocation helpers behind the user-facing `std/mem` API.
 //!
-//! These helpers are target-overlay standard-library functions. They use the
+//! These helpers are target-specific standard-library functions. They use the
 //! closed `std/os/macos.syscallN` primitive boundary and keep raw syscall
 //! details out of common `std/mem`.
 

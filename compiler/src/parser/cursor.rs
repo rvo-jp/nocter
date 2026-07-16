@@ -28,6 +28,15 @@ impl Parser<'_> {
         Err(())
     }
 
+    pub(super) fn expect_string_literal(&mut self, message: &str) -> ParseResult<Token> {
+        if self.current().kind == TokenKind::StringLiteral {
+            return Ok(self.bump());
+        }
+
+        self.error_current(message);
+        Err(())
+    }
+
     pub(super) fn expect_keyword(
         &mut self,
         keyword: Keyword,

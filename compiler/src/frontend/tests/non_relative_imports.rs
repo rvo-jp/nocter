@@ -169,8 +169,8 @@ func main(): i32 {
 }
 
 #[test]
-fn check_prefers_target_overlay_for_std_imports() {
-    let root = make_temp_project("std-import-overlay");
+fn check_loads_std_imports_from_common_std() {
+    let root = make_temp_project("std-import-common");
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
@@ -184,15 +184,41 @@ func main(): i32 {
     .unwrap();
     fs::write(
         home.join("std/io.nct"),
-        r#"pub func answer(): &str {
-    return "common"
+        r#"pub func answer(): i32 {
+    return 1
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn check_ignores_inactive_target_primitives_in_common_std() {
+    let root = make_temp_project("std-inactive-target-primitive");
+    let home = make_nocter_home(&root);
+    fs::write(
+        root.join("app.nct"),
+        r#"from std/io import answer
+
+func main(): i32 {
+    return answer()
 }
 "#,
     )
     .unwrap();
     fs::write(
-        home.join("targets/arm64-darwin/std/io.nct"),
-        r#"pub func answer(): i32 {
+        home.join("std/io.nct"),
+        r#"#target("x64-linux")
+pub(nocter) primitive unknown_for_linux(): void
+
+pub func answer(): i32 {
     return 1
 }
 "#,

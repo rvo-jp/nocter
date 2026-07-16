@@ -540,8 +540,9 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "targets/arm64-darwin/std/io_impl.nct",
-        r#"pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+        "std/io_impl.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -3836,8 +3837,9 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "targets/arm64-darwin/std/io_impl.nct",
-        r#"pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+        "std/io_impl.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -3898,8 +3900,9 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "targets/arm64-darwin/std/io_impl.nct",
-        r#"pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+        "std/io_impl.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -3953,8 +3956,9 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "targets/arm64-darwin/std/io_impl.nct",
-        r#"pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+        "std/io_impl.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -6544,7 +6548,6 @@ impl TempProject {
     fn write_nocter_home(&self) {
         let home = self.nocter_home();
         fs::create_dir_all(home.join("std")).unwrap();
-        fs::create_dir_all(home.join("targets/arm64-darwin/std")).unwrap();
         fs::write(home.join("std/prelude.nct"), "pub type Int = i32\n").unwrap();
     }
 }

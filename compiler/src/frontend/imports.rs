@@ -51,7 +51,7 @@ pub(super) fn resolve_import_path(
     let home = active_nocter_home(options, resolved_nocter_home).map_err(|message| {
         nocter_home_import_diagnostic(sources, path.span, &path.value, message)
     })?;
-    let candidates = non_relative_import_candidates(&home, &options.target, &path.value);
+    let candidates = non_relative_import_candidates(&home, &path.value);
 
     for candidate in &candidates {
         if let Ok(canonical) = candidate.canonicalize() {
@@ -143,15 +143,9 @@ fn current_nocter_home(
         .map(|home| canonicalize_existing(home))
 }
 
-fn non_relative_import_candidates(home: &Path, target: &str, import_path: &str) -> Vec<PathBuf> {
-    if let Some(std_path) = import_path.strip_prefix("std/") {
-        return vec![
-            home.join("targets")
-                .join(target)
-                .join("std")
-                .join(format!("{std_path}.nct")),
-            home.join("std").join(format!("{std_path}.nct")),
-        ];
+fn non_relative_import_candidates(home: &Path, import_path: &str) -> Vec<PathBuf> {
+    if let Some(std_relative_path) = import_path.strip_prefix("std/") {
+        return vec![home.join("std").join(format!("{std_relative_path}.nct"))];
     }
 
     vec![home.join(format!("{import_path}.nct"))]

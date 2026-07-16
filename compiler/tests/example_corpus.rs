@@ -378,7 +378,6 @@ impl TempProject {
     fn write_nocter_home(&self) {
         let home = self.nocter_home();
         fs::create_dir_all(home.join("std")).unwrap();
-        fs::create_dir_all(home.join("targets/arm64-darwin/std")).unwrap();
 
         fs::write(
             home.join("std/prelude.nct"),
@@ -417,7 +416,7 @@ impl TempProject {
         )
         .unwrap();
         fs::write(
-            home.join("targets/arm64-darwin/std/process.nct"),
+            home.join("std/process.nct"),
             concat!(
                 "pub func env(name: &str): (&str?)! {\n",
                 "    return none\n",

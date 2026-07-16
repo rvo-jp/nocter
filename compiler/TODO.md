@@ -319,7 +319,7 @@ Recent committed work:
   - lowers stack-backed scalar/view `var` bindings and simple whole-binding `=` assignment for `i32`, `u8`, `usize`, `bool`, `&str`, and slices in the current leading-statement subset
   - adds `nocter run` coverage for scalar assignment and reassigned `&str` output through `write_text_raw`
 - Current checkpoint: execute Hello through distributed std
-  - verifies `from std/io import print` plus `print("Hello")?` with the real distributed `.nocter/std` and `arm64-darwin` target overlay
+  - verifies `from std/io import print` plus `print("Hello")?` with the real distributed `.nocter/std` and `#target("arm64-darwin")` primitive boundary
   - covers the current Hello path end to end through `nocter run`, `std/io.print`, `std/io_impl.write_text_raw`, fallible `?`, and generated executable stdout
 - Current checkpoint: cover non-i32 catch execution paths
   - adds native execution coverage for `catch` success and failure recovery across `u8`, `usize`, `bool`, `&str`, and `void`
@@ -347,8 +347,8 @@ Recent committed work:
   - changes IR call arguments from `I32Value` to typed scalar arguments and updates ARM64 argument staging to use W registers for `i32` and X registers for `usize`
   - adds IR and CLI run coverage for a mixed `i32`/`usize` call returning `usize`
 - Current checkpoint: add target `std/io_impl` skeleton
-  - adds `.nocter/targets/arm64-darwin/std/io_impl.nct` with `pub(nocter)` raw file-descriptor helpers
-  - updates common `.nocter/std/io.nct` to keep the public `File` API while obtaining standard stream and future opened descriptors through the target overlay
+  - adds `.nocter/std/io_impl.nct` with `pub(nocter)` raw file-descriptor helpers and a `#target("arm64-darwin")` primitive boundary
+  - updates common `.nocter/std/io.nct` to keep the public `File` API while obtaining standard stream and future opened descriptors through std internals
   - adds distributed-home coverage that user code cannot import `std/io_impl`
 - Current checkpoint: add private `File` close-on-drop state
   - adds `close_on_drop` to `.nocter/std/io.nct`'s private `File` representation so borrowed standard streams can be distinguished from future owned handles
@@ -358,7 +358,7 @@ Recent committed work:
   - keeps runtime I/O broadening deferred while checking the user-facing method surface through the distributed Nocter home
 - Current checkpoint: keep `std/process` target-specific
   - keeps user-facing imports stable at `std/process`
-  - places the physical `std/process.nct` implementation in the active target overlay because process context and termination depend on the process ABI
+  - places the physical `std/process.nct` implementation in `.nocter/std` while calling target-gated std internals for process ABI details
   - avoids a common wrapper that only delegates to a target-specific `process_impl` module
 - Current checkpoint: add backend usize scalar foundation
   - adds IR and ARM64 lowering for annotated `usize` locals, non-entry `usize` returns, same-file and loaded imported normal calls returning `usize`, and `usize` comparisons in lowerable bool/terminal-if positions

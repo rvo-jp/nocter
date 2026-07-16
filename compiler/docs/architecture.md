@@ -10,7 +10,7 @@ The compiler must first compile `.nct` source files directly to `arm64-darwin` M
 
 The implementation should still keep target-specific code isolated so future targets can be added without rewriting the front end, type checker, ownership checker, or high-level standard-library model.
 
-The initial implementation does not support cross compilation beyond `arm64-darwin`, but it should still model host and target separately. The current development host package is `.nocter/`, which contains the compiler binary for ARM64 macOS, common standard-library sources, and the `targets/arm64-darwin/` overlay for the `arm64-darwin` target.
+The initial implementation does not support cross compilation beyond `arm64-darwin`, but it should still model host and target separately. The current development host package is `.nocter/`, which contains the compiler binary for ARM64 macOS and standard-library sources under `std/`; target-dependent primitive declarations are selected with `#target`.
 
 It must not depend on:
 
@@ -32,25 +32,15 @@ The distributable archive root for the initial host is:
         prelude.nct
         fmt.nct
         io.nct
+        io_impl.nct
         mem.nct
+        mem_impl.nct
         os.nct
+        process.nct
         ptr.nct
         string.nct
-    targets/
-        arm64-darwin/
-            std/
-                io_impl.nct
-                process.nct
-                os/
-                    macos.nct
-        x64-linux/
-            std/
-        arm64-linux/
-            std/
-        x64-windows/
-            std/
-        arm64-windows/
-            std/
+        os/
+            macos.nct
 ```
 
 Users normally install that archive root as `~/.nocter/`. `compiler/src/` contains the implementation used to build the `nocter` compiler. `.nocter/` contains the current development host package for the user-facing compiler binary and standard library. The package metadata and standard-library sources are tracked in git; the generated `.nocter/nocter` compiler binary is ignored.
@@ -284,7 +274,7 @@ Responsibilities:
 - `ast/`: source-level syntax tree definitions.
 - `resolve/`: imports, canonical absolute source-file identity, path-derived modules, visibility, and name lookup.
 - `typecheck/`: type rules, generics, traits, fallible types, optional types, `never` reachability, ownership checks, non-lexical borrow live ranges, field-sensitive borrow checks, provenance checks, and region escape checks.
-- `frontend/`: root `.nct` loading, lexing/parsing for semantic checks, recursive import graph loading, canonical-path module de-duplication, synthetic standard prelude insertion, active target overlay lookup, and common Nocter home `std` lookup.
+- `frontend/`: root `.nct` loading, lexing/parsing for semantic checks, recursive import graph loading, canonical-path module de-duplication, synthetic standard prelude insertion, Nocter home `std` import lookup, and active-target primitive filtering.
 - `home/`: installed Nocter home resolution, `VERSION` reading, `MANIFEST.json` parsing, manifest schema validation, release/host/default-target validation, archive metadata validation, and standard-library directory shape validation.
 - `analysis/`: whole-compile-unit semantic analysis that combines per-file resolve and typecheck output into reusable `CompileUnitAnalysis` and `FileAnalysis` records for CLI diagnostics and future LSP features.
 - `ir/`: optional lower-level compiler representation if direct AST lowering becomes too tangled. IR call instructions, function definitions, and lowering-time function signature lookup carry a backend-independent `CallTarget` so same-file targets and imported targets do not share raw strings. Lowering indexes root functions as `CallTarget::SameFile` and imported file functions as `CallTarget::Imported { source, name }`, using declaration source identity plus function name. `LoweringContext` can resolve call expressions through resolver output, so direct expression lowering can emit imported call targets. `ir/lower/reachability.rs` owns reachable `CallTarget` collection from lowered instructions. `ir/lower/imported_calls.rs` owns imported call target collection and the current diagnostic for unresolved imported placeholders. Function parameter and argument lowering preserve ABI word indexes across the register-first calling convention; backend emission decides whether each word is register-passed or stack-passed for normal calls. Function signature indexing also uses ABI classification to retain indirect aggregate returns as `Type::Aggregate { layout }`, direct aggregate returns as `Type::DirectAggregate { layout, words }`, and aggregate borrow parameters as one-word borrows, while source aggregate value lowering is limited to direct aggregate return calls, narrow normal/fallible indirect aggregate call result bindings returned by name or borrowed by slot address, direct aggregate normal call result bindings, non-entry struct literal returns, aggregate struct-literal local bindings with 8-byte integer fields, explicit aggregate field moves, or `std/ptr.from_addr` pointer fields, aggregate copy bindings from copy aggregate locals, explicit aggregate move bindings, copy struct slot-to-slot assignment between matching aggregate locals, and explicit whole-binding aggregate move assignment. The model also has frame-only aggregate slot reservation, aggregate indirect-return call, fallible aggregate indirect-return call, direct aggregate call, aggregate slot-to-return/slot-to-slot copy, and aggregate `usize` field-store instructions carrying ABI layout/offset information; these exist to bridge aggregate local/return lowering into backend frame planning, call emission, copy emission, and initial field stores.
@@ -471,7 +461,7 @@ Current semantic coverage:
 - imported `func` and `primitive` signatures are used for direct call checking
 - missing imported top-level names from relative imports are diagnosed
 - non-relative imports are loaded recursively from the active Nocter home when needed
-- `std/...` import paths search `targets/<active-target>/std/` before common `std/`
+- `std/...` import paths resolve inside the active Nocter home `std/` tree
 - `from std/path import name` resolves imported top-level `func`, `primitive`, `type`, `struct`, and `enum` declarations
 - imported names must be `pub`, or `pub(nocter)` when the importing file is inside the active Nocter home; private and inaccessible `pub(nocter)` imports are diagnosed
 - eligible user project modules synthesize `use std/prelude`
@@ -573,7 +563,7 @@ If source loading, lexing, or parsing fails, `check` returns a `nocter.diagnosti
 
 `CompileUnitAnalysis` is the `analysis/` module's semantic-analysis result for the whole reachable compile unit. Each `FileAnalysis` keeps the file AST, its file-scoped `ResolveOutput`, that file's diagnostics, and whether the file is the executable root. Flattened diagnostics are sorted by loaded file order, primary span start byte, primary span end byte, diagnostic code, and message. This keeps the command-line checker aligned with future LSP features such as hover, completion, and definition lookup, where editor features need the semantic state for a specific file rather than only a flattened diagnostics list.
 
-The first standard-library source files are `.nocter/std/prelude.nct`, `.nocter/std/string.nct`, `.nocter/std/fmt.nct`, `.nocter/std/mem.nct`, `.nocter/std/ptr.nct`, `.nocter/std/os.nct`, `.nocter/std/io.nct`, `.nocter/targets/arm64-darwin/std/io_impl.nct`, `.nocter/targets/arm64-darwin/std/process.nct`, and `.nocter/targets/arm64-darwin/std/os/macos.nct`. They currently form a Parser v0-readable skeleton for the synthetic user prelude, owning string type, explicit formatting append boundary, initial memory API, core pointer primitive boundary, common OS error model, user-facing I/O errors, `File`, `stdout`, `stderr`, `print`, macOS raw file-descriptor helpers, macOS process API placeholders, and macOS primitive boundary. `std/string.String` is an ordinary standard-library struct with private `ptr`, `len`, and `capacity` fields; `empty()` builds the zero-capacity value through the restricted `std/ptr.from_addr` primitive, while allocation-backed construction and mutation still report unsupported errors. `std/process.abort` and the placeholder `exit` terminate through the target `trap` primitive today. Future target support should add target overlays without changing ordinary user-facing APIs.
+The first standard-library source files are `.nocter/std/prelude.nct`, `.nocter/std/string.nct`, `.nocter/std/fmt.nct`, `.nocter/std/mem.nct`, `.nocter/std/mem_impl.nct`, `.nocter/std/ptr.nct`, `.nocter/std/os.nct`, `.nocter/std/io.nct`, `.nocter/std/io_impl.nct`, `.nocter/std/process.nct`, and `.nocter/std/os/macos.nct`. They currently form a Parser v0-readable skeleton for the synthetic user prelude, owning string type, explicit formatting append boundary, initial memory API, core pointer primitive boundary, common OS error model, user-facing I/O errors, `File`, `stdout`, `stderr`, `print`, macOS raw file-descriptor helpers, macOS process API placeholders, and macOS primitive boundary. `std/string.String` is an ordinary standard-library struct with private `ptr`, `len`, and `capacity` fields; `empty()` builds the zero-capacity value through the restricted `std/ptr.from_addr` primitive, while allocation-backed construction and mutation still report unsupported errors. `std/process.abort` and the placeholder `exit` terminate through the target `trap` primitive today. Future target support should add `#target`-gated primitive declarations without changing ordinary user-facing APIs.
 
 The target-independent core pointer primitive set is:
 
@@ -602,9 +592,9 @@ std/os/macos.unreachable
 
 The compiler should validate primitives by module path, name, and exact signature. `print`, `args`, `env`, `cwd`, `exit`, file APIs, allocator APIs, `String`, and `Buffer` are standard-library APIs, not compiler primitives.
 
-Future typed wrappers such as raw file, process, allocation, or memory-map helpers should be ordinary Nocter APIs in common `std/` or the active target overlay. The normal implementation path is to grow the standard library on top of the closed primitive set, not to add compiler primitives for each OS operation. User project modules remain outside the primitive declaration boundary.
+Future typed wrappers such as raw file, process, allocation, or memory-map helpers should be ordinary Nocter APIs in `std/`. The normal implementation path is to grow the standard library on top of the closed primitive set, not to add compiler primitives for each OS operation. User project modules remain outside the primitive declaration boundary.
 
-Initial `std/io.nct` should expose `File`, `File.open`, `File.read`, `File.write`, `File.write_text`, `stdout`, `stderr`, and `print`. Fallible APIs return `T!` and fail with built-in `error`; common classification names such as `Error` and `ErrorCode` belong to `std/prelude` / `std/error`, not to compiler special cases. File has a private close-on-drop state so `File.open` can create an owned handle whose drop closes it while `stdout` and `stderr` return borrowed process standard streams. Target-dependent raw file-descriptor helpers live behind `pub(nocter)` in the active target overlay, currently `.nocter/targets/arm64-darwin/std/io_impl.nct`.
+Initial `std/io.nct` should expose `File`, `File.open`, `File.read`, `File.write`, `File.write_text`, `stdout`, `stderr`, and `print`. Fallible APIs return `T!` and fail with built-in `error`; common classification names such as `Error` and `ErrorCode` belong to `std/prelude` / `std/error`, not to compiler special cases. File has a private close-on-drop state so `File.open` can create an owned handle whose drop closes it while `stdout` and `stderr` return borrowed process standard streams. Target-dependent raw file-descriptor helpers live behind `pub(nocter)` in `.nocter/std/io_impl.nct`; the primitive declaration itself is gated with `#target("arm64-darwin")`.
 
 OS error flow belongs in the standard library:
 
@@ -617,25 +607,13 @@ built-in error
 
 The compiler should not special-case any of those names.
 
-Reserved target overlay directories may exist before implementation:
+Reserved target names may exist before implementation. The driver must not treat them as implemented targets until the target registry marks the backend, executable writer, primitive set, and target-gated standard-library boundary as implemented. A request such as `--target x64-linux` should fail with a target-selection error while the name remains recognized.
+
+Standard-library resolution searches the common standard library:
 
 ```text
-.nocter/targets/x64-linux/std/
-.nocter/targets/arm64-linux/std/
-.nocter/targets/x64-windows/std/
-.nocter/targets/arm64-windows/std/
-```
-
-These directories are placeholders. The driver must not treat them as implemented targets until the target registry marks the backend, executable writer, primitive set, and target standard-library overlay as implemented. A request such as `--target x64-linux` should fail with a target-selection error while the name remains recognized.
-
-Standard-library resolution should search the active target overlay before the common standard library:
-
-```text
-<NOCTER_HOME>/targets/<active-target>/std/
 <NOCTER_HOME>/std/
 ```
-
-Both roots map to the `std/...` import path namespace.
 
 Nocter home resolution is deliberately narrow:
 
@@ -686,12 +664,12 @@ Milestone grouping:
 28. initial `.nocter/std/ptr.nct`
 29. initial `.nocter/std/os.nct`
 30. initial `.nocter/std/io.nct`
-31. initial `.nocter/targets/arm64-darwin/std/process.nct` with process context APIs and termination APIs
-32. initial `.nocter/targets/arm64-darwin/std/os/macos.nct`
+31. initial `.nocter/std/process.nct` with process context APIs and termination APIs
+32. initial `.nocter/std/os/macos.nct`
 33. core pointer primitive validation and lowering for `std/ptr`
 34. closed target primitive set validation for `std/os/macos.syscall0..6`, `trap`, and `unreachable`
 35. primitive lowering for the active target
-36. imports from the active target overlay and common Nocter home `std`
+36. imports from the active Nocter home `std`
 38. standard-library growth
 39. `nocter --version` reporting release, host, and default target
 40. `nocter doctor` validating Nocter home metadata and directory structure

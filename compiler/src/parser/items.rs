@@ -2,10 +2,11 @@ use super::{ParseResult, Parser};
 use crate::ast::{
     AstFile, DropDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl, FunctionOwner,
     ImplDecl, ImplMember, ImportAlias, ImportItem, ImportedName, Item, MethodDecl, ModulePath,
-    Parameter, ParameterList, PrimitiveDecl, StructDecl, StructField, TypeAliasDecl, UseItem,
-    Visibility,
+    Parameter, ParameterList, PrimitiveDecl, StructDecl, StructField, TargetDirective,
+    TypeAliasDecl, UseItem, Visibility,
 };
 use crate::lexer::Keyword;
+use crate::literals::decode_string_literal_bytes;
 use crate::source::ByteSpan;
 
 impl Parser<'_> {
@@ -26,15 +27,32 @@ impl Parser<'_> {
     }
 
     pub(super) fn parse_item(&mut self) -> ParseResult<Item> {
+        let target = self.parse_optional_target_directive()?;
+        if target.is_some() {
+            self.skip_newlines();
+        }
+
         if self.at_keyword(Keyword::Use) {
+            if target.is_some() {
+                self.error_current("`#target` applies only to primitive declarations in v0");
+                return Err(());
+            }
             return self.parse_use_item();
         }
 
         if self.at_keyword(Keyword::From) {
+            if target.is_some() {
+                self.error_current("`#target` applies only to primitive declarations in v0");
+                return Err(());
+            }
             return self.parse_from_import_item(Visibility::Private);
         }
 
         if self.at_keyword(Keyword::Import) {
+            if target.is_some() {
+                self.error_current("`#target` applies only to primitive declarations in v0");
+                return Err(());
+            }
             return self.parse_import_item();
         }
 
@@ -63,14 +81,22 @@ impl Parser<'_> {
         }
 
         if self.at_keyword(Keyword::Func) {
+            if target.is_some() {
+                self.error_current("`#target` applies only to primitive declarations in v0");
+                return Err(());
+            }
             return self.parse_function_decl(visibility);
         }
 
         if self.at_keyword(Keyword::Primitive) {
-            return self.parse_primitive_decl(visibility);
+            return self.parse_primitive_decl(visibility, target);
         }
 
         if self.at_keyword(Keyword::Type) {
+            if target.is_some() {
+                self.error_current("`#target` applies only to primitive declarations in v0");
+                return Err(());
+            }
             if is_copy {
                 self.error_current("`copy` applies only to `struct` declarations in v0");
                 return Err(());
@@ -79,10 +105,18 @@ impl Parser<'_> {
         }
 
         if self.at_keyword(Keyword::Struct) {
+            if target.is_some() {
+                self.error_current("`#target` applies only to primitive declarations in v0");
+                return Err(());
+            }
             return self.parse_struct_decl(visibility, is_copy);
         }
 
         if self.at_keyword(Keyword::Enum) {
+            if target.is_some() {
+                self.error_current("`#target` applies only to primitive declarations in v0");
+                return Err(());
+            }
             if is_copy {
                 self.error_current("`copy` applies only to `struct` declarations in v0");
                 return Err(());
@@ -91,6 +125,10 @@ impl Parser<'_> {
         }
 
         if self.at_identifier_text("trait") {
+            if target.is_some() {
+                self.error_current("`#target` applies only to primitive declarations in v0");
+                return Err(());
+            }
             if is_copy {
                 self.error_current("`copy` applies only to `struct` declarations in v0");
                 return Err(());
@@ -100,6 +138,10 @@ impl Parser<'_> {
         }
 
         if self.at_keyword(Keyword::Impl) {
+            if target.is_some() {
+                self.error_current("`#target` applies only to primitive declarations in v0");
+                return Err(());
+            }
             if is_copy {
                 self.error_current("`copy` applies only to `struct` declarations in v0");
                 return Err(());
@@ -116,8 +158,45 @@ impl Parser<'_> {
             return Err(());
         }
 
+        if target.is_some() {
+            self.error_current("`#target` applies only to primitive declarations in v0");
+            return Err(());
+        }
+
         self.error_current("expected a top-level item");
         Err(())
+    }
+
+    fn parse_optional_target_directive(&mut self) -> ParseResult<Option<TargetDirective>> {
+        let Some(start) = self.match_punctuation("#") else {
+            return Ok(None);
+        };
+
+        let name = self.expect_identifier("expected directive name after `#`")?;
+        if name.value != "target" {
+            self.error_at(name.span, "expected `target` directive");
+            return Err(());
+        }
+        self.expect_punctuation("(", "`(`")?;
+        let target = self.expect_string_literal("expected target string literal")?;
+        let end = self.expect_punctuation(")", "`)`")?;
+        let target_text = self.lexeme(&target);
+        let target_bytes = decode_string_literal_bytes(&target_text).map_err(|message| {
+            self.error_at(
+                target.span,
+                format!("invalid target string literal: {message}"),
+            );
+        })?;
+        let Ok(target_name) = String::from_utf8(target_bytes) else {
+            self.error_at(target.span, "target string literal must be UTF-8");
+            return Err(());
+        };
+
+        Ok(Some(TargetDirective {
+            span: self.span(start.span.start, end.span.end),
+            target_span: target.span,
+            target: target_name,
+        }))
     }
 
     pub(super) fn parse_visibility(&mut self) -> ParseResult<Visibility> {
@@ -269,7 +348,11 @@ impl Parser<'_> {
         })
     }
 
-    pub(super) fn parse_primitive_decl(&mut self, visibility: Visibility) -> ParseResult<Item> {
+    pub(super) fn parse_primitive_decl(
+        &mut self,
+        visibility: Visibility,
+        target: Option<TargetDirective>,
+    ) -> ParseResult<Item> {
         let start = self.expect_keyword(Keyword::Primitive, "`primitive`")?;
         let name = self.expect_identifier("expected primitive name after `primitive`")?;
         let generics = self.parse_generic_param_list()?;
@@ -279,8 +362,14 @@ impl Parser<'_> {
         let end = return_type.span().end;
 
         Ok(Item::Primitive(PrimitiveDecl {
-            span: self.span(start.span.start, end),
+            span: self.span(
+                target
+                    .as_ref()
+                    .map_or(start.span.start, |target| target.span.start),
+                end,
+            ),
             visibility,
+            target,
             name: name.value,
             name_span: name.span,
             generics,

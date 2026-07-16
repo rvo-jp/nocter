@@ -67,7 +67,7 @@ Restricted API:
 pub(nocter) primitive from_addr<T>(address: usize): *T
 ```
 
-`from_addr` is `pub(nocter)`, so it is visible only to trusted modules inside the active Nocter home: the common `std/` and the active target overlay `std/`. User project modules must not call it.
+`from_addr` is `pub(nocter)`, so it is visible only to trusted modules inside the active Nocter home `std/` tree. User project modules must not call it.
 
 Rules:
 

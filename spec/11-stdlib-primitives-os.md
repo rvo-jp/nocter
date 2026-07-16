@@ -10,7 +10,7 @@ Adopted: Nocter uses a layered OS error model. Target-specific raw errors are co
 Layering:
 
 ```text
-std/os/macos        target overlay: syscall, SyscallResult, Errno, errno mapping
+std/os/macos        target-gated std internals: syscall, SyscallResult, Errno, errno mapping
 std/os              common std: Platform, OSErrorKind, OSError
 std/error           Error, ErrorCode, and constructors for the built-in error payload
 std/io              user-facing I/O APIs
@@ -39,9 +39,9 @@ Rules:
 - `SyscallResult.errno == 0` means success.
 - `SyscallResult.errno != 0` means failure.
 - `SyscallResult.value` is syscall-specific.
-- `Errno` is a target-overlay raw error wrapper.
+- `Errno` is a target-specific raw error wrapper.
 - `Errno` is not exposed as the common OS error type.
-- syscall number constants live in the target overlay, not common `std`.
+- syscall number constants live in target-specific std internals, not in user-facing APIs.
 - the exact syscall number list is a target implementation detail.
 
 ### Common OS Error
@@ -91,7 +91,7 @@ Rules:
 - `OSError.kind` is the portable classification used by higher-level standard-library modules.
 - Common `std/os` does not define `Errno`.
 
-Target overlays convert raw target errors into `OSError`.
+Target-specific std internals convert raw target errors into `OSError`.
 
 ```text
 SyscallResult -> Errno -> OSError
@@ -219,7 +219,8 @@ Rules:
 Physical placement:
 
 - `std/io` is the user-facing module path and owns `File` plus the public I/O API.
-- Target-dependent raw file-descriptor helpers may live in a target overlay module such as `std/io_impl`.
+- Target-dependent raw file-descriptor helpers live in std-internal modules such as `std/io_impl`.
+- Target-dependent primitive declarations in those modules use `#target("...")`.
 - `std/io_impl` names are `pub(nocter)` implementation details, not user-facing API.
 - Common I/O API names should remain stable across targets.
 
@@ -301,7 +302,7 @@ func main(): i32! {
 Physical placement:
 
 - `std/process` is the user-facing module path.
-- Process context implementation may live in the active target overlay when it depends on the target process ABI.
+- Process context implementation may call target-gated std internals when it depends on the target process ABI.
 - Common process API names should remain stable across targets.
 
 ### Process Termination
@@ -324,11 +325,11 @@ Rules:
 - Neither `exit` nor `abort` runs caller-scope Nocter cleanup. Code that needs cleanup must do it before calling them.
 - The target implementation uses the active target's syscall or process termination boundary.
 - If the platform termination operation unexpectedly returns, the implementation calls `trap()`.
-- The module path is `std/process`, but the physical implementation may live in the active target overlay when the implementation depends on process ABI.
+- The module path is `std/process`; target-dependent primitive calls inside it are reached through `#target`-gated std internals.
 
 ### Not Adopted
 
-`std/posix` is not part of the initial design. macOS and Linux can share POSIX-like ideas, but Windows does not fit that layer cleanly. Shared concepts should use stable module paths such as `std/os`, `std/io`, and `std/process`. Their physical implementation may live in common `std/` or in the active target overlay depending on whether the implementation is target-independent.
+`std/posix` is not part of the initial design. macOS and Linux can share POSIX-like ideas, but Windows does not fit that layer cleanly. Shared concepts should use stable module paths such as `std/os`, `std/io`, and `std/process`. Their target-dependent primitive boundaries should remain in std-internal modules with `#target` on the primitive declarations.
 
 ## Standard Library and Low-Level Code
 
@@ -354,6 +355,7 @@ pub(nocter) copy struct SyscallResult {
     pub errno: i32
 }
 
+#target("arm64-darwin")
 pub(nocter) primitive syscall3(
     number: usize,
     a0: usize,
@@ -361,7 +363,10 @@ pub(nocter) primitive syscall3(
     a2: usize,
 ): SyscallResult
 
+#target("arm64-darwin")
 pub(nocter) primitive trap(): never
+
+#target("arm64-darwin")
 pub(nocter) primitive unreachable(): never
 ```
 
@@ -371,9 +376,13 @@ pub(nocter) primitive unreachable(): never
 
 Initial policy:
 
-- `primitive` declarations are allowed only inside the active Nocter home common `std/` directory or the active target overlay `std/` directory in the initial design.
+- `primitive` declarations are allowed only inside the active Nocter home `std/` directory in the initial design.
 - A primitive declaration has no function body.
 - A primitive declaration uses normal Nocter parameter and return types.
+- Target-independent primitive declarations do not use `#target`.
+- Target-dependent primitive declarations must be preceded by `#target("target-name")`.
+- `#target` applies only to primitive declarations in v0.
+- `target` is not a reserved keyword; it is treated as the directive name only after `#`.
 - Primitive calls follow normal visibility rules. A `pub` primitive may be called by any module that can import it. A `pub(nocter)` primitive may be called only inside the active Nocter home.
 - Primitive calls follow the Nocter ABI after visibility and trusted-boundary restrictions pass.
 - The compiler validates each primitive declaration against the target-independent core primitive set or the closed primitive set for the active target.
@@ -393,7 +402,6 @@ Instead, the trusted boundary is the active Nocter home:
 
 ```text
 ~/.nocter/std/
-~/.nocter/targets/<target>/std/
 ```
 
 Rules:
@@ -413,9 +421,12 @@ Rules:
 
 Initial primitive declaration syntax:
 
-```text
+```nct
 pub primitive name(params): ReturnType
 pub(nocter) primitive name(params): ReturnType
+
+#target("arm64-darwin")
+pub(nocter) primitive target_dependent_name(params): ReturnType
 ```
 
 Initial primitive files:
@@ -423,8 +434,8 @@ Initial primitive files:
 ```text
 ~/.nocter/std/error.nct
 ~/.nocter/std/ptr.nct
-~/.nocter/targets/arm64-darwin/std/io_impl.nct
-~/.nocter/targets/arm64-darwin/std/os/macos.nct
+~/.nocter/std/io_impl.nct
+~/.nocter/std/os/macos.nct
 ```
 
 `std/error.nct` contains the target-independent built-in error payload construction primitive used by `Error.new`.
@@ -433,7 +444,7 @@ Initial primitive files:
 
 `std/io_impl.nct` contains the initial `arm64-darwin` narrow text-write bootstrap primitive used by `std/io.print`. It is `pub(nocter)` and is not part of the user-facing I/O API.
 
-`std/os/macos.nct` is target-specific for `arm64-darwin` and is loaded from the `arm64-darwin` target overlay. Future OS targets should add separate target overlays instead of changing the language-level primitive syntax.
+`std/os/macos.nct` contains target-specific declarations for `arm64-darwin`. Future OS targets should add std-internal modules and place `#target("...")` on their primitive declarations instead of changing import resolution.
 
 Initial core error primitive set:
 
@@ -460,21 +471,40 @@ pub(nocter) copy struct SyscallResult {
     pub errno: i32
 }
 
+#target("arm64-darwin")
 pub(nocter) primitive syscall0(number: usize): SyscallResult
+
+#target("arm64-darwin")
 pub(nocter) primitive syscall1(number: usize, a0: usize): SyscallResult
+
+#target("arm64-darwin")
 pub(nocter) primitive syscall2(number: usize, a0: usize, a1: usize): SyscallResult
+
+#target("arm64-darwin")
 pub(nocter) primitive syscall3(number: usize, a0: usize, a1: usize, a2: usize): SyscallResult
+
+#target("arm64-darwin")
 pub(nocter) primitive syscall4(number: usize, a0: usize, a1: usize, a2: usize, a3: usize): SyscallResult
+
+#target("arm64-darwin")
 pub(nocter) primitive syscall5(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize): SyscallResult
+
+#target("arm64-darwin")
 pub(nocter) primitive syscall6(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize): SyscallResult
+
+#target("arm64-darwin")
 pub(nocter) primitive trap(): never
+
+#target("arm64-darwin")
 pub(nocter) primitive unreachable(): never
+
+#target("arm64-darwin")
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 ```
 
 `SyscallResult.errno == 0` means success. `SyscallResult.errno != 0` means the syscall failed with an OS error value. The meaning of `value` is syscall-specific.
 
-The compiler recognizes these declarations only at their target-overlay module path:
+The compiler recognizes these declarations only at their registered module path and target:
 
 ```text
 std/os/macos
@@ -483,7 +513,7 @@ std/io_impl
 
 An ordinary function named `syscall3` elsewhere is not primitive.
 
-`syscall0` through `syscall6` are a bootstrap boundary for the initial macOS standard library. `write_text_raw` is a narrower bootstrap boundary for text output before the compiler can lower the ordinary `SyscallResult`-based wrapper path used by the full I/O API. Longer term, target overlays may replace direct syscall exposure and `write_text_raw` with narrower typed wrappers. Those wrappers are standard-library APIs, not compiler primitives.
+`syscall0` through `syscall6` are a bootstrap boundary for the initial macOS standard library. `write_text_raw` is a narrower bootstrap boundary for text output before the compiler can lower the ordinary `SyscallResult`-based wrapper path used by the full I/O API. Longer term, target-gated std internals may replace direct syscall exposure and `write_text_raw` with narrower typed wrappers. Those wrappers are standard-library APIs, not compiler primitives.
 
 ### Typed Primitive Wrappers
 
@@ -491,7 +521,7 @@ Adopted: typed wrappers over low-level target operations are standard-library AP
 
 The closed compiler primitive set stays small. For the initial `arm64-darwin` target, the OS primitive boundary is `syscall0` through `syscall6`, `trap`, `unreachable`, and the temporary `std/io_impl.write_text_raw`; separately, `std/ptr` owns the target-independent core pointer primitive set.
 
-Target overlays may define narrower typed wrappers around those primitives:
+Std-internal modules may define narrower typed wrappers around those primitives:
 
 ```nct
 pub(nocter) func write_fd(fd: FileDescriptor, bytes: &[u8]): void! {
@@ -511,7 +541,7 @@ Rules:
 
 - Adding a file API, process API, allocator API, string API, buffer API, or OS wrapper must not require adding a compiler primitive.
 - The existing `std/io_impl.write_text_raw` primitive is a v0 bootstrap exception for executable text output, not a precedent for adding one primitive per standard-library API.
-- Target-specific syscall numbers, raw OS handles, errno-like values, and calling conventions belong in the target overlay, not in the compiler's general language semantics.
+- Target-specific syscall numbers, raw OS handles, errno-like values, and calling conventions belong in target-gated std internals, not in the compiler's general language semantics.
 - The compiler validates the existing primitive declarations by module path, name, and exact signature.
 - An ordinary wrapper name such as `open_file_raw`, `write_fd_raw`, `mmap_raw`, or `exit_process` has no compiler-defined behavior.
 - A future compiler primitive may be added only by an explicit language and backend design update, not as the normal way to grow the standard library.

@@ -2,7 +2,7 @@
 //!
 //! `std/io` exposes ordinary file and text APIs. Fallible functions return `T!`
 //! and fail with the compiler built-in `error` payload. Target-specific syscall
-//! results and errno wrappers stay inside target overlays.
+//! results and errno wrappers stay behind `#target`-gated std internals.
 
 from std/error import Error
 from std/io_impl import open_read as open_read_impl

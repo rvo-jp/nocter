@@ -63,6 +63,19 @@ enum AppError{missing_path,open_failed(path:&str)}
 }
 
 #[test]
+fn formats_target_directive_on_primitive() {
+    assert_formats_stably(
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd:i32,text:&str):void!
+"#,
+        concat!(
+            "#target(\"arm64-darwin\")\n",
+            "pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!\n",
+        ),
+    );
+}
+
+#[test]
 fn formats_control_flow_and_postfix_expressions() {
     assert_formats_stably(
         r#"func main():i32!{

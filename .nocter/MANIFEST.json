@@ -13,7 +13,6 @@
   "implemented_targets": [
     {
       "name": "arm64-darwin",
-      "std_path": "targets/arm64-darwin/std",
       "backend": "arm64",
       "executable": "macho",
       "os": "darwin"

@@ -25,7 +25,6 @@ pub(super) fn make_temp_project(name: &str) -> PathBuf {
 pub(super) fn make_nocter_home(root: &Path) -> PathBuf {
     let home = root.join(".nocter");
     fs::create_dir_all(home.join("std")).unwrap();
-    fs::create_dir_all(home.join("targets/arm64-darwin/std")).unwrap();
     fs::write(home.join("std/prelude.nct"), "pub type Int = i32\n").unwrap();
     home
 }

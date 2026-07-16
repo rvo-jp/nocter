@@ -125,17 +125,24 @@ impl Item {
                     item.body.to_json(sources),
                 ],
             ),
-            Item::Primitive(item) => JsonAstNode::with_value(
-                "primitive_decl",
-                item.name.clone(),
-                json_span(sources, item.span),
-                vec![
+            Item::Primitive(item) => {
+                let mut children = Vec::new();
+                if let Some(target) = &item.target {
+                    children.push(target.to_json(sources));
+                }
+                children.extend([
                     visibility_json(item.visibility),
                     item.generics.to_json(sources),
                     item.parameters.to_json(sources),
                     item.return_type.to_json(sources),
-                ],
-            ),
+                ]);
+                JsonAstNode::with_value(
+                    "primitive_decl",
+                    item.name.clone(),
+                    json_span(sources, item.span),
+                    children,
+                )
+            }
             Item::TypeAlias(item) => JsonAstNode::with_value(
                 "type_alias_decl",
                 item.name.clone(),
@@ -204,6 +211,17 @@ impl Item {
                 JsonAstNode::new("impl_decl", json_span(sources, item.span), children)
             }
         }
+    }
+}
+
+impl TargetDirective {
+    fn to_json(&self, sources: &SourceMap) -> JsonAstNode {
+        JsonAstNode::with_value(
+            "target_directive",
+            self.target.clone(),
+            json_span(sources, self.span),
+            Vec::new(),
+        )
     }
 }
 

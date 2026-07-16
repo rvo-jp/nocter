@@ -65,6 +65,12 @@ impl Formatter {
     }
 
     fn format_primitive_decl(&mut self, item: &PrimitiveDecl) {
+        if let Some(target) = &item.target {
+            self.write("#target(");
+            self.write_quoted_string_literal(&target.target);
+            self.write(")");
+            self.newline();
+        }
         self.format_visibility(item.visibility);
         self.write("primitive ");
         self.write(&item.name);
@@ -289,5 +295,22 @@ impl Formatter {
         self.write(&parameter.name);
         self.write(": ");
         self.format_type(&parameter.ty);
+    }
+}
+
+impl Formatter {
+    fn write_quoted_string_literal(&mut self, value: &str) {
+        self.write("\"");
+        for character in value.chars() {
+            match character {
+                '\\' => self.write("\\\\"),
+                '"' => self.write("\\\""),
+                '\n' => self.write("\\n"),
+                '\r' => self.write("\\r"),
+                '\t' => self.write("\\t"),
+                character => self.write(&character.to_string()),
+            }
+        }
+        self.write("\"");
     }
 }
