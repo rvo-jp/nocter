@@ -1,6 +1,6 @@
 use super::{
-    Diagnostic, DiagnosticNote, MemberExpr, MethodSignature, SourceMap, Type, TypeSymbol,
-    type_expr_display_lossy,
+    Diagnostic, DiagnosticNote, MemberExpr, MethodSignature, SourceMap, StructFieldSignature, Type,
+    TypeSymbol, type_expr_display_lossy,
 };
 
 pub(in crate::typecheck) fn error_member_unknown_diagnostic(
@@ -82,6 +82,76 @@ pub(in crate::typecheck) fn method_readwrite_receiver_requires_var_diagnostic(
         });
     }
     diagnostic.help = Some("bind the receiver with `var` before calling this method".to_string());
+    diagnostic
+}
+
+pub(in crate::typecheck) fn associated_function_unknown_diagnostic(
+    sources: &SourceMap,
+    member: &MemberExpr,
+    owner: &TypeSymbol,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0388",
+        format!(
+            "type `{}` has no associated function `{}`",
+            owner.canonical_name, member.member
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(member.member_span).ok().map(Box::new);
+    diagnostic.help = Some(format!(
+        "define `func {}.{}` or call an existing associated function",
+        owner.canonical_name, member.member
+    ));
+    diagnostic
+}
+
+pub(in crate::typecheck) fn method_unknown_diagnostic(
+    sources: &SourceMap,
+    member: &MemberExpr,
+    receiver_type: &Type,
+    owner: Option<&TypeSymbol>,
+) -> Diagnostic {
+    let receiver_label = owner.map_or_else(
+        || receiver_type.display(),
+        |owner| owner.canonical_name.clone(),
+    );
+    let mut diagnostic = Diagnostic::error(
+        "E0389",
+        format!(
+            "type `{}` has no method `{}`",
+            receiver_label, member.member
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(member.member_span).ok().map(Box::new);
+    diagnostic.help =
+        Some("define an inherent `method` in `impl Type` or call an existing method".to_string());
+    diagnostic
+}
+
+pub(in crate::typecheck) fn field_called_as_method_diagnostic(
+    sources: &SourceMap,
+    member: &MemberExpr,
+    owner: &TypeSymbol,
+    field: &StructFieldSignature,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0389",
+        format!(
+            "field `{}.{}` is not callable",
+            owner.canonical_name, member.member
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(member.member_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(field.name_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "field is declared here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some(format!(
+        "write `.{}` without `()`, or define a method named `{}`",
+        member.member, member.member
+    ));
     diagnostic
 }
 

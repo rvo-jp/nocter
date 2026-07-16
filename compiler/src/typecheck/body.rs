@@ -1,8 +1,8 @@
 use super::arrays::{check_array_literal_elements, check_index_expression};
 use super::bindings::{check_binding_annotation, continuing_binding_type};
 use super::calls::{
-    check_known_function_call, check_method_receiver_call, method_member_for_call,
-    resolved_call_signature, resolved_method_for_call,
+    check_known_function_call, check_method_receiver_call, check_unresolved_member_call,
+    method_member_for_call, resolved_call_signature,
 };
 use super::controls::{
     check_for_range_bounds, check_if_condition, check_if_let_initializer, check_while_condition,
@@ -683,20 +683,7 @@ fn check_expression_tree(
             );
         }
         Expr::Call(expression) => {
-            if collection_len_call_type(expression, resolved, environment).is_some() {
-                if let Some(method) = method_member_for_call(expression) {
-                    check_expression_tree(
-                        sources,
-                        &method.object,
-                        resolved,
-                        diagnostics,
-                        environment,
-                        loop_depth,
-                    );
-                }
-            } else if let Some(method) = method_member_for_call(expression)
-                && resolved_method_for_call(resolved, expression, environment).is_some()
-            {
+            if let Some(method) = method_member_for_call(expression) {
                 check_expression_tree(
                     sources,
                     &method.object,
@@ -705,7 +692,7 @@ fn check_expression_tree(
                     environment,
                     loop_depth,
                 );
-            } else if !is_enum_variant_call(expression, resolved) {
+            } else {
                 check_expression_tree(
                     sources,
                     &expression.callee,
@@ -738,6 +725,17 @@ fn check_expression_tree(
                 );
             }
             check_method_receiver_call(sources, expression, resolved, diagnostics, environment);
+            if collection_len_call_type(expression, resolved, environment).is_none()
+                && !is_enum_variant_call(expression, resolved)
+            {
+                check_unresolved_member_call(
+                    sources,
+                    expression,
+                    resolved,
+                    diagnostics,
+                    environment,
+                );
+            }
         }
         Expr::Member(expression) => {
             check_expression_tree(

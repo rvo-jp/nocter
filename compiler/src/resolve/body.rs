@@ -203,6 +203,14 @@ impl Resolver<'_> {
                     self.output
                         .local_identifier_targets
                         .insert(statement.name_span, local_id);
+                } else {
+                    self.output
+                        .diagnostics
+                        .push(unresolved_identifier_diagnostic(
+                            self.sources,
+                            &statement.name,
+                            statement.name_span,
+                        ));
                 }
             }
             Stmt::Expression(statement) => self.resolve_expression(&statement.expression, scope),

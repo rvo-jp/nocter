@@ -129,6 +129,25 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_unknown_associated_function_on_struct() {
+    let diagnostics = check_text(
+        r#"struct Parser {
+    value: i32
+}
+
+func main(): i32 {
+    return Parser.missing()
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0388");
+    assert!(diagnostics[0].message.contains("Parser"));
+    assert!(diagnostics[0].message.contains("missing"));
+}
+
+#[test]
 fn diagnoses_associated_function_argument_count_mismatch() {
     let diagnostics = check_text(
         r#"struct Parser {

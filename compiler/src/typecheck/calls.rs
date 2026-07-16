@@ -1,6 +1,8 @@
 use super::diagnostics::{
     argument_count_mismatch_diagnostic, argument_type_mismatch_diagnostic,
+    associated_function_unknown_diagnostic, field_called_as_method_diagnostic,
     method_readwrite_receiver_requires_var_diagnostic, method_receiver_unsupported_diagnostic,
+    method_unknown_diagnostic,
 };
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment};
@@ -167,6 +169,62 @@ pub(super) fn check_method_receiver_call(
     }
 }
 
+pub(super) fn check_unresolved_member_call(
+    sources: &SourceMap,
+    call: &CallExpr,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+    environment: &TypeEnvironment,
+) {
+    let Some(member) = method_member_for_call(call) else {
+        return;
+    };
+
+    if resolved_call_signature(resolved, call, environment).is_some() {
+        return;
+    }
+
+    if let Some(owner) = associated_function_owner_for_member(member, resolved) {
+        diagnostics.push(associated_function_unknown_diagnostic(
+            sources, member, owner,
+        ));
+        return;
+    }
+
+    let receiver_type = expression_type(&member.object, resolved, environment);
+    if receiver_type.is_unknown_or_unresolved() {
+        return;
+    }
+
+    let Some(owner) = inherent_method_owner_for_type(&receiver_type, resolved) else {
+        diagnostics.push(method_unknown_diagnostic(
+            sources,
+            member,
+            &receiver_type,
+            None,
+        ));
+        return;
+    };
+
+    if let Some(field) = owner
+        .fields
+        .iter()
+        .find(|field| field.is_accessible && field.name == member.member)
+    {
+        diagnostics.push(field_called_as_method_diagnostic(
+            sources, member, owner, field,
+        ));
+        return;
+    }
+
+    diagnostics.push(method_unknown_diagnostic(
+        sources,
+        member,
+        &receiver_type,
+        Some(owner),
+    ));
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum MethodReceiverKind {
     Owned,
@@ -212,6 +270,19 @@ fn inherent_method_owner_for_type<'a>(
 
     resolved
         .type_symbol_by_canonical_name(canonical_name)
+        .filter(|symbol| matches!(symbol.kind, TypeSymbolKind::Struct | TypeSymbolKind::Enum))
+}
+
+fn associated_function_owner_for_member<'a>(
+    member: &MemberExpr,
+    resolved: &'a ResolveOutput,
+) -> Option<&'a TypeSymbol> {
+    let Expr::Identifier(type_name) = member.object.as_ref() else {
+        return None;
+    };
+
+    resolved
+        .type_symbol_by_name(&type_name.name)
         .filter(|symbol| matches!(symbol.kind, TypeSymbolKind::Struct | TypeSymbolKind::Enum))
 }
 

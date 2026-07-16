@@ -87,3 +87,18 @@ fn reports_unresolved_call_callees() {
     assert_eq!(output.diagnostics[0].code, "E0416");
     assert!(output.diagnostics[0].message.contains("missing"));
 }
+
+#[test]
+fn reports_unresolved_drop_targets() {
+    let output = resolve_text(
+        r#"func main(): i32 {
+    drop missing
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0416");
+    assert!(output.diagnostics[0].message.contains("missing"));
+}

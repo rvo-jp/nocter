@@ -69,6 +69,45 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_unknown_method_call_on_struct_value() {
+    let diagnostics = check_text(
+        r#"struct Parser {
+    value: i32
+}
+
+func main(): i32 {
+    let parser = Parser{ value: 0 }
+    return parser.missing()
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0389");
+    assert!(diagnostics[0].message.contains("Parser"));
+    assert!(diagnostics[0].message.contains("missing"));
+}
+
+#[test]
+fn diagnoses_field_call_as_method() {
+    let diagnostics = check_text(
+        r#"struct Point {
+    x: i32
+}
+
+func main(): i32 {
+    let point = Point{ x: 0 }
+    return point.x()
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0389");
+    assert!(diagnostics[0].message.contains("field `Point.x`"));
+}
+
+#[test]
 fn diagnoses_method_call_argument_count_mismatch() {
     let diagnostics = check_text(
         r#"struct Parser {
