@@ -394,6 +394,8 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
         Some(Instruction::While { .. }) => false,
         Some(
             Instruction::WriteStr { .. }
+            | Instruction::DarwinSyscall { .. }
+            | Instruction::CopyStrToPointer { .. }
             | Instruction::ReserveAggregateSlot { .. }
             | Instruction::StoreAggregateUsize { .. }
             | Instruction::StoreAggregateI32 { .. }
@@ -413,6 +415,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::SetUsize { .. }
             | Instruction::SetBool { .. }
             | Instruction::SetStr { .. }
+            | Instruction::SetStrRawParts { .. }
             | Instruction::SetSlice { .. }
             | Instruction::AddI32 { .. }
             | Instruction::SubtractI32 { .. }

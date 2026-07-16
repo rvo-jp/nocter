@@ -68,6 +68,48 @@ fn lowers_entry_i32_let_binding_then_return() {
 }
 
 #[test]
+fn lowers_method_call_receiver_as_implicit_readwrite_borrow() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    method (file: &+Self).touch(): void! {
+        return
+    }
+}
+
+func main(): i32! {
+    var file = File { fd: 1 }
+    file.touch()?
+    return 0
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+
+    assert!(main.instructions.iter().any(|instruction| {
+        matches!(
+            instruction,
+            Instruction::CallFallibleVoid {
+                target,
+                arguments,
+                failure_mode: FallibleFailureMode::Propagate,
+            } if target == &CallTarget::same_file("File.touch")
+                && arguments == &vec![ScalarArgument::Borrow(BorrowArgument {
+                    source: BorrowSource::AggregateSlot(0),
+                })]
+        )
+    }));
+}
+
+#[test]
 fn lowers_entry_i32_let_initializer_normal_call() {
     let ir = lower_text(
         r#"func main(): i32 {
@@ -730,6 +772,84 @@ func main(): i32 {
         ])
     );
     assert_ne!(root.ast.span.source, imported_source);
+}
+
+#[test]
+fn lowers_imported_function_returning_hidden_nested_aggregate_type() {
+    let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
+        r#"from std/pack import make
+
+func main(): i32 {
+    var outer = make()
+    return outer.value
+}
+"#,
+        crate::entry::DEFAULT_ENTRY_NAME,
+        &[(
+            "std/pack.nct",
+            r#"pub copy struct Inner {
+    pub tag: i32
+}
+
+pub copy struct Outer {
+    pub inner: Inner
+    pub value: i32
+}
+
+pub func make(): Outer {
+    return Outer {
+        inner: Inner { tag: 7 },
+        value: 42,
+    }
+}
+"#,
+        )],
+    );
+    let analysis = &fixture.analysis;
+    let imported_source = analysis
+        .files
+        .iter()
+        .find(|file| {
+            !file.is_root
+                && file.ast.items.iter().any(|item| {
+                    matches!(item, crate::ast::Item::Function(function) if function.name == "make")
+                })
+        })
+        .map(|file| file.ast.span.source)
+        .unwrap();
+
+    let ir =
+        lower_executable_with_entry(analysis, &fixture.sources, crate::entry::DEFAULT_ENTRY_NAME)
+            .unwrap();
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+
+    assert!(main.instructions.iter().any(|instruction| {
+        matches!(
+            instruction,
+            Instruction::CallDirectAggregate {
+                destination: AggregateLocation::Slot(0),
+                target: CallTarget::Imported { source, name },
+                layout,
+                ..
+            } if *source == imported_source
+                && name == "make"
+                && *layout == ValueLayout::new(8, 4)
+        )
+    }));
+    assert!(main.instructions.iter().any(|instruction| {
+        matches!(
+            instruction,
+            Instruction::LoadAggregateI32 {
+                destination: I32Location::Return,
+                source: AggregateLocation::Slot(0),
+                offset: 4,
+            }
+        )
+    }));
 }
 
 #[test]
@@ -1544,6 +1664,106 @@ func set_code(header: &+Header): void {
                     destination: AggregateLocation::Parameter(0),
                     offset: 4,
                     value: I32Value::Const(99),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_readwrite_borrowed_aggregate_parameter_field_assignment_inside_nonterminal_if() {
+    let function = lower_named_function(
+        r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func set_code(header: &+Header): void {
+    if true {
+        header.code = 99
+    }
+    return
+}
+"#,
+        "set_code",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "set_code".to_string(),
+            target: CallTarget::same_file("set_code"),
+            return_type: Type::Void,
+            instructions: vec![
+                Instruction::If {
+                    condition: BoolValue::Const(true),
+                    then_instructions: vec![Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::Parameter(0),
+                        offset: 4,
+                        value: I32Value::Const(99),
+                    }],
+                    else_instructions: Vec::new(),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_readwrite_borrowed_aggregate_parameter_field_assignment_inside_nonterminal_while() {
+    let function = lower_named_function(
+        r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func set_code(header: &+Header): void {
+    while ready() {
+        header.code = 99
+    }
+    return
+}
+
+func ready(): bool {
+    return false
+}
+"#,
+        "set_code",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "set_code".to_string(),
+            target: CallTarget::same_file("set_code"),
+            return_type: Type::Void,
+            instructions: vec![
+                Instruction::While {
+                    condition_instructions: vec![call_bool(
+                        BoolLocation::Local(0),
+                        "ready",
+                        vec![],
+                    )],
+                    condition: BoolValue::Location(BoolLocation::Local(0)),
+                    body_instructions: vec![Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::Parameter(0),
+                        offset: 4,
+                        value: I32Value::Const(99),
+                    }],
                 },
                 Instruction::Return,
             ],
@@ -10874,6 +11094,7 @@ func main(): i32 {
         index.names(),
         root.ast.span.source,
         &root.resolved,
+        &root.typecheck_facts,
     )
     .unwrap();
 
@@ -16840,6 +17061,7 @@ fn lower_named_function_with_signatures(
         context::FunctionNames::default(),
         root.ast.span.source,
         &root.resolved,
+        &root.typecheck_facts,
     )
 }
 

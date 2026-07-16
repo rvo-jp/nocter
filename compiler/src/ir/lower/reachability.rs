@@ -93,6 +93,8 @@ fn collect_reachable_call_targets(
                 collect_failure_mode_reachable_call_targets(failure_mode, targets);
             }
             Instruction::WriteStr { .. }
+            | Instruction::DarwinSyscall { .. }
+            | Instruction::CopyStrToPointer { .. }
             | Instruction::ReserveAggregateSlot { .. }
             | Instruction::StoreAggregateUsize { .. }
             | Instruction::StoreAggregateI32 { .. }
@@ -113,6 +115,7 @@ fn collect_reachable_call_targets(
             | Instruction::SetUsize { .. }
             | Instruction::SetBool { .. }
             | Instruction::SetStr { .. }
+            | Instruction::SetStrRawParts { .. }
             | Instruction::SetSlice { .. }
             | Instruction::AddI32 { .. }
             | Instruction::SubtractI32 { .. }

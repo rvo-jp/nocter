@@ -2,7 +2,8 @@ use super::context::{AggregateField, AggregateFieldKind, LoweringContext};
 use super::expressions::{
     TemporaryAllocator, lower_aggregate_member_field_access, lower_bool_expression_to_value,
     lower_call_arguments_to_scalar_arguments_with_temporaries, lower_catch_failure_mode,
-    lower_i32_expression_to_word, lower_u8_expression_to_word, lower_usize_expression_to_word,
+    lower_i32_expression_to_word, lower_macos_syscall_primitive_call_to_location,
+    lower_u8_expression_to_word, lower_usize_expression_to_word,
 };
 use super::functions::propagating_failure_mode;
 use crate::abi::{AbiType, ValueLayout, abi_value_from_type_expr, layout_of, layout_struct};
@@ -26,6 +27,20 @@ pub(super) fn aggregate_type_layout(ty: &Type) -> Option<ValueLayout> {
     }
 }
 
+pub(super) fn aggregate_call_return_layout_from_resolved(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> Option<ValueLayout> {
+    let (_root_source, resolved) = context.resolved_calls()?;
+    let signature = resolved.call_signature_for_call(call)?;
+    let value = abi_value_from_type_expr(&signature.return_type, resolved).ok()?;
+    if matches!(value.ty, AbiType::Struct(_)) {
+        Some(value.layout)
+    } else {
+        None
+    }
+}
+
 pub(super) fn type_expr_is_copy_struct(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
     type_expr_is_copy_struct_inner(ty, resolved, &mut HashSet::new())
 }
@@ -37,7 +52,7 @@ fn type_expr_is_copy_struct_inner(
 ) -> bool {
     match ty {
         TypeExpr::Reference(reference) => {
-            let Some(symbol) = resolved.type_symbol_by_name(&reference.name) else {
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
                 return false;
             };
             match symbol.kind {
@@ -297,7 +312,7 @@ fn struct_field_signatures_from_type_expr<'a>(
 ) -> Option<&'a [StructFieldSignature]> {
     match ty {
         TypeExpr::Reference(reference) => {
-            let symbol = resolved.type_symbol_by_name(&reference.name)?;
+            let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
             match symbol.kind {
                 TypeSymbolKind::Struct => Some(&symbol.fields),
                 TypeSymbolKind::Alias => {
@@ -450,8 +465,13 @@ fn lower_aggregate_field_to_location(
             Ok(lowered.instructions)
         }
         AbiType::Pointer => {
-            let (mut instructions, value) =
-                lower_aggregate_pointer_field_value(expression, diagnostic_code, subject, context)?;
+            let (mut instructions, value) = lower_aggregate_pointer_field_value(
+                expression,
+                diagnostic_code,
+                subject,
+                context,
+                temporaries,
+            )?;
             instructions.push(Instruction::StoreAggregateUsize {
                 destination,
                 offset,
@@ -704,6 +724,55 @@ fn lower_aggregate_call_field_value_to_location(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if macos_syscall_primitive_call(call, context)
+        && let Some(layout) = aggregate_call_return_layout_from_resolved(call, context)
+        && layout == expected_layout
+    {
+        if destination_offset != 0 {
+            let source_slot = temporaries.next_aggregate_slot();
+            let Some(mut instructions) = lower_macos_syscall_primitive_call_to_location(
+                call,
+                AggregateLocation::Slot(source_slot),
+                expected_layout,
+                context,
+                temporaries,
+            )?
+            else {
+                return Err(unsupported_aggregate_struct_literal_diagnostic(
+                    diagnostic_code,
+                    subject,
+                ));
+            };
+            let mut staged = vec![Instruction::ReserveAggregateSlot {
+                slot_index: source_slot,
+                layout,
+            }];
+            staged.append(&mut instructions);
+            staged.push(Instruction::CopyAggregateRange {
+                destination,
+                destination_offset,
+                source: AggregateLocation::Slot(source_slot),
+                source_offset: 0,
+                layout,
+            });
+            return Ok(staged);
+        }
+        let Some(instructions) = lower_macos_syscall_primitive_call_to_location(
+            call,
+            destination,
+            expected_layout,
+            context,
+            temporaries,
+        )?
+        else {
+            return Err(unsupported_aggregate_struct_literal_diagnostic(
+                diagnostic_code,
+                subject,
+            ));
+        };
+        return Ok(instructions);
+    }
+
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_aggregate_struct_literal_diagnostic(
             diagnostic_code,
@@ -879,6 +948,21 @@ fn call_expression(expression: &Expr) -> Option<&CallExpr> {
     }
 }
 
+fn macos_syscall_primitive_call(call: &CallExpr, context: &LoweringContext) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some(
+            "syscall0"
+                | "syscall1"
+                | "syscall2"
+                | "syscall3"
+                | "syscall4"
+                | "syscall5"
+                | "syscall6"
+        )
+    )
+}
+
 fn validate_direct_aggregate_field_store(
     destination: AggregateLocation,
     diagnostic_code: &'static str,
@@ -898,6 +982,7 @@ fn lower_aggregate_pointer_field_value(
     diagnostic_code: &'static str,
     subject: &str,
     context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
 ) -> Result<(Vec<Instruction>, UsizeValue), Vec<Diagnostic>> {
     match expression {
         Expr::Call(call)
@@ -906,11 +991,27 @@ fn lower_aggregate_pointer_field_value(
         {
             lower_usize_expression_to_word(&call.arguments[0], context)
         }
+        Expr::Member(_) => {
+            let access = lower_aggregate_member_field_access(expression, context, temporaries)?
+                .filter(|access| access.kind == AggregateFieldKind::Usize)
+                .ok_or_else(|| {
+                    unsupported_aggregate_struct_literal_diagnostic(diagnostic_code, subject)
+                })?;
+            let destination = temporaries.next_usize()?;
+            let mut instructions = access.instructions;
+            instructions.push(Instruction::LoadAggregateUsize {
+                destination,
+                source: access.source,
+                offset: access.offset,
+            });
+            Ok((instructions, UsizeValue::Location(destination)))
+        }
         Expr::Group(group) => lower_aggregate_pointer_field_value(
             &group.expression,
             diagnostic_code,
             subject,
             context,
+            temporaries,
         ),
         _ => Err(unsupported_aggregate_struct_literal_diagnostic(
             diagnostic_code,

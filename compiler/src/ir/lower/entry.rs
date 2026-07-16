@@ -18,6 +18,7 @@ use crate::diagnostics::Diagnostic;
 use crate::ir::{CallTarget, Function, Instruction, Type};
 use crate::resolve::ResolveOutput;
 use crate::source::{ByteSpan, SourceId, SourceMap};
+use crate::typecheck::TypecheckFacts;
 
 pub(super) fn lower_entry_function(
     function: &FunctionDecl,
@@ -26,6 +27,7 @@ pub(super) fn lower_entry_function(
     function_names: FunctionNames,
     root_source: SourceId,
     resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
 ) -> Result<Function, Vec<Diagnostic>> {
     if !function.generics.parameters.is_empty() || !function.parameters.parameters.is_empty() {
         let span = function.generics.span.unwrap_or(function.parameters.span);
@@ -50,6 +52,7 @@ pub(super) fn lower_entry_function(
         function_names,
         root_source,
         resolved,
+        typecheck_facts,
     )?;
 
     Ok(Function {
@@ -81,6 +84,7 @@ fn lower_entry_body(
     function_names: FunctionNames,
     root_source: SourceId,
     resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let success_type = return_type.success_type();
     let statements = function.body.statements.as_slice();
@@ -103,7 +107,7 @@ fn lower_entry_body(
         function_signatures,
     )
     .with_function_return_type(return_type.clone())
-    .with_call_resolution(root_source, resolved, function_names);
+    .with_call_resolution(root_source, resolved, typecheck_facts, function_names);
     let mut instructions =
         lower_leading_bindings(leading, &mut context).map_err(|diagnostics| {
             let span = leading

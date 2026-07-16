@@ -375,7 +375,7 @@ fn abi_type_kind_from_type_expr(
                 Err(AbiTypeError::UnsupportedType(reference.name.clone()))
             }
             name => {
-                let Some(symbol) = resolved.type_symbol_by_name(name) else {
+                let Some(symbol) = resolved.type_symbol_by_reference_name(name) else {
                     return Err(AbiTypeError::UnresolvedType(name.to_string()));
                 };
                 abi_type_kind_from_symbol(symbol, resolved, resolving_names)

@@ -166,6 +166,13 @@ impl EntryEmitter {
             Instruction::SetStr { destination, value } => {
                 self.emit_set_str(*destination, value)?;
             }
+            Instruction::SetStrRawParts {
+                destination,
+                pointer,
+                len,
+            } => {
+                self.emit_set_str_raw_parts(*destination, pointer, len)?;
+            }
             Instruction::SetSlice { destination, value } => {
                 self.emit_set_slice(*destination, value)?;
             }
@@ -248,6 +255,21 @@ impl EntryEmitter {
                     *layout,
                     frame,
                 )?;
+            }
+            Instruction::DarwinSyscall {
+                destination,
+                arity,
+                number,
+                arguments,
+            } => {
+                self.emit_darwin_syscall(*destination, *arity, number, arguments, frame)?;
+            }
+            Instruction::CopyStrToPointer {
+                pointer,
+                offset,
+                text,
+            } => {
+                self.emit_copy_str_to_pointer(pointer, offset, text, frame)?;
             }
             Instruction::AddI32 {
                 destination,
@@ -2233,6 +2255,56 @@ mod tests {
     }
 
     #[test]
+    fn direct_aggregate_parameter_i32_field_load_after_call_reads_spilled_word() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "code".to_string(),
+                target: crate::ir::CallTarget::same_file("code".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::CallVoid {
+                        target: CallTarget::same_file("effect"),
+                        arguments: vec![],
+                    },
+                    Instruction::LoadAggregateI32 {
+                        destination: I32Location::Return,
+                        source: AggregateLocation::DirectParameter { start_index: 0 },
+                        offset: 0,
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "effect".to_string(),
+                target: crate::ir::CallTarget::same_file("effect".to_string()),
+                return_type: Type::Void,
+                instructions: vec![Instruction::Return],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_x_sp(XReg::X16, 0)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_sp(XReg::X16, 0)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_mov_w(WReg::W0, WReg::W16)
+        ));
+    }
+
+    #[test]
     fn direct_aggregate_parameter_i32_field_load_reads_shifted_second_word() {
         let module = IrModule::new(vec![
             Function {
@@ -2818,6 +2890,56 @@ mod tests {
         assert!(contains_instruction(
             &code.text,
             encoded_str_w_imm(WReg::W16, XReg::X0, 4)
+        ));
+    }
+
+    #[test]
+    fn borrowed_aggregate_parameter_field_write_after_call_uses_spilled_parameter_pointer() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "set_code".to_string(),
+                target: crate::ir::CallTarget::same_file("set_code".to_string()),
+                return_type: Type::Void,
+                instructions: vec![
+                    Instruction::CallVoid {
+                        target: CallTarget::same_file("effect"),
+                        arguments: vec![],
+                    },
+                    Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::Parameter(0),
+                        offset: 4,
+                        value: I32Value::Const(99),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "effect".to_string(),
+                target: crate::ir::CallTarget::same_file("effect".to_string()),
+                return_type: Type::Void,
+                instructions: vec![Instruction::Return],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_x_sp(XReg::X16, 0)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_sp(XReg::X17, 0)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_w_imm(WReg::W16, XReg::X17, 4)
         ));
     }
 
@@ -4075,6 +4197,12 @@ mod tests {
     fn encoded_mov_x(destination: XReg, source: XReg) -> [u8; 4] {
         let mut encoder = Encoder::new();
         encoder.emit_mov_x(destination, source);
+        encoded_instruction(encoder)
+    }
+
+    fn encoded_mov_w(destination: WReg, source: WReg) -> [u8; 4] {
+        let mut encoder = Encoder::new();
+        encoder.emit_mov_w(destination, source);
         encoded_instruction(encoder)
     }
 

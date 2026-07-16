@@ -122,12 +122,25 @@ impl ResolveOutput {
         }
     }
 
+    pub fn type_symbol_by_reference_name(&self, name: &str) -> Option<&TypeSymbol> {
+        self.type_symbol_by_name(name)
+            .or_else(|| self.type_symbol_by_canonical_name(name))
+    }
+
     pub fn type_symbol_definition_by_name(&self, name: &str) -> Option<(&Symbol, &TypeSymbol)> {
         let symbol = self.symbols.symbol_by_name(name)?;
         match &symbol.kind {
             SymbolKind::Type(type_symbol) => Some((symbol, type_symbol)),
             SymbolKind::Function(_) | SymbolKind::Primitive(_) | SymbolKind::Imported(_) => None,
         }
+    }
+
+    pub fn type_symbol_definition_by_reference_name(
+        &self,
+        name: &str,
+    ) -> Option<(&Symbol, &TypeSymbol)> {
+        self.type_symbol_definition_by_name(name)
+            .or_else(|| self.type_symbol_definition_by_canonical_name(name))
     }
 
     pub fn type_symbol_by_canonical_name(&self, canonical_name: &str) -> Option<&TypeSymbol> {
@@ -137,6 +150,24 @@ impl ResolveOutput {
             .find_map(|symbol| match &symbol.kind {
                 SymbolKind::Type(type_symbol) if type_symbol.canonical_name == canonical_name => {
                     Some(type_symbol)
+                }
+                SymbolKind::Function(_)
+                | SymbolKind::Primitive(_)
+                | SymbolKind::Type(_)
+                | SymbolKind::Imported(_) => None,
+            })
+    }
+
+    fn type_symbol_definition_by_canonical_name(
+        &self,
+        canonical_name: &str,
+    ) -> Option<(&Symbol, &TypeSymbol)> {
+        self.symbols
+            .symbols
+            .iter()
+            .find_map(|symbol| match &symbol.kind {
+                SymbolKind::Type(type_symbol) if type_symbol.canonical_name == canonical_name => {
+                    Some((symbol, type_symbol))
                 }
                 SymbolKind::Function(_)
                 | SymbolKind::Primitive(_)

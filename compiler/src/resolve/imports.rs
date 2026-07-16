@@ -6,8 +6,13 @@ use super::signatures::{
     alias_type_symbol, attach_inherent_impl_members_to_symbol, enum_type_symbol,
     function_signature, nominal_type_symbol, primitive_signature, struct_type_symbol,
 };
-use super::{ImportAccess, ImportedSymbol, Resolver, SymbolKind, TypeSymbol, TypeSymbolKind};
-use crate::ast::{AstFile, FromImportItem, ImportItem, Item, TypeAliasDecl, UseItem, Visibility};
+use super::{
+    FunctionSignature, ImportAccess, ImportedSymbol, ParameterSignature, Resolver, SymbolKind,
+    TypeSymbol, TypeSymbolKind,
+};
+use crate::ast::{
+    AstFile, FromImportItem, ImportItem, Item, TypeAliasDecl, TypeExpr, UseItem, Visibility,
+};
 use crate::source::ByteSpan;
 
 impl Resolver<'_> {
@@ -83,11 +88,18 @@ impl Resolver<'_> {
                 Some(imported) if imported.is_visible_to(access) => {
                     let imported = filter_importable_symbol_for_access(imported, access);
                     let imported = qualify_imported_symbol(imported, &item.path.value, &name.name);
+                    let dependency_type_names = imported.local_type_names.clone();
                     self.define_symbol(
                         name.local_name().to_string(),
                         name.local_span(),
                         imported.declaration_span,
                         imported.kind,
+                    );
+                    self.collect_hidden_imported_type_symbols(
+                        imported_ast,
+                        &item.path.value,
+                        access,
+                        &dependency_type_names,
                     );
                 }
                 Some(imported) => {
@@ -120,6 +132,7 @@ impl Resolver<'_> {
                         declaration_span: function.name_span,
                         visibility: function.visibility,
                         kind: SymbolKind::Function(function_signature(function)),
+                        local_type_names: type_decl_names(ast),
                     };
                     self.collect_public_export(
                         function.name.clone(),
@@ -133,6 +146,7 @@ impl Resolver<'_> {
                         declaration_span: primitive.name_span,
                         visibility: primitive.visibility,
                         kind: SymbolKind::Primitive(primitive_signature(primitive)),
+                        local_type_names: type_decl_names(ast),
                     };
                     self.collect_public_export(
                         primitive.name.clone(),
@@ -143,7 +157,12 @@ impl Resolver<'_> {
                 }
                 Item::TypeAlias(alias) => {
                     let symbol = type_alias_symbol_with_impl_members(ast, alias);
-                    let imported = type_importable_symbol(alias.span, alias.visibility, symbol);
+                    let imported = type_importable_symbol(
+                        alias.span,
+                        alias.visibility,
+                        symbol,
+                        type_decl_names(ast),
+                    );
                     let imported = filter_importable_symbol_for_access(imported, access);
                     let imported = qualify_imported_symbol(imported, module_path, &alias.name);
                     self.collect_public_export(
@@ -157,7 +176,12 @@ impl Resolver<'_> {
                     let mut symbol =
                         struct_type_symbol(struct_.name.clone(), struct_.is_copy, &struct_.fields);
                     attach_inherent_impl_members_to_symbol(&mut symbol, ast, &struct_.name);
-                    let imported = type_importable_symbol(struct_.span, struct_.visibility, symbol);
+                    let imported = type_importable_symbol(
+                        struct_.span,
+                        struct_.visibility,
+                        symbol,
+                        type_decl_names(ast),
+                    );
                     let imported = filter_importable_symbol_for_access(imported, access);
                     let imported = qualify_imported_symbol(imported, module_path, &struct_.name);
                     self.collect_public_export(
@@ -170,7 +194,12 @@ impl Resolver<'_> {
                 Item::Enum(enum_) => {
                     let mut symbol = enum_type_symbol(enum_.name.clone(), &enum_.variants);
                     attach_inherent_impl_members_to_symbol(&mut symbol, ast, &enum_.name);
-                    let imported = type_importable_symbol(enum_.span, enum_.visibility, symbol);
+                    let imported = type_importable_symbol(
+                        enum_.span,
+                        enum_.visibility,
+                        symbol,
+                        type_decl_names(ast),
+                    );
                     let imported = filter_importable_symbol_for_access(imported, access);
                     let imported = qualify_imported_symbol(imported, module_path, &enum_.name);
                     self.collect_public_export(
@@ -185,6 +214,7 @@ impl Resolver<'_> {
                         trait_.span,
                         trait_.visibility,
                         nominal_type_symbol(trait_.name.clone(), TypeSymbolKind::Trait),
+                        type_decl_names(ast),
                     );
                     let imported = qualify_imported_symbol(imported, module_path, &trait_.name);
                     self.collect_public_export(
@@ -261,6 +291,43 @@ impl Resolver<'_> {
         }
     }
 
+    fn collect_hidden_imported_type_symbols(
+        &mut self,
+        imported_ast: &AstFile,
+        import_path: &str,
+        access: ImportAccess,
+        type_names: &[String],
+    ) {
+        for type_name in type_names {
+            let Some(imported) = direct_importable_symbol(imported_ast, type_name) else {
+                continue;
+            };
+            if !imported.is_visible_to(access) {
+                continue;
+            }
+            let imported = filter_importable_symbol_for_access(imported, access);
+            let imported = qualify_imported_symbol(imported, import_path, type_name);
+            let SymbolKind::Type(symbol) = &imported.kind else {
+                continue;
+            };
+            let canonical_name = symbol.canonical_name.clone();
+            if self
+                .output
+                .symbols
+                .symbol_by_name(&canonical_name)
+                .is_some()
+            {
+                continue;
+            }
+            self.define_symbol(
+                canonical_name,
+                imported.declaration_span,
+                imported.declaration_span,
+                imported.kind,
+            );
+        }
+    }
+
     fn report_unloaded_imported_symbols(&mut self, item: &FromImportItem) {
         for name in &item.names {
             self.output.diagnostics.push(unloaded_import_diagnostic(
@@ -301,6 +368,7 @@ struct ImportableSymbol {
     declaration_span: ByteSpan,
     visibility: Visibility,
     kind: SymbolKind,
+    local_type_names: Vec<String>,
 }
 
 impl ImportableSymbol {
@@ -320,16 +388,23 @@ fn direct_importable_symbol(ast: &AstFile, name: &str) -> Option<ImportableSymbo
                 declaration_span: function.name_span,
                 visibility: function.visibility,
                 kind: SymbolKind::Function(function_signature(function)),
+                local_type_names: type_decl_names(ast),
             })
         }
         Item::Primitive(primitive) if primitive.name == name => Some(ImportableSymbol {
             declaration_span: primitive.name_span,
             visibility: primitive.visibility,
             kind: SymbolKind::Primitive(primitive_signature(primitive)),
+            local_type_names: type_decl_names(ast),
         }),
         Item::TypeAlias(alias) if alias.name == name => {
             let symbol = type_alias_symbol_with_impl_members(ast, alias);
-            Some(type_importable_symbol(alias.span, alias.visibility, symbol))
+            Some(type_importable_symbol(
+                alias.span,
+                alias.visibility,
+                symbol,
+                type_decl_names(ast),
+            ))
         }
         Item::Struct(struct_) if struct_.name == name => {
             let mut symbol =
@@ -339,17 +414,24 @@ fn direct_importable_symbol(ast: &AstFile, name: &str) -> Option<ImportableSymbo
                 struct_.span,
                 struct_.visibility,
                 symbol,
+                type_decl_names(ast),
             ))
         }
         Item::Enum(enum_) if enum_.name == name => {
             let mut symbol = enum_type_symbol(enum_.name.clone(), &enum_.variants);
             attach_inherent_impl_members_to_symbol(&mut symbol, ast, &enum_.name);
-            Some(type_importable_symbol(enum_.span, enum_.visibility, symbol))
+            Some(type_importable_symbol(
+                enum_.span,
+                enum_.visibility,
+                symbol,
+                type_decl_names(ast),
+            ))
         }
         Item::Trait(trait_) if trait_.name == name => Some(type_importable_symbol(
             trait_.span,
             trait_.visibility,
             nominal_type_symbol(trait_.name.clone(), TypeSymbolKind::Trait),
+            type_decl_names(ast),
         )),
         _ => None,
     })
@@ -365,11 +447,13 @@ fn type_importable_symbol(
     declaration_span: ByteSpan,
     visibility: Visibility,
     symbol: TypeSymbol,
+    local_type_names: Vec<String>,
 ) -> ImportableSymbol {
     ImportableSymbol {
         declaration_span,
         visibility,
         kind: SymbolKind::Type(symbol),
+        local_type_names,
     }
 }
 
@@ -410,11 +494,116 @@ fn qualify_imported_symbol(
     import_path: &str,
     imported_name: &str,
 ) -> ImportableSymbol {
-    if let SymbolKind::Type(symbol) = &mut imported.kind
-        && symbol.canonical_name == imported_name
-    {
-        symbol.canonical_name = format!("{import_path}.{imported_name}");
+    match &mut imported.kind {
+        SymbolKind::Function(signature) | SymbolKind::Primitive(signature) => {
+            qualify_function_signature(signature, import_path, &imported.local_type_names);
+        }
+        SymbolKind::Type(symbol) => {
+            if symbol.canonical_name == imported_name {
+                symbol.canonical_name = format!("{import_path}.{imported_name}");
+            }
+            qualify_type_symbol(symbol, import_path, &imported.local_type_names);
+        }
+        SymbolKind::Imported(_) => {}
     }
 
     imported
+}
+
+fn qualify_type_symbol(symbol: &mut TypeSymbol, import_path: &str, local_type_names: &[String]) {
+    if let Some(target) = &mut symbol.alias_target {
+        qualify_type_expr(target, import_path, local_type_names);
+    }
+    for field in &mut symbol.fields {
+        qualify_type_expr(&mut field.ty, import_path, local_type_names);
+    }
+    for variant in &mut symbol.variants {
+        for parameter in &mut variant.payload {
+            qualify_parameter_signature(parameter, import_path, local_type_names);
+        }
+    }
+    for function in &mut symbol.associated_functions {
+        qualify_function_signature(&mut function.signature, import_path, local_type_names);
+    }
+    for method in &mut symbol.methods {
+        qualify_parameter_signature(&mut method.receiver, import_path, local_type_names);
+        qualify_function_signature(&mut method.signature, import_path, local_type_names);
+    }
+    if let Some(drop_member) = &mut symbol.drop_member {
+        qualify_parameter_signature(&mut drop_member.binding, import_path, local_type_names);
+    }
+}
+
+fn qualify_function_signature(
+    signature: &mut FunctionSignature,
+    import_path: &str,
+    local_type_names: &[String],
+) {
+    for parameter in &mut signature.parameters {
+        qualify_parameter_signature(parameter, import_path, local_type_names);
+    }
+    qualify_type_expr(&mut signature.return_type, import_path, local_type_names);
+}
+
+fn qualify_parameter_signature(
+    parameter: &mut ParameterSignature,
+    import_path: &str,
+    local_type_names: &[String],
+) {
+    qualify_type_expr(&mut parameter.ty, import_path, local_type_names);
+}
+
+fn qualify_type_expr(ty: &mut TypeExpr, import_path: &str, local_type_names: &[String]) {
+    match ty {
+        TypeExpr::Reference(reference) => {
+            if local_type_names.iter().any(|name| name == &reference.name) {
+                reference.name = format!("{import_path}.{}", reference.name);
+            }
+        }
+        TypeExpr::Generic(generic) => {
+            if local_type_names.iter().any(|name| name == &generic.name) {
+                generic.name = format!("{import_path}.{}", generic.name);
+            }
+            for argument in &mut generic.arguments {
+                qualify_type_expr(argument, import_path, local_type_names);
+            }
+        }
+        TypeExpr::Pointer(pointer) => {
+            qualify_type_expr(&mut pointer.inner, import_path, local_type_names);
+        }
+        TypeExpr::Borrow(borrow) => {
+            qualify_type_expr(&mut borrow.inner, import_path, local_type_names);
+        }
+        TypeExpr::View(view) => {
+            qualify_type_expr(&mut view.element, import_path, local_type_names);
+        }
+        TypeExpr::Array(array) => {
+            qualify_type_expr(&mut array.element, import_path, local_type_names);
+        }
+        TypeExpr::Optional(optional) => {
+            qualify_type_expr(&mut optional.inner, import_path, local_type_names);
+        }
+        TypeExpr::Fallible(fallible) => {
+            qualify_type_expr(&mut fallible.success, import_path, local_type_names);
+            qualify_type_expr(&mut fallible.error, import_path, local_type_names);
+        }
+    }
+}
+
+fn type_decl_names(ast: &AstFile) -> Vec<String> {
+    ast.items
+        .iter()
+        .filter_map(|item| match item {
+            Item::TypeAlias(alias) => Some(alias.name.clone()),
+            Item::Struct(struct_) => Some(struct_.name.clone()),
+            Item::Enum(enum_) => Some(enum_.name.clone()),
+            Item::Trait(trait_) => Some(trait_.name.clone()),
+            Item::Use(_)
+            | Item::Import(_)
+            | Item::FromImport(_)
+            | Item::Function(_)
+            | Item::Primitive(_)
+            | Item::Impl(_) => None,
+        })
+        .collect()
 }

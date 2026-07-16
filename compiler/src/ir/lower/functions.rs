@@ -1,5 +1,6 @@
 use super::aggregates::{
-    aggregate_fields_from_type_expr, lower_aggregate_struct_literal_to_location,
+    aggregate_call_return_layout_from_resolved, aggregate_fields_from_type_expr,
+    lower_aggregate_struct_literal_to_location,
     lower_aggregate_struct_literal_to_location_with_temporaries, push_aggregate_call_instruction,
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
     type_expr_is_copy_struct,
@@ -23,10 +24,10 @@ use super::expressions::{
     TemporaryAllocator, lower_aggregate_member_field_access, lower_bool_expression_to_location,
     lower_bool_return_expression, lower_call_arguments_to_scalar_arguments,
     lower_catch_failure_mode, lower_i32_expression_to_location, lower_i32_return_expression,
-    lower_never_return_expression, lower_slice_expression_to_location,
-    lower_slice_return_expression, lower_str_expression_to_location, lower_str_return_expression,
-    lower_u8_expression_to_location, lower_u8_return_expression,
-    lower_usize_expression_to_location, lower_usize_return_expression,
+    lower_macos_syscall_primitive_call_to_location, lower_never_return_expression,
+    lower_slice_expression_to_location, lower_slice_return_expression,
+    lower_str_expression_to_location, lower_str_return_expression, lower_u8_expression_to_location,
+    lower_u8_return_expression, lower_usize_expression_to_location, lower_usize_return_expression,
     lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
 };
 use crate::abi::{
@@ -35,8 +36,8 @@ use crate::abi::{
 };
 use crate::ast::{
     ArrayType, Block, BorrowType, DropDecl, DropStmt, Expr, FallibleType, FunctionDecl,
-    GenericType, IfStmt, OptionalType, Parameter, PointerType, ReturnStmt, Stmt, StructLiteralExpr,
-    TypeExpr, TypeReference, UnaryOperator, ViewType,
+    GenericType, IfStmt, MethodDecl, OptionalType, Parameter, PointerType, ReturnStmt, Stmt,
+    StructLiteralExpr, TypeExpr, TypeReference, UnaryOperator, ViewType,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -49,6 +50,7 @@ use crate::resolve::{
     FunctionSignature as ResolvedFunctionSignature, ParameterSignature, ResolveOutput,
 };
 use crate::source::{ByteSpan, SourceId, SourceMap};
+use crate::typecheck::TypecheckFacts;
 
 pub(super) fn lower_function(
     function: &FunctionDecl,
@@ -58,6 +60,7 @@ pub(super) fn lower_function(
     function_names: FunctionNames,
     root_source: SourceId,
     resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
 ) -> Result<Function, Vec<Diagnostic>> {
     if !function.generics.parameters.is_empty() {
         return Err(attach_primary_span_if_absent(
@@ -113,7 +116,7 @@ pub(super) fn lower_function(
         parameters,
     )
     .with_function_return_type(return_type.clone())
-    .with_call_resolution(root_source, resolved, function_names);
+    .with_call_resolution(root_source, resolved, typecheck_facts, function_names);
     let mut instructions = parameter_setup;
     instructions.extend(lower_callable_body(
         &function.name,
@@ -143,6 +146,7 @@ pub(super) fn lower_drop_function(
     function_names: FunctionNames,
     root_source: SourceId,
     resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
 ) -> Result<Function, Vec<Diagnostic>> {
     let binding = Parameter {
         span: drop_.binding.span,
@@ -175,7 +179,7 @@ pub(super) fn lower_drop_function(
         parameters,
     )
     .with_function_return_type(return_type.clone())
-    .with_call_resolution(root_source, resolved, function_names);
+    .with_call_resolution(root_source, resolved, typecheck_facts, function_names);
     let mut instructions = parameter_setup;
     instructions.extend(lower_callable_body(
         &name,
@@ -193,6 +197,96 @@ pub(super) fn lower_drop_function(
         return_type,
         instructions,
     })
+}
+
+pub(super) fn lower_method_function(
+    method: &MethodDecl,
+    self_ty: &TypeExpr,
+    name: String,
+    sources: &SourceMap,
+    target: CallTarget,
+    function_signatures: FunctionSignatures,
+    function_names: FunctionNames,
+    root_source: SourceId,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+) -> Result<Function, Vec<Diagnostic>> {
+    let Some(body) = &method.body else {
+        return Err(attach_primary_span_if_absent(
+            vec![Diagnostic::error(
+                "E8007",
+                format!("IR v0 can only lower method `{name}` with a body"),
+            )],
+            sources,
+            method.span,
+        ));
+    };
+
+    let parameters = method_parameters(method, self_ty);
+    let return_type_expr = type_expr_with_self_type(&method.return_type, self_ty);
+    let parameter_slots =
+        lower_scalar_parameters(&name, &parameters, root_source, resolved, sources).map_err(
+            |diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, method.parameters.span)
+            },
+        )?;
+    validate_parameter_slots_match_function_abi(
+        &name,
+        &parameters,
+        &return_type_expr,
+        resolved,
+        &parameter_slots,
+    )
+    .map_err(|diagnostics| attach_primary_span_if_absent(diagnostics, sources, method.span))?;
+    let parameter_setup = lower_aggregate_parameter_setup(&parameter_slots);
+    let return_type = match lower_function_return_type(&return_type_expr, &name, resolved) {
+        Ok(return_type) => return_type,
+        Err(diagnostics) => {
+            return Err(attach_primary_span_if_absent(
+                diagnostics,
+                sources,
+                method.return_type.span(),
+            ));
+        }
+    };
+    let success_type = return_type.success_type().clone();
+    let mut context = LoweringContext::new(
+        name.clone(),
+        success_type,
+        function_signatures,
+        parameter_slots,
+    )
+    .with_function_return_type(return_type.clone())
+    .with_call_resolution(root_source, resolved, typecheck_facts, function_names);
+    let mut instructions = parameter_setup;
+    instructions.extend(lower_callable_body(
+        &name,
+        body,
+        &return_type,
+        root_source,
+        resolved,
+        sources,
+        &mut context,
+    )?);
+
+    Ok(Function {
+        name,
+        target,
+        return_type,
+        instructions,
+    })
+}
+
+fn method_parameters(method: &MethodDecl, self_ty: &TypeExpr) -> Vec<Parameter> {
+    let mut parameters = Vec::with_capacity(method.parameters.parameters.len() + 1);
+    parameters.push(Parameter {
+        span: method.receiver.span,
+        name: method.receiver.name.clone(),
+        name_span: method.receiver.name_span,
+        ty: type_expr_with_self_type(&method.receiver.ty, self_ty),
+    });
+    parameters.extend(method.parameters.parameters.iter().cloned());
+    parameters
 }
 
 fn lower_scalar_parameters(
@@ -2005,6 +2099,27 @@ fn lower_aggregate_call_return_to_location(
     function_name: &str,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if macos_syscall_primitive_call(call, context)
+        && let Some(layout) = aggregate_call_return_layout_from_resolved(call, context)
+    {
+        let (expected_layout, _) = aggregate_return_layout_and_destination(return_type);
+        if layout != expected_layout {
+            return Err(unsupported_aggregate_return_diagnostic(function_name));
+        }
+        let mut temporaries = TemporaryAllocator::new(context)?;
+        let Some(instructions) = lower_macos_syscall_primitive_call_to_location(
+            call,
+            destination,
+            expected_layout,
+            context,
+            &mut temporaries,
+        )?
+        else {
+            return Err(unsupported_aggregate_return_diagnostic(function_name));
+        };
+        return Ok(instructions);
+    }
+
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     };
@@ -2127,6 +2242,21 @@ fn unsupported_aggregate_return_diagnostic(function_name: &str) -> Vec<Diagnosti
             "IR v0 can only lower aggregate returns from function `{function_name}` from a supported struct literal, an aggregate call, or a supported aggregate local slot"
         ),
     )]
+}
+
+fn macos_syscall_primitive_call(call: &crate::ast::CallExpr, context: &LoweringContext) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some(
+            "syscall0"
+                | "syscall1"
+                | "syscall2"
+                | "syscall3"
+                | "syscall4"
+                | "syscall5"
+                | "syscall6"
+        )
+    )
 }
 
 fn lower_fallible_failure(payload: ErrorPayload) -> Vec<Instruction> {

@@ -43,7 +43,7 @@ fn type_expr_to_type_inner(
             "void" => Type::Void,
             "never" => Type::Never,
             name => resolved
-                .type_symbol_by_name(name)
+                .type_symbol_by_reference_name(name)
                 .map(|symbol| {
                     let Some(alias_target) = &symbol.alias_target else {
                         return Type::Named(symbol.canonical_name.clone());
@@ -137,7 +137,7 @@ fn type_expr_display_with_self_type(
             "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "usize"
             | "isize" | "str" | "error" | "void" | "never" => Some(reference.name.clone()),
             name => resolved
-                .type_symbol_by_name(name)
+                .type_symbol_by_reference_name(name)
                 .map(|symbol| symbol.canonical_name.clone()),
         },
         TypeExpr::Generic(generic) => {
@@ -148,7 +148,7 @@ fn type_expr_display_with_self_type(
                 .collect::<Option<Vec<_>>>()?
                 .join(", ");
             let name = resolved
-                .type_symbol_by_name(&generic.name)
+                .type_symbol_by_reference_name(&generic.name)
                 .map(|symbol| symbol.canonical_name.clone())?;
             Some(format!("{name}<{arguments}>"))
         }

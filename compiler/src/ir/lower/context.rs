@@ -7,6 +7,7 @@ use crate::ir::{
 };
 use crate::resolve::{ResolveOutput, SymbolKind};
 use crate::source::{ByteSpan, SourceId};
+use crate::typecheck::TypecheckFacts;
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -242,11 +243,13 @@ impl<'a> LoweringContext<'a> {
         mut self,
         root_source: SourceId,
         resolved: &'a ResolveOutput,
+        typecheck_facts: &'a TypecheckFacts,
         function_names: FunctionNames,
     ) -> Self {
         self.call_resolution = Some(CallResolution {
             root_source,
             resolved,
+            typecheck_facts,
         });
         self.function_names = function_names;
         self
@@ -292,6 +295,9 @@ impl<'a> LoweringContext<'a> {
             )),
             Expr::Member(_) => {
                 let resolution = self.call_resolution.as_ref()?;
+                if let Some((target, target_name)) = self.method_call_target_and_name(call) {
+                    return Some((target, target_name));
+                }
                 let (_owner, function) = resolution.resolved.associated_function_for_call(call)?;
                 let target = call_target_for_source(
                     function.name_span.source,
@@ -314,6 +320,9 @@ impl<'a> LoweringContext<'a> {
                 resolution.root_source,
                 function.target_name.clone(),
             );
+        }
+        if let Some((target, _name)) = self.method_call_target_and_name(call) {
+            return target;
         }
 
         let Some(symbol) = resolution.resolved.symbol_for_call(call) else {
@@ -350,6 +359,37 @@ impl<'a> LoweringContext<'a> {
         self.call_resolution
             .as_ref()
             .map(|resolution| (resolution.root_source, resolution.resolved))
+    }
+
+    pub(super) fn method_call_receiver<'b>(&self, call: &'b CallExpr) -> Option<&'b Expr> {
+        let resolution = self.call_resolution.as_ref()?;
+        let Expr::Member(member) = call.callee.as_ref() else {
+            return None;
+        };
+        resolution
+            .typecheck_facts
+            .method_call_target(member.member_span)?;
+        Some(&member.object)
+    }
+
+    fn method_call_target_and_name(&self, call: &CallExpr) -> Option<(CallTarget, String)> {
+        let resolution = self.call_resolution.as_ref()?;
+        let Expr::Member(member) = call.callee.as_ref() else {
+            return None;
+        };
+        let method_name_span = resolution
+            .typecheck_facts
+            .method_call_target(member.member_span)?;
+        let target_name = self
+            .function_names
+            .name_for_declaration(method_name_span)?
+            .clone();
+        let target = call_target_for_source(
+            method_name_span.source,
+            resolution.root_source,
+            target_name.clone(),
+        );
+        Some((target, target_name))
     }
 
     pub(super) fn next_i32_local_location(&self) -> Result<I32Location, Vec<Diagnostic>> {
@@ -786,6 +826,15 @@ impl<'a> LoweringContext<'a> {
             })
     }
 
+    pub(super) fn aggregate_borrow_parameter(
+        &self,
+        aggregate_name: &str,
+    ) -> Option<&AggregateBorrowParameter> {
+        self.aggregate_borrows
+            .iter()
+            .find(|borrow| borrow.name == aggregate_name)
+    }
+
     fn next_local_index(&self, required_words: usize) -> Result<usize, Vec<Diagnostic>> {
         let index = self.used_local_abi_words();
         if index + required_words > MAX_LOCAL_ABI_WORDS {
@@ -862,6 +911,7 @@ fn call_target_for_source(source: SourceId, root_source: SourceId, name: String)
 struct CallResolution<'a> {
     root_source: SourceId,
     resolved: &'a ResolveOutput,
+    typecheck_facts: &'a TypecheckFacts,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -1046,7 +1096,8 @@ pub(super) fn drop_glue_for_type_expr(
     let TypeExpr::Reference(reference) = ty else {
         return None;
     };
-    let (symbol, type_symbol) = resolved.type_symbol_definition_by_name(&reference.name)?;
+    let (symbol, type_symbol) =
+        resolved.type_symbol_definition_by_reference_name(&reference.name)?;
     let drop_member = type_symbol.drop_member.as_ref()?;
     let target = if symbol.declaration_span.source == root_source {
         CallTarget::same_file(drop_member.target_name.clone())

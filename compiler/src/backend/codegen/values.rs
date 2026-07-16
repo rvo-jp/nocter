@@ -828,6 +828,10 @@ impl EntryEmitter {
     }
 
     fn aggregate_parameter_base_register(&mut self, index: usize) -> Result<XReg, Vec<Diagnostic>> {
+        if self.current_parameter_spill_offsets.contains_key(&index) {
+            self.emit_parameter_word_to_x(index, XReg::X17)?;
+            return Ok(XReg::X17);
+        }
         if let Some(register) = XReg::argument(index) {
             return Ok(register);
         }
@@ -844,7 +848,10 @@ impl EntryEmitter {
     ) -> Result<(), Vec<Diagnostic>> {
         validate_aggregate_copy_chunk_bytes(chunk_bytes)?;
 
-        if byte_offset == 0
+        if !self
+            .current_parameter_spill_offsets
+            .contains_key(&word_index)
+            && byte_offset == 0
             && chunk_bytes == AGGREGATE_I32_STORE_BYTES
             && let Some(source) = WReg::argument(word_index)
         {
@@ -938,6 +945,17 @@ impl EntryEmitter {
     ) -> Result<(), Vec<Diagnostic>> {
         let (ptr_destination, len_destination) = self.str_location_registers(destination)?;
         self.emit_str_value_to_x_pair(value, ptr_destination, len_destination)
+    }
+
+    pub(super) fn emit_set_str_raw_parts(
+        &mut self,
+        destination: StrLocation,
+        pointer: &UsizeValue,
+        len: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_usize_value_to_x(pointer, XReg::X16)?;
+        self.emit_usize_value_to_x(len, XReg::X17)?;
+        self.emit_x_pair_to_str_location(XReg::X16, XReg::X17, destination)
     }
 
     pub(super) fn emit_set_slice(
@@ -1254,6 +1272,43 @@ impl EntryEmitter {
         self.emit_trap();
         self.patch_branch_placeholder_to_current(no_borrow, target_description)?;
         Ok(())
+    }
+
+    pub(super) fn emit_copy_str_to_pointer(
+        &mut self,
+        pointer: &UsizeValue,
+        offset: &UsizeValue,
+        text: &StrValue,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "string byte copy emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_usize_value_to_x(pointer, XReg::X0)?;
+        self.emit_usize_value_to_x(offset, XReg::X1)?;
+        self.encoder.emit_adds_x(XReg::X0, XReg::X0, XReg::X1);
+        self.emit_str_value_to_x_pair(text, XReg::X1, XReg::X2)?;
+
+        self.encoder.emit_cmp_x_zero(XReg::X2);
+        let empty_text = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+        emit_mov_u64_to_x(&mut self.encoder, XReg::X4, 1);
+
+        let loop_start = self.encoder.position();
+        self.encoder.emit_ldrb_w_imm(WReg::W3, XReg::X1, 0);
+        self.encoder.emit_strb_w_imm(WReg::W3, XReg::X0, 0);
+        self.encoder.emit_adds_x(XReg::X0, XReg::X0, XReg::X4);
+        self.encoder.emit_adds_x(XReg::X1, XReg::X1, XReg::X4);
+        self.encoder.emit_subs_x(XReg::X2, XReg::X2, XReg::X4);
+        let has_more = self.emit_cond_branch_placeholder(BranchCondition::Ne);
+        self.patch_branch_placeholder_to_offset(has_more, loop_start, "string copy loop target")?;
+        self.patch_branch_placeholder_to_current(empty_text, "string copy empty target")?;
+
+        self.emit_scalar_reloads(frame)
     }
 
     fn emit_i32_overflow_check(&mut self, target_description: &str) -> Result<(), Vec<Diagnostic>> {

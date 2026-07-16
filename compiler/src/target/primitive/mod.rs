@@ -176,6 +176,30 @@ const PTR_FROM_ADDR_PARAMETERS: &[PrimitiveParameterSpec] = &[PrimitiveParameter
     name: "address",
     ty: "usize",
 }];
+const PTR_COPY_STR_TO_PTR_PARAMETERS: &[PrimitiveParameterSpec] = &[
+    PrimitiveParameterSpec {
+        name: "destination",
+        ty: "*u8",
+    },
+    PrimitiveParameterSpec {
+        name: "offset",
+        ty: "usize",
+    },
+    PrimitiveParameterSpec {
+        name: "text",
+        ty: "&str",
+    },
+];
+const PTR_STR_FROM_RAW_PARTS_PARAMETERS: &[PrimitiveParameterSpec] = &[
+    PrimitiveParameterSpec {
+        name: "pointer",
+        ty: "*u8",
+    },
+    PrimitiveParameterSpec {
+        name: "len",
+        ty: "usize",
+    },
+];
 const SYSCALL0_PARAMETERS: &[PrimitiveParameterSpec] = &[PrimitiveParameterSpec {
     name: "number",
     ty: "usize",
@@ -357,6 +381,24 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             generics: &["T"],
             parameters: PTR_FROM_ADDR_PARAMETERS,
             return_type: "*T",
+        },
+        PrimitiveSpec {
+            module_path: "std/ptr",
+            target: None,
+            visibility: Visibility::Nocter,
+            name: "copy_str_to_ptr",
+            generics: &[],
+            parameters: PTR_COPY_STR_TO_PTR_PARAMETERS,
+            return_type: "void",
+        },
+        PrimitiveSpec {
+            module_path: "std/ptr",
+            target: None,
+            visibility: Visibility::Nocter,
+            name: "str_from_raw_parts",
+            generics: &[],
+            parameters: PTR_STR_FROM_RAW_PARTS_PARAMETERS,
+            return_type: "&str",
         },
         PrimitiveSpec {
             module_path: "std/os/macos",

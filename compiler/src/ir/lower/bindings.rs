@@ -1,6 +1,6 @@
 use super::aggregates::{
-    aggregate_fields_from_type_expr, aggregate_type_layout,
-    lower_aggregate_struct_literal_to_location,
+    aggregate_call_return_layout_from_resolved, aggregate_fields_from_type_expr,
+    aggregate_type_layout, lower_aggregate_struct_literal_to_location,
     lower_aggregate_struct_literal_to_location_at_offset, push_aggregate_call_instruction,
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
     type_expr_is_copy_struct,
@@ -13,6 +13,7 @@ use super::expressions::{
     lower_bool_expression_to_value, lower_call_arguments_to_scalar_arguments,
     lower_call_arguments_to_scalar_arguments_with_temporaries, lower_catch_failure_mode,
     lower_i32_expression_to_location, lower_i32_expression_to_word,
+    lower_macos_syscall_primitive_call_to_location, lower_pointer_address_expression_to_word,
     lower_slice_expression_to_location, lower_str_expression_to_location,
     lower_u8_expression_to_location, lower_u8_expression_to_word,
     lower_usize_expression_to_location, lower_usize_expression_to_word,
@@ -167,6 +168,36 @@ fn lower_aggregate_normal_call_binding(
     call: &CallExpr,
     context: &mut LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    if macos_syscall_primitive_call(call, context)
+        && let Some(layout) = aggregate_call_return_layout_from_resolved(call, context)
+    {
+        validate_aggregate_binding_layout(layout)?;
+        let is_copy = call_success_type_is_copy_struct(call, context);
+        let drop_glue = call_success_drop_glue(call, context);
+        let fields = call_success_aggregate_fields(call, context);
+        let slot_index = context.define_aggregate_local(
+            statement.name.clone(),
+            layout,
+            is_copy,
+            drop_glue,
+            fields,
+        );
+        let mut temporaries = TemporaryAllocator::new(context)?;
+        let Some(mut syscall_instructions) = lower_macos_syscall_primitive_call_to_location(
+            call,
+            AggregateLocation::Slot(slot_index),
+            layout,
+            context,
+            &mut temporaries,
+        )?
+        else {
+            return Ok(None);
+        };
+        let mut instructions = vec![Instruction::ReserveAggregateSlot { slot_index, layout }];
+        instructions.append(&mut syscall_instructions);
+        return Ok(Some(instructions));
+    }
+
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Ok(None);
     };
@@ -620,6 +651,14 @@ fn unwrap_group(expression: &Expr) -> &Expr {
     }
 }
 
+fn expression_is_pointer_address_value(expression: &Expr, context: &LoweringContext) -> bool {
+    match expression {
+        Expr::Call(call) => context.primitive_name_for_call(call) == Some("from_addr"),
+        Expr::Group(group) => expression_is_pointer_address_value(&group.expression, context),
+        _ => false,
+    }
+}
+
 pub(super) fn lower_assignment(
     statement: &AssignmentStmt,
     context: &mut LoweringContext,
@@ -635,6 +674,24 @@ pub(super) fn lower_assignment(
         Expr::Member(member) => lower_aggregate_field_assignment(member, &statement.value, context),
         _ => Err(unsupported_assignment_diagnostic()),
     }
+}
+
+pub(super) fn assignment_targets_readwrite_aggregate_field(
+    statement: &AssignmentStmt,
+    context: &LoweringContext,
+) -> bool {
+    if statement.operator != AssignmentOperator::Assign {
+        return false;
+    }
+    let Expr::Member(member) = unwrap_group(&statement.target) else {
+        return false;
+    };
+    let Some((identifier_name, field_path)) = aggregate_assignment_target_path(member) else {
+        return false;
+    };
+    context
+        .aggregate_field(identifier_name, &field_path)
+        .is_some_and(|field| field.is_readwrite)
 }
 
 fn lower_identifier_assignment(
@@ -728,7 +785,14 @@ fn lower_aggregate_field_assignment(
             Ok(instructions)
         }
         AggregateFieldKind::Usize => {
-            let (mut instructions, value) = lower_usize_expression_to_word(value, context)?;
+            let (mut instructions, value) = match lower_usize_expression_to_word(value, context) {
+                Ok(lowered) => lowered,
+                Err(_) if expression_is_pointer_address_value(value, context) => {
+                    let mut temporaries = TemporaryAllocator::new(context)?;
+                    lower_pointer_address_expression_to_word(value, context, &mut temporaries)?
+                }
+                Err(diagnostics) => return Err(diagnostics),
+            };
             instructions.push(Instruction::StoreAggregateUsize {
                 destination,
                 offset,
@@ -1194,6 +1258,19 @@ fn lower_aggregate_call_assignment(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if macos_syscall_primitive_call(call, context) {
+        let mut temporaries = TemporaryAllocator::new(context)?;
+        if let Some(instructions) = lower_macos_syscall_primitive_call_to_location(
+            call,
+            AggregateLocation::Slot(slot_index),
+            layout,
+            context,
+            &mut temporaries,
+        )? {
+            return Ok(instructions);
+        }
+    }
+
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_assignment_diagnostic());
     };
@@ -1453,6 +1530,21 @@ fn call_success_drop_glue(
     };
     let signature = resolved.call_signature_for_call(call)?;
     context.drop_glue_for_type_expr(&signature.return_type)
+}
+
+fn macos_syscall_primitive_call(call: &CallExpr, context: &LoweringContext) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some(
+            "syscall0"
+                | "syscall1"
+                | "syscall2"
+                | "syscall3"
+                | "syscall4"
+                | "syscall5"
+                | "syscall6"
+        )
+    )
 }
 
 fn unsupported_binding_diagnostic(message: &'static str) -> Vec<Diagnostic> {

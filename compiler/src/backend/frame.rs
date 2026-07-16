@@ -365,7 +365,9 @@ fn instruction_clobbers_parameter_registers(instruction: &Instruction) -> bool {
         | Instruction::CallFallibleAggregate { .. }
         | Instruction::CallVoid { .. }
         | Instruction::CallFallibleVoid { .. }
-        | Instruction::WriteStr { .. } => true,
+        | Instruction::WriteStr { .. }
+        | Instruction::DarwinSyscall { .. }
+        | Instruction::CopyStrToPointer { .. } => true,
         Instruction::If {
             then_instructions,
             else_instructions,
@@ -406,6 +408,7 @@ fn instruction_clobbers_parameter_registers(instruction: &Instruction) -> bool {
         | Instruction::SetUsize { .. }
         | Instruction::SetBool { .. }
         | Instruction::SetStr { .. }
+        | Instruction::SetStrRawParts { .. }
         | Instruction::SetSlice { .. }
         | Instruction::AddI32 { .. }
         | Instruction::SubtractI32 { .. }
@@ -474,7 +477,9 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::CallVoid { .. }
         | Instruction::CallFallibleVoid { .. }
         | Instruction::ReserveAggregateSlot { .. }
-        | Instruction::WriteStr { .. } => true,
+        | Instruction::WriteStr { .. }
+        | Instruction::DarwinSyscall { .. }
+        | Instruction::CopyStrToPointer { .. } => true,
         Instruction::CopyAggregate {
             destination,
             source,
@@ -507,6 +512,7 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::SetUsize { .. }
         | Instruction::SetBool { .. }
         | Instruction::SetStr { .. }
+        | Instruction::SetStrRawParts { .. }
         | Instruction::SetSlice { .. }
         | Instruction::AddI32 { .. }
         | Instruction::SubtractI32 { .. }
@@ -570,6 +576,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::TailCall { arguments, .. } => {
             arguments.iter().map(ScalarArgument::abi_word_count).sum()
         }
+        Instruction::DarwinSyscall { arguments, .. } => arguments.len() + 1,
         Instruction::CallFallibleI32 {
             arguments,
             failure_mode,
@@ -641,6 +648,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::Break
         | Instruction::Continue => 0,
         Instruction::WriteStr { .. }
+        | Instruction::CopyStrToPointer { .. }
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::StoreAggregateUsize { .. }
         | Instruction::StoreAggregateI32 { .. }
@@ -657,6 +665,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::SetUsize { .. }
         | Instruction::SetBool { .. }
         | Instruction::SetStr { .. }
+        | Instruction::SetStrRawParts { .. }
         | Instruction::SetSlice { .. }
         | Instruction::AddI32 { .. }
         | Instruction::SubtractI32 { .. }
@@ -751,7 +760,10 @@ fn record_instruction_aggregate_slot_requests(
         | Instruction::ReturnFallibleSuccess
         | Instruction::ReturnFallibleFailure { .. }
         | Instruction::WriteStr { .. }
+        | Instruction::DarwinSyscall { .. }
+        | Instruction::CopyStrToPointer { .. }
         | Instruction::SetI32 { .. }
+        | Instruction::SetStrRawParts { .. }
         | Instruction::StoreAggregateUsize { .. }
         | Instruction::StoreAggregateI32 { .. }
         | Instruction::StoreAggregateU8 { .. }
@@ -1004,23 +1016,84 @@ fn record_instruction_parameter_spill_requests(
                 record_str_value_parameter_spill_requests(text, requests);
             }
         }
-        Instruction::StoreAggregateUsize { value, .. } => {
+        Instruction::DarwinSyscall {
+            number, arguments, ..
+        } => {
             if include_value_parameters {
+                record_usize_value_parameter_spill_requests(number, requests);
+                for argument in arguments {
+                    record_usize_value_parameter_spill_requests(argument, requests);
+                }
+            }
+        }
+        Instruction::CopyStrToPointer {
+            pointer,
+            offset,
+            text,
+        } => {
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(pointer, requests);
+                record_usize_value_parameter_spill_requests(offset, requests);
+                record_str_value_parameter_spill_requests(text, requests);
+            }
+        }
+        Instruction::StoreAggregateUsize {
+            destination,
+            offset,
+            value,
+        } => {
+            if include_value_parameters {
+                record_aggregate_location_parameter_spill_request(
+                    *destination,
+                    *offset,
+                    8,
+                    requests,
+                );
                 record_usize_value_parameter_spill_requests(value, requests);
             }
         }
-        Instruction::StoreAggregateI32 { value, .. } => {
+        Instruction::StoreAggregateI32 {
+            destination,
+            offset,
+            value,
+        } => {
             if include_value_parameters {
+                record_aggregate_location_parameter_spill_request(
+                    *destination,
+                    *offset,
+                    4,
+                    requests,
+                );
                 record_i32_value_parameter_spill_requests(value, requests);
             }
         }
-        Instruction::StoreAggregateU8 { value, .. } => {
+        Instruction::StoreAggregateU8 {
+            destination,
+            offset,
+            value,
+        } => {
             if include_value_parameters {
+                record_aggregate_location_parameter_spill_request(
+                    *destination,
+                    *offset,
+                    1,
+                    requests,
+                );
                 record_u8_value_parameter_spill_requests(value, requests);
             }
         }
-        Instruction::StoreAggregateBool { value, .. } => {
+        Instruction::StoreAggregateBool {
+            destination,
+            offset,
+            value,
+        } => {
             if include_value_parameters {
+                record_aggregate_location_parameter_spill_request(
+                    *destination,
+                    *offset,
+                    1,
+                    requests,
+                );
                 record_bool_value_parameter_spill_requests(value, requests);
             }
         }
@@ -1032,8 +1105,18 @@ fn record_instruction_parameter_spill_requests(
                 record_aggregate_location_parameter_spill_request(*source, *offset, 1, requests);
             }
         }
-        Instruction::CopyAggregate { source, layout, .. } => {
+        Instruction::CopyAggregate {
+            destination,
+            source,
+            layout,
+        } => {
             if include_value_parameters {
+                record_aggregate_location_parameter_spill_request(
+                    *destination,
+                    0,
+                    layout.size,
+                    requests,
+                );
                 record_aggregate_location_parameter_spill_request(
                     *source,
                     0,
@@ -1043,12 +1126,20 @@ fn record_instruction_parameter_spill_requests(
             }
         }
         Instruction::CopyAggregateRange {
+            destination,
+            destination_offset,
             source,
             source_offset,
             layout,
             ..
         } => {
             if include_value_parameters {
+                record_aggregate_location_parameter_spill_request(
+                    *destination,
+                    *destination_offset,
+                    layout.size,
+                    requests,
+                );
                 record_aggregate_location_parameter_spill_request(
                     *source,
                     *source_offset,
@@ -1080,6 +1171,12 @@ fn record_instruction_parameter_spill_requests(
         Instruction::SetStr { value, .. } => {
             if include_value_parameters {
                 record_str_value_parameter_spill_requests(value, requests);
+            }
+        }
+        Instruction::SetStrRawParts { pointer, len, .. } => {
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(pointer, requests);
+                record_usize_value_parameter_spill_requests(len, requests);
             }
         }
         Instruction::SetSlice { value, .. } => {
@@ -1359,6 +1456,9 @@ fn record_borrow_source_parameter_spill_request(
         | BorrowSource::Bool(BoolLocation::Parameter(index)) => {
             requests.insert(index);
         }
+        BorrowSource::AggregateParameter(index) => {
+            requests.insert(index);
+        }
         BorrowSource::I32(I32Location::Return | I32Location::Local(_))
         | BorrowSource::U8(U8Location::Return | U8Location::Local(_))
         | BorrowSource::Usize(UsizeLocation::Return | UsizeLocation::Local(_))
@@ -1426,6 +1526,23 @@ fn record_instruction_scalar_locals(
             record_i32_value(fd, highest_local_index);
             record_str_value(text, highest_local_index);
         }
+        Instruction::DarwinSyscall {
+            number, arguments, ..
+        } => {
+            record_usize_value(number, highest_local_index);
+            for argument in arguments {
+                record_usize_value(argument, highest_local_index);
+            }
+        }
+        Instruction::CopyStrToPointer {
+            pointer,
+            offset,
+            text,
+        } => {
+            record_usize_value(pointer, highest_local_index);
+            record_usize_value(offset, highest_local_index);
+            record_str_value(text, highest_local_index);
+        }
         Instruction::TailCall { arguments, .. } => {
             for argument in arguments {
                 record_scalar_argument(argument, highest_local_index);
@@ -1450,6 +1567,15 @@ fn record_instruction_scalar_locals(
         Instruction::SetStr { destination, value } => {
             record_str_location(*destination, highest_local_index);
             record_str_value(value, highest_local_index);
+        }
+        Instruction::SetStrRawParts {
+            destination,
+            pointer,
+            len,
+        } => {
+            record_str_location(*destination, highest_local_index);
+            record_usize_value(pointer, highest_local_index);
+            record_usize_value(len, highest_local_index);
         }
         Instruction::SetSlice { destination, value } => {
             record_slice_location(*destination, highest_local_index);
@@ -1783,7 +1909,7 @@ fn record_borrow_source(source: BorrowSource, highest_local_index: &mut Option<u
         BorrowSource::U8(location) => record_u8_location(location, highest_local_index),
         BorrowSource::Usize(location) => record_usize_location(location, highest_local_index),
         BorrowSource::Bool(location) => record_bool_location(location, highest_local_index),
-        BorrowSource::AggregateSlot(_) => {}
+        BorrowSource::AggregateSlot(_) | BorrowSource::AggregateParameter(_) => {}
     }
 }
 
@@ -2599,6 +2725,78 @@ mod tests {
                     0,
                     1,
                     &[8],
+                    &[]
+                )
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn store_to_borrowed_aggregate_parameter_after_call_reserves_parameter_spill_slot() {
+        let function = Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Void,
+            instructions: vec![
+                Instruction::CallVoid {
+                    target: CallTarget::same_file("effect"),
+                    arguments: vec![],
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Parameter(0),
+                    offset: 4,
+                    value: I32Value::Const(99),
+                },
+                Instruction::Return,
+            ],
+        };
+
+        let frame = plan_function_frame(&function).unwrap();
+
+        assert_eq!(
+            frame,
+            FunctionFrame::Framed(
+                FrameLayout::for_slot_counts_with_parameter_spills_and_aggregate_slots(
+                    0,
+                    0,
+                    &[0],
+                    &[]
+                )
+                .unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn direct_aggregate_parameter_field_load_after_call_reserves_parameter_spill_slot() {
+        let function = Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::CallVoid {
+                    target: CallTarget::same_file("effect"),
+                    arguments: vec![],
+                },
+                Instruction::LoadAggregateI32 {
+                    destination: I32Location::Return,
+                    source: AggregateLocation::DirectParameter { start_index: 0 },
+                    offset: 0,
+                },
+                Instruction::Return,
+            ],
+        };
+
+        let frame = plan_function_frame(&function).unwrap();
+
+        assert_eq!(
+            frame,
+            FunctionFrame::Framed(
+                FrameLayout::for_slot_counts_with_parameter_spills_and_aggregate_slots(
+                    0,
+                    0,
+                    &[0],
                     &[]
                 )
                 .unwrap()

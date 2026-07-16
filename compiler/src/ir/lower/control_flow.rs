@@ -1,4 +1,6 @@
-use super::bindings::{lower_assignment, lower_local_binding};
+use super::bindings::{
+    assignment_targets_readwrite_aggregate_field, lower_assignment, lower_local_binding,
+};
 use super::context::LoweringContext;
 use super::expressions::{
     expression_contains_call, lower_bool_expression_to_value, lower_bool_return_expression,
@@ -402,13 +404,7 @@ fn lower_nonterminal_loop_block_statements(
                 instructions.extend(lower_local_binding(statement, context)?)
             }
             Stmt::Assignment(statement) => {
-                let Some(target_name) = assignment_target_root_name(&statement.target) else {
-                    return Err(unsupported_nonterminal_if_diagnostic(
-                        diagnostic_code,
-                        subject,
-                    ));
-                };
-                if !context.local_defined_since(target_name, local_mark)
+                if !nonterminal_assignment_target_allowed(statement, context, local_mark)
                     || expression_contains_explicit_aggregate_move_outside(
                         &statement.value,
                         context,
@@ -605,6 +601,16 @@ fn assignment_target_root_name(expression: &Expr) -> Option<&str> {
         Expr::Member(member) => assignment_target_root_name(&member.object),
         _ => None,
     }
+}
+
+fn nonterminal_assignment_target_allowed(
+    statement: &crate::ast::AssignmentStmt,
+    context: &LoweringContext,
+    local_mark: usize,
+) -> bool {
+    assignment_target_root_name(&statement.target)
+        .is_some_and(|target_name| context.local_defined_since(target_name, local_mark))
+        || assignment_targets_readwrite_aggregate_field(statement, context)
 }
 
 fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {

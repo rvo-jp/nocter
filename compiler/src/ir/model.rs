@@ -65,6 +65,11 @@ pub(crate) enum Instruction {
         destination: StrLocation,
         value: StrValue,
     },
+    SetStrRawParts {
+        destination: StrLocation,
+        pointer: UsizeValue,
+        len: UsizeValue,
+    },
     SetSlice {
         destination: SliceLocation,
         value: SliceValue,
@@ -134,6 +139,17 @@ pub(crate) enum Instruction {
         source: AggregateLocation,
         source_offset: u32,
         layout: ValueLayout,
+    },
+    DarwinSyscall {
+        destination: AggregateLocation,
+        arity: u8,
+        number: UsizeValue,
+        arguments: Vec<UsizeValue>,
+    },
+    CopyStrToPointer {
+        pointer: UsizeValue,
+        offset: UsizeValue,
+        text: StrValue,
     },
     AddI32 {
         destination: I32Location,
@@ -480,6 +496,7 @@ pub(crate) enum BorrowSource {
     Usize(UsizeLocation),
     Bool(BoolLocation),
     AggregateSlot(usize),
+    AggregateParameter(usize),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

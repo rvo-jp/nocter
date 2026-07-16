@@ -1938,6 +1938,43 @@ func noise(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_preserves_direct_aggregate_first_field_after_normal_call() {
+    let project = TempProject::new("cli-run-preserve-direct-aggregate-first-field");
+    let source = project.write_source(
+        "preserve_direct_aggregate_first_field.nct",
+        r#"struct Pair {
+    first: i32
+    second: i32
+}
+
+func main(): i32 {
+    return consume(Pair{ first: 42, second: 7 })
+}
+
+func consume(pair: Pair): i32 {
+    let ignored = noise()
+    return pair.first
+}
+
+func noise(): i32 {
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_direct_aggregate_argument_between_scalars_exit_code() {
     let project = TempProject::new("cli-run-direct-aggregate-arg-between-scalars");
     let source = project.write_source(

@@ -12,14 +12,14 @@ use super::{
     lower_str_expression_to_value, lower_u8_expression_to_value, lower_usize_expression_to_value,
     unsupported_non_tail_call_diagnostic,
 };
-use crate::abi::ARGUMENT_REGISTER_COUNT;
+use crate::abi::{ARGUMENT_REGISTER_COUNT, ValueLayout, abi_value_from_type_expr};
 use crate::ast::{CallExpr, Expr};
 use crate::diagnostics::Diagnostic;
-use crate::ir::StrLocation;
 use crate::ir::{
     AggregateArgument, AggregateArgumentSource, AggregateLocation, BoolLocation, BorrowArgument,
     BorrowSource, CallTarget, DirectAggregateArgument, FallibleFailureMode, I32Location,
-    Instruction, ScalarArgument, SliceLocation, Type, U8Location, UsizeLocation,
+    Instruction, ScalarArgument, SliceLocation, StrLocation, Type, U8Location, UsizeLocation,
+    UsizeValue,
 };
 
 pub(super) fn lower_i32_normal_call(
@@ -496,12 +496,14 @@ pub(super) fn lower_call_arguments(
         return lower_legacy_i32_call_arguments(call, callee_name, context, temporaries);
     };
 
-    if parameter_types.len() != call.arguments.len() {
+    let method_receiver = context.method_call_receiver(call);
+    let argument_count = call.arguments.len() + usize::from(method_receiver.is_some());
+    if parameter_types.len() != argument_count {
         return Err(vec![Diagnostic::error(
             "E8006",
             format!(
                 "IR v0 cannot lower call to function `{callee_name}` with {} arguments against {} parameters",
-                call.arguments.len(),
+                argument_count,
                 parameter_types.len(),
             ),
         )]);
@@ -509,7 +511,11 @@ pub(super) fn lower_call_arguments(
 
     let mut instructions = Vec::new();
     let mut arguments = Vec::new();
-    for (argument, parameter_type) in call.arguments.iter().zip(parameter_types) {
+    let call_arguments = method_receiver
+        .into_iter()
+        .map(|receiver| (receiver, true))
+        .chain(call.arguments.iter().map(|argument| (argument, false)));
+    for ((argument, is_method_receiver), parameter_type) in call_arguments.zip(parameter_types) {
         match parameter_type {
             Type::I32 => {
                 let argument = lower_i32_expression_to_value(argument, context, temporaries)?;
@@ -547,12 +553,17 @@ pub(super) fn lower_call_arguments(
                 arguments.push(ScalarArgument::Slice(argument.value));
             }
             Type::Borrow { .. } => {
-                arguments.push(ScalarArgument::Borrow(lower_borrow_argument(
-                    argument,
-                    parameter_type,
-                    callee_name,
-                    context,
-                )?));
+                let argument = if is_method_receiver {
+                    lower_implicit_receiver_borrow_argument(
+                        argument,
+                        parameter_type,
+                        callee_name,
+                        context,
+                    )?
+                } else {
+                    lower_borrow_argument(argument, parameter_type, callee_name, context)?
+                };
+                arguments.push(ScalarArgument::Borrow(argument));
             }
             Type::Aggregate { .. } => {
                 let (argument_instructions, source) = lower_aggregate_argument_source(
@@ -605,6 +616,65 @@ pub(super) fn lower_call_arguments(
         }
     }
     Ok((instructions, arguments))
+}
+
+pub(in crate::ir::lower) fn lower_macos_syscall_primitive_call_to_location(
+    call: &CallExpr,
+    destination: AggregateLocation,
+    expected_layout: ValueLayout,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Some(arity) = macos_syscall_arity(call, context) else {
+        return Ok(None);
+    };
+    if call.arguments.len() != arity + 1 {
+        return Err(vec![Diagnostic::error(
+            "E8006",
+            format!(
+                "IR v0 can only lower primitive `syscall{arity}` with {} `usize` arguments",
+                arity + 1
+            ),
+        )]);
+    }
+
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_macos_syscall_diagnostic(
+            "missing resolved primitive signature",
+        ));
+    };
+    let Some(signature) = resolved.call_signature_for_call(call) else {
+        return Err(unsupported_macos_syscall_diagnostic(
+            "missing resolved call signature",
+        ));
+    };
+    let value = abi_value_from_type_expr(&signature.return_type, resolved)
+        .map_err(|_error| unsupported_macos_syscall_diagnostic("invalid return ABI layout"))?;
+    if value.layout != expected_layout {
+        return Err(unsupported_macos_syscall_diagnostic(
+            "return layout does not match the destination aggregate",
+        ));
+    }
+
+    let mut instructions = Vec::new();
+    let mut words = Vec::with_capacity(call.arguments.len());
+    for argument in &call.arguments {
+        let lowered = lower_usize_expression_to_value(argument, context, temporaries)?;
+        instructions.extend(lowered.instructions);
+        words.push(lowered.value);
+    }
+    let mut words = words.into_iter();
+    let number = words
+        .next()
+        .ok_or_else(|| unsupported_macos_syscall_diagnostic("missing syscall number argument"))?;
+    let arguments = words.collect::<Vec<_>>();
+    instructions.push(Instruction::DarwinSyscall {
+        destination,
+        arity: u8::try_from(arity).expect("macOS syscall arity fits in u8"),
+        number,
+        arguments,
+    });
+    Ok(Some(instructions))
 }
 
 fn validate_call_argument_abi_word_count(
@@ -999,89 +1069,29 @@ fn lower_borrow_argument(
         unreachable!("borrow argument lowering requires a borrow parameter type");
     };
 
-    let Expr::Borrow(borrow) = unwrap_group(argument) else {
-        return Err(unsupported_borrow_argument_diagnostic(
-            callee_name,
-            parameter_type,
-        ));
-    };
-
-    if borrow.is_readwrite != *is_readwrite {
-        return Err(unsupported_borrow_argument_diagnostic(
-            callee_name,
-            parameter_type,
-        ));
-    }
-
-    let Expr::Identifier(identifier) = unwrap_group(&borrow.expression) else {
-        return Err(unsupported_borrow_argument_diagnostic(
-            callee_name,
-            parameter_type,
-        ));
-    };
-
-    let source = match inner.as_ref() {
-        Type::I32 => match context.i32_location(&identifier.name) {
-            Some(I32Location::Local(index)) => BorrowSource::I32(I32Location::Local(index)),
-            Some(I32Location::Parameter(index)) => BorrowSource::I32(I32Location::Parameter(index)),
-            _ => {
+    let identifier_name = match unwrap_group(argument) {
+        Expr::Borrow(borrow) => {
+            if borrow.is_readwrite != *is_readwrite {
                 return Err(unsupported_borrow_argument_diagnostic(
                     callee_name,
                     parameter_type,
                 ));
             }
-        },
-        Type::U8 => match context.u8_location(&identifier.name) {
-            Some(U8Location::Local(index)) => BorrowSource::U8(U8Location::Local(index)),
-            Some(U8Location::Parameter(index)) => BorrowSource::U8(U8Location::Parameter(index)),
-            _ => {
+            let Expr::Identifier(identifier) = unwrap_group(&borrow.expression) else {
                 return Err(unsupported_borrow_argument_diagnostic(
                     callee_name,
                     parameter_type,
                 ));
-            }
-        },
-        Type::Usize => match context.usize_location(&identifier.name) {
-            Some(UsizeLocation::Local(index)) => BorrowSource::Usize(UsizeLocation::Local(index)),
-            Some(UsizeLocation::Parameter(index)) => {
-                BorrowSource::Usize(UsizeLocation::Parameter(index))
-            }
-            _ => {
-                return Err(unsupported_borrow_argument_diagnostic(
-                    callee_name,
-                    parameter_type,
-                ));
-            }
-        },
-        Type::Bool => match context.bool_location(&identifier.name) {
-            Some(BoolLocation::Local(index)) => BorrowSource::Bool(BoolLocation::Local(index)),
-            Some(BoolLocation::Parameter(index)) => {
-                BorrowSource::Bool(BoolLocation::Parameter(index))
-            }
-            _ => {
-                return Err(unsupported_borrow_argument_diagnostic(
-                    callee_name,
-                    parameter_type,
-                ));
-            }
-        },
-        Type::Aggregate {
-            layout: expected_layout,
+            };
+            &identifier.name
         }
-        | Type::DirectAggregate {
-            layout: expected_layout,
-            ..
-        } => match context.aggregate_slot(&identifier.name) {
-            Some((slot_index, layout)) if layout == *expected_layout => {
-                BorrowSource::AggregateSlot(slot_index)
-            }
-            _ => {
-                return Err(unsupported_borrow_argument_diagnostic(
-                    callee_name,
-                    parameter_type,
-                ));
-            }
-        },
+        Expr::Identifier(identifier)
+            if context
+                .aggregate_borrow_parameter(&identifier.name)
+                .is_some() =>
+        {
+            &identifier.name
+        }
         _ => {
             return Err(unsupported_borrow_argument_diagnostic(
                 callee_name,
@@ -1090,7 +1100,132 @@ fn lower_borrow_argument(
         }
     };
 
+    let source = lower_borrow_source_from_identifier(
+        identifier_name,
+        inner,
+        parameter_type,
+        callee_name,
+        context,
+    )?;
+
     Ok(BorrowArgument { source })
+}
+
+fn lower_implicit_receiver_borrow_argument(
+    argument: &Expr,
+    parameter_type: &Type,
+    callee_name: &str,
+    context: &LoweringContext,
+) -> Result<BorrowArgument, Vec<Diagnostic>> {
+    let Type::Borrow { inner, .. } = parameter_type else {
+        unreachable!("receiver borrow argument lowering requires a borrow parameter type");
+    };
+
+    let Expr::Identifier(identifier) = unwrap_group(argument) else {
+        return Err(unsupported_borrow_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    };
+
+    let source = lower_borrow_source_from_identifier(
+        &identifier.name,
+        inner,
+        parameter_type,
+        callee_name,
+        context,
+    )?;
+
+    Ok(BorrowArgument { source })
+}
+
+fn lower_borrow_source_from_identifier(
+    identifier_name: &str,
+    inner: &Type,
+    parameter_type: &Type,
+    callee_name: &str,
+    context: &LoweringContext,
+) -> Result<BorrowSource, Vec<Diagnostic>> {
+    match inner {
+        Type::I32 => match context.i32_location(identifier_name) {
+            Some(I32Location::Local(index)) => Ok(BorrowSource::I32(I32Location::Local(index))),
+            Some(I32Location::Parameter(index)) => {
+                Ok(BorrowSource::I32(I32Location::Parameter(index)))
+            }
+            _ => Err(unsupported_borrow_argument_diagnostic(
+                callee_name,
+                parameter_type,
+            )),
+        },
+        Type::U8 => match context.u8_location(identifier_name) {
+            Some(U8Location::Local(index)) => Ok(BorrowSource::U8(U8Location::Local(index))),
+            Some(U8Location::Parameter(index)) => {
+                Ok(BorrowSource::U8(U8Location::Parameter(index)))
+            }
+            _ => Err(unsupported_borrow_argument_diagnostic(
+                callee_name,
+                parameter_type,
+            )),
+        },
+        Type::Usize => match context.usize_location(identifier_name) {
+            Some(UsizeLocation::Local(index)) => {
+                Ok(BorrowSource::Usize(UsizeLocation::Local(index)))
+            }
+            Some(UsizeLocation::Parameter(index)) => {
+                Ok(BorrowSource::Usize(UsizeLocation::Parameter(index)))
+            }
+            _ => Err(unsupported_borrow_argument_diagnostic(
+                callee_name,
+                parameter_type,
+            )),
+        },
+        Type::Bool => match context.bool_location(identifier_name) {
+            Some(BoolLocation::Local(index)) => Ok(BorrowSource::Bool(BoolLocation::Local(index))),
+            Some(BoolLocation::Parameter(index)) => {
+                Ok(BorrowSource::Bool(BoolLocation::Parameter(index)))
+            }
+            _ => Err(unsupported_borrow_argument_diagnostic(
+                callee_name,
+                parameter_type,
+            )),
+        },
+        Type::Aggregate {
+            layout: expected_layout,
+        }
+        | Type::DirectAggregate {
+            layout: expected_layout,
+            ..
+        } => {
+            if let Some((slot_index, layout)) = context.aggregate_slot(identifier_name)
+                && layout == *expected_layout
+            {
+                return Ok(BorrowSource::AggregateSlot(slot_index));
+            }
+
+            let required_readwrite = matches!(
+                parameter_type,
+                Type::Borrow {
+                    is_readwrite: true,
+                    ..
+                }
+            );
+            if let Some(borrow) = context.aggregate_borrow_parameter(identifier_name)
+                && borrow.layout == *expected_layout
+                && (!required_readwrite || borrow.is_readwrite)
+            {
+                return Ok(BorrowSource::AggregateParameter(borrow.parameter_index));
+            }
+
+            Err(unsupported_borrow_argument_diagnostic(
+                callee_name,
+                parameter_type,
+            ))
+        }
+        _ => Err(unsupported_borrow_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        )),
+    }
 }
 
 fn unwrap_group(expression: &Expr) -> &Expr {
@@ -1520,6 +1655,156 @@ pub(super) fn primitive_write_text_raw_call(call: &CallExpr, context: &LoweringC
         context.primitive_name_for_call(call),
         Some("write_text_raw")
     )
+}
+
+pub(super) fn primitive_addr_call(call: &CallExpr, context: &LoweringContext) -> bool {
+    matches!(context.primitive_name_for_call(call), Some("addr"))
+}
+
+pub(super) fn primitive_copy_str_to_ptr_call(call: &CallExpr, context: &LoweringContext) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("copy_str_to_ptr")
+    )
+}
+
+pub(super) fn primitive_str_from_raw_parts_call(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("str_from_raw_parts")
+    )
+}
+
+pub(super) fn lower_addr_primitive_call_to_word(
+    call: &CallExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, UsizeValue), Vec<Diagnostic>> {
+    if call.arguments.len() != 1 {
+        return Err(unsupported_pointer_primitive_diagnostic(
+            "`addr` requires one pointer argument",
+        ));
+    }
+    lower_pointer_address_expression_to_word(&call.arguments[0], context, temporaries)
+}
+
+pub(super) fn lower_copy_str_to_ptr_primitive_call(
+    call: &CallExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if call.arguments.len() != 3 {
+        return Err(unsupported_pointer_primitive_diagnostic(
+            "`copy_str_to_ptr` requires arguments `(destination: *u8, offset: usize, text: &str)`",
+        ));
+    }
+
+    let (mut instructions, pointer) =
+        lower_pointer_address_expression_to_word(&call.arguments[0], context, temporaries)?;
+    let offset = lower_usize_expression_to_value(&call.arguments[1], context, temporaries)?;
+    instructions.extend(offset.instructions);
+    let text = lower_str_expression_to_value(&call.arguments[2], context, temporaries)?;
+    instructions.extend(text.instructions);
+    instructions.push(Instruction::CopyStrToPointer {
+        pointer,
+        offset: offset.value,
+        text: text.value,
+    });
+    Ok(instructions)
+}
+
+pub(super) fn lower_str_from_raw_parts_primitive_call_to_location(
+    call: &CallExpr,
+    destination: StrLocation,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if call.arguments.len() != 2 {
+        return Err(unsupported_pointer_primitive_diagnostic(
+            "`str_from_raw_parts` requires arguments `(pointer: *u8, len: usize)`",
+        ));
+    }
+
+    let (mut instructions, pointer) =
+        lower_pointer_address_expression_to_word(&call.arguments[0], context, temporaries)?;
+    let len = lower_usize_expression_to_value(&call.arguments[1], context, temporaries)?;
+    instructions.extend(len.instructions);
+    instructions.push(Instruction::SetStrRawParts {
+        destination,
+        pointer,
+        len: len.value,
+    });
+    Ok(instructions)
+}
+
+fn macos_syscall_arity(call: &CallExpr, context: &LoweringContext) -> Option<usize> {
+    match context.primitive_name_for_call(call)? {
+        "syscall0" => Some(0),
+        "syscall1" => Some(1),
+        "syscall2" => Some(2),
+        "syscall3" => Some(3),
+        "syscall4" => Some(4),
+        "syscall5" => Some(5),
+        "syscall6" => Some(6),
+        _ => None,
+    }
+}
+
+fn unsupported_macos_syscall_diagnostic(reason: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8006",
+        format!("IR v0 cannot lower macOS syscall primitive: {reason}"),
+    )]
+}
+
+pub(in crate::ir::lower) fn lower_pointer_address_expression_to_word(
+    expression: &Expr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, UsizeValue), Vec<Diagnostic>> {
+    match expression {
+        Expr::Call(call)
+            if context.primitive_name_for_call(call) == Some("from_addr")
+                && call.arguments.len() == 1 =>
+        {
+            let address =
+                lower_usize_expression_to_value(&call.arguments[0], context, temporaries)?;
+            Ok((address.instructions, address.value))
+        }
+        Expr::Member(_) => {
+            let access = lower_aggregate_member_field_access(expression, context, temporaries)?
+                .filter(|access| access.kind == AggregateFieldKind::Usize)
+                .ok_or_else(|| {
+                    unsupported_pointer_primitive_diagnostic(
+                        "pointer argument must be a pointer aggregate field",
+                    )
+                })?;
+            let destination = temporaries.next_usize()?;
+            let mut instructions = access.instructions;
+            instructions.push(Instruction::LoadAggregateUsize {
+                destination,
+                source: access.source,
+                offset: access.offset,
+            });
+            Ok((instructions, UsizeValue::Location(destination)))
+        }
+        Expr::Group(group) => {
+            lower_pointer_address_expression_to_word(&group.expression, context, temporaries)
+        }
+        _ => Err(unsupported_pointer_primitive_diagnostic(
+            "pointer argument must come from `from_addr(...)` or a pointer aggregate field",
+        )),
+    }
+}
+
+fn unsupported_pointer_primitive_diagnostic(reason: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8006",
+        format!("IR v0 cannot lower pointer primitive call: {reason}"),
+    )]
 }
 
 fn lower_write_text_raw_primitive_call(

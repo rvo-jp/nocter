@@ -1,5 +1,6 @@
 use super::aggregates::{
-    aggregate_fields_from_type_expr, aggregate_type_layout, push_aggregate_call_instruction,
+    aggregate_call_return_layout_from_resolved, aggregate_fields_from_type_expr,
+    aggregate_type_layout, push_aggregate_call_instruction,
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
 };
 use super::bindings::{lower_assignment, lower_local_binding};
@@ -27,14 +28,19 @@ use crate::ir::{
     SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation,
     UsizeValue,
 };
+pub(super) use calls::lower_macos_syscall_primitive_call_to_location;
+pub(super) use calls::lower_pointer_address_expression_to_word;
 use calls::{
-    call_arguments_require_stack, is_tail_call_stack_pointer_argument, lower_bool_normal_call,
-    lower_call_arguments, lower_direct_tail_call, lower_fallible_bool_normal_call,
+    call_arguments_require_stack, is_tail_call_stack_pointer_argument,
+    lower_addr_primitive_call_to_word, lower_bool_normal_call, lower_call_arguments,
+    lower_copy_str_to_ptr_primitive_call, lower_direct_tail_call, lower_fallible_bool_normal_call,
     lower_fallible_i32_normal_call, lower_fallible_slice_normal_call,
     lower_fallible_str_normal_call, lower_fallible_u8_normal_call,
     lower_fallible_usize_normal_call, lower_fallible_void_normal_call, lower_i32_normal_call,
-    lower_slice_normal_call, lower_str_normal_call, lower_u8_normal_call, lower_usize_normal_call,
-    lower_void_normal_call, primitive_trap_call, primitive_write_text_raw_call,
+    lower_slice_normal_call, lower_str_from_raw_parts_primitive_call_to_location,
+    lower_str_normal_call, lower_u8_normal_call, lower_usize_normal_call, lower_void_normal_call,
+    primitive_addr_call, primitive_copy_str_to_ptr_call, primitive_str_from_raw_parts_call,
+    primitive_trap_call, primitive_write_text_raw_call,
 };
 use predicates::{
     bool_comparison_contains_call, bool_comparison_needs_temporaries,
@@ -204,6 +210,12 @@ pub(super) fn lower_usize_expression_to_location(
                 });
                 return Ok(instructions);
             }
+            if primitive_addr_call(call, context) {
+                let (mut instructions, value) =
+                    lower_addr_primitive_call_to_word(call, context, &mut temporaries)?;
+                instructions.push(Instruction::SetUsize { destination, value });
+                return Ok(instructions);
+            }
 
             lower_usize_normal_call(call, destination, context, &mut temporaries)
         }
@@ -268,6 +280,14 @@ pub(super) fn lower_str_expression_to_location(
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
+            if primitive_str_from_raw_parts_call(call, context) {
+                return lower_str_from_raw_parts_primitive_call_to_location(
+                    call,
+                    destination,
+                    context,
+                    &mut temporaries,
+                );
+            }
             lower_str_normal_call(call, destination, context, &mut temporaries)
         }
         Expr::Propagate(propagation) => lower_str_fallible_expression_to_location(
@@ -346,6 +366,12 @@ pub(super) fn lower_void_expression_statement(
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => {
+            if primitive_copy_str_to_ptr_call(call, context) {
+                let mut temporaries = TemporaryAllocator::new(context)?;
+                return lower_copy_str_to_ptr_primitive_call(call, context, &mut temporaries)
+                    .map(Some);
+            }
+
             let Some((target, _call_name)) = context.direct_call_target_and_name(call) else {
                 return Ok(None);
             };
@@ -1043,6 +1069,14 @@ fn lower_usize_expression_to_value(
             if let Some(value) = lower_builtin_len_call_to_value(call, context, temporaries) {
                 return value;
             }
+            if primitive_addr_call(call, context) {
+                let (instructions, value) =
+                    lower_addr_primitive_call_to_word(call, context, temporaries)?;
+                return Ok(LoweredUsizeValue {
+                    instructions,
+                    value,
+                });
+            }
 
             let temporary = temporaries.next_usize()?;
             Ok(LoweredUsizeValue {
@@ -1135,6 +1169,17 @@ fn lower_str_expression_to_value(
     match expression {
         Expr::Call(call) => {
             let temporary = temporaries.next_str()?;
+            if primitive_str_from_raw_parts_call(call, context) {
+                return Ok(LoweredStrValue {
+                    instructions: lower_str_from_raw_parts_primitive_call_to_location(
+                        call,
+                        temporary,
+                        context,
+                        temporaries,
+                    )?,
+                    value: StrValue::Location(temporary),
+                });
+            }
             Ok(LoweredStrValue {
                 instructions: lower_str_normal_call(call, temporary, context, temporaries)?,
                 value: StrValue::Location(temporary),
@@ -1468,6 +1513,16 @@ pub(super) fn lower_usize_return_expression(
                 instructions.push(Instruction::Return);
                 return Ok(instructions);
             }
+            if primitive_addr_call(call, context) {
+                let (mut instructions, value) =
+                    lower_addr_primitive_call_to_word(call, context, &mut temporaries)?;
+                instructions.push(Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value,
+                });
+                instructions.push(Instruction::Return);
+                return Ok(instructions);
+            }
 
             lower_direct_tail_call(call, context)
         }
@@ -1486,7 +1541,20 @@ pub(super) fn lower_str_return_expression(
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
-        Expr::Call(call) => lower_direct_tail_call(call, context),
+        Expr::Call(call) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            if primitive_str_from_raw_parts_call(call, context) {
+                let mut instructions = lower_str_from_raw_parts_primitive_call_to_location(
+                    call,
+                    StrLocation::Return,
+                    context,
+                    &mut temporaries,
+                )?;
+                instructions.push(Instruction::Return);
+                return Ok(instructions);
+            }
+            lower_direct_tail_call(call, context)
+        }
         Expr::Group(group) => lower_str_return_expression(&group.expression, context),
         _ => {
             let mut instructions =
@@ -2002,6 +2070,39 @@ fn lower_aggregate_call_member_field_access(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Option<LoweredAggregateFieldAccess>, Vec<Diagnostic>> {
+    if macos_syscall_primitive_call(call, context)
+        && let Some(layout) = aggregate_call_return_layout_from_resolved(call, context)
+    {
+        if !supported_aggregate_copy_layout(layout) {
+            return Ok(None);
+        }
+        let Some(field) = aggregate_call_field(call, member_name, context) else {
+            return Ok(None);
+        };
+
+        let slot_index = temporaries.next_aggregate_slot();
+        let mut instructions = vec![Instruction::ReserveAggregateSlot { slot_index, layout }];
+        let Some(mut syscall_instructions) = lower_macos_syscall_primitive_call_to_location(
+            call,
+            AggregateLocation::Slot(slot_index),
+            layout,
+            context,
+            temporaries,
+        )?
+        else {
+            return Ok(None);
+        };
+        instructions.append(&mut syscall_instructions);
+
+        return Ok(Some(LoweredAggregateFieldAccess {
+            instructions,
+            source: AggregateLocation::Slot(slot_index),
+            offset: field.offset,
+            kind: field.kind,
+            is_copy: true,
+        }));
+    }
+
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Ok(None);
     };
@@ -2039,6 +2140,21 @@ fn lower_aggregate_call_member_field_access(
         kind: field.kind,
         is_copy: true,
     }))
+}
+
+fn macos_syscall_primitive_call(call: &CallExpr, context: &LoweringContext) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some(
+            "syscall0"
+                | "syscall1"
+                | "syscall2"
+                | "syscall3"
+                | "syscall4"
+                | "syscall5"
+                | "syscall6"
+        )
+    )
 }
 
 fn lower_aggregate_fallible_call_member_field_access(

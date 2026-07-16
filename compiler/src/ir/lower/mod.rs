@@ -19,7 +19,9 @@ use crate::abi::{
     function_parameter_abi_word_count_from_signature,
 };
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
-use crate::ast::{DropDecl, FunctionDecl, ImplMember, Item, Parameter, TypeExpr, TypeReference};
+use crate::ast::{
+    DropDecl, FunctionDecl, ImplMember, Item, MethodDecl, Parameter, TypeExpr, TypeReference,
+};
 use crate::diagnostics::Diagnostic;
 use crate::ir::Type;
 use crate::resolve::{
@@ -74,6 +76,7 @@ pub(crate) fn lower_executable_with_entry(
             function_names.clone(),
             root.ast.span.source,
             &root.resolved,
+            &root.typecheck_facts,
         )
         .map_err(|diagnostics| attach_primary_span_if_absent(diagnostics, sources, entry.span))?,
     ];
@@ -244,12 +247,18 @@ struct FunctionIndex<'a> {
 struct IndexedCallable<'a> {
     declaration: IndexedDeclaration<'a>,
     resolved: &'a ResolveOutput,
+    typecheck_facts: &'a crate::typecheck::TypecheckFacts,
 }
 
 enum IndexedDeclaration<'a> {
     Function(&'a FunctionDecl),
     Drop {
         declaration: &'a DropDecl,
+        self_ty: &'a TypeExpr,
+        name: String,
+    },
+    Method {
+        declaration: &'a MethodDecl,
         self_ty: &'a TypeExpr,
         name: String,
     },
@@ -274,19 +283,43 @@ impl<'a> FunctionIndex<'a> {
                             continue;
                         };
                         for member in &impl_.members {
-                            let ImplMember::Drop(drop_) = member else {
-                                continue;
-                            };
-                            let name = drop_function_name(type_name);
-                            let target = call_target_for_source(
-                                file.ast.span.source,
-                                root_source,
-                                name.clone(),
-                            );
-                            definitions.insert(
-                                target,
-                                IndexedCallable::new_drop(drop_, &impl_.target_ty, name, file),
-                            );
+                            match member {
+                                ImplMember::Drop(drop_) => {
+                                    let name = drop_function_name(type_name);
+                                    let target = call_target_for_source(
+                                        file.ast.span.source,
+                                        root_source,
+                                        name.clone(),
+                                    );
+                                    definitions.insert(
+                                        target,
+                                        IndexedCallable::new_drop(
+                                            drop_,
+                                            &impl_.target_ty,
+                                            name,
+                                            file,
+                                        ),
+                                    );
+                                }
+                                ImplMember::Method(method) if method.body.is_some() => {
+                                    let name = method_target_name(type_name, &method.name);
+                                    let target = call_target_for_source(
+                                        file.ast.span.source,
+                                        root_source,
+                                        name.clone(),
+                                    );
+                                    definitions.insert(
+                                        target,
+                                        IndexedCallable::new_method(
+                                            method,
+                                            &impl_.target_ty,
+                                            name,
+                                            file,
+                                        ),
+                                    );
+                                }
+                                ImplMember::Method(_) => {}
+                            }
                         }
                     }
                     _ => {}
@@ -328,6 +361,7 @@ impl<'a> IndexedCallable<'a> {
         Self {
             declaration: IndexedDeclaration::Function(declaration),
             resolved: &file.resolved,
+            typecheck_facts: &file.typecheck_facts,
         }
     }
 
@@ -344,6 +378,24 @@ impl<'a> IndexedCallable<'a> {
                 name,
             },
             resolved: &file.resolved,
+            typecheck_facts: &file.typecheck_facts,
+        }
+    }
+
+    fn new_method(
+        declaration: &'a MethodDecl,
+        self_ty: &'a TypeExpr,
+        name: String,
+        file: &'a FileAnalysis,
+    ) -> Self {
+        Self {
+            declaration: IndexedDeclaration::Method {
+                declaration,
+                self_ty,
+                name,
+            },
+            resolved: &file.resolved,
+            typecheck_facts: &file.typecheck_facts,
         }
     }
 
@@ -364,6 +416,18 @@ impl<'a> IndexedCallable<'a> {
                     self.resolved,
                 )
             }
+            IndexedDeclaration::Method { declaration, .. } => declaration
+                .body
+                .as_ref()
+                .map(|body| {
+                    imported_calls::imported_call_diagnostics_for_block(
+                        sources,
+                        body,
+                        root_source,
+                        self.resolved,
+                    )
+                })
+                .unwrap_or_default(),
         }
     }
 
@@ -385,6 +449,7 @@ impl<'a> IndexedCallable<'a> {
                 function_names,
                 root_source,
                 self.resolved,
+                self.typecheck_facts,
             ),
             IndexedDeclaration::Drop {
                 declaration,
@@ -400,6 +465,23 @@ impl<'a> IndexedCallable<'a> {
                 function_names,
                 root_source,
                 self.resolved,
+                self.typecheck_facts,
+            ),
+            IndexedDeclaration::Method {
+                declaration,
+                self_ty,
+                name,
+            } => functions::lower_method_function(
+                declaration,
+                self_ty,
+                name.clone(),
+                sources,
+                target,
+                function_signatures,
+                function_names,
+                root_source,
+                self.resolved,
+                self.typecheck_facts,
             ),
         }
         .map_err(|diagnostics| attach_primary_span_if_absent(diagnostics, sources, span))
@@ -460,6 +542,34 @@ impl<'a> IndexedCallable<'a> {
                     ),
                 })
             }
+            IndexedDeclaration::Method {
+                declaration,
+                self_ty,
+                ..
+            } => {
+                let parameters = method_parameters(declaration, self_ty);
+                let return_type =
+                    functions::type_expr_with_self_type(&declaration.return_type, self_ty);
+                let resolved_signature =
+                    resolved_function_signature(&parameters, return_type.clone());
+                lower_signature_return_type(&return_type, self.resolved).map(|return_type| {
+                    let parameter_types = parameters
+                        .iter()
+                        .map(|parameter| {
+                            lower_signature_parameter_type(&parameter.ty, self.resolved)
+                        })
+                        .collect::<Option<Vec<_>>>();
+
+                    FunctionSignature {
+                        return_type,
+                        parameter_types,
+                        parameter_abi_word_count: parameter_abi_word_count(
+                            &resolved_signature,
+                            self.resolved,
+                        ),
+                    }
+                })
+            }
         }
     }
 
@@ -471,8 +581,23 @@ impl<'a> IndexedCallable<'a> {
             IndexedDeclaration::Drop {
                 declaration, name, ..
             } => Some((drop_name_span(declaration.span), name.clone())),
+            IndexedDeclaration::Method {
+                declaration, name, ..
+            } => Some((declaration.name_span, name.clone())),
         }
     }
+}
+
+fn method_parameters(method: &MethodDecl, self_ty: &TypeExpr) -> Vec<Parameter> {
+    let mut parameters = Vec::with_capacity(method.parameters.parameters.len() + 1);
+    parameters.push(Parameter {
+        span: method.receiver.span,
+        name: method.receiver.name.clone(),
+        name_span: method.receiver.name_span,
+        ty: functions::type_expr_with_self_type(&method.receiver.ty, self_ty),
+    });
+    parameters.extend(method.parameters.parameters.iter().cloned());
+    parameters
 }
 
 fn resolved_function_signature(
@@ -511,6 +636,7 @@ impl IndexedDeclaration<'_> {
         match self {
             IndexedDeclaration::Function(function) => function.span,
             IndexedDeclaration::Drop { declaration, .. } => declaration.span,
+            IndexedDeclaration::Method { declaration, .. } => declaration.span,
         }
     }
 }
@@ -521,6 +647,10 @@ fn call_target_for_source(source: SourceId, root_source: SourceId, name: String)
     } else {
         CallTarget::imported(source, name)
     }
+}
+
+fn method_target_name(type_name: &str, method_name: &str) -> String {
+    format!("{type_name}.{method_name}")
 }
 
 fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {
