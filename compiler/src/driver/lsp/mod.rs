@@ -1583,6 +1583,79 @@ mod tests {
     }
 
     #[test]
+    fn lsp_diagnostics_include_related_information_and_help() {
+        let project = TempProject::new("lsp-diagnostic-related-info");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        let app = project.write_source(
+            "app.nct",
+            "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
+        );
+        let config = project.write_source(
+            "config.nct",
+            "pub func answer(value: i32): i32 {\n    return value\n}\n",
+        );
+        let app_uri = file_uri(&app);
+        let config_uri = file_uri(&config);
+        let documents = HashMap::from([
+            (
+                app_uri.clone(),
+                open_document(
+                    app_uri.clone(),
+                    Some(1),
+                    "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n"
+                        .to_string(),
+                ),
+            ),
+            (
+                config_uri.clone(),
+                open_document(
+                    config_uri.clone(),
+                    Some(1),
+                    "pub func answer(value: i32): i32 {\n    return value\n}\n".to_string(),
+                ),
+            ),
+        ]);
+
+        let diagnostics = diagnostics_for_workspace(&app_uri, &documents);
+        let document_diagnostics = diagnostics
+            .iter()
+            .find(|(diagnostic_uri, _)| diagnostic_uri == &app_uri)
+            .map(|(_, diagnostics)| diagnostics)
+            .expect("expected diagnostics for open document");
+        let diagnostic = document_diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "E0320")
+            .unwrap_or_else(|| {
+                panic!("expected argument count diagnostic, got {document_diagnostics:#?}")
+            });
+
+        assert!(
+            diagnostic
+                .message
+                .contains("help: pass exactly the parameters declared by the function")
+        );
+        assert_eq!(diagnostic.related_information.len(), 1);
+        assert_eq!(
+            diagnostic.related_information[0].message,
+            "function `answer` is declared here"
+        );
+        assert_eq!(diagnostic.related_information[0].location.uri, config_uri);
+        assert_eq!(
+            diagnostic.related_information[0].location.range.start.line,
+            0
+        );
+
+        let value = serde_json::to_value(diagnostic).unwrap();
+        assert!(value.get("relatedInformation").is_some());
+        assert!(value.get("related_information").is_none());
+        assert_eq!(
+            value["relatedInformation"][0]["location"]["uri"],
+            json!(config_uri)
+        );
+    }
+
+    #[test]
     fn lsp_diagnostics_do_not_require_entry_function() {
         let uri = "file:///tmp/nocter-lsp-library.nct".to_string();
         let documents = HashMap::from([(

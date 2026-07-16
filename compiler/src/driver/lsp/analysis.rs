@@ -64,11 +64,11 @@ pub(super) fn diagnostics_for_workspace(
     };
 
     open_documents
-        .into_iter()
+        .iter()
         .map(|document| {
             (
                 document.uri.clone(),
-                diagnostics_for_lsp(document, diagnostics.clone()),
+                diagnostics_for_lsp(document, &open_documents, diagnostics.clone()),
             )
         })
         .collect()
