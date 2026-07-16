@@ -135,7 +135,7 @@ Rules:
 
 - The `@` character is reserved for possible future attribute-like syntax and is invalid in v0 source outside string literals, byte literals, and comments.
 - Layout is governed by Nocter ABI v0, not by a `repr` attribute.
-- Target-specific primitive declarations are selected by `#target("...")` directives inside `~/.nocter/std/`, not by `@target` attributes or target overlay directories.
+- Target-specific std declarations are selected by `#target("...")` directives inside `~/.nocter/std/`, not by `@target` attributes or target overlay directories.
 - Low-level compiler boundaries are expressed by typed `primitive` declarations inside the active Nocter home, not by attributes.
 - Visibility is expressed by `pub` and `pub(nocter)`, not by attributes.
 - Test, inline, deprecation, documentation, export-name, and link-name attributes are not part of v0.

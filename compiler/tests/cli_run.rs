@@ -531,18 +531,13 @@ fn run_command_writes_reassigned_str_local() {
     let project = TempProject::new("cli-run-str-var-assignment");
     project.write_nocter_home_file(
         "std/io.nct",
-        r#"from std/io_impl import write_text_raw
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 
 pub func write(text: &str): void! {
     write_text_raw(1, text)?
     return
 }
-"#,
-    );
-    project.write_nocter_home_file(
-        "std/io_impl.nct",
-        r#"#target("arm64-darwin")
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     );
     let source = project.write_source(
@@ -3828,7 +3823,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
     );
     project.write_nocter_home_file(
         "std/log.nct",
-        r#"from std/io_impl import write_text_raw
+        r#"from std/io import write_text_raw
 
 pub func write(text: &str): void! {
     write_text_raw(1, text)?
@@ -3837,7 +3832,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io_impl.nct",
+        "std/io.nct",
         r#"#target("arm64-darwin")
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -3891,7 +3886,7 @@ fn run_command_runs_replacement_and_scope_end_drops() {
     let project = TempProject::new("cli-run-replacement-drop");
     project.write_nocter_home_file(
         "std/log.nct",
-        r#"from std/io_impl import write_text_raw
+        r#"from std/io import write_text_raw
 
 pub func write(text: &str): void! {
     write_text_raw(1, text)?
@@ -3900,7 +3895,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io_impl.nct",
+        "std/io.nct",
         r#"#target("arm64-darwin")
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
@@ -3947,7 +3942,7 @@ fn run_command_preserves_terminal_if_return_value_after_scope_drop() {
     let project = TempProject::new("cli-run-terminal-if-return-drop");
     project.write_nocter_home_file(
         "std/log.nct",
-        r#"from std/io_impl import write_text_raw
+        r#"from std/io import write_text_raw
 
 pub func write(text: &str): void! {
     write_text_raw(1, text)?
@@ -3956,7 +3951,7 @@ pub func write(text: &str): void! {
 "#,
     );
     project.write_nocter_home_file(
-        "std/io_impl.nct",
+        "std/io.nct",
         r#"#target("arm64-darwin")
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,

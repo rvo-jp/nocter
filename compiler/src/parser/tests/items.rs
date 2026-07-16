@@ -380,11 +380,35 @@ pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 }
 
 #[test]
-fn rejects_target_directive_on_ordinary_function() {
-    let output = parse_text(
+fn parses_target_directive_on_function_declaration() {
+    let (sources, output) = parse_text_with_sources(
         r#"#target("arm64-darwin")
 func main(): i32 {
     return 0
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function declaration");
+    };
+    let target = function.target.as_ref().expect("expected target directive");
+    assert_eq!(target.target, "arm64-darwin");
+    assert_eq!(function.span.start, 0);
+
+    let json = ast.to_json(&sources);
+    let directive = find_json_node(&json, "target_directive").expect("expected target directive");
+    assert_eq!(directive.value.as_deref(), Some("arm64-darwin"));
+}
+
+#[test]
+fn rejects_target_directive_on_struct_declaration() {
+    let output = parse_text(
+        r#"#target("arm64-darwin")
+struct File {
+    fd: i32
 }
 "#,
     );
@@ -394,7 +418,7 @@ func main(): i32 {
     assert!(
         output.diagnostics[0]
             .message
-            .contains("applies only to primitive")
+            .contains("function or primitive")
     );
 }
 

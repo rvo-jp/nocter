@@ -41,7 +41,7 @@ Current target-specific standard-library boundary:
 ~/.nocter/std/os/macos.nct
 ```
 
-Future target-specific boundaries may use ordinary modules under `std/` with `#target("...")` on the primitive declarations, such as:
+Future target-specific boundaries may use ordinary modules under `std/` with `#target("...")` on target-dependent helper and primitive declarations, such as:
 
 ```text
 ~/.nocter/std/os/linux.nct
@@ -95,9 +95,7 @@ The installed layout is:
         prelude.nct
         fmt.nct
         io.nct
-        io_impl.nct
         mem.nct
-        mem_impl.nct
         os.nct
         process.nct
         ptr.nct

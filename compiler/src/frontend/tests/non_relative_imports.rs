@@ -200,8 +200,8 @@ func main(): i32 {
 }
 
 #[test]
-fn check_ignores_inactive_target_primitives_in_common_std() {
-    let root = make_temp_project("std-inactive-target-primitive");
+fn check_ignores_inactive_target_items_in_common_std() {
+    let root = make_temp_project("std-inactive-target-items");
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
@@ -217,6 +217,11 @@ func main(): i32 {
         home.join("std/io.nct"),
         r#"#target("x64-linux")
 pub(nocter) primitive unknown_for_linux(): void
+
+#target("x64-linux")
+pub func answer(): &str {
+    return "inactive"
+}
 
 pub func answer(): i32 {
     return 1

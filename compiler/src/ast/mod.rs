@@ -80,6 +80,7 @@ pub struct ImportedName {
 pub struct FunctionDecl {
     pub span: ByteSpan,
     pub visibility: Visibility,
+    pub target: Option<TargetDirective>,
     pub owner: Option<FunctionOwner>,
     pub name: String,
     pub name_span: ByteSpan,

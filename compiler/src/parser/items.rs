@@ -34,7 +34,9 @@ impl Parser<'_> {
 
         if self.at_keyword(Keyword::Use) {
             if target.is_some() {
-                self.error_current("`#target` applies only to primitive declarations in v0");
+                self.error_current(
+                    "`#target` applies only to function or primitive declarations in v0",
+                );
                 return Err(());
             }
             return self.parse_use_item();
@@ -42,7 +44,9 @@ impl Parser<'_> {
 
         if self.at_keyword(Keyword::From) {
             if target.is_some() {
-                self.error_current("`#target` applies only to primitive declarations in v0");
+                self.error_current(
+                    "`#target` applies only to function or primitive declarations in v0",
+                );
                 return Err(());
             }
             return self.parse_from_import_item(Visibility::Private);
@@ -50,7 +54,9 @@ impl Parser<'_> {
 
         if self.at_keyword(Keyword::Import) {
             if target.is_some() {
-                self.error_current("`#target` applies only to primitive declarations in v0");
+                self.error_current(
+                    "`#target` applies only to function or primitive declarations in v0",
+                );
                 return Err(());
             }
             return self.parse_import_item();
@@ -81,11 +87,7 @@ impl Parser<'_> {
         }
 
         if self.at_keyword(Keyword::Func) {
-            if target.is_some() {
-                self.error_current("`#target` applies only to primitive declarations in v0");
-                return Err(());
-            }
-            return self.parse_function_decl(visibility);
+            return self.parse_function_decl(visibility, target);
         }
 
         if self.at_keyword(Keyword::Primitive) {
@@ -94,7 +96,9 @@ impl Parser<'_> {
 
         if self.at_keyword(Keyword::Type) {
             if target.is_some() {
-                self.error_current("`#target` applies only to primitive declarations in v0");
+                self.error_current(
+                    "`#target` applies only to function or primitive declarations in v0",
+                );
                 return Err(());
             }
             if is_copy {
@@ -106,7 +110,9 @@ impl Parser<'_> {
 
         if self.at_keyword(Keyword::Struct) {
             if target.is_some() {
-                self.error_current("`#target` applies only to primitive declarations in v0");
+                self.error_current(
+                    "`#target` applies only to function or primitive declarations in v0",
+                );
                 return Err(());
             }
             return self.parse_struct_decl(visibility, is_copy);
@@ -114,7 +120,9 @@ impl Parser<'_> {
 
         if self.at_keyword(Keyword::Enum) {
             if target.is_some() {
-                self.error_current("`#target` applies only to primitive declarations in v0");
+                self.error_current(
+                    "`#target` applies only to function or primitive declarations in v0",
+                );
                 return Err(());
             }
             if is_copy {
@@ -126,7 +134,9 @@ impl Parser<'_> {
 
         if self.at_identifier_text("trait") {
             if target.is_some() {
-                self.error_current("`#target` applies only to primitive declarations in v0");
+                self.error_current(
+                    "`#target` applies only to function or primitive declarations in v0",
+                );
                 return Err(());
             }
             if is_copy {
@@ -139,7 +149,9 @@ impl Parser<'_> {
 
         if self.at_keyword(Keyword::Impl) {
             if target.is_some() {
-                self.error_current("`#target` applies only to primitive declarations in v0");
+                self.error_current(
+                    "`#target` applies only to function or primitive declarations in v0",
+                );
                 return Err(());
             }
             if is_copy {
@@ -159,7 +171,9 @@ impl Parser<'_> {
         }
 
         if target.is_some() {
-            self.error_current("`#target` applies only to primitive declarations in v0");
+            self.error_current(
+                "`#target` applies only to function or primitive declarations in v0",
+            );
             return Err(());
         }
 
@@ -292,14 +306,19 @@ impl Parser<'_> {
         })
     }
 
-    pub(super) fn parse_function_decl(&mut self, visibility: Visibility) -> ParseResult<Item> {
-        self.parse_function_decl_data(visibility)
+    pub(super) fn parse_function_decl(
+        &mut self,
+        visibility: Visibility,
+        target: Option<TargetDirective>,
+    ) -> ParseResult<Item> {
+        self.parse_function_decl_data(visibility, target)
             .map(Item::Function)
     }
 
     pub(super) fn parse_function_decl_data(
         &mut self,
         visibility: Visibility,
+        target: Option<TargetDirective>,
     ) -> ParseResult<FunctionDecl> {
         let start = self.expect_keyword(Keyword::Func, "`func`")?;
         let first_name = self.expect_identifier("expected function name after `func`")?;
@@ -334,8 +353,14 @@ impl Parser<'_> {
         let end = body.span.end;
 
         Ok(FunctionDecl {
-            span: self.span(start.span.start, end),
+            span: self.span(
+                target
+                    .as_ref()
+                    .map_or(start.span.start, |target| target.span.start),
+                end,
+            ),
             visibility,
+            target,
             owner,
             name,
             name_span,

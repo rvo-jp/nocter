@@ -22,16 +22,13 @@ Nocter は、人間が読みやすく、AI も読み書きしやすい静的型�
     VERSION
     MANIFEST.json
     std/
-    targets/
-        arm64-darwin/
-            std/
 ```
 
 利用者は `clang`、`as`、`ld`、Xcode Command Line Tools、外部ランタイムライブラリを必要としません。コンパイラ自身が、字句解析から Mach-O 実行ファイルの生成までを一貫して担います。
 
 ## コンパイラ実装言語
 
-v0 のコンパイラ本体は Rust で実装します。Rust と Cargo は開発時だけの依存であり、利用者向けの配布物には Rust toolchain を含めず、利用者にも要求しません。利用者が受け取る完成品は、`.nocter/nocter`、`VERSION`、`MANIFEST.json`、`std/`、`targets/` です。
+v0 のコンパイラ本体は Rust で実装します。Rust と Cargo は開発時だけの依存であり、利用者向けの配布物には Rust toolchain を含めず、利用者にも要求しません。利用者が受け取る完成品は、`.nocter/nocter`、`VERSION`、`MANIFEST.json`、`std/` です。
 
 Rust を採用する理由は、所有権、pattern matching、バイナリデータ処理、エラー処理がコンパイラ実装に向いており、C/C++ よりメモリ安全性を保ちやすく、Zig より成熟した実装事例とエコシステムが多いためです。
 
@@ -101,23 +98,11 @@ compiler/
         io.nct
         mem.nct
         os.nct
+        process.nct
         ptr.nct
         string.nct
-    targets/
-        arm64-darwin/
-            std/
-                io_impl.nct
-                process.nct
-                os/
-                    macos.nct
-        x64-linux/
-            std/
-        arm64-linux/
-            std/
-        x64-windows/
-            std/
-        arm64-windows/
-            std/
+        os/
+            macos.nct
 ```
 
 `README.md` は Nocter の目的、対象環境、配布形態、設計思想を説明する入口です。`spec/README.md` は Nocter を書く人向けの言語仕様書の目次であり、詳細な仕様は `spec/` に章別で置きます。`compiler/README.md` はコンパイラ開発者向けの入口であり、実装状況や内部設計は `compiler/docs/` に置きます。
@@ -130,7 +115,7 @@ compiler/
 export PATH="$HOME/.nocter:$PATH"
 ```
 
-標準ライブラリは `NOCTER_HOME` が指定されていればそこから探し、指定がなければ実行中の `nocter` コマンドの実体パスを解決し、その親ディレクトリを Nocter home として使います。`cwd/.nocter` や `~/.nocter` は自動探索しません。`std/...` の解決では、active target overlay の `targets/<target>/std/` を先に探し、見つからなければ共通 `std/` を探します。
+標準ライブラリは `NOCTER_HOME` が指定されていればそこから探し、指定がなければ実行中の `nocter` コマンドの実体パスを解決し、その親ディレクトリを Nocter home として使います。`cwd/.nocter` や `~/.nocter` は自動探索しません。`std/...` は active Nocter home の `std/` から解決します。
 
 ## 対象環境
 
@@ -144,11 +129,11 @@ export PATH="$HOME/.nocter:$PATH"
 
 ただし、長期的にはクロスコンパイルと他 OS / 他アーキテクチャへ拡張できる基盤を残します。ターゲット依存部分は、命令エンコード、実行ファイル形式、primitive lowering、標準ライブラリの OS 境界に閉じ込めます。言語仕様、型システム、所有権、借用、region、標準ライブラリの上位 API はターゲット非依存に保ちます。
 
-初期ターゲット名は `arm64-darwin` とします。将来 target の外枠として、`x64-linux`、`arm64-linux`、`x64-windows`、`arm64-windows` を予約します。これらは認識する target 名として扱いますが、backend、実行ファイル writer、primitive set、target std overlay が揃うまでは実装済み target とは見なしません。
+初期ターゲット名は `arm64-darwin` とします。将来 target の外枠として、`x64-linux`、`arm64-linux`、`x64-windows`、`arm64-windows` を予約します。これらは認識する target 名として扱いますが、backend、実行ファイル writer、primitive set、target 依存 std 境界が揃うまでは実装済み target とは見なしません。
 
-初期段階では実際のクロスコンパイルは無効にし、`arm64-darwin` を既定 target とします。ただし、コンパイラ内部では host と target を分けます。配布アーカイブ `nocter-v<version>-arm64-darwin.tar.gz` は ARM64 macOS 上で動く `nocter` を含み、展開 root は常に `.nocter/` です。その中の `targets/arm64-darwin/` が ARM64 macOS 向けの target overlay です。
+初期段階では実際のクロスコンパイルは無効にし、`arm64-darwin` を既定 target とします。ただし、コンパイラ内部では host と target を分けます。配布アーカイブ `nocter-v<version>-arm64-darwin.tar.gz` は ARM64 macOS 上で動く `nocter` を含み、展開 root は常に `.nocter/` です。ARM64 macOS 向けの target 依存境界は `std/` 内の `#target("arm64-darwin")` 宣言で選別します。
 
-将来のクロスコンパイルでは、同じ Nocter home の中に出力先 target を追加します。
+将来のクロスコンパイルでは、同じ Nocter home の `std/` に target 依存境界を `#target("...")` 付きで追加します。
 
 ```text
 ~/.nocter/
@@ -156,17 +141,10 @@ export PATH="$HOME/.nocter:$PATH"
     VERSION
     MANIFEST.json
     std/
-    targets/
-        arm64-darwin/
-            std/
-        x64-linux/
-            std/
-        arm64-linux/
-            std/
-        x64-windows/
-            std/
-        arm64-windows/
-            std/
+        os/
+            macos.nct
+            linux.nct
+            windows.nct
 ```
 
 想定コマンド:
@@ -212,7 +190,6 @@ error: target x64-linux is recognized but not implemented
     VERSION
     MANIFEST.json
     std/
-    targets/
 ```
 
 ```json
@@ -231,7 +208,6 @@ error: target x64-linux is recognized but not implemented
   "implemented_targets": [
     {
       "name": "arm64-darwin",
-      "std_path": "targets/arm64-darwin/std",
       "backend": "arm64",
       "executable": "macho",
       "os": "darwin"
@@ -244,7 +220,7 @@ error: target x64-linux is recognized but not implemented
 }
 ```
 
-`nocter --version` は compiler release、host、default target を表示します。`nocter doctor` は Nocter home を解決し、`VERSION`、`MANIFEST.json`、`std/`、`targets/<target>/` の整合性を検査します。
+`nocter --version` は compiler release、host、default target を表示します。`nocter doctor` は Nocter home を解決し、`VERSION`、`MANIFEST.json`、`std/` の整合性を検査します。
 
 build profile は安全性を変えません。将来 debug / release や最適化 option を持つ場合でも、bounds check、整数 overflow check、division by zero check、shift range check、invalid bool / enum tag check、`unreachable()` 到達 check は常に有効です。release build が速くなる場合は、compiler が check 不要を証明して削除できた場合だけです。unchecked arithmetic、unchecked indexing、unchecked enum-tag operation は v0 の一般ユーザー API として公開しません。
 
@@ -257,7 +233,7 @@ Nocter には `module` 宣言を置きません。1つの `.nct` ファイルが
 ```text
 examples/word_count.nct                                  => examples/word_count
 ~/.nocter/std/io.nct                                     => std/io
-~/.nocter/targets/arm64-darwin/std/os/macos.nct           => std/os/macos
+~/.nocter/std/os/macos.nct                               => std/os/macos
 ```
 
 ファイルパスを唯一の情報源にすることで、ファイル位置とモジュール宣言の不一致を防ぎます。
@@ -278,7 +254,7 @@ import std/io as io
 
 ワイルドカード import、bare import、namespace alias re-export、absolute path、import path 内の `.nct` 拡張子は初期仕様では採用しません。
 
-user project module は、compiler が内部的にファイル先頭へ synthetic `use std/prelude` を持つものとして扱います。source text は書き換えず、diagnostic や formatter は元の source を基準にします。synthetic prelude は user project module ごとに独立して適用され、`.nocter/std/` と `targets/<target>/std/` には適用しません。明示的な `use std/prelude` は書いてもよいですが、user project module では冗長です。
+user project module は、compiler が内部的にファイル先頭へ synthetic `use std/prelude` を持つものとして扱います。source text は書き換えず、diagnostic や formatter は元の source を基準にします。synthetic prelude は user project module ごとに独立して適用され、`.nocter/std/` には適用しません。明示的な `use std/prelude` は書いてもよいですが、user project module では冗長です。
 
 prelude は小さく保ちます。`Int` のような基本 alias、`Error` / `ErrorCode`、所有文字列 `String` のような ubiquitous な標準ライブラリ型だけを置きます。`str`、`error`、`[T]`、`[+T]` は compiler built-in の型構文です。`File`、`Allocator`、`print`、`stdout`、`stderr`、`args`、`env`、`cwd`、`exit`、`abort` は domain module から明示 import します。project-wide prelude 設定は初期仕様では採用しません。
 
@@ -337,9 +313,9 @@ pub func File.open(path: str): File! {
 pub(nocter) primitive from_addr<T>(address: usize): *T
 ```
 
-`pub(nocter)` は active Nocter home 内、つまり共通 `std/` と `targets/<target>/std/` の module だけで書けます。公開先も active Nocter home 内だけです。user project からは import できません。`nocter` は `pub(nocter)` の中だけで意味を持つ contextual な scope 名で、通常の予約語ではありません。
+`pub(nocter)` は active Nocter home の `std/` 内の module だけで書けます。公開先も active Nocter home 内だけです。user project からは import できません。`nocter` は `pub(nocter)` の中だけで意味を持つ contextual な scope 名で、通常の予約語ではありません。
 
-v0 では attribute 構文を採用しません。`@inline`、`@repr(...)`、`@target(...)`、`@test`、`@deprecated` のような構文はありません。layout は Nocter ABI v0、target 分岐は `~/.nocter/targets/<target>/std/` の overlay、低レベル境界は active Nocter home 内の typed `primitive`、visibility は `pub` / `pub(nocter)` で表します。`@` は将来の attribute-like syntax 用に予約しますが、v0 の source では string literal、byte literal、comment の外に書けません。
+v0 では attribute 構文を採用しません。`@inline`、`@repr(...)`、`@target(...)`、`@test`、`@deprecated` のような構文はありません。layout は Nocter ABI v0、target 分岐は `#target("...")`、低レベル境界は active Nocter home 内の typed `primitive`、visibility は `pub` / `pub(nocter)` で表します。`@` は将来の attribute-like syntax 用に予約しますが、v0 の source では string literal、byte literal、comment の外に書けません。
 
 ### ソース形式と字句規則
 
@@ -582,13 +558,13 @@ pub(nocter) primitive unreachable(): never
 
 `trap()` は target が定める illegal instruction、breakpoint、または同等の復帰不能停止へ下げます。`unreachable()` は到達不能の明示で、到達した場合は trap します。どちらも `never` を返し、stack unwinding は行いません。
 
-`primitive` は高級言語とコンパイラ内蔵の低レベル実装を接続するための境界です。初期仕様では Nocter home の共通 `std/` と active target overlay の `std/` 内だけで宣言できます。一般ユーザーコードは `primitive` を宣言できません。一般ユーザーコードから呼べる primitive は、標準ライブラリが明示的に `pub` で公開した小さな API だけです。target syscall primitive のような低レベル境界は `pub(nocter)` にします。
+`primitive` は高級言語とコンパイラ内蔵の低レベル実装を接続するための境界です。初期仕様では active Nocter home の `std/` 内だけで宣言できます。一般ユーザーコードは `primitive` を宣言できません。一般ユーザーコードから呼べる primitive は、標準ライブラリが明示的に `pub` で公開した小さな API だけです。target syscall primitive のような低レベル境界は `pub(nocter)` にし、target 依存の宣言には `#target("...")` を付けます。
 
-v0 では `unsafe` keyword、`unsafe` block、`unsafe func` を採用しません。一般ユーザーコードは常に safe Nocter code です。低レベル実装の trusted boundary は active Nocter home 内、つまり共通 `std/` と `targets/<target>/std/` に限定します。trusted module も通常の型チェック、所有権、borrow、drop 検査を受けます。
+v0 では `unsafe` keyword、`unsafe` block、`unsafe func` を採用しません。一般ユーザーコードは常に safe Nocter code です。低レベル実装の trusted boundary は active Nocter home の `std/` 内に限定します。trusted module も通常の型チェック、所有権、borrow、drop 検査を受けます。
 
 初期 `arm64-darwin` target primitive set v0 は、`syscall0` から `syscall6`、`trap`、`unreachable` だけです。別枠として、target 非依存の `std/ptr` core pointer primitive を持ちます。`print`、`exit`、`abort`、file 操作、allocator、`String`、`Buffer` は primitive にしません。これらは標準ライブラリの通常 API として実装します。
 
-将来の `open_file_raw`、`write_fd_raw`、`mmap_raw` のような typed wrapper も compiler primitive ではなく、target overlay または common std の通常 API として定義します。compiler は OS API 名を特別扱いせず、既存 primitive の module path、名前、正確な signature を検証します。標準ライブラリ機能を増やす通常手段は Nocter code と target overlay であり、compiler primitive の追加ではありません。user project module は v0 でも長期方針でも primitive declaration boundary の外側に置きます。
+将来の `open_file_raw`、`write_fd_raw`、`mmap_raw` のような typed wrapper も compiler primitive ではなく、`std/` 内の通常 API として定義します。compiler は OS API 名を特別扱いせず、既存 primitive の module path、名前、正確な signature を検証します。標準ライブラリ機能を増やす通常手段は Nocter code と `#target` 付き std 内部実装であり、compiler primitive の追加ではありません。user project module は v0 でも長期方針でも primitive declaration boundary の外側に置きます。
 
 任意 `asm` ではなく型付き `primitive` に絞る理由は次の通りです。
 
@@ -692,9 +668,9 @@ C 連携が必要になった場合は、将来 `extern "c"` のような別 ABI
 
 ## 標準ライブラリ
 
-標準ライブラリは、ユーザー環境では `~/.nocter/std/` と `~/.nocter/targets/<target>/std/` に配置します。配布アーカイブの host は archive 名で表し、payload root は常に `.nocter/` です。現在の開発環境でも `.nocter/std/` と `.nocter/targets/arm64-darwin/std/` を使います。
+標準ライブラリは、ユーザー環境では `~/.nocter/std/` に配置します。配布アーカイブの host は archive 名で表し、payload root は常に `.nocter/` です。現在の開発環境でも `.nocter/std/` を使います。
 
-共通 `std/` は target 非依存の API を置く場所です。`targets/<target>/std/` は syscall、process ABI、trap、低レベル allocator 境界など、target に依存する標準ライブラリ実装を置く場所です。どちらの物理配置から読まれても、ユーザーが import する path は `std/...` のままです。
+`std/` は target 非依存の API と target 依存の std 内部実装を同じ module tree に置く場所です。syscall、process ABI、trap、低レベル allocator 境界など、target に依存する宣言には `#target("...")` を付けます。ユーザーが import する path は常に `std/...` です。
 
 構成例:
 
@@ -709,23 +685,11 @@ C 連携が必要になった場合は、将来 `extern "c"` のような別 ABI
         io.nct
         mem.nct
         os.nct
+        process.nct
         ptr.nct
         string.nct
-    targets/
-        arm64-darwin/
-            std/
-                io_impl.nct
-                process.nct
-                os/
-                    macos.nct
-        x64-linux/
-            std/
-        arm64-linux/
-            std/
-        x64-windows/
-            std/
-        arm64-windows/
-            std/
+        os/
+            macos.nct
 ```
 
 利用者は必要な機能を import して使います。
@@ -773,7 +737,7 @@ std/io / std/process
     abort
 ```
 
-`SyscallResult` と `Errno` は target overlay の低レベル型です。通常のユーザー向け API はこれらを返さず、`std/os` の `OSError` を経由して built-in `error` へ変換します。
+`SyscallResult` と `Errno` は target 依存 std 内部の低レベル型です。通常のユーザー向け API はこれらを返さず、`std/os` の `OSError` を経由して built-in `error` へ変換します。
 
 ```text
 std/os/macos.syscall3
@@ -816,19 +780,19 @@ pub func print(text: str): void!
 
 `File` は内部的に owned handle と borrowed process standard stream を区別します。`File.open(path)` で得た `File` の drop は handle を閉じますが、`stdout()` / `stderr()` で得た `File` の drop は process の標準出力 / 標準エラーを閉じません。`File` の drop member は失敗できないため、close error は v0 では無視します。将来必要なら明示的な `close` API を追加します。
 
-`std/io` は共通の user-facing module です。raw file descriptor や syscall との接続は active target overlay の `std/io_impl` に置き、`pub(nocter)` helper として `std/io` からだけ使います。利用者は `std/io_impl` を import せず、`File`、`stdout`、`stderr`、`print`、`File.open/read/write/write_text` を通じて I/O を扱います。
+`std/io` は共通の user-facing module です。raw file descriptor や syscall との接続は `std/io` 内の `pub(nocter)` helper に置き、target 依存の helper には `#target("...")` を付けます。利用者は raw helper を import せず、`File`、`stdout`、`stderr`、`print`、`File.open/read/write/write_text` を通じて I/O を扱います。
 
 `std/process` の `args(): [str]!`、`env(name): str?!`、`cwd(): str!`、`exit(code): never`、`abort(): never` は標準ライブラリ API です。compiler primitive ではありません。`args` / `env` / `cwd` / `exit` / `abort` という名前を compiler は特別扱いしません。
 
 `str?!` は、処理そのものは `error` で失敗しえますが、成功した場合の値は optional であることを表します。`args()`、`env(name)`、`cwd()` が返す `str` は process context storage を指す readonly view であり、呼び出し側は所有しません。owned `String` が必要な場合は明示的に copy します。target 実装は OS 由来の `argv` / `envp` / cwd を UTF-8 として検証し、`str` にできない場合は `"std.process.invalid_encoding"` で失敗します。
 
-`exit` / `abort` は target overlay の syscall や process termination boundary を使って実装し、万一 OS の終了操作から戻った場合は `trap()` します。`exit` / `abort` は caller scope の Nocter cleanup を実行しません。cleanup が必要な場合は、呼び出し前に明示します。
+`exit` / `abort` は `#target` 付き std 内部の syscall や process termination boundary を使って実装し、万一 OS の終了操作から戻った場合は `trap()` します。`exit` / `abort` は caller scope の Nocter cleanup を実行しません。cleanup が必要な場合は、呼び出し前に明示します。
 
-`std/process` はユーザー向け module path ですが、process context や process termination は process ABI に依存するため、初期実装では active target overlay 側に物理配置します。利用者は配置を意識せず `from std/process import args`、`from std/process import env`、`from std/process import exit` のように使います。
+`std/process` はユーザー向け module path ですが、process context や process termination は process ABI に依存するため、target 依存の低レベル呼び出しは `#target` 付き std 内部実装に閉じます。利用者は配置を意識せず `from std/process import args`、`from std/process import env`、`from std/process import exit` のように使います。
 
 ## ランタイム
 
-現時点では、独立したランタイムライブラリを持たない方針です。標準ライブラリの `primitive` 宣言が初期ターゲット `arm64-darwin` と最小限の橋渡しを行います。将来は `~/.nocter/targets/<target>/std/` に target ごとの OS 境界の primitive 実装を追加します。
+現時点では、独立したランタイムライブラリを持たない方針です。標準ライブラリの `primitive` 宣言が初期ターゲット `arm64-darwin` と最小限の橋渡しを行います。将来は `~/.nocter/std/` に target ごとの OS 境界を `#target("...")` 付きで追加します。
 
 GC は採用しません。Nocter は実行時ガベージコレクタにメモリ管理を任せる言語ではなく、コンパイル時に所有権、参照の寿命、破棄責任を検査する言語を目指します。
 
@@ -1217,7 +1181,7 @@ pub primitive from_ref_mut<T>(value: &+T): *T
 pub(nocter) primitive from_addr<T>(address: usize): *T
 ```
 
-`usize` から pointer を作る `from_addr<T>(address: usize): *T` は `pub(nocter)` です。初期仕様では共通 `std/` と active target overlay の trusted module だけが使える制限 API で、一般ユーザーコードからは呼べません。
+`usize` から pointer を作る `from_addr<T>(address: usize): *T` は `pub(nocter)` です。初期仕様では active Nocter home の `std/` 内だけが使える制限 API で、一般ユーザーコードからは呼べません。
 
 `[T]`、`[+T]`、`str` は `ptr()` と `len()` を持ちます。標準ライブラリ内の trusted module が syscall に buffer を渡す場合は、`ptr()` で raw pointer を取り、`std/ptr` の `addr(...)` で `usize` へ変換します。一般ユーザーコードは syscall primitive を直接呼べません。
 

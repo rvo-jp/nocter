@@ -924,7 +924,9 @@ func answer(): i32! {
         fs::write(
             nocter_home.join("std/io.nct"),
             r#"from std/error import Error
-from std/io_impl import write_text_raw
+
+#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 
 pub func fail_write(): void! {
     write_text_raw(-1, "x") catch error {
@@ -932,13 +934,6 @@ pub func fail_write(): void! {
     }
     return
 }
-"#,
-        )
-        .unwrap();
-        fs::write(
-            nocter_home.join("std/io_impl.nct"),
-            r#"#target("arm64-darwin")
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
         )
         .unwrap();
@@ -1248,19 +1243,13 @@ func make_flag(): bool! {
         let nocter_home = make_nocter_home(&root);
         fs::write(
             nocter_home.join("std/io.nct"),
-            r#"from std/io_impl import write_text_raw
+            r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 
 pub func write(text: &str): void! {
     write_text_raw(1, text)?
     return
 }
-"#,
-        )
-        .unwrap();
-        fs::write(
-            nocter_home.join("std/io_impl.nct"),
-            r#"#target("arm64-darwin")
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
         )
         .unwrap();
@@ -1369,20 +1358,14 @@ func answer(): i32! {
         let nocter_home = make_nocter_home(&root);
         fs::write(
             nocter_home.join("std/io.nct"),
-            r#"from std/io_impl import write_text_raw
+            r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 
 pub func print(text: &str): void! {
     let marker = 1
     write_text_raw(1, text)?
     return
 }
-"#,
-        )
-        .unwrap();
-        fs::write(
-            nocter_home.join("std/io_impl.nct"),
-            r#"#target("arm64-darwin")
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
         )
         .unwrap();

@@ -350,14 +350,14 @@ func main(): i32 {
 }
 
 #[test]
-fn distributed_io_impl_is_not_public_api() {
-    let project = TempProject::new("distributed-home-io-impl-private");
+fn distributed_io_raw_helper_is_not_public_api() {
+    let project = TempProject::new("distributed-home-io-raw-private");
     let source = project.write_source(
-        "io_impl_private.nct",
-        r#"from std/io_impl import stdout
+        "io_raw_private.nct",
+        r#"from std/io import write_text_raw
 
 func main(): i32 {
-    let fd = stdout()
+    write_text_raw(1, "x")!
     return 0
 }
 "#,

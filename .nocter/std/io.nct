@@ -5,12 +5,46 @@
 //! results and errno wrappers stay behind `#target`-gated std internals.
 
 from std/error import Error
-from std/io_impl import open_read as open_read_impl
-from std/io_impl import stderr as stderr_impl
-from std/io_impl import stdout as stdout_impl
-from std/io_impl import write_text as write_text_impl
-from std/io_impl import write_text_raw
 from std/os import OSError
+
+#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+
+#target("arm64-darwin")
+pub(nocter) func stdout_fd(): i32 {
+    return 1
+}
+
+#target("arm64-darwin")
+pub(nocter) func stderr_fd(): i32 {
+    return 2
+}
+
+#target("arm64-darwin")
+pub(nocter) func open_read_fd(path: &str): i32! {
+    return Error.new("std.io.unsupported", "file open is not implemented")
+}
+
+#target("arm64-darwin")
+pub(nocter) func read_fd(fd: i32, buffer: &+[u8]): usize! {
+    return Error.new("std.io.unsupported", "file read is not implemented")
+}
+
+#target("arm64-darwin")
+pub(nocter) func write_fd(fd: i32, bytes: &[u8]): void! {
+    return
+}
+
+#target("arm64-darwin")
+pub(nocter) func write_text_fd(fd: i32, text: &str): void! {
+    write_text_raw(fd, text)?
+    return
+}
+
+#target("arm64-darwin")
+pub(nocter) func close_fd(fd: i32): void {
+    return
+}
 
 // Compatibility classification type. It is an ordinary enum, not the fallible
 // payload type.
@@ -37,40 +71,41 @@ pub func from_os_error(error: OSError): error {
 }
 
 pub func stdout(): File {
-    return File { fd: stdout_impl(), close_on_drop: false }
+    return File { fd: stdout_fd(), close_on_drop: false }
 }
 
 pub func stderr(): File {
-    return File { fd: stderr_impl(), close_on_drop: false }
+    return File { fd: stderr_fd(), close_on_drop: false }
 }
 
 pub func File.open(path: &str): File! {
-    let fd = open_read_impl(path)?
+    let fd = open_read_fd(path)?
     return File { fd: fd, close_on_drop: true }
 }
 
 impl File {
     pub method (file: &+Self).read(buffer: &+[u8]): usize! {
-        return unsupported()
+        return read_fd(file.fd, buffer)?
     }
 
     pub method (file: &+Self).write(bytes: &[u8]): void! {
+        write_fd(file.fd, bytes)?
         return
     }
 
     pub method (file: &+Self).write_text(text: &str): void! {
-        write_text_impl(file.fd, text)?
+        write_text_fd(file.fd, text)?
         return
     }
 }
 
 pub func print(text: &str): void! {
-    write_text_raw(1, text)?
+    write_text_fd(1, text)?
     return
 }
 
 pub func write_text(file: &+File, text: &str): void! {
-    write_text_impl(file.fd, text)?
+    write_text_fd(file.fd, text)?
     return
 }
 

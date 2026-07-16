@@ -113,23 +113,24 @@ impl Item {
                     children,
                 )
             }
-            Item::Function(item) => JsonAstNode::with_value(
-                "function_decl",
-                item.name.clone(),
-                json_span(sources, item.span),
-                vec![
+            Item::Function(item) => {
+                let mut children = target_directive_json(item.target.as_ref(), sources);
+                children.extend([
                     visibility_json(item.visibility),
                     item.generics.to_json(sources),
                     item.parameters.to_json(sources),
                     item.return_type.to_json(sources),
                     item.body.to_json(sources),
-                ],
-            ),
+                ]);
+                JsonAstNode::with_value(
+                    "function_decl",
+                    item.name.clone(),
+                    json_span(sources, item.span),
+                    children,
+                )
+            }
             Item::Primitive(item) => {
-                let mut children = Vec::new();
-                if let Some(target) = &item.target {
-                    children.push(target.to_json(sources));
-                }
+                let mut children = target_directive_json(item.target.as_ref(), sources);
                 children.extend([
                     visibility_json(item.visibility),
                     item.generics.to_json(sources),
@@ -212,6 +213,15 @@ impl Item {
             }
         }
     }
+}
+
+fn target_directive_json(
+    target: Option<&TargetDirective>,
+    sources: &SourceMap,
+) -> Vec<JsonAstNode> {
+    target
+        .map(|target| vec![target.to_json(sources)])
+        .unwrap_or_default()
 }
 
 impl TargetDirective {

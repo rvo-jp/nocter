@@ -10,7 +10,7 @@ The compiler must first compile `.nct` source files directly to `arm64-darwin` M
 
 The implementation should still keep target-specific code isolated so future targets can be added without rewriting the front end, type checker, ownership checker, or high-level standard-library model.
 
-The initial implementation does not support cross compilation beyond `arm64-darwin`, but it should still model host and target separately. The current development host package is `.nocter/`, which contains the compiler binary for ARM64 macOS and standard-library sources under `std/`; target-dependent primitive declarations are selected with `#target`.
+The initial implementation does not support cross compilation beyond `arm64-darwin`, but it should still model host and target separately. The current development host package is `.nocter/`, which contains the compiler binary for ARM64 macOS and standard-library sources under `std/`; target-dependent std declarations are selected with `#target`.
 
 It must not depend on:
 
@@ -32,9 +32,7 @@ The distributable archive root for the initial host is:
         prelude.nct
         fmt.nct
         io.nct
-        io_impl.nct
         mem.nct
-        mem_impl.nct
         os.nct
         process.nct
         ptr.nct
@@ -563,7 +561,7 @@ If source loading, lexing, or parsing fails, `check` returns a `nocter.diagnosti
 
 `CompileUnitAnalysis` is the `analysis/` module's semantic-analysis result for the whole reachable compile unit. Each `FileAnalysis` keeps the file AST, its file-scoped `ResolveOutput`, that file's diagnostics, and whether the file is the executable root. Flattened diagnostics are sorted by loaded file order, primary span start byte, primary span end byte, diagnostic code, and message. This keeps the command-line checker aligned with future LSP features such as hover, completion, and definition lookup, where editor features need the semantic state for a specific file rather than only a flattened diagnostics list.
 
-The first standard-library source files are `.nocter/std/prelude.nct`, `.nocter/std/string.nct`, `.nocter/std/fmt.nct`, `.nocter/std/mem.nct`, `.nocter/std/mem_impl.nct`, `.nocter/std/ptr.nct`, `.nocter/std/os.nct`, `.nocter/std/io.nct`, `.nocter/std/io_impl.nct`, `.nocter/std/process.nct`, and `.nocter/std/os/macos.nct`. They currently form a Parser v0-readable skeleton for the synthetic user prelude, owning string type, explicit formatting append boundary, initial memory API, core pointer primitive boundary, common OS error model, user-facing I/O errors, `File`, `stdout`, `stderr`, `print`, macOS raw file-descriptor helpers, macOS process API placeholders, and macOS primitive boundary. `std/string.String` is an ordinary standard-library struct with private `ptr`, `len`, and `capacity` fields; `empty()` builds the zero-capacity value through the restricted `std/ptr.from_addr` primitive, while allocation-backed construction and mutation still report unsupported errors. `std/process.abort` and the placeholder `exit` terminate through the target `trap` primitive today. Future target support should add `#target`-gated primitive declarations without changing ordinary user-facing APIs.
+The first standard-library source files are `.nocter/std/prelude.nct`, `.nocter/std/string.nct`, `.nocter/std/fmt.nct`, `.nocter/std/mem.nct`, `.nocter/std/ptr.nct`, `.nocter/std/os.nct`, `.nocter/std/io.nct`, `.nocter/std/process.nct`, and `.nocter/std/os/macos.nct`. They currently form a Parser v0-readable skeleton for the synthetic user prelude, owning string type, explicit formatting append boundary, initial memory API, core pointer primitive boundary, common OS error model, user-facing I/O errors, `File`, `stdout`, `stderr`, `print`, macOS raw file-descriptor helpers, macOS process API placeholders, and macOS primitive boundary. `std/string.String` is an ordinary standard-library struct with private `ptr`, `len`, and `capacity` fields; `empty()` builds the zero-capacity value through the restricted `std/ptr.from_addr` primitive, while allocation-backed construction and mutation use `std/mem`'s `pub(nocter)` page helpers. `std/process.abort` and the placeholder `exit` terminate through the target `trap` primitive today. Future target support should add `#target`-gated declarations without changing ordinary user-facing APIs.
 
 The target-independent core pointer primitive set is:
 
@@ -594,7 +592,7 @@ The compiler should validate primitives by module path, name, and exact signatur
 
 Future typed wrappers such as raw file, process, allocation, or memory-map helpers should be ordinary Nocter APIs in `std/`. The normal implementation path is to grow the standard library on top of the closed primitive set, not to add compiler primitives for each OS operation. User project modules remain outside the primitive declaration boundary.
 
-Initial `std/io.nct` should expose `File`, `File.open`, `File.read`, `File.write`, `File.write_text`, `stdout`, `stderr`, and `print`. Fallible APIs return `T!` and fail with built-in `error`; common classification names such as `Error` and `ErrorCode` belong to `std/prelude` / `std/error`, not to compiler special cases. File has a private close-on-drop state so `File.open` can create an owned handle whose drop closes it while `stdout` and `stderr` return borrowed process standard streams. Target-dependent raw file-descriptor helpers live behind `pub(nocter)` in `.nocter/std/io_impl.nct`; the primitive declaration itself is gated with `#target("arm64-darwin")`.
+Initial `std/io.nct` should expose `File`, `File.open`, `File.read`, `File.write`, `File.write_text`, `stdout`, `stderr`, and `print`. Fallible APIs return `T!` and fail with built-in `error`; common classification names such as `Error` and `ErrorCode` belong to `std/prelude` / `std/error`, not to compiler special cases. File has a private close-on-drop state so `File.open` can create an owned handle whose drop closes it while `stdout` and `stderr` return borrowed process standard streams. Target-dependent raw file-descriptor helpers live behind `pub(nocter)` in `.nocter/std/io.nct`; the primitive declaration and OS-dependent helper functions are gated with `#target("arm64-darwin")`.
 
 OS error flow belongs in the standard library:
 

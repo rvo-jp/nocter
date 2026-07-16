@@ -492,7 +492,7 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             return_type: "never",
         },
         PrimitiveSpec {
-            module_path: "std/io_impl",
+            module_path: "std/io",
             target: Some("arm64-darwin"),
             visibility: Visibility::Nocter,
             name: "write_text_raw",

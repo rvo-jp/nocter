@@ -12,8 +12,8 @@
 
 from std/error import Error
 from std/mem import Allocator
-from std/mem_impl import alloc_pages as alloc_pages_impl
-from std/mem_impl import free_pages as free_pages_impl
+from std/mem import alloc_pages as alloc_pages_impl
+from std/mem import free_pages as free_pages_impl
 from std/ptr import addr
 from std/ptr import copy_str_to_ptr
 from std/ptr import from_addr

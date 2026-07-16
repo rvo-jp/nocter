@@ -53,6 +53,7 @@ impl Formatter {
     }
 
     fn format_function_decl(&mut self, item: &FunctionDecl) {
+        self.format_target_directive(item.target.as_ref());
         self.format_visibility(item.visibility);
         self.write("func ");
         self.write(&item.name);
@@ -65,12 +66,7 @@ impl Formatter {
     }
 
     fn format_primitive_decl(&mut self, item: &PrimitiveDecl) {
-        if let Some(target) = &item.target {
-            self.write("#target(");
-            self.write_quoted_string_literal(&target.target);
-            self.write(")");
-            self.newline();
-        }
+        self.format_target_directive(item.target.as_ref());
         self.format_visibility(item.visibility);
         self.write("primitive ");
         self.write(&item.name);
@@ -299,6 +295,15 @@ impl Formatter {
 }
 
 impl Formatter {
+    fn format_target_directive(&mut self, target: Option<&crate::ast::TargetDirective>) {
+        if let Some(target) = target {
+            self.write("#target(");
+            self.write_quoted_string_literal(&target.target);
+            self.write(")");
+            self.newline();
+        }
+    }
+
     fn write_quoted_string_literal(&mut self, value: &str) {
         self.write("\"");
         for character in value.chars() {

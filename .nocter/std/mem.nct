@@ -10,8 +10,7 @@
 //! provide the OS boundary behind this common API.
 
 from std/error import Error
-from std/mem_impl import alloc_pages as alloc_pages_impl
-from std/mem_impl import free_pages as free_pages_impl
+from std/os/macos import syscall2, syscall6
 from std/ptr import addr
 from std/ptr import from_addr
 
@@ -35,6 +34,21 @@ pub func page_allocator(): Allocator {
     return Allocator { state: 0, kind: 0 }
 }
 
+#target("arm64-darwin")
+pub(nocter) func alloc_pages(size: usize): usize! {
+    let result = syscall6(0x020000c5, 0, size, 3, 0x1002, 0xffffffffffffffff, 0)
+    if result.errno != 0 {
+        return Error.new("std.mem.out_of_memory", "allocation failed")
+    }
+    return result.value
+}
+
+#target("arm64-darwin")
+pub(nocter) func free_pages(address: usize, size: usize): void {
+    let result = syscall2(0x02000049, address, size)
+    return
+}
+
 pub func alloc(
     allocator: &+Allocator,
     size: usize,
@@ -50,7 +64,7 @@ pub func alloc(
         return invalid_argument()
     }
 
-    let address: usize = alloc_pages_impl(size)?
+    let address: usize = alloc_pages(size)?
     return RawBuffer {
         ptr: from_addr(address),
         len: size,
@@ -59,7 +73,7 @@ pub func alloc(
 }
 
 pub func free(allocator: &+Allocator, buffer: RawBuffer): void {
-    free_pages_impl(addr(buffer.ptr), buffer.len)
+    free_pages(addr(buffer.ptr), buffer.len)
     return
 }
 

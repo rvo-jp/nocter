@@ -14874,11 +14874,11 @@ func main(): void! {
 "#,
         &[
             std_error_file(),
-            std_io_impl_file(),
+            std_io_file(),
             (
                 "std/io_catch.nct",
                 r#"from std/error import Error
-from std/io_impl import write_text_raw
+from std/io import write_text_raw
 
 pub func print_catch(text: &str): void! {
     write_text_raw(1, text) catch error {
@@ -15146,7 +15146,7 @@ func main(): void! {
     print("hello\n")?
 }
 "#,
-        &[std_io_file(), std_io_impl_file()],
+        &[std_io_file()],
     );
 
     let [main, print] = ir.functions.as_slice() else {
@@ -17459,21 +17459,13 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
 fn std_io_file() -> (&'static str, &'static str) {
     (
         "std/io.nct",
-        r#"from std/io_impl import write_text_raw
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 
 pub func print(text: &str): void! {
     write_text_raw(1, text)?
     return
 }
-"#,
-    )
-}
-
-fn std_io_impl_file() -> (&'static str, &'static str) {
-    (
-        "std/io_impl.nct",
-        r#"#target("arm64-darwin")
-pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 "#,
     )
 }

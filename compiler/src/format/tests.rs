@@ -76,6 +76,21 @@ pub(nocter) primitive write_text_raw(fd:i32,text:&str):void!
 }
 
 #[test]
+fn formats_target_directive_on_function() {
+    assert_formats_stably(
+        r#"#target("arm64-darwin")
+pub(nocter) func free_pages(address:usize,size:usize):void{return}
+"#,
+        concat!(
+            "#target(\"arm64-darwin\")\n",
+            "pub(nocter) func free_pages(address: usize, size: usize): void {\n",
+            "    return\n",
+            "}\n",
+        ),
+    );
+}
+
+#[test]
 fn formats_control_flow_and_postfix_expressions() {
     assert_formats_stably(
         r#"func main():i32!{

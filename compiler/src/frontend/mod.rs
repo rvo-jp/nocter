@@ -71,7 +71,7 @@ pub(crate) fn load_compile_unit(
             }
         };
 
-        filter_target_primitives(&mut ast, &options.target);
+        filter_target_items(&mut ast, &options.target);
 
         if should_synthesize_prelude(sources, source, &ast, options, &mut resolved_nocter_home) {
             synthesize_prelude_use(source, &mut ast);
@@ -157,8 +157,12 @@ pub(crate) fn load_compile_unit(
     Ok(CompileUnit::new(root_ast, files, import_sources))
 }
 
-fn filter_target_primitives(ast: &mut AstFile, target: &str) {
+fn filter_target_items(ast: &mut AstFile, target: &str) {
     ast.items.retain(|item| match item {
+        Item::Function(function) => function
+            .target
+            .as_ref()
+            .is_none_or(|directive| directive.target == target),
         Item::Primitive(primitive) => primitive
             .target
             .as_ref()
