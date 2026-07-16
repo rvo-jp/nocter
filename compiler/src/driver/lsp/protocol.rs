@@ -1,7 +1,8 @@
-use crate::source::ByteSpan;
+use crate::source::{ByteSpan, SourceFile};
 use serde::Serialize;
 use serde_json::{Value, json};
 use std::io::{self, BufRead, Write};
+use std::path::Path;
 
 #[derive(Debug, Clone, Serialize)]
 pub(super) struct LspRange {
@@ -118,6 +119,29 @@ pub(super) fn percent_decode(value: &str) -> String {
     }
 
     String::from_utf8_lossy(&output).into_owned()
+}
+
+pub(super) fn source_file_uri(source: &SourceFile) -> String {
+    source
+        .absolute_path()
+        .map(|path| file_uri_for_path(path))
+        .unwrap_or_else(|| source.display_path().to_string())
+}
+
+pub(super) fn file_uri_for_path(path: &Path) -> String {
+    let path = path.to_string_lossy();
+    let mut uri = String::from("file://");
+
+    for byte in path.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' | b'/' => {
+                uri.push(byte as char)
+            }
+            _ => uri.push_str(&format!("%{byte:02X}")),
+        }
+    }
+
+    uri
 }
 
 pub(super) fn read_message<R: BufRead>(reader: &mut R) -> io::Result<Option<Value>> {

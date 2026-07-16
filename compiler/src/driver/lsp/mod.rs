@@ -43,6 +43,8 @@ use semantic::SEMANTIC_DECLARATION_MODIFIER;
 use semantic::SEMANTIC_READONLY_MODIFIER;
 #[cfg(test)]
 use semantic::SemanticTokenKind;
+#[cfg(test)]
+use semantic::semantic_token_kind_index;
 use semantic::{
     SEMANTIC_TOKEN_MODIFIERS, SEMANTIC_TOKEN_TYPES, semantic_tokens_for_document,
     semantic_tokens_for_file_analysis,
@@ -487,7 +489,10 @@ mod tests {
 
         assert!(!data.is_empty());
         assert_eq!(data.len() % 5, 0);
-        assert_eq!(data[3], json!(SemanticTokenKind::Function.index()));
+        assert_eq!(
+            data[3],
+            json!(semantic_token_kind_index(SemanticTokenKind::Function))
+        );
         assert_eq!(data[4], json!(SEMANTIC_DECLARATION_MODIFIER));
     }
 
@@ -1673,6 +1678,39 @@ mod tests {
             value["relatedInformation"][0]["location"]["uri"],
             json!(config_uri)
         );
+    }
+
+    #[test]
+    fn lsp_diagnostics_report_unresolved_identifiers() {
+        let project = TempProject::new("lsp-unresolved-identifier");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        let app = project.write_source("app.nct", "func main(): i32 {\n    return missing\n}\n");
+        let uri = file_uri(&app);
+        let documents = HashMap::from([(
+            uri.clone(),
+            open_document(
+                uri.clone(),
+                Some(1),
+                "func main(): i32 {\n    return missing\n}\n".to_string(),
+            ),
+        )]);
+
+        let diagnostics = diagnostics_for_workspace(&uri, &documents);
+        let document_diagnostics = diagnostics
+            .iter()
+            .find(|(diagnostic_uri, _)| diagnostic_uri == &uri)
+            .map(|(_, diagnostics)| diagnostics)
+            .expect("expected diagnostics for open document");
+
+        let diagnostic = document_diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "E0416")
+            .unwrap_or_else(|| {
+                panic!("expected unresolved identifier diagnostic, got {document_diagnostics:#?}")
+            });
+
+        assert!(diagnostic.message.contains("missing"));
     }
 
     #[test]

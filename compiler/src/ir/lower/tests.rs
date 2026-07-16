@@ -16965,9 +16965,12 @@ func done(): bool {
 #[test]
 fn reports_unsupported_entry_body() {
     let diagnostics = lower_text_diagnostics(
-        r#"func main(): i32 {
-    use_value(1)
+        r#"func value(): i32 {
     return 1
+}
+
+func main(): void {
+    value()
 }
 "#,
     );

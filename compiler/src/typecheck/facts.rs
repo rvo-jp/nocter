@@ -7,15 +7,20 @@ use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
     environment_for_if_is_binding, environment_for_if_let_binding, environment_for_method,
     environment_for_parameters_with_self_type, environment_for_pattern_conditional_arm,
-    environment_for_switch_arm, environment_for_while_let_binding, impl_self_type,
+    environment_for_switch_arm, environment_for_while_let_binding, function_self_type,
+    impl_self_type,
 };
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
+use super::type_expr::type_expr_to_type_with_self_type;
 use crate::ast::{
     AstFile, BindingStmt, Block, Expr, GenericParamList, ImplDecl, ImplMember,
     InterpolatedStringPart, Item, MethodDecl, Parameter, Stmt, SwitchPayloadBinding, TypeExpr,
 };
-use crate::resolve::{ResolveOutput, SymbolKind};
+use crate::resolve::{
+    AssociatedFunctionSignature, FunctionSignature, MethodSignature, ParameterSignature,
+    ResolveOutput, SymbolKind, TypeSymbol,
+};
 use crate::source::ByteSpan;
 use std::collections::HashMap;
 
@@ -23,6 +28,8 @@ use std::collections::HashMap;
 pub(crate) struct TypecheckFacts {
     binding_type_labels: HashMap<ByteSpan, String>,
     binding_readonly: HashMap<ByteSpan, bool>,
+    declaration_hover_labels: HashMap<ByteSpan, String>,
+    call_hover_labels: HashMap<ByteSpan, String>,
     type_references: Vec<TypeReferenceFact>,
     method_call_targets: HashMap<ByteSpan, ByteSpan>,
 }
@@ -34,6 +41,20 @@ impl TypecheckFacts {
 
     pub(crate) fn binding_is_readonly(&self, name_span: ByteSpan) -> Option<bool> {
         self.binding_readonly.get(&name_span).copied()
+    }
+
+    pub(crate) fn declaration_hover_label(&self, name_span: ByteSpan) -> Option<&str> {
+        self.declaration_hover_labels
+            .get(&name_span)
+            .map(String::as_str)
+    }
+
+    pub(crate) fn call_hover_at_offset(&self, offset: usize) -> Option<(ByteSpan, &str)> {
+        self.call_hover_labels
+            .iter()
+            .filter(|(span, _)| span_contains(**span, offset))
+            .min_by_key(|(span, _)| (span.len(), span.start))
+            .map(|(span, label)| (*span, label.as_str()))
     }
 
     pub(crate) fn type_reference_at_offset(&self, offset: usize) -> Option<&TypeReferenceFact> {
@@ -90,11 +111,19 @@ impl TypecheckFactCollector<'_> {
         match item {
             Item::Use(_) | Item::Import(_) | Item::FromImport(_) => {}
             Item::Function(function) => {
+                self.facts.declaration_hover_labels.insert(
+                    function.name_span,
+                    function_declaration_hover_label(function, self.resolved),
+                );
                 self.collect_generic_param_type_references(&function.generics);
                 self.collect_parameter_type_references(&function.parameters.parameters);
                 self.collect_type_expr_references(&function.return_type);
             }
             Item::Primitive(primitive) => {
+                self.facts.declaration_hover_labels.insert(
+                    primitive.name_span,
+                    primitive_declaration_hover_label(primitive, self.resolved),
+                );
                 self.collect_generic_param_type_references(&primitive.generics);
                 self.collect_parameter_type_references(&primitive.parameters.parameters);
                 self.collect_type_expr_references(&primitive.return_type);
@@ -118,10 +147,15 @@ impl TypecheckFactCollector<'_> {
             Item::Trait(trait_) => {
                 self.collect_generic_param_type_references(&trait_.generics);
                 for method in &trait_.methods {
+                    self.facts.declaration_hover_labels.insert(
+                        method.name_span,
+                        method_declaration_hover_label(method, self.resolved, None),
+                    );
                     self.collect_method_signature_type_references(method);
                 }
             }
             Item::Impl(impl_) => {
+                let self_type = impl_self_type(impl_, self.resolved);
                 if let Some(trait_ty) = &impl_.trait_ty {
                     self.collect_type_expr_references(trait_ty);
                 }
@@ -129,9 +163,21 @@ impl TypecheckFactCollector<'_> {
                 for member in &impl_.members {
                     match member {
                         ImplMember::Method(method) => {
+                            self.facts.declaration_hover_labels.insert(
+                                method.name_span,
+                                method_declaration_hover_label(
+                                    method,
+                                    self.resolved,
+                                    Some(&self_type),
+                                ),
+                            );
                             self.collect_method_signature_type_references(method);
                         }
                         ImplMember::Drop(drop_) => {
+                            self.facts.declaration_hover_labels.insert(
+                                drop_.binding.name_span,
+                                drop_declaration_hover_label(drop_, self.resolved, &self_type),
+                            );
                             self.collect_parameter_type_references(std::slice::from_ref(
                                 &drop_.binding,
                             ));
@@ -376,12 +422,29 @@ impl TypecheckFactCollector<'_> {
             }
             Expr::Call(expression) => {
                 if let Some(method) = method_member_for_call(expression)
-                    && let Some((_, resolved_method)) =
+                    && let Some((owner, resolved_method)) =
                         resolved_method_for_call(self.resolved, expression, environment)
                 {
                     self.facts
                         .method_call_targets
                         .insert(method.member_span, resolved_method.name_span);
+                    self.facts.call_hover_labels.insert(
+                        method.member_span,
+                        method_signature_hover_label(resolved_method, owner, self.resolved),
+                    );
+                    self.collect_expression_facts(&method.object, environment);
+                } else if let Some(method) = method_member_for_call(expression)
+                    && let Some((owner, resolved_function)) =
+                        self.resolved.associated_function_for_call(expression)
+                {
+                    self.facts.call_hover_labels.insert(
+                        method.member_span,
+                        associated_function_signature_hover_label(
+                            owner,
+                            resolved_function,
+                            self.resolved,
+                        ),
+                    );
                     self.collect_expression_facts(&method.object, environment);
                 } else {
                     self.collect_expression_facts(&expression.callee, environment);
@@ -569,4 +632,180 @@ impl TypecheckFactCollector<'_> {
 
 fn span_contains(span: ByteSpan, offset: usize) -> bool {
     span.start <= offset && offset < span.end
+}
+
+fn function_declaration_hover_label(
+    function: &crate::ast::FunctionDecl,
+    resolved: &ResolveOutput,
+) -> String {
+    let self_type = function_self_type(function, resolved);
+    format!(
+        "func {}{}({}): {}",
+        function.name,
+        generic_parameters_label(&function.generics, resolved, self_type.as_ref()),
+        parameters_label(
+            &function.parameters.parameters,
+            resolved,
+            self_type.as_ref()
+        ),
+        type_label(&function.return_type, resolved, self_type.as_ref())
+    )
+}
+
+fn primitive_declaration_hover_label(
+    primitive: &crate::ast::PrimitiveDecl,
+    resolved: &ResolveOutput,
+) -> String {
+    format!(
+        "primitive {}{}({}): {}",
+        primitive.name,
+        generic_parameters_label(&primitive.generics, resolved, None),
+        parameters_label(&primitive.parameters.parameters, resolved, None),
+        type_label(&primitive.return_type, resolved, None)
+    )
+}
+
+fn method_declaration_hover_label(
+    method: &MethodDecl,
+    resolved: &ResolveOutput,
+    self_type: Option<&Type>,
+) -> String {
+    format!(
+        "method ({}: {}).{}({}): {}",
+        method.receiver.name,
+        type_label(&method.receiver.ty, resolved, self_type),
+        method.name,
+        parameters_label(&method.parameters.parameters, resolved, self_type),
+        type_label(&method.return_type, resolved, self_type)
+    )
+}
+
+fn drop_declaration_hover_label(
+    drop_: &crate::ast::DropDecl,
+    resolved: &ResolveOutput,
+    self_type: &Type,
+) -> String {
+    format!(
+        "drop {}: {}",
+        drop_.binding.name,
+        type_label(&drop_.binding.ty, resolved, Some(self_type))
+    )
+}
+
+fn associated_function_signature_hover_label(
+    owner: &TypeSymbol,
+    function: &AssociatedFunctionSignature,
+    resolved: &ResolveOutput,
+) -> String {
+    let self_type = Type::Named(owner.canonical_name.clone());
+    function_signature_hover_label(
+        "func",
+        &function.target_name,
+        &function.signature,
+        resolved,
+        Some(&self_type),
+    )
+}
+
+fn method_signature_hover_label(
+    method: &MethodSignature,
+    owner: &TypeSymbol,
+    resolved: &ResolveOutput,
+) -> String {
+    let self_type = Type::Named(owner.canonical_name.clone());
+    format!(
+        "method ({}: {}).{}({}): {}",
+        method.receiver.name,
+        parameter_signature_type_label(&method.receiver, resolved, Some(&self_type)),
+        method.name,
+        parameter_signatures_label(&method.signature.parameters, resolved, Some(&self_type)),
+        type_label(&method.signature.return_type, resolved, Some(&self_type))
+    )
+}
+
+fn function_signature_hover_label(
+    kind: &str,
+    name: &str,
+    signature: &FunctionSignature,
+    resolved: &ResolveOutput,
+    self_type: Option<&Type>,
+) -> String {
+    format!(
+        "{kind} {name}({}): {}",
+        parameter_signatures_label(&signature.parameters, resolved, self_type),
+        type_label(&signature.return_type, resolved, self_type)
+    )
+}
+
+fn generic_parameters_label(
+    generics: &GenericParamList,
+    resolved: &ResolveOutput,
+    self_type: Option<&Type>,
+) -> String {
+    if generics.parameters.is_empty() {
+        return String::new();
+    }
+
+    let parameters = generics
+        .parameters
+        .iter()
+        .map(|parameter| match &parameter.bound {
+            Some(bound) => format!(
+                "{}: {}",
+                parameter.name,
+                type_label(bound, resolved, self_type)
+            ),
+            None => parameter.name.clone(),
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("<{parameters}>")
+}
+
+fn parameters_label(
+    parameters: &[Parameter],
+    resolved: &ResolveOutput,
+    self_type: Option<&Type>,
+) -> String {
+    parameters
+        .iter()
+        .map(|parameter| {
+            format!(
+                "{}: {}",
+                parameter.name,
+                type_label(&parameter.ty, resolved, self_type)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn parameter_signatures_label(
+    parameters: &[ParameterSignature],
+    resolved: &ResolveOutput,
+    self_type: Option<&Type>,
+) -> String {
+    parameters
+        .iter()
+        .map(|parameter| {
+            format!(
+                "{}: {}",
+                parameter.name,
+                parameter_signature_type_label(parameter, resolved, self_type)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn parameter_signature_type_label(
+    parameter: &ParameterSignature,
+    resolved: &ResolveOutput,
+    self_type: Option<&Type>,
+) -> String {
+    type_label(&parameter.ty, resolved, self_type)
+}
+
+fn type_label(ty: &TypeExpr, resolved: &ResolveOutput, self_type: Option<&Type>) -> String {
+    type_expr_to_type_with_self_type(ty, resolved, self_type).display()
 }

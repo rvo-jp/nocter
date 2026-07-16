@@ -1,0 +1,1051 @@
+//! Hover information derived from compile-unit analysis.
+
+use super::single_file::{parse_single_file_text, resolve_single_file_ast};
+use super::{CompileUnitAnalysis, FileAnalysis};
+use crate::ast::{
+    AstFile, BindingStmt, Block, EnumDecl, Expr, FunctionDecl, ImplMember, InterpolatedStringPart,
+    Item, MethodDecl, ModulePath, Parameter, PrimitiveDecl, Stmt, StructDecl, StructField,
+    TraitDecl,
+};
+use crate::comments::{DocumentationTarget, attach_documentation};
+use crate::resolve::{
+    LocalSymbol, LocalSymbolKind, ResolveOutput, Symbol, SymbolKind, TypeSymbolKind,
+};
+use crate::source::{ByteSpan, SourceId, SourceMap};
+use crate::typecheck::{TypecheckFacts, collect_typecheck_facts};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct HoverInfo {
+    pub(crate) span: ByteSpan,
+    pub(crate) label: String,
+    pub(crate) documentation: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct HoverSymbol {
+    name_span: ByteSpan,
+    attach_start: usize,
+    label: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ResolvedReference {
+    TopLevel(Box<Symbol>),
+    Local(LocalSymbol),
+}
+
+impl ResolvedReference {
+    fn declaration_span(&self) -> ByteSpan {
+        match self {
+            ResolvedReference::TopLevel(symbol) => symbol.declaration_span,
+            ResolvedReference::Local(symbol) => symbol.name_span,
+        }
+    }
+}
+
+pub(crate) fn hover_for_file_analysis(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    file: &FileAnalysis,
+    offset: usize,
+) -> Option<HoverInfo> {
+    let source_file = sources.get(file.ast.span.source)?;
+    let text = source_file.text();
+    let symbols = hover_symbols_for_file_analysis(text, file);
+    let documentation = documentation_for_hover_symbols(file.ast.span.source, text, &symbols);
+
+    if let Some(hover) = module_path_hover_for_ast(sources, analysis, file, offset) {
+        return Some(hover);
+    }
+
+    if let Some(symbol) = symbols
+        .iter()
+        .find(|symbol| span_contains(symbol.name_span, offset))
+    {
+        return Some(HoverInfo {
+            span: symbol.name_span,
+            label: symbol.label.clone(),
+            documentation: documentation
+                .get(symbol.name_span.start)
+                .map(str::to_string),
+        });
+    }
+
+    if let Some(hover) = call_hover_for_file_analysis(sources, analysis, file, offset) {
+        return Some(hover);
+    }
+
+    resolved_reference_at_offset(&file.resolved, offset).map(|(span, reference)| {
+        let (label, documentation) =
+            resolved_reference_hover_contents(sources, analysis, &reference);
+        HoverInfo {
+            span,
+            label,
+            documentation,
+        }
+    })
+}
+
+pub(crate) fn hover_for_text(text: &str, offset: usize) -> Option<HoverInfo> {
+    let parsed = parse_single_file_text("hover.nct", text)?;
+
+    hover_for_ast(text, parsed.source, &parsed.ast, offset)
+}
+
+pub(crate) fn hover_for_ast(
+    text: &str,
+    source: SourceId,
+    ast: &AstFile,
+    offset: usize,
+) -> Option<HoverInfo> {
+    let resolved = resolve_single_file_ast("hover.nct", text, source, ast);
+    let facts = collect_typecheck_facts(ast, &resolved);
+    let mut symbols = hover_symbols_for_ast(text, ast);
+    apply_typecheck_hover_facts(text, &facts, &mut symbols);
+    let documentation = documentation_for_hover_symbols(source, text, &symbols);
+
+    if let Some(symbol) = symbols
+        .iter()
+        .find(|symbol| span_contains(symbol.name_span, offset))
+    {
+        return Some(HoverInfo {
+            span: symbol.name_span,
+            label: symbol.label.clone(),
+            documentation: documentation
+                .get(symbol.name_span.start)
+                .map(str::to_string),
+        });
+    }
+
+    if let Some((span, label)) = facts.call_hover_at_offset(offset) {
+        return Some(HoverInfo {
+            span,
+            label: label.to_string(),
+            documentation: facts
+                .method_call_target(span)
+                .and_then(|target| documentation.get(target.start))
+                .map(str::to_string),
+        });
+    }
+
+    resolved_reference_at_offset(&resolved, offset).map(|(span, reference)| {
+        let (label, documentation) = single_file_resolved_reference_hover_contents(
+            text,
+            &symbols,
+            &documentation,
+            &reference,
+        );
+        HoverInfo {
+            span,
+            label,
+            documentation,
+        }
+    })
+}
+
+pub(crate) fn definition_span_for_ast(
+    text: &str,
+    ast: &AstFile,
+    resolved: &ResolveOutput,
+    offset: usize,
+) -> Option<ByteSpan> {
+    let symbols = hover_symbols_for_ast(text, ast);
+    if let Some(symbol) = symbols
+        .iter()
+        .find(|symbol| span_contains(symbol.name_span, offset))
+    {
+        return Some(symbol.name_span);
+    }
+
+    resolved_reference_at_offset(resolved, offset)
+        .map(|(_, reference)| reference.declaration_span())
+}
+
+pub(crate) fn module_path_at_offset(ast: &AstFile, offset: usize) -> Option<&ModulePath> {
+    ast.items.iter().find_map(|item| {
+        let path = match item {
+            Item::Use(item) => &item.path,
+            Item::Import(item) => &item.path,
+            Item::FromImport(item) => &item.path,
+            Item::Function(_)
+            | Item::Primitive(_)
+            | Item::TypeAlias(_)
+            | Item::Struct(_)
+            | Item::Enum(_)
+            | Item::Trait(_)
+            | Item::Impl(_) => return None,
+        };
+
+        span_contains(path.span, offset).then_some(path)
+    })
+}
+
+fn module_path_hover_for_ast(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    file: &FileAnalysis,
+    offset: usize,
+) -> Option<HoverInfo> {
+    let path = module_path_at_offset(&file.ast, offset)?;
+    let import_source = analysis.import_sources.get(&path.span)?;
+    let imported_file = analysis.file_by_source(import_source.source)?;
+    let imported_source = sources.get(imported_file.ast.span.source)?;
+    let docs = attach_documentation(imported_file.ast.span.source, imported_source.text(), &[]);
+
+    Some(HoverInfo {
+        span: path.span,
+        label: format!("module {}", path.value),
+        documentation: docs.file().map(str::to_string),
+    })
+}
+
+fn call_hover_for_file_analysis(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    file: &FileAnalysis,
+    offset: usize,
+) -> Option<HoverInfo> {
+    let (span, label) = file.typecheck_facts.call_hover_at_offset(offset)?;
+    Some(HoverInfo {
+        span,
+        label: label.to_string(),
+        documentation: method_call_documentation(sources, analysis, file, span),
+    })
+}
+
+fn method_call_documentation(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    file: &FileAnalysis,
+    call_span: ByteSpan,
+) -> Option<String> {
+    let target_span = file.typecheck_facts.method_call_target(call_span)?;
+    let target_file = analysis.file_by_source(target_span.source)?;
+    let target_source = sources.get(target_file.ast.span.source)?;
+    let text = target_source.text();
+    let symbols = hover_symbols_for_file_analysis(text, target_file);
+    let documentation =
+        documentation_for_hover_symbols(target_file.ast.span.source, text, &symbols);
+    documentation.get(target_span.start).map(str::to_string)
+}
+
+fn documentation_for_hover_symbols(
+    source: SourceId,
+    text: &str,
+    symbols: &[HoverSymbol],
+) -> crate::comments::AttachedDocumentation {
+    let targets = symbols
+        .iter()
+        .map(|symbol| DocumentationTarget::new(symbol.attach_start, symbol.name_span.start))
+        .collect::<Vec<_>>();
+    attach_documentation(source, text, &targets)
+}
+
+fn resolved_reference_at_offset(
+    resolved: &ResolveOutput,
+    offset: usize,
+) -> Option<(ByteSpan, ResolvedReference)> {
+    let mut candidates = Vec::new();
+    if let Some((span, symbol)) = resolved.local_symbol_reference_at_offset(offset) {
+        candidates.push((span, ResolvedReference::Local(symbol.clone())));
+    }
+    if let Some((span, symbol)) = resolved.symbol_reference_at_offset(offset) {
+        candidates.push((span, ResolvedReference::TopLevel(Box::new(symbol.clone()))));
+    }
+    candidates.sort_by_key(|(span, _)| (span.len(), span.start));
+    candidates.into_iter().next()
+}
+
+fn span_contains(span: ByteSpan, offset: usize) -> bool {
+    span.start <= offset && offset < span.end
+}
+
+fn hover_symbols_for_ast(text: &str, ast: &AstFile) -> Vec<HoverSymbol> {
+    let mut symbols = Vec::new();
+    for item in &ast.items {
+        collect_item_hover_symbols(text, item, &mut symbols);
+    }
+    symbols
+}
+
+fn hover_symbols_for_file_analysis(text: &str, file: &FileAnalysis) -> Vec<HoverSymbol> {
+    let mut symbols = hover_symbols_for_ast(text, &file.ast);
+    apply_typecheck_hover_facts(text, &file.typecheck_facts, &mut symbols);
+    symbols
+}
+
+fn apply_typecheck_hover_facts(text: &str, facts: &TypecheckFacts, symbols: &mut [HoverSymbol]) {
+    for symbol in symbols {
+        if let Some(label) = facts.declaration_hover_label(symbol.name_span) {
+            symbol.label = label.to_string();
+            continue;
+        }
+
+        let Some(ty) = facts.binding_type_label(symbol.name_span) else {
+            continue;
+        };
+        let Some(kind) = binding_hover_label_kind(&symbol.label) else {
+            continue;
+        };
+        let name = source_fragment(text, symbol.name_span);
+        symbol.label = format!("{kind} {name}: {ty}");
+    }
+}
+
+fn binding_hover_label_kind(label: &str) -> Option<&'static str> {
+    if label.starts_with("let ") {
+        Some("let")
+    } else if label.starts_with("var ") {
+        Some("var")
+    } else if label.starts_with("parameter ") {
+        Some("parameter")
+    } else {
+        None
+    }
+}
+
+fn collect_item_hover_symbols(text: &str, item: &Item, symbols: &mut Vec<HoverSymbol>) {
+    match item {
+        Item::Use(_) | Item::Import(_) | Item::FromImport(_) => {}
+        Item::Function(function) => {
+            push_function_hover_symbol(text, function, symbols);
+            collect_parameter_hover_symbols(text, &function.parameters.parameters, symbols);
+            collect_block_hover_symbols(text, &function.body, symbols);
+        }
+        Item::Primitive(primitive) => {
+            push_primitive_hover_symbol(text, primitive, symbols);
+            collect_parameter_hover_symbols(text, &primitive.parameters.parameters, symbols);
+        }
+        Item::TypeAlias(alias) => push_hover_symbol(
+            text,
+            alias.name_span,
+            alias.span.start,
+            format!(
+                "type {} = {}",
+                alias.name,
+                source_fragment(text, alias.target.span())
+            ),
+            symbols,
+        ),
+        Item::Struct(struct_) => collect_struct_hover_symbols(text, struct_, symbols),
+        Item::Enum(enum_) => collect_enum_hover_symbols(text, enum_, symbols),
+        Item::Trait(trait_) => collect_trait_hover_symbols(text, trait_, symbols),
+        Item::Impl(impl_) => {
+            for member in &impl_.members {
+                match member {
+                    ImplMember::Method(method) => {
+                        collect_method_hover_symbols(text, method, symbols)
+                    }
+                    ImplMember::Drop(drop_) => collect_drop_hover_symbols(text, drop_, symbols),
+                }
+            }
+        }
+    }
+}
+
+fn collect_struct_hover_symbols(text: &str, struct_: &StructDecl, symbols: &mut Vec<HoverSymbol>) {
+    let copy_prefix = if struct_.is_copy { "copy " } else { "" };
+    push_hover_symbol(
+        text,
+        struct_.name_span,
+        struct_.span.start,
+        format!("{copy_prefix}struct {}", struct_.name),
+        symbols,
+    );
+    for field in &struct_.fields {
+        push_struct_field_hover_symbol(text, field, symbols);
+    }
+}
+
+fn collect_enum_hover_symbols(text: &str, enum_: &EnumDecl, symbols: &mut Vec<HoverSymbol>) {
+    push_hover_symbol(
+        text,
+        enum_.name_span,
+        enum_.span.start,
+        format!("enum {}", enum_.name),
+        symbols,
+    );
+    for variant in &enum_.variants {
+        let payload = if variant.payload.is_empty() {
+            String::new()
+        } else {
+            format!("({})", parameters_label(text, &variant.payload))
+        };
+        push_hover_symbol(
+            text,
+            variant.name_span,
+            variant.span.start,
+            format!("variant {}{}", variant.name, payload),
+            symbols,
+        );
+        collect_parameter_hover_symbols(text, &variant.payload, symbols);
+    }
+}
+
+fn collect_trait_hover_symbols(text: &str, trait_: &TraitDecl, symbols: &mut Vec<HoverSymbol>) {
+    push_hover_symbol(
+        text,
+        trait_.name_span,
+        trait_.span.start,
+        format!("trait {}", trait_.name),
+        symbols,
+    );
+    for method in &trait_.methods {
+        collect_method_hover_symbols(text, method, symbols);
+    }
+}
+
+fn collect_drop_hover_symbols(
+    text: &str,
+    drop_: &crate::ast::DropDecl,
+    symbols: &mut Vec<HoverSymbol>,
+) {
+    push_hover_symbol(
+        text,
+        drop_.binding.name_span,
+        drop_.span.start,
+        function_like_header(text, drop_.span, Some(drop_.body.span.start)),
+        symbols,
+    );
+    collect_parameter_hover_symbols(text, std::slice::from_ref(&drop_.binding), symbols);
+    collect_block_hover_symbols(text, &drop_.body, symbols);
+}
+
+fn collect_method_hover_symbols(text: &str, method: &MethodDecl, symbols: &mut Vec<HoverSymbol>) {
+    push_hover_symbol(
+        text,
+        method.name_span,
+        method.span.start,
+        function_like_header(
+            text,
+            method.span,
+            method.body.as_ref().map(|body| body.span.start),
+        ),
+        symbols,
+    );
+    collect_parameter_hover_symbols(text, std::slice::from_ref(&method.receiver), symbols);
+    collect_parameter_hover_symbols(text, &method.parameters.parameters, symbols);
+    if let Some(body) = &method.body {
+        collect_block_hover_symbols(text, body, symbols);
+    }
+}
+
+fn push_function_hover_symbol(text: &str, function: &FunctionDecl, symbols: &mut Vec<HoverSymbol>) {
+    push_hover_symbol(
+        text,
+        function.name_span,
+        function.span.start,
+        function_like_header(text, function.span, Some(function.body.span.start)),
+        symbols,
+    );
+}
+
+fn push_primitive_hover_symbol(
+    text: &str,
+    primitive: &PrimitiveDecl,
+    symbols: &mut Vec<HoverSymbol>,
+) {
+    push_hover_symbol(
+        text,
+        primitive.name_span,
+        primitive.span.start,
+        function_like_header(text, primitive.span, None),
+        symbols,
+    );
+}
+
+fn push_struct_field_hover_symbol(text: &str, field: &StructField, symbols: &mut Vec<HoverSymbol>) {
+    push_hover_symbol(
+        text,
+        field.name_span,
+        field.span.start,
+        format!(
+            "field {}: {}",
+            field.name,
+            source_fragment(text, field.ty.span())
+        ),
+        symbols,
+    );
+}
+
+fn collect_parameter_hover_symbols(
+    text: &str,
+    parameters: &[Parameter],
+    symbols: &mut Vec<HoverSymbol>,
+) {
+    for parameter in parameters {
+        push_hover_symbol_with_attach_start(
+            parameter.name_span,
+            parameter.span.start,
+            format!(
+                "parameter {}: {}",
+                parameter.name,
+                source_fragment(text, parameter.ty.span())
+            ),
+            symbols,
+        );
+    }
+}
+
+fn collect_block_hover_symbols(text: &str, block: &Block, symbols: &mut Vec<HoverSymbol>) {
+    for statement in &block.statements {
+        collect_statement_hover_symbols(text, statement, symbols);
+    }
+}
+
+fn collect_statement_hover_symbols(text: &str, statement: &Stmt, symbols: &mut Vec<HoverSymbol>) {
+    match statement {
+        Stmt::Return(statement) => {
+            if let Some(expression) = &statement.expression {
+                collect_expression_hover_symbols(text, expression, symbols);
+            }
+        }
+        Stmt::Binding(statement) => {
+            push_binding_hover_symbol(text, statement, symbols);
+            collect_expression_hover_symbols(text, &statement.initializer, symbols);
+            if let Some(block) = &statement.else_block {
+                collect_block_hover_symbols(text, block, symbols);
+            }
+        }
+        Stmt::Assignment(statement) => {
+            collect_expression_hover_symbols(text, &statement.target, symbols);
+            collect_expression_hover_symbols(text, &statement.value, symbols);
+        }
+        Stmt::If(statement) => {
+            collect_expression_hover_symbols(text, &statement.condition, symbols);
+            collect_block_hover_symbols(text, &statement.then_block, symbols);
+            if let Some(block) = &statement.else_block {
+                collect_block_hover_symbols(text, block, symbols);
+            }
+        }
+        Stmt::IfIs(statement) => {
+            collect_block_hover_symbols(text, &statement.then_block, symbols);
+            if let Some(block) = &statement.else_block {
+                collect_block_hover_symbols(text, block, symbols);
+            }
+        }
+        Stmt::IfLet(statement) => {
+            push_hover_symbol(
+                text,
+                statement.name_span,
+                statement.span.start,
+                format!("{} {}", binding_kind_label(statement.kind), statement.name),
+                symbols,
+            );
+            collect_expression_hover_symbols(text, &statement.initializer, symbols);
+            collect_block_hover_symbols(text, &statement.then_block, symbols);
+            if let Some(block) = &statement.else_block {
+                collect_block_hover_symbols(text, block, symbols);
+            }
+        }
+        Stmt::Switch(statement) => {
+            collect_expression_hover_symbols(text, &statement.expression, symbols);
+            for arm in &statement.arms {
+                collect_block_hover_symbols(text, &arm.body, symbols);
+            }
+            if let Some(arm) = &statement.else_arm {
+                collect_block_hover_symbols(text, &arm.body, symbols);
+            }
+        }
+        Stmt::ForRange(statement) => {
+            push_hover_symbol(
+                text,
+                statement.name_span,
+                statement.span.start,
+                format!("let {}", statement.name),
+                symbols,
+            );
+            collect_expression_hover_symbols(text, &statement.start, symbols);
+            collect_expression_hover_symbols(text, &statement.end, symbols);
+            collect_block_hover_symbols(text, &statement.body, symbols);
+        }
+        Stmt::While(statement) => {
+            collect_expression_hover_symbols(text, &statement.condition, symbols);
+            collect_block_hover_symbols(text, &statement.body, symbols);
+        }
+        Stmt::WhileLet(statement) => {
+            push_hover_symbol(
+                text,
+                statement.name_span,
+                statement.span.start,
+                format!("{} {}", binding_kind_label(statement.kind), statement.name),
+                symbols,
+            );
+            collect_expression_hover_symbols(text, &statement.initializer, symbols);
+            collect_block_hover_symbols(text, &statement.body, symbols);
+        }
+        Stmt::Loop(statement) => collect_block_hover_symbols(text, &statement.body, symbols),
+        Stmt::Drop(_) => {}
+        Stmt::Expression(statement) => {
+            collect_expression_hover_symbols(text, &statement.expression, symbols);
+        }
+        Stmt::Break(_) | Stmt::Continue(_) => {}
+    }
+}
+
+fn push_binding_hover_symbol(text: &str, statement: &BindingStmt, symbols: &mut Vec<HoverSymbol>) {
+    let ty = statement
+        .ty
+        .as_ref()
+        .map(|ty| format!(": {}", source_fragment(text, ty.span())))
+        .unwrap_or_default();
+    push_hover_symbol(
+        text,
+        statement.name_span,
+        statement.span.start,
+        format!(
+            "{} {}{}",
+            binding_kind_label(statement.kind),
+            statement.name,
+            ty
+        ),
+        symbols,
+    );
+}
+
+fn collect_expression_hover_symbols(text: &str, expression: &Expr, symbols: &mut Vec<HoverSymbol>) {
+    match expression {
+        Expr::ArrayLiteral(expression) => {
+            for element in &expression.elements {
+                collect_expression_hover_symbols(text, element, symbols);
+            }
+        }
+        Expr::StructLiteral(expression) => {
+            for field in &expression.fields {
+                collect_expression_hover_symbols(text, &field.value, symbols);
+            }
+        }
+        Expr::Propagate(expression) => {
+            collect_expression_hover_symbols(text, &expression.expression, symbols);
+        }
+        Expr::Force(expression) => {
+            collect_expression_hover_symbols(text, &expression.expression, symbols);
+        }
+        Expr::Catch(expression) => {
+            collect_expression_hover_symbols(text, &expression.expression, symbols);
+            collect_block_hover_symbols(text, &expression.catch_block, symbols);
+        }
+        Expr::Borrow(expression) => {
+            collect_expression_hover_symbols(text, &expression.expression, symbols);
+        }
+        Expr::Unary(expression) => {
+            collect_expression_hover_symbols(text, &expression.operand, symbols)
+        }
+        Expr::Binary(expression) => {
+            collect_expression_hover_symbols(text, &expression.left, symbols);
+            collect_expression_hover_symbols(text, &expression.right, symbols);
+        }
+        Expr::TypeConversion(expression) => {
+            collect_expression_hover_symbols(text, &expression.expression, symbols);
+        }
+        Expr::Call(expression) => {
+            collect_expression_hover_symbols(text, &expression.callee, symbols);
+            for argument in &expression.arguments {
+                collect_expression_hover_symbols(text, argument, symbols);
+            }
+        }
+        Expr::Member(expression) => {
+            collect_expression_hover_symbols(text, &expression.object, symbols)
+        }
+        Expr::Index(expression) => {
+            collect_expression_hover_symbols(text, &expression.object, symbols);
+            collect_expression_hover_symbols(text, &expression.index, symbols);
+        }
+        Expr::Group(expression) => {
+            collect_expression_hover_symbols(text, &expression.expression, symbols);
+        }
+        Expr::InterpolatedString(expression) => {
+            for part in &expression.parts {
+                if let InterpolatedStringPart::Expression(part) = part {
+                    collect_expression_hover_symbols(text, &part.expression, symbols);
+                }
+            }
+        }
+        Expr::OptionalDefault(expression) => {
+            collect_expression_hover_symbols(text, &expression.value, symbols);
+            collect_expression_hover_symbols(text, &expression.default, symbols);
+        }
+        Expr::PatternConditional(expression) => {
+            collect_expression_hover_symbols(text, &expression.target, symbols);
+            for arm in &expression.arms {
+                collect_expression_hover_symbols(text, &arm.expression, symbols);
+            }
+            collect_expression_hover_symbols(text, &expression.fallback, symbols);
+        }
+        Expr::Identifier(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::StringLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::NoneLiteral(_) => {}
+    }
+}
+
+fn push_hover_symbol(
+    text: &str,
+    name_span: ByteSpan,
+    declaration_start: usize,
+    label: String,
+    symbols: &mut Vec<HoverSymbol>,
+) {
+    push_hover_symbol_with_attach_start(
+        name_span,
+        declaration_line_start(text, declaration_start),
+        label,
+        symbols,
+    );
+}
+
+fn push_hover_symbol_with_attach_start(
+    name_span: ByteSpan,
+    attach_start: usize,
+    label: String,
+    symbols: &mut Vec<HoverSymbol>,
+) {
+    symbols.push(HoverSymbol {
+        name_span,
+        attach_start,
+        label,
+    });
+}
+
+fn function_like_header(text: &str, span: ByteSpan, body_start: Option<usize>) -> String {
+    let end = body_start.unwrap_or(span.end).min(span.end);
+    source_fragment(text, ByteSpan::new(span.source, span.start, end))
+        .trim_end_matches('{')
+        .trim()
+        .to_string()
+}
+
+fn parameters_label(text: &str, parameters: &[Parameter]) -> String {
+    parameters
+        .iter()
+        .map(|parameter| {
+            format!(
+                "{}: {}",
+                parameter.name,
+                source_fragment(text, parameter.ty.span())
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn binding_kind_label(kind: crate::ast::BindingKind) -> &'static str {
+    match kind {
+        crate::ast::BindingKind::Let => "let",
+        crate::ast::BindingKind::Var => "var",
+    }
+}
+
+fn single_file_resolved_reference_hover_contents(
+    text: &str,
+    symbols: &[HoverSymbol],
+    documentation: &crate::comments::AttachedDocumentation,
+    reference: &ResolvedReference,
+) -> (String, Option<String>) {
+    match reference {
+        ResolvedReference::TopLevel(symbol) => {
+            let referenced = symbols
+                .iter()
+                .find(|candidate| candidate.name_span == symbol.name_span);
+            let label = referenced
+                .map(|symbol| symbol.label.clone())
+                .unwrap_or_else(|| symbol_hover_label(text, symbol));
+            let docs = referenced
+                .and_then(|symbol| documentation.get(symbol.name_span.start))
+                .map(str::to_string);
+            (label, docs)
+        }
+        ResolvedReference::Local(symbol) => {
+            local_symbol_hover_contents(symbols, documentation, symbol)
+        }
+    }
+}
+
+fn resolved_reference_hover_contents(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    reference: &ResolvedReference,
+) -> (String, Option<String>) {
+    match reference {
+        ResolvedReference::TopLevel(symbol) => {
+            resolved_symbol_hover_contents(sources, analysis, symbol).unwrap_or_else(|| {
+                (
+                    symbol_hover_label_for_sources(sources, symbol),
+                    None::<String>,
+                )
+            })
+        }
+        ResolvedReference::Local(symbol) => {
+            resolved_local_symbol_hover_contents(sources, analysis, symbol)
+                .unwrap_or_else(|| (local_symbol_hover_label(symbol), None))
+        }
+    }
+}
+
+fn local_symbol_hover_contents(
+    symbols: &[HoverSymbol],
+    documentation: &crate::comments::AttachedDocumentation,
+    symbol: &LocalSymbol,
+) -> (String, Option<String>) {
+    let referenced = symbols
+        .iter()
+        .find(|candidate| candidate.name_span == symbol.name_span);
+    let label = referenced
+        .map(|symbol| symbol.label.clone())
+        .unwrap_or_else(|| local_symbol_hover_label(symbol));
+    let docs = referenced
+        .and_then(|symbol| documentation.get(symbol.name_span.start))
+        .map(str::to_string);
+
+    (label, docs)
+}
+
+fn resolved_local_symbol_hover_contents(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    symbol: &LocalSymbol,
+) -> Option<(String, Option<String>)> {
+    let file = analysis.file_by_source(symbol.name_span.source)?;
+    let source_file = sources.get(file.ast.span.source)?;
+    let text = source_file.text();
+    let symbols = hover_symbols_for_file_analysis(text, file);
+    let documentation = documentation_for_hover_symbols(file.ast.span.source, text, &symbols);
+
+    Some(local_symbol_hover_contents(
+        &symbols,
+        &documentation,
+        symbol,
+    ))
+}
+
+fn local_symbol_hover_label(symbol: &LocalSymbol) -> String {
+    match symbol.kind {
+        LocalSymbolKind::Parameter => format!("parameter {}", symbol.name),
+        LocalSymbolKind::Binding(kind) => format!("{} {}", binding_kind_label(kind), symbol.name),
+        LocalSymbolKind::PatternPayload => format!("payload {}", symbol.name),
+        LocalSymbolKind::CatchError => format!("catch {}", symbol.name),
+        LocalSymbolKind::ForRange => format!("for {}", symbol.name),
+    }
+}
+
+fn resolved_symbol_hover_contents(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    symbol: &Symbol,
+) -> Option<(String, Option<String>)> {
+    let file = analysis.file_by_source(symbol.declaration_span.source)?;
+    let source_file = sources.get(file.ast.span.source)?;
+    let text = source_file.text();
+    let symbols = hover_symbols_for_file_analysis(text, file);
+    let hover_symbol = symbols
+        .iter()
+        .find(|candidate| candidate.name_span == symbol.declaration_span)
+        .or_else(|| {
+            symbols
+                .iter()
+                .find(|candidate| candidate.name_span == symbol.name_span)
+        })?;
+    let documentation = documentation_for_hover_symbols(file.ast.span.source, text, &symbols);
+    let docs = documentation
+        .get(hover_symbol.name_span.start)
+        .map(str::to_string);
+
+    Some((hover_symbol.label.clone(), docs))
+}
+
+fn symbol_hover_label(text: &str, symbol: &Symbol) -> String {
+    match &symbol.kind {
+        SymbolKind::Function(signature) | SymbolKind::Primitive(signature) => format!(
+            "{} {}({}): {}",
+            if matches!(&symbol.kind, SymbolKind::Primitive(_)) {
+                "primitive"
+            } else {
+                "func"
+            },
+            symbol.name,
+            parameter_signatures_label(text, &signature.parameters),
+            source_fragment(text, signature.return_type.span())
+        ),
+        SymbolKind::Type(type_symbol) => match type_symbol.kind {
+            TypeSymbolKind::Alias => type_symbol
+                .alias_target
+                .as_ref()
+                .map(|target| {
+                    format!(
+                        "type {} = {}",
+                        symbol.name,
+                        source_fragment(text, target.span())
+                    )
+                })
+                .unwrap_or_else(|| format!("type {}", symbol.name)),
+            TypeSymbolKind::Struct => format!("struct {}", symbol.name),
+            TypeSymbolKind::Enum => format!("enum {}", symbol.name),
+            TypeSymbolKind::Trait => format!("trait {}", symbol.name),
+        },
+        SymbolKind::Imported(imported) => format!("import {} from {}", symbol.name, imported.path),
+    }
+}
+
+fn symbol_hover_label_for_sources(sources: &SourceMap, symbol: &Symbol) -> String {
+    match &symbol.kind {
+        SymbolKind::Function(signature) | SymbolKind::Primitive(signature) => format!(
+            "{} {}({}): {}",
+            if matches!(&symbol.kind, SymbolKind::Primitive(_)) {
+                "primitive"
+            } else {
+                "func"
+            },
+            symbol.name,
+            parameter_signatures_label_for_sources(sources, &signature.parameters),
+            source_fragment_from_sources(sources, signature.return_type.span())
+        ),
+        SymbolKind::Type(type_symbol) => match type_symbol.kind {
+            TypeSymbolKind::Alias => type_symbol
+                .alias_target
+                .as_ref()
+                .map(|target| {
+                    format!(
+                        "type {} = {}",
+                        symbol.name,
+                        source_fragment_from_sources(sources, target.span())
+                    )
+                })
+                .unwrap_or_else(|| format!("type {}", symbol.name)),
+            TypeSymbolKind::Struct => format!("struct {}", symbol.name),
+            TypeSymbolKind::Enum => format!("enum {}", symbol.name),
+            TypeSymbolKind::Trait => format!("trait {}", symbol.name),
+        },
+        SymbolKind::Imported(imported) => format!("import {} from {}", symbol.name, imported.path),
+    }
+}
+
+fn parameter_signatures_label_for_sources(
+    sources: &SourceMap,
+    parameters: &[crate::resolve::ParameterSignature],
+) -> String {
+    parameters
+        .iter()
+        .map(|parameter| {
+            format!(
+                "{}: {}",
+                parameter.name,
+                source_fragment_from_sources(sources, parameter.ty.span())
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn source_fragment_from_sources(sources: &SourceMap, span: ByteSpan) -> String {
+    sources
+        .get(span.source)
+        .map(|source| source_fragment(source.text(), span).to_string())
+        .unwrap_or_default()
+}
+
+fn parameter_signatures_label(
+    text: &str,
+    parameters: &[crate::resolve::ParameterSignature],
+) -> String {
+    parameters
+        .iter()
+        .map(|parameter| {
+            format!(
+                "{}: {}",
+                parameter.name,
+                source_fragment(text, parameter.ty.span())
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn source_fragment(text: &str, span: ByteSpan) -> &str {
+    text.get(span.start.min(text.len())..span.end.min(text.len()))
+        .unwrap_or_default()
+        .trim()
+}
+
+fn declaration_line_start(text: &str, node_start: usize) -> usize {
+    let bytes = text.as_bytes();
+    let mut line_start = node_start.min(bytes.len());
+    while line_start > 0 && bytes[line_start - 1] != b'\n' {
+        line_start -= 1;
+    }
+
+    let mut start = line_start;
+    while start < node_start && matches!(bytes[start], b' ' | b'\t') {
+        start += 1;
+    }
+
+    start
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::analysis::{CompileUnit, analyze_compile_unit_as_modules};
+    use crate::lexer::lex;
+    use crate::parser::parse;
+    use std::collections::HashMap;
+
+    #[test]
+    fn workspace_hover_uses_typecheck_facts_and_documentation() {
+        let text = "func main(): i32 {\n    /// Exit code.\n    var code = 0\n    return code\n}\n";
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.find("return code").expect("expected reference") + "return ".len();
+
+        let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected hover info");
+
+        assert_eq!(hover.label, "var code: i32");
+        assert_eq!(hover.documentation.as_deref(), Some("Exit code."));
+    }
+
+    #[test]
+    fn workspace_hover_uses_normalized_typecheck_facts_for_function_reference() {
+        let text = "type Exit = i32\n\nfunc answer(value: Exit): Exit {\n    return value\n}\n\nfunc main(): i32 {\n    return answer(1)\n}\n";
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.find("answer(1)").expect("expected reference");
+
+        let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected hover info");
+
+        assert_eq!(hover.label, "func answer(value: i32): i32");
+    }
+
+    #[test]
+    fn workspace_hover_uses_normalized_typecheck_facts_for_method_call() {
+        let text = "type Count = i32\n\nstruct File {\n    fd: Count\n}\n\nimpl File {\n    /// Reads a count.\n    method (file: Self).read(amount: Count): Count {\n        return amount\n    }\n}\n\nfunc main(): i32 {\n    let file = File{ fd: 1 }\n    return file.read(1)\n}\n";
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.find("read(1)").expect("expected method call");
+
+        let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected hover info");
+
+        assert_eq!(hover.label, "method (file: File).read(amount: i32): i32");
+        assert_eq!(hover.documentation.as_deref(), Some("Reads a count."));
+    }
+
+    fn analyze_text(text: &str) -> (SourceMap, CompileUnitAnalysis) {
+        let mut sources = SourceMap::new();
+        let source = sources.add_source("test.nct", None, text.to_string());
+        let lex_output = lex(&sources, source);
+        assert!(
+            lex_output.diagnostics.is_empty(),
+            "unexpected lex diagnostics: {:?}",
+            lex_output.diagnostics
+        );
+        let ast = parse(&sources, source, &lex_output.tokens)
+            .ast
+            .expect("expected ast");
+        let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new());
+        let analysis = analyze_compile_unit_as_modules(&sources, &unit);
+
+        (sources, analysis)
+    }
+}

@@ -53,6 +53,25 @@ impl ResolveOutput {
         self.local_symbols.iter()
     }
 
+    pub fn symbol_reference_at_offset(&self, offset: usize) -> Option<(ByteSpan, &Symbol)> {
+        self.identifier_targets
+            .iter()
+            .filter(|(span, _)| span_contains(**span, offset))
+            .min_by_key(|(span, _)| (span.len(), span.start))
+            .and_then(|(span, id)| self.symbols.get(*id).map(|symbol| (*span, symbol)))
+    }
+
+    pub fn local_symbol_reference_at_offset(
+        &self,
+        offset: usize,
+    ) -> Option<(ByteSpan, &LocalSymbol)> {
+        self.local_identifier_targets
+            .iter()
+            .filter(|(span, _)| span_contains(**span, offset))
+            .min_by_key(|(span, _)| (span.len(), span.start))
+            .and_then(|(span, id)| self.local_symbol(*id).map(|symbol| (*span, symbol)))
+    }
+
     pub fn function_signature_for_call(&self, call: &CallExpr) -> Option<&FunctionSignature> {
         match self.symbol_for_call(call).map(|symbol| &symbol.kind) {
             Some(SymbolKind::Function(signature) | SymbolKind::Primitive(signature)) => {
@@ -202,6 +221,10 @@ impl ResolveOutput {
         });
         id
     }
+}
+
+fn span_contains(span: ByteSpan, offset: usize) -> bool {
+    span.start <= offset && offset < span.end
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

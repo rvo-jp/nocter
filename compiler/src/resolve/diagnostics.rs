@@ -166,6 +166,22 @@ pub(super) fn restricted_import_diagnostic(
     diagnostic
 }
 
+pub(super) fn unresolved_identifier_diagnostic(
+    sources: &SourceMap,
+    name: &str,
+    span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0416",
+        format!("identifier `{name}` is not declared in this scope"),
+    );
+    diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+    diagnostic.help = Some(
+        "declare a local binding, parameter, function, type, or import with this name".to_string(),
+    );
+    diagnostic
+}
+
 fn visibility_description(visibility: Visibility) -> &'static str {
     match visibility {
         Visibility::Private => "private",

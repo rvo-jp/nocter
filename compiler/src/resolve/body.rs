@@ -1,5 +1,8 @@
 use super::builtins::is_builtin_type_name;
-use super::diagnostics::{builtin_name_reuse_diagnostic, duplicate_visible_name_diagnostic};
+use super::diagnostics::{
+    builtin_name_reuse_diagnostic, duplicate_visible_name_diagnostic,
+    unresolved_identifier_diagnostic,
+};
 use super::{LocalSymbolId, LocalSymbolKind, Resolver, SymbolId};
 use crate::ast::{
     AstFile, Block, Expr, IdentifierExpr, ImplDecl, ImplMember, InterpolatedStringPart, Item,
@@ -304,7 +307,16 @@ impl Resolver<'_> {
             self.output
                 .identifier_targets
                 .insert(identifier.span, symbol_id);
+            return;
         }
+
+        self.output
+            .diagnostics
+            .push(unresolved_identifier_diagnostic(
+                self.sources,
+                &identifier.name,
+                identifier.span,
+            ));
     }
 
     fn resolve_top_level_name(

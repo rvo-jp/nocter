@@ -1,5 +1,12 @@
 //! Whole-compile-unit semantic analysis.
 
+pub(crate) mod completion;
+pub(crate) mod definition;
+pub(crate) mod hover;
+pub(crate) mod semantic;
+mod single_file;
+pub(crate) mod symbols;
+
 use crate::ast::AstFile;
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{ImportSourceMap, ResolveOutput, resolve_compile_unit};

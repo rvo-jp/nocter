@@ -59,3 +59,31 @@ func value(path: &str): i32 {
     assert!(resolved_names.contains(&"path"));
     assert!(resolved_names.contains(&"code"));
 }
+
+#[test]
+fn reports_unresolved_identifier_references() {
+    let output = resolve_text(
+        r#"func main(): i32 {
+    return missing
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0416");
+    assert!(output.diagnostics[0].message.contains("missing"));
+}
+
+#[test]
+fn reports_unresolved_call_callees() {
+    let output = resolve_text(
+        r#"func main(): i32 {
+    return missing()
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0416");
+    assert!(output.diagnostics[0].message.contains("missing"));
+}

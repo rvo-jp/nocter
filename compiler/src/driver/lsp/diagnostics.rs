@@ -1,7 +1,9 @@
 use super::documents::OpenDocument;
-use super::protocol::{LspPosition, LspRange, byte_offset_to_lsp_position};
+use super::protocol::{
+    LspPosition, LspRange, byte_offset_to_lsp_position, file_uri_for_path, source_file_uri,
+};
 use crate::diagnostics::{Diagnostic, DiagnosticNote, Severity};
-use crate::source::{JsonSpan, SourceFile, SourceMap};
+use crate::source::{JsonSpan, SourceMap};
 use serde::Serialize;
 use serde_json::{Value, json};
 use std::path::Path;
@@ -163,7 +165,7 @@ fn location_for_span(
 
     if let Some(source) = sources.file_for_json_span(span) {
         return Some(LspLocation {
-            uri: uri_for_source_file(source),
+            uri: source_file_uri(source),
             range: range_for_span(source.text(), span),
         });
     }
@@ -173,13 +175,6 @@ fn location_for_span(
         uri,
         range: range_from_json_span(span),
     })
-}
-
-fn uri_for_source_file(source: &SourceFile) -> String {
-    source
-        .absolute_path()
-        .map(|path| file_uri_for_path(path))
-        .unwrap_or_else(|| source.display_path().to_string())
 }
 
 fn uri_for_span(document: &OpenDocument, span: &JsonSpan) -> Option<String> {
@@ -197,22 +192,6 @@ fn uri_for_span(document: &OpenDocument, span: &JsonSpan) -> Option<String> {
 
     let path = Path::new(&span.file);
     path.is_absolute().then(|| file_uri_for_path(path))
-}
-
-fn file_uri_for_path(path: &Path) -> String {
-    let path = path.to_string_lossy();
-    let mut uri = String::from("file://");
-
-    for byte in path.bytes() {
-        match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' | b'/' => {
-                uri.push(byte as char)
-            }
-            _ => uri.push_str(&format!("%{byte:02X}")),
-        }
-    }
-
-    uri
 }
 
 fn range_from_json_span(span: &JsonSpan) -> LspRange {
