@@ -4476,6 +4476,98 @@ func abort(): never {
 }
 
 #[test]
+fn lowers_aggregate_terminal_if_never_branch_with_scope_cleanup() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = make()
+    return file.fd
+}
+
+func make(): File {
+    if true {
+        var temp = File{ fd: 2 }
+        abort()
+    } else {
+        return File{ fd: 1 }
+    }
+}
+
+func abort(): never {
+    abort()
+}
+"#,
+    );
+
+    let function = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "make")
+        .unwrap();
+    assert_eq!(
+        function,
+        &Function {
+            name: "make".to_string(),
+            target: CallTarget::same_file("make"),
+            return_type: Type::DirectAggregate {
+                layout: ValueLayout::new(4, 4),
+                words: 1,
+            },
+            instructions: vec![Instruction::If {
+                condition: BoolValue::Const(true),
+                then_instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::Slot(0),
+                        offset: 0,
+                        value: i32_const(2),
+                    },
+                    Instruction::CallVoid {
+                        target: CallTarget::same_file("File.drop"),
+                        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                            source: BorrowSource::AggregateSlot(0),
+                        })],
+                    },
+                    Instruction::TailCall {
+                        target: CallTarget::same_file("abort"),
+                        arguments: vec![],
+                    },
+                ],
+                else_instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 1,
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::Slot(1),
+                        offset: 0,
+                        value: i32_const(1),
+                    },
+                    Instruction::CopyAggregate {
+                        destination: AggregateLocation::DirectReturn,
+                        source: AggregateLocation::Slot(1),
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::Return,
+                ],
+            }],
+        }
+    );
+}
+
+#[test]
 fn lowers_branch_local_aggregate_move_assignment_from_outer_before_return_suffix() {
     let ir = lower_text(
         r#"struct File {
