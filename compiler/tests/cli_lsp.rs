@@ -160,6 +160,83 @@ fn lsp_command_publishes_typecheck_diagnostic_context() {
     );
 }
 
+#[test]
+fn lsp_command_fallback_semantic_tokens_classify_builtin_types() {
+    let project = TempProject::new("cli-lsp-fallback-semantic-types");
+    let source_text = "from ./missing import nope\n\nfunc main(path: &str): void! {\n    let byte: u8 = 0 as u8\n    return\n}\n";
+    let source = project.write_source("app.nct", source_text);
+    let uri = file_uri(&source);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/semanticTokens/full",
+                "params": {
+                    "textDocument": {
+                        "uri": uri
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+
+    let messages = read_frames(&output.stdout);
+    let semantic_data = messages
+        .iter()
+        .find(|message| message["id"] == 2)
+        .and_then(|message| message["result"]["data"].as_array())
+        .expect("expected semantic token response");
+    let tokens = decode_semantic_tokens(semantic_data);
+
+    for lexeme in ["str", "void", "u8"] {
+        assert!(
+            tokens.iter().any(|token| {
+                token.lexeme(source_text) == Some(lexeme) && token.kind == SEMANTIC_TOKEN_TYPE
+            }),
+            "expected fallback semantic tokens to classify `{lexeme}` as a type, got {tokens:#?}"
+        );
+    }
+}
+
 fn nocter_lsp(project: &TempProject, messages: &[Value]) -> Output {
     let mut child = Command::new(NOCTER)
         .arg("lsp")
@@ -211,6 +288,49 @@ fn read_frames(bytes: &[u8]) -> Vec<Value> {
 
 fn find_header_end(bytes: &[u8]) -> Option<usize> {
     bytes.windows(4).position(|window| window == b"\r\n\r\n")
+}
+
+const SEMANTIC_TOKEN_TYPE: usize = 4;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DecodedSemanticToken {
+    line: usize,
+    character: usize,
+    length: usize,
+    kind: usize,
+}
+
+impl DecodedSemanticToken {
+    fn lexeme<'a>(&self, text: &'a str) -> Option<&'a str> {
+        let line = text.lines().nth(self.line)?;
+        line.get(self.character..self.character + self.length)
+    }
+}
+
+fn decode_semantic_tokens(values: &[Value]) -> Vec<DecodedSemanticToken> {
+    let mut tokens = Vec::new();
+    let mut line = 0usize;
+    let mut character = 0usize;
+
+    for chunk in values.chunks_exact(5) {
+        let delta_line = chunk[0].as_u64().expect("expected delta line") as usize;
+        let delta_character = chunk[1].as_u64().expect("expected delta character") as usize;
+        line += delta_line;
+        if delta_line == 0 {
+            character += delta_character;
+        } else {
+            character = delta_character;
+        }
+
+        tokens.push(DecodedSemanticToken {
+            line,
+            character,
+            length: chunk[2].as_u64().expect("expected token length") as usize,
+            kind: chunk[3].as_u64().expect("expected token kind") as usize,
+        });
+    }
+
+    tokens
 }
 
 fn file_uri(path: &Path) -> String {
