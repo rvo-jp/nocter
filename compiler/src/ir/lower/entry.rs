@@ -108,13 +108,7 @@ fn lower_entry_body(
     )
     .with_function_return_type(return_type.clone())
     .with_call_resolution(root_source, resolved, typecheck_facts, function_names);
-    let mut instructions =
-        lower_leading_bindings(leading, &mut context).map_err(|diagnostics| {
-            let span = leading
-                .first()
-                .map_or(function.body.span, |statement| statement.span());
-            attach_primary_span_if_absent(diagnostics, sources, span)
-        })?;
+    let mut instructions = lower_leading_bindings(leading, &mut context, sources)?;
 
     match last {
         Stmt::Return(statement) => {
@@ -226,46 +220,84 @@ fn attach_primary_span_if_absent(
 fn lower_leading_bindings(
     statements: &[Stmt],
     context: &mut LoweringContext,
+    sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut instructions = Vec::new();
 
     for statement in statements {
         match statement {
             Stmt::Binding(statement) => {
-                instructions.extend(lower_local_binding(statement, context)?);
+                instructions.extend(lower_local_binding(statement, context).map_err(
+                    |diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    },
+                )?);
             }
             Stmt::Assignment(statement) => {
-                instructions.extend(lower_assignment(statement, context)?);
+                instructions.extend(lower_assignment(statement, context).map_err(
+                    |diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    },
+                )?);
             }
             Stmt::Expression(statement) => {
-                let Some(void_instructions) =
-                    lower_void_expression_statement(&statement.expression, context)?
+                let Some(void_instructions) = lower_void_expression_statement(
+                    &statement.expression,
+                    context,
+                )
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.expression.span())
+                })?
                 else {
-                    return Err(unsupported_entry_body_diagnostic());
+                    return Err(attach_primary_span_if_absent(
+                        unsupported_entry_body_diagnostic(),
+                        sources,
+                        statement.span,
+                    ));
                 };
                 instructions.extend(void_instructions);
             }
             Stmt::Drop(statement) => {
-                instructions.extend(lower_drop_statement(statement, context)?);
+                instructions.extend(lower_drop_statement(statement, context).map_err(
+                    |diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    },
+                )?);
             }
             Stmt::If(statement) => {
-                instructions.extend(lower_nonterminal_if_statement(
-                    statement,
-                    context,
-                    None,
-                    "E8002",
-                    "entry functions",
-                )?);
+                instructions.extend(
+                    lower_nonterminal_if_statement(
+                        statement,
+                        context,
+                        None,
+                        "E8002",
+                        "entry functions",
+                    )
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    })?,
+                );
             }
             Stmt::While(statement) => {
-                instructions.extend(lower_nonterminal_while_statement(
-                    statement,
-                    context,
-                    "E8002",
-                    "entry functions",
-                )?);
+                instructions.extend(
+                    lower_nonterminal_while_statement(
+                        statement,
+                        context,
+                        "E8002",
+                        "entry functions",
+                    )
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    })?,
+                );
             }
-            _ => return Err(unsupported_entry_body_diagnostic()),
+            _ => {
+                return Err(attach_primary_span_if_absent(
+                    unsupported_entry_body_diagnostic(),
+                    sources,
+                    statement.span(),
+                ));
+            }
         };
         mark_lowered_statement_aggregate_uses(statement, context);
     }

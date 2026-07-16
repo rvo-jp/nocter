@@ -1215,6 +1215,65 @@ fn build_command_reports_unsupported_compound_bool_equality() {
         ),
         "expected bool equality/inequality operand diagnostic, got:\n{stderr}"
     );
+    let lines: Vec<&str> = stderr.lines().collect();
+    let source_line = lines
+        .iter()
+        .position(|line| line.contains("4 |     let same = !ready == blocked"))
+        .unwrap_or_else(|| panic!("expected source line for unsupported binding, got:\n{stderr}"));
+    assert!(
+        lines
+            .get(source_line + 1)
+            .is_some_and(|line| line.contains("^^^^")),
+        "expected source underline for unsupported binding, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after compile diagnostics"
+    );
+}
+
+#[test]
+fn build_command_reports_unsupported_function_leading_binding_span() {
+    let project = TempProject::new("cli-build-function-leading-binding-span");
+    let source = project.write_source(
+        "function_leading_binding_span.nct",
+        r#"func main(): i32 {
+    return helper()
+}
+
+func helper(): i32 {
+    let ready = true
+    let blocked = false
+    let same = !ready == blocked
+    if same {
+        return 1
+    } else {
+        return 0
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E8008]"),
+        "expected IR lowering diagnostic, got:\n{stderr}"
+    );
+    let lines: Vec<&str> = stderr.lines().collect();
+    let source_line = lines
+        .iter()
+        .position(|line| line.contains("8 |     let same = !ready == blocked"))
+        .unwrap_or_else(|| panic!("expected source line for unsupported binding, got:\n{stderr}"));
+    assert!(
+        lines
+            .get(source_line + 1)
+            .is_some_and(|line| line.contains("^^^^")),
+        "expected source underline for unsupported binding, got:\n{stderr}"
+    );
     assert!(
         !executable.exists(),
         "build should not leave an executable after compile diagnostics"

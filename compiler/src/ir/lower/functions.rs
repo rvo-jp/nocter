@@ -676,12 +676,7 @@ fn lower_callable_body(
         ));
     };
 
-    let mut instructions = lower_leading_bindings(leading, context).map_err(|diagnostics| {
-        let span = leading
-            .first()
-            .map_or(body.span, |statement| statement.span());
-        attach_primary_span_if_absent(diagnostics, sources, span)
-    })?;
+    let mut instructions = lower_leading_bindings(leading, context, sources)?;
 
     match last {
         Stmt::Return(statement) => {
@@ -1380,53 +1375,78 @@ pub(super) fn type_expr_with_self_type(ty: &TypeExpr, self_ty: &TypeExpr) -> Typ
 fn lower_leading_bindings(
     statements: &[Stmt],
     context: &mut LoweringContext,
+    sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut instructions = Vec::new();
 
     for statement in statements {
         match statement {
             Stmt::Binding(statement) => {
-                instructions.extend(lower_local_binding(statement, context)?);
+                instructions.extend(lower_local_binding(statement, context).map_err(
+                    |diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    },
+                )?);
             }
             Stmt::Assignment(statement) => {
-                instructions.extend(lower_assignment(statement, context)?);
+                instructions.extend(lower_assignment(statement, context).map_err(
+                    |diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    },
+                )?);
             }
             Stmt::Expression(statement) => {
-                let Some(void_instructions) =
-                    lower_void_expression_statement(&statement.expression, context)?
+                let Some(void_instructions) = lower_void_expression_statement(
+                    &statement.expression,
+                    context,
+                )
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.expression.span())
+                })?
                 else {
-                    return Err(vec![Diagnostic::error(
-                        "E8007",
-                        "IR v0 can only lower leading scalar local bindings, scalar assignments, drop statements, or void call statements before `return`",
-                    )]);
+                    return Err(attach_primary_span_if_absent(
+                        vec![Diagnostic::error(
+                            "E8007",
+                            "IR v0 can only lower leading scalar local bindings, scalar assignments, drop statements, or void call statements before `return`",
+                        )],
+                        sources,
+                        statement.span,
+                    ));
                 };
                 instructions.extend(void_instructions);
             }
             Stmt::Drop(statement) => {
-                instructions.extend(lower_drop_statement(statement, context)?);
+                instructions.extend(lower_drop_statement(statement, context).map_err(
+                    |diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    },
+                )?);
             }
             Stmt::If(statement) => {
-                instructions.extend(lower_nonterminal_if_statement(
-                    statement,
-                    context,
-                    None,
-                    "E8007",
-                    "functions",
-                )?);
+                instructions.extend(
+                    lower_nonterminal_if_statement(statement, context, None, "E8007", "functions")
+                        .map_err(|diagnostics| {
+                            attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                        })?,
+                );
             }
             Stmt::While(statement) => {
-                instructions.extend(lower_nonterminal_while_statement(
-                    statement,
-                    context,
-                    "E8007",
-                    "functions",
-                )?);
+                instructions.extend(
+                    lower_nonterminal_while_statement(statement, context, "E8007", "functions")
+                        .map_err(|diagnostics| {
+                            attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                        })?,
+                );
             }
             _ => {
-                return Err(vec![Diagnostic::error(
-                    "E8007",
-                    "IR v0 can only lower leading scalar local bindings, scalar assignments, drop statements, void call statements, or supported non-terminal `if`/`while` statements before `return`",
-                )]);
+                return Err(attach_primary_span_if_absent(
+                    vec![Diagnostic::error(
+                        "E8007",
+                        "IR v0 can only lower leading scalar local bindings, scalar assignments, drop statements, void call statements, or supported non-terminal `if`/`while` statements before `return`",
+                    )],
+                    sources,
+                    statement.span(),
+                ));
             }
         };
         mark_lowered_statement_aggregate_uses(statement, context);
