@@ -3997,6 +3997,36 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_nonterminal_outer_scalar_assignment_exit_code() {
+    let project = TempProject::new("cli-run-nonterminal-outer-scalar-assignment");
+    let source = project.write_source(
+        "nonterminal_outer_scalar_assignment.nct",
+        r#"func main(): i32 {
+    var value = 1
+    if true {
+        value = 2
+    }
+    while false {
+        value = 3
+    }
+    return value
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_runs_outer_explicit_drop_before_nonterminal_if_return_once() {
     let project = TempProject::new("cli-run-nonterminal-if-outer-drop-return");
     project.write_nocter_home_file(

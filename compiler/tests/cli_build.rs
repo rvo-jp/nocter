@@ -621,6 +621,31 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_lowers_nonterminal_outer_scalar_assignments() {
+    let project = TempProject::new("cli-build-nonterminal-outer-scalar-assignments");
+    let source = project.write_source(
+        "nonterminal_outer_scalar_assignments.nct",
+        r#"func main(): i32 {
+    var value = 1
+    if true {
+        value = 2
+    }
+    while false {
+        value = 3
+    }
+    return value
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_nonterminal_while_body_scope_drop() {
     let project = TempProject::new("cli-build-nonterminal-while-body-scope-drop");
     let source = project.write_source(
