@@ -11,7 +11,7 @@ Adopted user decisions:
 - Keep runtime safety checks always enabled; remove them only when the compiler can prove they cannot trap.
 - Treat ordinary allocation failure as recoverable failure, not implicit abort.
 - Use an owned `String` direction based on pointer, length, and capacity, implemented as an ordinary standard-library type.
-- `.nocter/std/string.nct` now uses the ordinary `ptr`, `len`, and `capacity` representation with private fields; allocation-backed mutation remains unsupported until target allocation and aggregate lowering are in place.
+- `.nocter/std/string.nct` now uses the ordinary `ptr`, `len`, and `capacity` representation with private fields; allocation-backed construction, growth through `String.push_str`, views, drop, and formatting append are covered by distributed std run tests.
 - Do not add a runtime GC.
 - Lower generics through monomorphization.
 - Traits are deferred after v0. If traits are added later, prefer static
@@ -20,14 +20,24 @@ Adopted user decisions:
 
 Recommended next implementation order:
 
-1. Keep bare interpolation lowering disabled until an explicit allocator source is designed. The explicit `std/mem.page_allocator` + `std/string.with_capacity` + `std/fmt.append_str` + `return move out` shape now builds to Mach-O through the current stub standard-library bodies.
-2. Add the next runtime prerequisites for allocation-backed `String`: finish remaining broader branch/loop scope-end drop insertion and add target-backed allocation and mutation in `std/mem`, `std/string`, and `std/fmt`.
+1. Keep bare interpolation lowering disabled until an explicit allocator source is designed. The explicit `std/mem.page_allocator` + `std/string.with_capacity` + `std/fmt.append_str` + `return move out` shape now builds and runs through the distributed standard-library bodies.
+2. Add the next runtime prerequisites around allocation-backed `String`: finish remaining broader branch/loop scope-end drop insertion, improve the allocator beyond the current page-backed surface, and continue tightening `std/mem`, `std/string`, and `std/fmt` failure behavior.
 3. Use the resolved-type function ABI helper from IR/backend planning before adding broader aggregate storage code. Loaded imported scalar calls, scalar/view arguments, direct and indirect aggregate by-value arguments including stack-passed normal-call ABI words, explicit `move name` aggregate local arguments/returns, explicit `drop name` calls to reachable drop members, straight-line scope-end drop insertion for aggregate locals/parameters with drop glue, top-level tail-call and terminal-if branch scope-end drops, terminal-if value-return staging across branch-local drops, terminal-if aggregate return expressions including direct aggregate branch staging across pending drops, propagation-failure cleanup for pending aggregate drops, supported catch-handler return cleanup, moved-value drop suppression in the current lowerable statement subset, supported non-terminal `if`/`while` branch/body-local bindings, assignments, explicit drops, returns, body scope-end drops, and `while` `break`/`continue` cleanup, local scalar, readonly scalar parameter, and aggregate slot borrow arguments, scalar/view `var` plus simple assignment, scalar aggregate field assignment, copy aggregate field assignment, aggregate struct-literal local slots, direct and narrow indirect aggregate normal call-result `let`/`var` slots, fallible direct aggregate call-result slots, supported aggregate slot reassignment including copy struct slot-to-slot assignment, explicit `target = move source`, and drop-aware whole-binding replacement, reserved aggregate slot `return move name`, and fallible propagation for the current scalar/view/void plus aggregate call-result subset are already buildable. Framed functions conservatively spill referenced parameter words when they contain normal calls/syscalls, and tail-position calls that need stack-passed arguments or borrow arguments lower through the normal-call-plus-return path.
 4. Lower interpolated strings only after the explicit standard-library construction path has a real allocator source and runtime mutation behavior.
 5. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, full ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
 
 Recent committed work:
 
+- Current checkpoint: lower static error helper returns
+  - indexes functions whose body is a static `Error.new(...)` return and allows `return helper()` to lower to `ReturnFallibleFailure`
+  - lets standard-library helpers such as `std.mem.invalid_argument()` and `std.string.capacity_overflow()` participate in fallible returns without introducing a general `error` value ABI
+  - adds a pre-addition overflow guard in `String.push_str` so capacity overflow uses the public `std.string.capacity_overflow` helper instead of a raw arithmetic trap
+- Current checkpoint: exercise associated `String` runtime path
+  - runs `String.with_capacity`, `String.from_str`, `String.push_str`, and `String.view` through the distributed std CLI path
+  - keeps the associated-function API covered through both check and run tests
+- Current checkpoint: align `std/string` with associated functions
+  - exposes `String.empty`, `String.with_capacity`, `String.from_str`, `String.view`, and `String.push_str`
+  - preserves the existing free-function wrappers for source compatibility while moving std/fmt internals to the associated-function surface
 - Current checkpoint: expose parameter-only function ABI metadata
   - adds a parameter-only function ABI helper that returns classified `AbiParameter` values without requiring the return type to be ABI-lowerable
   - reuses that helper for parameter ABI word counts, keeping count/layout/classification on one path
