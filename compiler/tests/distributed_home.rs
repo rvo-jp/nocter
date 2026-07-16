@@ -511,6 +511,44 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn distributed_std_string_associated_api_runs() {
+    let project = TempProject::new("distributed-home-string-associated-api-run");
+    let source = project.write_source(
+        "string_associated_api_run.nct",
+        r#"from std/io import print
+from std/mem import page_allocator
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var text = String.with_capacity(&+allocator, 32)?
+    String.push_str(&+text, "Hello")?
+    let suffix = String.from_str(&+allocator, " Associated")?
+    String.push_str(&+text, String.view(&suffix))?
+    print(String.view(&text))?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"Hello Associated");
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn distributed_std_string_push_str_runs() {
     let project = TempProject::new("distributed-home-string-push-str-run");
     let source = project.write_source(
