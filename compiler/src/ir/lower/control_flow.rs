@@ -475,15 +475,21 @@ fn lower_nonterminal_loop_block_statements(
                 )?)
             }
             Stmt::Assignment(statement) => {
-                if !(nonterminal_assignment_target_allowed(statement, context, local_mark)
-                    || outer_aggregate_assignment_before_function_exit_allowed(
+                let target_allowed =
+                    nonterminal_assignment_target_allowed(statement, context, local_mark)
+                        || outer_aggregate_assignment_before_function_exit_allowed(
+                            statement, context, local_mark, statements, index,
+                        );
+                let explicit_outer_aggregate_move_allowed =
+                    outer_aggregate_move_assignment_before_function_exit_allowed(
                         statement, context, local_mark, statements, index,
-                    ))
-                    || expression_contains_explicit_aggregate_move_outside(
+                    );
+                if !target_allowed
+                    || (expression_contains_explicit_aggregate_move_outside(
                         &statement.value,
                         context,
                         local_mark,
-                    )
+                    ) && !explicit_outer_aggregate_move_allowed)
                 {
                     return Err(attach_primary_span_if_absent(
                         unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
@@ -844,6 +850,18 @@ fn outer_aggregate_assignment_before_function_exit_allowed(
     };
     context.aggregate_local(target_name).is_some()
         && !context.aggregate_local_defined_since(target_name, local_mark)
+}
+
+fn outer_aggregate_move_assignment_before_function_exit_allowed(
+    statement: &crate::ast::AssignmentStmt,
+    context: &LoweringContext,
+    local_mark: usize,
+    statements: &[Stmt],
+    index: usize,
+) -> bool {
+    outer_aggregate_assignment_before_function_exit_allowed(
+        statement, context, local_mark, statements, index,
+    ) && direct_outer_aggregate_move(&statement.value, context, local_mark)
 }
 
 fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {

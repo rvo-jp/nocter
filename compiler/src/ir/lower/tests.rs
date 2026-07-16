@@ -3902,6 +3902,125 @@ func touch(): void {
 }
 
 #[test]
+fn lowers_outer_aggregate_move_assignment_inside_nonterminal_if_branch_before_return_suffix() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var target = File{ fd: 1 }
+    var source = File{ fd: 2 }
+    if true {
+        target = move source
+        touch()
+        return target.fd
+    }
+    return 0
+}
+
+func touch(): void {
+    return
+}
+"#,
+    );
+
+    let drop_target = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let drop_source = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(1),
+        })],
+    };
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(1),
+            },
+            Instruction::ReserveAggregateSlot {
+                slot_index: 1,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(1),
+                offset: 0,
+                value: i32_const(2),
+            },
+            Instruction::If {
+                condition: BoolValue::Const(true),
+                then_instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 2,
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::CopyAggregate {
+                        destination: AggregateLocation::Slot(2),
+                        source: AggregateLocation::Slot(1),
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    drop_target.clone(),
+                    Instruction::CopyAggregate {
+                        destination: AggregateLocation::Slot(0),
+                        source: AggregateLocation::Slot(2),
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::CallVoid {
+                        target: CallTarget::same_file("touch"),
+                        arguments: vec![],
+                    },
+                    Instruction::LoadAggregateI32 {
+                        destination: I32Location::Local(0),
+                        source: AggregateLocation::Slot(0),
+                        offset: 0,
+                    },
+                    drop_target.clone(),
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
+                    Instruction::Return,
+                ],
+                else_instructions: vec![],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: i32_const(0),
+            },
+            drop_source,
+            drop_target,
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
 fn lowers_assignment_to_nonterminal_if_branch_local_scalar() {
     let ir = lower_text(
         r#"func main(): i32 {
@@ -4557,6 +4676,36 @@ func main(): i32 {
     var file = File{ fd: 1 }
     while false {
         file = File{ fd: 2 }
+        break
+        return 1
+    }
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics[0].code, "E8002");
+    assert!(diagnostics[0].message.contains("branch/body-local"));
+}
+
+#[test]
+fn rejects_outer_aggregate_move_assignment_before_loop_control_even_with_later_return() {
+    let diagnostics = lower_text_diagnostics(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var target = File{ fd: 1 }
+    var source = File{ fd: 2 }
+    while false {
+        target = move source
         break
         return 1
     }
