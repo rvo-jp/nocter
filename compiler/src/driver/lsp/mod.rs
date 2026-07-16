@@ -1714,6 +1714,36 @@ mod tests {
     }
 
     #[test]
+    fn lsp_diagnostics_report_unresolved_drop_targets() {
+        let project = TempProject::new("lsp-unresolved-drop-target");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        let text = "func main(): i32 {\n    drop missing\n    return 0\n}\n";
+        let app = project.write_source("app.nct", text);
+        let uri = file_uri(&app);
+        let documents = HashMap::from([(
+            uri.clone(),
+            open_document(uri.clone(), Some(1), text.to_string()),
+        )]);
+
+        let diagnostics = diagnostics_for_workspace(&uri, &documents);
+        let document_diagnostics = diagnostics
+            .iter()
+            .find(|(diagnostic_uri, _)| diagnostic_uri == &uri)
+            .map(|(_, diagnostics)| diagnostics)
+            .expect("expected diagnostics for open document");
+
+        let diagnostic = document_diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "E0416")
+            .unwrap_or_else(|| {
+                panic!("expected unresolved drop diagnostic, got {document_diagnostics:#?}")
+            });
+
+        assert!(diagnostic.message.contains("missing"));
+    }
+
+    #[test]
     fn lsp_diagnostics_do_not_require_entry_function() {
         let uri = "file:///tmp/nocter-lsp-library.nct".to_string();
         let documents = HashMap::from([(

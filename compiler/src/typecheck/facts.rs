@@ -12,10 +12,13 @@ use super::environments::{
 };
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
+use super::structs::{resolved_struct_field_for_literal_field, resolved_struct_field_for_member};
 use super::type_expr::type_expr_to_type_with_self_type;
+use super::variants::resolved_enum_variant_for_member;
 use crate::ast::{
-    AstFile, BindingStmt, Block, Expr, GenericParamList, ImplDecl, ImplMember,
-    InterpolatedStringPart, Item, MethodDecl, Parameter, Stmt, SwitchPayloadBinding, TypeExpr,
+    AstFile, BindingStmt, Block, EnumDecl, EnumVariant, Expr, GenericParamList, ImplDecl,
+    ImplMember, InterpolatedStringPart, Item, MethodDecl, Parameter, Stmt, StructDecl, StructField,
+    StructLiteralExpr, StructLiteralField, SwitchPayloadBinding, TypeAliasDecl, TypeExpr,
 };
 use crate::resolve::{
     AssociatedFunctionSignature, FunctionSignature, MethodSignature, ParameterSignature,
@@ -30,7 +33,12 @@ pub(crate) struct TypecheckFacts {
     binding_readonly: HashMap<ByteSpan, bool>,
     declaration_hover_labels: HashMap<ByteSpan, String>,
     call_hover_labels: HashMap<ByteSpan, String>,
+    field_hover_labels: HashMap<ByteSpan, String>,
+    enum_variant_hover_labels: HashMap<ByteSpan, String>,
     type_references: Vec<TypeReferenceFact>,
+    field_targets: HashMap<ByteSpan, ByteSpan>,
+    associated_function_targets: HashMap<ByteSpan, ByteSpan>,
+    enum_variant_targets: HashMap<ByteSpan, ByteSpan>,
     method_call_targets: HashMap<ByteSpan, ByteSpan>,
 }
 
@@ -57,6 +65,22 @@ impl TypecheckFacts {
             .map(|(span, label)| (*span, label.as_str()))
     }
 
+    pub(crate) fn field_hover_at_offset(&self, offset: usize) -> Option<(ByteSpan, &str)> {
+        self.field_hover_labels
+            .iter()
+            .filter(|(span, _)| span_contains(**span, offset))
+            .min_by_key(|(span, _)| (span.len(), span.start))
+            .map(|(span, label)| (*span, label.as_str()))
+    }
+
+    pub(crate) fn enum_variant_hover_at_offset(&self, offset: usize) -> Option<(ByteSpan, &str)> {
+        self.enum_variant_hover_labels
+            .iter()
+            .filter(|(span, _)| span_contains(**span, offset))
+            .min_by_key(|(span, _)| (span.len(), span.start))
+            .map(|(span, label)| (*span, label.as_str()))
+    }
+
     pub(crate) fn type_reference_at_offset(&self, offset: usize) -> Option<&TypeReferenceFact> {
         self.type_references
             .iter()
@@ -74,6 +98,44 @@ impl TypecheckFacts {
 
     pub(crate) fn method_call_target(&self, member_span: ByteSpan) -> Option<ByteSpan> {
         self.method_call_targets.get(&member_span).copied()
+    }
+
+    pub(crate) fn associated_function_target(&self, member_span: ByteSpan) -> Option<ByteSpan> {
+        self.associated_function_targets.get(&member_span).copied()
+    }
+
+    pub(crate) fn enum_variant_target(&self, member_span: ByteSpan) -> Option<ByteSpan> {
+        self.enum_variant_targets.get(&member_span).copied()
+    }
+
+    pub(crate) fn field_target_at_offset(&self, offset: usize) -> Option<(ByteSpan, ByteSpan)> {
+        self.field_targets
+            .iter()
+            .filter(|(span, _)| span_contains(**span, offset))
+            .min_by_key(|(span, _)| (span.len(), span.start))
+            .map(|(span, target)| (*span, *target))
+    }
+
+    pub(crate) fn associated_function_target_at_offset(
+        &self,
+        offset: usize,
+    ) -> Option<(ByteSpan, ByteSpan)> {
+        self.associated_function_targets
+            .iter()
+            .filter(|(span, _)| span_contains(**span, offset))
+            .min_by_key(|(span, _)| (span.len(), span.start))
+            .map(|(span, target)| (*span, *target))
+    }
+
+    pub(crate) fn enum_variant_target_at_offset(
+        &self,
+        offset: usize,
+    ) -> Option<(ByteSpan, ByteSpan)> {
+        self.enum_variant_targets
+            .iter()
+            .filter(|(span, _)| span_contains(**span, offset))
+            .min_by_key(|(span, _)| (span.len(), span.start))
+            .map(|(span, target)| (*span, *target))
     }
 }
 
@@ -129,18 +191,38 @@ impl TypecheckFactCollector<'_> {
                 self.collect_type_expr_references(&primitive.return_type);
             }
             Item::TypeAlias(alias) => {
+                self.facts.declaration_hover_labels.insert(
+                    alias.name_span,
+                    type_alias_declaration_hover_label(alias, self.resolved),
+                );
                 self.collect_generic_param_type_references(&alias.generics);
                 self.collect_type_expr_references(&alias.target);
             }
             Item::Struct(struct_) => {
+                self.facts.declaration_hover_labels.insert(
+                    struct_.name_span,
+                    struct_declaration_hover_label(struct_, self.resolved),
+                );
                 self.collect_generic_param_type_references(&struct_.generics);
                 for field in &struct_.fields {
+                    self.facts.declaration_hover_labels.insert(
+                        field.name_span,
+                        struct_field_declaration_hover_label(field, self.resolved),
+                    );
                     self.collect_type_expr_references(&field.ty);
                 }
             }
             Item::Enum(enum_) => {
+                self.facts.declaration_hover_labels.insert(
+                    enum_.name_span,
+                    enum_declaration_hover_label(enum_, self.resolved),
+                );
                 self.collect_generic_param_type_references(&enum_.generics);
                 for variant in &enum_.variants {
+                    self.facts.declaration_hover_labels.insert(
+                        variant.name_span,
+                        enum_variant_declaration_hover_label(variant, self.resolved),
+                    );
                     self.collect_parameter_type_references(&variant.payload);
                 }
             }
@@ -437,6 +519,9 @@ impl TypecheckFactCollector<'_> {
                     && let Some((owner, resolved_function)) =
                         self.resolved.associated_function_for_call(expression)
                 {
+                    self.facts
+                        .associated_function_targets
+                        .insert(method.member_span, resolved_function.name_span);
                     self.facts.call_hover_labels.insert(
                         method.member_span,
                         associated_function_signature_hover_label(
@@ -445,6 +530,12 @@ impl TypecheckFactCollector<'_> {
                             self.resolved,
                         ),
                     );
+                    self.collect_expression_facts(&method.object, environment);
+                } else if let Some(method) = method_member_for_call(expression)
+                    && let Some((owner, variant)) =
+                        resolved_enum_variant_for_member(method, self.resolved)
+                {
+                    self.record_enum_variant_reference(method.member_span, owner, variant);
                     self.collect_expression_facts(&method.object, environment);
                 } else {
                     self.collect_expression_facts(&expression.callee, environment);
@@ -456,6 +547,12 @@ impl TypecheckFactCollector<'_> {
             }
             Expr::Member(expression) => {
                 self.collect_expression_facts(&expression.object, environment);
+                self.record_struct_field_member_reference(expression, environment);
+                if let Some((owner, variant)) =
+                    resolved_enum_variant_for_member(expression, self.resolved)
+                {
+                    self.record_enum_variant_reference(expression.member_span, owner, variant);
+                }
             }
             Expr::Index(expression) => {
                 self.collect_expression_facts(&expression.object, environment);
@@ -469,6 +566,7 @@ impl TypecheckFactCollector<'_> {
             Expr::StructLiteral(expression) => {
                 self.collect_type_expr_references(&expression.ty);
                 for field in &expression.fields {
+                    self.record_struct_literal_field_reference(expression, field, environment);
                     self.collect_expression_facts(&field.value, environment);
                 }
             }
@@ -628,6 +726,70 @@ impl TypecheckFactCollector<'_> {
                 .insert(name_span, ty.display());
         }
     }
+
+    fn record_struct_field_member_reference(
+        &mut self,
+        member: &crate::ast::MemberExpr,
+        environment: &TypeEnvironment,
+    ) {
+        let Some((owner, field)) =
+            resolved_struct_field_for_member(member, self.resolved, environment)
+        else {
+            return;
+        };
+
+        self.record_struct_field_reference(member.member_span, owner, field, environment);
+    }
+
+    fn record_struct_literal_field_reference(
+        &mut self,
+        literal: &StructLiteralExpr,
+        field: &StructLiteralField,
+        environment: &TypeEnvironment,
+    ) {
+        let Some((owner, expected_field)) =
+            resolved_struct_field_for_literal_field(literal, field, self.resolved, environment)
+        else {
+            return;
+        };
+
+        self.record_struct_field_reference(field.name_span, owner, expected_field, environment);
+    }
+
+    fn record_struct_field_reference(
+        &mut self,
+        span: ByteSpan,
+        owner: &TypeSymbol,
+        field: &crate::resolve::StructFieldSignature,
+        environment: &TypeEnvironment,
+    ) {
+        self.facts.field_targets.insert(span, field.name_span);
+        self.facts.field_hover_labels.insert(
+            span,
+            format!(
+                "field {}.{}: {}",
+                owner.canonical_name,
+                field.name,
+                type_expr_to_type_with_self_type(&field.ty, self.resolved, environment.self_type())
+                    .display()
+            ),
+        );
+    }
+
+    fn record_enum_variant_reference(
+        &mut self,
+        span: ByteSpan,
+        owner: &TypeSymbol,
+        variant: &crate::resolve::EnumVariantSignature,
+    ) {
+        self.facts
+            .enum_variant_targets
+            .insert(span, variant.name_span);
+        self.facts.enum_variant_hover_labels.insert(
+            span,
+            enum_variant_signature_hover_label(owner, variant, self.resolved),
+        );
+    }
 }
 
 fn span_contains(span: ByteSpan, offset: usize) -> bool {
@@ -662,6 +824,69 @@ fn primitive_declaration_hover_label(
         generic_parameters_label(&primitive.generics, resolved, None),
         parameters_label(&primitive.parameters.parameters, resolved, None),
         type_label(&primitive.return_type, resolved, None)
+    )
+}
+
+fn type_alias_declaration_hover_label(alias: &TypeAliasDecl, resolved: &ResolveOutput) -> String {
+    format!(
+        "type {}{} = {}",
+        alias.name,
+        generic_parameters_label(&alias.generics, resolved, None),
+        type_label(&alias.target, resolved, None)
+    )
+}
+
+fn struct_declaration_hover_label(struct_: &StructDecl, resolved: &ResolveOutput) -> String {
+    let copy_prefix = if struct_.is_copy { "copy " } else { "" };
+    format!(
+        "{copy_prefix}struct {}{}",
+        struct_.name,
+        generic_parameters_label(&struct_.generics, resolved, None)
+    )
+}
+
+fn struct_field_declaration_hover_label(field: &StructField, resolved: &ResolveOutput) -> String {
+    format!(
+        "field {}: {}",
+        field.name,
+        type_label(&field.ty, resolved, None)
+    )
+}
+
+fn enum_declaration_hover_label(enum_: &EnumDecl, resolved: &ResolveOutput) -> String {
+    format!(
+        "enum {}{}",
+        enum_.name,
+        generic_parameters_label(&enum_.generics, resolved, None)
+    )
+}
+
+fn enum_variant_declaration_hover_label(variant: &EnumVariant, resolved: &ResolveOutput) -> String {
+    if variant.payload.is_empty() {
+        return format!("variant {}", variant.name);
+    }
+
+    format!(
+        "variant {}({})",
+        variant.name,
+        parameters_label(&variant.payload, resolved, None)
+    )
+}
+
+fn enum_variant_signature_hover_label(
+    owner: &TypeSymbol,
+    variant: &crate::resolve::EnumVariantSignature,
+    resolved: &ResolveOutput,
+) -> String {
+    if variant.payload.is_empty() {
+        return format!("variant {}.{}", owner.canonical_name, variant.name);
+    }
+
+    format!(
+        "variant {}.{}({})",
+        owner.canonical_name,
+        variant.name,
+        parameter_signatures_label(&variant.payload, resolved, None)
     )
 }
 

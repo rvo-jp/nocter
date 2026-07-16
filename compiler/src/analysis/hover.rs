@@ -75,6 +75,25 @@ pub(crate) fn hover_for_file_analysis(
         return Some(hover);
     }
 
+    if let Some((span, label)) = file.typecheck_facts.field_hover_at_offset(offset) {
+        return Some(HoverInfo {
+            span,
+            label: label.to_string(),
+            documentation: None,
+        });
+    }
+
+    if let Some((span, label)) = file.typecheck_facts.enum_variant_hover_at_offset(offset) {
+        return Some(HoverInfo {
+            span,
+            label: label.to_string(),
+            documentation: file
+                .typecheck_facts
+                .enum_variant_target(span)
+                .and_then(|target| target_documentation(sources, analysis, target)),
+        });
+    }
+
     resolved_reference_at_offset(&file.resolved, offset).map(|(span, reference)| {
         let (label, documentation) =
             resolved_reference_hover_contents(sources, analysis, &reference);
@@ -123,8 +142,26 @@ pub(crate) fn hover_for_ast(
             label: label.to_string(),
             documentation: facts
                 .method_call_target(span)
-                .and_then(|target| documentation.get(target.start))
-                .map(str::to_string),
+                .or_else(|| facts.associated_function_target(span))
+                .and_then(|target| documentation_for_target_span(&documentation, &symbols, target)),
+        });
+    }
+
+    if let Some((span, label)) = facts.field_hover_at_offset(offset) {
+        return Some(HoverInfo {
+            span,
+            label: label.to_string(),
+            documentation: None,
+        });
+    }
+
+    if let Some((span, label)) = facts.enum_variant_hover_at_offset(offset) {
+        return Some(HoverInfo {
+            span,
+            label: label.to_string(),
+            documentation: facts
+                .enum_variant_target(span)
+                .and_then(|target| documentation_for_target_span(&documentation, &symbols, target)),
         });
     }
 
@@ -219,14 +256,25 @@ fn method_call_documentation(
     file: &FileAnalysis,
     call_span: ByteSpan,
 ) -> Option<String> {
-    let target_span = file.typecheck_facts.method_call_target(call_span)?;
+    let target_span = file
+        .typecheck_facts
+        .method_call_target(call_span)
+        .or_else(|| file.typecheck_facts.associated_function_target(call_span))?;
+    target_documentation(sources, analysis, target_span)
+}
+
+fn target_documentation(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    target_span: ByteSpan,
+) -> Option<String> {
     let target_file = analysis.file_by_source(target_span.source)?;
     let target_source = sources.get(target_file.ast.span.source)?;
     let text = target_source.text();
     let symbols = hover_symbols_for_file_analysis(text, target_file);
     let documentation =
         documentation_for_hover_symbols(target_file.ast.span.source, text, &symbols);
-    documentation.get(target_span.start).map(str::to_string)
+    documentation_for_target_span(&documentation, &symbols, target_span)
 }
 
 fn documentation_for_hover_symbols(
@@ -239,6 +287,23 @@ fn documentation_for_hover_symbols(
         .map(|symbol| DocumentationTarget::new(symbol.attach_start, symbol.name_span.start))
         .collect::<Vec<_>>();
     attach_documentation(source, text, &targets)
+}
+
+fn documentation_for_target_span(
+    documentation: &crate::comments::AttachedDocumentation,
+    symbols: &[HoverSymbol],
+    target_span: ByteSpan,
+) -> Option<String> {
+    documentation
+        .get(target_span.start)
+        .map(str::to_string)
+        .or_else(|| {
+            symbols
+                .iter()
+                .find(|symbol| span_contains(symbol.name_span, target_span.start))
+                .and_then(|symbol| documentation.get(symbol.name_span.start))
+                .map(str::to_string)
+        })
 }
 
 fn resolved_reference_at_offset(
@@ -1029,6 +1094,86 @@ mod tests {
 
         assert_eq!(hover.label, "method (file: File).read(amount: i32): i32");
         assert_eq!(hover.documentation.as_deref(), Some("Reads a count."));
+    }
+
+    #[test]
+    fn workspace_hover_uses_normalized_typecheck_facts_for_associated_function_call() {
+        let text = "struct File {\n    fd: i32\n}\n\n/// Opens a file.\nfunc File.open(): Self {\n    return Self{ fd: 1 }\n}\n\nfunc main(): i32 {\n    return File.open().fd\n}\n";
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.rfind("open()").expect("expected associated call");
+
+        let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected hover info");
+
+        assert_eq!(hover.label, "func File.open(): File");
+        assert_eq!(hover.documentation.as_deref(), Some("Opens a file."));
+    }
+
+    #[test]
+    fn workspace_hover_uses_normalized_typecheck_facts_for_struct_field() {
+        let text = "type Count = i32\n\nstruct File {\n    fd: Count\n}\n";
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.find("fd:").expect("expected field");
+
+        let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected hover info");
+
+        assert_eq!(hover.label, "field fd: i32");
+    }
+
+    #[test]
+    fn workspace_hover_uses_typecheck_facts_for_struct_field_reference() {
+        let text = "type Count = i32\n\nstruct File {\n    fd: Count\n}\n\nfunc main(): i32 {\n    let file = File{ fd: 1 }\n    return file.fd\n}\n";
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.rfind("fd").expect("expected field reference");
+
+        let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected hover info");
+
+        assert_eq!(hover.label, "field File.fd: i32");
+    }
+
+    #[test]
+    fn workspace_hover_uses_normalized_typecheck_facts_for_enum_variant() {
+        let text = "type Count = i32\n\nenum Event {\n    count(value: Count)\n}\n";
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.find("count(value").expect("expected variant");
+
+        let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected hover info");
+
+        assert_eq!(hover.label, "variant count(value: i32)");
+    }
+
+    #[test]
+    fn workspace_hover_uses_typecheck_facts_for_enum_variant_reference() {
+        let text = "type Count = i32\n\nenum Event {\n    ready\n    count(value: Count)\n}\n\nfunc main(): i32 {\n    let event = Event.count(1)\n    return 0\n}\n";
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.rfind("count(1)").expect("expected variant reference");
+
+        let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected hover info");
+
+        assert_eq!(hover.label, "variant Event.count(value: i32)");
+    }
+
+    #[test]
+    fn workspace_hover_uses_typecheck_facts_for_payloadless_enum_variant_reference() {
+        let text = "enum Event {\n    /// Ready to run.\n    ready\n}\n\nfunc main(): i32 {\n    let event = Event.ready\n    return 0\n}\n";
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.rfind("ready").expect("expected variant reference");
+
+        let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected hover info");
+
+        assert_eq!(hover.label, "variant Event.ready");
+        assert_eq!(hover.documentation.as_deref(), Some("Ready to run."));
     }
 
     fn analyze_text(text: &str) -> (SourceMap, CompileUnitAnalysis) {

@@ -29,6 +29,29 @@ pub(super) fn struct_member_type(
     )
 }
 
+pub(super) fn resolved_struct_field_for_member<'a>(
+    member: &MemberExpr,
+    resolved: &'a ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<(&'a TypeSymbol, &'a StructFieldSignature)> {
+    let target_type = expression_type(&member.object, resolved, environment);
+    let struct_symbol = struct_type_symbol_for_type(&target_type, resolved)?;
+    let field = struct_field_for_member(member, struct_symbol)?;
+    Some((struct_symbol, field))
+}
+
+pub(super) fn resolved_struct_field_for_literal_field<'a>(
+    literal: &StructLiteralExpr,
+    field: &StructLiteralField,
+    resolved: &'a ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<(&'a TypeSymbol, &'a StructFieldSignature)> {
+    let target_type = type_expr_to_type_in_environment(&literal.ty, resolved, environment);
+    let struct_symbol = struct_type_symbol_for_type(&target_type, resolved)?;
+    let field = struct_field_for_literal_field(field, struct_symbol)?;
+    Some((struct_symbol, field))
+}
+
 pub(super) fn check_struct_member_expression(
     sources: &SourceMap,
     member: &MemberExpr,

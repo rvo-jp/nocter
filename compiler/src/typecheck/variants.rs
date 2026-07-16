@@ -315,6 +315,15 @@ pub(super) fn enum_variant_member_type(
         .map(|symbol| Type::Named(symbol.canonical_name.clone()))
 }
 
+pub(super) fn resolved_enum_variant_for_member<'a>(
+    member: &MemberExpr,
+    resolved: &'a ResolveOutput,
+) -> Option<(&'a TypeSymbol, &'a EnumVariantSignature)> {
+    let enum_symbol = enum_symbol_for_member(member, resolved)?;
+    let variant = enum_variant_for_member(member, enum_symbol)?;
+    Some((enum_symbol, variant))
+}
+
 pub(super) fn enum_variant_call_type(call: &CallExpr, resolved: &ResolveOutput) -> Option<Type> {
     if resolved.associated_function_for_call(call).is_some() {
         return None;

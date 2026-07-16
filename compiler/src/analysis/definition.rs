@@ -8,6 +8,7 @@ use crate::analysis::hover::{
 use crate::ast::AstFile;
 use crate::resolve::{ResolveOutput, SymbolKind};
 use crate::source::{ByteSpan, SourceId, SourceMap};
+use crate::typecheck::collect_typecheck_facts;
 
 pub(crate) fn definition_span_for_file_analysis(
     sources: &SourceMap,
@@ -17,6 +18,9 @@ pub(crate) fn definition_span_for_file_analysis(
 ) -> Option<ByteSpan> {
     module_path_definition_span(analysis, file, offset)
         .or_else(|| method_call_definition_span_for_file_analysis(file, offset))
+        .or_else(|| associated_function_definition_span_for_file_analysis(file, offset))
+        .or_else(|| field_definition_span_for_file_analysis(file, offset))
+        .or_else(|| enum_variant_definition_span_for_file_analysis(file, offset))
         .or_else(|| type_definition_span_for_file_analysis(analysis, file, offset))
         .or_else(|| {
             let text = sources.get(file.ast.span.source)?.text();
@@ -30,6 +34,19 @@ pub(crate) fn definition_span_for_ast(
     resolved: &ResolveOutput,
     offset: usize,
 ) -> Option<ByteSpan> {
+    let facts = collect_typecheck_facts(ast, resolved);
+    if let Some((_, target)) = facts.field_target_at_offset(offset) {
+        return Some(target);
+    }
+
+    if let Some((_, target)) = facts.associated_function_target_at_offset(offset) {
+        return Some(target);
+    }
+
+    if let Some((_, target)) = facts.enum_variant_target_at_offset(offset) {
+        return Some(target);
+    }
+
     hover_definition_span_for_ast(text, ast, resolved, offset)
 }
 
@@ -101,6 +118,30 @@ fn method_call_definition_span_for_file_analysis(
         .and_then(|span| file.typecheck_facts.method_call_target(span))
 }
 
+fn field_definition_span_for_file_analysis(file: &FileAnalysis, offset: usize) -> Option<ByteSpan> {
+    file.typecheck_facts
+        .field_target_at_offset(offset)
+        .map(|(_, target)| target)
+}
+
+fn associated_function_definition_span_for_file_analysis(
+    file: &FileAnalysis,
+    offset: usize,
+) -> Option<ByteSpan> {
+    file.typecheck_facts
+        .associated_function_target_at_offset(offset)
+        .map(|(_, target)| target)
+}
+
+fn enum_variant_definition_span_for_file_analysis(
+    file: &FileAnalysis,
+    offset: usize,
+) -> Option<ByteSpan> {
+    file.typecheck_facts
+        .enum_variant_target_at_offset(offset)
+        .map(|(_, target)| target)
+}
+
 fn span_contains(span: ByteSpan, offset: usize) -> bool {
     span.start <= offset && offset < span.end
 }
@@ -125,6 +166,78 @@ mod tests {
 
         assert_eq!(&text[span.start..span.end], "code");
         assert_eq!(span.start, text.find("code = 0").expect("expected binding"));
+    }
+
+    #[test]
+    fn definition_query_resolves_struct_field_references() {
+        let text = "struct File {\n    fd: i32\n}\n\nfunc main(): i32 {\n    let file = File{ fd: 1 }\n    return file.fd\n}\n";
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.rfind("fd").expect("expected field reference");
+
+        let span = definition_span_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected definition span");
+
+        assert_eq!(&text[span.start..span.end], "fd");
+        assert_eq!(span.start, text.find("fd: i32").expect("expected field"));
+    }
+
+    #[test]
+    fn definition_query_resolves_struct_literal_fields() {
+        let text = "struct File {\n    fd: i32\n}\n\nfunc main(): i32 {\n    let file = File{ fd: 1 }\n    return file.fd\n}\n";
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.find("fd: 1").expect("expected literal field");
+
+        let span = definition_span_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected definition span");
+
+        assert_eq!(&text[span.start..span.end], "fd");
+        assert_eq!(span.start, text.find("fd: i32").expect("expected field"));
+    }
+
+    #[test]
+    fn definition_query_resolves_associated_function_calls() {
+        let text = "struct File {\n    fd: i32\n}\n\nfunc File.open(): Self {\n    return Self{ fd: 1 }\n}\n\nfunc main(): i32 {\n    return File.open().fd\n}\n";
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.rfind("open()").expect("expected associated call");
+
+        let span = definition_span_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected definition span");
+
+        assert_eq!(&text[span.start..span.end], "open");
+        assert_eq!(
+            span.start,
+            text.find("open(): Self")
+                .expect("expected associated function")
+        );
+    }
+
+    #[test]
+    fn definition_query_resolves_enum_variant_references() {
+        let text = "enum Event {\n    ready\n    count(value: i32)\n}\n\nfunc main(): i32 {\n    let ready = Event.ready\n    let count = Event.count(1)\n    return 0\n}\n";
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let ready_offset = text.rfind("ready").expect("expected payloadless variant");
+        let count_offset = text.rfind("count(1)").expect("expected payload variant");
+
+        let ready_span = definition_span_for_file_analysis(&sources, &analysis, file, ready_offset)
+            .expect("expected ready definition span");
+        let count_span = definition_span_for_file_analysis(&sources, &analysis, file, count_offset)
+            .expect("expected count definition span");
+
+        assert_eq!(&text[ready_span.start..ready_span.end], "ready");
+        assert_eq!(
+            ready_span.start,
+            text.find("ready").expect("expected ready declaration")
+        );
+        assert_eq!(&text[count_span.start..count_span.end], "count");
+        assert_eq!(
+            count_span.start,
+            text.find("count(value")
+                .expect("expected count declaration")
+        );
     }
 
     fn analyze_text(text: &str) -> (SourceMap, CompileUnitAnalysis) {

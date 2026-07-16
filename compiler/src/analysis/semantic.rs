@@ -156,6 +156,23 @@ fn apply_typecheck_semantic_facts(identifiers: &mut [ClassifiedIdentifier], file
         }
         if file
             .typecheck_facts
+            .associated_function_target(span)
+            .is_some()
+        {
+            identifier.kind = SemanticTokenKind::Function;
+            continue;
+        }
+        if file
+            .typecheck_facts
+            .field_target_at_offset(identifier.start_byte)
+            .is_some_and(|(field_span, _)| field_span == span)
+            || file.typecheck_facts.enum_variant_target(span).is_some()
+        {
+            identifier.kind = SemanticTokenKind::Property;
+            continue;
+        }
+        if file
+            .typecheck_facts
             .type_reference_spans()
             .any(|reference_span| reference_span == span)
         {
@@ -397,6 +414,36 @@ mod tests {
         );
     }
 
+    #[test]
+    fn analysis_classification_uses_typecheck_facts_for_member_references() {
+        let text = "struct File {\n    fd: i32\n}\n\nfunc File.open(): Self {\n    return Self{ fd: 1 }\n}\n\nenum Event {\n    count(value: i32)\n}\n\nfunc main(): i32 {\n    let file = File.open()\n    let event = Event.count(1)\n    return file.fd\n}\n";
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let source = sources.get(file.ast.span.source).expect("expected source");
+        let identifiers = classified_identifiers_for_file_analysis(source.text(), file);
+
+        let open = identifier_starting_at(
+            &identifiers,
+            text.rfind("open()").expect("expected associated function"),
+        )
+        .expect("expected associated function token");
+        assert_eq!(open.kind, SemanticTokenKind::Function);
+
+        let count = identifier_starting_at(
+            &identifiers,
+            text.rfind("count(1)").expect("expected enum variant"),
+        )
+        .expect("expected enum variant token");
+        assert_eq!(count.kind, SemanticTokenKind::Property);
+
+        let fd = identifier_starting_at(
+            &identifiers,
+            text.rfind("fd").expect("expected field reference"),
+        )
+        .expect("expected field token");
+        assert_eq!(fd.kind, SemanticTokenKind::Property);
+    }
+
     fn identifiers_for_lexeme<'a>(
         text: &str,
         identifiers: &'a [ClassifiedIdentifier],
@@ -406,6 +453,15 @@ mod tests {
             .iter()
             .filter(|identifier| text[identifier.start_byte..identifier.end_byte] == *lexeme)
             .collect()
+    }
+
+    fn identifier_starting_at(
+        identifiers: &[ClassifiedIdentifier],
+        start_byte: usize,
+    ) -> Option<&ClassifiedIdentifier> {
+        identifiers
+            .iter()
+            .find(|identifier| identifier.start_byte == start_byte)
     }
 
     fn analyze_text(text: &str) -> (SourceMap, crate::analysis::CompileUnitAnalysis) {
