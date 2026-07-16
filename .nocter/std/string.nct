@@ -25,7 +25,7 @@ pub struct String {
     capacity: usize
 }
 
-pub func empty(): String {
+pub func String.empty(): String {
     // Empty strings never dereference the raw pointer.
     return String {
         ptr: from_addr(1),
@@ -34,9 +34,13 @@ pub func empty(): String {
     }
 }
 
-pub func with_capacity(allocator: &+Allocator, capacity: usize): String! {
+pub func empty(): String {
+    return String.empty()
+}
+
+pub func String.with_capacity(allocator: &+Allocator, capacity: usize): String! {
     if capacity == 0 {
-        return empty()
+        return String.empty()
     }
 
     let address: usize = alloc_pages_impl(capacity)?
@@ -47,10 +51,14 @@ pub func with_capacity(allocator: &+Allocator, capacity: usize): String! {
     }
 }
 
-pub func from_str(allocator: &+Allocator, value: &str): String! {
+pub func with_capacity(allocator: &+Allocator, capacity: usize): String! {
+    return String.with_capacity(allocator, capacity)?
+}
+
+pub func String.from_str(allocator: &+Allocator, value: &str): String! {
     let capacity: usize = value.len()
     if capacity == 0 {
-        return empty()
+        return String.empty()
     }
 
     let address: usize = alloc_pages_impl(capacity)?
@@ -62,15 +70,23 @@ pub func from_str(allocator: &+Allocator, value: &str): String! {
     }
 }
 
-pub func String.copy(allocator: &+Allocator, value: &str): String! {
-    return from_str(allocator, value)?
+pub func from_str(allocator: &+Allocator, value: &str): String! {
+    return String.from_str(allocator, value)?
 }
 
-pub func view(text: &String): &str {
+pub func String.copy(allocator: &+Allocator, value: &str): String! {
+    return String.from_str(allocator, value)?
+}
+
+pub func String.view(text: &String): &str {
     return str_from_raw_parts(text.ptr, text.len)
 }
 
-pub func push_str(text: &+String, value: &str): void! {
+pub func view(text: &String): &str {
+    return String.view(text)
+}
+
+pub func String.push_str(text: &+String, value: &str): void! {
     let value_len: usize = value.len()
     let new_len: usize = text.len + value_len
     if new_len <= text.capacity {
@@ -88,6 +104,11 @@ pub func push_str(text: &+String, value: &str): void! {
     text.ptr = from_addr(address)
     text.len = new_len
     text.capacity = new_len
+    return
+}
+
+pub func push_str(text: &+String, value: &str): void! {
+    String.push_str(text, value)?
     return
 }
 

@@ -202,6 +202,33 @@ func main(): i32 {
 }
 
 #[test]
+fn distributed_std_string_associated_api_passes_check() {
+    let project = TempProject::new("distributed-home-string-associated-api");
+    let source = project.write_source(
+        "string_associated_api.nct",
+        r#"from std/mem import page_allocator
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var empty = String.empty()
+    String.push_str(&+empty, "Grow")?
+    let empty_view = String.view(&empty)
+    var text = String.with_capacity(&+allocator, 16)?
+    String.push_str(&+text, empty_view)?
+    let copy = String.from_str(&+allocator, String.view(&text))?
+    drop copy
+    drop text
+    drop empty
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+    assert_success(&output);
+}
+
+#[test]
 fn distributed_std_string_representation_is_private() {
     let project = TempProject::new("distributed-home-string-private");
     let source = project.write_source(

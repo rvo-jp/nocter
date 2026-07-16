@@ -6,16 +6,14 @@
 
 from std/error import Error
 from std/string import String
-from std/string import push_str
-from std/string import view
 
 pub func append_str(out: &+String, value: &str): void! {
-    push_str(out, value)?
+    String.push_str(out, value)?
     return
 }
 
 pub func append_string(out: &+String, value: &String): void! {
-    append_str(out, view(value))?
+    append_str(out, String.view(value))?
     return
 }
 
