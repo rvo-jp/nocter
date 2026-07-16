@@ -524,7 +524,7 @@ fn lower_nonterminal_loop_block_statements(
             }
             Stmt::Drop(statement) => {
                 if !context.aggregate_local_defined_since(&statement.name, local_mark)
-                    && !next_statement_exits_function(statements, index)
+                    && !statement_suffix_exits_function(statements, index)
                 {
                     return Err(attach_primary_span_if_absent(
                         unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
@@ -630,10 +630,20 @@ fn lower_nonterminal_loop_block_statements(
     })
 }
 
-fn next_statement_exits_function(statements: &[Stmt], index: usize) -> bool {
-    statements
-        .get(index + 1)
-        .is_some_and(statement_exits_function)
+fn statement_suffix_exits_function(statements: &[Stmt], index: usize) -> bool {
+    statement_sequence_exits_function(statements.get(index + 1..).unwrap_or(&[]))
+}
+
+fn statement_sequence_exits_function(statements: &[Stmt]) -> bool {
+    for statement in statements {
+        if statement_may_exit_current_loop(statement) {
+            return false;
+        }
+        if statement_exits_function(statement) {
+            return true;
+        }
+    }
+    false
 }
 
 fn statement_exits_function(statement: &Stmt) -> bool {
@@ -650,10 +660,26 @@ fn statement_exits_function(statement: &Stmt) -> bool {
 }
 
 fn block_exits_function(block: &Block) -> bool {
-    block
-        .statements
-        .last()
-        .is_some_and(statement_exits_function)
+    statement_sequence_exits_function(&block.statements)
+}
+
+fn statement_may_exit_current_loop(statement: &Stmt) -> bool {
+    match statement {
+        Stmt::Break(_) | Stmt::Continue(_) => true,
+        Stmt::If(statement) => {
+            block_may_exit_current_loop(&statement.then_block)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(block_may_exit_current_loop)
+        }
+        Stmt::While(_) => false,
+        _ => false,
+    }
+}
+
+fn block_may_exit_current_loop(block: &Block) -> bool {
+    block.statements.iter().any(statement_may_exit_current_loop)
 }
 
 fn outer_aggregate_move_binding_before_function_exit_allowed(
@@ -663,7 +689,7 @@ fn outer_aggregate_move_binding_before_function_exit_allowed(
     statements: &[Stmt],
     index: usize,
 ) -> bool {
-    next_statement_exits_function(statements, index)
+    statement_suffix_exits_function(statements, index)
         && direct_outer_aggregate_move(&statement.initializer, context, local_mark)
 }
 
