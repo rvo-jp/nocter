@@ -71,6 +71,14 @@ impl Parser<'_> {
         }
     }
 
+    pub(super) fn match_identifier_text(&mut self, text: &str) -> Option<Token> {
+        if self.at_identifier_text(text) {
+            Some(self.bump())
+        } else {
+            None
+        }
+    }
+
     pub(super) fn match_punctuation(&mut self, punctuation: &str) -> Option<Token> {
         if self.at_punctuation(punctuation) {
             Some(self.bump())

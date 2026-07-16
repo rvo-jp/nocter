@@ -39,7 +39,7 @@ impl Parser<'_> {
         }
 
         let visibility = self.parse_visibility()?;
-        let is_copy = self.match_keyword(Keyword::Copy).is_some();
+        let is_copy = self.match_identifier_text("copy").is_some();
 
         if self.at_keyword(Keyword::From) {
             if is_copy {

@@ -46,7 +46,6 @@ pub enum Keyword {
     Func,
     Pub,
     Type,
-    Copy,
     Struct,
     Enum,
     Trait,
@@ -85,7 +84,6 @@ pub(crate) const KEYWORD_LEXEMES: &[&str] = &[
     "func",
     "pub",
     "type",
-    "copy",
     "struct",
     "enum",
     "trait",
@@ -863,7 +861,6 @@ fn keyword(text: &str) -> Option<Keyword> {
         "func" => Keyword::Func,
         "pub" => Keyword::Pub,
         "type" => Keyword::Type,
-        "copy" => Keyword::Copy,
         "struct" => Keyword::Struct,
         "enum" => Keyword::Enum,
         "trait" => Keyword::Trait,
@@ -951,6 +948,17 @@ mod tests {
     }
 
     #[test]
+    fn lexes_copy_as_identifier() {
+        let mut sources = SourceMap::new();
+        let id = sources.add_source("app.nct", None, "String.copy");
+        let output = lex(&sources, id);
+
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        assert_eq!(output.tokens[0].kind, TokenKind::Identifier);
+        assert_eq!(output.tokens[2].kind, TokenKind::Identifier);
+    }
+
+    #[test]
     fn keyword_lexemes_match_lexer_keywords() {
         for keyword_text in KEYWORD_LEXEMES {
             let mut sources = SourceMap::new();
@@ -964,6 +972,7 @@ mod tests {
         }
 
         assert!(!KEYWORD_LEXEMES.contains(&"drop"));
+        assert!(!KEYWORD_LEXEMES.contains(&"copy"));
     }
 
     #[test]
@@ -971,6 +980,7 @@ mod tests {
         assert!(is_valid_identifier_name("main"));
         assert!(is_valid_identifier_name("_entry2"));
         assert!(is_valid_identifier_name("program"));
+        assert!(is_valid_identifier_name("copy"));
         assert!(is_valid_identifier_name("drop"));
         assert!(!is_valid_identifier_name(""));
         assert!(!is_valid_identifier_name("2main"));
