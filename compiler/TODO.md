@@ -56,7 +56,7 @@ Recent committed work:
   - reuses the same parameter spill slots for readonly scalar parameter borrow arguments
   - keeps tail-call-only frames from adding value-parameter spills because those paths stage arguments before releasing the frame
 - Current checkpoint: tighten supported non-terminal control flow
-  - lowers branch/body-local assignments in the narrow non-terminal `if`/`while` subset while rejecting outer local assignments and outer aggregate effects there except aggregate whole-binding assignment including direct `target = move source`, explicit drop, or direct `move name` binding followed by a function-exiting suffix
+  - lowers branch/body-local assignments in the narrow non-terminal `if`/`while` subset while rejecting outer local assignments and outer aggregate effects there except outer aggregate whole-binding assignment, direct `target = move source` assignment from an outer aggregate source, explicit drop, or direct `move name` binding followed by a function-exiting suffix
   - keeps fallthrough and loop-control outer aggregate effects rejected
   - keeps explicit aggregate moves out of control-flow conditions because condition effects are not joined into the outer drop state
   - skips unreachable scope-end drops after nested non-terminal `if` branches whose then/else arms both end in `break`/`continue`/terminal IR
@@ -69,7 +69,7 @@ Recent committed work:
   - allows whole-binding aggregate slot assignment from explicit `move source` without allowing implicit copies of non-copy structs
   - stages replacement RHS through a temporary aggregate slot before dropping the old destination value, matching existing replacement-drop ordering
   - suppresses the moved source's caller-side scope-end drop while keeping the destination's drop obligation
-  - keeps the same replacement/drop behavior available inside supported non-terminal branch/body paths only when the remaining statement suffix exits the function
+  - keeps the same replacement/drop behavior available inside supported non-terminal branch/body paths only when the remaining statement suffix exits the function; the target may be branch/body-local or outer, and the source must be an outer aggregate local
 - Current checkpoint: lower aggregate terminal-if returns
   - lowers non-entry terminal `if` branches returning supported direct or indirect aggregate return expressions
   - reuses terminal branch-leading binding, assignment, explicit `drop`, and void call lowering before aggregate return or nested aggregate terminal-if leaves
@@ -1242,7 +1242,7 @@ All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew s
 
 ## Next Implementation Direction
 
-The aggregate move/drop backend subset now covers explicit drop glue, straight-line and terminal-if scope-end drops, terminal-if value-return staging, propagation-failure cleanup, supported catch-handler cleanup, supported non-terminal `if`/`while` branch/body-local assignments, function-exit-only outer aggregate assignment/drop/move-binding effects including direct move assignment, explicit drops, returns, body scope-end drops, `while` `break`/`continue` cleanup, unreachable non-terminal scope-drop suppression after terminal nested branches, copy-only aggregate field assignment, and drop-aware whole-binding replacement.
+The aggregate move/drop backend subset now covers explicit drop glue, straight-line and terminal-if scope-end drops, terminal-if value-return staging, propagation-failure cleanup, supported catch-handler cleanup, supported non-terminal `if`/`while` branch/body-local assignments, function-exit-only outer aggregate assignment/drop/move-binding effects including direct move assignment from outer aggregate sources, explicit drops, returns, body scope-end drops, `while` `break`/`continue` cleanup, unreachable non-terminal scope-drop suppression after terminal nested branches, copy-only aggregate field assignment, and drop-aware whole-binding replacement.
 
 Recommended next small task for the next session:
 
