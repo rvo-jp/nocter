@@ -1493,6 +1493,68 @@ fn build_command_reports_unsupported_compound_bool_equality_condition() {
         ),
         "expected bool equality/inequality operand diagnostic, got:\n{stderr}"
     );
+    let lines: Vec<&str> = stderr.lines().collect();
+    let source_line = lines
+        .iter()
+        .position(|line| line.contains("4 |     if !ready == blocked {"))
+        .unwrap_or_else(|| {
+            panic!("expected source line for unsupported condition, got:\n{stderr}")
+        });
+    assert!(
+        lines
+            .get(source_line + 1)
+            .is_some_and(|line| line.contains("^^^^")),
+        "expected source underline for unsupported condition, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after compile diagnostics"
+    );
+}
+
+#[test]
+fn build_command_reports_unsupported_nonterminal_while_condition_span() {
+    let project = TempProject::new("cli-build-nonterminal-while-condition-span");
+    let source = project.write_source(
+        "nonterminal_while_condition_span.nct",
+        r#"func main(): i32 {
+    let ready = true
+    let blocked = false
+    while !ready == blocked {
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E8002]"),
+        "expected entry lowering diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains(
+            "IR v0 can only lower bool equality/inequality operands that are bool literals or bool locals"
+        ),
+        "expected bool equality/inequality operand diagnostic, got:\n{stderr}"
+    );
+    let lines: Vec<&str> = stderr.lines().collect();
+    let source_line = lines
+        .iter()
+        .position(|line| line.contains("4 |     while !ready == blocked {"))
+        .unwrap_or_else(|| {
+            panic!("expected source line for unsupported condition, got:\n{stderr}")
+        });
+    assert!(
+        lines
+            .get(source_line + 1)
+            .is_some_and(|line| line.contains("^^^^")),
+        "expected source underline for unsupported condition, got:\n{stderr}"
+    );
     assert!(
         !executable.exists(),
         "build should not leave an executable after compile diagnostics"

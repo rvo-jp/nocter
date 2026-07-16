@@ -62,6 +62,7 @@ pub(super) fn lower_terminal_i32_if_statement(
         )?,
         context,
         diagnostic_code,
+        sources,
     )
 }
 
@@ -101,6 +102,7 @@ pub(super) fn lower_terminal_bool_if_statement(
         )?,
         context,
         diagnostic_code,
+        sources,
     )
 }
 
@@ -231,6 +233,7 @@ fn lower_terminal_scalar_if_statement(
         )?,
         context,
         diagnostic_code,
+        sources,
     )
 }
 
@@ -270,6 +273,7 @@ pub(super) fn lower_terminal_void_if_statement(
         )?,
         context,
         diagnostic_code,
+        sources,
     )
 }
 
@@ -279,10 +283,13 @@ pub(super) fn lower_terminal_condition(
     else_instructions: Vec<Instruction>,
     context: &LoweringContext,
     diagnostic_code: &'static str,
+    sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if expression_contains_explicit_aggregate_move(condition, context) {
-        return Err(unsupported_control_flow_condition_move_diagnostic(
-            diagnostic_code,
+        return Err(attach_primary_span_if_absent(
+            unsupported_control_flow_condition_move_diagnostic(diagnostic_code),
+            sources,
+            condition.span(),
         ));
     }
 
@@ -293,10 +300,13 @@ pub(super) fn lower_terminal_condition(
             else_instructions,
             context,
             diagnostic_code,
+            sources,
         );
     }
 
-    let condition = lower_bool_expression_to_value(condition, context, diagnostic_code)?;
+    let condition = lower_bool_expression_to_value(condition, context, diagnostic_code).map_err(
+        |diagnostics| attach_primary_span_if_absent(diagnostics, sources, condition.span()),
+    )?;
     let mut instructions = condition.instructions;
     instructions.push(Instruction::If {
         condition: condition.value,
@@ -341,6 +351,7 @@ pub(super) fn lower_nonterminal_if_statement(
         else_instructions,
         context,
         diagnostic_code,
+        sources,
     )
 }
 
@@ -352,12 +363,17 @@ pub(super) fn lower_nonterminal_while_statement(
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if expression_contains_explicit_aggregate_move(&statement.condition, context) {
-        return Err(unsupported_control_flow_condition_move_diagnostic(
-            diagnostic_code,
+        return Err(attach_primary_span_if_absent(
+            unsupported_control_flow_condition_move_diagnostic(diagnostic_code),
+            sources,
+            statement.condition.span(),
         ));
     }
 
-    let condition = lower_bool_expression_to_value(&statement.condition, context, diagnostic_code)?;
+    let condition = lower_bool_expression_to_value(&statement.condition, context, diagnostic_code)
+        .map_err(|diagnostics| {
+            attach_primary_span_if_absent(diagnostics, sources, statement.condition.span())
+        })?;
     let body_instructions =
         lower_nonterminal_while_block(&statement.body, context, diagnostic_code, subject, sources)?;
 
@@ -646,6 +662,7 @@ fn lower_short_circuit_terminal_condition(
     else_instructions: Vec<Instruction>,
     context: &LoweringContext,
     diagnostic_code: &'static str,
+    sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match binary.operator {
         BinaryOperator::LogicalAnd => lower_terminal_condition(
@@ -656,10 +673,12 @@ fn lower_short_circuit_terminal_condition(
                 else_instructions.clone(),
                 context,
                 diagnostic_code,
+                sources,
             )?,
             else_instructions,
             context,
             diagnostic_code,
+            sources,
         ),
         BinaryOperator::LogicalOr => lower_terminal_condition(
             &binary.left,
@@ -670,9 +689,11 @@ fn lower_short_circuit_terminal_condition(
                 else_instructions,
                 context,
                 diagnostic_code,
+                sources,
             )?,
             context,
             diagnostic_code,
+            sources,
         ),
         _ => unreachable!("short-circuit condition must be && or ||"),
     }

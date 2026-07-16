@@ -1073,6 +1073,7 @@ fn lower_terminal_aggregate_if_statement(
         )?,
         context,
         "E8007",
+        sources,
     )
 }
 
