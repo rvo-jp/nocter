@@ -68,6 +68,39 @@ fn lowers_entry_i32_let_binding_then_return() {
 }
 
 #[test]
+fn lowers_scalar_alias_parameter_and_return() {
+    let function = lower_named_function(
+        r#"type Exit = i32
+
+func main(): i32 {
+    return answer(42)
+}
+
+func answer(value: Exit): Exit {
+    return value
+}
+"#,
+        "answer",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "answer".to_string(),
+            target: crate::ir::CallTarget::same_file("answer".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: i32_param(0),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_method_call_receiver_as_implicit_readwrite_borrow() {
     let ir = lower_text(
         r#"struct File {
@@ -13183,6 +13216,39 @@ func echo(name: &str): &str {
 }
 
 #[test]
+fn lowers_str_alias_parameter_and_return() {
+    let function = lower_named_function(
+        r#"type Text = str
+
+func main(): i32 {
+    return 0
+}
+
+func echo(name: &Text): &Text {
+    return name
+}
+"#,
+        "echo",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "echo".to_string(),
+            target: crate::ir::CallTarget::same_file("echo".to_string()),
+            return_type: Type::Str,
+            instructions: vec![
+                Instruction::SetStr {
+                    destination: StrLocation::Return,
+                    value: StrValue::Location(StrLocation::Parameter(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_str_tail_call_return() {
     let function = lower_named_function_with_signatures(
         r#"func main(): i32 {
@@ -13365,6 +13431,39 @@ fn lowers_readwrite_u8_slice_parameter_return() {
 }
 
 func echo(bytes: &+[u8]): &+[u8] {
+    return bytes
+}
+"#,
+        "echo",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "echo".to_string(),
+            target: crate::ir::CallTarget::same_file("echo".to_string()),
+            return_type: readwrite_u8_slice_type(),
+            instructions: vec![
+                Instruction::SetSlice {
+                    destination: SliceLocation::Return,
+                    value: SliceValue::Location(SliceLocation::Parameter(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_u8_slice_alias_parameter_and_return() {
+    let function = lower_named_function(
+        r#"type Bytes = [u8]
+
+func main(): i32 {
+    return 0
+}
+
+func echo(bytes: &+Bytes): &+Bytes {
     return bytes
 }
 "#,

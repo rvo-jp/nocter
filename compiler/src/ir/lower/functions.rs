@@ -51,6 +51,7 @@ use crate::resolve::{
 };
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::TypecheckFacts;
+use std::collections::HashSet;
 
 pub(super) fn lower_function(
     function: &FunctionDecl,
@@ -481,34 +482,41 @@ fn lower_scalar_parameter_kind(
     function_name: &str,
     resolved: &ResolveOutput,
 ) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
-    match &parameter.ty {
-        TypeExpr::Reference(reference) if reference.name == "i32" => Ok(ScalarParameterKind::I32),
-        TypeExpr::Reference(reference) if reference.name == "u8" => Ok(ScalarParameterKind::U8),
-        TypeExpr::Reference(reference) if reference.name == "usize" => {
-            Ok(ScalarParameterKind::Usize)
-        }
-        TypeExpr::Reference(reference) if reference.name == "bool" => Ok(ScalarParameterKind::Bool),
-        TypeExpr::Borrow(borrow)
-            if !borrow.is_readwrite
-                && matches!(borrow.inner.as_ref(), TypeExpr::Reference(reference) if reference.name == "str") =>
-        {
+    let value = abi_value_from_type_expr(&parameter.ty, resolved)
+        .map_err(|_error| unsupported_parameter_type_diagnostic(function_name))?;
+    match &value.ty {
+        AbiType::I32 => Ok(ScalarParameterKind::I32),
+        AbiType::U8 => Ok(ScalarParameterKind::U8),
+        AbiType::Usize => Ok(ScalarParameterKind::Usize),
+        AbiType::Bool => Ok(ScalarParameterKind::Bool),
+        AbiType::StrView if type_expr_is_readonly_borrow(&parameter.ty) => {
             Ok(ScalarParameterKind::Str)
         }
-        TypeExpr::Borrow(borrow) if is_u8_slice_data_type(&borrow.inner) => {
+        AbiType::SliceView if type_expr_is_u8_slice_borrow(&parameter.ty, resolved) => {
             Ok(ScalarParameterKind::Slice)
         }
-        TypeExpr::Borrow(borrow)
-            if matches!(
-                borrow_inner_type(&borrow.inner, resolved),
-                Some(Type::Aggregate { .. } | Type::DirectAggregate { .. })
-            ) =>
-        {
+        AbiType::Borrow => lower_borrow_parameter_kind(parameter, function_name, resolved),
+        AbiType::Struct(_) => {
+            lower_aggregate_parameter_kind(parameter, function_name, resolved, &value)
+        }
+        _ => Err(unsupported_parameter_type_diagnostic(function_name)),
+    }
+}
+
+fn lower_borrow_parameter_kind(
+    parameter: &Parameter,
+    function_name: &str,
+    resolved: &ResolveOutput,
+) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
+    let TypeExpr::Borrow(borrow) = &parameter.ty else {
+        return Err(unsupported_parameter_type_diagnostic(function_name));
+    };
+    match borrow_inner_type(&borrow.inner, resolved) {
+        Some(Type::Aggregate { .. } | Type::DirectAggregate { .. }) => {
             lower_aggregate_borrow_parameter_kind(parameter, function_name, resolved)
         }
-        TypeExpr::Borrow(borrow) if borrow_inner_type(&borrow.inner, resolved).is_some() => {
-            Ok(ScalarParameterKind::Borrow)
-        }
-        _ => lower_aggregate_parameter_kind(parameter, function_name, resolved),
+        Some(_) => Ok(ScalarParameterKind::Borrow),
+        None => Err(unsupported_parameter_type_diagnostic(function_name)),
     }
 }
 
@@ -538,9 +546,8 @@ fn lower_aggregate_parameter_kind(
     parameter: &Parameter,
     function_name: &str,
     resolved: &ResolveOutput,
+    value: &AbiValue,
 ) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
-    let value = abi_value_from_type_expr(&parameter.ty, resolved)
-        .map_err(|_error| unsupported_parameter_type_diagnostic(function_name))?;
     if !matches!(value.ty, AbiType::Struct(_)) || !supported_aggregate_copy_layout(value.layout) {
         return Err(unsupported_parameter_type_diagnostic(function_name));
     }
@@ -574,38 +581,41 @@ fn lower_function_return_type(
     resolved: &ResolveOutput,
 ) -> Result<Type, Vec<Diagnostic>> {
     match ty {
-        TypeExpr::Reference(reference) if reference.name == "i32" => Ok(Type::I32),
-        TypeExpr::Reference(reference) if reference.name == "u8" => Ok(Type::U8),
-        TypeExpr::Reference(reference) if reference.name == "usize" => Ok(Type::Usize),
-        TypeExpr::Reference(reference) if reference.name == "bool" => Ok(Type::Bool),
-        TypeExpr::Borrow(borrow)
-            if !borrow.is_readwrite
-                && matches!(borrow.inner.as_ref(), TypeExpr::Reference(reference) if reference.name == "str") =>
-        {
-            Ok(Type::Str)
-        }
-        TypeExpr::Borrow(borrow) if is_u8_slice_data_type(&borrow.inner) => Ok(Type::Slice {
-            is_readwrite: borrow.is_readwrite,
-        }),
         TypeExpr::Reference(reference) if reference.name == "void" => Ok(Type::Void),
         TypeExpr::Reference(reference) if reference.name == "never" => Ok(Type::Never),
         TypeExpr::Fallible(fallible) => {
             lower_function_return_type(&fallible.success, name, resolved)
                 .map(|success| Type::Fallible(Box::new(success)))
         }
-        _ => lower_aggregate_function_return_type(ty, name, resolved),
+        _ => {
+            let value = abi_value_from_type_expr(ty, resolved)
+                .map_err(|_error| unsupported_function_return_type_diagnostic(name))?;
+            match &value.ty {
+                AbiType::I32 => Ok(Type::I32),
+                AbiType::U8 => Ok(Type::U8),
+                AbiType::Usize => Ok(Type::Usize),
+                AbiType::Bool => Ok(Type::Bool),
+                AbiType::StrView if type_expr_is_readonly_borrow(ty) => Ok(Type::Str),
+                AbiType::SliceView => lower_slice_return_type(ty, resolved)
+                    .ok_or_else(|| unsupported_function_return_type_diagnostic(name)),
+                AbiType::Struct(_) => aggregate_type_from_abi_value(&value)
+                    .ok_or_else(|| unsupported_function_return_type_diagnostic(name)),
+                _ => Err(unsupported_function_return_type_diagnostic(name)),
+            }
+        }
     }
 }
 
-fn lower_aggregate_function_return_type(
-    ty: &TypeExpr,
-    name: &str,
-    resolved: &ResolveOutput,
-) -> Result<Type, Vec<Diagnostic>> {
-    let value = abi_value_from_type_expr(ty, resolved)
-        .map_err(|_error| unsupported_function_return_type_diagnostic(name))?;
-    aggregate_type_from_abi_value(&value)
-        .ok_or_else(|| unsupported_function_return_type_diagnostic(name))
+fn lower_slice_return_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {
+    let TypeExpr::Borrow(borrow) = ty else {
+        return None;
+    };
+    if !is_u8_slice_data_type(&borrow.inner, resolved) {
+        return None;
+    }
+    Some(Type::Slice {
+        is_readwrite: borrow.is_readwrite,
+    })
 }
 
 fn unsupported_function_return_type_diagnostic(name: &str) -> Vec<Diagnostic> {
@@ -617,13 +627,44 @@ fn unsupported_function_return_type_diagnostic(name: &str) -> Vec<Diagnostic> {
     )]
 }
 
-fn is_u8_slice_data_type(ty: &TypeExpr) -> bool {
-    matches!(
-        ty,
-        TypeExpr::View(view)
-            if !view.is_readwrite
+fn type_expr_is_readonly_borrow(ty: &TypeExpr) -> bool {
+    matches!(ty, TypeExpr::Borrow(borrow) if !borrow.is_readwrite)
+}
+
+fn type_expr_is_u8_slice_borrow(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    matches!(ty, TypeExpr::Borrow(borrow) if is_u8_slice_data_type(&borrow.inner, resolved))
+}
+
+fn is_u8_slice_data_type(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    is_u8_slice_data_type_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn is_u8_slice_data_type_inner(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> bool {
+    match ty {
+        TypeExpr::View(view) => {
+            !view.is_readwrite
                 && matches!(view.element.as_ref(), TypeExpr::Reference(reference) if reference.name == "u8")
-    )
+        }
+        TypeExpr::Reference(reference) => {
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+                return false;
+            };
+            let Some(target) = &symbol.alias_target else {
+                return false;
+            };
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return false;
+            }
+            let result = is_u8_slice_data_type_inner(target, resolved, resolving_names);
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
+        _ => false,
+    }
 }
 
 fn borrow_inner_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {

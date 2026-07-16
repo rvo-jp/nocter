@@ -78,6 +78,7 @@ Currently buildable:
 - explicit local scalar borrow arguments such as `let result = choose(&value, 42)` and `touch(&+value)`, plus readonly scalar parameter borrow arguments such as `return choose(&value, 42)`, for `i32`, `u8`, `usize`, and `bool` normal-call parameter positions
 - static string literals and `&str` parameters as call arguments, passed as `ptr,len` ABI word pairs
 - same-file and loaded imported non-generic normal calls returning `&str` in annotated `&str` `let` initializers and as `&str` call or tail-call arguments, with results staged into two local ABI words
+- aliases to supported scalar/view parameter and return targets lower through the same ABI classification as their targets
 - normal calls with scalar/view, borrow, and supported aggregate arguments can pass ABI words after `x7` through the caller stack argument area; tail-position calls that need stack-passed arguments or borrow arguments lower through the normal-call-plus-return path, and direct backend `TailCall` emission rejects borrow arguments
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
 - non-entry functions returning `bool`, `usize`, or direct `&str` literal/parameter/local/tail-call values
