@@ -4,8 +4,9 @@ use super::bindings::{
 use super::context::LoweringContext;
 use super::expressions::{
     expression_contains_call, lower_bool_expression_to_value, lower_bool_return_expression,
-    lower_i32_return_expression, lower_slice_return_expression, lower_str_return_expression,
-    lower_u8_return_expression, lower_usize_return_expression, lower_void_expression_statement,
+    lower_i32_return_expression, lower_never_return_expression, lower_slice_return_expression,
+    lower_str_return_expression, lower_u8_return_expression, lower_usize_return_expression,
+    lower_void_expression_statement, primitive_trap_call,
 };
 use super::functions::{
     append_scope_end_drops_before_exit, expression_contains_explicit_aggregate_move,
@@ -515,25 +516,39 @@ fn lower_nonterminal_loop_block_statements(
                         statement.expression.span(),
                     ));
                 }
-                let Some(void_instructions) = lower_void_expression_statement(
+                if let Some(terminating_instructions) = lower_never_return_expression(
                     &statement.expression,
                     context,
                 )
                 .map_err(|diagnostics| {
                     attach_primary_span_if_absent(diagnostics, sources, statement.expression.span())
-                })?
-                else {
-                    return Err(attach_primary_span_if_absent(
-                        unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
-                        sources,
-                        statement.span,
-                    ));
-                };
-                instructions.extend(void_instructions);
+                })? {
+                    instructions.extend(terminating_instructions);
+                    ends_execution = true;
+                } else {
+                    let Some(void_instructions) =
+                        lower_void_expression_statement(&statement.expression, context).map_err(
+                            |diagnostics| {
+                                attach_primary_span_if_absent(
+                                    diagnostics,
+                                    sources,
+                                    statement.expression.span(),
+                                )
+                            },
+                        )?
+                    else {
+                        return Err(attach_primary_span_if_absent(
+                            unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
+                            sources,
+                            statement.span,
+                        ));
+                    };
+                    instructions.extend(void_instructions);
+                }
             }
             Stmt::Drop(statement) => {
                 if !context.aggregate_local_defined_since(&statement.name, local_mark)
-                    && !statement_suffix_exits_function(statements, index)
+                    && !statement_suffix_exits_function(statements, index, context)
                 {
                     return Err(attach_primary_span_if_absent(
                         unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
@@ -639,37 +654,56 @@ fn lower_nonterminal_loop_block_statements(
     })
 }
 
-fn statement_suffix_exits_function(statements: &[Stmt], index: usize) -> bool {
-    statement_sequence_exits_function(statements.get(index + 1..).unwrap_or(&[]))
+fn statement_suffix_exits_function(
+    statements: &[Stmt],
+    index: usize,
+    context: &LoweringContext,
+) -> bool {
+    statement_sequence_exits_function(statements.get(index + 1..).unwrap_or(&[]), context)
 }
 
-fn statement_sequence_exits_function(statements: &[Stmt]) -> bool {
+fn statement_sequence_exits_function(statements: &[Stmt], context: &LoweringContext) -> bool {
     for statement in statements {
         if statement_may_exit_current_loop(statement) {
             return false;
         }
-        if statement_exits_function(statement) {
+        if statement_exits_function(statement, context) {
             return true;
         }
     }
     false
 }
 
-fn statement_exits_function(statement: &Stmt) -> bool {
+fn statement_exits_function(statement: &Stmt, context: &LoweringContext) -> bool {
     match statement {
         Stmt::Return(_) => true,
+        Stmt::Expression(statement) => expression_exits_function(&statement.expression, context),
         Stmt::If(statement) => {
             let Some(else_block) = &statement.else_block else {
                 return false;
             };
-            block_exits_function(&statement.then_block) && block_exits_function(else_block)
+            block_exits_function(&statement.then_block, context)
+                && block_exits_function(else_block, context)
         }
         _ => false,
     }
 }
 
-fn block_exits_function(block: &Block) -> bool {
-    statement_sequence_exits_function(&block.statements)
+fn block_exits_function(block: &Block, context: &LoweringContext) -> bool {
+    statement_sequence_exits_function(&block.statements, context)
+}
+
+fn expression_exits_function(expression: &Expr, context: &LoweringContext) -> bool {
+    let Expr::Call(call) = unwrap_group(expression) else {
+        return false;
+    };
+    if primitive_trap_call(call, context) {
+        return true;
+    }
+    let Some((target, _call_name)) = context.direct_call_target_and_name(call) else {
+        return false;
+    };
+    context.call_return_type(&target) == Some(&Type::Never)
 }
 
 fn statement_may_exit_current_loop(statement: &Stmt) -> bool {
@@ -698,7 +732,7 @@ fn outer_aggregate_move_binding_before_function_exit_allowed(
     statements: &[Stmt],
     index: usize,
 ) -> bool {
-    statement_suffix_exits_function(statements, index)
+    statement_suffix_exits_function(statements, index, context)
         && direct_outer_aggregate_move(&statement.initializer, context, local_mark)
 }
 
@@ -842,7 +876,7 @@ fn outer_aggregate_assignment_before_function_exit_allowed(
     statements: &[Stmt],
     index: usize,
 ) -> bool {
-    if !statement_suffix_exits_function(statements, index) {
+    if !statement_suffix_exits_function(statements, index, context) {
         return false;
     }
     let Some(target_name) = assignment_target_root_name(&statement.target) else {
@@ -859,7 +893,7 @@ fn aggregate_move_assignment_before_function_exit_allowed(
     statements: &[Stmt],
     index: usize,
 ) -> bool {
-    if !statement_suffix_exits_function(statements, index) {
+    if !statement_suffix_exits_function(statements, index, context) {
         return false;
     }
     let Some(target_name) = assignment_target_root_name(&statement.target) else {

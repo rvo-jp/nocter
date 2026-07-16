@@ -1252,7 +1252,10 @@ pub(super) fn is_tail_call_stack_pointer_argument(argument: &ScalarArgument) -> 
     matches!(argument, ScalarArgument::AggregateIndirect(_))
 }
 
-pub(super) fn primitive_trap_call(call: &CallExpr, context: &LoweringContext) -> bool {
+pub(in crate::ir::lower) fn primitive_trap_call(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> bool {
     matches!(
         context.primitive_name_for_call(call),
         Some("trap" | "unreachable")

@@ -30,6 +30,7 @@ use crate::ir::{
 };
 pub(super) use calls::lower_macos_syscall_primitive_call_to_location;
 pub(super) use calls::lower_pointer_address_expression_to_word;
+pub(super) use calls::primitive_trap_call;
 use calls::{
     call_arguments_require_stack, is_tail_call_stack_pointer_argument,
     lower_addr_primitive_call_to_word, lower_bool_normal_call, lower_call_arguments,
@@ -40,7 +41,7 @@ use calls::{
     lower_slice_normal_call, lower_str_from_raw_parts_primitive_call_to_location,
     lower_str_normal_call, lower_u8_normal_call, lower_usize_normal_call, lower_void_normal_call,
     primitive_addr_call, primitive_copy_str_to_ptr_call, primitive_str_from_raw_parts_call,
-    primitive_trap_call, primitive_write_text_raw_call,
+    primitive_write_text_raw_call,
 };
 use predicates::{
     bool_comparison_contains_call, bool_comparison_needs_temporaries,
