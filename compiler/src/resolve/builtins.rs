@@ -1,4 +1,4 @@
-pub(super) fn is_builtin_type_name(name: &str) -> bool {
+pub(crate) fn is_builtin_type_name(name: &str) -> bool {
     matches!(
         name,
         "bool"

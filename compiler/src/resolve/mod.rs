@@ -19,6 +19,7 @@ pub use symbols::{
     Symbol, SymbolId, SymbolKind, SymbolTable, TypeSymbol, TypeSymbolKind,
 };
 
+pub(crate) use builtins::is_builtin_type_name;
 pub(crate) use signatures::drop_function_name;
 
 use module_index::ModuleIndex;

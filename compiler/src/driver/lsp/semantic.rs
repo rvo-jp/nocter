@@ -2,6 +2,7 @@ use super::documents::OpenDocument;
 use super::protocol::{LspPosition, byte_offset_to_lsp_position};
 use crate::analysis::FileAnalysis;
 use crate::lexer::{Keyword, Token, TokenKind, lex};
+use crate::resolve::is_builtin_type_name;
 use crate::source::{ByteSpan, SourceMap};
 
 pub(super) const SEMANTIC_TOKEN_TYPES: [&str; 6] = [
@@ -163,7 +164,19 @@ pub(super) fn classified_identifiers(document: &OpenDocument) -> Vec<ClassifiedI
 
         match token.kind {
             TokenKind::Keyword(keyword) => {
-                pending_declaration = pending_declaration_for_keyword(keyword);
+                if let Some(kind) = semantic_token_kind_for_keyword(keyword) {
+                    pending_declaration = None;
+                    if token.span.start < token.span.end {
+                        identifiers.push(ClassifiedIdentifier {
+                            start_byte: token.span.start,
+                            end_byte: token.span.end,
+                            kind,
+                            modifiers: 0,
+                        });
+                    }
+                } else {
+                    pending_declaration = pending_declaration_for_keyword(keyword);
+                }
             }
             TokenKind::Identifier => {
                 let is_method_declaration_name = is_method_declaration_name(&tokens, index);
@@ -208,6 +221,13 @@ pub(super) fn classified_identifiers(document: &OpenDocument) -> Vec<ClassifiedI
             .then(left.end_byte.cmp(&right.end_byte))
     });
     identifiers
+}
+
+fn semantic_token_kind_for_keyword(keyword: Keyword) -> Option<SemanticTokenKind> {
+    match keyword {
+        Keyword::Void | Keyword::Never => Some(SemanticTokenKind::Type),
+        _ => None,
+    }
 }
 
 fn pending_declaration_for_keyword(keyword: Keyword) -> Option<SemanticTokenKind> {
@@ -259,6 +279,10 @@ fn classify_identifier(
     let lexeme = text
         .get(token.span.start..token.span.end)
         .unwrap_or_default();
+    if is_fallback_type_name(lexeme) {
+        return SemanticTokenKind::Type;
+    }
+
     if lexeme
         .chars()
         .next()
@@ -268,6 +292,10 @@ fn classify_identifier(
     }
 
     SemanticTokenKind::Variable
+}
+
+fn is_fallback_type_name(lexeme: &str) -> bool {
+    is_builtin_type_name(lexeme) || matches!(lexeme, "error" | "void" | "never")
 }
 
 fn is_method_declaration_name(tokens: &[&Token], index: usize) -> bool {

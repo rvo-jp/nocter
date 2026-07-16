@@ -43,12 +43,12 @@ use semantic::SEMANTIC_DECLARATION_MODIFIER;
 use semantic::SEMANTIC_READONLY_MODIFIER;
 #[cfg(test)]
 use semantic::SemanticTokenKind;
-#[cfg(test)]
-use semantic::classified_identifiers_for_file_analysis;
 use semantic::{
     SEMANTIC_TOKEN_MODIFIERS, SEMANTIC_TOKEN_TYPES, semantic_tokens_for_document,
     semantic_tokens_for_file_analysis,
 };
+#[cfg(test)]
+use semantic::{classified_identifiers, classified_identifiers_for_file_analysis};
 use symbols::document_symbols_for_document;
 #[cfg(test)]
 use symbols::{
@@ -489,6 +489,26 @@ mod tests {
         assert_eq!(data.len() % 5, 0);
         assert_eq!(data[3], json!(SemanticTokenKind::Function.index()));
         assert_eq!(data[4], json!(SEMANTIC_DECLARATION_MODIFIER));
+    }
+
+    #[test]
+    fn fallback_semantic_tokens_classify_builtin_types() {
+        let text = "func main(path: &str): void! {\n    let byte: u8 = 0 as u8\n    let count: usize = 0 as usize\n    return\n}\n\nfunc fail(error_value: error): never {\n    return\n}\n";
+        let document = open_document(
+            "file:///tmp/nocter-semantic-fallback-types.nct".to_string(),
+            Some(1),
+            text.to_string(),
+        );
+        let identifiers = classified_identifiers(&document);
+
+        for name in ["str", "void", "u8", "usize", "error", "never"] {
+            assert!(
+                classified_identifier_with_lexeme(text, &identifiers, name)
+                    .iter()
+                    .any(|identifier| identifier.kind == SemanticTokenKind::Type),
+                "expected fallback semantic tokens to classify `{name}` as a type"
+            );
+        }
     }
 
     #[test]
