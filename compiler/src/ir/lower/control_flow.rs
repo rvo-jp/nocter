@@ -475,7 +475,10 @@ fn lower_nonterminal_loop_block_statements(
                 )?)
             }
             Stmt::Assignment(statement) => {
-                if !nonterminal_assignment_target_allowed(statement, context, local_mark)
+                if !(nonterminal_assignment_target_allowed(statement, context, local_mark)
+                    || outer_aggregate_assignment_before_function_exit_allowed(
+                        statement, context, local_mark, statements, index,
+                    ))
                     || expression_contains_explicit_aggregate_move_outside(
                         &statement.value,
                         context,
@@ -824,6 +827,23 @@ fn nonterminal_assignment_target_allowed(
     assignment_target_root_name(&statement.target)
         .is_some_and(|target_name| context.local_defined_since(target_name, local_mark))
         || assignment_targets_readwrite_aggregate_field(statement, context)
+}
+
+fn outer_aggregate_assignment_before_function_exit_allowed(
+    statement: &crate::ast::AssignmentStmt,
+    context: &LoweringContext,
+    local_mark: usize,
+    statements: &[Stmt],
+    index: usize,
+) -> bool {
+    if !statement_suffix_exits_function(statements, index) {
+        return false;
+    }
+    let Some(target_name) = assignment_target_root_name(&statement.target) else {
+        return false;
+    };
+    context.aggregate_local(target_name).is_some()
+        && !context.aggregate_local_defined_since(target_name, local_mark)
 }
 
 fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
