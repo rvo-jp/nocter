@@ -459,7 +459,7 @@ fn lower_nonterminal_loop_block_statements(
                     &statement.initializer,
                     context,
                     local_mark,
-                ) && !outer_aggregate_move_binding_before_return_allowed(
+                ) && !outer_aggregate_move_binding_before_function_exit_allowed(
                     statement, context, local_mark, statements, index,
                 ) {
                     return Err(attach_primary_span_if_absent(
@@ -524,7 +524,7 @@ fn lower_nonterminal_loop_block_statements(
             }
             Stmt::Drop(statement) => {
                 if !context.aggregate_local_defined_since(&statement.name, local_mark)
-                    && !next_statement_returns_from_function(statements, index)
+                    && !next_statement_exits_function(statements, index)
                 {
                     return Err(attach_primary_span_if_absent(
                         unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
@@ -630,18 +630,40 @@ fn lower_nonterminal_loop_block_statements(
     })
 }
 
-fn next_statement_returns_from_function(statements: &[Stmt], index: usize) -> bool {
-    matches!(statements.get(index + 1), Some(Stmt::Return(_)))
+fn next_statement_exits_function(statements: &[Stmt], index: usize) -> bool {
+    statements
+        .get(index + 1)
+        .is_some_and(statement_exits_function)
 }
 
-fn outer_aggregate_move_binding_before_return_allowed(
+fn statement_exits_function(statement: &Stmt) -> bool {
+    match statement {
+        Stmt::Return(_) => true,
+        Stmt::If(statement) => {
+            let Some(else_block) = &statement.else_block else {
+                return false;
+            };
+            block_exits_function(&statement.then_block) && block_exits_function(else_block)
+        }
+        _ => false,
+    }
+}
+
+fn block_exits_function(block: &Block) -> bool {
+    block
+        .statements
+        .last()
+        .is_some_and(statement_exits_function)
+}
+
+fn outer_aggregate_move_binding_before_function_exit_allowed(
     statement: &crate::ast::BindingStmt,
     context: &LoweringContext,
     local_mark: usize,
     statements: &[Stmt],
     index: usize,
 ) -> bool {
-    next_statement_returns_from_function(statements, index)
+    next_statement_exits_function(statements, index)
         && direct_outer_aggregate_move(&statement.initializer, context, local_mark)
 }
 
