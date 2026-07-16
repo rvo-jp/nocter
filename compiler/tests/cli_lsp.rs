@@ -77,6 +77,89 @@ fn lsp_command_initializes_and_publishes_diagnostics() {
     );
 }
 
+#[test]
+fn lsp_command_publishes_typecheck_diagnostic_context() {
+    let project = TempProject::new("cli-lsp-diagnostic-context");
+    let app = project.write_source(
+        "app.nct",
+        "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
+    );
+    let config = project.write_source(
+        "config.nct",
+        "pub func answer(value: i32): i32 {\n    return value\n}\n",
+    );
+    let app_uri = file_uri(&app);
+    let config_uri = file_uri(&config.canonicalize().unwrap());
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": app_uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n"
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+
+    let messages = read_frames(&output.stdout);
+    let diagnostics = messages
+        .iter()
+        .find(|message| {
+            message["method"] == "textDocument/publishDiagnostics"
+                && message["params"]["uri"] == json!(app_uri)
+        })
+        .and_then(|message| message["params"]["diagnostics"].as_array())
+        .expect("expected diagnostics notification");
+    let diagnostic = diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic["code"] == "E0320")
+        .expect("expected E0320 diagnostic");
+
+    assert!(diagnostic["message"].as_str().is_some_and(|message| {
+        message.contains("help: pass exactly the parameters declared by the function")
+    }));
+    assert_eq!(
+        diagnostic["relatedInformation"][0]["message"],
+        json!("function `answer` is declared here")
+    );
+    assert_eq!(
+        diagnostic["relatedInformation"][0]["location"]["uri"],
+        json!(config_uri)
+    );
+}
+
 fn nocter_lsp(project: &TempProject, messages: &[Value]) -> Output {
     let mut child = Command::new(NOCTER)
         .arg("lsp")
