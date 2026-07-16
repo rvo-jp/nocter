@@ -2141,6 +2141,61 @@ fn check_command_reports_source_snippet_for_compile_diagnostic() {
     );
 }
 
+#[test]
+fn check_command_reports_source_snippet_for_diagnostic_notes() {
+    let project = TempProject::new("cli-check-source-note-diagnostic");
+    let source = project.write_source(
+        "bad_argument.nct",
+        r#"func callee(value: i32): i32 {
+    return value
+}
+
+func main(): i32 {
+    return callee("bad")
+}
+"#,
+    );
+
+    let output = nocter(&project, ["check", source.to_str().unwrap()]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        output.stdout.is_empty(),
+        "expected empty stdout, got:\n{}",
+        text(&output.stdout)
+    );
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0321]"),
+        "expected argument type diagnostic, got:\n{stderr}"
+    );
+    let lines: Vec<&str> = stderr.lines().collect();
+    let primary_line = lines
+        .iter()
+        .position(|line| line.contains("6 |     return callee(\"bad\")"))
+        .unwrap_or_else(|| panic!("expected primary source line, got:\n{stderr}"));
+    assert!(
+        lines
+            .get(primary_line + 1)
+            .is_some_and(|line| line.contains("^^^^^")),
+        "expected primary source underline, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("note:") && stderr.contains("parameter `value` is declared here"),
+        "expected parameter note, got:\n{stderr}"
+    );
+    let note_line = lines
+        .iter()
+        .position(|line| line.contains("1 | func callee(value: i32): i32 {"))
+        .unwrap_or_else(|| panic!("expected note source line, got:\n{stderr}"));
+    assert!(
+        lines
+            .get(note_line + 1)
+            .is_some_and(|line| line.contains("^^^")),
+        "expected note source underline, got:\n{stderr}"
+    );
+}
+
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn built_executable_returns_entry_exit_code() {

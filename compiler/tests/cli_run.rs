@@ -6418,6 +6418,14 @@ fn run_command_reports_compile_diagnostics_without_running() {
         stderr.contains("`return` value has type `&str`, but function `main` returns `i32`"),
         "expected diagnostic message, got:\n{stderr}"
     );
+    assert!(
+        stderr.contains("2 |     return \"bad\""),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("  |            ^^^^^"),
+        "expected source underline, got:\n{stderr}"
+    );
 }
 
 #[test]
