@@ -5,10 +5,10 @@
 //! results and errno wrappers stay inside target overlays.
 
 from std/error import Error
-from std/io_impl import FileDescriptor
 from std/io_impl import open_read as open_read_impl
 from std/io_impl import stderr as stderr_impl
 from std/io_impl import stdout as stdout_impl
+from std/io_impl import write_text as write_text_impl
 from std/io_impl import write_text_raw
 from std/os import OSError
 
@@ -28,7 +28,7 @@ pub enum IOError {
 }
 
 pub struct File {
-    fd: FileDescriptor
+    fd: i32
     close_on_drop: bool
 }
 
@@ -59,6 +59,7 @@ impl File {
     }
 
     pub method (file: &+Self).write_text(text: &str): void! {
+        write_text_impl(file.fd, text)?
         return
     }
 }
@@ -69,6 +70,7 @@ pub func print(text: &str): void! {
 }
 
 pub func write_text(file: &+File, text: &str): void! {
+    write_text_impl(file.fd, text)?
     return
 }
 

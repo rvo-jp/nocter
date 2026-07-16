@@ -1,0 +1,21 @@
+//! macOS page-allocation helpers behind the user-facing `std/mem` API.
+//!
+//! These helpers are target-overlay standard-library functions. They use the
+//! closed `std/os/macos.syscallN` primitive boundary and keep raw syscall
+//! details out of common `std/mem`.
+
+from std/error import Error
+from std/os/macos import syscall2, syscall6
+
+pub(nocter) func alloc_pages(size: usize): usize! {
+    let result = syscall6(0x020000c5, 0, size, 3, 0x1002, 0xffffffffffffffff, 0)
+    if result.errno != 0 {
+        return Error.new("std.mem.out_of_memory", "allocation failed")
+    }
+    return result.value
+}
+
+pub(nocter) func free_pages(address: usize, size: usize): void {
+    let result = syscall2(0x02000049, address, size)
+    return
+}

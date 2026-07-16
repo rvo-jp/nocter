@@ -6,20 +6,88 @@
 
 from std/error import Error
 from std/string import String
+from std/string import push_str
+from std/string import view
 
 pub func append_str(out: &+String, value: &str): void! {
+    push_str(out, value)?
     return
 }
 
 pub func append_string(out: &+String, value: &String): void! {
+    append_str(out, view(value))?
     return
 }
 
 pub func append_i32(out: &+String, value: i32): void! {
+    if value == -2147483648 {
+        append_str(out, "-2147483648")?
+        return
+    }
+    if value < 0 {
+        append_str(out, "-")?
+        append_i32_digits(out, 0 - value)?
+        return
+    }
+    append_i32_digits(out, value)?
+    return
+}
+
+func append_i32_digits(out: &+String, value: i32): void! {
+    if value >= 10 {
+        append_i32_digits(out, value / 10)?
+    }
+    append_i32_digit(out, value % 10)?
+    return
+}
+
+func append_i32_digit(out: &+String, value: i32): void! {
+    if value == 0 {
+        append_str(out, "0")?
+        return
+    }
+    if value == 1 {
+        append_str(out, "1")?
+        return
+    }
+    if value == 2 {
+        append_str(out, "2")?
+        return
+    }
+    if value == 3 {
+        append_str(out, "3")?
+        return
+    }
+    if value == 4 {
+        append_str(out, "4")?
+        return
+    }
+    if value == 5 {
+        append_str(out, "5")?
+        return
+    }
+    if value == 6 {
+        append_str(out, "6")?
+        return
+    }
+    if value == 7 {
+        append_str(out, "7")?
+        return
+    }
+    if value == 8 {
+        append_str(out, "8")?
+        return
+    }
+    append_str(out, "9")?
     return
 }
 
 pub func append_bool(out: &+String, value: bool): void! {
+    if value {
+        append_str(out, "true")?
+        return
+    }
+    append_str(out, "false")?
     return
 }
 

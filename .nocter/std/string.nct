@@ -2,16 +2,22 @@
 //!
 //! `str` is the compiler built-in unsized UTF-8 data type. `&str` is the
 //! non-owning UTF-8 string slice type and the type of string literals. String is
-//! the future owning string type. Its storage details are intentionally not
-//! exposed outside `std/string`.
+//! the owning string type. Its storage details are intentionally not exposed
+//! outside `std/string`.
 //!
-//! The initial public functions are ordinary standard-library APIs. Owning
-//! allocation is reported as unsupported until target-backed allocation and
-//! string storage are implemented.
+//! The public functions are ordinary standard-library APIs. Empty strings,
+//! copying from `&str`, capacity reservation, growth, UTF-8 view construction,
+//! and release are implemented in Nocter code through restricted runtime
+//! pointer primitives.
 
 from std/error import Error
 from std/mem import Allocator
+from std/mem_impl import alloc_pages as alloc_pages_impl
+from std/mem_impl import free_pages as free_pages_impl
+from std/ptr import addr
+from std/ptr import copy_str_to_ptr
 from std/ptr import from_addr
+from std/ptr import str_from_raw_parts
 
 pub struct String {
     ptr: *u8
@@ -29,21 +35,72 @@ pub func empty(): String {
 }
 
 pub func with_capacity(allocator: &+Allocator, capacity: usize): String! {
-    return Error.new("std.string.unsupported", "owning string allocation is not implemented")
+    if capacity == 0 {
+        return empty()
+    }
+
+    let address: usize = alloc_pages_impl(capacity)?
+    return String {
+        ptr: from_addr(address),
+        len: 0,
+        capacity: capacity,
+    }
 }
 
 pub func from_str(allocator: &+Allocator, value: &str): String! {
-    return Error.new("std.string.unsupported", "owning string allocation is not implemented")
+    let capacity: usize = value.len()
+    if capacity == 0 {
+        return empty()
+    }
+
+    let address: usize = alloc_pages_impl(capacity)?
+    copy_str_to_ptr(from_addr(address), 0, value)
+    return String {
+        ptr: from_addr(address),
+        len: capacity,
+        capacity: capacity,
+    }
+}
+
+pub func String.copy(allocator: &+Allocator, value: &str): String! {
+    return from_str(allocator, value)?
 }
 
 pub func view(text: &String): &str {
-    return ""
+    return str_from_raw_parts(text.ptr, text.len)
 }
 
 pub func push_str(text: &+String, value: &str): void! {
+    let value_len: usize = value.len()
+    let new_len: usize = text.len + value_len
+    if new_len <= text.capacity {
+        copy_str_to_ptr(text.ptr, text.len, value)
+        text.len = new_len
+        return
+    }
+
+    let address: usize = alloc_pages_impl(new_len)?
+    copy_str_to_ptr(from_addr(address), 0, str_from_raw_parts(text.ptr, text.len))
+    copy_str_to_ptr(from_addr(address), text.len, value)
+    if text.capacity != 0 {
+        free_pages_impl(addr(text.ptr), text.capacity)
+    }
+    text.ptr = from_addr(address)
+    text.len = new_len
+    text.capacity = new_len
     return
 }
 
 pub func capacity_overflow(): error {
     return Error.new("std.string.capacity_overflow", "string capacity overflow")
+}
+
+impl String {
+    drop text: &+Self {
+        if text.capacity == 0 {
+            return
+        }
+        free_pages_impl(addr(text.ptr), text.capacity)
+        return
+    }
 }

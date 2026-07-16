@@ -6,10 +6,14 @@
 //! provenance from the `region ... using ...` language construct.
 //!
 //! The public functions below are ordinary standard-library APIs. Allocation is
-//! not part of the compiler primitive set in v0. Allocation is reported as
-//! unsupported until target-backed allocation wrappers are implemented.
+//! not part of the compiler primitive set in v0; target overlays provide the
+//! OS boundary behind this common API.
 
 from std/error import Error
+from std/mem_impl import alloc_pages as alloc_pages_impl
+from std/mem_impl import free_pages as free_pages_impl
+from std/ptr import addr
+from std/ptr import from_addr
 
 pub copy struct Layout {
     pub size: usize
@@ -36,10 +40,26 @@ pub func alloc(
     size: usize,
     align: usize,
 ): RawBuffer! {
-    return Error.new("std.mem.unsupported", "allocation is not implemented")
+    if size == 0 {
+        return invalid_argument()
+    }
+    if align == 0 {
+        return invalid_argument()
+    }
+    if align > 16384 {
+        return invalid_argument()
+    }
+
+    let address: usize = alloc_pages_impl(size)?
+    return RawBuffer {
+        ptr: from_addr(address),
+        len: size,
+        align: align,
+    }
 }
 
 pub func free(allocator: &+Allocator, buffer: RawBuffer): void {
+    free_pages_impl(addr(buffer.ptr), buffer.len)
     return
 }
 

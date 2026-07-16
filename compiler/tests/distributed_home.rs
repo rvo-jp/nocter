@@ -331,6 +331,310 @@ func main(): i32! {
     );
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_string_from_str_view_runs() {
+    let project = TempProject::new("distributed-home-string-from-str-view-run");
+    let source = project.write_source(
+        "string_from_str_view.nct",
+        r#"from std/io import print
+from std/mem import page_allocator
+from std/string import from_str, view
+
+func main(): i32! {
+    var allocator = page_allocator()
+    let text = from_str(&+allocator, "Hello String")?
+    print(view(&text))?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"Hello String");
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_string_copy_view_runs() {
+    let project = TempProject::new("distributed-home-string-copy-view-run");
+    let source = project.write_source(
+        "string_copy_view.nct",
+        r#"from std/io import print
+from std/mem import page_allocator
+from std/string import view
+
+func main(): i32! {
+    var allocator = page_allocator()
+    let text = String.copy(&+allocator, "Copied String")?
+    print(view(&text))?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"Copied String");
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_string_push_str_runs() {
+    let project = TempProject::new("distributed-home-string-push-str-run");
+    let source = project.write_source(
+        "string_push_str.nct",
+        r#"from std/io import print
+from std/mem import page_allocator
+from std/string import push_str, view, with_capacity
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var text = with_capacity(&+allocator, 5)?
+    push_str(&+text, "Hello")?
+    push_str(&+text, " String")?
+    print(view(&text))?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"Hello String");
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_string_empty_push_str_runs() {
+    let project = TempProject::new("distributed-home-string-empty-push-str-run");
+    let source = project.write_source(
+        "string_empty_push_str.nct",
+        r#"from std/io import print
+from std/string import empty, push_str, view
+
+func main(): i32! {
+    var text = empty()
+    push_str(&+text, "Grow")?
+    print(view(&text))?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"Grow");
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_fmt_append_str_runs() {
+    let project = TempProject::new("distributed-home-fmt-append-str-run");
+    let source = project.write_source(
+        "fmt_append_str.nct",
+        r#"from std/fmt import append_str
+from std/io import print
+from std/mem import page_allocator
+from std/string import view, with_capacity
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var text = with_capacity(&+allocator, 16)?
+    append_str(&+text, "Hello")?
+    append_str(&+text, " Format")?
+    print(view(&text))?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"Hello Format");
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_fmt_append_bool_and_string_runs() {
+    let project = TempProject::new("distributed-home-fmt-append-bool-string-run");
+    let source = project.write_source(
+        "fmt_append_bool_string.nct",
+        r#"from std/fmt import append_bool, append_str, append_string
+from std/io import print
+from std/mem import page_allocator
+from std/string import from_str, view, with_capacity
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var text = with_capacity(&+allocator, 32)?
+    append_bool(&+text, true)?
+    append_str(&+text, " ")?
+    append_bool(&+text, false)?
+    let suffix = from_str(&+allocator, " done")?
+    append_string(&+text, &suffix)?
+    print(view(&text))?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"true false done");
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_fmt_append_i32_runs() {
+    let project = TempProject::new("distributed-home-fmt-append-i32-run");
+    let source = project.write_source(
+        "fmt_append_i32.nct",
+        r#"from std/fmt import append_i32, append_str
+from std/io import print
+from std/mem import page_allocator
+from std/string import view, with_capacity
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var text = with_capacity(&+allocator, 4)?
+    append_i32(&+text, 0)?
+    append_str(&+text, " ")?
+    append_i32(&+text, 42)?
+    append_str(&+text, " ")?
+    append_i32(&+text, -17)?
+    append_str(&+text, " ")?
+    append_i32(&+text, -2147483648)?
+    print(view(&text))?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"0 42 -17 -2147483648");
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_file_write_text_runs() {
+    let project = TempProject::new("distributed-home-file-write-text-run");
+    let source = project.write_source(
+        "file_write_text.nct",
+        r#"from std/io import stdout, write_text
+
+func main(): i32! {
+    var out = stdout()
+    out.write_text("Hello")?
+    write_text(&+out, " from File")?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"Hello from File");
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
+    );
+}
+
 #[test]
 fn distributed_std_sources_do_not_reintroduce_removed_placeholders() {
     let mut files = Vec::new();
