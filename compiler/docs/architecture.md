@@ -401,11 +401,10 @@ Initial grammar coverage:
 - `import std/io as io`
 - `func main(): i32! { ... }`, plus infallible `func main(): i32 { ... }`, `func main(): void { ... }`, and custom `--entry <name>` functions
 - `func name(...): Type { ... }`
-- `trait Name { method (...)... }`
-- `impl Type { func ... method ... }`
-- `impl Trait for Type { method ... }`
+- `func Type.name(...): Type { ... }`
+- `impl Type { method ... drop ... }`
 - parameter lists
-- generic parameter lists, including inline bounds such as `T: Trait`
+- unbounded generic parameter lists such as `<T>`
 - `str`, `&str`, `error`, `[T]`, `&[T]`, `&+[T]`, `[T; N]`, `T?`, and `T!` type syntax
 - blocks
 - `return`
@@ -549,7 +548,7 @@ Current semantic coverage:
 - bare `return` is valid only for `void` success returns
 - non-`void` functions and `i32` / `i32!` entry functions must not fall through without an explicit return or failure
 
-The current `check` implementation loads imported files, applies import aliases, registers namespace aliases as visible names, and semantic-checks each reachable file in its own file scope, but it does not resolve namespace member access, full alias-target expansion, enum payload fields, trait method calls, trait obligations, receiver move semantics, borrow lifetimes, perform full block control-flow analysis beyond last-statement `return`, check ownership, select a target beyond the default active target, or lower code. Unknown expression types are not diagnosed until import resolution and full type checking exist.
+The current `check` implementation loads imported files, applies import aliases, registers namespace aliases as visible names, and semantic-checks each reachable file in its own file scope. Remaining gaps should be tracked against the narrower v0 contract in `spec/00-v0-contract.md`; trait method calls and trait obligations are deferred after v0 rather than partially supported by `check`.
 
 `nocter check app.nct --format json` runs:
 

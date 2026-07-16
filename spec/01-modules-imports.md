@@ -438,7 +438,7 @@ Rules:
 - Nocter-distribution-internal associated functions and methods may be marked with `pub(nocter)`.
 - `impl` blocks themselves are not marked `pub`.
 - Enum variants follow the visibility of their enum in the initial design.
-- Trait items follow the visibility of their trait in the initial design.
+- Trait items are deferred after v0.
 - There is no `private` keyword in the initial design.
 - There is no standalone `export` declaration in the initial design.
 - `pub(package)`, `pub(crate)`, `pub(std)`, `pub(home)`, and `pub(trusted)` are not part of v0.

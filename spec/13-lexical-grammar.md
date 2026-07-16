@@ -69,8 +69,14 @@ Rules:
 - Unicode letters are not accepted in identifiers in v0.
 - Reserved keywords are not identifiers.
 - `nocter` is not a reserved keyword except as the contextual visibility scope in `pub(nocter)`.
+- `copy` is not a reserved keyword. It is emitted as an identifier token; the
+  parser recognizes the contextual `copy struct` source form.
 - `drop` is not a reserved keyword. It is emitted as an identifier token; the parser recognizes destructor members and explicit drop statements only by their source form.
-- `Self` has identifier spelling but is reserved as contextual type syntax in `impl` and `trait` type positions. It is not a valid binding, declaration, field, variant, module, type parameter, or import alias name.
+- `trait` is not a reserved keyword in v0. It is emitted as an identifier token;
+  top-level trait syntax is diagnosed as a deferred feature by the parser.
+- `Self` has identifier spelling but is reserved as contextual type syntax in
+  inherent member type positions. It is not a valid binding, declaration, field,
+  variant, module, type parameter, or import alias name.
 - `error` is not a reserved keyword. In type positions, the exact spelling `error` is compiler built-in type syntax. In value positions, it is an ordinary identifier, so `catch error { ... }` binds a local value named `error`.
 - A single `_` is reserved for a future discard or wildcard design and is not a valid binding, declaration, field, variant, type parameter, or import alias name in v0.
 - Identifiers beginning with `_` are otherwise valid.

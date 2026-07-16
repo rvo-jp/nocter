@@ -32,7 +32,8 @@ Recommended next small task:
 - Model owned `String` as an ordinary standard-library owned value with explicit allocation; the target layout direction is pointer, length, and capacity. Formatting APIs append into an existing `String` and fail through the built-in `error` payload.
 - Do not add a runtime GC.
 - Lower generics through monomorphization.
-- Prefer static trait dispatch; make dynamic dispatch explicit if it is added later.
+- Traits are deferred after v0. If traits are added later, prefer static
+  dispatch and make dynamic dispatch explicit.
 - Keep the initial standard library small: primitive trap/unreachable boundaries, process/stderr/syscall wrappers, allocator, owned `String`, and formatting support before collections and file APIs grow.
 
 ## Design Constraints

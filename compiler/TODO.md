@@ -14,7 +14,8 @@ Adopted user decisions:
 - `.nocter/std/string.nct` now uses the ordinary `ptr`, `len`, and `capacity` representation with private fields; allocation-backed mutation remains unsupported until target allocation and aggregate lowering are in place.
 - Do not add a runtime GC.
 - Lower generics through monomorphization.
-- Prefer static trait dispatch; require an explicit dynamic-dispatch design if it is added later.
+- Traits are deferred after v0. If traits are added later, prefer static
+  dispatch and require an explicit dynamic-dispatch design.
 - Keep the initial standard library small: trap/unreachable, process/stderr/syscall wrappers, allocator, owned `String`, and formatting support before larger collections or file APIs.
 
 Recommended next implementation order:
@@ -180,7 +181,7 @@ Recent committed work:
   - keeps ordinary structs, aliases to ordinary structs, owned source-level aggregate moves, use-after-move checks, replacement drop, and drop glue disabled
 - Current checkpoint: track copy struct metadata in resolver
   - records AST `copy struct` declarations on resolver `TypeSymbol` for local and imported struct symbols
-  - keeps alias, enum, trait, and ordinary struct symbols non-copy at this metadata layer
+  - keeps alias, enum, future-trait, and ordinary struct symbols non-copy at this metadata layer
   - prepares copy-only aggregate slot assignment/move checks without changing source-level aggregate behavior yet
 - Current checkpoint: copy aggregate slots to aggregate slots in backend
   - extends backend `CopyAggregate` emission from slot-to-return copies to slot-to-slot 8-byte chunk copies

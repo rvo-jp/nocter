@@ -164,8 +164,8 @@ Rules:
 Adopted: parameters are immutable bindings inside the function body.
 
 ```nct
-func create<W: Writer>(name: String, count: i32, out: &+W): User! {
-    out.write(name.view())?
+func create(name: String, count: i32, out: &+File): User! {
+    out.write_text(name.view())?
 
     return User{
         name: move name,
@@ -253,7 +253,8 @@ Rules:
 - A `drop` member has the source form `drop name: &+Self { ... }`.
 - The binding name after `drop` is ordinary and scoped to the drop body.
 - The drop binding type must be exactly `&+Self`.
-- A `drop` member cannot appear in a trait declaration or trait impl.
+- A `drop` member can appear only in an inherent `impl Type` block. Trait
+  declarations and trait implementations are deferred after v0.
 - A `drop` member has no return type annotation.
 - A `drop` member always returns no value.
 - A `drop` member cannot be fallible.

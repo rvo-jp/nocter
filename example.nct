@@ -18,15 +18,15 @@ pub copy struct WordStats {
     pub words: u64
 }
 
-impl WordStats {
-    pub func empty(): WordStats {
-        return WordStats{
-            bytes: 0,
-            lines: 0,
-            words: 0,
-        }
+pub func WordStats.empty(): WordStats {
+    return WordStats{
+        bytes: 0,
+        lines: 0,
+        words: 0,
     }
+}
 
+impl WordStats {
     pub method (stats: &+Self).add_byte(byte: u8): void {
         stats.bytes += 1
 
@@ -43,11 +43,6 @@ impl WordStats {
 enum ScanState {
     outside_word
     inside_word
-}
-
-pub trait Writer {
-    method (writer: &+Self).write(text: str): void!
-    method (writer: &+Self).write_u64(value: u64): void!
 }
 
 pub func scan_words(text: str): WordStats {
@@ -70,19 +65,19 @@ pub func scan_words(text: str): WordStats {
     return stats
 }
 
-func print_stats<W: Writer>(
-    out: &+W,
+func print_stats(
+    out: &+File,
     path: str,
     stats: WordStats,
 ): void! {
-    out.write(path)?
-    out.write(": ")?
+    out.write_text(path)?
+    out.write_text(": ")?
     out.write_u64(stats.lines)?
-    out.write(" lines, ")?
+    out.write_text(" lines, ")?
     out.write_u64(stats.words)?
-    out.write(" words, ")?
+    out.write_text(" words, ")?
     out.write_u64(stats.bytes)?
-    out.write(" bytes\n")?
+    out.write_text(" bytes\n")?
 
     return
 }

@@ -293,13 +293,13 @@ Parentheses in type syntax group a type without creating a new type. For example
 
 Adopted: `Self` is type-position syntax, not an ordinary user-defined name.
 
-`Self` is valid only in type positions inside an `impl` block or a `trait` declaration.
+`Self` is valid only in type positions inside an inherent `impl` block or a
+qualified associated function declaration such as `func File.open`.
 
 Meaning:
 
 - In `impl File { ... }`, `Self` means `File`.
-- In `impl Writer for File { ... }`, `Self` means `File`.
-- In `trait Writer { ... }`, `Self` means the nominal type that implements the trait.
+- In `func File.open(...)`, `Self` means `File`.
 
 Rules:
 
@@ -307,7 +307,7 @@ Rules:
 - `Self` cannot be used as a binding name, parameter name, function name, method name, field name, enum variant name, module name, type declaration name, type parameter name, or import alias.
 - `Self` is not resolved through normal name lookup.
 - `Self` is not imported or exported.
-- `Self` has no meaning outside `impl` and `trait` type positions.
+- `Self` has no meaning outside inherent member type positions.
 - Lowercase `self` is not special. It is an ordinary identifier if it is otherwise valid in that syntactic position.
 
 This preserves Nocter's rule that ordinary names do not define special behavior. The special behavior belongs to type syntax, not to a value or declaration name.

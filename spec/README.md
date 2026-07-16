@@ -10,6 +10,7 @@ Nocter also treats AI readability and writability as a tooling goal: the languag
 ## Chapters
 
 - [Overview](00-overview.md)
+- [Nocter v0 Contract](00-v0-contract.md)
 - [Modules and Imports](01-modules-imports.md)
 - [Values and Types](02-values-types.md)
 - [Control Flow](03-control-flow.md)
@@ -17,7 +18,7 @@ Nocter also treats AI readability and writability as a tooling goal: the languag
 - [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md)
 - [Memory, Regions, and Allocators](06-memory-region-allocator.md)
 - [Strings, Arrays, Views, and Pointers](07-strings-arrays-views-pointers.md)
-- [Generics, Traits, and Methods](08-generics-traits-methods.md)
+- [Generics and Methods](08-generics-traits-methods.md)
 - [ABI and Layout](09-abi-layout.md)
 - [Targets and Distribution](10-targets-distribution.md)
 - [Standard Library, Primitives, and OS](11-stdlib-primitives-os.md)

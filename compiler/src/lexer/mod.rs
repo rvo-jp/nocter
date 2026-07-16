@@ -48,7 +48,6 @@ pub enum Keyword {
     Type,
     Struct,
     Enum,
-    Trait,
     Impl,
     Method,
     Let,
@@ -86,7 +85,6 @@ pub(crate) const KEYWORD_LEXEMES: &[&str] = &[
     "type",
     "struct",
     "enum",
-    "trait",
     "impl",
     "method",
     "let",
@@ -863,7 +861,6 @@ fn keyword(text: &str) -> Option<Keyword> {
         "type" => Keyword::Type,
         "struct" => Keyword::Struct,
         "enum" => Keyword::Enum,
-        "trait" => Keyword::Trait,
         "impl" => Keyword::Impl,
         "method" => Keyword::Method,
         "let" => Keyword::Let,
@@ -959,6 +956,16 @@ mod tests {
     }
 
     #[test]
+    fn lexes_trait_as_identifier() {
+        let mut sources = SourceMap::new();
+        let id = sources.add_source("app.nct", None, "func trait(): void {}");
+        let output = lex(&sources, id);
+
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        assert_eq!(output.tokens[1].kind, TokenKind::Identifier);
+    }
+
+    #[test]
     fn keyword_lexemes_match_lexer_keywords() {
         for keyword_text in KEYWORD_LEXEMES {
             let mut sources = SourceMap::new();
@@ -973,6 +980,7 @@ mod tests {
 
         assert!(!KEYWORD_LEXEMES.contains(&"drop"));
         assert!(!KEYWORD_LEXEMES.contains(&"copy"));
+        assert!(!KEYWORD_LEXEMES.contains(&"trait"));
     }
 
     #[test]
@@ -982,6 +990,7 @@ mod tests {
         assert!(is_valid_identifier_name("program"));
         assert!(is_valid_identifier_name("copy"));
         assert!(is_valid_identifier_name("drop"));
+        assert!(is_valid_identifier_name("trait"));
         assert!(!is_valid_identifier_name(""));
         assert!(!is_valid_identifier_name("2main"));
         assert!(!is_valid_identifier_name("main-entry"));

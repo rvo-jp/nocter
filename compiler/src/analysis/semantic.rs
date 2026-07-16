@@ -182,9 +182,7 @@ fn pending_declaration_for_keyword(keyword: Keyword) -> Option<SemanticTokenKind
     match keyword {
         Keyword::Func | Keyword::Primitive => Some(SemanticTokenKind::Function),
         Keyword::Method => None,
-        Keyword::Type | Keyword::Struct | Keyword::Enum | Keyword::Trait => {
-            Some(SemanticTokenKind::Type)
-        }
+        Keyword::Type | Keyword::Struct | Keyword::Enum => Some(SemanticTokenKind::Type),
         Keyword::Let | Keyword::Var => Some(SemanticTokenKind::Variable),
         _ => None,
     }

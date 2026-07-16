@@ -1,17 +1,42 @@
-# Generics, Traits, and Methods
+# Generics and Methods
 
 This file is part of the Nocter language specification.
 The specification entry point is [README.md](README.md).
 
+## v0 Scope
+
+Nocter v0 includes generic type parameters, associated functions, inherent
+`impl` blocks, receiver methods, and `Self` type syntax inside inherent member
+contexts.
+
+Nocter v0 does not include traits.
+
+Deferred after v0:
+
+- `trait` declarations
+- `impl Trait for Type`
+- generic bounds such as `T: Trait`
+- trait method lookup
+- trait objects such as `dyn Trait`
+- trait inheritance, associated types, default methods, blanket impls,
+  specialization, and `where` clauses
+
+`trait` is not a reserved keyword in v0. It is lexed as an identifier. A source
+form that starts a top-level item with `trait` is diagnosed as a deferred
+feature, but the spelling remains available as an ordinary identifier in
+positions such as a function name.
+
 ## Impl Blocks
 
-Adopted: `impl` associates receiver methods with a type. It is not a class declaration and does not introduce inheritance.
+Adopted: `impl` associates receiver methods and destructor members with a
+nominal type. It is not a class declaration and does not introduce inheritance.
 
-Associated functions are declared at top level with a qualified function name. They have no receiver and are called through the type.
+Associated functions are declared at top level with a qualified function name.
+They have no receiver and are called through the type.
 
 ```nct
 pub func WordStats.empty(): WordStats {
-    return WordStats{
+    return WordStats {
         bytes: 0,
         lines: 0,
         words: 0,
@@ -23,7 +48,8 @@ pub func WordStats.empty(): WordStats {
 let stats = WordStats.empty()
 ```
 
-`method` inside an `impl` defines a receiver method. The receiver is explicit and appears before the method name.
+`method` inside an `impl` defines a receiver method. The receiver is explicit
+and appears before the method name.
 
 ```nct
 impl WordStats {
@@ -41,11 +67,19 @@ impl WordStats {
 stats.add_word()
 ```
 
-`Self` is type-position syntax inside an `impl` block and inside a qualified associated function declaration such as `func WordStats.empty`. It is not an ordinary identifier and is not resolved through normal name lookup. In `impl WordStats` or `func WordStats.empty`, `Self` means `WordStats`.
+`Self` is type-position syntax inside an inherent `impl` block and inside a
+qualified associated function declaration such as `func WordStats.empty`.
+It is not an ordinary identifier and is not resolved through normal name lookup.
+In `impl WordStats` or `func WordStats.empty`, `Self` means `WordStats`.
 
-Nocter does not reserve `self` or `this`. The receiver name is chosen by the author. `self` may be used as an ordinary receiver name, but it has no special meaning. The restrictions on `Self` are specified in [Values and Types](02-values-types.md#self-type-syntax).
+Nocter does not reserve `self` or `this`. The receiver name is chosen by the
+author. `self` may be used as an ordinary receiver name, but it has no special
+meaning. The restrictions on `Self` are specified in
+[Values and Types](02-values-types.md#self-type-syntax).
 
-The target of an `impl` block must be a nominal type declaration, such as a `struct` or `enum`. An `impl` block cannot target a type alias because aliases do not create distinct types.
+The target of an `impl` block must be a nominal type declaration, such as a
+`struct` or `enum`. An `impl` block cannot target a type alias because aliases
+do not create distinct types.
 
 ```nct
 type Int = i32
@@ -55,6 +89,10 @@ impl Int {
 }
 // error: Int is a type alias, not a nominal type
 ```
+
+`impl Trait for Type` is not part of v0. The parser must diagnose this form as a
+deferred feature. If a concrete type should support a receiver call, define an
+inherent method on that concrete type.
 
 Initial receiver forms:
 
@@ -68,24 +106,35 @@ Meaning:
 
 - `&Self` is a readonly receiver.
 - `&+Self` is a readwrite receiver.
-- `Self` is a consuming receiver. It requires copy or explicit move according to the normal ownership rules.
+- `Self` is a consuming receiver. It requires copy or explicit move according to
+  the normal ownership rules.
 - Calling a `&Self` method borrows the receiver readonly.
-- Calling a `&+Self` method borrows the receiver readwrite and requires a writable receiver place.
-- A newly created owned temporary may be used as a `&+Self` receiver for that single method call because it has no existing aliases.
-- Calling a `Self` method consumes or copies the receiver according to the receiver type.
-- Borrow-like values derived from a temporary receiver cannot escape the current statement.
+- Calling a `&+Self` method borrows the receiver readwrite and requires a
+  writable receiver place.
+- A newly created owned temporary may be used as a `&+Self` receiver for that
+  single method call because it has no existing aliases.
+- Calling a `Self` method consumes or copies the receiver according to the
+  receiver type.
+- Borrow-like values derived from a temporary receiver cannot escape the current
+  statement.
 
 Call rules:
 
 - `Type.function(args)` calls an associated `func`.
 - `value.method(args)` calls a `method`.
-- Associated function and method arguments follow the positional argument rules in [Control Flow](03-control-flow.md#function-calls-and-arguments).
-- `Type.method(&value, args)` and `Type.method(&+value, args)` are invalid in the initial design.
-- `value.function(args)` is invalid when `function` is only an associated `func`.
-- `func Type.name` and `method` share the same member namespace for a type. Defining both with the same member name for the same type is an error in the initial design.
-- Enum variants also occupy the type member namespace. An associated `func` or `method` cannot reuse an enum variant member name in v0.
-- If method lookup finds multiple valid candidates, the call is ambiguous and is a compile error.
-- The initial design has no qualified method-call escape hatch for ambiguity resolution.
+- Associated function and method arguments follow the positional argument rules
+  in [Control Flow](03-control-flow.md#function-calls-and-arguments).
+- `Type.method(&value, args)` and `Type.method(&+value, args)` are invalid in
+  v0.
+- `value.function(args)` is invalid when `function` is only an associated
+  `func`.
+- `func Type.name` and `method` share the same member namespace for a type.
+  Defining both with the same member name for the same type is an error in v0.
+- Enum variants also occupy the type member namespace. An associated `func` or
+  `method` cannot reuse an enum variant member name in v0.
+- If method lookup finds multiple valid inherent candidates, the call is
+  ambiguous and is a compile error.
+- v0 has no qualified method-call escape hatch for ambiguity resolution.
 
 ```nct
 file.write_text("hello")?          // OK: method call
@@ -96,29 +145,24 @@ File.write_text(&+file, "hello")?  // error: methods are not UFCS functions
 
 Adopted: method lookup is deliberately small and deterministic in v0.
 
-For `value.method(args)`, the compiler first determines the static type of `value`.
+For `value.method(args)`, the compiler first determines the static type of
+`value`.
 
-If the receiver has a concrete nominal type, the compiler looks only for inherent methods declared in `impl Type` blocks for that nominal type. Trait methods are not extension methods on concrete values in v0. If a concrete type should support `file.write(...)`, define an inherent `method` on `File`.
+If the receiver has a concrete nominal type, the compiler looks only for
+inherent methods declared in `impl Type` blocks for that nominal type.
 
-If the receiver is a generic type parameter, the compiler looks at the receiver type parameter's explicit trait bound. A method declared by that bound may be called through the generic value.
-
-```nct
-func write_line<W: Writer>(writer: &+W, text: &str): void! {
-    writer.write(text)?
-    writer.write("\n")?
-    return
-}
-```
+If the receiver is a generic type parameter, v0 has no trait-bound method lookup.
+A method call through an unconstrained generic receiver is invalid unless a
+future feature supplies a bound and lookup rule.
 
 Lookup order:
 
 1. inherent method on a concrete nominal receiver type
-2. trait-bound method on a generic type parameter receiver
-3. no candidate, producing a compile error
+2. no candidate, producing a compile error
 
-In v0, the compiler does not search all visible trait implementations to resolve `value.method(args)`. This avoids trait-import-dependent behavior and keeps method calls readable from the receiver type and the generic bounds in the current declaration.
-
-Ambiguity is a compile error. The initial language has no syntax such as `Trait.method(value, args)` or `<Type as Trait>.method(value, args)` to force one candidate.
+The compiler does not search visible trait implementations to resolve
+`value.method(args)` in v0. This avoids import-dependent method lookup and keeps
+calls readable from the receiver type.
 
 Initial implementation order:
 
@@ -128,79 +172,6 @@ Initial implementation order:
 4. associated function calls such as `Type.function(...)`
 5. method declarations
 6. method calls such as `value.method(...)`
-
-## Traits
-
-Adopted: traits describe required behavior without class inheritance.
-
-```nct
-trait Writer {
-    method (out: &+Self).write(text: &str): void!
-}
-```
-
-`Self` is also available in type positions inside a trait declaration and means the implementing type. A trait declaration does not introduce a value named `Self`.
-
-Trait implementation uses `impl Trait for Type`.
-
-```nct
-impl Writer for File {
-    method (file: &+Self).write(text: &str): void! {
-        ...
-    }
-}
-```
-
-The `impl Trait for Type` block may contain only the members required by the trait. Extra associated functions are declared as `func Type.name(...)` at top level. Extra receiver methods belong in an inherent `impl Type` block.
-
-Each required trait method must be implemented exactly once, and its signature must match the trait declaration after substituting `Self` with the implementing type.
-
-Generic functions may use trait bounds.
-
-```nct
-func print_line<W: Writer>(writer: &+W, text: &str): void! {
-    writer.write(text)?
-    writer.write("\n")?
-    return
-}
-```
-
-### Trait Implementation Coherence
-
-Adopted: a trait implementation is allowed only where either the trait or the implementing nominal type is defined.
-
-Rules:
-
-- A module may implement a trait for a type if that module defines the trait.
-- A module may implement a trait for a type if that module defines the implementing nominal type.
-- A module may not implement an external trait for an external type.
-- A type alias does not count as defining a new nominal type.
-- Implementing a trait for a borrow, pointer, fixed-size array, function type, or other non-nominal type is not part of v0.
-- There must be at most one implementation for the same resolved trait and implementing nominal type in the whole loaded program.
-- Blanket implementations such as `impl<T: Writer> Debug for T` are not part of v0.
-
-```nct
-// Each block below is a separate module situation, not a set of simultaneous declarations.
-
-// In the module that defines File: OK.
-impl Writer for File {
-    method (file: &+Self).write(text: &str): void! {
-        ...
-    }
-}
-
-// In the module that defines Writer: OK, even if File is external.
-impl Writer for File {
-    method (file: &+Self).write(text: &str): void! {
-        ...
-    }
-}
-
-// In a third module that defines neither Writer nor File: error.
-impl Writer for File {
-    ...
-}
-```
 
 ## Generics
 
@@ -216,68 +187,55 @@ func first<T>(items: &[T]): T? {
 }
 ```
 
-Trait bounds are written inline with `:`.
-
-```nct
-func print<T: Format>(value: T): void
-```
-
-Multiple bounds such as `T: Hash + Equal` are not part of v0.
-
 Generic parameter grammar in v0:
 
 ```text
 GenericParameters = "<" GenericParameter ("," GenericParameter)* ">"
-GenericParameter  = Name (":" TraitName)?
+GenericParameter  = Name
 ```
 
-`TraitName` is a resolved trait name imported into the current file. `where` clauses, default type parameters, negative bounds, and bound expressions are not part of v0.
+Generic bounds are deferred after v0. The parser must diagnose a generic
+parameter colon such as `T: Format` as a deferred feature.
 
-Generic implementation uses monomorphization. Each concrete instantiation is compiled as concrete code.
+Generic implementation uses monomorphization. Each concrete instantiation is
+compiled as concrete code.
 
 ```nct
 Buffer<i32>
 Buffer<String>
 ```
 
-This keeps generic dispatch static, avoids runtime type metadata for basic generics, and fits the no-runtime direction.
+This keeps generic dispatch static, avoids runtime type metadata for basic
+generics, and fits the no-runtime direction.
 
 Initial generic scope:
 
 - type parameters on structs
 - type parameters on functions
-- type parameters on impl blocks where needed
-- inline trait bounds in the form `T: Trait`
+- type parameters on `impl` blocks where needed
 - compile-time monomorphization
 
 Deferred generic features:
 
+- inline bounds such as `T: Trait`
 - multiple bounds such as `T: A + B`
 - full `where` clauses
 - higher-kinded types
 - generic associated types
 - const generics beyond the minimum needed for fixed-size arrays
-- dynamic dispatch through `dyn Trait`
 
-## Trait Scope
+## Future Trait Direction
 
-Initial trait scope:
+Traits remain a possible post-v0 feature, but they are not part of the v0
+contract. A future trait design must specify at least:
 
-- trait declarations
-- `impl Trait for Type`
-- generic bounds in the form `T: Trait`
-- method declarations in traits
-- method calls through trait bounds
-- ambiguity is a compile error
-
-Deferred trait features:
-
-- trait objects such as `dyn Trait`
-- trait inheritance
-- associated types
-- default methods
-- blanket impls
-- specialization
-- full `where` clauses
+- declaration syntax
+- implementation syntax
+- coherence rules
+- method lookup interaction with inherent methods
+- generic bound checking
+- LSP hover, semantic token, completion, and diagnostic facts
+- backend dispatch model, including whether dispatch is static only or includes
+  explicit dynamic dispatch
 
 Class inheritance is not part of the core language direction.

@@ -2,8 +2,8 @@ use super::{ParseResult, Parser};
 use crate::ast::{
     AstFile, DropDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl, FunctionOwner,
     ImplDecl, ImplMember, ImportAlias, ImportItem, ImportedName, Item, MethodDecl, ModulePath,
-    Parameter, ParameterList, PrimitiveDecl, StructDecl, StructField, TraitDecl, TypeAliasDecl,
-    UseItem, Visibility,
+    Parameter, ParameterList, PrimitiveDecl, StructDecl, StructField, TypeAliasDecl, UseItem,
+    Visibility,
 };
 use crate::lexer::Keyword;
 use crate::source::ByteSpan;
@@ -90,12 +90,13 @@ impl Parser<'_> {
             return self.parse_enum_decl(visibility);
         }
 
-        if self.at_keyword(Keyword::Trait) {
+        if self.at_identifier_text("trait") {
             if is_copy {
                 self.error_current("`copy` applies only to `struct` declarations in v0");
                 return Err(());
             }
-            return self.parse_trait_decl(visibility);
+            self.error_current("trait declarations are deferred after v0");
+            return Err(());
         }
 
         if self.at_keyword(Keyword::Impl) {
@@ -413,51 +414,16 @@ impl Parser<'_> {
         Ok((self.span(start.span.start, end.span.end), variants))
     }
 
-    pub(super) fn parse_trait_decl(&mut self, visibility: Visibility) -> ParseResult<Item> {
-        let start = self.expect_keyword(Keyword::Trait, "`trait`")?;
-        let name = self.expect_identifier("expected trait name after `trait`")?;
-        let generics = self.parse_generic_param_list()?;
-        let open = self.expect_punctuation("{", "`{`")?;
-        let mut methods = Vec::new();
-        self.skip_newlines();
-
-        while !self.at_punctuation("}") {
-            if self.at_eof() {
-                self.error_at(open.span, "expected `}` to close trait declaration");
-                return Err(());
-            }
-
-            let method_visibility = self.parse_visibility()?;
-            if !self.at_keyword(Keyword::Method) {
-                self.error_current("expected `method` in trait declaration");
-                return Err(());
-            }
-            methods.push(self.parse_method_decl(method_visibility, false)?);
-            self.skip_newlines();
-            _ = self.match_punctuation(",");
-            self.skip_newlines();
-        }
-
-        let close = self.expect_punctuation("}", "`}`")?;
-        Ok(Item::Trait(TraitDecl {
-            span: self.span(start.span.start, close.span.end),
-            visibility,
-            name: name.value,
-            name_span: name.span,
-            generics,
-            methods,
-        }))
-    }
-
     pub(super) fn parse_impl_decl(&mut self) -> ParseResult<Item> {
         let start = self.expect_keyword(Keyword::Impl, "`impl`")?;
         let first_ty = self.parse_type()?;
-        let (trait_ty, target_ty) = if self.match_keyword(Keyword::For).is_some() {
-            let target_ty = self.parse_type()?;
-            (Some(first_ty), target_ty)
-        } else {
-            (None, first_ty)
-        };
+        if self.at_keyword(Keyword::For) {
+            self.error_current(
+                "trait implementations are deferred after v0; use inherent `impl Type` blocks",
+            );
+            return Err(());
+        }
+        let target_ty = first_ty;
         let open = self.expect_punctuation("{", "`{`")?;
         let mut members = Vec::new();
         let mut has_drop_member = false;
@@ -484,10 +450,6 @@ impl Parser<'_> {
                     self.error_current("drop member cannot be marked pub");
                     return Err(());
                 }
-                if trait_ty.is_some() {
-                    self.error_current("drop member cannot appear in a trait impl");
-                    return Err(());
-                }
                 if has_drop_member {
                     self.error_current("impl block cannot define more than one drop member");
                     return Err(());
@@ -505,7 +467,7 @@ impl Parser<'_> {
         let close = self.expect_punctuation("}", "`}`")?;
         Ok(Item::Impl(ImplDecl {
             span: self.span(start.span.start, close.span.end),
-            trait_ty,
+            trait_ty: None,
             target_ty,
             members,
         }))

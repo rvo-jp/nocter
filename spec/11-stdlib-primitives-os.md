@@ -528,10 +528,8 @@ use
 func
 pub
 type
-copy
 struct
 enum
-trait
 impl
 method
 let
@@ -560,7 +558,13 @@ never
 
 `nocter` is not a reserved keyword. It is recognized only as the contextual visibility scope in `pub(nocter)`.
 
+`copy` is not a reserved keyword. It is emitted as an identifier token and is
+recognized only by the contextual `copy struct` source form.
+
 `drop` is not a reserved keyword. It is emitted as an identifier token and is recognized only by the contextual inherent destructor member form and explicit drop statement form specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#drop).
+
+`trait` is not a reserved keyword in v0. It is emitted as an identifier token.
+Trait syntax is deferred after v0.
 
 `@` is reserved for possible future attribute-like syntax, but attributes are not part of v0. A source-level `@` outside string literals, byte literals, or comments is invalid in v0.
 

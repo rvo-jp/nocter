@@ -1,0 +1,184 @@
+# Nocter v0 Contract
+
+This file is part of the Nocter language specification.
+The specification entry point is [README.md](README.md).
+
+This chapter defines the implementation contract for Nocter v0. It is narrower
+than the long-term language direction. A feature that is not listed here is not
+part of the v0 contract even if older notes or future-design sections mention
+it.
+
+## Excluded From v0
+
+The following features are deferred after v0:
+
+- `trait` declarations
+- `impl Trait for Type`
+- generic bounds such as `T: Trait`
+- trait method lookup
+- dynamic dispatch and `dyn Trait`
+- `where` clauses
+- class inheritance
+- user-defined primitive declarations outside the trusted standard-library
+  boundary
+
+`trait` is not a reserved keyword in v0. It is lexed as an identifier. Source
+forms that try to use trait syntax are diagnosed as deferred features by the
+parser.
+
+## Parser Contract
+
+The v0 parser accepts these top-level item forms:
+
+- `use path`
+- `import path as name`
+- `from path import name`
+- `pub from path import name`
+- `primitive name<T>(...): Type`
+- `func name<T>(...): Type { ... }`
+- `func Type.name<T>(...): Type { ... }`
+- `type Name<T> = Type`
+- `copy struct Name<T> { ... }`
+- `struct Name<T> { ... }`
+- `enum Name<T> { ... }`
+- `impl Type { method ...; drop ... }`
+
+The v0 parser rejects these forms with diagnostics instead of accepting them as
+partial language support:
+
+- `trait Name { ... }`
+- `impl Trait for Type { ... }`
+- generic bounds such as `<T: Trait>`
+- `func` declarations inside `impl`
+
+The parser must not panic on malformed input. A parse failure must produce a
+diagnostic with a source span.
+
+## Resolver Contract
+
+The resolver owns name binding for v0. Later stages, CLI diagnostics, and LSP
+features must use resolver output instead of reimplementing lookup.
+
+The resolver must classify each referenced name as one of:
+
+- resolved global symbol
+- resolved local symbol
+- unresolved identifier diagnostic
+- unsupported deferred syntax diagnostic emitted earlier by the parser
+
+The resolver's v0 symbol space includes:
+
+- functions
+- primitives
+- imported namespaces
+- imported symbols
+- type aliases
+- structs
+- enums
+- associated functions attached to nominal types
+- inherent methods attached to nominal types
+- inherent `drop` members attached to nominal types
+- local parameters and bindings
+
+Trait symbols are not part of the v0 source-level contract. Future-only
+internal data structures may still exist, but v0 source cannot create a trait
+symbol through the parser.
+
+## Typecheck Contract
+
+The typechecker is the source of truth for typed facts used by backend lowering,
+CLI diagnostics, and LSP features.
+
+For v0, typechecking must produce or diagnose:
+
+- expression result types
+- binding and parameter types
+- readonly versus readwrite binding facts
+- function, primitive, associated function, method, and drop signatures
+- field access target and field type
+- struct literal field checks
+- enum variant construction and payload checks
+- method call receiver type and selected inherent method
+- associated function call target
+- move, copy, and drop state for owned values
+- use-after-move and invalid explicit `drop` diagnostics
+- unsupported construct diagnostics before backend lowering
+
+The backend must not infer language semantics that are missing from typechecking.
+If a source construct is not represented in the v0 typed facts, it must either
+be added to this contract or rejected before lowering.
+
+## Aggregate Type Contract
+
+The aggregate contract covers structs, enums, optionals, fallible values, fixed
+arrays, and standard-library owned aggregate types such as `String`.
+
+Frontend facts required by backend and ABI lowering:
+
+- resolved nominal type identity
+- field order and field types
+- enum variant order and payload types
+- `copy struct` marker
+- whether a type has an inherent `drop` member
+- expression ownership category: copy, move-only owned value, borrow, view,
+  pointer, or unsized data behind indirection
+- active move/drop state for each owned local place
+
+Backend and ABI lowering may rely on these facts and must not repeat semantic
+lookup. Lowering may compute target layout and calling convention details from
+the typed facts.
+
+Rules fixed for v0:
+
+- struct fields are laid out in declaration order
+- struct layout does not change when a `drop` member exists
+- enum values use an explicit tag and payload union
+- optional and fallible values use explicit tags
+- values of 16 bytes or less use direct ABI classification
+- values larger than 16 bytes use indirect ABI classification
+- drop glue must drop only live fields or active payloads
+- moved-from owned places are dead until assigned a new value
+
+## String Type Contract
+
+`String` is an ordinary standard-library owned type, not a built-in type name.
+The compiler must not treat the identifier `String` as magic.
+
+The compiler-owned string types are:
+
+- `str`: unsized UTF-8 byte data
+- `&str`: borrowed UTF-8 slice with `ptr + len` ABI
+
+String literals have type `&str`, point at static storage, and do not allocate.
+
+The v0 `String` contract for compiler and standard library integration:
+
+- `String` owns valid UTF-8 bytes
+- `String` is move-only unless the standard library exposes an explicit copy API
+- `String` releases its owned storage through its inherent `drop` member
+- `String` can produce a borrowed `&str` view
+- constructing a `String` from `&str` is explicit and fallible
+- interpolation, if parsed, must not lower until the standard-library
+  construction API is implemented
+
+The runtime representation is a standard-library ABI contract, not user-facing
+syntax. The initial implementation may use a pointer, length, and capacity
+representation, but source code must interact through ordinary associated
+functions and methods.
+
+## Tooling Contract
+
+CLI diagnostics and LSP features must use the same parser, resolver, and
+typecheck facts as the compiler pipeline.
+
+Required shared facts for tooling:
+
+- source spans for declarations and references
+- resolved symbol targets
+- normalized type labels for identifiers and expressions
+- function and method signature labels
+- member and field targets
+- diagnostic codes and source spans
+
+LSP-specific code may translate these facts into protocol objects, but it must
+not introduce separate language lookup rules.

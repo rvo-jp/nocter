@@ -314,26 +314,22 @@ pub struct Config {
     pub name: str
 }
 
-impl Config {
-    pub func default(): Config {
-        return Config{
-            name: "Nocter",
-        }
+pub func Config.default(): Config {
+    return Config{
+        name: "Nocter",
     }
 }
 ```
 
-モジュール内の定義はデフォルトで private です。他モジュールから import できる API には `pub` を付けます。Nocter 配布物内部だけに公開する API には `pub(nocter)` を付けます。`struct` のフィールドと `impl` 内の関数もデフォルト private です。
+モジュール内の定義はデフォルトで private です。他モジュールから import できる API には `pub` を付けます。Nocter 配布物内部だけに公開する API には `pub(nocter)` を付けます。`struct` のフィールド、associated function、`impl` 内の method もデフォルト private です。
 
 ```nct
 pub struct File {
     fd: i32
 }
 
-impl File {
-    pub func open(path: str): File! {
-        ...
-    }
+pub func File.open(path: str): File! {
+    ...
 }
 ```
 
@@ -392,26 +388,24 @@ let user = User{
 struct literal は全 field を1回ずつ初期化します。field の順序は自由ですが、未知 field、重複 field、未初期化 field はコンパイルエラーです。private field は同じ module 内でしか初期化できません。初期化ロジックや検証が必要な場合は、通常の associated function を使います。
 
 ```nct
-impl User {
-    pub func create(id: u64, name: String): User {
-        return User{
-            id: id,
-            name: move name,
-        }
+pub func User.create(id: u64, name: String): User {
+    return User{
+        id: id,
+        name: move name,
     }
 }
 ```
 
 field default value、struct update syntax、positional struct、tuple struct、constructor overloading は v0 では採用しません。
 
-`impl` 内の `func` は型に関連付く associated function です。`impl` 内の `method` は receiver を持つメソッドです。`self` / `this` は使わず、receiver 名と borrow 種別を明示します。
+associated function は top-level の `func Type.name` で宣言します。`impl` 内には receiver を持つ `method` と `drop` member だけを書けます。`self` / `this` は使わず、receiver 名と borrow 種別を明示します。
 
 ```nct
-impl File {
-    pub func open(path: str): File! {
-        ...
-    }
+pub func File.open(path: str): File! {
+    ...
+}
 
+impl File {
     pub method (file: &+Self).write(data: str): void! {
         ...
     }
@@ -420,7 +414,7 @@ impl File {
 
 `func` は `File.open(path)` のように型から呼びます。`method` は `file.write(data)` のように値から呼びます。`File.write(&+file, data)` のような UFCS 呼び出しは初期仕様では採用しません。
 
-method lookup は v0 では小さく保ちます。receiver が concrete nominal type の場合は、その型の inherent method だけを探します。trait method は concrete value の extension method としては扱いません。receiver が generic type parameter の場合だけ、明示された `T: Trait` bound の method を呼び出せます。inherent method を優先し、候補が複数になる場合は compile error です。曖昧性を解消するための `Trait.method(value, args)` や `<Type as Trait>` 形式は v0 では採用しません。
+method lookup は v0 では小さく保ちます。receiver が concrete nominal type の場合は、その型の inherent method だけを探します。generic type parameter receiver には v0 では method lookup を提供しません。候補が複数になる場合は compile error です。曖昧性を解消するための UFCS 形式は v0 では採用しません。
 
 関数、associated function、method、primitive の呼び出しは v0 では位置引数のみです。引数は書いた順に parameter へ対応し、個数は完全一致します。各引数は通常の文脈型付け、所有権、move、copy、borrow 規則で parameter 型に適合する必要があります。
 
@@ -485,15 +479,7 @@ pub func copy(
 }
 ```
 
-抽象化が必要な場合は、継承階層ではなく `trait` を使います。
-
-```nct
-trait Writer {
-    method (writer: &+Self).write(data: str): void!
-}
-```
-
-`impl Trait for Type` は、trait を定義した module または実装対象の nominal type を定義した module でだけ書けます。外部 trait を外部 type へ実装することはできません。同じ trait と type の組み合わせに対する実装は、読み込まれた program 全体で1つだけです。
+継承階層は採用しません。v0 では抽象化のための trait も導入せず、concrete nominal type の inherent method と associated function だけを解決します。`trait` 宣言、`impl Trait for Type`、`T: Trait` bound は v0 後の機能として延期します。`trait` は予約語ではなく、lexer は identifier token として扱います。
 
 `enum` は有限個の variant を持つ型です。statement として variant を分岐する場合は `match` を使い、各 arm は `Pattern { ... }` で書きます。fallback には最後の arm として `else { ... }` を使います。v0 では網羅性チェックを延期するため、`else` がない `match` は終端文として扱いません。値を返す enum pattern 分岐には `?{}` を使います。
 
@@ -643,7 +629,7 @@ Nocter は、奇抜な構文や独自概念を増やすことではなく、完�
 
 参照する領域:
 
-- Rust: `struct`、`impl`、`trait`、所有権、借用、低レベル機能の隔離
+- Rust: `struct`、`impl`、所有権、借用、低レベル機能の隔離。`trait` は v0 後の検討対象。
 - Zig: 低依存、明示的 allocator、隠れた制御フローや隠れたメモリ確保を避ける設計
 - Go: 読みやすいモジュール構成、継承なしでプログラムを組み立てる設計、単純なツール体験
 - Swift: 値型中心の API 設計、`protocol` 的な抽象化、Apple 環境に馴染む標準ライブラリ設計
@@ -1802,7 +1788,7 @@ func require_path(path: str?): str {
 
 `never` を返す関数を呼んだ後の同一 block 内の文は到達不能です。Nocter は初期仕様で到達不能コードをコンパイルエラーにします。`never` は値を生成しないため、三項条件演算子や `catch` の分岐で必要な型に収まりますが、変数に格納する値としては存在しません。`void` 以外の関数はすべての到達可能経路で値を返すか、`return none` / `never` などで経路を終端する必要があります。`never` 呼び出しは例外や stack unwinding ではないため、statement-end temporary drop や caller scope の `drop` 実行を暗黙に保証しません。
 
-ジェネリクスは `<T>` を使います。制約は v0 では `T: Trait` だけです。複数制約 `T: A + B`、`where` clause、default type parameter は採用しません。
+ジェネリクスは `<T>` を使います。v0 では generic bound を採用しません。`T: Trait`、複数制約 `T: A + B`、`where` clause、default type parameter は v0 後へ延期します。
 
 ```nct
 struct Buffer<T> {
@@ -1811,12 +1797,6 @@ struct Buffer<T> {
 
 func first<T>(items: [T]): T? {
     ...
-}
-
-func write_line<W: Writer>(writer: &+W, text: str): void! {
-    writer.write(text)?
-    writer.write("\n")?
-    return
 }
 ```
 

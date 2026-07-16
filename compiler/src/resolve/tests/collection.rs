@@ -152,27 +152,3 @@ func main(): i32 {
     assert_eq!(drop_member.target_name, "File.drop");
     assert_eq!(drop_member.binding.name, "file");
 }
-
-#[test]
-fn collects_trait_symbols() {
-    let output = resolve_text(
-        r#"pub trait Writer {
-    method (writer: &+Self).write(text: &str): void!
-}
-
-func main(): i32 {
-    return 0
-}
-"#,
-    );
-
-    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
-    let symbol = output.symbols.symbol_by_name("Writer").unwrap();
-    assert!(matches!(
-        &symbol.kind,
-        SymbolKind::Type(TypeSymbol {
-            kind: TypeSymbolKind::Trait,
-            ..
-        })
-    ));
-}

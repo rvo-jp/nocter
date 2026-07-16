@@ -62,7 +62,7 @@ func main(): i32 {
 }
 
 #[test]
-fn parses_qualified_associated_functions_impl_trait_methods_and_generic_bounds() {
+fn parses_qualified_associated_functions_inherent_methods_and_generic_params() {
     let output = parse_text(
         r#"pub struct Counter {
     value: i32
@@ -82,17 +82,7 @@ impl Counter {
     }
 }
 
-pub trait Writer {
-    method (writer: &+Self).write(text: &str): void!
-}
-
-impl Writer for Counter {
-    method (counter: &+Self).write(text: &str): void! {
-        return
-    }
-}
-
-func print<W: Writer>(writer: &+W): void! {
+func print<W>(writer: &+W): void! {
     return
 }
 
@@ -136,33 +126,61 @@ func main(): i32 {
         TypeExpr::Borrow(borrow) if borrow.is_readwrite
     ));
 
-    let Item::Trait(trait_) = &ast.items[3] else {
-        panic!("expected trait");
-    };
-    assert_eq!(trait_.visibility, Visibility::Public);
-    assert_eq!(trait_.name, "Writer");
-    assert_eq!(trait_.methods.len(), 1);
-    assert_eq!(trait_.methods[0].name, "write");
-    assert!(trait_.methods[0].body.is_none());
-
-    let Item::Impl(trait_impl) = &ast.items[4] else {
-        panic!("expected trait impl");
-    };
-    assert!(trait_impl.trait_ty.is_some());
-    assert!(matches!(
-        &trait_impl.target_ty,
-        TypeExpr::Reference(reference) if reference.name == "Counter"
-    ));
-
-    let Item::Function(function) = &ast.items[5] else {
+    let Item::Function(function) = &ast.items[3] else {
         panic!("expected generic function");
     };
     assert_eq!(function.generics.parameters.len(), 1);
     assert_eq!(function.generics.parameters[0].name, "W");
-    assert!(matches!(
-        &function.generics.parameters[0].bound,
-        Some(TypeExpr::Reference(reference)) if reference.name == "Writer"
-    ));
+    assert!(function.generics.parameters[0].bound.is_none());
+}
+
+#[test]
+fn rejects_trait_declarations_in_v0() {
+    let output = parse_text(
+        r#"pub trait Writer {
+    method (writer: &+Self).write(text: &str): void!
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(output.diagnostics[0].message.contains("deferred after v0"));
+}
+
+#[test]
+fn rejects_trait_impls_in_v0() {
+    let output = parse_text(
+        r#"struct Counter {
+    value: i32
+}
+
+impl Writer for Counter {
+    method (counter: &+Self).write(text: &str): void! {
+        return
+    }
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("trait implementations")
+    );
+}
+
+#[test]
+fn rejects_generic_bounds_in_v0() {
+    let output = parse_text(
+        r#"func print<W: Writer>(writer: &+W): void! {
+    return
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(output.diagnostics[0].message.contains("generic bounds"));
 }
 
 #[test]
@@ -199,6 +217,23 @@ fn parses_drop_as_ordinary_function_name() {
         panic!("expected function");
     };
     assert_eq!(function.name, "drop");
+}
+
+#[test]
+fn parses_trait_as_ordinary_function_name() {
+    let output = parse_text(
+        r#"func trait(): void {
+    return
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function");
+    };
+    assert_eq!(function.name, "trait");
 }
 
 #[test]
