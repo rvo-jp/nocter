@@ -1281,6 +1281,90 @@ func helper(): i32 {
 }
 
 #[test]
+fn build_command_reports_unsupported_nonterminal_if_binding_span() {
+    let project = TempProject::new("cli-build-nonterminal-if-binding-span");
+    let source = project.write_source(
+        "nonterminal_if_binding_span.nct",
+        r#"func main(): i32 {
+    let ready = true
+    if ready {
+        let ok = true
+        let same = !ok == ready
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E8008]"),
+        "expected IR lowering diagnostic, got:\n{stderr}"
+    );
+    let lines: Vec<&str> = stderr.lines().collect();
+    let source_line = lines
+        .iter()
+        .position(|line| line.contains("5 |         let same = !ok == ready"))
+        .unwrap_or_else(|| panic!("expected source line for unsupported binding, got:\n{stderr}"));
+    assert!(
+        lines
+            .get(source_line + 1)
+            .is_some_and(|line| line.contains("^^^^")),
+        "expected source underline for unsupported binding, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after compile diagnostics"
+    );
+}
+
+#[test]
+fn build_command_reports_unsupported_nonterminal_while_binding_span() {
+    let project = TempProject::new("cli-build-nonterminal-while-binding-span");
+    let source = project.write_source(
+        "nonterminal_while_binding_span.nct",
+        r#"func main(): i32 {
+    let ready = true
+    while ready {
+        let ok = true
+        let same = !ok == ready
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E8008]"),
+        "expected IR lowering diagnostic, got:\n{stderr}"
+    );
+    let lines: Vec<&str> = stderr.lines().collect();
+    let source_line = lines
+        .iter()
+        .position(|line| line.contains("5 |         let same = !ok == ready"))
+        .unwrap_or_else(|| panic!("expected source line for unsupported binding, got:\n{stderr}"));
+    assert!(
+        lines
+            .get(source_line + 1)
+            .is_some_and(|line| line.contains("^^^^")),
+        "expected source underline for unsupported binding, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after compile diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_unsupported_compound_bool_equality_condition() {
     let project = TempProject::new("cli-build-compound-bool-equality-condition");
     let source = project.write_source(

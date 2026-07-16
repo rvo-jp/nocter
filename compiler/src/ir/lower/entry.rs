@@ -272,6 +272,7 @@ fn lower_leading_bindings(
                         None,
                         "E8002",
                         "entry functions",
+                        sources,
                     )
                     .map_err(|diagnostics| {
                         attach_primary_span_if_absent(diagnostics, sources, statement.span)
@@ -285,6 +286,7 @@ fn lower_leading_bindings(
                         context,
                         "E8002",
                         "entry functions",
+                        sources,
                     )
                     .map_err(|diagnostics| {
                         attach_primary_span_if_absent(diagnostics, sources, statement.span)

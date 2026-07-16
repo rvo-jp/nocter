@@ -17,6 +17,7 @@ use super::functions::{
 use crate::ast::{BinaryExpr, BinaryOperator, Block, Expr, IfStmt, Stmt, WhileStmt};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{Instruction, Type};
+use crate::source::{ByteSpan, SourceMap};
 
 type ReturnLowerer = fn(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>;
 
@@ -273,6 +274,7 @@ pub(super) fn lower_nonterminal_if_statement(
     loop_scope_mark: Option<usize>,
     diagnostic_code: &'static str,
     subject: &str,
+    sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let then_instructions = lower_nonterminal_if_block(
         &statement.then_block,
@@ -280,6 +282,7 @@ pub(super) fn lower_nonterminal_if_statement(
         loop_scope_mark,
         diagnostic_code,
         subject,
+        sources,
     )?;
     let else_instructions = if let Some(else_block) = &statement.else_block {
         lower_nonterminal_if_block(
@@ -288,6 +291,7 @@ pub(super) fn lower_nonterminal_if_statement(
             loop_scope_mark,
             diagnostic_code,
             subject,
+            sources,
         )?
     } else {
         Vec::new()
@@ -307,6 +311,7 @@ pub(super) fn lower_nonterminal_while_statement(
     context: &mut LoweringContext,
     diagnostic_code: &'static str,
     subject: &str,
+    sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if expression_contains_explicit_aggregate_move(&statement.condition, context) {
         return Err(unsupported_control_flow_condition_move_diagnostic(
@@ -316,7 +321,7 @@ pub(super) fn lower_nonterminal_while_statement(
 
     let condition = lower_bool_expression_to_value(&statement.condition, context, diagnostic_code)?;
     let body_instructions =
-        lower_nonterminal_while_block(&statement.body, context, diagnostic_code, subject)?;
+        lower_nonterminal_while_block(&statement.body, context, diagnostic_code, subject, sources)?;
 
     Ok(vec![Instruction::While {
         condition_instructions: condition.instructions,
@@ -330,6 +335,7 @@ fn lower_nonterminal_while_block(
     context: &LoweringContext,
     diagnostic_code: &'static str,
     subject: &str,
+    sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut body_context = context.clone();
     let local_mark = body_context.local_mark();
@@ -340,6 +346,7 @@ fn lower_nonterminal_while_block(
         Some(local_mark),
         diagnostic_code,
         subject,
+        sources,
     )?;
     let mut instructions = lowered.instructions;
     if !lowered.ends_execution {
@@ -357,6 +364,7 @@ fn lower_nonterminal_if_block(
     loop_scope_mark: Option<usize>,
     diagnostic_code: &'static str,
     subject: &str,
+    sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let mut branch_context = context.clone();
     let local_mark = branch_context.local_mark();
@@ -367,6 +375,7 @@ fn lower_nonterminal_if_block(
         loop_scope_mark,
         diagnostic_code,
         subject,
+        sources,
     )?;
     let mut instructions = lowered.instructions;
     if !lowered.ends_execution {
@@ -385,6 +394,7 @@ fn lower_nonterminal_loop_block_statements(
     loop_scope_mark: Option<usize>,
     diagnostic_code: &'static str,
     subject: &str,
+    sources: &SourceMap,
 ) -> Result<LoweredNonterminalBlock, Vec<Diagnostic>> {
     let mut instructions = Vec::new();
     let mut ends_execution = false;
@@ -396,12 +406,17 @@ fn lower_nonterminal_loop_block_statements(
                     context,
                     local_mark,
                 ) {
-                    return Err(unsupported_nonterminal_if_diagnostic(
-                        diagnostic_code,
-                        subject,
+                    return Err(attach_primary_span_if_absent(
+                        unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
+                        sources,
+                        statement.initializer.span(),
                     ));
                 }
-                instructions.extend(lower_local_binding(statement, context)?)
+                instructions.extend(lower_local_binding(statement, context).map_err(
+                    |diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    },
+                )?)
             }
             Stmt::Assignment(statement) => {
                 if !nonterminal_assignment_target_allowed(statement, context, local_mark)
@@ -411,12 +426,17 @@ fn lower_nonterminal_loop_block_statements(
                         local_mark,
                     )
                 {
-                    return Err(unsupported_nonterminal_if_diagnostic(
-                        diagnostic_code,
-                        subject,
+                    return Err(attach_primary_span_if_absent(
+                        unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
+                        sources,
+                        statement.span,
                     ));
                 }
-                instructions.extend(lower_assignment(statement, context)?);
+                instructions.extend(lower_assignment(statement, context).map_err(
+                    |diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    },
+                )?);
             }
             Stmt::Expression(statement) => {
                 if expression_contains_explicit_aggregate_move_outside(
@@ -424,36 +444,53 @@ fn lower_nonterminal_loop_block_statements(
                     context,
                     local_mark,
                 ) {
-                    return Err(unsupported_nonterminal_if_diagnostic(
-                        diagnostic_code,
-                        subject,
+                    return Err(attach_primary_span_if_absent(
+                        unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
+                        sources,
+                        statement.expression.span(),
                     ));
                 }
-                let Some(void_instructions) =
-                    lower_void_expression_statement(&statement.expression, context)?
+                let Some(void_instructions) = lower_void_expression_statement(
+                    &statement.expression,
+                    context,
+                )
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.expression.span())
+                })?
                 else {
-                    return Err(unsupported_nonterminal_if_diagnostic(
-                        diagnostic_code,
-                        subject,
+                    return Err(attach_primary_span_if_absent(
+                        unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
+                        sources,
+                        statement.span,
                     ));
                 };
                 instructions.extend(void_instructions);
             }
             Stmt::Drop(statement) => {
                 if !context.aggregate_local_defined_since(&statement.name, local_mark) {
-                    return Err(unsupported_nonterminal_if_diagnostic(
-                        diagnostic_code,
-                        subject,
+                    return Err(attach_primary_span_if_absent(
+                        unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
+                        sources,
+                        statement.span,
                     ));
                 }
-                instructions.extend(lower_drop_statement(statement, context)?);
+                instructions.extend(lower_drop_statement(statement, context).map_err(
+                    |diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    },
+                )?);
             }
             Stmt::Return(statement) => {
-                instructions.extend(lower_return_statement_with_scope_drops(
-                    statement,
-                    context,
-                    diagnostic_code,
-                )?);
+                instructions.extend(
+                    lower_return_statement_with_scope_drops(statement, context, diagnostic_code)
+                        .map_err(|diagnostics| {
+                            let span = statement
+                                .expression
+                                .as_ref()
+                                .map_or(statement.span, |expression| expression.span());
+                            attach_primary_span_if_absent(diagnostics, sources, span)
+                        })?,
+                );
                 ends_execution = true;
                 break;
             }
@@ -464,42 +501,63 @@ fn lower_nonterminal_loop_block_statements(
                     loop_scope_mark,
                     diagnostic_code,
                     subject,
-                )?;
+                    sources,
+                )
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                })?;
                 ends_execution = instruction_list_ends_execution(&lowered);
                 instructions.extend(lowered);
             }
-            Stmt::While(statement) => instructions.extend(lower_nonterminal_while_statement(
-                statement,
-                context,
-                diagnostic_code,
-                subject,
-            )?),
-            Stmt::Break(_) => {
-                instructions.extend(lower_nonterminal_loop_control_statement(
-                    Instruction::Break,
+            Stmt::While(statement) => instructions.extend(
+                lower_nonterminal_while_statement(
+                    statement,
                     context,
-                    loop_scope_mark,
                     diagnostic_code,
                     subject,
-                )?);
+                    sources,
+                )
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                })?,
+            ),
+            Stmt::Break(_) => {
+                instructions.extend(
+                    lower_nonterminal_loop_control_statement(
+                        Instruction::Break,
+                        context,
+                        loop_scope_mark,
+                        diagnostic_code,
+                        subject,
+                    )
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span())
+                    })?,
+                );
                 ends_execution = true;
                 break;
             }
             Stmt::Continue(_) => {
-                instructions.extend(lower_nonterminal_loop_control_statement(
-                    Instruction::Continue,
-                    context,
-                    loop_scope_mark,
-                    diagnostic_code,
-                    subject,
-                )?);
+                instructions.extend(
+                    lower_nonterminal_loop_control_statement(
+                        Instruction::Continue,
+                        context,
+                        loop_scope_mark,
+                        diagnostic_code,
+                        subject,
+                    )
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span())
+                    })?,
+                );
                 ends_execution = true;
                 break;
             }
             _ => {
-                return Err(unsupported_nonterminal_if_diagnostic(
-                    diagnostic_code,
-                    subject,
+                return Err(attach_primary_span_if_absent(
+                    unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
+                    sources,
+                    statement.span(),
                 ));
             }
         }
@@ -531,6 +589,17 @@ fn lower_nonterminal_loop_control_statement(
     let mut instructions = lower_scope_end_drops_for_locals_since(context, loop_scope_mark)?;
     instructions.push(instruction);
     Ok(instructions)
+}
+
+fn attach_primary_span_if_absent(
+    diagnostics: Vec<Diagnostic>,
+    sources: &SourceMap,
+    span: ByteSpan,
+) -> Vec<Diagnostic> {
+    diagnostics
+        .into_iter()
+        .map(|diagnostic| diagnostic.with_primary_span_if_absent(sources, span))
+        .collect()
 }
 
 fn lower_short_circuit_terminal_condition(

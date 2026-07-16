@@ -1424,18 +1424,31 @@ fn lower_leading_bindings(
             }
             Stmt::If(statement) => {
                 instructions.extend(
-                    lower_nonterminal_if_statement(statement, context, None, "E8007", "functions")
-                        .map_err(|diagnostics| {
-                            attach_primary_span_if_absent(diagnostics, sources, statement.span)
-                        })?,
+                    lower_nonterminal_if_statement(
+                        statement,
+                        context,
+                        None,
+                        "E8007",
+                        "functions",
+                        sources,
+                    )
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    })?,
                 );
             }
             Stmt::While(statement) => {
                 instructions.extend(
-                    lower_nonterminal_while_statement(statement, context, "E8007", "functions")
-                        .map_err(|diagnostics| {
-                            attach_primary_span_if_absent(diagnostics, sources, statement.span)
-                        })?,
+                    lower_nonterminal_while_statement(
+                        statement,
+                        context,
+                        "E8007",
+                        "functions",
+                        sources,
+                    )
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    })?,
                 );
             }
             _ => {
