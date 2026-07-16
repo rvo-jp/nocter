@@ -5,13 +5,12 @@ use super::control_flow::{
     lower_terminal_i32_if_statement, lower_terminal_void_if_statement,
 };
 use super::expressions::{
-    lower_never_return_expression, lower_void_expression_statement, mark_fallible_success_returns,
-    success_return_instruction,
+    lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
 };
 use super::functions::{
     append_scope_end_drops_before_exit, lower_drop_statement,
-    lower_return_statement_with_scope_drops, mark_explicit_moves_in_expression,
-    mark_lowered_statement_aggregate_uses,
+    lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
+    mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
 };
 use crate::ast::{FunctionDecl, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
@@ -166,13 +165,15 @@ fn lower_entry_body(
             Ok(instructions)
         }
         Stmt::Expression(statement) => {
-            let Some(terminating_instructions) = lower_never_return_expression(
-                &statement.expression,
-                &context,
-            )
-            .map_err(|diagnostics| {
-                attach_primary_span_if_absent(diagnostics, sources, statement.expression.span())
-            })?
+            let Some(terminating_instructions) =
+                lower_never_expression_with_scope_drops(&statement.expression, &mut context)
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(
+                            diagnostics,
+                            sources,
+                            statement.expression.span(),
+                        )
+                    })?
             else {
                 if success_type == &Type::Void
                     && let Some(void_instructions) =

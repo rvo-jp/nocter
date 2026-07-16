@@ -4317,6 +4317,7 @@ func abort(): never {
                         source: AggregateLocation::Slot(2),
                         layout: ValueLayout::new(4, 4),
                     },
+                    drop_target.clone(),
                     Instruction::TailCall {
                         target: CallTarget::same_file("abort"),
                         arguments: vec![],
@@ -4336,6 +4337,141 @@ func abort(): never {
             },
             Instruction::Return,
         ],
+    );
+}
+
+#[test]
+fn lowers_return_never_expression_with_scope_cleanup() {
+    let ir = lower_text_with_entry(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func stop(): i32 {
+    var file = File{ fd: 1 }
+    return abort()
+}
+
+func abort(): never {
+    abort()
+}
+"#,
+        "stop",
+    );
+
+    let function = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "stop")
+        .unwrap();
+    assert_eq!(
+        function,
+        &Function {
+            name: "stop".to_string(),
+            target: CallTarget::same_file("stop"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(4, 4),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: i32_const(1),
+                },
+                Instruction::CallVoid {
+                    target: CallTarget::same_file("File.drop"),
+                    arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateSlot(0),
+                    })],
+                },
+                Instruction::TailCall {
+                    target: CallTarget::same_file("abort"),
+                    arguments: vec![],
+                },
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_terminal_if_never_branch_with_scope_cleanup() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    if true {
+        var file = File{ fd: 1 }
+        abort()
+    } else {
+        return 0
+    }
+}
+
+func abort(): never {
+    abort()
+}
+"#,
+    );
+
+    let function = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        function,
+        &Function {
+            name: "main".to_string(),
+            target: CallTarget::same_file("main"),
+            return_type: Type::I32,
+            instructions: vec![Instruction::If {
+                condition: BoolValue::Const(true),
+                then_instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::Slot(0),
+                        offset: 0,
+                        value: i32_const(1),
+                    },
+                    Instruction::CallVoid {
+                        target: CallTarget::same_file("File.drop"),
+                        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                            source: BorrowSource::AggregateSlot(0),
+                        })],
+                    },
+                    Instruction::TailCall {
+                        target: CallTarget::same_file("abort"),
+                        arguments: vec![],
+                    },
+                ],
+                else_instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_const(0),
+                    },
+                    Instruction::Return,
+                ],
+            }],
+        }
     );
 }
 

@@ -849,7 +849,7 @@ fn lower_callable_body(
             Ok(instructions)
         }
         Stmt::Expression(statement) => {
-            let Some(terminating_instructions) = lower_never_return_expression(
+            let Some(terminating_instructions) = lower_never_expression_with_scope_drops(
                 &statement.expression,
                 context,
             )
@@ -905,7 +905,8 @@ pub(super) fn lower_return_statement_with_scope_drops(
     let function_name = context.function_name().to_string();
 
     if let Some(expression) = &statement.expression
-        && let Some(return_instructions) = lower_never_return_expression(expression, context)?
+        && let Some(return_instructions) =
+            lower_never_expression_with_scope_drops(expression, context)?
     {
         return Ok(return_instructions);
     }
@@ -1143,6 +1144,17 @@ fn lower_terminal_aggregate_return_block(
                 resolved,
                 sources,
             )?);
+            Ok(instructions)
+        }
+        Stmt::Expression(statement) => {
+            let Some(terminating_instructions) = lower_never_expression_with_scope_drops(
+                &statement.expression,
+                &mut branch_context,
+            )?
+            else {
+                return Err(unsupported_terminal_aggregate_if_diagnostic(function_name));
+            };
+            instructions.extend(terminating_instructions);
             Ok(instructions)
         }
         _ => Err(unsupported_terminal_aggregate_if_diagnostic(function_name)),
@@ -1516,6 +1528,17 @@ pub(super) fn lower_drop_statement(
             source: BorrowSource::AggregateSlot(local.slot_index),
         })],
     }])
+}
+
+pub(super) fn lower_never_expression_with_scope_drops(
+    expression: &Expr,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Some(instructions) = lower_never_return_expression(expression, context)? else {
+        return Ok(None);
+    };
+    mark_explicit_moves_in_expression(expression, context);
+    append_scope_end_drops_before_exit(instructions, context).map(Some)
 }
 
 pub(super) fn append_scope_end_drops_before_exit(

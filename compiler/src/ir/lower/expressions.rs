@@ -7,8 +7,9 @@ use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{AggregateFieldKind, LoweringContext};
 use super::errors::{ErrorPayload, lower_error_payload};
 use super::functions::{
-    append_scope_end_drops_before_exit, lower_value_return_with_scope_drops,
-    mark_lowered_statement_aggregate_uses, propagating_failure_mode,
+    append_scope_end_drops_before_exit, lower_never_expression_with_scope_drops,
+    lower_value_return_with_scope_drops, mark_lowered_statement_aggregate_uses,
+    propagating_failure_mode,
 };
 use super::literals::{
     lower_i32_literal, lower_str_literal, lower_u8_literal, lower_usize_literal,
@@ -464,7 +465,7 @@ fn lower_catch_block(
         Stmt::Return(statement) => {
             if let Some(expression) = &statement.expression
                 && let Some(return_instructions) =
-                    lower_never_return_expression(expression, context)?
+                    lower_never_expression_with_scope_drops(expression, context)?
             {
                 instructions.extend(return_instructions);
                 return Ok(instructions);
@@ -535,7 +536,7 @@ fn lower_catch_block(
         }
         Stmt::Expression(statement) => {
             let Some(terminating_instructions) =
-                lower_never_return_expression(&statement.expression, context)?
+                lower_never_expression_with_scope_drops(&statement.expression, context)?
             else {
                 if success_type == Type::Void
                     && let Some(void_instructions) =

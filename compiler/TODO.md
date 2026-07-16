@@ -60,6 +60,7 @@ Recent committed work:
   - keeps fallthrough and loop-control outer aggregate effects rejected
   - keeps explicit aggregate moves out of control-flow conditions because condition effects are not joined into the outer drop state
   - treats supported `never` expression statements as function-exiting suffixes and terminal statements in the narrow non-terminal subset
+  - inserts pending aggregate scope-end drops before supported `never` exits, including `return abort()`, terminal-if `abort()` leaves, non-terminal branch/body `abort()` leaves, and catch-handler `never` exits
   - skips unreachable scope-end drops after nested non-terminal `if` branches whose then/else arms both end in `break`/`continue`/terminal IR
   - lowers supported return statements and `never` expression statements inside the narrow non-terminal subset through shared lowerers, while keeping broader ownership joins and condition-sensitive effects disabled until their lowering rules are designed
 - Current checkpoint: keep aggregate field assignment copy-only
@@ -1243,7 +1244,7 @@ All passed. The shell printed `/bin/ps: Operation not permitted` from Homebrew s
 
 ## Next Implementation Direction
 
-The aggregate move/drop backend subset now covers explicit drop glue, straight-line and terminal-if scope-end drops, terminal-if value-return staging, propagation-failure cleanup, supported catch-handler cleanup, supported non-terminal `if`/`while` branch/body-local assignments, function-exit-only outer aggregate assignment/drop/move-binding effects including direct move assignment from outer aggregate sources, explicit drops, returns, supported `never` expression exits, body scope-end drops, `while` `break`/`continue` cleanup, unreachable non-terminal scope-drop suppression after terminal nested branches, copy-only aggregate field assignment, and drop-aware whole-binding replacement.
+The aggregate move/drop backend subset now covers explicit drop glue, straight-line and terminal-if scope-end drops, terminal-if value-return staging, propagation-failure cleanup, supported catch-handler cleanup, supported non-terminal `if`/`while` branch/body-local assignments, function-exit-only outer aggregate assignment/drop/move-binding effects including direct move assignment from outer aggregate sources, explicit drops, returns, supported `never` expression exits with pending aggregate cleanup, body scope-end drops, `while` `break`/`continue` cleanup, unreachable non-terminal scope-drop suppression after terminal nested branches, copy-only aggregate field assignment, and drop-aware whole-binding replacement.
 
 Recommended next small task for the next session:
 

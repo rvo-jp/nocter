@@ -4,16 +4,16 @@ use super::bindings::{
 use super::context::LoweringContext;
 use super::expressions::{
     expression_contains_call, lower_bool_expression_to_value, lower_bool_return_expression,
-    lower_i32_return_expression, lower_never_return_expression, lower_slice_return_expression,
-    lower_str_return_expression, lower_u8_return_expression, lower_usize_return_expression,
-    lower_void_expression_statement, primitive_trap_call,
+    lower_i32_return_expression, lower_slice_return_expression, lower_str_return_expression,
+    lower_u8_return_expression, lower_usize_return_expression, lower_void_expression_statement,
+    primitive_trap_call,
 };
 use super::functions::{
     append_scope_end_drops_before_exit, expression_contains_explicit_aggregate_move,
     expression_contains_explicit_aggregate_move_outside, lower_drop_statement,
-    lower_return_statement_with_scope_drops, lower_scope_end_drops_for_locals_since,
-    lower_value_return_with_scope_drops, mark_explicit_moves_in_expression,
-    mark_lowered_statement_aggregate_uses,
+    lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
+    lower_scope_end_drops_for_locals_since, lower_value_return_with_scope_drops,
+    mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
 };
 use crate::ast::{BinaryExpr, BinaryOperator, Block, Expr, IfStmt, Stmt, WhileStmt};
 use crate::diagnostics::Diagnostic;
@@ -516,13 +516,16 @@ fn lower_nonterminal_loop_block_statements(
                         statement.expression.span(),
                     ));
                 }
-                if let Some(terminating_instructions) = lower_never_return_expression(
-                    &statement.expression,
-                    context,
-                )
-                .map_err(|diagnostics| {
-                    attach_primary_span_if_absent(diagnostics, sources, statement.expression.span())
-                })? {
+                if let Some(terminating_instructions) =
+                    lower_never_expression_with_scope_drops(&statement.expression, context)
+                        .map_err(|diagnostics| {
+                            attach_primary_span_if_absent(
+                                diagnostics,
+                                sources,
+                                statement.expression.span(),
+                            )
+                        })?
+                {
                     instructions.extend(terminating_instructions);
                     ends_execution = true;
                 } else {
@@ -980,6 +983,21 @@ fn lower_i32_return_block(
             )?);
             Ok(instructions)
         }
+        Stmt::Expression(statement) => {
+            let Some(terminating_instructions) = lower_never_expression_with_scope_drops(
+                &statement.expression,
+                &mut branch_context,
+            )?
+            else {
+                return Err(unsupported_terminal_if_diagnostic(
+                    diagnostic_code,
+                    subject,
+                    "i32",
+                ));
+            };
+            instructions.extend(terminating_instructions);
+            Ok(instructions)
+        }
         _ => Err(unsupported_terminal_if_diagnostic(
             diagnostic_code,
             subject,
@@ -1040,6 +1058,21 @@ fn lower_bool_return_block(
                 subject,
                 sources,
             )?);
+            Ok(instructions)
+        }
+        Stmt::Expression(statement) => {
+            let Some(terminating_instructions) = lower_never_expression_with_scope_drops(
+                &statement.expression,
+                &mut branch_context,
+            )?
+            else {
+                return Err(unsupported_terminal_if_diagnostic(
+                    diagnostic_code,
+                    subject,
+                    "bool",
+                ));
+            };
+            instructions.extend(terminating_instructions);
             Ok(instructions)
         }
         _ => Err(unsupported_terminal_if_diagnostic(
@@ -1108,6 +1141,21 @@ fn lower_scalar_return_block(
             )?);
             Ok(instructions)
         }
+        Stmt::Expression(statement) => {
+            let Some(terminating_instructions) = lower_never_expression_with_scope_drops(
+                &statement.expression,
+                &mut branch_context,
+            )?
+            else {
+                return Err(unsupported_terminal_if_diagnostic(
+                    diagnostic_code,
+                    subject,
+                    return_label,
+                ));
+            };
+            instructions.extend(terminating_instructions);
+            Ok(instructions)
+        }
         _ => Err(unsupported_terminal_if_diagnostic(
             diagnostic_code,
             subject,
@@ -1149,6 +1197,21 @@ fn lower_void_return_block(
                 subject,
                 sources,
             )?);
+            Ok(instructions)
+        }
+        Stmt::Expression(statement) => {
+            let Some(terminating_instructions) = lower_never_expression_with_scope_drops(
+                &statement.expression,
+                &mut branch_context,
+            )?
+            else {
+                return Err(unsupported_terminal_if_diagnostic(
+                    diagnostic_code,
+                    subject,
+                    "void",
+                ));
+            };
+            instructions.extend(terminating_instructions);
             Ok(instructions)
         }
         _ => Err(unsupported_terminal_if_diagnostic(
