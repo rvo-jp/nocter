@@ -260,7 +260,7 @@ The backend currently supports the normal-call register and stack-argument porti
 - indirect aggregate parameters, arguments, and returns larger than 16 bytes by pointer ABI word or caller-provided return storage
 - aggregate call-result slots for normal, propagated fallible, forced fallible, and caught fallible calls in the narrow expression positions lowered by IR
 - aggregate slot-to-slot copies, aggregate struct-literal slots including explicit aggregate field moves, aggregate copy bindings and copy aggregate field bindings from non-copy local or call-result owners, explicit aggregate move bindings, and aggregate slot borrow arguments for the current supported field and assignment paths
-- branch/body-local assignments, aggregate slots, scope-end drops, supported returns, and supported `while` `break`/`continue` cleanup for the narrow non-terminal `if`/`while` subsets
+- branch/body-local assignments, outer whole-binding scalar/view local assignments, aggregate slots, scope-end drops, supported returns, and supported `while` `break`/`continue` cleanup for the narrow non-terminal `if`/`while` subsets
 
 Stack-passed normal-call arguments are buildable for the current scalar/view and supported aggregate subset. Tail calls with stack-passed arguments are lowered through the normal-call-plus-return path rather than emitted as stack-argument tail calls.
 
@@ -269,7 +269,7 @@ Stack-passed normal-call arguments are buildable for the current scalar/view and
 Do not combine normal-call work with:
 
 - stack-backed `var` and reassignment
-- general loops or broader non-terminal control flow beyond the narrow branch/body-local `if`/`while` subset
+- general loops or broader non-terminal control flow beyond the narrow scalar/view plus branch/body-local `if`/`while` subset
 - imported calls or external linking
 - aggregate forms outside the current supported slot/call-result subset
 - ownership/drop lowering

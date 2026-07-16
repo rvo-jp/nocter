@@ -5309,14 +5309,108 @@ func main(): i32 {
 }
 
 #[test]
-fn rejects_outer_assignment_inside_nonterminal_while_body() {
-    let diagnostics = lower_text_diagnostics(
+fn lowers_outer_scalar_assignment_inside_nonterminal_while_body() {
+    let ir = lower_text(
         r#"func main(): i32 {
     var value = 1
     while false {
         value = 2
     }
     return value
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: i32_const(1),
+            },
+            Instruction::While {
+                condition_instructions: vec![],
+                condition: BoolValue::Const(false),
+                body_instructions: vec![Instruction::SetI32 {
+                    destination: I32Location::Local(0),
+                    value: i32_const(2),
+                }],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
+fn lowers_outer_scalar_assignment_inside_nonterminal_if_branch() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    var value = 1
+    if true {
+        value = 2
+    }
+    return value
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: i32_const(1),
+            },
+            Instruction::If {
+                condition: BoolValue::Const(true),
+                then_instructions: vec![Instruction::SetI32 {
+                    destination: I32Location::Local(0),
+                    value: i32_const(2),
+                }],
+                else_instructions: vec![],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
+fn rejects_outer_aggregate_assignment_inside_nonterminal_while_body_without_exit_suffix() {
+    let diagnostics = lower_text_diagnostics(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 1 }
+    while false {
+        file = File{ fd: 2 }
+    }
+    return 0
 }
 "#,
     );

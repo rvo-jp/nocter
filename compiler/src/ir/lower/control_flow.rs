@@ -15,9 +15,14 @@ use super::functions::{
     lower_scope_end_drops_for_locals_since, lower_value_return_with_scope_drops,
     mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
 };
-use crate::ast::{BinaryExpr, BinaryOperator, Block, Expr, IfStmt, Stmt, WhileStmt};
+use crate::ast::{
+    AssignmentOperator, BinaryExpr, BinaryOperator, Block, Expr, IfStmt, Stmt, WhileStmt,
+};
 use crate::diagnostics::Diagnostic;
-use crate::ir::{Instruction, Type};
+use crate::ir::{
+    BoolLocation, I32Location, Instruction, SliceLocation, StrLocation, Type, U8Location,
+    UsizeLocation,
+};
 use crate::source::{ByteSpan, SourceMap};
 
 type ReturnLowerer = fn(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>;
@@ -869,7 +874,39 @@ fn nonterminal_assignment_target_allowed(
 ) -> bool {
     assignment_target_root_name(&statement.target)
         .is_some_and(|target_name| context.local_defined_since(target_name, local_mark))
+        || assignment_targets_whole_scalar_or_view_local(statement, context)
         || assignment_targets_readwrite_aggregate_field(statement, context)
+}
+
+fn assignment_targets_whole_scalar_or_view_local(
+    statement: &crate::ast::AssignmentStmt,
+    context: &LoweringContext,
+) -> bool {
+    if statement.operator != AssignmentOperator::Assign {
+        return false;
+    }
+    let Expr::Identifier(identifier) = unwrap_group(&statement.target) else {
+        return false;
+    };
+    matches!(
+        context.i32_location(&identifier.name),
+        Some(I32Location::Local(_))
+    ) || matches!(
+        context.u8_location(&identifier.name),
+        Some(U8Location::Local(_))
+    ) || matches!(
+        context.usize_location(&identifier.name),
+        Some(UsizeLocation::Local(_))
+    ) || matches!(
+        context.bool_location(&identifier.name),
+        Some(BoolLocation::Local(_))
+    ) || matches!(
+        context.str_location(&identifier.name),
+        Some(StrLocation::Local(_))
+    ) || matches!(
+        context.slice_location(&identifier.name),
+        Some(SliceLocation::Local(_))
+    )
 }
 
 fn outer_aggregate_assignment_before_function_exit_allowed(
@@ -1314,7 +1351,7 @@ fn unsupported_nonterminal_if_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower non-terminal `if`/`while` statements for {subject} when branches contain supported local bindings, branch/body-local assignments or explicit aggregate drops, void call statements, returns, or nested non-terminal `if`/`while` statements"
+            "IR v0 can only lower non-terminal `if`/`while` statements for {subject} when branches contain supported local bindings, branch/body-local assignments, outer scalar/view local assignments, explicit aggregate drops, void call statements, returns, or nested non-terminal `if`/`while` statements"
         ),
     )]
 }
