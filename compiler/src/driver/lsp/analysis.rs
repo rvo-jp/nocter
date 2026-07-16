@@ -68,7 +68,7 @@ pub(super) fn diagnostics_for_workspace(
         .map(|document| {
             (
                 document.uri.clone(),
-                diagnostics_for_lsp(document, &open_documents, diagnostics.clone()),
+                diagnostics_for_lsp(document, &open_documents, &sources, diagnostics.clone()),
             )
         })
         .collect()
