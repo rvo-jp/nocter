@@ -30,6 +30,9 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: cover direct aggregate partial final ABI words
+  - fixes backend unit coverage for 9-byte direct aggregate arguments so the partial final byte is zero-extended into the second ABI word before argument loading
+  - fixes backend unit coverage for 9-byte direct aggregate call results so the partial final payload byte is stored from `x1` into the destination aggregate slot
 - Current checkpoint: allow direct aggregate return range copies into x1
   - permits `CopyAggregateRange` to target direct aggregate return offset 8 when the copied range fits inside the two direct return ABI words
   - rejects direct return ranges that would extend past `x1` before code emission can reach an invalid offset
