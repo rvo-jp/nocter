@@ -117,6 +117,35 @@ func describe(error: AppError): &str {
 }
 
 #[test]
+fn accepts_pattern_conditional_contextual_integer_fallback() {
+    let diagnostics = check_text(
+        r#"enum Status {
+    found(code: u8)
+    missing
+}
+
+func main(): i32 {
+    return widen(select(Status.found(7)))
+}
+
+func select(status: Status): u8 {
+    return status ?{
+        Status.missing : 0
+        Status.found(code) : code
+        : 1
+    }
+}
+
+func widen(value: u8): i32 {
+    return value as i32
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_pattern_conditional_non_enum_target() {
     let diagnostics = check_text(
         r#"enum AppError {

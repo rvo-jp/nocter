@@ -103,7 +103,7 @@ pub(super) fn check_pattern_conditional_expression(
         check_pattern_conditional_arm_pattern(sources, arm, target_symbol, resolved, diagnostics);
     }
 
-    let expected = expression_type(&expression.fallback, resolved, environment);
+    let expected = pattern_conditional_expression_type(expression, resolved, environment);
     if expected.is_unknown_or_unresolved() {
         return;
     }
@@ -117,6 +117,76 @@ pub(super) fn check_pattern_conditional_expression(
             ));
         }
     }
+}
+
+pub(super) fn pattern_conditional_expression_type(
+    expression: &PatternConditionalExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Type {
+    let fallback_type = expression_type(&expression.fallback, resolved, environment);
+    if let Some(candidate) =
+        compatible_pattern_conditional_arm_type(expression, &fallback_type, resolved, environment)
+    {
+        return candidate;
+    }
+
+    if !fallback_type.is_unknown_or_unresolved() {
+        return fallback_type;
+    }
+
+    expression
+        .arms
+        .iter()
+        .map(|arm| {
+            let arm_environment =
+                environment_for_pattern_conditional_arm(arm, resolved, environment);
+            expression_type(&arm.expression, resolved, &arm_environment)
+        })
+        .find(|ty| !ty.is_unknown_or_unresolved())
+        .unwrap_or(fallback_type)
+}
+
+fn compatible_pattern_conditional_arm_type(
+    expression: &PatternConditionalExpr,
+    fallback_type: &Type,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<Type> {
+    expression.arms.iter().find_map(|candidate_arm| {
+        let candidate_environment =
+            environment_for_pattern_conditional_arm(candidate_arm, resolved, environment);
+        let candidate_type =
+            expression_type(&candidate_arm.expression, resolved, &candidate_environment);
+        if candidate_type.is_unknown_or_unresolved() {
+            return None;
+        }
+        if !fallback_type.is_unknown_or_unresolved()
+            && !is_expression_assignable(
+                &candidate_type,
+                &expression.fallback,
+                resolved,
+                environment,
+            )
+        {
+            return None;
+        }
+
+        let arms_fit_candidate = expression.arms.iter().all(|arm| {
+            let arm_environment =
+                environment_for_pattern_conditional_arm(arm, resolved, environment);
+            let arm_type = expression_type(&arm.expression, resolved, &arm_environment);
+            arm_type.is_unknown_or_unresolved()
+                || is_expression_assignable(
+                    &candidate_type,
+                    &arm.expression,
+                    resolved,
+                    &arm_environment,
+                )
+        });
+
+        arms_fit_candidate.then_some(candidate_type)
+    })
 }
 
 fn check_if_is_pattern(

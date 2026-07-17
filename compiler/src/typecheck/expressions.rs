@@ -1,13 +1,14 @@
 use super::arrays::{array_literal_type, index_expression_type};
 use super::calls::resolved_call_signature;
 use super::diagnostics::error_member_unknown_diagnostic;
-use super::environments::environment_for_pattern_conditional_arm;
 use super::model::{Type, TypeEnvironment};
 use super::operations::{binary_expression_type, is_expression_assignable};
 use super::strings::interpolated_string_type;
 use super::structs::{struct_literal_type, struct_member_type};
 use super::type_expr::{type_expr_to_type_in_environment, type_expr_to_type_with_self_type};
-use super::variants::{enum_variant_call_type, enum_variant_member_type};
+use super::variants::{
+    enum_variant_call_type, enum_variant_member_type, pattern_conditional_expression_type,
+};
 use crate::ast::{Expr, MemberExpr, UnaryOperator};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
@@ -127,21 +128,7 @@ pub(super) fn expression_type(
             )
         }
         Expr::PatternConditional(expression) => {
-            let fallback_type = expression_type(&expression.fallback, resolved, environment);
-            if !fallback_type.is_unknown_or_unresolved() {
-                return fallback_type;
-            }
-
-            expression
-                .arms
-                .iter()
-                .map(|arm| {
-                    let arm_environment =
-                        environment_for_pattern_conditional_arm(arm, resolved, environment);
-                    expression_type(&arm.expression, resolved, &arm_environment)
-                })
-                .find(|ty| !ty.is_unknown_or_unresolved())
-                .unwrap_or(fallback_type)
+            pattern_conditional_expression_type(expression, resolved, environment)
         }
         Expr::Identifier(expression) => environment
             .get(&expression.name)
