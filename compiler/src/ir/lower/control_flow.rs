@@ -904,6 +904,7 @@ fn nonterminal_assignment_target_allowed(
     assignment_target_root_name(&statement.target)
         .is_some_and(|target_name| context.local_defined_since(target_name, local_mark))
         || assignment_targets_whole_scalar_or_view_local(statement, context)
+        || assignment_targets_whole_aggregate_local(statement, context)
         || assignment_targets_readwrite_aggregate_field(statement, context)
 }
 
@@ -936,6 +937,19 @@ fn assignment_targets_whole_scalar_or_view_local(
         context.slice_location(&identifier.name),
         Some(SliceLocation::Local(_))
     )
+}
+
+fn assignment_targets_whole_aggregate_local(
+    statement: &crate::ast::AssignmentStmt,
+    context: &LoweringContext,
+) -> bool {
+    if statement.operator != AssignmentOperator::Assign {
+        return false;
+    }
+    let Expr::Identifier(identifier) = unwrap_group(&statement.target) else {
+        return false;
+    };
+    context.aggregate_local(&identifier.name).is_some()
 }
 
 fn outer_aggregate_assignment_before_function_exit_allowed(
@@ -1380,7 +1394,7 @@ fn unsupported_nonterminal_if_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower non-terminal `if`/`while`/`loop` statements for {subject} when branches/bodies contain supported local bindings, branch/body-local assignments, outer scalar/view local assignments, explicit aggregate drops, void call statements, returns, or nested non-terminal `if`/`while`/`loop` statements"
+            "IR v0 can only lower non-terminal `if`/`while`/`loop` statements for {subject} when branches/bodies contain supported local bindings, branch/body-local assignments, outer scalar/view/aggregate local assignments, explicit aggregate drops, void call statements, returns, or nested non-terminal `if`/`while`/`loop` statements"
         ),
     )]
 }

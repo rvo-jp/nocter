@@ -5749,8 +5749,8 @@ fn lowers_outer_scalar_assignment_inside_nonterminal_if_branch() {
 }
 
 #[test]
-fn rejects_outer_aggregate_assignment_inside_nonterminal_while_body_without_exit_suffix() {
-    let diagnostics = lower_text_diagnostics(
+fn lowers_outer_aggregate_assignment_inside_nonterminal_while_body() {
+    let ir = lower_text(
         r#"struct File {
     fd: i32
 }
@@ -5771,13 +5771,135 @@ func main(): i32 {
 "#,
     );
 
-    assert_eq!(diagnostics[0].code, "E8002");
-    assert!(diagnostics[0].message.contains("branch/body-local"));
+    let drop_file = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(1),
+            },
+            Instruction::While {
+                condition_instructions: vec![],
+                condition: BoolValue::Const(false),
+                body_instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 1,
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::Slot(1),
+                        offset: 0,
+                        value: i32_const(2),
+                    },
+                    drop_file.clone(),
+                    Instruction::CopyAggregate {
+                        destination: AggregateLocation::Slot(0),
+                        source: AggregateLocation::Slot(1),
+                        layout: ValueLayout::new(4, 4),
+                    },
+                ],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: i32_const(0),
+            },
+            drop_file,
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
+        ],
+    );
 }
 
 #[test]
-fn rejects_outer_aggregate_assignment_before_loop_control_even_with_later_return() {
-    let diagnostics = lower_text_diagnostics(
+fn lowers_outer_aggregate_assignment_inside_nonterminal_if_branch() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 1 }
+    if true {
+        file = File{ fd: 2 }
+    }
+    return file.fd
+}
+"#,
+    );
+
+    let replacement_drop = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert!(
+        main.instructions.contains(&Instruction::If {
+            condition: BoolValue::Const(true),
+            then_instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 1,
+                    layout: ValueLayout::new(4, 4),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(1),
+                    offset: 0,
+                    value: i32_const(2),
+                },
+                replacement_drop,
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    source: AggregateLocation::Slot(1),
+                    layout: ValueLayout::new(4, 4),
+                },
+            ],
+            else_instructions: vec![],
+        }),
+        "{main:?}"
+    );
+    assert!(
+        main.instructions.contains(&Instruction::LoadAggregateI32 {
+            destination: I32Location::Local(0),
+            source: AggregateLocation::Slot(0),
+            offset: 0,
+        }),
+        "{main:?}"
+    );
+}
+
+#[test]
+fn lowers_outer_aggregate_assignment_before_loop_control() {
+    let ir = lower_text(
         r#"struct File {
     fd: i32
 }
@@ -5800,8 +5922,42 @@ func main(): i32 {
 "#,
     );
 
-    assert_eq!(diagnostics[0].code, "E8002");
-    assert!(diagnostics[0].message.contains("branch/body-local"));
+    let replacement_drop = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert!(
+        main.instructions.contains(&Instruction::While {
+            condition_instructions: vec![],
+            condition: BoolValue::Const(false),
+            body_instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 1,
+                    layout: ValueLayout::new(4, 4),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(1),
+                    offset: 0,
+                    value: i32_const(2),
+                },
+                replacement_drop,
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    source: AggregateLocation::Slot(1),
+                    layout: ValueLayout::new(4, 4),
+                },
+                Instruction::Break,
+            ],
+        }),
+        "{main:?}"
+    );
 }
 
 #[test]

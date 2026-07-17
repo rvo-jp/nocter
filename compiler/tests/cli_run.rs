@@ -6418,6 +6418,45 @@ func make_file(): File {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_outer_aggregate_replacement_inside_while_exit_code() {
+    let project = TempProject::new("cli-run-outer-aggregate-replacement-inside-while");
+    let source = project.write_source(
+        "outer_aggregate_replacement_inside_while.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 1 }
+    var count = 0
+    while count == 0 {
+        file = File{ fd: 41 }
+        count = 1
+    }
+    return file.fd + count
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_five_byte_copy_aggregate_assignment_exit_code() {
     let project = TempProject::new("cli-run-five-byte-copy-aggregate-assignment");
     let source = project.write_source(
