@@ -1433,6 +1433,9 @@ fn record_str_value_parameter_spill_requests(value: &StrValue, requests: &mut BT
 
 fn record_slice_value_parameter_spill_requests(value: &SliceValue, requests: &mut BTreeSet<usize>) {
     match value {
+        SliceValue::StrBytes(text) => {
+            record_str_value_parameter_spill_requests(text, requests);
+        }
         SliceValue::Location(location) => {
             record_slice_location_parameter_pair_spill_requests(*location, requests);
         }
@@ -2062,6 +2065,7 @@ fn record_str_location(location: StrLocation, highest_local_index: &mut Option<u
 
 fn record_slice_value(value: &SliceValue, highest_local_index: &mut Option<usize>) {
     match value {
+        SliceValue::StrBytes(text) => record_str_value(text, highest_local_index),
         SliceValue::Location(location) => record_slice_location(*location, highest_local_index),
     }
 }

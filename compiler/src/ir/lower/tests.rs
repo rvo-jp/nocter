@@ -17354,6 +17354,31 @@ pub func write_bytes_catch(bytes: &[u8]): void! {
 }
 
 #[test]
+fn lowers_string_bytes_to_slice_view() {
+    let bytes = lower_imported_named_function_with_nocter_home_files(
+        r#"from std/string import bytes
+
+func main(): void {
+    return
+}
+"#,
+        "bytes",
+        &[std_string_bytes_file()],
+    );
+
+    assert_eq!(
+        bytes.instructions,
+        vec![
+            Instruction::SetSlice {
+                destination: SliceLocation::Return,
+                value: SliceValue::StrBytes(StrValue::Location(StrLocation::Parameter(0))),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_fallible_entry_return_static_error_constructor() {
     let ir = lower_text_with_std_error(
         r#"from std/error import Error
@@ -19938,6 +19963,18 @@ pub(nocter) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
 pub func print(text: &str): void! {
     write_text_raw(1, text)?
     return
+}
+"#,
+    )
+}
+
+fn std_string_bytes_file() -> (&'static str, &'static str) {
+    (
+        "std/string.nct",
+        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+
+pub func bytes(value: &str): &[u8] {
+    return bytes_from_str(value)
 }
 "#,
     )

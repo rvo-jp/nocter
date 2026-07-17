@@ -28,13 +28,18 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: expose `&str` byte views for slice writes
+  - adds `std/string.bytes(value: &str): &[u8]` backed by the closed `bytes_from_str` primitive
+  - represents string-backed byte slices in IR as `SliceValue::StrBytes(StrValue)` so lowering and backend reuse the existing two-word string/view ABI without copying
+  - handles `.len()` and indexing on string-backed byte slices by reusing the existing string length/index value lowering
+  - verifies `stdout().write(bytes("..."))` through the distributed standard library and native backend execution tests
 - Current checkpoint: implement byte-slice raw writes
   - adds target-gated `std/io.write_bytes_raw(fd: i32, bytes: &[u8]): void!` and routes `File.write`/`write_fd` through it
   - lowers the primitive to a new `WriteSlice` IR instruction using the existing two-word slice ABI
   - emits Darwin `write` for slice views in the backend with the same fallible success/failure payload behavior as `write_text_raw`
   - covers IR lowering, backend native execution, and distributed std build/privacy tests
 - Current checkpoint: stop silently succeeding byte writes
-  - changes target-gated `std/io.write_fd` from a no-op to an explicit `std.io.unsupported` failure until byte-slice writes have a real runtime path
+  - changed target-gated `std/io.write_fd` from a no-op to an explicit `std.io.unsupported` failure while byte-slice writes were still missing; the later raw byte-slice write checkpoint replaced this with the real runtime path
   - keeps `write_text_fd` and `File.write_text` on the working `write_text_raw` path
   - verifies the distributed std check/run suite still passes
 - Current checkpoint: add `std/io.File` drop glue

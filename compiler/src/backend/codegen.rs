@@ -5118,13 +5118,9 @@ mod tests {
             target: crate::ir::CallTarget::same_file("main".to_string()),
             return_type: Type::I32,
             instructions: vec![
-                Instruction::SetStr {
-                    destination: StrLocation::Local(0),
-                    value: StrValue::StaticBytes(b"bytes\n".to_vec()),
-                },
                 Instruction::WriteSlice {
                     fd: I32Value::Const(1),
-                    bytes: SliceValue::Location(SliceLocation::Local(0)),
+                    bytes: SliceValue::StrBytes(StrValue::StaticBytes(b"bytes\n".to_vec())),
                 },
                 set_return_i32(0),
                 Instruction::Return,

@@ -210,6 +210,10 @@ const PTR_STR_FROM_RAW_PARTS_PARAMETERS: &[PrimitiveParameterSpec] = &[
         ty: "usize",
     },
 ];
+const STRING_BYTES_FROM_STR_PARAMETERS: &[PrimitiveParameterSpec] = &[PrimitiveParameterSpec {
+    name: "value",
+    ty: "&str",
+}];
 const SYSCALL0_PARAMETERS: &[PrimitiveParameterSpec] = &[PrimitiveParameterSpec {
     name: "number",
     ty: "usize",
@@ -419,6 +423,15 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             generics: &[],
             parameters: PTR_STR_FROM_RAW_PARTS_PARAMETERS,
             return_type: "&str",
+        },
+        PrimitiveSpec {
+            module_path: "std/string",
+            target: None,
+            visibility: Visibility::Nocter,
+            name: "bytes_from_str",
+            generics: &[],
+            parameters: STRING_BYTES_FROM_STR_PARAMETERS,
+            return_type: "&[u8]",
         },
         PrimitiveSpec {
             module_path: "std/os/macos",

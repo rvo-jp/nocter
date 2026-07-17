@@ -519,6 +519,7 @@ pub(crate) enum StrLocation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum SliceValue {
     Location(SliceLocation),
+    StrBytes(StrValue),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

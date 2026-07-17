@@ -7,8 +7,8 @@
 //!
 //! The public functions are ordinary standard-library APIs. Empty strings,
 //! copying from `&str`, capacity reservation, growth, UTF-8 view construction,
-//! and release are implemented in Nocter code through restricted runtime
-//! pointer primitives.
+//! byte-slice view construction, and release are implemented in Nocter code
+//! through restricted runtime pointer primitives.
 
 from std/error import Error
 from std/mem import Allocator
@@ -18,6 +18,8 @@ from std/ptr import addr
 from std/ptr import copy_str_to_ptr
 from std/ptr import from_addr
 from std/ptr import str_from_raw_parts
+
+pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 
 pub struct String {
     ptr: *u8
@@ -84,6 +86,10 @@ pub func String.view(text: &String): &str {
 
 pub func view(text: &String): &str {
     return String.view(text)
+}
+
+pub func bytes(value: &str): &[u8] {
+    return bytes_from_str(value)
 }
 
 pub func String.push_str(text: &+String, value: &str): void! {

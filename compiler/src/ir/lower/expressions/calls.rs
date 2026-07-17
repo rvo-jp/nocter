@@ -18,8 +18,8 @@ use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateArgument, AggregateArgumentSource, AggregateLocation, BoolLocation, BorrowArgument,
     BorrowSource, CallTarget, DirectAggregateArgument, FallibleFailureMode, I32Location,
-    Instruction, ScalarArgument, SliceLocation, StrLocation, Type, U8Location, UsizeLocation,
-    UsizeValue,
+    Instruction, ScalarArgument, SliceLocation, SliceValue, StrLocation, Type, U8Location,
+    UsizeLocation, UsizeValue,
 };
 
 pub(super) fn lower_i32_normal_call(
@@ -1755,6 +1755,13 @@ pub(super) fn primitive_write_bytes_raw_call(call: &CallExpr, context: &Lowering
     )
 }
 
+pub(super) fn primitive_bytes_from_str_call(call: &CallExpr, context: &LoweringContext) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("bytes_from_str")
+    )
+}
+
 pub(super) fn primitive_addr_call(call: &CallExpr, context: &LoweringContext) -> bool {
     matches!(context.primitive_name_for_call(call), Some("addr"))
 }
@@ -1836,6 +1843,33 @@ pub(super) fn lower_str_from_raw_parts_primitive_call_to_location(
         len: len.value,
     });
     Ok(instructions)
+}
+
+pub(super) fn lower_str_bytes_primitive_call_to_location(
+    call: &CallExpr,
+    destination: SliceLocation,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let (mut instructions, value) =
+        lower_str_bytes_primitive_call_to_value(call, context, temporaries)?;
+    instructions.push(Instruction::SetSlice { destination, value });
+    Ok(instructions)
+}
+
+pub(super) fn lower_str_bytes_primitive_call_to_value(
+    call: &CallExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, SliceValue), Vec<Diagnostic>> {
+    if call.arguments.len() != 1 {
+        return Err(unsupported_pointer_primitive_diagnostic(
+            "`bytes_from_str` requires argument `(value: &str)`",
+        ));
+    }
+
+    let text = lower_str_expression_to_value(&call.arguments[0], context, temporaries)?;
+    Ok((text.instructions, SliceValue::StrBytes(text.value)))
 }
 
 fn macos_syscall_arity(call: &CallExpr, context: &LoweringContext) -> Option<usize> {

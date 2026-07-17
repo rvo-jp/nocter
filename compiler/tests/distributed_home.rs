@@ -340,6 +340,40 @@ func main(): i32 {
     assert_macho_executable(&executable);
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_io_file_write_string_bytes_runs() {
+    let project = TempProject::new("distributed-home-file-write-string-bytes-run");
+    let source = project.write_source(
+        "file_write_string_bytes.nct",
+        r#"from std/io import stdout
+from std/string import bytes
+
+func main(): i32! {
+    var out = stdout()
+    out.write(bytes("Hello bytes"))?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"Hello bytes");
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
+    );
+}
+
 #[test]
 fn distributed_io_file_representation_is_private() {
     let project = TempProject::new("distributed-home-io-file-private");

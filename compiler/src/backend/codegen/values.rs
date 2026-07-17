@@ -1569,6 +1569,9 @@ impl EntryEmitter {
         len_destination: XReg,
     ) -> Result<(), Vec<Diagnostic>> {
         match value {
+            SliceValue::StrBytes(text) => {
+                self.emit_str_value_to_x_pair(text, ptr_destination, len_destination)?;
+            }
             SliceValue::Location(location) => {
                 if let SliceLocation::Parameter(index) = *location {
                     self.emit_parameter_word_to_x(index, ptr_destination)?;
