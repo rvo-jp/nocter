@@ -14,13 +14,14 @@ use super::functions::{
 use super::literals::{
     lower_i32_literal, lower_str_literal, lower_u8_literal, lower_usize_literal,
 };
+use super::types::scalar_or_view_type_from_type_expr;
 mod calls;
 mod predicates;
 mod temporaries;
 
 use crate::ast::{
     BinaryExpr, BinaryOperator, Block, CallExpr, CatchExpr, Expr, IndexExpr, Stmt,
-    TypeConversionExpr, TypeExpr, UnaryExpr, UnaryOperator,
+    TypeConversionExpr, UnaryExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -102,7 +103,9 @@ pub(super) fn lower_i32_expression_to_location(
         Expr::Binary(binary) if is_i32_binary_operator(binary.operator) => {
             lower_i32_binary_expression_to_location(binary, destination, context)
         }
-        Expr::TypeConversion(conversion) if type_conversion_target_is(conversion, "i32") => {
+        Expr::TypeConversion(conversion)
+            if type_conversion_target_is(conversion, context, Type::I32) =>
+        {
             let mut temporaries = TemporaryAllocator::new(context)?;
             let lowered =
                 lower_i32_conversion_expression_to_value(conversion, context, &mut temporaries)?;
@@ -172,7 +175,9 @@ pub(super) fn lower_u8_expression_to_location(
             });
             Ok(instructions)
         }
-        Expr::TypeConversion(conversion) if type_conversion_target_is(conversion, "u8") => {
+        Expr::TypeConversion(conversion)
+            if type_conversion_target_is(conversion, context, Type::U8) =>
+        {
             let mut temporaries = TemporaryAllocator::new(context)?;
             let lowered =
                 lower_u8_expression_to_value(&conversion.expression, context, &mut temporaries)?;
@@ -246,7 +251,9 @@ pub(super) fn lower_usize_expression_to_location(
         Expr::Binary(binary) if is_usize_binary_operator(binary.operator) => {
             lower_usize_binary_expression_to_location(binary, destination, context)
         }
-        Expr::TypeConversion(conversion) if type_conversion_target_is(conversion, "usize") => {
+        Expr::TypeConversion(conversion)
+            if type_conversion_target_is(conversion, context, Type::Usize) =>
+        {
             let mut temporaries = TemporaryAllocator::new(context)?;
             let lowered =
                 lower_usize_conversion_expression_to_value(conversion, context, &mut temporaries)?;
@@ -866,7 +873,9 @@ fn lower_i32_expression_to_value(
                 value: I32Value::Location(temporary),
             })
         }
-        Expr::TypeConversion(conversion) if type_conversion_target_is(conversion, "i32") => {
+        Expr::TypeConversion(conversion)
+            if type_conversion_target_is(conversion, context, Type::I32) =>
+        {
             lower_i32_conversion_expression_to_value(conversion, context, temporaries)
         }
         Expr::Member(_) => {
@@ -954,7 +963,9 @@ fn lower_u8_expression_to_value(
             })
         }
         Expr::Index(index) => lower_u8_index_expression_to_value(index, context, temporaries),
-        Expr::TypeConversion(conversion) if type_conversion_target_is(conversion, "u8") => {
+        Expr::TypeConversion(conversion)
+            if type_conversion_target_is(conversion, context, Type::U8) =>
+        {
             lower_u8_expression_to_value(&conversion.expression, context, temporaries)
         }
         Expr::Member(_) => {
@@ -1024,8 +1035,15 @@ fn lower_usize_conversion_expression_to_value(
     })
 }
 
-fn type_conversion_target_is(conversion: &TypeConversionExpr, name: &str) -> bool {
-    matches!(&conversion.ty, TypeExpr::Reference(reference) if reference.name == name)
+fn type_conversion_target_is(
+    conversion: &TypeConversionExpr,
+    context: &LoweringContext,
+    expected: Type,
+) -> bool {
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return false;
+    };
+    scalar_or_view_type_from_type_expr(&conversion.ty, resolved) == Some(expected)
 }
 
 fn lower_usize_binary_expression_to_location(
@@ -1138,7 +1156,9 @@ fn lower_usize_expression_to_value(
                 value: UsizeValue::Location(temporary),
             })
         }
-        Expr::TypeConversion(conversion) if type_conversion_target_is(conversion, "usize") => {
+        Expr::TypeConversion(conversion)
+            if type_conversion_target_is(conversion, context, Type::Usize) =>
+        {
             lower_usize_conversion_expression_to_value(conversion, context, temporaries)
         }
         Expr::Member(_) => {

@@ -14445,6 +14445,46 @@ func is_elf(bytes: &[u8]): bool {
 }
 
 #[test]
+fn lowers_u8_alias_conversion_bool_return_comparison() {
+    let function = lower_named_function(
+        r#"type Byte = u8
+
+func main(): i32 {
+    return 0
+}
+
+func is_elf(bytes: &[u8]): bool {
+    return (bytes[0] as Byte) == (0x7F as Byte)
+}
+"#,
+        "is_elf",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "is_elf".to_string(),
+            target: crate::ir::CallTarget::same_file("is_elf".to_string()),
+            return_type: Type::Bool,
+            instructions: vec![
+                Instruction::SetBool {
+                    destination: BoolLocation::Return,
+                    value: BoolValue::I32Comparison {
+                        operator: I32ComparisonOperator::Equal,
+                        left: I32Value::U8ZeroExtend(Box::new(U8Value::SliceIndex {
+                            source: SliceLocation::Parameter(0),
+                            index: usize_const(0),
+                        })),
+                        right: I32Value::U8ZeroExtend(Box::new(u8_const(0x7F))),
+                    },
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_u8_str_index_terminal_if_comparison() {
     let ir = lower_text(
         r#"func main(): i32 {
@@ -14560,6 +14600,42 @@ func first(text: &str): i32 {
 }
 
 #[test]
+fn lowers_u8_index_conversion_to_i32_alias_return() {
+    let function = lower_named_function(
+        r#"type Exit = i32
+
+func main(): i32 {
+    return 0
+}
+
+func first(text: &str): Exit {
+    return text[0] as Exit
+}
+"#,
+        "first",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "first".to_string(),
+            target: crate::ir::CallTarget::same_file("first".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: I32Value::U8ZeroExtend(Box::new(U8Value::StrIndex {
+                        source: StrLocation::Parameter(0),
+                        index: usize_const(0),
+                    })),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_u8_index_conversion_to_usize_return() {
     let function = lower_named_function(
         r#"func main(): i32 {
@@ -14568,6 +14644,42 @@ fn lowers_u8_index_conversion_to_usize_return() {
 
 func first(bytes: &[u8]): usize {
     return bytes[1] as usize
+}
+"#,
+        "first",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "first".to_string(),
+            target: crate::ir::CallTarget::same_file("first".to_string()),
+            return_type: Type::Usize,
+            instructions: vec![
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: UsizeValue::U8ZeroExtend(Box::new(U8Value::SliceIndex {
+                        source: SliceLocation::Parameter(0),
+                        index: usize_const(1),
+                    })),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_u8_index_conversion_to_usize_alias_return() {
+    let function = lower_named_function(
+        r#"type Index = usize
+
+func main(): i32 {
+    return 0
+}
+
+func first(bytes: &[u8]): Index {
+    return bytes[1] as Index
 }
 "#,
         "first",

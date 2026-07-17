@@ -4935,6 +4935,31 @@ func first_byte(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, text: &s
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_alias_i32_conversion_exit_code() {
+    let project = TempProject::new("cli-run-alias-i32-conversion");
+    let source = project.write_source(
+        "alias_i32_conversion.nct",
+        r#"type Exit = i32
+
+func main(): i32 {
+    return "A"[0] as Exit
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(65),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_forwarded_stack_passed_str_argument_first_byte_exit_code() {
     let project = TempProject::new("cli-run-forwarded-stack-passed-str-arg-first-byte");
     let source = project.write_source(

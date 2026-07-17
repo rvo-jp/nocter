@@ -1,10 +1,11 @@
 use super::super::aggregates::{aggregate_type_layout, supported_aggregate_copy_layout};
 use super::super::context::{AggregateFieldKind, LoweringContext};
 use super::super::literals::{lower_i32_literal, lower_u8_literal, lower_usize_literal};
+use super::super::types::scalar_or_view_type_from_type_expr;
 use super::aggregate_call_field;
 use crate::ast::{
     BinaryExpr, BinaryOperator, CallExpr, Expr, InterpolatedStringPart, TypeConversionExpr,
-    TypeExpr, UnaryOperator,
+    UnaryOperator,
 };
 use crate::ir::Type;
 
@@ -349,7 +350,9 @@ fn expression_is_lowerable_u8_expression(expression: &Expr, context: &LoweringCo
             expression_is_lowerable_byte_index_object(&index.object, context)
                 && expression_is_lowerable_usize_expression(&index.index, context)
         }
-        Expr::TypeConversion(conversion) if type_conversion_target_is(conversion, "u8") => {
+        Expr::TypeConversion(conversion)
+            if type_conversion_target_is(conversion, context, Type::U8) =>
+        {
             expression_is_lowerable_u8_expression(&conversion.expression, context)
         }
         Expr::Member(_) => {
@@ -365,7 +368,11 @@ fn expression_is_known_u8_expression(expression: &Expr, context: &LoweringContex
         Expr::Identifier(identifier) => context.u8_location(&identifier.name).is_some(),
         Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::U8),
         Expr::Index(index) => expression_is_lowerable_byte_index_object(&index.object, context),
-        Expr::TypeConversion(conversion) if type_conversion_target_is(conversion, "u8") => true,
+        Expr::TypeConversion(conversion)
+            if type_conversion_target_is(conversion, context, Type::U8) =>
+        {
+            true
+        }
         Expr::Member(_) => {
             expression_is_aggregate_field_kind(expression, AggregateFieldKind::U8, context)
         }
@@ -400,8 +407,15 @@ fn expression_is_lowerable_byte_index_object(expression: &Expr, context: &Loweri
     }
 }
 
-fn type_conversion_target_is(conversion: &TypeConversionExpr, name: &str) -> bool {
-    matches!(&conversion.ty, TypeExpr::Reference(reference) if reference.name == name)
+fn type_conversion_target_is(
+    conversion: &TypeConversionExpr,
+    context: &LoweringContext,
+    expected: Type,
+) -> bool {
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return false;
+    };
+    scalar_or_view_type_from_type_expr(&conversion.ty, resolved) == Some(expected)
 }
 
 fn expression_is_lowerable_usize_expression(expression: &Expr, context: &LoweringContext) -> bool {
