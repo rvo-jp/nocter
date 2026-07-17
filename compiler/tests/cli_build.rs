@@ -1704,13 +1704,14 @@ func touch(value: &+Text): void! {
 }
 
 #[test]
-fn build_command_reports_unsupported_aggregate_scalar_field() {
-    let project = TempProject::new("cli-build-unsupported-aggregate-scalar-field");
+fn build_command_lowers_u16_u32_aggregate_scalar_fields() {
+    let project = TempProject::new("cli-build-u16-u32-aggregate-scalar-fields");
     let source = project.write_source(
-        "unsupported_aggregate_scalar_field.nct",
+        "u16_u32_aggregate_scalar_fields.nct",
         r#"struct Header {
     tag: u8
     code: u16
+    wide: u32
 }
 
 func main(): i32 {
@@ -1719,7 +1720,7 @@ func main(): i32 {
 }
 
 func make(): Header {
-    return Header{ tag: 7, code: 42 }
+    return Header{ tag: 7, code: 42, wide: 100 }
 }
 "#,
     );
@@ -1727,20 +1728,8 @@ func make(): Header {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E8007]"),
-        "expected aggregate lowering diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("supported scalar values (u8, bool, i32, usize/u64, or pointer)"),
-        "expected supported aggregate scalar field diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after compile diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]

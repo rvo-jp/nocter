@@ -405,6 +405,8 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::ReserveAggregateSlot { .. }
             | Instruction::StoreAggregateUsize { .. }
             | Instruction::StoreAggregateI32 { .. }
+            | Instruction::StoreAggregateU16 { .. }
+            | Instruction::StoreAggregateU32 { .. }
             | Instruction::StoreAggregateU8 { .. }
             | Instruction::StoreAggregateBool { .. }
             | Instruction::LoadAggregateUsize { .. }

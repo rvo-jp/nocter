@@ -1064,6 +1064,8 @@ pub(super) struct AggregateFieldAccess {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum AggregateFieldKind {
     I32,
+    U16,
+    U32,
     U8,
     Usize,
     Bool,

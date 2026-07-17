@@ -30,6 +30,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: lower u16 and u32 aggregate field literals
+  - adds `StoreAggregateU16` and `StoreAggregateU32` IR for aggregate field literal stores without introducing general u16/u32 scalar locals yet
+  - lowers u16/u32 fields in aggregate struct literals and readwrite aggregate field assignments, including slot-backed direct aggregate returns and by-value aggregate arguments
+  - emits ARM64 halfword/word aggregate stores for u16/u32 and covers the store widths in backend unit tests
 - Current checkpoint: cover fallible direct aggregate partial payloads
   - fixes backend unit coverage for 9-byte fallible direct aggregate success payloads stored into aggregate slots from `x1,x2`
   - fixes backend unit coverage for 9-byte fallible direct aggregate success payloads forwarded from `x1,x2` into direct return `x0,x1`

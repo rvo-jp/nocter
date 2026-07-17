@@ -1,4 +1,7 @@
-use super::{EntryEmitter, I32_BIT_WIDTH, USIZE_BIT_WIDTH, emit_mov_i32_to_w, emit_mov_u64_to_x};
+use super::{
+    EntryEmitter, I32_BIT_WIDTH, USIZE_BIT_WIDTH, emit_mov_i32_to_w, emit_mov_u32_to_w,
+    emit_mov_u64_to_x,
+};
 use crate::abi::ValueLayout;
 use crate::backend::frame::{AggregateSlot, FrameLayout};
 use crate::diagnostics::Diagnostic;
@@ -108,6 +111,86 @@ impl EntryEmitter {
                     frame,
                 )?;
                 self.encoder.emit_str_w_sp(WReg::W16, absolute_offset);
+                Ok(())
+            }
+        }
+    }
+
+    pub(super) fn emit_store_aggregate_u32(
+        &mut self,
+        destination: AggregateLocation,
+        offset: u32,
+        value: u32,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        validate_aggregate_i32_field_offset(offset)?;
+        emit_mov_u32_to_w(&mut self.encoder, WReg::W16, value);
+
+        match destination {
+            AggregateLocation::Return => {
+                self.emit_indirect_return_pointer_to_x8(frame);
+                self.encoder.emit_str_w_imm(WReg::W16, XReg::X8, offset);
+                Ok(())
+            }
+            AggregateLocation::DirectReturn => Err(aggregate_store_offset_diagnostic(
+                "direct aggregate return field store must be an 8-byte word",
+            )),
+            AggregateLocation::Parameter(index) => {
+                let base = self.aggregate_parameter_base_register(index)?;
+                self.encoder.emit_str_w_imm(WReg::W16, base, offset);
+                Ok(())
+            }
+            AggregateLocation::DirectParameter { .. } => Err(aggregate_store_offset_diagnostic(
+                "direct aggregate parameter stores are not supported",
+            )),
+            AggregateLocation::Slot(slot_index) => {
+                let absolute_offset = self.aggregate_slot_field_offset(
+                    slot_index,
+                    offset,
+                    AGGREGATE_I32_STORE_BYTES,
+                    frame,
+                )?;
+                self.encoder.emit_str_w_sp(WReg::W16, absolute_offset);
+                Ok(())
+            }
+        }
+    }
+
+    pub(super) fn emit_store_aggregate_u16(
+        &mut self,
+        destination: AggregateLocation,
+        offset: u32,
+        value: u16,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        validate_aggregate_u16_field_offset(offset)?;
+        emit_mov_u32_to_w(&mut self.encoder, WReg::W16, u32::from(value));
+
+        match destination {
+            AggregateLocation::Return => {
+                self.emit_indirect_return_pointer_to_x8(frame);
+                self.encoder.emit_strh_w_imm(WReg::W16, XReg::X8, offset);
+                Ok(())
+            }
+            AggregateLocation::DirectReturn => Err(aggregate_store_offset_diagnostic(
+                "direct aggregate return field store must be an 8-byte word",
+            )),
+            AggregateLocation::Parameter(index) => {
+                let base = self.aggregate_parameter_base_register(index)?;
+                self.encoder.emit_strh_w_imm(WReg::W16, base, offset);
+                Ok(())
+            }
+            AggregateLocation::DirectParameter { .. } => Err(aggregate_store_offset_diagnostic(
+                "direct aggregate parameter stores are not supported",
+            )),
+            AggregateLocation::Slot(slot_index) => {
+                let absolute_offset = self.aggregate_slot_field_offset(
+                    slot_index,
+                    offset,
+                    AGGREGATE_U16_STORE_BYTES,
+                    frame,
+                )?;
+                self.encoder.emit_strh_w_sp(WReg::W16, absolute_offset);
                 Ok(())
             }
         }
@@ -1640,6 +1723,16 @@ fn validate_aggregate_i32_field_offset(offset: u32) -> Result<(), Vec<Diagnostic
     if !offset.is_multiple_of(AGGREGATE_I32_STORE_BYTES) {
         return Err(aggregate_store_offset_diagnostic(
             "i32 field offset is not 4-byte aligned",
+        ));
+    }
+
+    Ok(())
+}
+
+fn validate_aggregate_u16_field_offset(offset: u32) -> Result<(), Vec<Diagnostic>> {
+    if !offset.is_multiple_of(AGGREGATE_U16_STORE_BYTES) {
+        return Err(aggregate_store_offset_diagnostic(
+            "u16 field offset is not 2-byte aligned",
         ));
     }
 

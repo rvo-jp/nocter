@@ -6,6 +6,7 @@ use super::expressions::{
     lower_u8_expression_to_word, lower_usize_expression_to_word,
 };
 use super::functions::propagating_failure_mode;
+use super::literals::{lower_u16_literal, lower_u32_literal};
 use crate::abi::{AbiType, ValueLayout, abi_value_from_type_expr, layout_of, layout_struct};
 use crate::ast::{CallExpr, Expr, StructLiteralExpr, TypeExpr, UnaryOperator};
 use crate::diagnostics::Diagnostic;
@@ -406,6 +407,8 @@ fn collect_aggregate_fields(
 fn aggregate_field_kind_from_abi_type(ty: &AbiType) -> Option<AggregateFieldKind> {
     match ty {
         AbiType::I32 => Some(AggregateFieldKind::I32),
+        AbiType::U16 => Some(AggregateFieldKind::U16),
+        AbiType::U32 => Some(AggregateFieldKind::U32),
         AbiType::U8 => Some(AggregateFieldKind::U8),
         AbiType::Bool => Some(AggregateFieldKind::Bool),
         AbiType::U64 | AbiType::Usize | AbiType::Pointer => Some(AggregateFieldKind::Usize),
@@ -443,6 +446,22 @@ fn lower_aggregate_field_to_location(
                 value,
             });
             Ok(instructions)
+        }
+        AbiType::U16 => {
+            validate_direct_aggregate_field_store(destination, diagnostic_code, subject)?;
+            Ok(vec![Instruction::StoreAggregateU16 {
+                destination,
+                offset,
+                value: lower_u16_literal(expression)?,
+            }])
+        }
+        AbiType::U32 => {
+            validate_direct_aggregate_field_store(destination, diagnostic_code, subject)?;
+            Ok(vec![Instruction::StoreAggregateU32 {
+                destination,
+                offset,
+                value: lower_u32_literal(expression)?,
+            }])
         }
         AbiType::U8 => {
             validate_direct_aggregate_field_store(destination, diagnostic_code, subject)?;
@@ -1027,7 +1046,7 @@ pub(super) fn unsupported_aggregate_struct_literal_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower aggregate {subject} from struct literals whose fields are supported scalar values (u8, bool, i32, usize/u64, or pointer), nested struct literals, copy aggregate values, aggregate calls, or aggregate member values"
+            "IR v0 can only lower aggregate {subject} from struct literals whose fields are supported scalar values (u8, u16, u32, bool, i32, usize/u64, or pointer), nested struct literals, copy aggregate values, aggregate calls, or aggregate member values"
         ),
     )]
 }

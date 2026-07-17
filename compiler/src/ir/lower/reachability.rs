@@ -108,6 +108,8 @@ fn collect_reachable_call_targets(
             | Instruction::ReserveAggregateSlot { .. }
             | Instruction::StoreAggregateUsize { .. }
             | Instruction::StoreAggregateI32 { .. }
+            | Instruction::StoreAggregateU16 { .. }
+            | Instruction::StoreAggregateU32 { .. }
             | Instruction::StoreAggregateU8 { .. }
             | Instruction::StoreAggregateBool { .. }
             | Instruction::LoadAggregateUsize { .. }

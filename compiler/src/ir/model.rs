@@ -115,6 +115,18 @@ pub(crate) enum Instruction {
         value: I32Value,
     },
     #[allow(dead_code)]
+    StoreAggregateU16 {
+        destination: AggregateLocation,
+        offset: u32,
+        value: u16,
+    },
+    #[allow(dead_code)]
+    StoreAggregateU32 {
+        destination: AggregateLocation,
+        offset: u32,
+        value: u32,
+    },
+    #[allow(dead_code)]
     StoreAggregateU8 {
         destination: AggregateLocation,
         offset: u32,

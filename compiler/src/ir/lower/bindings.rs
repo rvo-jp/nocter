@@ -19,6 +19,7 @@ use super::expressions::{
     lower_usize_expression_to_location, lower_usize_expression_to_word,
 };
 use super::functions::{propagating_failure_mode, replacement_drop_for_aggregate_slot};
+use super::literals::{lower_u16_literal, lower_u32_literal};
 use super::types::scalar_or_view_type_from_type_expr;
 use crate::abi::{ValueLayout, abi_value_from_type_expr};
 use crate::ast::{
@@ -776,6 +777,16 @@ fn lower_aggregate_field_assignment(
             });
             Ok(instructions)
         }
+        AggregateFieldKind::U16 => Ok(vec![Instruction::StoreAggregateU16 {
+            destination,
+            offset,
+            value: lower_u16_literal(value)?,
+        }]),
+        AggregateFieldKind::U32 => Ok(vec![Instruction::StoreAggregateU32 {
+            destination,
+            offset,
+            value: lower_u32_literal(value)?,
+        }]),
         AggregateFieldKind::U8 => {
             let (mut instructions, value) = lower_u8_expression_to_word(value, context)?;
             instructions.push(Instruction::StoreAggregateU8 {

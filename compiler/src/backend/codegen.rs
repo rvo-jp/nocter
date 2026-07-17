@@ -234,6 +234,20 @@ impl EntryEmitter {
             } => {
                 self.emit_store_aggregate_i32(*destination, *offset, value, frame)?;
             }
+            Instruction::StoreAggregateU16 {
+                destination,
+                offset,
+                value,
+            } => {
+                self.emit_store_aggregate_u16(*destination, *offset, *value, frame)?;
+            }
+            Instruction::StoreAggregateU32 {
+                destination,
+                offset,
+                value,
+            } => {
+                self.emit_store_aggregate_u32(*destination, *offset, *value, frame)?;
+            }
             Instruction::StoreAggregateU8 {
                 destination,
                 offset,
@@ -3324,7 +3338,7 @@ mod tests {
                 name: "make".to_string(),
                 target: crate::ir::CallTarget::same_file("make".to_string()),
                 return_type: Type::Aggregate {
-                    layout: ValueLayout::new(24, 8),
+                    layout: ValueLayout::new(32, 8),
                 },
                 instructions: vec![
                     Instruction::StoreAggregateU8 {
@@ -3337,14 +3351,24 @@ mod tests {
                         offset: 1,
                         value: BoolValue::Const(true),
                     },
+                    Instruction::StoreAggregateU16 {
+                        destination: AggregateLocation::Return,
+                        offset: 2,
+                        value: 0xaabb,
+                    },
                     Instruction::StoreAggregateI32 {
                         destination: AggregateLocation::Return,
                         offset: 4,
                         value: I32Value::Const(42),
                     },
+                    Instruction::StoreAggregateU32 {
+                        destination: AggregateLocation::Return,
+                        offset: 12,
+                        value: 0xaabb_ccdd,
+                    },
                     Instruction::StoreAggregateUsize {
                         destination: AggregateLocation::Return,
-                        offset: 8,
+                        offset: 16,
                         value: UsizeValue::Const(11),
                     },
                     Instruction::Return,
@@ -3364,11 +3388,19 @@ mod tests {
         ));
         assert!(contains_instruction(
             &code.text,
+            encoded_strh_w_imm(WReg::W16, XReg::X8, 2)
+        ));
+        assert!(contains_instruction(
+            &code.text,
             encoded_str_w_imm(WReg::W16, XReg::X8, 4)
         ));
         assert!(contains_instruction(
             &code.text,
-            encoded_str_x_imm(XReg::X16, XReg::X8, 8)
+            encoded_str_w_imm(WReg::W16, XReg::X8, 12)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_x_imm(XReg::X16, XReg::X8, 16)
         ));
     }
 
@@ -6181,6 +6213,12 @@ mod tests {
     fn encoded_strb_w_imm(register: WReg, base: XReg, offset: u32) -> [u8; 4] {
         let mut encoder = Encoder::new();
         encoder.emit_strb_w_imm(register, base, offset);
+        encoded_instruction(encoder)
+    }
+
+    fn encoded_strh_w_imm(register: WReg, base: XReg, offset: u32) -> [u8; 4] {
+        let mut encoder = Encoder::new();
+        encoder.emit_strh_w_imm(register, base, offset);
         encoded_instruction(encoder)
     }
 

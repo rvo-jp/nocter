@@ -8945,8 +8945,8 @@ func make_holder(): Holder {
 }
 
 #[test]
-fn reports_unsupported_u16_aggregate_struct_literal_return() {
-    let diagnostics = lower_named_function_diagnostics_with_signatures(
+fn lowers_u16_aggregate_struct_literal_return() {
+    let function = lower_named_function_with_signatures(
         r#"struct Header {
     tag: u8
     code: u16
@@ -8962,15 +8962,47 @@ func make(): Header {
 "#,
         "make",
         context::FunctionSignatures::new(HashMap::new()),
-    );
+    )
+    .unwrap();
 
-    assert_eq!(diagnostics[0].code, "E8007");
-    assert!(diagnostics[0].message.contains("supported scalar values"));
+    assert_eq!(
+        function,
+        Function {
+            name: "make".to_string(),
+            target: CallTarget::same_file("make"),
+            return_type: Type::DirectAggregate {
+                layout: ValueLayout::new(4, 2),
+                words: 1,
+            },
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(4, 2),
+                },
+                Instruction::StoreAggregateU8 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: U8Value::Const(7),
+                },
+                Instruction::StoreAggregateU16 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 2,
+                    value: 42,
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::DirectReturn,
+                    source: AggregateLocation::Slot(0),
+                    layout: ValueLayout::new(4, 2),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
 }
 
 #[test]
-fn reports_unsupported_u32_aggregate_struct_literal_argument() {
-    let diagnostics = lower_text_diagnostics(
+fn lowers_u32_aggregate_struct_literal_argument() {
+    let ir = lower_text(
         r#"struct Header {
     tag: u8
     code: u32
@@ -8987,8 +9019,31 @@ func consume(header: Header): void {
 "#,
     );
 
-    assert_eq!(diagnostics[0].code, "E8006");
-    assert!(diagnostics[0].message.contains("supported scalar values"));
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+
+    assert!(
+        main.instructions.contains(&Instruction::StoreAggregateU32 {
+            destination: AggregateLocation::Slot(0),
+            offset: 4,
+            value: 42,
+        }),
+        "{main:?}"
+    );
+    assert!(
+        main.instructions.contains(&Instruction::CallVoid {
+            target: CallTarget::same_file("consume"),
+            arguments: vec![ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                source: AggregateArgumentSource::Slot(0),
+                layout: ValueLayout::new(8, 4),
+                words: 1,
+            })],
+        }),
+        "{main:?}"
+    );
 }
 
 #[test]
@@ -12678,7 +12733,9 @@ fn lowers_aggregate_scalar_field_assignments_to_local_slot() {
         r#"struct Header {
     tag: u8
     ok: bool
+    small: u16
     code: i32
+    wide: u32
     len: usize
 }
 
@@ -12687,10 +12744,12 @@ func main(): i32 {
 }
 
 func update(): i32 {
-    var value = Header{ tag: 7, ok: true, code: 42, len: 11 }
+    var value = Header{ tag: 7, ok: true, small: 8, code: 42, wide: 10, len: 11 }
     value.tag = 9
     value.ok = false
+    value.small = 12
     value.code = 99
+    value.wide = 100
     value.len = 13
     return value.code
 }
@@ -12707,7 +12766,7 @@ func update(): i32 {
             instructions: vec![
                 Instruction::ReserveAggregateSlot {
                     slot_index: 0,
-                    layout: ValueLayout::new(16, 8),
+                    layout: ValueLayout::new(24, 8),
                 },
                 Instruction::StoreAggregateU8 {
                     destination: AggregateLocation::Slot(0),
@@ -12719,14 +12778,24 @@ func update(): i32 {
                     offset: 1,
                     value: BoolValue::Const(true),
                 },
+                Instruction::StoreAggregateU16 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 2,
+                    value: 8,
+                },
                 Instruction::StoreAggregateI32 {
                     destination: AggregateLocation::Slot(0),
                     offset: 4,
                     value: i32_const(42),
                 },
-                Instruction::StoreAggregateUsize {
+                Instruction::StoreAggregateU32 {
                     destination: AggregateLocation::Slot(0),
                     offset: 8,
+                    value: 10,
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 16,
                     value: usize_const(11),
                 },
                 Instruction::StoreAggregateU8 {
@@ -12739,14 +12808,24 @@ func update(): i32 {
                     offset: 1,
                     value: BoolValue::Const(false),
                 },
+                Instruction::StoreAggregateU16 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 2,
+                    value: 12,
+                },
                 Instruction::StoreAggregateI32 {
                     destination: AggregateLocation::Slot(0),
                     offset: 4,
                     value: i32_const(99),
                 },
-                Instruction::StoreAggregateUsize {
+                Instruction::StoreAggregateU32 {
                     destination: AggregateLocation::Slot(0),
                     offset: 8,
+                    value: 100,
+                },
+                Instruction::StoreAggregateUsize {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 16,
                     value: usize_const(13),
                 },
                 Instruction::LoadAggregateI32 {

@@ -446,6 +446,8 @@ fn instruction_clobbers_parameter_registers(instruction: &Instruction) -> bool {
         | Instruction::CopyAggregateRange { .. }
         | Instruction::StoreAggregateUsize { .. }
         | Instruction::StoreAggregateI32 { .. }
+        | Instruction::StoreAggregateU16 { .. }
+        | Instruction::StoreAggregateU32 { .. }
         | Instruction::StoreAggregateU8 { .. }
         | Instruction::StoreAggregateBool { .. }
         | Instruction::LoadAggregateUsize { .. }
@@ -546,6 +548,8 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         Instruction::CopyAggregateRange { .. } => true,
         Instruction::StoreAggregateUsize { destination, .. }
         | Instruction::StoreAggregateI32 { destination, .. }
+        | Instruction::StoreAggregateU16 { destination, .. }
+        | Instruction::StoreAggregateU32 { destination, .. }
         | Instruction::StoreAggregateU8 { destination, .. }
         | Instruction::StoreAggregateBool { destination, .. } => {
             matches!(destination, AggregateLocation::Slot(_))
@@ -717,6 +721,8 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::StoreAggregateUsize { .. }
         | Instruction::StoreAggregateI32 { .. }
+        | Instruction::StoreAggregateU16 { .. }
+        | Instruction::StoreAggregateU32 { .. }
         | Instruction::StoreAggregateU8 { .. }
         | Instruction::StoreAggregateBool { .. }
         | Instruction::LoadAggregateUsize { .. }
@@ -839,6 +845,8 @@ fn record_instruction_aggregate_slot_requests(
         | Instruction::SetSliceRawParts { .. }
         | Instruction::StoreAggregateUsize { .. }
         | Instruction::StoreAggregateI32 { .. }
+        | Instruction::StoreAggregateU16 { .. }
+        | Instruction::StoreAggregateU32 { .. }
         | Instruction::StoreAggregateU8 { .. }
         | Instruction::StoreAggregateBool { .. }
         | Instruction::LoadAggregateUsize { .. }
@@ -1193,6 +1201,34 @@ fn record_instruction_parameter_spill_requests(
                     requests,
                 );
                 record_i32_value_parameter_spill_requests(value, requests);
+            }
+        }
+        Instruction::StoreAggregateU32 {
+            destination,
+            offset,
+            ..
+        } => {
+            if include_value_parameters {
+                record_aggregate_location_parameter_spill_request(
+                    *destination,
+                    *offset,
+                    4,
+                    requests,
+                );
+            }
+        }
+        Instruction::StoreAggregateU16 {
+            destination,
+            offset,
+            ..
+        } => {
+            if include_value_parameters {
+                record_aggregate_location_parameter_spill_request(
+                    *destination,
+                    *offset,
+                    2,
+                    requests,
+                );
             }
         }
         Instruction::StoreAggregateU8 {
@@ -1644,6 +1680,8 @@ fn record_instruction_scalar_locals(
         Instruction::StoreAggregateI32 { value, .. } => {
             record_i32_value(value, highest_local_index);
         }
+        Instruction::StoreAggregateU16 { .. } => {}
+        Instruction::StoreAggregateU32 { .. } => {}
         Instruction::StoreAggregateU8 { value, .. } => {
             record_u8_value(value, highest_local_index);
         }
