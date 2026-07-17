@@ -24,11 +24,12 @@ use super::errors::{ErrorPayload, lower_error_payload};
 use super::expressions::{
     TemporaryAllocator, lower_aggregate_member_field_access, lower_bool_expression_to_location,
     lower_bool_return_expression, lower_call_arguments_to_scalar_arguments,
-    lower_catch_failure_mode, lower_i32_expression_to_location, lower_i32_return_expression,
-    lower_macos_syscall_primitive_call_to_location, lower_never_return_expression,
-    lower_slice_expression_to_location, lower_slice_return_expression,
-    lower_str_expression_to_location, lower_str_return_expression, lower_u8_expression_to_location,
-    lower_u8_return_expression, lower_usize_expression_to_location, lower_usize_return_expression,
+    lower_catch_failure_mode, lower_fallible_i32_normal_call, lower_i32_expression_to_location,
+    lower_i32_return_expression, lower_macos_syscall_primitive_call_to_location,
+    lower_never_return_expression, lower_slice_expression_to_location,
+    lower_slice_return_expression, lower_str_expression_to_location, lower_str_return_expression,
+    lower_u8_expression_to_location, lower_u8_return_expression,
+    lower_usize_expression_to_location, lower_usize_return_expression,
     lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
 };
 use super::types::{
@@ -40,7 +41,7 @@ use crate::abi::{
     function_parameter_abi_word_count_from_signature,
 };
 use crate::ast::{
-    ArrayType, Block, BorrowType, DropDecl, DropStmt, Expr, FallibleType, FunctionDecl,
+    ArrayType, Block, BorrowType, CallExpr, DropDecl, DropStmt, Expr, FallibleType, FunctionDecl,
     GenericType, IfStmt, MethodDecl, OptionalType, Parameter, PointerType, ReturnStmt, Stmt,
     StructLiteralExpr, TypeExpr, TypeReference, UnaryOperator, ViewType,
 };
@@ -888,6 +889,18 @@ pub(super) fn lower_return_statement_with_scope_drops(
         && expression_is_none_literal(expression)
     {
         return append_scope_end_drops_before_exit(vec![Instruction::ReturnOptionalNone], context);
+    }
+
+    if let Some(expression) = &statement.expression
+        && let Some(return_instructions) = lower_optional_default_i32_return_with_scope_drops(
+            expression,
+            &success_type,
+            &return_type,
+            context,
+            diagnostic_code,
+        )?
+    {
+        return Ok(return_instructions);
     }
 
     if let Some(expression) = &statement.expression
@@ -2362,6 +2375,69 @@ fn macos_syscall_primitive_call(call: &crate::ast::CallExpr, context: &LoweringC
 fn lower_fallible_failure(payload: ErrorPayload) -> Vec<Instruction> {
     let (code, message) = payload.into_str_values();
     vec![Instruction::ReturnFallibleFailure { code, message }]
+}
+
+fn lower_optional_default_i32_return_with_scope_drops(
+    expression: &Expr,
+    success_type: &Type,
+    return_type: &Type,
+    context: &mut LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    if success_type != &Type::I32 || !context.pending_aggregate_drops().is_empty() {
+        return Ok(None);
+    }
+
+    let Expr::OptionalDefault(default) = unwrap_group(expression) else {
+        return Ok(None);
+    };
+    let Expr::Call(call) = unwrap_group(&default.value) else {
+        return Ok(None);
+    };
+    if !call_return_type_expr_is_top_level_optional(call, context) {
+        return Ok(None);
+    }
+
+    let failure_mode =
+        lower_optional_default_return_failure_mode(&default.default, context, diagnostic_code)?;
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let mut instructions = lower_fallible_i32_normal_call(
+        call,
+        I32Location::Return,
+        context,
+        &mut temporaries,
+        failure_mode,
+    )?;
+    instructions.push(success_return_instruction(return_type));
+    append_scope_end_drops_before_exit(instructions, context).map(Some)
+}
+
+fn call_return_type_expr_is_top_level_optional(call: &CallExpr, context: &LoweringContext) -> bool {
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return false;
+    };
+    let Some(signature) = resolved.call_signature_for_call(call) else {
+        return false;
+    };
+    return_type_expr_is_top_level_optional(&signature.return_type, resolved)
+}
+
+fn lower_optional_default_return_failure_mode(
+    fallback: &Expr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
+    let mut fallback_context = context.clone();
+    let fallback_return = ReturnStmt {
+        span: fallback.span(),
+        expression: Some(fallback.clone()),
+    };
+    let instructions = lower_return_statement_with_scope_drops(
+        &fallback_return,
+        &mut fallback_context,
+        diagnostic_code,
+    )?;
+    Ok(FallibleFailureMode::Handle { instructions })
 }
 
 fn expression_is_none_literal(expression: &Expr) -> bool {

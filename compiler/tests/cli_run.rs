@@ -6959,6 +6959,60 @@ func maybe_answer(): i32? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_optional_default_success_exit_code() {
+    let project = TempProject::new("cli-run-optional-default-success");
+    let source = project.write_source(
+        "optional_default_success.nct",
+        r#"func main(): i32 {
+    return maybe_answer() ?? 7
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_optional_default_none_exit_code() {
+    let project = TempProject::new("cli-run-optional-default-none");
+    let source = project.write_source(
+        "optional_default_none.nct",
+        r#"func main(): i32 {
+    return maybe_answer() ?? 7
+}
+
+func maybe_answer(): i32? {
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(7),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_optional_direct_aggregate_force_unwrap_exit_code() {
     let project = TempProject::new("cli-run-optional-direct-aggregate-force");
     let source = project.write_source(
