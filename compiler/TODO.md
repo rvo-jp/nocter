@@ -28,6 +28,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: validate direct aggregate argument metadata
+  - checks direct aggregate call and tail-call arguments before ARM64 emission
+  - rejects mismatched direct aggregate argument ABI word counts from hand-built or drifted IR before frame planning/staging
+  - reuses the layout-to-ABI-word calculation shared with backend call return shape validation
 - Current checkpoint: validate backend call return shapes
   - checks module call instructions against callee IR return types before ARM64 emission
   - distinguishes normal and fallible call instructions so status-word/payload ABI mismatches are rejected before codegen

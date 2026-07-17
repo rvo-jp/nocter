@@ -2,7 +2,8 @@ use crate::abi::ReturnPassing;
 use crate::backend::frame::{FrameLayout, FunctionFrame, plan_function_frame};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    CallTarget, FallibleFailureMode, Function, I32Value, Instruction, IrModule, StrValue, Type,
+    CallTarget, DirectAggregateArgument, FallibleFailureMode, Function, I32Value, Instruction,
+    IrModule, ScalarArgument, StrValue, Type,
 };
 use crate::target::arm64::{BranchCondition, Encoder, MoveWideShift, WReg, XReg};
 use std::collections::HashMap;
@@ -1173,6 +1174,10 @@ fn validate_instruction_list_call_return_shapes(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for instruction in instructions {
+        if let Some(arguments) = instruction_call_arguments(instruction) {
+            validate_call_argument_shapes(arguments, diagnostics);
+        }
+
         match instruction {
             Instruction::CallI32 { target, .. } => validate_normal_call_return_shape(
                 target,
@@ -1448,6 +1453,63 @@ fn validate_instruction_list_call_return_shapes(
     }
 }
 
+fn instruction_call_arguments(instruction: &Instruction) -> Option<&[ScalarArgument]> {
+    match instruction {
+        Instruction::CallI32 { arguments, .. }
+        | Instruction::CallFallibleI32 { arguments, .. }
+        | Instruction::CallU8 { arguments, .. }
+        | Instruction::CallFallibleU8 { arguments, .. }
+        | Instruction::CallUsize { arguments, .. }
+        | Instruction::CallFallibleUsize { arguments, .. }
+        | Instruction::CallBool { arguments, .. }
+        | Instruction::CallFallibleBool { arguments, .. }
+        | Instruction::CallStr { arguments, .. }
+        | Instruction::CallFallibleStr { arguments, .. }
+        | Instruction::CallSlice { arguments, .. }
+        | Instruction::CallFallibleSlice { arguments, .. }
+        | Instruction::CallAggregate { arguments, .. }
+        | Instruction::CallDirectAggregate { arguments, .. }
+        | Instruction::CallFallibleDirectAggregate { arguments, .. }
+        | Instruction::CallFallibleAggregate { arguments, .. }
+        | Instruction::CallVoid { arguments, .. }
+        | Instruction::CallFallibleVoid { arguments, .. }
+        | Instruction::TailCall { arguments, .. } => Some(arguments),
+        _ => None,
+    }
+}
+
+fn validate_call_argument_shapes(arguments: &[ScalarArgument], diagnostics: &mut Vec<Diagnostic>) {
+    for argument in arguments {
+        if let ScalarArgument::AggregateDirect(argument) = argument {
+            validate_direct_aggregate_argument_shape(argument, diagnostics);
+        }
+    }
+}
+
+fn validate_direct_aggregate_argument_shape(
+    argument: &DirectAggregateArgument,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(expected_words) = direct_aggregate_layout_word_count(argument.layout) else {
+        diagnostics.push(Diagnostic::error(
+            "E9002",
+            "codegen direct aggregate argument layout exceeds host word count range",
+        ));
+        return;
+    };
+    if argument.words == expected_words {
+        return;
+    }
+    diagnostics.push(Diagnostic::error(
+        "E9002",
+        format!(
+            "codegen direct aggregate argument uses {} ABI words, but layout {} requires {expected_words}",
+            argument.words,
+            layout_description(argument.layout),
+        ),
+    ));
+}
+
 fn validate_failure_mode_call_return_shapes(
     failure_mode: &FallibleFailureMode,
     current_return_type: &Type,
@@ -1575,8 +1637,11 @@ fn validate_success_return_shape(
 }
 
 fn direct_aggregate_layout_passing(layout: crate::abi::ValueLayout) -> Option<ReturnPassing> {
-    let words = usize::try_from(layout.size.div_ceil(crate::abi::ABI_WORD_SIZE)).ok()?;
-    Some(ReturnPassing::Direct { words })
+    direct_aggregate_layout_word_count(layout).map(|words| ReturnPassing::Direct { words })
+}
+
+fn direct_aggregate_layout_word_count(layout: crate::abi::ValueLayout) -> Option<usize> {
+    usize::try_from(layout.size.div_ceil(crate::abi::ABI_WORD_SIZE)).ok()
 }
 
 fn return_passing_description(passing: Option<ReturnPassing>) -> &'static str {
@@ -1988,6 +2053,49 @@ mod tests {
         assert_eq!(diagnostics[0].code, "E9002");
         assert!(diagnostics[0].message.contains("expected i32"));
         assert!(diagnostics[0].message.contains("got &str"));
+    }
+
+    #[test]
+    fn rejects_direct_aggregate_argument_word_count_mismatch_before_codegen() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(16, 8),
+                    },
+                    Instruction::CallVoid {
+                        target: CallTarget::same_file("consume"),
+                        arguments: vec![ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                            source: AggregateArgumentSource::Slot(0),
+                            layout: ValueLayout::new(16, 8),
+                            words: 1,
+                        })],
+                    },
+                    set_return_i32(0),
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "consume".to_string(),
+                target: crate::ir::CallTarget::same_file("consume".to_string()),
+                return_type: Type::Void,
+                instructions: vec![Instruction::Return],
+            },
+        ]);
+
+        let diagnostics = generate_arm64_darwin_entry(&module, "main").unwrap_err();
+
+        assert_eq!(diagnostics[0].code, "E9002");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("direct aggregate argument uses 1 ABI words")
+        );
+        assert!(diagnostics[0].message.contains("requires 2"));
     }
 
     #[test]
