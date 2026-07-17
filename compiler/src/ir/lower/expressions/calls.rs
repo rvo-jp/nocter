@@ -5,7 +5,6 @@ use super::super::aggregates::{
 };
 use super::super::context::{AggregateFieldKind, LoweringContext};
 use super::super::functions::propagating_failure_mode;
-use super::super::types::success_return_passing_from_ir_type;
 use super::temporaries::TemporaryAllocator;
 use super::{
     lower_aggregate_member_field_access, lower_bool_expression_to_value_with_temporaries,
@@ -1711,7 +1710,7 @@ fn validate_call_success_return_passing(
     let Some(actual) = context.call_success_return_passing(target) else {
         return Ok(());
     };
-    let Some(expected) = success_return_passing_from_ir_type(expected_success_type) else {
+    let Some(expected) = expected_success_type.success_return_passing() else {
         return Ok(());
     };
     if actual == expected {

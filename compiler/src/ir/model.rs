@@ -1,4 +1,4 @@
-use crate::abi::ValueLayout;
+use crate::abi::{ReturnPassing, ValueLayout};
 use crate::source::SourceId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -621,6 +621,21 @@ impl Type {
             | Self::Borrow { .. }
             | Self::Void
             | Self::Never => self,
+        }
+    }
+
+    pub(crate) fn success_return_passing(&self) -> Option<ReturnPassing> {
+        match self {
+            Self::I32 | Self::U8 | Self::Usize | Self::Bool => {
+                Some(ReturnPassing::Direct { words: 1 })
+            }
+            Self::Str | Self::Slice { .. } => Some(ReturnPassing::Direct { words: 2 }),
+            Self::Aggregate { .. } => Some(ReturnPassing::IndirectPointer),
+            Self::DirectAggregate { words, .. } => Some(ReturnPassing::Direct { words: *words }),
+            Self::Void => Some(ReturnPassing::Void),
+            Self::Never => Some(ReturnPassing::Never),
+            Self::Fallible(success) => success.success_return_passing(),
+            Self::Borrow { .. } => None,
         }
     }
 }

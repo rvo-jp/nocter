@@ -32,7 +32,7 @@ use super::expressions::{
 };
 use super::types::{
     borrow_inner_type, borrow_type_from_type_expr, return_type_from_type_expr,
-    scalar_or_view_type_from_type_expr, success_return_passing_from_ir_type,
+    scalar_or_view_type_from_type_expr,
 };
 use crate::abi::{
     AbiType, AbiValue, ValueClassification, abi_value_from_type_expr,
@@ -2249,7 +2249,7 @@ fn validate_aggregate_call_success_return_passing(
     let Some(actual) = context.call_success_return_passing(target) else {
         return Ok(());
     };
-    let Some(expected) = success_return_passing_from_ir_type(return_type) else {
+    let Some(expected) = return_type.success_return_passing() else {
         return Ok(());
     };
     if actual == expected {

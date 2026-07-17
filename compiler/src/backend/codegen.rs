@@ -1,3 +1,4 @@
+use crate::abi::ReturnPassing;
 use crate::backend::frame::{FrameLayout, FunctionFrame, plan_function_frame};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -739,6 +740,7 @@ impl EntryEmitter {
         &mut self,
         success_type: &Type,
     ) -> Result<(), Vec<Diagnostic>> {
+        validate_supported_fallible_success_payload_abi(success_type)?;
         match success_type {
             Type::I32 | Type::U8 | Type::Bool => {
                 self.encoder.emit_mov_w(WReg::W1, WReg::W0);
@@ -1049,6 +1051,29 @@ impl EntryEmitter {
     }
 }
 
+fn validate_supported_fallible_success_payload_abi(
+    success_type: &Type,
+) -> Result<(), Vec<Diagnostic>> {
+    match success_type.success_return_passing() {
+        Some(ReturnPassing::Void | ReturnPassing::IndirectPointer) => Ok(()),
+        Some(ReturnPassing::Direct { words }) => {
+            if words <= FALLIBLE_SUCCESS_PAYLOAD_REGISTER_COUNT {
+                return Ok(());
+            }
+            Err(vec![Diagnostic::error(
+                "E9002",
+                format!(
+                    "fallible success payload uses {words} direct ABI words, but codegen supports at most {FALLIBLE_SUCCESS_PAYLOAD_REGISTER_COUNT}"
+                ),
+            )])
+        }
+        Some(ReturnPassing::Never) | None => Err(vec![Diagnostic::error(
+            "E9002",
+            "invalid fallible success payload ABI for codegen",
+        )]),
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum FunctionSymbol {
     SameFile(String),
@@ -1149,6 +1174,7 @@ fn align_usize(value: usize, alignment: usize) -> usize {
 
 const STDERR_FILENO: u64 = 2;
 const FALLIBLE_REPORT_FRAME_SIZE: u32 = 32;
+const FALLIBLE_SUCCESS_PAYLOAD_REGISTER_COUNT: usize = 2;
 const WRITE_FAILURE_CODE: &[u8] = b"std.io.write_failed";
 const WRITE_FAILURE_MESSAGE: &[u8] = b"write failed";
 const ADR_MIN_BYTE_OFFSET: i64 = -(1 << 20);
@@ -1318,6 +1344,36 @@ mod tests {
                 0x00, 0x00, 0x80, 0x52, // movz w0, #0
                 0xc0, 0x03, 0x5f, 0xd6, // ret
             ]
+        );
+    }
+
+    #[test]
+    fn rejects_fallible_direct_success_payload_wider_than_two_words() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "make".to_string(),
+                target: crate::ir::CallTarget::same_file("make".to_string()),
+                return_type: Type::Fallible(Box::new(Type::DirectAggregate {
+                    layout: ValueLayout::new(24, 8),
+                    words: 3,
+                })),
+                instructions: vec![Instruction::ReturnFallibleSuccess],
+            },
+        ]);
+
+        let diagnostics = generate_arm64_darwin_entry(&module, "main").unwrap_err();
+
+        assert_eq!(diagnostics[0].code, "E9002");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("fallible success payload uses 3 direct ABI words")
         );
     }
 
