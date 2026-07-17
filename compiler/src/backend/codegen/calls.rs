@@ -1175,7 +1175,7 @@ impl EntryEmitter {
         self.emit_x_pair_to_slice_location(XReg::X0, XReg::X1, destination)
     }
 
-    fn emit_x_pair_to_slice_location(
+    pub(super) fn emit_x_pair_to_slice_location(
         &mut self,
         ptr_source: XReg,
         len_source: XReg,

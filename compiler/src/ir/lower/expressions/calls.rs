@@ -1825,6 +1825,16 @@ pub(super) fn primitive_str_from_raw_parts_call(
     )
 }
 
+pub(super) fn primitive_slice_from_raw_parts_call(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("slice_from_raw_parts" | "slice_from_raw_parts_mut")
+    )
+}
+
 pub(super) fn lower_addr_primitive_call_to_word(
     call: &CallExpr,
     context: &LoweringContext,
@@ -1905,6 +1915,30 @@ pub(super) fn lower_str_from_raw_parts_primitive_call_to_location(
     let len = lower_usize_expression_to_value(&call.arguments[1], context, temporaries)?;
     instructions.extend(len.instructions);
     instructions.push(Instruction::SetStrRawParts {
+        destination,
+        pointer,
+        len: len.value,
+    });
+    Ok(instructions)
+}
+
+pub(super) fn lower_slice_from_raw_parts_primitive_call_to_location(
+    call: &CallExpr,
+    destination: SliceLocation,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if call.arguments.len() != 2 {
+        return Err(unsupported_pointer_primitive_diagnostic(
+            "`slice_from_raw_parts` requires arguments `(pointer: *u8, len: usize)`",
+        ));
+    }
+
+    let (mut instructions, pointer) =
+        lower_pointer_address_expression_to_word(&call.arguments[0], context, temporaries)?;
+    let len = lower_usize_expression_to_value(&call.arguments[1], context, temporaries)?;
+    instructions.extend(len.instructions);
+    instructions.push(Instruction::SetSliceRawParts {
         destination,
         pointer,
         len: len.value,

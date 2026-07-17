@@ -200,6 +200,13 @@ impl EntryEmitter {
             Instruction::SetSlice { destination, value } => {
                 self.emit_set_slice(*destination, value)?;
             }
+            Instruction::SetSliceRawParts {
+                destination,
+                pointer,
+                len,
+            } => {
+                self.emit_set_slice_raw_parts(*destination, pointer, len)?;
+            }
             Instruction::ReserveAggregateSlot { .. } => {}
             Instruction::StoreAggregateUsize {
                 destination,

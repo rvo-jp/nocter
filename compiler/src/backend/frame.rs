@@ -458,6 +458,7 @@ fn instruction_clobbers_parameter_registers(instruction: &Instruction) -> bool {
         | Instruction::SetStr { .. }
         | Instruction::SetStrRawParts { .. }
         | Instruction::SetSlice { .. }
+        | Instruction::SetSliceRawParts { .. }
         | Instruction::AddI32 { .. }
         | Instruction::SubtractI32 { .. }
         | Instruction::MultiplyI32 { .. }
@@ -567,6 +568,7 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::SetStr { .. }
         | Instruction::SetStrRawParts { .. }
         | Instruction::SetSlice { .. }
+        | Instruction::SetSliceRawParts { .. }
         | Instruction::AddI32 { .. }
         | Instruction::SubtractI32 { .. }
         | Instruction::MultiplyI32 { .. }
@@ -727,6 +729,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::SetStr { .. }
         | Instruction::SetStrRawParts { .. }
         | Instruction::SetSlice { .. }
+        | Instruction::SetSliceRawParts { .. }
         | Instruction::AddI32 { .. }
         | Instruction::SubtractI32 { .. }
         | Instruction::MultiplyI32 { .. }
@@ -829,6 +832,7 @@ fn record_instruction_aggregate_slot_requests(
         | Instruction::StoreU8ToPointer { .. }
         | Instruction::SetI32 { .. }
         | Instruction::SetStrRawParts { .. }
+        | Instruction::SetSliceRawParts { .. }
         | Instruction::StoreAggregateUsize { .. }
         | Instruction::StoreAggregateI32 { .. }
         | Instruction::StoreAggregateU8 { .. }
@@ -1294,6 +1298,12 @@ fn record_instruction_parameter_spill_requests(
                 record_usize_value_parameter_spill_requests(len, requests);
             }
         }
+        Instruction::SetSliceRawParts { pointer, len, .. } => {
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(pointer, requests);
+                record_usize_value_parameter_spill_requests(len, requests);
+            }
+        }
         Instruction::SetSlice { value, .. } => {
             if include_value_parameters {
                 record_slice_value_parameter_spill_requests(value, requests);
@@ -1728,6 +1738,15 @@ fn record_instruction_scalar_locals(
             len,
         } => {
             record_str_location(*destination, highest_local_index);
+            record_usize_value(pointer, highest_local_index);
+            record_usize_value(len, highest_local_index);
+        }
+        Instruction::SetSliceRawParts {
+            destination,
+            pointer,
+            len,
+        } => {
+            record_slice_location(*destination, highest_local_index);
             record_usize_value(pointer, highest_local_index);
             record_usize_value(len, highest_local_index);
         }

@@ -40,14 +40,15 @@ use calls::{
     lower_direct_tail_call, lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
     lower_fallible_slice_normal_call, lower_fallible_str_normal_call,
     lower_fallible_u8_normal_call, lower_fallible_usize_normal_call,
-    lower_fallible_void_normal_call, lower_i32_normal_call, lower_slice_normal_call,
+    lower_fallible_void_normal_call, lower_i32_normal_call,
+    lower_slice_from_raw_parts_primitive_call_to_location, lower_slice_normal_call,
     lower_store_u8_to_ptr_primitive_call, lower_str_bytes_primitive_call_to_location,
     lower_str_bytes_primitive_call_to_value, lower_str_from_raw_parts_primitive_call_to_location,
     lower_str_normal_call, lower_u8_normal_call, lower_usize_normal_call, lower_void_normal_call,
     primitive_addr_call, primitive_bytes_from_str_call, primitive_close_fd_raw_call,
-    primitive_copy_str_to_ptr_call, primitive_store_u8_to_ptr_call,
-    primitive_str_from_raw_parts_call, primitive_write_bytes_raw_call,
-    primitive_write_text_raw_call,
+    primitive_copy_str_to_ptr_call, primitive_slice_from_raw_parts_call,
+    primitive_store_u8_to_ptr_call, primitive_str_from_raw_parts_call,
+    primitive_write_bytes_raw_call, primitive_write_text_raw_call,
 };
 use predicates::{
     bool_comparison_contains_call, bool_comparison_needs_temporaries,
@@ -341,6 +342,14 @@ pub(super) fn lower_slice_expression_to_location(
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
+            if primitive_slice_from_raw_parts_call(call, context) {
+                return lower_slice_from_raw_parts_primitive_call_to_location(
+                    call,
+                    destination,
+                    context,
+                    &mut temporaries,
+                );
+            }
             if primitive_bytes_from_str_call(call, context) {
                 return lower_str_bytes_primitive_call_to_location(
                     call,
@@ -1287,6 +1296,19 @@ fn lower_slice_expression_to_value(
 ) -> Result<LoweredSliceValue, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => {
+            if primitive_slice_from_raw_parts_call(call, context) {
+                let temporary = temporaries.next_slice()?;
+                let instructions = lower_slice_from_raw_parts_primitive_call_to_location(
+                    call,
+                    temporary,
+                    context,
+                    temporaries,
+                )?;
+                return Ok(LoweredSliceValue {
+                    instructions,
+                    value: SliceValue::Location(temporary),
+                });
+            }
             if primitive_bytes_from_str_call(call, context) {
                 let (instructions, value) =
                     lower_str_bytes_primitive_call_to_value(call, context, temporaries)?;
@@ -1624,6 +1646,17 @@ pub(super) fn lower_slice_return_expression(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => {
+            if primitive_slice_from_raw_parts_call(call, context) {
+                let mut temporaries = TemporaryAllocator::new(context)?;
+                let mut instructions = lower_slice_from_raw_parts_primitive_call_to_location(
+                    call,
+                    SliceLocation::Return,
+                    context,
+                    &mut temporaries,
+                )?;
+                instructions.push(Instruction::Return);
+                return Ok(instructions);
+            }
             if primitive_bytes_from_str_call(call, context) {
                 let mut temporaries = TemporaryAllocator::new(context)?;
                 let mut instructions = lower_str_bytes_primitive_call_to_location(

@@ -422,6 +422,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::SetStr { .. }
             | Instruction::SetStrRawParts { .. }
             | Instruction::SetSlice { .. }
+            | Instruction::SetSliceRawParts { .. }
             | Instruction::AddI32 { .. }
             | Instruction::SubtractI32 { .. }
             | Instruction::MultiplyI32 { .. }

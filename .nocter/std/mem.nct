@@ -13,6 +13,8 @@ from std/error import Error
 from std/os/macos import syscall2, syscall6
 from std/ptr import addr
 from std/ptr import from_addr
+from std/ptr import slice_from_raw_parts
+from std/ptr import slice_from_raw_parts_mut
 
 pub copy struct Layout {
     pub size: usize
@@ -75,6 +77,14 @@ pub func alloc(
 pub func free(allocator: &+Allocator, buffer: RawBuffer): void {
     free_pages(addr(buffer.ptr), buffer.len)
     return
+}
+
+pub func RawBuffer.bytes(buffer: &RawBuffer): &[u8] {
+    return slice_from_raw_parts(buffer.ptr, buffer.len)
+}
+
+pub func RawBuffer.bytes_mut(buffer: &+RawBuffer): &+[u8] {
+    return slice_from_raw_parts_mut(buffer.ptr, buffer.len)
 }
 
 pub func out_of_memory(): error {

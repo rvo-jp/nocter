@@ -17520,6 +17520,49 @@ pub func store_nul(address: usize, offset: usize): void {
 }
 
 #[test]
+fn lowers_slice_from_raw_parts_call() {
+    let view = lower_imported_named_function_with_nocter_home_files(
+        r#"from std/ptr_slice import view_mut
+
+func main(): void {
+    return
+}
+"#,
+        "view_mut",
+        &[
+            (
+                "std/ptr.nct",
+                r#"pub(nocter) primitive from_addr<T>(address: usize): *T
+pub(nocter) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
+"#,
+            ),
+            (
+                "std/ptr_slice.nct",
+                r#"from std/ptr import from_addr
+from std/ptr import slice_from_raw_parts_mut
+
+pub func view_mut(address: usize, len: usize): &+[u8] {
+    return slice_from_raw_parts_mut(from_addr(address), len)
+}
+"#,
+            ),
+        ],
+    );
+
+    assert_eq!(
+        view.instructions,
+        vec![
+            Instruction::SetSliceRawParts {
+                destination: SliceLocation::Return,
+                pointer: UsizeValue::Location(UsizeLocation::Parameter(0)),
+                len: UsizeValue::Location(UsizeLocation::Parameter(1)),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_string_bytes_to_slice_view() {
     let bytes = lower_imported_named_function_with_nocter_home_files(
         r#"from std/string import bytes

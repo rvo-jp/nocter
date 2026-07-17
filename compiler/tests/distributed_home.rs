@@ -174,6 +174,14 @@ from std/string import bytes, capacity_overflow, empty, from_str, push_str, view
 func main(): i32 {
     return 0
 }
+
+func raw_buffer_view(buffer: &RawBuffer): &[u8] {
+    return RawBuffer.bytes(buffer)
+}
+
+func raw_buffer_view_mut(buffer: &+RawBuffer): &+[u8] {
+    return RawBuffer.bytes_mut(buffer)
+}
 "#,
     );
 
@@ -345,6 +353,42 @@ func main(): i32! {
         text(&output.stderr)
     );
     assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_io_file_read_raw_buffer_runs() {
+    let project = TempProject::new("distributed-home-io-file-read-raw-buffer-run");
+    fs::write(project.root().join("input.txt"), b"Read").unwrap();
+    let source = project.write_source(
+        "file_read_raw_buffer.nct",
+        r#"from std/io import File, stdout
+from std/mem import RawBuffer, alloc, free, page_allocator
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var buffer = alloc(&+allocator, 4, 1)?
+    var input = File.open("input.txt")?
+    let count: usize = input.read(RawBuffer.bytes_mut(&+buffer))?
+    var out = stdout()
+    out.write(RawBuffer.bytes(&buffer))?
+    free(&+allocator, move buffer)
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"Read");
     assert!(output.stderr.is_empty(), "expected empty stderr");
 }
 
@@ -552,6 +596,41 @@ fn distributed_ptr_store_u8_helper_is_not_public_api() {
     let source = project.write_source(
         "ptr_store_u8_private.nct",
         r#"from std/ptr import store_u8_to_ptr
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(
+        output.stdout.is_empty(),
+        "expected empty stdout, got:\n{}",
+        text(&output.stdout)
+    );
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("E0412") && stderr.contains("pub(nocter)"),
+        "expected pub(nocter) visibility diagnostic, got:\n{stderr}"
+    );
+}
+
+#[test]
+fn distributed_ptr_slice_raw_parts_helpers_are_not_public_api() {
+    let project = TempProject::new("distributed-home-ptr-slice-raw-parts-private");
+    let source = project.write_source(
+        "ptr_slice_raw_parts_private.nct",
+        r#"from std/ptr import slice_from_raw_parts
+from std/ptr import slice_from_raw_parts_mut
 
 func main(): i32 {
     return 0

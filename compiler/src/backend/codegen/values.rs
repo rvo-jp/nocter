@@ -971,6 +971,17 @@ impl EntryEmitter {
         self.emit_slice_value_to_x_pair(value, ptr_destination, len_destination)
     }
 
+    pub(super) fn emit_set_slice_raw_parts(
+        &mut self,
+        destination: SliceLocation,
+        pointer: &UsizeValue,
+        len: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_usize_value_to_x(pointer, XReg::X16)?;
+        self.emit_usize_value_to_x(len, XReg::X17)?;
+        self.emit_x_pair_to_slice_location(XReg::X16, XReg::X17, destination)
+    }
+
     pub(super) fn emit_add_i32(
         &mut self,
         destination: I32Location,

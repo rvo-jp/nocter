@@ -92,6 +92,11 @@ pub(crate) enum Instruction {
         destination: SliceLocation,
         value: SliceValue,
     },
+    SetSliceRawParts {
+        destination: SliceLocation,
+        pointer: UsizeValue,
+        len: UsizeValue,
+    },
     #[allow(dead_code)]
     ReserveAggregateSlot {
         slot_index: usize,
