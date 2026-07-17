@@ -2467,6 +2467,46 @@ fn build_command_reports_compile_diagnostics_without_output() {
 }
 
 #[test]
+fn build_command_reports_self_move_assignment_before_ir_lowering() {
+    let project = TempProject::new("cli-build-self-move-assignment");
+    let source = project.write_source(
+        "self_move_assignment.nct",
+        r#"struct File {
+    fd: i32
+}
+
+func main(): i32 {
+    var file = File{ fd: 1 }
+    file = move file
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0395]"),
+        "expected self-move assignment diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("7 |     file = move file"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E8008]"),
+        "self-move assignment should be rejected before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after compile diagnostics"
+    );
+}
+
+#[test]
 fn check_command_reports_source_snippet_for_compile_diagnostic() {
     let project = TempProject::new("cli-check-source-diagnostic");
     let source = project.write_source(

@@ -8,11 +8,11 @@ use super::controls::{
     check_for_range_bounds, check_if_condition, check_if_let_initializer, check_while_condition,
     check_while_let_initializer,
 };
-use super::copyability::implicit_non_copy_struct_identifier_source;
+use super::copyability::{implicit_non_copy_struct_identifier_source, non_copy_struct_type_name};
 use super::diagnostics::{
     assignment_type_mismatch_diagnostic, immutable_assignment_diagnostic,
     loop_control_outside_loop_diagnostic, non_copy_struct_assignment_diagnostic,
-    readwrite_borrow_requires_writable_place_diagnostic,
+    readwrite_borrow_requires_writable_place_diagnostic, self_move_assignment_diagnostic,
 };
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
@@ -36,7 +36,8 @@ use super::variants::{
     check_pattern_conditional_expression, check_switch_statement, is_enum_variant_call,
 };
 use crate::ast::{
-    AssignmentStmt, AstFile, Block, Expr, ImplDecl, ImplMember, InterpolatedStringPart, Item, Stmt,
+    AssignmentOperator, AssignmentStmt, AstFile, Block, Expr, ImplDecl, ImplMember,
+    InterpolatedStringPart, Item, Stmt, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
@@ -492,6 +493,19 @@ fn check_assignment_statement(
         return;
     }
 
+    if non_copy_struct_type_name(&target_type, resolved).is_some()
+        && let Some(target_name) = assignment_target_root_name(&statement.target)
+        && let Some(source_name) = assignment_move_source_name(statement)
+        && target_name == source_name
+    {
+        diagnostics.push(self_move_assignment_diagnostic(
+            sources,
+            statement,
+            target_name,
+        ));
+        return;
+    }
+
     if let Some((source_name, type_name)) =
         implicit_non_copy_struct_identifier_source(&statement.value, resolved, environment)
     {
@@ -504,12 +518,35 @@ fn check_assignment_statement(
     }
 }
 
+fn assignment_move_source_name(statement: &AssignmentStmt) -> Option<&str> {
+    if statement.operator != AssignmentOperator::Assign {
+        return None;
+    }
+    let Expr::Unary(unary) = unwrap_group(&statement.value) else {
+        return None;
+    };
+    if unary.operator != UnaryOperator::Move {
+        return None;
+    }
+    let Expr::Identifier(identifier) = unary.operand.as_ref() else {
+        return None;
+    };
+    Some(identifier.name.as_str())
+}
+
 fn assignment_target_root_name(expression: &Expr) -> Option<&str> {
     match expression {
         Expr::Identifier(identifier) => Some(identifier.name.as_str()),
         Expr::Member(member) => assignment_target_root_name(&member.object),
         Expr::Group(group) => assignment_target_root_name(&group.expression),
         _ => None,
+    }
+}
+
+fn unwrap_group(expression: &Expr) -> &Expr {
+    match expression {
+        Expr::Group(group) => unwrap_group(&group.expression),
+        _ => expression,
     }
 }
 

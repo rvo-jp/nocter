@@ -176,6 +176,28 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_self_move_assignment_from_non_copy_struct_binding() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    var target = Text{ start: 1, len: 2, capacity: 3 }
+    target = move target
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0395");
+    assert!(diagnostics[0].message.contains("target"));
+}
+
+#[test]
 fn accepts_assignment_from_copy_struct_binding() {
     let diagnostics = check_text(
         r#"copy struct Text {

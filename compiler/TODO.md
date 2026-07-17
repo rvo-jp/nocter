@@ -28,6 +28,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: reject aggregate self-move assignment in type checking
+  - diagnoses `target = move target` for non-copy struct bindings before IR lowering
+  - keeps valid `target = move source` aggregate reassignment buildable
+  - covers the build command path so self-move reports a source-backed typecheck diagnostic instead of an IR unsupported diagnostic
 - Current checkpoint: validate direct aggregate return metadata
   - checks direct aggregate function return and fallible success metadata before ARM64 emission
   - rejects direct aggregate return layouts that require more than two direct ABI words

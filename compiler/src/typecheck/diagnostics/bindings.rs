@@ -101,6 +101,24 @@ pub(in crate::typecheck) fn non_copy_struct_assignment_diagnostic(
     diagnostic
 }
 
+pub(in crate::typecheck) fn self_move_assignment_diagnostic(
+    sources: &SourceMap,
+    statement: &AssignmentStmt,
+    name: &str,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0395",
+        format!("cannot assign `{name}` from `move {name}`"),
+    );
+    diagnostic.primary_span = sources
+        .span_to_json(statement.value.span())
+        .ok()
+        .map(Box::new);
+    diagnostic.help =
+        Some("move from a different binding or construct a replacement value".to_string());
+    diagnostic
+}
+
 pub(in crate::typecheck) fn readwrite_borrow_requires_writable_place_diagnostic(
     sources: &SourceMap,
     expression: &BorrowExpr,
