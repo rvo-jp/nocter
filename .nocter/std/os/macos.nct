@@ -31,6 +31,37 @@ pub(nocter) func error_from_errno(error: Errno): OSError {
 }
 
 pub(nocter) func kind_from_errno(error: Errno): OSErrorKind {
+    // Darwin errno values used by the std syscall wrappers.
+    if error.code == 4 {
+        return OSErrorKind.interrupted
+    }
+    if error.code == 11 {
+        return OSErrorKind.would_block
+    }
+    if error.code == 2 {
+        return OSErrorKind.not_found
+    }
+    if error.code == 1 {
+        return OSErrorKind.permission_denied
+    }
+    if error.code == 13 {
+        return OSErrorKind.permission_denied
+    }
+    if error.code == 17 {
+        return OSErrorKind.already_exists
+    }
+    if error.code == 22 {
+        return OSErrorKind.invalid_input
+    }
+    if error.code == 32 {
+        return OSErrorKind.broken_pipe
+    }
+    if error.code == 60 {
+        return OSErrorKind.timed_out
+    }
+    if error.code == 45 {
+        return OSErrorKind.unsupported
+    }
     return OSErrorKind.unknown
 }
 
