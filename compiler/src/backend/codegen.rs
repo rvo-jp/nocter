@@ -62,8 +62,6 @@ impl EntryEmitter {
     }
 
     fn emit_module(&mut self, module: &IrModule, entry_name: &str) -> Result<(), Vec<Diagnostic>> {
-        validate_module_call_return_shapes(module)?;
-
         let Some(entry) = module
             .functions
             .iter()
@@ -74,6 +72,7 @@ impl EntryEmitter {
                 format!("codegen requires a lowered entry function `{entry_name}`"),
             )]);
         };
+        validate_module_call_return_shapes(module)?;
 
         self.emit_process_entry(entry)?;
 
