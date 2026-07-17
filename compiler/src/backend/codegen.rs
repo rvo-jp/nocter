@@ -47,6 +47,18 @@ struct LoopContext {
     break_branches: Vec<control_flow::BranchPatch>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct StaticErrorPayload {
+    code: &'static [u8],
+    message: &'static [u8],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct DarwinErrnoPayload {
+    errno: i32,
+    payload: StaticErrorPayload,
+}
+
 impl EntryEmitter {
     fn new() -> Self {
         Self {
@@ -957,12 +969,15 @@ impl EntryEmitter {
 
     fn emit_static_error_payload(
         &mut self,
-        code: &[u8],
-        message: &[u8],
+        payload: StaticErrorPayload,
     ) -> Result<(), Vec<Diagnostic>> {
-        self.emit_str_value_to_x_pair(&StrValue::StaticBytes(code.to_vec()), XReg::X1, XReg::X2)?;
         self.emit_str_value_to_x_pair(
-            &StrValue::StaticBytes(message.to_vec()),
+            &StrValue::StaticBytes(payload.code.to_vec()),
+            XReg::X1,
+            XReg::X2,
+        )?;
+        self.emit_str_value_to_x_pair(
+            &StrValue::StaticBytes(payload.message.to_vec()),
             XReg::X3,
             XReg::X4,
         )?;
@@ -970,17 +985,52 @@ impl EntryEmitter {
         Ok(())
     }
 
+    fn emit_error_payload_from_errno(
+        &mut self,
+        mappings: &[DarwinErrnoPayload],
+        fallback: StaticErrorPayload,
+        done_target_description: &str,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let mut done_branches = Vec::new();
+
+        for mapping in mappings {
+            emit_mov_i32_to_w(&mut self.encoder, WReg::W17, mapping.errno);
+            self.encoder.emit_cmp_w(WReg::W0, WReg::W17);
+            let next_mapping = self.emit_cond_branch_placeholder(BranchCondition::Ne);
+            self.emit_static_error_payload(mapping.payload)?;
+            done_branches.push(self.emit_branch_placeholder());
+            self.patch_branch_placeholder_to_current(
+                next_mapping,
+                "errno error payload next mapping target",
+            )?;
+        }
+
+        self.emit_static_error_payload(fallback)?;
+        self.patch_branch_placeholders_to_current(done_branches, done_target_description)
+    }
+
     fn emit_open_failure_payload_from_errno(&mut self) -> Result<(), Vec<Diagnostic>> {
-        emit_mov_i32_to_w(&mut self.encoder, WReg::W17, DARWIN_ENOENT);
-        self.encoder.emit_cmp_w(WReg::W0, WReg::W17);
-        let not_not_found = self.emit_cond_branch_placeholder(BranchCondition::Ne);
-        self.emit_static_error_payload(IO_NOT_FOUND_CODE, IO_NOT_FOUND_MESSAGE)?;
-        let done = self.emit_branch_placeholder();
+        self.emit_error_payload_from_errno(
+            OPEN_ERRNO_PAYLOADS,
+            OPEN_FAILURE_PAYLOAD,
+            "open failure payload end target",
+        )
+    }
 
-        self.patch_branch_placeholder_to_current(not_not_found, "open fallback failure target")?;
-        self.emit_static_error_payload(OPEN_FAILURE_CODE, OPEN_FAILURE_MESSAGE)?;
+    fn emit_read_failure_payload_from_errno(&mut self) -> Result<(), Vec<Diagnostic>> {
+        self.emit_error_payload_from_errno(
+            READ_ERRNO_PAYLOADS,
+            READ_FAILURE_PAYLOAD,
+            "read failure payload end target",
+        )
+    }
 
-        self.patch_branch_placeholder_to_current(done, "open failure payload end target")
+    fn emit_write_failure_payload_from_errno(&mut self) -> Result<(), Vec<Diagnostic>> {
+        self.emit_error_payload_from_errno(
+            WRITE_ERRNO_PAYLOADS,
+            WRITE_FAILURE_PAYLOAD,
+            "write failure payload end target",
+        )
     }
 
     pub(super) fn emit_indirect_return_pointer_to_x8(&mut self, frame: Option<&FrameLayout>) {
@@ -1025,17 +1075,7 @@ impl EntryEmitter {
         let end_branch = self.emit_branch_placeholder();
 
         self.patch_branch_placeholder_to_current(failure_branch, "write syscall failure target")?;
-        self.emit_str_value_to_x_pair(
-            &StrValue::StaticBytes(WRITE_FAILURE_CODE.to_vec()),
-            XReg::X1,
-            XReg::X2,
-        )?;
-        self.emit_str_value_to_x_pair(
-            &StrValue::StaticBytes(WRITE_FAILURE_MESSAGE.to_vec()),
-            XReg::X3,
-            XReg::X4,
-        )?;
-        emit_mov_i32_to_w0(&mut self.encoder, 1);
+        self.emit_write_failure_payload_from_errno()?;
 
         self.patch_branch_placeholder_to_current(end_branch, "write syscall end target")?;
         Ok(())
@@ -1066,17 +1106,7 @@ impl EntryEmitter {
         let end_branch = self.emit_branch_placeholder();
 
         self.patch_branch_placeholder_to_current(failure_branch, "write syscall failure target")?;
-        self.emit_str_value_to_x_pair(
-            &StrValue::StaticBytes(WRITE_FAILURE_CODE.to_vec()),
-            XReg::X1,
-            XReg::X2,
-        )?;
-        self.emit_str_value_to_x_pair(
-            &StrValue::StaticBytes(WRITE_FAILURE_MESSAGE.to_vec()),
-            XReg::X3,
-            XReg::X4,
-        )?;
-        emit_mov_i32_to_w0(&mut self.encoder, 1);
+        self.emit_write_failure_payload_from_errno()?;
 
         self.patch_branch_placeholder_to_current(end_branch, "write syscall end target")?;
         Ok(())
@@ -1111,17 +1141,7 @@ impl EntryEmitter {
         let normalized_branch = self.emit_branch_placeholder();
 
         self.patch_branch_placeholder_to_current(failure_branch, "read syscall failure target")?;
-        self.emit_str_value_to_x_pair(
-            &StrValue::StaticBytes(READ_FAILURE_CODE.to_vec()),
-            XReg::X1,
-            XReg::X2,
-        )?;
-        self.emit_str_value_to_x_pair(
-            &StrValue::StaticBytes(READ_FAILURE_MESSAGE.to_vec()),
-            XReg::X3,
-            XReg::X4,
-        )?;
-        emit_mov_i32_to_w0(&mut self.encoder, 1);
+        self.emit_read_failure_payload_from_errno()?;
 
         self.patch_branch_placeholder_to_current(normalized_branch, "read syscall result target")?;
         self.encoder.emit_cmp_x_zero(XReg::X0);
@@ -2098,14 +2118,120 @@ const STDERR_FILENO: u64 = 2;
 const FALLIBLE_REPORT_FRAME_SIZE: u32 = 32;
 const FALLIBLE_SUCCESS_PAYLOAD_REGISTER_COUNT: usize = 2;
 const DIRECT_AGGREGATE_REGISTER_WORD_COUNT: usize = 2;
-const WRITE_FAILURE_CODE: &[u8] = b"std.io.write_failed";
-const WRITE_FAILURE_MESSAGE: &[u8] = b"write failed";
-const READ_FAILURE_CODE: &[u8] = b"std.io.read_failed";
-const READ_FAILURE_MESSAGE: &[u8] = b"read failed";
-const OPEN_FAILURE_CODE: &[u8] = b"std.io.open_failed";
-const OPEN_FAILURE_MESSAGE: &[u8] = b"open failed";
-const IO_NOT_FOUND_CODE: &[u8] = b"std.io.not_found";
-const IO_NOT_FOUND_MESSAGE: &[u8] = b"file not found";
+const WRITE_FAILURE_PAYLOAD: StaticErrorPayload = StaticErrorPayload {
+    code: b"std.io.write_failed",
+    message: b"write failed",
+};
+const READ_FAILURE_PAYLOAD: StaticErrorPayload = StaticErrorPayload {
+    code: b"std.io.read_failed",
+    message: b"read failed",
+};
+const OPEN_FAILURE_PAYLOAD: StaticErrorPayload = StaticErrorPayload {
+    code: b"std.io.open_failed",
+    message: b"open failed",
+};
+const IO_INTERRUPTED_PAYLOAD: StaticErrorPayload = StaticErrorPayload {
+    code: b"std.io.interrupted",
+    message: b"operation interrupted",
+};
+const IO_WOULD_BLOCK_PAYLOAD: StaticErrorPayload = StaticErrorPayload {
+    code: b"std.io.would_block",
+    message: b"operation would block",
+};
+const IO_NOT_FOUND_PAYLOAD: StaticErrorPayload = StaticErrorPayload {
+    code: b"std.io.not_found",
+    message: b"file not found",
+};
+const IO_PERMISSION_DENIED_PAYLOAD: StaticErrorPayload = StaticErrorPayload {
+    code: b"std.io.permission_denied",
+    message: b"permission denied",
+};
+const IO_INVALID_INPUT_PAYLOAD: StaticErrorPayload = StaticErrorPayload {
+    code: b"std.io.invalid_input",
+    message: b"invalid I/O input",
+};
+const IO_BROKEN_PIPE_PAYLOAD: StaticErrorPayload = StaticErrorPayload {
+    code: b"std.io.broken_pipe",
+    message: b"broken pipe",
+};
+const OPEN_ERRNO_PAYLOADS: &[DarwinErrnoPayload] = &[
+    DarwinErrnoPayload {
+        errno: DARWIN_ENOENT,
+        payload: IO_NOT_FOUND_PAYLOAD,
+    },
+    DarwinErrnoPayload {
+        errno: DARWIN_ENOTDIR,
+        payload: IO_NOT_FOUND_PAYLOAD,
+    },
+    DarwinErrnoPayload {
+        errno: DARWIN_EPERM,
+        payload: IO_PERMISSION_DENIED_PAYLOAD,
+    },
+    DarwinErrnoPayload {
+        errno: DARWIN_EACCES,
+        payload: IO_PERMISSION_DENIED_PAYLOAD,
+    },
+    DarwinErrnoPayload {
+        errno: DARWIN_EFAULT,
+        payload: IO_INVALID_INPUT_PAYLOAD,
+    },
+    DarwinErrnoPayload {
+        errno: DARWIN_EINVAL,
+        payload: IO_INVALID_INPUT_PAYLOAD,
+    },
+];
+const READ_ERRNO_PAYLOADS: &[DarwinErrnoPayload] = &[
+    DarwinErrnoPayload {
+        errno: DARWIN_EINTR,
+        payload: IO_INTERRUPTED_PAYLOAD,
+    },
+    DarwinErrnoPayload {
+        errno: DARWIN_EAGAIN,
+        payload: IO_WOULD_BLOCK_PAYLOAD,
+    },
+    DarwinErrnoPayload {
+        errno: DARWIN_EBADF,
+        payload: IO_INVALID_INPUT_PAYLOAD,
+    },
+    DarwinErrnoPayload {
+        errno: DARWIN_EFAULT,
+        payload: IO_INVALID_INPUT_PAYLOAD,
+    },
+    DarwinErrnoPayload {
+        errno: DARWIN_EINVAL,
+        payload: IO_INVALID_INPUT_PAYLOAD,
+    },
+    DarwinErrnoPayload {
+        errno: DARWIN_EISDIR,
+        payload: IO_INVALID_INPUT_PAYLOAD,
+    },
+];
+const WRITE_ERRNO_PAYLOADS: &[DarwinErrnoPayload] = &[
+    DarwinErrnoPayload {
+        errno: DARWIN_EINTR,
+        payload: IO_INTERRUPTED_PAYLOAD,
+    },
+    DarwinErrnoPayload {
+        errno: DARWIN_EAGAIN,
+        payload: IO_WOULD_BLOCK_PAYLOAD,
+    },
+    DarwinErrnoPayload {
+        errno: DARWIN_EBADF,
+        payload: IO_INVALID_INPUT_PAYLOAD,
+    },
+    DarwinErrnoPayload {
+        errno: DARWIN_EFAULT,
+        payload: IO_INVALID_INPUT_PAYLOAD,
+    },
+    DarwinErrnoPayload {
+        errno: DARWIN_EINVAL,
+        payload: IO_INVALID_INPUT_PAYLOAD,
+    },
+    DarwinErrnoPayload {
+        errno: DARWIN_EPIPE,
+        payload: IO_BROKEN_PIPE_PAYLOAD,
+    },
+];
 const ADR_MIN_BYTE_OFFSET: i64 = -(1 << 20);
 const ADR_MAX_BYTE_OFFSET: i64 = (1 << 20) - 1;
 const BRANCH_MIN_BYTE_OFFSET: i64 = -(1 << 27);
@@ -2116,7 +2242,17 @@ const DARWIN_WRITE_SYSCALL: u32 = 0x0200_0004;
 const DARWIN_CLOSE_SYSCALL: u32 = 0x0200_0006;
 const DARWIN_EXIT_SYSCALL: u32 = 0x0200_0001;
 const DARWIN_SYSCALL_TRAP: u16 = 0x80;
+const DARWIN_EPERM: i32 = 1;
 const DARWIN_ENOENT: i32 = 2;
+const DARWIN_EINTR: i32 = 4;
+const DARWIN_EBADF: i32 = 9;
+const DARWIN_EACCES: i32 = 13;
+const DARWIN_EFAULT: i32 = 14;
+const DARWIN_ENOTDIR: i32 = 20;
+const DARWIN_EISDIR: i32 = 21;
+const DARWIN_EINVAL: i32 = 22;
+const DARWIN_EPIPE: i32 = 32;
+const DARWIN_EAGAIN: i32 = 35;
 const I32_BIT_WIDTH: i32 = 32;
 const USIZE_BIT_WIDTH: u64 = 64;
 

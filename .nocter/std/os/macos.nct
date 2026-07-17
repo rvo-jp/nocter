@@ -35,10 +35,13 @@ pub(nocter) func kind_from_errno(error: Errno): OSErrorKind {
     if error.code == 4 {
         return OSErrorKind.interrupted
     }
-    if error.code == 11 {
+    if error.code == 35 {
         return OSErrorKind.would_block
     }
     if error.code == 2 {
+        return OSErrorKind.not_found
+    }
+    if error.code == 20 {
         return OSErrorKind.not_found
     }
     if error.code == 1 {
@@ -49,6 +52,15 @@ pub(nocter) func kind_from_errno(error: Errno): OSErrorKind {
     }
     if error.code == 17 {
         return OSErrorKind.already_exists
+    }
+    if error.code == 9 {
+        return OSErrorKind.invalid_input
+    }
+    if error.code == 14 {
+        return OSErrorKind.invalid_input
+    }
+    if error.code == 21 {
+        return OSErrorKind.invalid_input
     }
     if error.code == 22 {
         return OSErrorKind.invalid_input

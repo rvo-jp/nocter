@@ -962,7 +962,126 @@ func main(): void! {
         let output = std::process::Command::new(&executable).output().unwrap();
         assert_eq!(output.status.code(), Some(1));
         assert!(output.stdout.is_empty());
-        assert_eq!(output.stderr, b"app.write: std.io.write_failed\n");
+        assert_eq!(output.stderr, b"app.write: std.io.invalid_input\n");
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
+    fn build_file_output_runs_write_bytes_raw_catch_failure() {
+        let root = make_temp_project("build-run-write-bytes-raw-catch-failure");
+        let nocter_home = make_nocter_home(&root);
+        write_std_error(&nocter_home);
+        fs::write(
+            nocter_home.join("std/string.nct"),
+            r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+
+pub func bytes(value: &str): &[u8] {
+    return bytes_from_str(value)
+}
+"#,
+        )
+        .unwrap();
+        fs::write(
+            nocter_home.join("std/io.nct"),
+            r#"from std/error import Error
+from std/string import bytes
+
+#target("arm64-darwin")
+pub(nocter) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
+
+pub func fail_write(): void! {
+    write_bytes_raw(-1, bytes("x")) catch error {
+        return Error.new("app.write", error.code)
+    }
+    return
+}
+"#,
+        )
+        .unwrap();
+        let source = root.join("write_bytes_catch_failure.nct");
+        fs::write(
+            &source,
+            r#"from std/io import fail_write
+
+func main(): void! {
+    fail_write()?
+}
+"#,
+        )
+        .unwrap();
+
+        let executable = default_executable_path(&source);
+        let output = build_file_to_path_with_options(
+            &source,
+            &executable,
+            &frontend_options(nocter_home),
+            DEFAULT_ENTRY_NAME,
+        );
+
+        assert_diagnostics_empty(&output.diagnostics);
+        assert_eq!(output.output_path, executable);
+        let output = std::process::Command::new(&executable).output().unwrap();
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        assert_eq!(output.stderr, b"app.write: std.io.invalid_input\n");
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
+    fn build_file_output_runs_read_bytes_raw_catch_failure() {
+        let root = make_temp_project("build-run-read-bytes-raw-catch-failure");
+        let nocter_home = make_nocter_home(&root);
+        write_std_error(&nocter_home);
+        fs::write(
+            nocter_home.join("std/ptr.nct"),
+            r#"pub(nocter) primitive from_addr<T>(address: usize): *T
+
+pub(nocter) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
+"#,
+        )
+        .unwrap();
+        fs::write(
+            nocter_home.join("std/io.nct"),
+            r#"from std/ptr import from_addr
+from std/ptr import slice_from_raw_parts_mut
+
+#target("arm64-darwin")
+pub(nocter) primitive read_bytes_raw(fd: i32, buffer: &+[u8]): usize!
+
+pub func fail_read(): usize! {
+    let buffer: &+[u8] = slice_from_raw_parts_mut(from_addr(1), 1)
+    return read_bytes_raw(-1, buffer)?
+}
+"#,
+        )
+        .unwrap();
+        let source = root.join("read_bytes_catch_failure.nct");
+        fs::write(
+            &source,
+            r#"from std/io import fail_read
+
+func main(): void! {
+    let count: usize = fail_read()?
+    return
+}
+"#,
+        )
+        .unwrap();
+
+        let executable = default_executable_path(&source);
+        let output = build_file_to_path_with_options(
+            &source,
+            &executable,
+            &frontend_options(nocter_home),
+            DEFAULT_ENTRY_NAME,
+        );
+
+        assert_diagnostics_empty(&output.diagnostics);
+        assert_eq!(output.output_path, executable);
+        let output = std::process::Command::new(&executable).output().unwrap();
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        assert_eq!(output.stderr, b"std.io.invalid_input: invalid I/O input\n");
     }
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
