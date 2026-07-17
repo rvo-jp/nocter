@@ -1822,9 +1822,17 @@ fn validate_aggregate_copy_destination_range(
             )
         }
         AggregateLocation::DirectReturn => {
-            if destination_offset != 0 {
+            if !matches!(destination_offset, 0 | AGGREGATE_USIZE_STORE_BYTES) {
                 return Err(aggregate_copy_diagnostic(
-                    "direct aggregate return range offset must be 0",
+                    "direct aggregate return range offset must be 0 or 8",
+                ));
+            }
+            let range_end = destination_offset.checked_add(layout_size).ok_or_else(|| {
+                aggregate_copy_diagnostic("direct aggregate return range end overflows")
+            })?;
+            if range_end > DIRECT_AGGREGATE_RETURN_BYTES {
+                return Err(aggregate_copy_diagnostic(
+                    "direct aggregate return range exceeds two ABI words",
                 ));
             }
             Ok(())
@@ -1920,3 +1928,4 @@ const AGGREGATE_USIZE_STORE_BYTES: u32 = 8;
 const AGGREGATE_I32_STORE_BYTES: u32 = 4;
 const AGGREGATE_U16_STORE_BYTES: u32 = 2;
 const AGGREGATE_U8_STORE_BYTES: u32 = 1;
+const DIRECT_AGGREGATE_RETURN_BYTES: u32 = AGGREGATE_USIZE_STORE_BYTES * 2;

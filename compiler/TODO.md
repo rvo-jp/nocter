@@ -30,6 +30,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: allow direct aggregate return range copies into x1
+  - permits `CopyAggregateRange` to target direct aggregate return offset 8 when the copied range fits inside the two direct return ABI words
+  - rejects direct return ranges that would extend past `x1` before code emission can reach an invalid offset
+  - covers the allowed second-word path and overflow rejection with backend unit tests
 - Current checkpoint: add usize formatting and tighten cwd API
   - adds `std/fmt.append_usize(out: &+String, value: usize): void!` implemented in ordinary Nocter using the existing `usize` arithmetic/runtime path
   - covers formatting `0`, a small value, and `usize::MAX` through distributed std native execution

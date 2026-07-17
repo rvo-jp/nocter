@@ -258,6 +258,7 @@ The backend currently supports the normal-call register and stack-argument porti
 
 - direct aggregate parameters, arguments, and returns up to 16 bytes, including partial final ABI words
 - indirect aggregate parameters, arguments, and returns larger than 16 bytes by pointer ABI word or caller-provided return storage
+- direct aggregate return range copies can target either direct return ABI word when the range stays within `x0,x1`; out-of-range direct return copies are rejected before emission
 - aggregate call-result slots for normal, propagated fallible, forced fallible, and caught fallible calls in the narrow expression positions lowered by IR
 - aggregate slot-to-slot copies, aggregate struct-literal slots including explicit aggregate field moves, aggregate copy bindings and copy aggregate field bindings from non-copy local or call-result owners, explicit aggregate move bindings, and aggregate slot borrow arguments for the current supported field and assignment paths
 - branch/body-local assignments, outer whole-binding scalar/view local assignments, aggregate slots, scope-end drops, supported returns, and supported `while`/`loop` `break`/`continue` cleanup for the narrow non-terminal `if`/`while`/`loop` subsets

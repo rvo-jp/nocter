@@ -4056,6 +4056,91 @@ mod tests {
     }
 
     #[test]
+    fn aggregate_range_copy_to_direct_return_second_word_is_allowed() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "make".to_string(),
+                target: crate::ir::CallTarget::same_file("make".to_string()),
+                return_type: Type::DirectAggregate {
+                    layout: ValueLayout::new(16, 8),
+                    words: 2,
+                },
+                instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(1, 1),
+                    },
+                    Instruction::StoreAggregateU8 {
+                        destination: AggregateLocation::Slot(0),
+                        offset: 0,
+                        value: U8Value::Const(42),
+                    },
+                    Instruction::CopyAggregateRange {
+                        destination: AggregateLocation::DirectReturn,
+                        destination_offset: 8,
+                        source: AggregateLocation::Slot(0),
+                        source_offset: 0,
+                        layout: ValueLayout::new(1, 1),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldrb_w_sp(WReg::W16, 0)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_mov_x(XReg::X1, XReg::X16)
+        ));
+    }
+
+    #[test]
+    fn aggregate_range_copy_to_direct_return_rejects_range_past_second_word() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::DirectAggregate {
+                layout: ValueLayout::new(16, 8),
+                words: 2,
+            },
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(9, 1),
+                },
+                Instruction::CopyAggregateRange {
+                    destination: AggregateLocation::DirectReturn,
+                    destination_offset: 8,
+                    source: AggregateLocation::Slot(0),
+                    source_offset: 0,
+                    layout: ValueLayout::new(9, 1),
+                },
+                Instruction::Return,
+            ],
+        }]);
+
+        let diagnostics = generate_arm64_darwin_entry(&module, "main").unwrap_err();
+
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("direct aggregate return range exceeds two ABI words"),
+            "{diagnostics:?}"
+        );
+    }
+
+    #[test]
     fn aggregate_copy_from_slot_to_slot_copies_words_between_stack_slots() {
         let layout = ValueLayout::new(24, 8);
         let module = IrModule::new(vec![Function {
