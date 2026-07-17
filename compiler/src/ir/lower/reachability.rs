@@ -95,11 +95,15 @@ fn collect_reachable_call_targets(
             Instruction::ReadSlice { failure_mode, .. } => {
                 collect_failure_mode_reachable_call_targets(failure_mode, targets);
             }
+            Instruction::OpenRead { failure_mode, .. } => {
+                collect_failure_mode_reachable_call_targets(failure_mode, targets);
+            }
             Instruction::WriteStr { .. }
             | Instruction::WriteSlice { .. }
             | Instruction::CloseFd { .. }
             | Instruction::DarwinSyscall { .. }
             | Instruction::CopyStrToPointer { .. }
+            | Instruction::StoreU8ToPointer { .. }
             | Instruction::ReserveAggregateSlot { .. }
             | Instruction::StoreAggregateUsize { .. }
             | Instruction::StoreAggregateI32 { .. }

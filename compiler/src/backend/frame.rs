@@ -411,9 +411,11 @@ fn instruction_clobbers_parameter_registers(instruction: &Instruction) -> bool {
         | Instruction::WriteStr { .. }
         | Instruction::WriteSlice { .. }
         | Instruction::ReadSlice { .. }
+        | Instruction::OpenRead { .. }
         | Instruction::CloseFd { .. }
         | Instruction::DarwinSyscall { .. }
-        | Instruction::CopyStrToPointer { .. } => true,
+        | Instruction::CopyStrToPointer { .. }
+        | Instruction::StoreU8ToPointer { .. } => true,
         Instruction::If {
             then_instructions,
             else_instructions,
@@ -526,9 +528,11 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::WriteStr { .. }
         | Instruction::WriteSlice { .. }
         | Instruction::ReadSlice { .. }
+        | Instruction::OpenRead { .. }
         | Instruction::CloseFd { .. }
         | Instruction::DarwinSyscall { .. }
-        | Instruction::CopyStrToPointer { .. } => true,
+        | Instruction::CopyStrToPointer { .. }
+        | Instruction::StoreU8ToPointer { .. } => true,
         Instruction::CopyAggregate {
             destination,
             source,
@@ -675,7 +679,8 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
             .map(ScalarArgument::abi_word_count)
             .sum::<usize>()
             .max(failure_mode_max_call_argument_count(failure_mode)),
-        Instruction::ReadSlice { failure_mode, .. } => {
+        Instruction::ReadSlice { failure_mode, .. }
+        | Instruction::OpenRead { failure_mode, .. } => {
             failure_mode_max_call_argument_count(failure_mode)
         }
         Instruction::If {
@@ -703,6 +708,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::WriteSlice { .. }
         | Instruction::CloseFd { .. }
         | Instruction::CopyStrToPointer { .. }
+        | Instruction::StoreU8ToPointer { .. }
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::StoreAggregateUsize { .. }
         | Instruction::StoreAggregateI32 { .. }
@@ -807,6 +813,7 @@ fn record_instruction_aggregate_slot_requests(
         | Instruction::CallFallibleAggregate { failure_mode, .. }
         | Instruction::CallFallibleVoid { failure_mode, .. }
         | Instruction::ReadSlice { failure_mode, .. }
+        | Instruction::OpenRead { failure_mode, .. }
         | Instruction::CheckFailure { failure_mode } => {
             record_failure_mode_aggregate_slot_requests(failure_mode, requests)
         }
@@ -819,6 +826,7 @@ fn record_instruction_aggregate_slot_requests(
         | Instruction::CloseFd { .. }
         | Instruction::DarwinSyscall { .. }
         | Instruction::CopyStrToPointer { .. }
+        | Instruction::StoreU8ToPointer { .. }
         | Instruction::SetI32 { .. }
         | Instruction::SetStrRawParts { .. }
         | Instruction::StoreAggregateUsize { .. }
@@ -1095,6 +1103,18 @@ fn record_instruction_parameter_spill_requests(
                 include_value_parameters,
             );
         }
+        Instruction::OpenRead {
+            path, failure_mode, ..
+        } => {
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(path, requests);
+            }
+            record_failure_mode_parameter_spill_requests(
+                failure_mode,
+                requests,
+                include_value_parameters,
+            );
+        }
         Instruction::CloseFd { fd } => {
             if include_value_parameters {
                 record_i32_value_parameter_spill_requests(fd, requests);
@@ -1119,6 +1139,17 @@ fn record_instruction_parameter_spill_requests(
                 record_usize_value_parameter_spill_requests(pointer, requests);
                 record_usize_value_parameter_spill_requests(offset, requests);
                 record_str_value_parameter_spill_requests(text, requests);
+            }
+        }
+        Instruction::StoreU8ToPointer {
+            pointer,
+            offset,
+            value,
+        } => {
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(pointer, requests);
+                record_usize_value_parameter_spill_requests(offset, requests);
+                record_u8_value_parameter_spill_requests(value, requests);
             }
         }
         Instruction::StoreAggregateUsize {
@@ -1628,6 +1659,15 @@ fn record_instruction_scalar_locals(
             record_slice_value(buffer, highest_local_index);
             record_failure_mode_scalar_locals(failure_mode, highest_local_index);
         }
+        Instruction::OpenRead {
+            destination,
+            path,
+            failure_mode,
+        } => {
+            record_i32_location(*destination, highest_local_index);
+            record_usize_value(path, highest_local_index);
+            record_failure_mode_scalar_locals(failure_mode, highest_local_index);
+        }
         Instruction::CloseFd { fd } => {
             record_i32_value(fd, highest_local_index);
         }
@@ -1647,6 +1687,15 @@ fn record_instruction_scalar_locals(
             record_usize_value(pointer, highest_local_index);
             record_usize_value(offset, highest_local_index);
             record_str_value(text, highest_local_index);
+        }
+        Instruction::StoreU8ToPointer {
+            pointer,
+            offset,
+            value,
+        } => {
+            record_usize_value(pointer, highest_local_index);
+            record_usize_value(offset, highest_local_index);
+            record_u8_value(value, highest_local_index);
         }
         Instruction::TailCall { arguments, .. } => {
             for argument in arguments {

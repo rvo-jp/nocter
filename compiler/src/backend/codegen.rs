@@ -2,8 +2,8 @@ use crate::abi::ReturnPassing;
 use crate::backend::frame::{FrameLayout, FunctionFrame, plan_function_frame};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    CallTarget, DirectAggregateArgument, FallibleFailureMode, Function, I32Value, Instruction,
-    IrModule, ScalarArgument, SliceValue, StrValue, Type, UsizeLocation,
+    CallTarget, DirectAggregateArgument, FallibleFailureMode, Function, I32Location, I32Value,
+    Instruction, IrModule, ScalarArgument, SliceValue, StrValue, Type, UsizeLocation, UsizeValue,
 };
 use crate::target::arm64::{BranchCondition, Encoder, MoveWideShift, WReg, XReg};
 use std::collections::HashMap;
@@ -165,6 +165,13 @@ impl EntryEmitter {
             } => {
                 self.emit_read_slice(*destination, fd, buffer, failure_mode, frame, return_type)?;
             }
+            Instruction::OpenRead {
+                destination,
+                path,
+                failure_mode,
+            } => {
+                self.emit_open_read(*destination, path, failure_mode, frame, return_type)?;
+            }
             Instruction::CloseFd { fd } => {
                 self.emit_close_fd(fd, frame)?;
             }
@@ -287,6 +294,13 @@ impl EntryEmitter {
                 text,
             } => {
                 self.emit_copy_str_to_pointer(pointer, offset, text, frame)?;
+            }
+            Instruction::StoreU8ToPointer {
+                pointer,
+                offset,
+                value,
+            } => {
+                self.emit_store_u8_to_pointer(pointer, offset, value, frame)?;
             }
             Instruction::AddI32 {
                 destination,
@@ -1084,6 +1098,55 @@ impl EntryEmitter {
         self.emit_x_to_usize_location(XReg::X16, destination)
     }
 
+    fn emit_open_read(
+        &mut self,
+        destination: I32Location,
+        path: &UsizeValue,
+        failure_mode: &FallibleFailureMode,
+        frame: Option<&FrameLayout>,
+        return_type: &Type,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "file open emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_usize_value_to_x(path, XReg::X0)?;
+        emit_mov_u64_to_x(&mut self.encoder, XReg::X1, 0);
+        emit_mov_u64_to_x(&mut self.encoder, XReg::X2, 0);
+        emit_darwin_open_syscall(&mut self.encoder);
+
+        let failure_branch = self.emit_cond_branch_placeholder(BranchCondition::Cs);
+        self.encoder.emit_mov_w(WReg::W1, WReg::W0);
+        emit_mov_i32_to_w0(&mut self.encoder, 0);
+        let normalized_branch = self.emit_branch_placeholder();
+
+        self.patch_branch_placeholder_to_current(failure_branch, "open syscall failure target")?;
+        self.emit_str_value_to_x_pair(
+            &StrValue::StaticBytes(OPEN_FAILURE_CODE.to_vec()),
+            XReg::X1,
+            XReg::X2,
+        )?;
+        self.emit_str_value_to_x_pair(
+            &StrValue::StaticBytes(OPEN_FAILURE_MESSAGE.to_vec()),
+            XReg::X3,
+            XReg::X4,
+        )?;
+        emit_mov_i32_to_w0(&mut self.encoder, 1);
+
+        self.patch_branch_placeholder_to_current(normalized_branch, "open syscall result target")?;
+        self.encoder.emit_cmp_x_zero(XReg::X0);
+        let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+        self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
+        self.patch_branch_placeholder_to_current(success_branch, "open syscall success target")?;
+        self.encoder.emit_mov_w(WReg::W16, WReg::W1);
+        self.emit_scalar_reloads(frame)?;
+        self.emit_w_to_i32_location(WReg::W16, destination)
+    }
+
     fn emit_close_fd(
         &mut self,
         fd: &I32Value,
@@ -1442,6 +1505,14 @@ fn validate_instruction_list_call_return_shapes(
                 );
             }
             Instruction::ReadSlice { failure_mode, .. } => {
+                validate_failure_mode_call_return_shapes(
+                    failure_mode,
+                    current_return_type,
+                    return_types,
+                    diagnostics,
+                );
+            }
+            Instruction::OpenRead { failure_mode, .. } => {
                 validate_failure_mode_call_return_shapes(
                     failure_mode,
                     current_return_type,
@@ -1983,6 +2054,11 @@ fn emit_darwin_read_syscall(encoder: &mut Encoder) {
     encoder.emit_svc(DARWIN_SYSCALL_TRAP);
 }
 
+fn emit_darwin_open_syscall(encoder: &mut Encoder) {
+    emit_mov_u32_to_w(encoder, WReg::W16, DARWIN_OPEN_SYSCALL);
+    encoder.emit_svc(DARWIN_SYSCALL_TRAP);
+}
+
 fn emit_darwin_close_syscall(encoder: &mut Encoder) {
     emit_mov_u32_to_w(encoder, WReg::W16, DARWIN_CLOSE_SYSCALL);
     encoder.emit_svc(DARWIN_SYSCALL_TRAP);
@@ -2001,11 +2077,14 @@ const WRITE_FAILURE_CODE: &[u8] = b"std.io.write_failed";
 const WRITE_FAILURE_MESSAGE: &[u8] = b"write failed";
 const READ_FAILURE_CODE: &[u8] = b"std.io.read_failed";
 const READ_FAILURE_MESSAGE: &[u8] = b"read failed";
+const OPEN_FAILURE_CODE: &[u8] = b"std.io.open_failed";
+const OPEN_FAILURE_MESSAGE: &[u8] = b"open failed";
 const ADR_MIN_BYTE_OFFSET: i64 = -(1 << 20);
 const ADR_MAX_BYTE_OFFSET: i64 = (1 << 20) - 1;
 const BRANCH_MIN_BYTE_OFFSET: i64 = -(1 << 27);
 const BRANCH_MAX_BYTE_OFFSET: i64 = (1 << 27) - 4;
 const DARWIN_READ_SYSCALL: u32 = 0x0200_0003;
+const DARWIN_OPEN_SYSCALL: u32 = 0x0200_0005;
 const DARWIN_WRITE_SYSCALL: u32 = 0x0200_0004;
 const DARWIN_CLOSE_SYSCALL: u32 = 0x0200_0006;
 const DARWIN_EXIT_SYSCALL: u32 = 0x0200_0001;
@@ -3118,6 +3197,56 @@ mod tests {
             &code.text,
             encoded_str_x_imm(XReg::X16, XReg::X8, 8)
         ));
+    }
+
+    #[test]
+    fn pointer_u8_store_uses_byte_store() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::StoreU8ToPointer {
+                    pointer: UsizeValue::Const(4096),
+                    offset: UsizeValue::Const(4),
+                    value: U8Value::Const(0),
+                },
+                set_return_i32(0),
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_strb_w_imm(WReg::W2, XReg::X0, 0)
+        ));
+    }
+
+    #[test]
+    fn open_read_uses_open_syscall() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![
+                Instruction::OpenRead {
+                    destination: I32Location::Return,
+                    path: UsizeValue::Const(4096),
+                    failure_mode: FallibleFailureMode::Trap,
+                },
+                Instruction::ReturnFallibleSuccess,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_bytes(
+            &code.text,
+            &encoded_mov_u32_to_w(WReg::W16, DARWIN_OPEN_SYSCALL)
+        ));
+        assert!(contains_instruction(&code.text, [0x01, 0x10, 0x00, 0xd4])); // svc #0x80
     }
 
     #[test]
@@ -5431,6 +5560,16 @@ mod tests {
 
     fn contains_instruction(text: &[u8], instruction: [u8; 4]) -> bool {
         text.windows(4).any(|window| window == instruction)
+    }
+
+    fn contains_bytes(text: &[u8], bytes: &[u8]) -> bool {
+        text.windows(bytes.len()).any(|window| window == bytes)
+    }
+
+    fn encoded_mov_u32_to_w(register: WReg, value: u32) -> Vec<u8> {
+        let mut encoder = Encoder::new();
+        emit_mov_u32_to_w(&mut encoder, register, value);
+        encoder.finish()
     }
 
     fn encoded_ldr_x_sp(register: XReg, offset: u32) -> [u8; 4] {

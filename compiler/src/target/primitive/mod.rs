@@ -200,6 +200,20 @@ const PTR_COPY_STR_TO_PTR_PARAMETERS: &[PrimitiveParameterSpec] = &[
         ty: "&str",
     },
 ];
+const PTR_STORE_U8_TO_PTR_PARAMETERS: &[PrimitiveParameterSpec] = &[
+    PrimitiveParameterSpec {
+        name: "destination",
+        ty: "*u8",
+    },
+    PrimitiveParameterSpec {
+        name: "offset",
+        ty: "usize",
+    },
+    PrimitiveParameterSpec {
+        name: "value",
+        ty: "u8",
+    },
+];
 const PTR_STR_FROM_RAW_PARTS_PARAMETERS: &[PrimitiveParameterSpec] = &[
     PrimitiveParameterSpec {
         name: "pointer",
@@ -348,6 +362,10 @@ const WRITE_TEXT_RAW_PARAMETERS: &[PrimitiveParameterSpec] = &[
         ty: "&str",
     },
 ];
+const OPEN_READ_RAW_PARAMETERS: &[PrimitiveParameterSpec] = &[PrimitiveParameterSpec {
+    name: "path",
+    ty: "*u8",
+}];
 const WRITE_BYTES_RAW_PARAMETERS: &[PrimitiveParameterSpec] = &[
     PrimitiveParameterSpec {
         name: "fd",
@@ -427,6 +445,15 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             name: "copy_str_to_ptr",
             generics: &[],
             parameters: PTR_COPY_STR_TO_PTR_PARAMETERS,
+            return_type: "void",
+        },
+        PrimitiveSpec {
+            module_path: "std/ptr",
+            target: None,
+            visibility: Visibility::Nocter,
+            name: "store_u8_to_ptr",
+            generics: &[],
+            parameters: PTR_STORE_U8_TO_PTR_PARAMETERS,
             return_type: "void",
         },
         PrimitiveSpec {
@@ -527,6 +554,15 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             generics: &[],
             parameters: &[],
             return_type: "never",
+        },
+        PrimitiveSpec {
+            module_path: "std/io",
+            target: Some("arm64-darwin"),
+            visibility: Visibility::Nocter,
+            name: "open_read_raw",
+            generics: &[],
+            parameters: OPEN_READ_RAW_PARAMETERS,
+            return_type: "i32!",
         },
         PrimitiveSpec {
             module_path: "std/io",

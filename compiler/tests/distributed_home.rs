@@ -319,6 +319,35 @@ func read_into(buffer: &+[u8]): usize! {
     assert_success(&output);
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_io_file_open_runs() {
+    let project = TempProject::new("distributed-home-io-file-open-run");
+    fs::write(project.root().join("input.txt"), b"open me").unwrap();
+    let source = project.write_source(
+        "file_open.nct",
+        r#"from std/io import File
+
+func main(): i32! {
+    var input = File.open("input.txt")?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
 #[test]
 fn distributed_io_file_write_bytes_builds_to_macho() {
     let project = TempProject::new("distributed-home-file-write-bytes-build");
@@ -489,6 +518,74 @@ fn distributed_io_read_raw_helper_is_not_public_api() {
     let source = project.write_source(
         "io_read_raw_private.nct",
         r#"from std/io import read_bytes_raw
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(
+        output.stdout.is_empty(),
+        "expected empty stdout, got:\n{}",
+        text(&output.stdout)
+    );
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("E0412") && stderr.contains("pub(nocter)"),
+        "expected pub(nocter) visibility diagnostic, got:\n{stderr}"
+    );
+}
+
+#[test]
+fn distributed_ptr_store_u8_helper_is_not_public_api() {
+    let project = TempProject::new("distributed-home-ptr-store-u8-private");
+    let source = project.write_source(
+        "ptr_store_u8_private.nct",
+        r#"from std/ptr import store_u8_to_ptr
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(
+        output.stdout.is_empty(),
+        "expected empty stdout, got:\n{}",
+        text(&output.stdout)
+    );
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("E0412") && stderr.contains("pub(nocter)"),
+        "expected pub(nocter) visibility diagnostic, got:\n{stderr}"
+    );
+}
+
+#[test]
+fn distributed_io_open_raw_helper_is_not_public_api() {
+    let project = TempProject::new("distributed-home-io-open-raw-private");
+    let source = project.write_source(
+        "io_open_raw_private.nct",
+        r#"from std/io import open_read_raw
 
 func main(): i32 {
     return 0

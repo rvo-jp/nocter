@@ -396,9 +396,11 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             Instruction::WriteStr { .. }
             | Instruction::WriteSlice { .. }
             | Instruction::ReadSlice { .. }
+            | Instruction::OpenRead { .. }
             | Instruction::CloseFd { .. }
             | Instruction::DarwinSyscall { .. }
             | Instruction::CopyStrToPointer { .. }
+            | Instruction::StoreU8ToPointer { .. }
             | Instruction::ReserveAggregateSlot { .. }
             | Instruction::StoreAggregateUsize { .. }
             | Instruction::StoreAggregateI32 { .. }

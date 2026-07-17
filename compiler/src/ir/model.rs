@@ -55,6 +55,11 @@ pub(crate) enum Instruction {
         buffer: SliceValue,
         failure_mode: FallibleFailureMode,
     },
+    OpenRead {
+        destination: I32Location,
+        path: UsizeValue,
+        failure_mode: FallibleFailureMode,
+    },
     CloseFd {
         fd: I32Value,
     },
@@ -163,6 +168,11 @@ pub(crate) enum Instruction {
         pointer: UsizeValue,
         offset: UsizeValue,
         text: StrValue,
+    },
+    StoreU8ToPointer {
+        pointer: UsizeValue,
+        offset: UsizeValue,
+        value: U8Value,
     },
     AddI32 {
         destination: I32Location,

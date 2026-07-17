@@ -1315,6 +1315,29 @@ impl EntryEmitter {
         self.emit_scalar_reloads(frame)
     }
 
+    pub(super) fn emit_store_u8_to_pointer(
+        &mut self,
+        pointer: &UsizeValue,
+        offset: &UsizeValue,
+        value: &U8Value,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "pointer byte store emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_usize_value_to_x(pointer, XReg::X0)?;
+        self.emit_usize_value_to_x(offset, XReg::X1)?;
+        self.encoder.emit_adds_x(XReg::X0, XReg::X0, XReg::X1);
+        self.emit_u8_value_to_w(value, WReg::W2)?;
+        self.encoder.emit_strb_w_imm(WReg::W2, XReg::X0, 0);
+        self.emit_scalar_reloads(frame)
+    }
+
     fn emit_i32_overflow_check(&mut self, target_description: &str) -> Result<(), Vec<Diagnostic>> {
         let no_overflow = self.emit_cond_branch_placeholder(BranchCondition::Vc);
         self.emit_trap();

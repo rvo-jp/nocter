@@ -1064,7 +1064,7 @@ impl EntryEmitter {
         self.emit_w_to_i32_location(WReg::W0, destination)
     }
 
-    fn emit_w_to_i32_location(
+    pub(super) fn emit_w_to_i32_location(
         &mut self,
         source: WReg,
         destination: I32Location,

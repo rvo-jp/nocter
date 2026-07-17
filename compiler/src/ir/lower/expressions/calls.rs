@@ -52,6 +52,16 @@ pub(super) fn lower_fallible_i32_normal_call(
     temporaries: &mut TemporaryAllocator,
     failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if primitive_open_read_raw_call(call, context) {
+        return lower_open_read_raw_primitive_call(
+            call,
+            destination,
+            context,
+            temporaries,
+            failure_mode,
+        );
+    }
+
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_non_tail_call_diagnostic());
     };
@@ -1758,6 +1768,10 @@ pub(super) fn primitive_write_text_raw_call(call: &CallExpr, context: &LoweringC
     )
 }
 
+pub(super) fn primitive_open_read_raw_call(call: &CallExpr, context: &LoweringContext) -> bool {
+    matches!(context.primitive_name_for_call(call), Some("open_read_raw"))
+}
+
 pub(super) fn primitive_write_bytes_raw_call(call: &CallExpr, context: &LoweringContext) -> bool {
     matches!(
         context.primitive_name_for_call(call),
@@ -1791,6 +1805,13 @@ pub(super) fn primitive_copy_str_to_ptr_call(call: &CallExpr, context: &Lowering
     matches!(
         context.primitive_name_for_call(call),
         Some("copy_str_to_ptr")
+    )
+}
+
+pub(super) fn primitive_store_u8_to_ptr_call(call: &CallExpr, context: &LoweringContext) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("store_u8_to_ptr")
     )
 }
 
@@ -1838,6 +1859,31 @@ pub(super) fn lower_copy_str_to_ptr_primitive_call(
         pointer,
         offset: offset.value,
         text: text.value,
+    });
+    Ok(instructions)
+}
+
+pub(super) fn lower_store_u8_to_ptr_primitive_call(
+    call: &CallExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if call.arguments.len() != 3 {
+        return Err(unsupported_pointer_primitive_diagnostic(
+            "`store_u8_to_ptr` requires arguments `(destination: *u8, offset: usize, value: u8)`",
+        ));
+    }
+
+    let (mut instructions, pointer) =
+        lower_pointer_address_expression_to_word(&call.arguments[0], context, temporaries)?;
+    let offset = lower_usize_expression_to_value(&call.arguments[1], context, temporaries)?;
+    instructions.extend(offset.instructions);
+    let value = lower_u8_expression_to_value(&call.arguments[2], context, temporaries)?;
+    instructions.extend(value.instructions);
+    instructions.push(Instruction::StoreU8ToPointer {
+        pointer,
+        offset: offset.value,
+        value: value.value,
     });
     Ok(instructions)
 }
@@ -1933,6 +1979,30 @@ fn lower_read_bytes_raw_primitive_call(
         destination,
         fd: fd.value,
         buffer: buffer.value,
+        failure_mode,
+    });
+    Ok(instructions)
+}
+
+fn lower_open_read_raw_primitive_call(
+    call: &CallExpr,
+    destination: I32Location,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+    failure_mode: FallibleFailureMode,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if call.arguments.len() != 1 {
+        return Err(vec![Diagnostic::error(
+            "E8006",
+            "IR v0 can only lower primitive `open_read_raw` with argument `(*u8)`",
+        )]);
+    }
+
+    let (mut instructions, path) =
+        lower_pointer_address_expression_to_word(&call.arguments[0], context, temporaries)?;
+    instructions.push(Instruction::OpenRead {
+        destination,
+        path,
         failure_mode,
     });
     Ok(instructions)

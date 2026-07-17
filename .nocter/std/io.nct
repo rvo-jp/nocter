@@ -5,7 +5,15 @@
 //! results and errno wrappers stay behind `#target`-gated std internals.
 
 from std/error import Error
+from std/mem import alloc_pages
+from std/mem import free_pages
 from std/os import OSError
+from std/ptr import copy_str_to_ptr
+from std/ptr import from_addr
+from std/ptr import store_u8_to_ptr
+
+#target("arm64-darwin")
+pub(nocter) primitive open_read_raw(path: *u8): i32!
 
 #target("arm64-darwin")
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
@@ -31,7 +39,17 @@ pub(nocter) func stderr_fd(): i32 {
 
 #target("arm64-darwin")
 pub(nocter) func open_read_fd(path: &str): i32! {
-    return Error.new("std.io.unsupported", "file open is not implemented")
+    let allocation_size: usize = path.len() + 1
+    let address: usize = alloc_pages(allocation_size)?
+    copy_str_to_ptr(from_addr(address), 0, path)
+    store_u8_to_ptr(from_addr(address), allocation_size - 1, 0)
+
+    let fd = open_read_raw(from_addr(address)) catch error {
+        free_pages(address, allocation_size)
+        return Error.new(error.code, error.message)
+    }
+    free_pages(address, allocation_size)
+    return fd
 }
 
 #target("arm64-darwin")

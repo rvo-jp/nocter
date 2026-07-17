@@ -17392,6 +17392,54 @@ pub func read_count(buffer: &+[u8]): usize! {
 }
 
 #[test]
+fn lowers_fallible_open_read_raw_propagation() {
+    let open = lower_imported_named_function_with_nocter_home_files(
+        r#"from std/io_open import open_raw
+
+func main(): void {
+    return
+}
+"#,
+        "open_raw",
+        &[
+            (
+                "std/io.nct",
+                r#"#target("arm64-darwin")
+pub(nocter) primitive open_read_raw(path: *u8): i32!
+"#,
+            ),
+            (
+                "std/ptr.nct",
+                r#"pub(nocter) primitive from_addr<T>(address: usize): *T
+"#,
+            ),
+            (
+                "std/io_open.nct",
+                r#"from std/io import open_read_raw
+from std/ptr import from_addr
+
+pub func open_raw(address: usize): i32! {
+    return open_read_raw(from_addr(address))?
+}
+"#,
+            ),
+        ],
+    );
+
+    assert_eq!(
+        open.instructions,
+        vec![
+            Instruction::OpenRead {
+                destination: I32Location::Return,
+                path: UsizeValue::Location(UsizeLocation::Parameter(0)),
+                failure_mode: FallibleFailureMode::Propagate,
+            },
+            Instruction::ReturnFallibleSuccess,
+        ]
+    );
+}
+
+#[test]
 fn lowers_close_fd_raw_call() {
     let close = lower_imported_named_function_with_nocter_home_files(
         r#"from std/io_close import close_raw
@@ -17421,6 +17469,50 @@ pub func close_raw(fd: i32): void {
         vec![
             Instruction::CloseFd {
                 fd: I32Value::Location(I32Location::Parameter(0)),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
+fn lowers_store_u8_to_ptr_call() {
+    let store = lower_imported_named_function_with_nocter_home_files(
+        r#"from std/ptr_store import store_nul
+
+func main(): void {
+    return
+}
+"#,
+        "store_nul",
+        &[
+            (
+                "std/ptr.nct",
+                r#"pub(nocter) primitive from_addr<T>(address: usize): *T
+pub(nocter) primitive store_u8_to_ptr(destination: *u8, offset: usize, value: u8): void
+"#,
+            ),
+            (
+                "std/ptr_store.nct",
+                r#"from std/ptr import from_addr
+from std/ptr import store_u8_to_ptr
+
+pub func store_nul(address: usize, offset: usize): void {
+    store_u8_to_ptr(from_addr(address), offset, 0)
+    return
+}
+"#,
+            ),
+        ],
+    );
+
+    assert_eq!(
+        store.instructions,
+        vec![
+            Instruction::StoreU8ToPointer {
+                pointer: UsizeValue::Location(UsizeLocation::Parameter(0)),
+                offset: UsizeValue::Location(UsizeLocation::Parameter(1)),
+                value: U8Value::Const(0),
             },
             Instruction::Return,
         ]
