@@ -897,6 +897,9 @@ impl EntryEmitter {
         self.encoder.emit_sub_sp_imm(frame.frame_size());
         self.encoder
             .emit_str_x_sp(XReg::X30, frame.saved_x30_offset());
+        if let Some(offset) = frame.indirect_return_pointer_offset() {
+            self.encoder.emit_str_x_sp(XReg::X8, offset);
+        }
         for slot in frame.parameter_spill_slots() {
             self.emit_unspilled_parameter_word_to_x(slot.parameter_index(), XReg::X16)?;
             self.encoder.emit_str_x_sp(XReg::X16, slot.offset());
@@ -915,6 +918,12 @@ impl EntryEmitter {
             self.emit_epilogue(frame);
         }
         self.encoder.emit_ret();
+    }
+
+    pub(super) fn emit_indirect_return_pointer_to_x8(&mut self, frame: Option<&FrameLayout>) {
+        if let Some(offset) = frame.and_then(FrameLayout::indirect_return_pointer_offset) {
+            self.encoder.emit_ldr_x_sp(XReg::X8, offset);
+        }
     }
 
     fn emit_write_static_stderr(&mut self, bytes: &[u8]) {
@@ -2849,7 +2858,7 @@ mod tests {
     }
 
     #[test]
-    fn aggregate_return_call_keeps_existing_x8_destination() {
+    fn aggregate_return_call_restores_saved_x8_destination() {
         let module = IrModule::new(vec![
             Function {
                 name: "main".to_string(),
@@ -2892,6 +2901,14 @@ mod tests {
         let code = generate_arm64_darwin_entry(&module, "main").unwrap();
 
         assert!(!contains_instruction(&code.text, [0xe8, 0x03, 0x00, 0x91])); // add x8, sp, #0
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_x_sp(XReg::X8, 0)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_sp(XReg::X8, 0)
+        ));
         assert!(contains_instruction(&code.text, [0x10, 0x09, 0x00, 0xf9])); // str x16, [x8, #16]
     }
 
@@ -3573,7 +3590,18 @@ mod tests {
 
         let code = generate_arm64_darwin_entry(&module, "main").unwrap();
 
-        assert!(contains_instruction(&code.text, [0xf0, 0x03, 0x40, 0xf9])); // ldr x16, [sp, #0]
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_sp(XReg::X8, 0)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_x_sp(XReg::X8, 0)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_sp(XReg::X16, 8)
+        ));
         assert!(contains_instruction(&code.text, [0x10, 0x01, 0x00, 0xf9])); // str x16, [x8, #0]
         assert!(contains_instruction(&code.text, [0x10, 0x09, 0x00, 0xf9])); // str x16, [x8, #16]
     }
@@ -3969,7 +3997,11 @@ mod tests {
 
         let code = generate_arm64_darwin_entry(&module, "main").unwrap();
 
-        assert!(contains_instruction(&code.text, [0xe8, 0x03, 0x00, 0x91])); // add x8, sp, #0
+        assert!(contains_instruction(&code.text, [0xe8, 0x23, 0x00, 0x91])); // add x8, sp, #8
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_sp(XReg::X8, 0)
+        ));
         assert!(contains_instruction(&code.text, [0x1f, 0x00, 0x1f, 0xeb])); // cmp x0, xzr
         assert!(contains_instruction(&code.text, [0x10, 0x01, 0x00, 0xf9])); // str x16, [x8, #0]
     }

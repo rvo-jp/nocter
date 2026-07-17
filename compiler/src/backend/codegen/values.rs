@@ -47,6 +47,7 @@ impl EntryEmitter {
 
         match destination {
             AggregateLocation::Return => {
+                self.emit_indirect_return_pointer_to_x8(frame);
                 self.encoder.emit_str_x_imm(XReg::X16, XReg::X8, offset);
                 Ok(())
             }
@@ -84,6 +85,7 @@ impl EntryEmitter {
 
         match destination {
             AggregateLocation::Return => {
+                self.emit_indirect_return_pointer_to_x8(frame);
                 self.encoder.emit_str_w_imm(WReg::W16, XReg::X8, offset);
                 Ok(())
             }
@@ -141,6 +143,7 @@ impl EntryEmitter {
     ) -> Result<(), Vec<Diagnostic>> {
         match destination {
             AggregateLocation::Return => {
+                self.emit_indirect_return_pointer_to_x8(frame);
                 self.encoder.emit_strb_w_imm(WReg::W16, XReg::X8, offset);
                 Ok(())
             }
@@ -567,6 +570,7 @@ impl EntryEmitter {
     ) -> Result<(), Vec<Diagnostic>> {
         match destination {
             AggregateLocation::Return => {
+                self.emit_indirect_return_pointer_to_x8(Some(frame));
                 self.emit_aggregate_copy_scratch_to_memory_chunk(XReg::X8, offset, chunk_bytes)
             }
             AggregateLocation::DirectReturn => self.emit_x_to_direct_aggregate_return(offset),

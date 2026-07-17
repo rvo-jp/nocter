@@ -10,7 +10,7 @@ An interpolated string expression such as `"hello ${name}"?` has type `String!`,
 The specification also forbids silently choosing a process-global allocator.
 
 Therefore the compiler must keep bare interpolation lowering disabled until the language or standard-library surface provides an explicit allocator source.
-The backend can now build the explicit standard-library construction shape through the current stub `std/string` and `std/fmt` APIs:
+The backend can now build and run the explicit standard-library construction shape through the allocation-backed `std/string` and `std/fmt` APIs:
 
 ```nct
 var out = string.with_capacity(&+allocator, capacity)?
@@ -21,7 +21,7 @@ return move out
 ```
 
 This keeps allocation, mutation, formatting, and failure visible in ordinary Nocter code.
-The current standard-library bodies still report allocation as unsupported, so this path is buildable but not allocation-backed runtime string construction yet.
+The current standard-library bodies allocate through the target-gated page allocator helpers, append by copying `&str` data into owned storage, and release storage through `String.drop`.
 
 ## Lowering Shape
 
@@ -68,13 +68,14 @@ Already buildable in the narrow scalar subset:
 - branch-local explicit `drop name` and void call lowering before terminal-if leaf returns
 - supported non-terminal `if`/`while`/`loop` branch/body-local assignments, outer whole-binding scalar/view local assignments, explicit drops, return cleanup, body scope-end drops, and `while`/`loop` `break`/`continue` cleanup
 - propagation-failure cleanup, supported catch-handler cleanup, and drop-aware whole-binding aggregate replacement
-- distributed `std/mem.page_allocator`, `std/string.with_capacity`, `std/fmt.append_str`, and `return move out` in the explicit construction shape build to Mach-O with the current stub standard-library bodies
+- distributed `std/mem.page_allocator`, `std/string.with_capacity`, `std/fmt.append_str`, and `return move out` in the explicit construction shape build and run through allocation-backed standard-library bodies
 
-Still required before allocation-backed string construction can run:
+Still required before bare interpolation lowering can be enabled:
 
 - broader branch/loop scope-end drop insertion where the standard-library implementation needs control flow outside the supported non-terminal subset
 - condition-sensitive ownership effects and drop-obligation export from type checking to lowering
-- target-backed allocation and mutation in `std/mem`, `std/string`, and `std/fmt`
+- an explicit source-level allocator decision for interpolation lowering
+- allocator and formatting robustness beyond the current page-backed `std/mem` surface
 
 ## Open Language Decision
 

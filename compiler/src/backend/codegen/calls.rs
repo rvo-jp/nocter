@@ -147,6 +147,7 @@ impl EntryEmitter {
                 Ok(())
             }
             AggregateLocation::Return => {
+                self.emit_indirect_return_pointer_to_x8(Some(frame));
                 self.encoder.emit_str_x_imm(XReg::X16, XReg::X8, 0);
                 self.encoder
                     .emit_str_w_imm(WReg::W17, XReg::X8, ABI_WORD_SIZE as u32);
@@ -1036,7 +1037,10 @@ impl EntryEmitter {
         frame: &FrameLayout,
     ) -> Result<(), Vec<Diagnostic>> {
         match destination {
-            AggregateLocation::Return => Ok(()),
+            AggregateLocation::Return => {
+                self.emit_indirect_return_pointer_to_x8(Some(frame));
+                Ok(())
+            }
             AggregateLocation::DirectReturn => Err(vec![Diagnostic::error(
                 "E9005",
                 "indirect aggregate call cannot target direct return registers",

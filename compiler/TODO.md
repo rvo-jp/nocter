@@ -28,6 +28,11 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: run explicit String construction path
+  - adds distributed std native run coverage for `make(): String! { ... return move out }`
+  - verifies `std/mem.page_allocator`, `std/string.with_capacity`, `std/fmt.append_str`, `std/string.view`, `std/io.print`, aggregate return, and `String.drop` in one path
+  - fixes backend indirect aggregate returns from framed callees by saving the caller-provided hidden `x8` return pointer and restoring it before return-storage stores, copies, and return-destination aggregate calls
+  - updates implementation notes that still described the current `std/string` and `std/fmt` bodies as stubs
 - Current checkpoint: cover aggregate reinitialization after explicit drop
   - fixes the documented buildable subset around supported aggregate slot reinitialization after explicit move/drop
   - verifies that explicit `drop name` suppresses replacement-drop emission for the next assignment
@@ -247,8 +252,8 @@ Recent committed work:
   - adds frame and codegen unit coverage for reserving both source/destination slots and copying all aggregate words between stack slots
 - Current checkpoint: cover explicit String construction build path
   - adds distributed-home build coverage for `page_allocator`, `with_capacity(&+allocator, ...)`, `append_str(&+out, ...)`, and `return move out`
-  - confirms the explicit `std/string` + `std/fmt` construction shape reaches Mach-O with the current stub standard-library bodies
-  - keeps bare interpolation lowering disabled and target-backed allocation/mutation plus full owned aggregate move/drop tracking as the next runtime prerequisites
+  - initially confirmed the explicit `std/string` + `std/fmt` construction shape reached Mach-O; current std bodies now run this path with page-backed allocation and mutation
+  - keeps bare interpolation lowering disabled until the source language exposes an explicit allocator source for interpolation
 - Current checkpoint: show local reference documentation in LSP hover
   - makes `///` attached to local `let`/`var` declarations appear when hovering later references to that binding
   - reuses the existing hover symbol/documentation attachment path for both open-document fallback and workspace analysis hover

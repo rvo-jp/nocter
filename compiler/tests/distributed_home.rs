@@ -436,6 +436,50 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn distributed_std_explicit_string_construction_runs() {
+    let project = TempProject::new("distributed-home-explicit-string-run");
+    let source = project.write_source(
+        "explicit_string_run.nct",
+        r#"from std/fmt import append_str
+from std/io import print
+from std/mem import page_allocator
+from std/string import view, with_capacity
+
+func make(): String! {
+    var allocator = page_allocator()
+    var out = with_capacity(&+allocator, 8)?
+    append_str(&+out, "hello")?
+    append_str(&+out, " runtime")?
+    return move out
+}
+
+func main(): i32! {
+    var text = make()?
+    print(view(&text))?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"hello runtime");
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn distributed_std_print_hello_runs() {
     let project = TempProject::new("distributed-home-print-hello-run");
     let source = project.write_source(
