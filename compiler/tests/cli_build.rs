@@ -1307,7 +1307,7 @@ fn build_command_lowers_bool_equality() {
 }
 
 #[test]
-fn build_command_reports_unsupported_compound_bool_equality() {
+fn build_command_lowers_compound_bool_equality() {
     let project = TempProject::new("cli-build-compound-bool-equality");
     let source = project.write_source(
         "compound_bool_equality.nct",
@@ -1327,37 +1327,12 @@ fn build_command_reports_unsupported_compound_bool_equality() {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E8008]"),
-        "expected IR lowering diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains(
-            "IR v0 can only lower bool equality/inequality operands that are bool literals or bool locals"
-        ),
-        "expected bool equality/inequality operand diagnostic, got:\n{stderr}"
-    );
-    let lines: Vec<&str> = stderr.lines().collect();
-    let source_line = lines
-        .iter()
-        .position(|line| line.contains("4 |     let same = !ready == blocked"))
-        .unwrap_or_else(|| panic!("expected source line for unsupported binding, got:\n{stderr}"));
-    assert!(
-        lines
-            .get(source_line + 1)
-            .is_some_and(|line| line.contains("^^^^")),
-        "expected source underline for unsupported binding, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after compile diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_unsupported_function_leading_binding_span() {
+fn build_command_lowers_function_leading_compound_bool_equality() {
     let project = TempProject::new("cli-build-function-leading-binding-span");
     let source = project.write_source(
         "function_leading_binding_span.nct",
@@ -1381,31 +1356,12 @@ func helper(): i32 {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E8008]"),
-        "expected IR lowering diagnostic, got:\n{stderr}"
-    );
-    let lines: Vec<&str> = stderr.lines().collect();
-    let source_line = lines
-        .iter()
-        .position(|line| line.contains("8 |     let same = !ready == blocked"))
-        .unwrap_or_else(|| panic!("expected source line for unsupported binding, got:\n{stderr}"));
-    assert!(
-        lines
-            .get(source_line + 1)
-            .is_some_and(|line| line.contains("^^^^")),
-        "expected source underline for unsupported binding, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after compile diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_unsupported_nonterminal_if_binding_span() {
+fn build_command_lowers_compound_bool_equality_in_nonterminal_if_binding() {
     let project = TempProject::new("cli-build-nonterminal-if-binding-span");
     let source = project.write_source(
         "nonterminal_if_binding_span.nct",
@@ -1423,31 +1379,12 @@ fn build_command_reports_unsupported_nonterminal_if_binding_span() {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E8008]"),
-        "expected IR lowering diagnostic, got:\n{stderr}"
-    );
-    let lines: Vec<&str> = stderr.lines().collect();
-    let source_line = lines
-        .iter()
-        .position(|line| line.contains("5 |         let same = !ok == ready"))
-        .unwrap_or_else(|| panic!("expected source line for unsupported binding, got:\n{stderr}"));
-    assert!(
-        lines
-            .get(source_line + 1)
-            .is_some_and(|line| line.contains("^^^^")),
-        "expected source underline for unsupported binding, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after compile diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_unsupported_nonterminal_while_binding_span() {
+fn build_command_lowers_compound_bool_equality_in_nonterminal_while_binding() {
     let project = TempProject::new("cli-build-nonterminal-while-binding-span");
     let source = project.write_source(
         "nonterminal_while_binding_span.nct",
@@ -1465,31 +1402,12 @@ fn build_command_reports_unsupported_nonterminal_while_binding_span() {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E8008]"),
-        "expected IR lowering diagnostic, got:\n{stderr}"
-    );
-    let lines: Vec<&str> = stderr.lines().collect();
-    let source_line = lines
-        .iter()
-        .position(|line| line.contains("5 |         let same = !ok == ready"))
-        .unwrap_or_else(|| panic!("expected source line for unsupported binding, got:\n{stderr}"));
-    assert!(
-        lines
-            .get(source_line + 1)
-            .is_some_and(|line| line.contains("^^^^")),
-        "expected source underline for unsupported binding, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after compile diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_unsupported_terminal_if_branch_binding_span() {
+fn build_command_lowers_compound_bool_equality_in_terminal_if_branch_binding() {
     let project = TempProject::new("cli-build-terminal-if-branch-binding-span");
     let source = project.write_source(
         "terminal_if_branch_binding_span.nct",
@@ -1509,31 +1427,12 @@ fn build_command_reports_unsupported_terminal_if_branch_binding_span() {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E8008]"),
-        "expected IR lowering diagnostic, got:\n{stderr}"
-    );
-    let lines: Vec<&str> = stderr.lines().collect();
-    let source_line = lines
-        .iter()
-        .position(|line| line.contains("5 |         let same = !ok == ready"))
-        .unwrap_or_else(|| panic!("expected source line for unsupported binding, got:\n{stderr}"));
-    assert!(
-        lines
-            .get(source_line + 1)
-            .is_some_and(|line| line.contains("^^^^")),
-        "expected source underline for unsupported binding, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after compile diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_unsupported_terminal_aggregate_branch_binding_span() {
+fn build_command_lowers_compound_bool_equality_in_terminal_aggregate_branch_binding() {
     let project = TempProject::new("cli-build-terminal-aggregate-branch-binding-span");
     let source = project.write_source(
         "terminal_aggregate_branch_binding_span.nct",
@@ -1562,31 +1461,12 @@ func make(flag: bool): Text {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E8008]"),
-        "expected IR lowering diagnostic, got:\n{stderr}"
-    );
-    let lines: Vec<&str> = stderr.lines().collect();
-    let source_line = lines
-        .iter()
-        .position(|line| line.contains("14 |         let same = !ok == flag"))
-        .unwrap_or_else(|| panic!("expected source line for unsupported binding, got:\n{stderr}"));
-    assert!(
-        lines
-            .get(source_line + 1)
-            .is_some_and(|line| line.contains("^^^^")),
-        "expected source underline for unsupported binding, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after compile diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_unsupported_compound_bool_equality_condition() {
+fn build_command_lowers_compound_bool_equality_condition() {
     let project = TempProject::new("cli-build-compound-bool-equality-condition");
     let source = project.write_source(
         "compound_bool_equality_condition.nct",
@@ -1605,39 +1485,12 @@ fn build_command_reports_unsupported_compound_bool_equality_condition() {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E8002]"),
-        "expected entry lowering diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains(
-            "IR v0 can only lower bool equality/inequality operands that are bool literals or bool locals"
-        ),
-        "expected bool equality/inequality operand diagnostic, got:\n{stderr}"
-    );
-    let lines: Vec<&str> = stderr.lines().collect();
-    let source_line = lines
-        .iter()
-        .position(|line| line.contains("4 |     if !ready == blocked {"))
-        .unwrap_or_else(|| {
-            panic!("expected source line for unsupported condition, got:\n{stderr}")
-        });
-    assert!(
-        lines
-            .get(source_line + 1)
-            .is_some_and(|line| line.contains("^^^^")),
-        "expected source underline for unsupported condition, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after compile diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_unsupported_nonterminal_while_condition_span() {
+fn build_command_lowers_compound_bool_equality_in_nonterminal_while_condition() {
     let project = TempProject::new("cli-build-nonterminal-while-condition-span");
     let source = project.write_source(
         "nonterminal_while_condition_span.nct",
@@ -1654,35 +1507,8 @@ fn build_command_reports_unsupported_nonterminal_while_condition_span() {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E8002]"),
-        "expected entry lowering diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains(
-            "IR v0 can only lower bool equality/inequality operands that are bool literals or bool locals"
-        ),
-        "expected bool equality/inequality operand diagnostic, got:\n{stderr}"
-    );
-    let lines: Vec<&str> = stderr.lines().collect();
-    let source_line = lines
-        .iter()
-        .position(|line| line.contains("4 |     while !ready == blocked {"))
-        .unwrap_or_else(|| {
-            panic!("expected source line for unsupported condition, got:\n{stderr}")
-        });
-    assert!(
-        lines
-            .get(source_line + 1)
-            .is_some_and(|line| line.contains("^^^^")),
-        "expected source underline for unsupported condition, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after compile diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]

@@ -138,8 +138,6 @@ pub(super) fn bool_comparison_needs_temporaries(
         BinaryOperator::Equal | BinaryOperator::NotEqual
     ) && expressions_are_lowerable_bool_values(&binary.left, &binary.right, context)
         && !expressions_are_lowerable_bool_comparison_operands(&binary.left, &binary.right, context)
-        && (expression_is_aggregate_field_kind(&binary.left, AggregateFieldKind::Bool, context)
-            || expression_is_aggregate_field_kind(&binary.right, AggregateFieldKind::Bool, context))
 }
 
 pub(super) fn i32_comparison_needs_temporaries(
@@ -188,27 +186,6 @@ pub(in crate::ir::lower) fn expression_is_lowerable_bool_binding(
                     && expression_is_lowerable_bool_binding(&binary.right, context))
         }
         Expr::Group(group) => expression_is_lowerable_bool_binding(&group.expression, context),
-        _ => false,
-    }
-}
-
-pub(in crate::ir::lower) fn expression_is_unsupported_bool_comparison_binding(
-    expression: &Expr,
-    context: &LoweringContext,
-) -> bool {
-    match expression {
-        Expr::Binary(binary) => {
-            is_bool_equality_operator(binary.operator)
-                && expressions_are_lowerable_bool_values(&binary.left, &binary.right, context)
-                && !expressions_are_lowerable_bool_comparison_operands(
-                    &binary.left,
-                    &binary.right,
-                    context,
-                )
-        }
-        Expr::Group(group) => {
-            expression_is_unsupported_bool_comparison_binding(&group.expression, context)
-        }
         _ => false,
     }
 }
@@ -298,7 +275,7 @@ fn expression_is_lowerable_comparison_binding(
     matches!(
         binary.operator,
         BinaryOperator::Equal | BinaryOperator::NotEqual
-    ) && (expressions_are_lowerable_bool_comparison_operands(&binary.left, &binary.right, context)
+    ) && (expressions_are_lowerable_bool_values(&binary.left, &binary.right, context)
         || expressions_are_lowerable_bool_comparison_operands_with_calls(
             &binary.left,
             &binary.right,
@@ -576,6 +553,24 @@ fn expression_is_lowerable_bool_comparison_operand(
     match expression {
         Expr::BoolLiteral(_) => true,
         Expr::Identifier(identifier) => context.bool_location(&identifier.name).is_some(),
+        Expr::Unary(unary) => {
+            unary.operator == UnaryOperator::LogicalNot
+                && expression_is_lowerable_bool_comparison_operand(&unary.operand, context)
+        }
+        Expr::Binary(binary) => match binary.operator {
+            BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr => {
+                expression_is_lowerable_bool_comparison_operand(&binary.left, context)
+                    && expression_is_lowerable_bool_comparison_operand(&binary.right, context)
+            }
+            BinaryOperator::Equal | BinaryOperator::NotEqual => {
+                expressions_are_lowerable_bool_comparison_operands(
+                    &binary.left,
+                    &binary.right,
+                    context,
+                )
+            }
+            _ => false,
+        },
         Expr::Group(group) => {
             expression_is_lowerable_bool_comparison_operand(&group.expression, context)
         }
@@ -626,8 +621,4 @@ fn is_bool_logical_operator(operator: BinaryOperator) -> bool {
         operator,
         BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
     )
-}
-
-fn is_bool_equality_operator(operator: BinaryOperator) -> bool {
-    matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual)
 }

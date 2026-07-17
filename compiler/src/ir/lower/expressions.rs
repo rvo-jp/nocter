@@ -59,7 +59,7 @@ use predicates::{
 };
 pub(super) use predicates::{
     expression_contains_call, expression_contains_interpolated_string,
-    expression_is_lowerable_bool_binding, expression_is_unsupported_bool_comparison_binding,
+    expression_is_lowerable_bool_binding,
 };
 pub(super) use temporaries::TemporaryAllocator;
 use temporaries::{
@@ -2515,41 +2515,12 @@ fn lower_bool_comparison_operand_to_value_with_temporaries(
     diagnostic_code: &'static str,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
-    match expression {
-        Expr::Call(call) => {
-            let temporary = temporaries.next_bool()?;
-            Ok(LoweredBoolValue {
-                instructions: lower_bool_normal_call(call, temporary, context, temporaries)?,
-                value: BoolValue::Location(temporary),
-            })
-        }
-        Expr::Member(_) => {
-            let temporary = temporaries.next_bool()?;
-            Ok(LoweredBoolValue {
-                instructions: lower_aggregate_bool_field_to_location(
-                    expression,
-                    temporary,
-                    context,
-                    diagnostic_code,
-                    temporaries,
-                )?,
-                value: BoolValue::Location(temporary),
-            })
-        }
-        Expr::BoolLiteral(_) | Expr::Identifier(_) => Ok(LoweredBoolValue {
-            instructions: Vec::new(),
-            value: lower_bool_comparison_operand(expression, context, diagnostic_code)?,
-        }),
-        Expr::Group(group) => lower_bool_comparison_operand_to_value_with_temporaries(
-            &group.expression,
-            context,
-            diagnostic_code,
-            temporaries,
-        ),
-        _ => Err(unsupported_bool_comparison_operand_diagnostic(
-            diagnostic_code,
-        )),
-    }
+    lower_bool_expression_to_value_with_temporaries(
+        expression,
+        context,
+        diagnostic_code,
+        temporaries,
+    )
 }
 
 fn lower_i32_comparison_to_value_with_temporaries(
@@ -2966,9 +2937,7 @@ fn lower_bool_binary_value(
         BinaryOperator::Equal | BinaryOperator::NotEqual
             if expressions_are_lowerable_bool_values(&binary.left, &binary.right, context) =>
         {
-            Err(unsupported_bool_comparison_operand_diagnostic(
-                diagnostic_code,
-            ))
+            lower_bool_comparison_condition(binary, context, diagnostic_code)
         }
         _ if u8_comparison_is_lowerable(binary, context) => {
             lower_u8_comparison_condition(binary, context, diagnostic_code)
@@ -3029,21 +2998,7 @@ fn lower_bool_comparison_operand(
     context: &LoweringContext,
     diagnostic_code: &'static str,
 ) -> Result<BoolValue, Vec<Diagnostic>> {
-    match expression {
-        Expr::BoolLiteral(literal) => match literal.value.as_str() {
-            "true" => Ok(BoolValue::Const(true)),
-            "false" => Ok(BoolValue::Const(false)),
-            _ => Err(unsupported_bool_expression_diagnostic(diagnostic_code)),
-        },
-        Expr::Identifier(identifier) => context
-            .bool_location(&identifier.name)
-            .map(BoolValue::Location)
-            .ok_or_else(|| unsupported_bool_expression_diagnostic(diagnostic_code)),
-        Expr::Group(group) => {
-            lower_bool_comparison_operand(&group.expression, context, diagnostic_code)
-        }
-        _ => Err(unsupported_bool_expression_diagnostic(diagnostic_code)),
-    }
+    lower_bool_value(expression, context, diagnostic_code)
 }
 
 fn lower_i32_comparison_condition(
@@ -3131,18 +3086,9 @@ fn unsupported_non_tail_call_diagnostic() -> Vec<Diagnostic> {
     )]
 }
 
-fn unsupported_bool_comparison_operand_diagnostic(
-    diagnostic_code: &'static str,
-) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(
-        diagnostic_code,
-        "IR v0 can only lower bool equality/inequality operands that are bool literals or bool locals",
-    )]
-}
-
 fn unsupported_bool_expression_diagnostic(diagnostic_code: &'static str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         diagnostic_code,
-        "IR v0 can only lower bool literals, bool locals, bool operators, i32, u8, or usize comparisons, and bool equality/inequality over bool literals or bool locals",
+        "IR v0 can only lower bool literals, bool locals, bool operators, i32, u8, usize comparisons, and bool equality/inequality over lowerable bool values",
     )]
 }

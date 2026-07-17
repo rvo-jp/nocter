@@ -8,9 +8,9 @@ use super::aggregates::{
 use super::context::{AggregateFieldKind, LoweringContext};
 use super::expressions::{
     TemporaryAllocator, aggregate_call_field, expression_contains_interpolated_string,
-    expression_is_lowerable_bool_binding, expression_is_unsupported_bool_comparison_binding,
-    lower_aggregate_member_field_access, lower_bool_expression_to_location,
-    lower_bool_expression_to_value, lower_call_arguments_to_scalar_arguments,
+    expression_is_lowerable_bool_binding, lower_aggregate_member_field_access,
+    lower_bool_expression_to_location, lower_bool_expression_to_value,
+    lower_call_arguments_to_scalar_arguments,
     lower_call_arguments_to_scalar_arguments_with_temporaries, lower_catch_failure_mode,
     lower_i32_expression_to_location, lower_i32_expression_to_word,
     lower_macos_syscall_primitive_call_to_location, lower_pointer_address_expression_to_word,
@@ -1427,13 +1427,6 @@ fn scalar_binding_kind(
             Ok(ScalarBindingKind::Bool)
         }
         None if expression_is_bool_returning_call(&statement.initializer, context) => {
-            Ok(ScalarBindingKind::Bool)
-        }
-        None if expression_is_unsupported_bool_comparison_binding(
-            &statement.initializer,
-            context,
-        ) =>
-        {
             Ok(ScalarBindingKind::Bool)
         }
         None => Ok(
