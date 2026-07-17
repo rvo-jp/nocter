@@ -312,6 +312,17 @@ pub fn function_parameter_abi_word_count_from_signature(
     Ok(count)
 }
 
+pub fn function_success_return_passing_from_signature(
+    signature: &FunctionSignature,
+    resolved: &ResolveOutput,
+) -> Result<ReturnPassing, AbiTypeError> {
+    let success_type = match &signature.return_type {
+        TypeExpr::Fallible(fallible) => &fallible.success,
+        _ => &signature.return_type,
+    };
+    abi_return_from_type_expr(success_type, resolved).map(|return_value| return_value.passing())
+}
+
 pub fn abi_type_from_type_expr(
     ty: &TypeExpr,
     resolved: &ResolveOutput,
@@ -327,9 +338,31 @@ fn abi_return_from_type_expr(
     ty: &TypeExpr,
     resolved: &ResolveOutput,
 ) -> Result<AbiReturn, AbiTypeError> {
+    abi_return_from_type_expr_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn abi_return_from_type_expr_inner(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> Result<AbiReturn, AbiTypeError> {
     match ty {
         TypeExpr::Reference(reference) if reference.name == "void" => Ok(AbiReturn::Void),
         TypeExpr::Reference(reference) if reference.name == "never" => Ok(AbiReturn::Never),
+        TypeExpr::Reference(reference) => {
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+                return abi_value_from_type_expr(ty, resolved).map(AbiReturn::Value);
+            };
+            let Some(target) = &symbol.alias_target else {
+                return abi_value_from_type_expr(ty, resolved).map(AbiReturn::Value);
+            };
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return Err(AbiTypeError::RecursiveType(symbol.canonical_name.clone()));
+            }
+            let result = abi_return_from_type_expr_inner(target, resolved, resolving_names);
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
         _ => abi_value_from_type_expr(ty, resolved).map(AbiReturn::Value),
     }
 }
@@ -490,7 +523,7 @@ mod tests {
         AbiField, AbiReturn, AbiType, ParameterPassing, ReturnPassing, ValueClassification,
         ValueLayout, abi_type_from_type_expr, classify_value, function_abi_from_signature,
         function_parameter_abi_word_count_from_signature, function_parameters_abi_from_signature,
-        layout_of, layout_struct,
+        function_success_return_passing_from_signature, layout_of, layout_struct,
     };
     use crate::ast::Item;
     use crate::lexer::lex;
@@ -691,6 +724,32 @@ func done(): void {
     }
 
     #[test]
+    fn classifies_alias_void_and_never_returns_without_value_layout() {
+        let (_ast, resolved) = parse_and_resolve(
+            r#"type Unit = void
+type Bottom = never
+
+primitive stop(): Bottom
+
+func done(): Unit {
+}
+"#,
+        );
+
+        let stop =
+            function_abi_from_signature(resolved_function_signature(&resolved, "stop"), &resolved)
+                .unwrap();
+        let done =
+            function_abi_from_signature(resolved_function_signature(&resolved, "done"), &resolved)
+                .unwrap();
+
+        assert_eq!(stop.return_value, AbiReturn::Never);
+        assert_eq!(done.return_value, AbiReturn::Void);
+        assert_eq!(stop.return_value.passing(), ReturnPassing::Never);
+        assert_eq!(done.return_value.passing(), ReturnPassing::Void);
+    }
+
+    #[test]
     fn detects_when_parameters_exceed_register_window() {
         let (_ast, resolved) = parse_and_resolve(
             r#"func many(
@@ -723,6 +782,46 @@ func done(): void {
         let count = function_parameter_abi_word_count_from_signature(signature, &resolved).unwrap();
 
         assert_eq!(count, 3);
+    }
+
+    #[test]
+    fn classifies_fallible_signature_success_return_passing() {
+        let (_ast, resolved) = parse_and_resolve(
+            r#"struct Header {
+    tag: u64
+    len: u64
+}
+
+struct Text {
+    ptr: *u8
+    len: usize
+    capacity: usize
+}
+
+func header(): Header! {
+}
+
+func text(): Text! {
+}
+"#,
+        );
+
+        assert_eq!(
+            function_success_return_passing_from_signature(
+                resolved_function_signature(&resolved, "header"),
+                &resolved,
+            )
+            .unwrap(),
+            ReturnPassing::Direct { words: 2 }
+        );
+        assert_eq!(
+            function_success_return_passing_from_signature(
+                resolved_function_signature(&resolved, "text"),
+                &resolved,
+            )
+            .unwrap(),
+            ReturnPassing::IndirectPointer
+        );
     }
 
     #[test]

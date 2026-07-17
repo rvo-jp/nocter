@@ -15,7 +15,10 @@ mod types;
 mod tests;
 
 use super::{CallTarget, Function, IrModule};
-use crate::abi::function_parameter_abi_word_count_from_signature;
+use crate::abi::{
+    ReturnPassing, function_parameter_abi_word_count_from_signature,
+    function_success_return_passing_from_signature,
+};
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
     DropDecl, FunctionDecl, ImplMember, Item, MethodDecl, Parameter, Stmt, TypeExpr, TypeReference,
@@ -450,6 +453,10 @@ impl<'a> IndexedCallable<'a> {
                                 &resolved_signature,
                                 self.resolved,
                             ),
+                            success_return_passing: success_return_passing(
+                                &resolved_signature,
+                                self.resolved,
+                            ),
                         }
                     },
                 )
@@ -478,6 +485,10 @@ impl<'a> IndexedCallable<'a> {
                         &resolved_signature,
                         self.resolved,
                     ),
+                    success_return_passing: success_return_passing(
+                        &resolved_signature,
+                        self.resolved,
+                    ),
                 })
             }
             IndexedDeclaration::Method {
@@ -502,6 +513,10 @@ impl<'a> IndexedCallable<'a> {
                         return_type,
                         parameter_types,
                         parameter_abi_word_count: parameter_abi_word_count(
+                            &resolved_signature,
+                            self.resolved,
+                        ),
+                        success_return_passing: success_return_passing(
                             &resolved_signature,
                             self.resolved,
                         ),
@@ -560,6 +575,13 @@ fn parameter_abi_word_count(
     resolved: &ResolveOutput,
 ) -> Option<usize> {
     function_parameter_abi_word_count_from_signature(signature, resolved).ok()
+}
+
+fn success_return_passing(
+    signature: &ResolvedFunctionSignature,
+    resolved: &ResolveOutput,
+) -> Option<ReturnPassing> {
+    function_success_return_passing_from_signature(signature, resolved).ok()
 }
 
 fn void_type_expr(span: ByteSpan) -> TypeExpr {

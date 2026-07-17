@@ -1,4 +1,4 @@
-use crate::abi::ValueLayout;
+use crate::abi::{ReturnPassing, ValueLayout};
 use crate::ast::{CallExpr, Expr, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -295,6 +295,10 @@ impl<'a> LoweringContext<'a> {
 
     pub(super) fn call_parameter_abi_word_count(&self, target: &CallTarget) -> Option<usize> {
         self.function_signatures.parameter_abi_word_count(target)
+    }
+
+    pub(super) fn call_success_return_passing(&self, target: &CallTarget) -> Option<ReturnPassing> {
+        self.function_signatures.success_return_passing(target)
     }
 
     pub(super) fn direct_call_target_and_name(
@@ -967,6 +971,7 @@ impl FunctionSignatures {
                             return_type,
                             parameter_types: None,
                             parameter_abi_word_count: None,
+                            success_return_passing: None,
                         },
                     )
                 })
@@ -995,6 +1000,12 @@ impl FunctionSignatures {
             .get(target)
             .and_then(|signature| signature.parameter_abi_word_count)
     }
+
+    pub(super) fn success_return_passing(&self, target: &CallTarget) -> Option<ReturnPassing> {
+        self.signatures
+            .get(target)
+            .and_then(|signature| signature.success_return_passing)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1002,6 +1013,7 @@ pub(super) struct FunctionSignature {
     pub(super) return_type: Type,
     pub(super) parameter_types: Option<Vec<Type>>,
     pub(super) parameter_abi_word_count: Option<usize>,
+    pub(super) success_return_passing: Option<ReturnPassing>,
 }
 
 #[derive(Clone)]

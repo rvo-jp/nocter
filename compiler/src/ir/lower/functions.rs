@@ -35,7 +35,7 @@ use super::types::{
     scalar_or_view_type_from_type_expr,
 };
 use crate::abi::{
-    AbiType, AbiValue, ValueClassification, abi_value_from_type_expr,
+    AbiType, AbiValue, ReturnPassing, ValueClassification, abi_value_from_type_expr,
     function_parameter_abi_word_count_from_signature,
 };
 use crate::ast::{
@@ -2091,6 +2091,7 @@ fn lower_aggregate_fallible_call_return_to_location(
     if success_type.as_ref() != return_type {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     }
+    validate_aggregate_call_success_return_passing(&target, return_type, function_name, context)?;
 
     let (mut instructions, arguments) =
         lower_call_arguments_to_scalar_arguments(call, &target, &call_name, context)?;
@@ -2144,6 +2145,7 @@ fn lower_aggregate_call_return_to_location(
     if callee_return_type != return_type {
         return Err(unsupported_aggregate_return_diagnostic(function_name));
     }
+    validate_aggregate_call_success_return_passing(&target, return_type, function_name, context)?;
 
     let (mut instructions, arguments) =
         lower_call_arguments_to_scalar_arguments(call, &target, &call_name, context)?;
@@ -2241,6 +2243,61 @@ fn aggregate_return_layout_and_destination(
         Type::Aggregate { layout } => (*layout, AggregateLocation::Return),
         Type::DirectAggregate { layout, .. } => (*layout, AggregateLocation::DirectReturn),
         _ => unreachable!("aggregate return lowering requires aggregate return type"),
+    }
+}
+
+fn validate_aggregate_call_success_return_passing(
+    target: &CallTarget,
+    return_type: &Type,
+    function_name: &str,
+    context: &LoweringContext,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(actual) = context.call_success_return_passing(target) else {
+        return Ok(());
+    };
+    let expected = aggregate_success_return_passing(return_type);
+    if actual == expected {
+        return Ok(());
+    }
+
+    Err(aggregate_call_return_abi_mismatch_diagnostic(
+        function_name,
+        expected,
+        actual,
+    ))
+}
+
+fn aggregate_success_return_passing(return_type: &Type) -> ReturnPassing {
+    match return_type {
+        Type::Aggregate { .. } => ReturnPassing::IndirectPointer,
+        Type::DirectAggregate { words, .. } => ReturnPassing::Direct { words: *words },
+        _ => unreachable!("aggregate return ABI check requires aggregate return type"),
+    }
+}
+
+fn aggregate_call_return_abi_mismatch_diagnostic(
+    function_name: &str,
+    expected: ReturnPassing,
+    actual: ReturnPassing,
+) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8007",
+        format!(
+            "IR v0 aggregate return ABI mismatch in function `{function_name}`: expected callee success return to use `{}`, got `{}`",
+            describe_return_passing(expected),
+            describe_return_passing(actual),
+        ),
+    )]
+}
+
+fn describe_return_passing(passing: ReturnPassing) -> &'static str {
+    match passing {
+        ReturnPassing::Void => "void",
+        ReturnPassing::Never => "never",
+        ReturnPassing::Direct { words: 1 } => "1 direct ABI word",
+        ReturnPassing::Direct { words: 2 } => "2 direct ABI words",
+        ReturnPassing::Direct { .. } => "direct ABI words",
+        ReturnPassing::IndirectPointer => "an indirect return pointer",
     }
 }
 

@@ -1,5 +1,5 @@
 use super::*;
-use crate::abi::ValueLayout;
+use crate::abi::{ReturnPassing, ValueLayout};
 use crate::analysis::{CompileUnit, CompileUnitAnalysis, analyze_compile_unit_with_entry};
 use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
@@ -1345,6 +1345,10 @@ func make(): Text {
             layout: ValueLayout::new(24, 8),
         })
     );
+    assert_eq!(
+        signatures.success_return_passing(&CallTarget::same_file("make")),
+        Some(ReturnPassing::IndirectPointer)
+    );
 }
 
 #[test]
@@ -1375,6 +1379,10 @@ func page_allocator(): Allocator {
             layout: ValueLayout::new(16, 8),
             words: 2,
         })
+    );
+    assert_eq!(
+        signatures.success_return_passing(&CallTarget::same_file("page_allocator")),
+        Some(ReturnPassing::Direct { words: 2 })
     );
 }
 
@@ -19341,6 +19349,7 @@ fn function_signatures(signatures: Vec<(&str, Type, Vec<Type>)>) -> context::Fun
                         return_type,
                         parameter_types: Some(parameter_types),
                         parameter_abi_word_count: None,
+                        success_return_passing: None,
                     },
                 )
             })
