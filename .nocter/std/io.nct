@@ -11,6 +11,9 @@ from std/os import OSError
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 
 #target("arm64-darwin")
+pub(nocter) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
+
+#target("arm64-darwin")
 pub(nocter) func stdout_fd(): i32 {
     return 1
 }
@@ -32,7 +35,8 @@ pub(nocter) func read_fd(fd: i32, buffer: &+[u8]): usize! {
 
 #target("arm64-darwin")
 pub(nocter) func write_fd(fd: i32, bytes: &[u8]): void! {
-    return Error.new("std.io.unsupported", "file byte write is not implemented")
+    write_bytes_raw(fd, bytes)?
+    return
 }
 
 #target("arm64-darwin")

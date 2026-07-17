@@ -3,7 +3,7 @@ use crate::backend::frame::{FrameLayout, FunctionFrame, plan_function_frame};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     CallTarget, DirectAggregateArgument, FallibleFailureMode, Function, I32Value, Instruction,
-    IrModule, ScalarArgument, StrValue, Type,
+    IrModule, ScalarArgument, SliceValue, StrValue, Type,
 };
 use crate::target::arm64::{BranchCondition, Encoder, MoveWideShift, WReg, XReg};
 use std::collections::HashMap;
@@ -153,6 +153,9 @@ impl EntryEmitter {
         match instruction {
             Instruction::WriteStr { fd, text } => {
                 self.emit_write_str(fd, text, frame)?;
+            }
+            Instruction::WriteSlice { fd, bytes } => {
+                self.emit_write_slice(fd, bytes, frame)?;
             }
             Instruction::SetI32 { destination, value } => {
                 self.emit_set_i32(*destination, value)?;
@@ -952,6 +955,47 @@ impl EntryEmitter {
 
         self.emit_scalar_spills(frame)?;
         self.emit_str_value_to_x_pair(text, XReg::X3, XReg::X4)?;
+        self.emit_i32_value_to_w(fd, WReg::W0)?;
+        self.encoder.emit_mov_x(XReg::X1, XReg::X3);
+        self.encoder.emit_mov_x(XReg::X2, XReg::X4);
+        emit_darwin_write_syscall(&mut self.encoder);
+        self.emit_scalar_reloads(frame)?;
+        let failure_branch = self.emit_cond_branch_placeholder(BranchCondition::Cs);
+        emit_mov_i32_to_w0(&mut self.encoder, 0);
+        let end_branch = self.emit_branch_placeholder();
+
+        self.patch_branch_placeholder_to_current(failure_branch, "write syscall failure target")?;
+        self.emit_str_value_to_x_pair(
+            &StrValue::StaticBytes(WRITE_FAILURE_CODE.to_vec()),
+            XReg::X1,
+            XReg::X2,
+        )?;
+        self.emit_str_value_to_x_pair(
+            &StrValue::StaticBytes(WRITE_FAILURE_MESSAGE.to_vec()),
+            XReg::X3,
+            XReg::X4,
+        )?;
+        emit_mov_i32_to_w0(&mut self.encoder, 1);
+
+        self.patch_branch_placeholder_to_current(end_branch, "write syscall end target")?;
+        Ok(())
+    }
+
+    fn emit_write_slice(
+        &mut self,
+        fd: &I32Value,
+        bytes: &SliceValue,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "slice write emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_slice_value_to_x_pair(bytes, XReg::X3, XReg::X4)?;
         self.emit_i32_value_to_w(fd, WReg::W0)?;
         self.encoder.emit_mov_x(XReg::X1, XReg::X3);
         self.encoder.emit_mov_x(XReg::X2, XReg::X4);
@@ -5063,6 +5107,41 @@ mod tests {
 
         assert_eq!(output.status.code(), Some(0));
         assert_eq!(output.stdout, b"hello\n");
+        assert!(output.stderr.is_empty());
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
+    fn generated_slice_write_runs() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::SetStr {
+                    destination: StrLocation::Local(0),
+                    value: StrValue::StaticBytes(b"bytes\n".to_vec()),
+                },
+                Instruction::WriteSlice {
+                    fd: I32Value::Const(1),
+                    bytes: SliceValue::Location(SliceLocation::Local(0)),
+                },
+                set_return_i32(0),
+                Instruction::Return,
+            ],
+        }]);
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let image = crate::target::macho::write_arm64_macos_executable_with_data(
+            &code.text,
+            &code.read_only_data,
+        );
+        let executable = write_temp_executable("codegen-slice-write-runs", &image.bytes);
+
+        let output = std::process::Command::new(&executable).output().unwrap();
+        let _ = std::fs::remove_file(executable);
+
+        assert_eq!(output.status.code(), Some(0));
+        assert_eq!(output.stdout, b"bytes\n");
         assert!(output.stderr.is_empty());
     }
 

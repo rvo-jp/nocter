@@ -334,8 +334,22 @@ pub(super) fn lower_fallible_void_normal_call(
     temporaries: &mut TemporaryAllocator,
     failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    if primitive_write_text_raw_call(call, context) {
-        let mut instructions = lower_write_text_raw_primitive_call(call, context, temporaries)?;
+    let primitive_instructions = if primitive_write_text_raw_call(call, context) {
+        Some(lower_write_text_raw_primitive_call(
+            call,
+            context,
+            temporaries,
+        )?)
+    } else if primitive_write_bytes_raw_call(call, context) {
+        Some(lower_write_bytes_raw_primitive_call(
+            call,
+            context,
+            temporaries,
+        )?)
+    } else {
+        None
+    };
+    if let Some(mut instructions) = primitive_instructions {
         instructions.push(match failure_mode {
             FallibleFailureMode::Propagate => Instruction::PropagateFailure,
             FallibleFailureMode::Trap => Instruction::TrapOnFailure,
@@ -1734,6 +1748,13 @@ pub(super) fn primitive_write_text_raw_call(call: &CallExpr, context: &LoweringC
     )
 }
 
+pub(super) fn primitive_write_bytes_raw_call(call: &CallExpr, context: &LoweringContext) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("write_bytes_raw")
+    )
+}
+
 pub(super) fn primitive_addr_call(call: &CallExpr, context: &LoweringContext) -> bool {
     matches!(context.primitive_name_for_call(call), Some("addr"))
 }
@@ -1903,6 +1924,29 @@ fn lower_write_text_raw_primitive_call(
     instructions.push(Instruction::WriteStr {
         fd: fd.value,
         text: text.value,
+    });
+    Ok(instructions)
+}
+
+fn lower_write_bytes_raw_primitive_call(
+    call: &CallExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if call.arguments.len() != 2 {
+        return Err(vec![Diagnostic::error(
+            "E8006",
+            "IR v0 can only lower primitive `write_bytes_raw` with arguments `(i32, &[u8])`",
+        )]);
+    };
+
+    let fd = lower_i32_expression_to_value(&call.arguments[0], context, temporaries)?;
+    let bytes = lower_slice_expression_to_value(&call.arguments[1], context, temporaries)?;
+    let mut instructions = fd.instructions;
+    instructions.extend(bytes.instructions);
+    instructions.push(Instruction::WriteSlice {
+        fd: fd.value,
+        bytes: bytes.value,
     });
     Ok(instructions)
 }

@@ -315,6 +315,32 @@ func main(): i32! {
 }
 
 #[test]
+fn distributed_io_file_write_bytes_builds_to_macho() {
+    let project = TempProject::new("distributed-home-file-write-bytes-build");
+    let source = project.write_source(
+        "file_write_bytes.nct",
+        r#"from std/io import stdout
+
+func write_bytes(bytes: &[u8]): void! {
+    var out = stdout()
+    out.write(bytes)?
+    return
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+    let executable = project.root().join("file_write_bytes");
+
+    let output = nocter_build(&project, &source, &executable);
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn distributed_io_file_representation_is_private() {
     let project = TempProject::new("distributed-home-io-file-private");
     let source = project.write_source(
@@ -358,6 +384,40 @@ fn distributed_io_raw_helper_is_not_public_api() {
 
 func main(): i32 {
     write_text_raw(1, "x")!
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(
+        output.stdout.is_empty(),
+        "expected empty stdout, got:\n{}",
+        text(&output.stdout)
+    );
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("E0412") && stderr.contains("pub(nocter)"),
+        "expected pub(nocter) visibility diagnostic, got:\n{stderr}"
+    );
+}
+
+#[test]
+fn distributed_io_byte_raw_helper_is_not_public_api() {
+    let project = TempProject::new("distributed-home-io-byte-raw-private");
+    let source = project.write_source(
+        "io_byte_raw_private.nct",
+        r#"from std/io import write_bytes_raw
+
+func main(): i32 {
     return 0
 }
 "#,

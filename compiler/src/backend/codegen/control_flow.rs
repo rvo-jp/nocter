@@ -394,6 +394,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
         Some(Instruction::While { .. }) => false,
         Some(
             Instruction::WriteStr { .. }
+            | Instruction::WriteSlice { .. }
             | Instruction::DarwinSyscall { .. }
             | Instruction::CopyStrToPointer { .. }
             | Instruction::ReserveAggregateSlot { .. }

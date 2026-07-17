@@ -28,6 +28,11 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: implement byte-slice raw writes
+  - adds target-gated `std/io.write_bytes_raw(fd: i32, bytes: &[u8]): void!` and routes `File.write`/`write_fd` through it
+  - lowers the primitive to a new `WriteSlice` IR instruction using the existing two-word slice ABI
+  - emits Darwin `write` for slice views in the backend with the same fallible success/failure payload behavior as `write_text_raw`
+  - covers IR lowering, backend native execution, and distributed std build/privacy tests
 - Current checkpoint: stop silently succeeding byte writes
   - changes target-gated `std/io.write_fd` from a no-op to an explicit `std.io.unsupported` failure until byte-slice writes have a real runtime path
   - keeps `write_text_fd` and `File.write_text` on the working `write_text_raw` path

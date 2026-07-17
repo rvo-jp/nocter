@@ -43,7 +43,7 @@ use calls::{
     lower_slice_normal_call, lower_str_from_raw_parts_primitive_call_to_location,
     lower_str_normal_call, lower_u8_normal_call, lower_usize_normal_call, lower_void_normal_call,
     primitive_addr_call, primitive_copy_str_to_ptr_call, primitive_str_from_raw_parts_call,
-    primitive_write_text_raw_call,
+    primitive_write_bytes_raw_call, primitive_write_text_raw_call,
 };
 use predicates::{
     bool_comparison_contains_call, bool_comparison_needs_temporaries,
@@ -422,6 +422,7 @@ fn lower_fallible_void_expression_statement(
                 .direct_call_target_and_name(call)
                 .map(|(target, _call_name)| target);
             if !primitive_write_text_raw_call(call, context)
+                && !primitive_write_bytes_raw_call(call, context)
                 && !matches!(
                     target.as_ref().and_then(|target| context.call_return_type(target)),
                     Some(Type::Fallible(success)) if success.as_ref() == &Type::Void

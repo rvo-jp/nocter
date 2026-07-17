@@ -344,6 +344,16 @@ const WRITE_TEXT_RAW_PARAMETERS: &[PrimitiveParameterSpec] = &[
         ty: "&str",
     },
 ];
+const WRITE_BYTES_RAW_PARAMETERS: &[PrimitiveParameterSpec] = &[
+    PrimitiveParameterSpec {
+        name: "fd",
+        ty: "i32",
+    },
+    PrimitiveParameterSpec {
+        name: "bytes",
+        ty: "&[u8]",
+    },
+];
 
 fn primitive_set() -> &'static [PrimitiveSpec] {
     &[
@@ -498,6 +508,15 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             name: "write_text_raw",
             generics: &[],
             parameters: WRITE_TEXT_RAW_PARAMETERS,
+            return_type: "void!",
+        },
+        PrimitiveSpec {
+            module_path: "std/io",
+            target: Some("arm64-darwin"),
+            visibility: Visibility::Nocter,
+            name: "write_bytes_raw",
+            generics: &[],
+            parameters: WRITE_BYTES_RAW_PARAMETERS,
             return_type: "void!",
         },
     ]

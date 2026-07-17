@@ -17303,6 +17303,57 @@ pub func print_catch(text: &str): void! {
 }
 
 #[test]
+fn lowers_fallible_write_bytes_raw_catch_failure_return() {
+    let write_bytes = lower_imported_named_function_with_nocter_home_files(
+        r#"from std/io_bytes import write_bytes_catch
+
+func main(): void {
+    return
+}
+"#,
+        "write_bytes_catch",
+        &[
+            std_error_file(),
+            std_io_file(),
+            (
+                "std/io_bytes.nct",
+                r#"from std/error import Error
+from std/io import write_bytes_raw
+
+pub func write_bytes_catch(bytes: &[u8]): void! {
+    write_bytes_raw(1, bytes) catch error {
+        return Error.new("app.write", error.message)
+    }
+    return
+}
+"#,
+            ),
+        ],
+    );
+
+    assert_eq!(
+        write_bytes.instructions,
+        vec![
+            Instruction::WriteSlice {
+                fd: I32Value::Const(1),
+                bytes: SliceValue::Location(SliceLocation::Parameter(0)),
+            },
+            Instruction::CheckFailure {
+                failure_mode: FallibleFailureMode::Catch {
+                    code: StrLocation::Local(0),
+                    message: StrLocation::Local(2),
+                    instructions: vec![Instruction::ReturnFallibleFailure {
+                        code: StrValue::StaticBytes(b"app.write".to_vec()),
+                        message: StrValue::Location(StrLocation::Local(2)),
+                    }],
+                },
+            },
+            Instruction::ReturnFallibleSuccess,
+        ]
+    );
+}
+
+#[test]
 fn lowers_fallible_entry_return_static_error_constructor() {
     let ir = lower_text_with_std_error(
         r#"from std/error import Error
@@ -19880,6 +19931,9 @@ fn std_io_file() -> (&'static str, &'static str) {
         "std/io.nct",
         r#"#target("arm64-darwin")
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+
+#target("arm64-darwin")
+pub(nocter) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
 
 pub func print(text: &str): void! {
     write_text_raw(1, text)?
