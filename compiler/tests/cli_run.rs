@@ -121,6 +121,35 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_alias_parameter_and_return_exit_code() {
+    let project = TempProject::new("cli-run-alias-parameter-return");
+    let source = project.write_source(
+        "alias_parameter_return.nct",
+        r#"type Exit = i32
+
+func main(): i32 {
+    return answer(42)
+}
+
+func answer(value: Exit): Exit {
+    return value
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_imported_bool_condition_exit_code() {
     let project = TempProject::new("cli-run-imported-bool-condition");
     project.write_nocter_home_file(

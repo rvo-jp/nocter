@@ -1646,6 +1646,38 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_lowers_alias_parameter_and_return_abi() {
+    let project = TempProject::new("cli-build-alias-parameter-return-abi");
+    let source = project.write_source(
+        "alias_parameter_return_abi.nct",
+        r#"type Exit = i32
+type Text = str
+type Bytes = [u8]
+
+func main(): i32 {
+    return 0
+}
+
+func answer(name: &Text, code: Exit): Exit {
+    return code
+}
+
+func echo(bytes: &+Bytes): &+Bytes {
+    return bytes
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+    let status = Command::new(&executable).status().unwrap();
+    assert_eq!(status.code(), Some(0));
+}
+
+#[test]
 fn build_command_lowers_imported_bool_condition() {
     let project = TempProject::new("cli-build-imported-bool-condition");
     project.write_nocter_home_file(
