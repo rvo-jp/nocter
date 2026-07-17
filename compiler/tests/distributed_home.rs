@@ -366,9 +366,42 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn distributed_io_file_open_missing_reports_error() {
+    let project = TempProject::new("distributed-home-io-file-open-missing");
+    let source = project.write_source(
+        "file_open_missing.nct",
+        r#"from std/io import File
+
+func main(): i32! {
+    var input = File.open("missing.txt")?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("std.io.open_failed") && stderr.contains("open failed"),
+        "stderr:\n{}",
+        stderr
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn distributed_io_file_read_raw_buffer_runs() {
     let project = TempProject::new("distributed-home-io-file-read-raw-buffer-run");
-    fs::write(project.root().join("input.txt"), b"Read").unwrap();
+    fs::write(project.root().join("input.txt"), b"Hi").unwrap();
     let source = project.write_source(
         "file_read_raw_buffer.nct",
         r#"from std/io import File, stdout
@@ -397,7 +430,7 @@ func main(): i32! {
         text(&output.stdout),
         text(&output.stderr)
     );
-    assert_eq!(output.stdout, b"Read");
+    assert_eq!(output.stdout, b"Hi");
     assert!(output.stderr.is_empty(), "expected empty stderr");
 }
 
