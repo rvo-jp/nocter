@@ -423,6 +423,38 @@ func take(text: Text): i32 {
 }
 
 #[test]
+fn diagnoses_maybe_uninitialized_after_catch_fallthrough_moves() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    start: i32
+    len: i32
+    capacity: i32
+}
+
+func main(): i32 {
+    let text = Text{ start: 1, len: 42, capacity: 3 }
+    let value = fallible() catch error {
+        let moved = take(move text)
+    }
+    return text.len + value
+}
+
+func fallible(): i32! {
+    return 1
+}
+
+func take(text: Text): i32 {
+    return text.len
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0385");
+    assert!(diagnostics[0].message.contains("may be uninitialized"));
+}
+
+#[test]
 fn accepts_unreachable_use_after_returning_move() {
     let diagnostics = check_text(
         r#"struct Text {

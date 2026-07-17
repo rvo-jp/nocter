@@ -705,6 +705,7 @@ fn check_expression_ownership(
                 environment,
                 ownership,
             );
+            let success_ownership = ownership.clone();
             let mut catch_environment = environment_for_catch(
                 expression.error_name.clone(),
                 &expression.expression,
@@ -718,7 +719,7 @@ fn check_expression_ownership(
                 &catch_environment,
                 resolved,
             );
-            check_block_ownership(
+            let catch_flow = check_block_ownership(
                 sources,
                 &expression.catch_block,
                 resolved,
@@ -726,6 +727,9 @@ fn check_expression_ownership(
                 &mut catch_environment,
                 &mut catch_ownership,
             );
+            if catch_flow.reaches_end {
+                ownership.join_branches(&[success_ownership, catch_ownership]);
+            }
         }
         Expr::Borrow(expression) => {
             check_expression_ownership(
