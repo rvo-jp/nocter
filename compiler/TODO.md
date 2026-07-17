@@ -28,6 +28,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: stop silently succeeding byte writes
+  - changes target-gated `std/io.write_fd` from a no-op to an explicit `std.io.unsupported` failure until byte-slice writes have a real runtime path
+  - keeps `write_text_fd` and `File.write_text` on the working `write_text_raw` path
+  - verifies the distributed std check/run suite still passes
 - Current checkpoint: add `std/io.File` drop glue
   - defines `File.drop` in the distributed std so owned files follow the `close_on_drop` contract
   - keeps `stdout()`/`stderr()` handles non-owning while allowing future real `close_fd` to attach under the existing drop path

@@ -32,7 +32,7 @@ pub(nocter) func read_fd(fd: i32, buffer: &+[u8]): usize! {
 
 #target("arm64-darwin")
 pub(nocter) func write_fd(fd: i32, bytes: &[u8]): void! {
-    return
+    return Error.new("std.io.unsupported", "file byte write is not implemented")
 }
 
 #target("arm64-darwin")
