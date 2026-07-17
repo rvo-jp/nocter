@@ -62,6 +62,8 @@ impl EntryEmitter {
     }
 
     fn emit_module(&mut self, module: &IrModule, entry_name: &str) -> Result<(), Vec<Diagnostic>> {
+        validate_module_call_return_shapes(module)?;
+
         let Some(entry) = module
             .functions
             .iter()
@@ -1074,6 +1076,553 @@ fn validate_supported_fallible_success_payload_abi(
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+enum ExpectedCallReturnShape {
+    I32,
+    U8,
+    Usize,
+    Bool,
+    Str,
+    Slice,
+    Void,
+    IndirectAggregate,
+    DirectAggregate { layout: crate::abi::ValueLayout },
+}
+
+impl ExpectedCallReturnShape {
+    fn passing(self) -> Option<ReturnPassing> {
+        match self {
+            Self::I32 | Self::U8 | Self::Usize | Self::Bool => {
+                Some(ReturnPassing::Direct { words: 1 })
+            }
+            Self::Str | Self::Slice => Some(ReturnPassing::Direct { words: 2 }),
+            Self::Void => Some(ReturnPassing::Void),
+            Self::IndirectAggregate => Some(ReturnPassing::IndirectPointer),
+            Self::DirectAggregate { layout } => direct_aggregate_layout_passing(layout),
+        }
+    }
+
+    fn matches_success_type(self, ty: &Type) -> bool {
+        match (self, ty) {
+            (Self::I32, Type::I32)
+            | (Self::U8, Type::U8)
+            | (Self::Usize, Type::Usize)
+            | (Self::Bool, Type::Bool)
+            | (Self::Str, Type::Str)
+            | (Self::Slice, Type::Slice { .. })
+            | (Self::Void, Type::Void)
+            | (Self::IndirectAggregate, Type::Aggregate { .. }) => true,
+            (Self::DirectAggregate { layout }, Type::DirectAggregate { layout: actual, .. }) => {
+                layout == *actual
+            }
+            _ => false,
+        }
+    }
+
+    fn description(self) -> String {
+        match self {
+            Self::I32 => "i32".to_string(),
+            Self::U8 => "u8".to_string(),
+            Self::Usize => "usize".to_string(),
+            Self::Bool => "bool".to_string(),
+            Self::Str => "&str".to_string(),
+            Self::Slice => "slice".to_string(),
+            Self::Void => "void".to_string(),
+            Self::IndirectAggregate => "indirect aggregate".to_string(),
+            Self::DirectAggregate { layout } => format!(
+                "direct aggregate {} ({})",
+                layout_description(layout),
+                return_passing_description(self.passing())
+            ),
+        }
+    }
+}
+
+fn validate_module_call_return_shapes(module: &IrModule) -> Result<(), Vec<Diagnostic>> {
+    let return_types = module
+        .functions
+        .iter()
+        .map(|function| {
+            (
+                FunctionSymbol::from_function(function),
+                &function.return_type,
+            )
+        })
+        .collect::<HashMap<_, _>>();
+    let mut diagnostics = Vec::new();
+
+    for function in &module.functions {
+        validate_instruction_list_call_return_shapes(
+            &function.instructions,
+            &function.return_type,
+            &return_types,
+            &mut diagnostics,
+        );
+    }
+
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn validate_instruction_list_call_return_shapes(
+    instructions: &[Instruction],
+    current_return_type: &Type,
+    return_types: &HashMap<FunctionSymbol, &Type>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for instruction in instructions {
+        match instruction {
+            Instruction::CallI32 { target, .. } => validate_normal_call_return_shape(
+                target,
+                ExpectedCallReturnShape::I32,
+                return_types,
+                diagnostics,
+            ),
+            Instruction::CallFallibleI32 {
+                target,
+                failure_mode,
+                ..
+            } => {
+                validate_fallible_call_return_shape(
+                    target,
+                    ExpectedCallReturnShape::I32,
+                    return_types,
+                    diagnostics,
+                );
+                validate_failure_mode_call_return_shapes(
+                    failure_mode,
+                    current_return_type,
+                    return_types,
+                    diagnostics,
+                );
+            }
+            Instruction::CallU8 { target, .. } => validate_normal_call_return_shape(
+                target,
+                ExpectedCallReturnShape::U8,
+                return_types,
+                diagnostics,
+            ),
+            Instruction::CallFallibleU8 {
+                target,
+                failure_mode,
+                ..
+            } => {
+                validate_fallible_call_return_shape(
+                    target,
+                    ExpectedCallReturnShape::U8,
+                    return_types,
+                    diagnostics,
+                );
+                validate_failure_mode_call_return_shapes(
+                    failure_mode,
+                    current_return_type,
+                    return_types,
+                    diagnostics,
+                );
+            }
+            Instruction::CallUsize { target, .. } => validate_normal_call_return_shape(
+                target,
+                ExpectedCallReturnShape::Usize,
+                return_types,
+                diagnostics,
+            ),
+            Instruction::CallFallibleUsize {
+                target,
+                failure_mode,
+                ..
+            } => {
+                validate_fallible_call_return_shape(
+                    target,
+                    ExpectedCallReturnShape::Usize,
+                    return_types,
+                    diagnostics,
+                );
+                validate_failure_mode_call_return_shapes(
+                    failure_mode,
+                    current_return_type,
+                    return_types,
+                    diagnostics,
+                );
+            }
+            Instruction::CallBool { target, .. } => validate_normal_call_return_shape(
+                target,
+                ExpectedCallReturnShape::Bool,
+                return_types,
+                diagnostics,
+            ),
+            Instruction::CallFallibleBool {
+                target,
+                failure_mode,
+                ..
+            } => {
+                validate_fallible_call_return_shape(
+                    target,
+                    ExpectedCallReturnShape::Bool,
+                    return_types,
+                    diagnostics,
+                );
+                validate_failure_mode_call_return_shapes(
+                    failure_mode,
+                    current_return_type,
+                    return_types,
+                    diagnostics,
+                );
+            }
+            Instruction::CallStr { target, .. } => validate_normal_call_return_shape(
+                target,
+                ExpectedCallReturnShape::Str,
+                return_types,
+                diagnostics,
+            ),
+            Instruction::CallFallibleStr {
+                target,
+                failure_mode,
+                ..
+            } => {
+                validate_fallible_call_return_shape(
+                    target,
+                    ExpectedCallReturnShape::Str,
+                    return_types,
+                    diagnostics,
+                );
+                validate_failure_mode_call_return_shapes(
+                    failure_mode,
+                    current_return_type,
+                    return_types,
+                    diagnostics,
+                );
+            }
+            Instruction::CallSlice { target, .. } => validate_normal_call_return_shape(
+                target,
+                ExpectedCallReturnShape::Slice,
+                return_types,
+                diagnostics,
+            ),
+            Instruction::CallFallibleSlice {
+                target,
+                failure_mode,
+                ..
+            } => {
+                validate_fallible_call_return_shape(
+                    target,
+                    ExpectedCallReturnShape::Slice,
+                    return_types,
+                    diagnostics,
+                );
+                validate_failure_mode_call_return_shapes(
+                    failure_mode,
+                    current_return_type,
+                    return_types,
+                    diagnostics,
+                );
+            }
+            Instruction::CallAggregate { target, .. } => validate_normal_call_return_shape(
+                target,
+                ExpectedCallReturnShape::IndirectAggregate,
+                return_types,
+                diagnostics,
+            ),
+            Instruction::CallDirectAggregate { target, layout, .. } => {
+                validate_normal_call_return_shape(
+                    target,
+                    ExpectedCallReturnShape::DirectAggregate { layout: *layout },
+                    return_types,
+                    diagnostics,
+                );
+            }
+            Instruction::CallFallibleDirectAggregate {
+                target,
+                layout,
+                failure_mode,
+                ..
+            } => {
+                validate_fallible_call_return_shape(
+                    target,
+                    ExpectedCallReturnShape::DirectAggregate { layout: *layout },
+                    return_types,
+                    diagnostics,
+                );
+                validate_failure_mode_call_return_shapes(
+                    failure_mode,
+                    current_return_type,
+                    return_types,
+                    diagnostics,
+                );
+            }
+            Instruction::CallFallibleAggregate {
+                target,
+                failure_mode,
+                ..
+            } => {
+                validate_fallible_call_return_shape(
+                    target,
+                    ExpectedCallReturnShape::IndirectAggregate,
+                    return_types,
+                    diagnostics,
+                );
+                validate_failure_mode_call_return_shapes(
+                    failure_mode,
+                    current_return_type,
+                    return_types,
+                    diagnostics,
+                );
+            }
+            Instruction::CallVoid { target, .. } => validate_normal_call_return_shape(
+                target,
+                ExpectedCallReturnShape::Void,
+                return_types,
+                diagnostics,
+            ),
+            Instruction::CallFallibleVoid {
+                target,
+                failure_mode,
+                ..
+            } => {
+                validate_fallible_call_return_shape(
+                    target,
+                    ExpectedCallReturnShape::Void,
+                    return_types,
+                    diagnostics,
+                );
+                validate_failure_mode_call_return_shapes(
+                    failure_mode,
+                    current_return_type,
+                    return_types,
+                    diagnostics,
+                );
+            }
+            Instruction::TailCall { target, .. } => {
+                validate_tail_call_return_shape(
+                    target,
+                    current_return_type,
+                    return_types,
+                    diagnostics,
+                );
+            }
+            Instruction::If {
+                then_instructions,
+                else_instructions,
+                ..
+            } => {
+                validate_instruction_list_call_return_shapes(
+                    then_instructions,
+                    current_return_type,
+                    return_types,
+                    diagnostics,
+                );
+                validate_instruction_list_call_return_shapes(
+                    else_instructions,
+                    current_return_type,
+                    return_types,
+                    diagnostics,
+                );
+            }
+            Instruction::While {
+                condition_instructions,
+                body_instructions,
+                ..
+            } => {
+                validate_instruction_list_call_return_shapes(
+                    condition_instructions,
+                    current_return_type,
+                    return_types,
+                    diagnostics,
+                );
+                validate_instruction_list_call_return_shapes(
+                    body_instructions,
+                    current_return_type,
+                    return_types,
+                    diagnostics,
+                );
+            }
+            Instruction::CheckFailure { failure_mode } => validate_failure_mode_call_return_shapes(
+                failure_mode,
+                current_return_type,
+                return_types,
+                diagnostics,
+            ),
+            _ => {}
+        }
+    }
+}
+
+fn validate_failure_mode_call_return_shapes(
+    failure_mode: &FallibleFailureMode,
+    current_return_type: &Type,
+    return_types: &HashMap<FunctionSymbol, &Type>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    match failure_mode {
+        FallibleFailureMode::Propagate | FallibleFailureMode::Trap => {}
+        FallibleFailureMode::PropagateWithCleanup { instructions, .. }
+        | FallibleFailureMode::Catch { instructions, .. } => {
+            validate_instruction_list_call_return_shapes(
+                instructions,
+                current_return_type,
+                return_types,
+                diagnostics,
+            );
+        }
+    }
+}
+
+fn validate_normal_call_return_shape(
+    target: &CallTarget,
+    expected: ExpectedCallReturnShape,
+    return_types: &HashMap<FunctionSymbol, &Type>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let function = FunctionSymbol::from_call_target(target);
+    let Some(return_type) = return_types.get(&function) else {
+        diagnostics.push(unresolved_call_target_diagnostic(&function));
+        return;
+    };
+    if matches!(return_type, Type::Fallible(_)) {
+        diagnostics.push(Diagnostic::error(
+            "E9002",
+            format!(
+                "codegen normal call to function `{}` targets a fallible return",
+                function.description()
+            ),
+        ));
+        return;
+    }
+    validate_success_return_shape(&function, return_type, expected, "normal call", diagnostics);
+}
+
+fn validate_fallible_call_return_shape(
+    target: &CallTarget,
+    expected: ExpectedCallReturnShape,
+    return_types: &HashMap<FunctionSymbol, &Type>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let function = FunctionSymbol::from_call_target(target);
+    let Some(return_type) = return_types.get(&function) else {
+        diagnostics.push(unresolved_call_target_diagnostic(&function));
+        return;
+    };
+    let Type::Fallible(success_type) = return_type else {
+        diagnostics.push(Diagnostic::error(
+            "E9002",
+            format!(
+                "codegen fallible call to function `{}` targets a non-fallible return",
+                function.description()
+            ),
+        ));
+        return;
+    };
+    validate_success_return_shape(
+        &function,
+        success_type,
+        expected,
+        "fallible call success",
+        diagnostics,
+    );
+}
+
+fn validate_tail_call_return_shape(
+    target: &CallTarget,
+    current_return_type: &Type,
+    return_types: &HashMap<FunctionSymbol, &Type>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let function = FunctionSymbol::from_call_target(target);
+    let Some(return_type) = return_types.get(&function) else {
+        diagnostics.push(unresolved_call_target_diagnostic(&function));
+        return;
+    };
+    if return_type.success_return_passing() == Some(ReturnPassing::Never) {
+        return;
+    }
+    if *return_type == current_return_type {
+        return;
+    }
+    diagnostics.push(Diagnostic::error(
+        "E9002",
+        format!(
+            "codegen tail call return mismatch for function `{}`: expected {}, got {}",
+            function.description(),
+            type_return_description(current_return_type),
+            type_return_description(return_type),
+        ),
+    ));
+}
+
+fn validate_success_return_shape(
+    function: &FunctionSymbol,
+    success_type: &Type,
+    expected: ExpectedCallReturnShape,
+    context: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let expected_passing = expected.passing();
+    let actual_passing = success_type.success_return_passing();
+    if expected.matches_success_type(success_type) && expected_passing == actual_passing {
+        return;
+    }
+    diagnostics.push(Diagnostic::error(
+        "E9002",
+        format!(
+            "codegen {context} return mismatch for function `{}`: expected {} ({}), got {}",
+            function.description(),
+            expected.description(),
+            return_passing_description(expected_passing),
+            type_return_description(success_type),
+        ),
+    ));
+}
+
+fn direct_aggregate_layout_passing(layout: crate::abi::ValueLayout) -> Option<ReturnPassing> {
+    let words = usize::try_from(layout.size.div_ceil(crate::abi::ABI_WORD_SIZE)).ok()?;
+    Some(ReturnPassing::Direct { words })
+}
+
+fn return_passing_description(passing: Option<ReturnPassing>) -> &'static str {
+    passing.map_or("unsupported return ABI", ReturnPassing::description)
+}
+
+fn type_return_description(ty: &Type) -> String {
+    let shape = match ty {
+        Type::I32 => "i32".to_string(),
+        Type::U8 => "u8".to_string(),
+        Type::Usize => "usize".to_string(),
+        Type::Bool => "bool".to_string(),
+        Type::Str => "&str".to_string(),
+        Type::Slice { .. } => "slice".to_string(),
+        Type::Aggregate { layout } => {
+            format!("indirect aggregate {}", layout_description(*layout))
+        }
+        Type::DirectAggregate { layout, .. } => {
+            format!("direct aggregate {}", layout_description(*layout))
+        }
+        Type::Borrow { .. } => "borrow".to_string(),
+        Type::Void => "void".to_string(),
+        Type::Never => "never".to_string(),
+        Type::Fallible(success) => format!("fallible {}", type_return_description(success)),
+    };
+    format!(
+        "{shape} ({})",
+        return_passing_description(ty.success_return_passing())
+    )
+}
+
+fn layout_description(layout: crate::abi::ValueLayout) -> String {
+    format!("{} bytes align {}", layout.size, layout.align)
+}
+
+fn unresolved_call_target_diagnostic(function: &FunctionSymbol) -> Diagnostic {
+    Diagnostic::error(
+        "E9002",
+        format!(
+            "codegen could not resolve function `{}`",
+            function.description()
+        ),
+    )
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum FunctionSymbol {
     SameFile(String),
@@ -1375,6 +1924,71 @@ mod tests {
                 .message
                 .contains("fallible success payload uses 3 direct ABI words")
         );
+    }
+
+    #[test]
+    fn rejects_normal_call_to_fallible_callee_before_codegen() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::CallI32 {
+                        destination: I32Location::Return,
+                        target: CallTarget::same_file("answer"),
+                        arguments: vec![],
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "answer".to_string(),
+                target: crate::ir::CallTarget::same_file("answer".to_string()),
+                return_type: Type::Fallible(Box::new(Type::I32)),
+                instructions: vec![Instruction::ReturnFallibleSuccess],
+            },
+        ]);
+
+        let diagnostics = generate_arm64_darwin_entry(&module, "main").unwrap_err();
+
+        assert_eq!(diagnostics[0].code, "E9002");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("normal call to function `answer` targets a fallible return")
+        );
+    }
+
+    #[test]
+    fn rejects_call_return_shape_mismatch_before_codegen() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::CallI32 {
+                        destination: I32Location::Return,
+                        target: CallTarget::same_file("title"),
+                        arguments: vec![],
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "title".to_string(),
+                target: crate::ir::CallTarget::same_file("title".to_string()),
+                return_type: Type::Str,
+                instructions: vec![Instruction::Return],
+            },
+        ]);
+
+        let diagnostics = generate_arm64_darwin_entry(&module, "main").unwrap_err();
+
+        assert_eq!(diagnostics[0].code, "E9002");
+        assert!(diagnostics[0].message.contains("expected i32"));
+        assert!(diagnostics[0].message.contains("got &str"));
     }
 
     #[test]
@@ -2050,7 +2664,9 @@ mod tests {
             Function {
                 name: "make".to_string(),
                 target: crate::ir::CallTarget::same_file("make".to_string()),
-                return_type: Type::Void,
+                return_type: Type::Aggregate {
+                    layout: ValueLayout::new(24, 8),
+                },
                 instructions: vec![
                     Instruction::StoreAggregateUsize {
                         destination: AggregateLocation::Return,
@@ -2095,7 +2711,9 @@ mod tests {
             Function {
                 name: "make".to_string(),
                 target: crate::ir::CallTarget::same_file("make".to_string()),
-                return_type: Type::Void,
+                return_type: Type::Aggregate {
+                    layout: ValueLayout::new(24, 8),
+                },
                 instructions: vec![
                     Instruction::StoreAggregateUsize {
                         destination: AggregateLocation::Return,
