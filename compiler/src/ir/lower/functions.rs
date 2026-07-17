@@ -32,10 +32,10 @@ use super::expressions::{
 };
 use super::types::{
     borrow_inner_type, borrow_type_from_type_expr, return_type_from_type_expr,
-    scalar_or_view_type_from_type_expr,
+    scalar_or_view_type_from_type_expr, success_return_passing_from_ir_type,
 };
 use crate::abi::{
-    AbiType, AbiValue, ReturnPassing, ValueClassification, abi_value_from_type_expr,
+    AbiType, AbiValue, ValueClassification, abi_value_from_type_expr,
     function_parameter_abi_word_count_from_signature,
 };
 use crate::ast::{
@@ -2255,7 +2255,9 @@ fn validate_aggregate_call_success_return_passing(
     let Some(actual) = context.call_success_return_passing(target) else {
         return Ok(());
     };
-    let expected = aggregate_success_return_passing(return_type);
+    let Some(expected) = success_return_passing_from_ir_type(return_type) else {
+        return Ok(());
+    };
     if actual == expected {
         return Ok(());
     }
@@ -2267,38 +2269,19 @@ fn validate_aggregate_call_success_return_passing(
     ))
 }
 
-fn aggregate_success_return_passing(return_type: &Type) -> ReturnPassing {
-    match return_type {
-        Type::Aggregate { .. } => ReturnPassing::IndirectPointer,
-        Type::DirectAggregate { words, .. } => ReturnPassing::Direct { words: *words },
-        _ => unreachable!("aggregate return ABI check requires aggregate return type"),
-    }
-}
-
 fn aggregate_call_return_abi_mismatch_diagnostic(
     function_name: &str,
-    expected: ReturnPassing,
-    actual: ReturnPassing,
+    expected: crate::abi::ReturnPassing,
+    actual: crate::abi::ReturnPassing,
 ) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8007",
         format!(
             "IR v0 aggregate return ABI mismatch in function `{function_name}`: expected callee success return to use `{}`, got `{}`",
-            describe_return_passing(expected),
-            describe_return_passing(actual),
+            expected.description(),
+            actual.description(),
         ),
     )]
-}
-
-fn describe_return_passing(passing: ReturnPassing) -> &'static str {
-    match passing {
-        ReturnPassing::Void => "void",
-        ReturnPassing::Never => "never",
-        ReturnPassing::Direct { words: 1 } => "1 direct ABI word",
-        ReturnPassing::Direct { words: 2 } => "2 direct ABI words",
-        ReturnPassing::Direct { .. } => "direct ABI words",
-        ReturnPassing::IndirectPointer => "an indirect return pointer",
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -98,6 +98,19 @@ pub enum ReturnPassing {
     IndirectPointer,
 }
 
+impl ReturnPassing {
+    pub fn description(self) -> &'static str {
+        match self {
+            Self::Void => "void",
+            Self::Never => "never",
+            Self::Direct { words: 1 } => "1 direct ABI word",
+            Self::Direct { words: 2 } => "2 direct ABI words",
+            Self::Direct { .. } => "direct ABI words",
+            Self::IndirectPointer => "an indirect return pointer",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbiValue {
     pub ty: AbiType,

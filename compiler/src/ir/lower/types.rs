@@ -2,7 +2,7 @@
 //!
 //! Converts resolved AST type expressions into the limited IR type set used by v0 lowering.
 
-use crate::abi::{AbiType, AbiValue, ValueClassification, abi_value_from_type_expr};
+use crate::abi::{AbiType, AbiValue, ReturnPassing, ValueClassification, abi_value_from_type_expr};
 use crate::ast::{BorrowType, TypeExpr};
 use crate::ir::Type;
 use crate::resolve::ResolveOutput;
@@ -141,6 +141,19 @@ pub(super) fn borrow_type_from_type_expr<'a>(
     resolved: &'a ResolveOutput,
 ) -> Option<&'a BorrowType> {
     borrow_type_from_type_expr_inner(ty, resolved, &mut HashSet::new())
+}
+
+pub(super) fn success_return_passing_from_ir_type(ty: &Type) -> Option<ReturnPassing> {
+    match ty {
+        Type::I32 | Type::U8 | Type::Usize | Type::Bool => Some(ReturnPassing::Direct { words: 1 }),
+        Type::Str | Type::Slice { .. } => Some(ReturnPassing::Direct { words: 2 }),
+        Type::Aggregate { .. } => Some(ReturnPassing::IndirectPointer),
+        Type::DirectAggregate { words, .. } => Some(ReturnPassing::Direct { words: *words }),
+        Type::Void => Some(ReturnPassing::Void),
+        Type::Never => Some(ReturnPassing::Never),
+        Type::Fallible(success) => success_return_passing_from_ir_type(success),
+        Type::Borrow { .. } => None,
+    }
 }
 
 fn borrow_type_from_type_expr_inner<'a>(

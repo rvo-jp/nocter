@@ -17857,6 +17857,41 @@ func mirrors_enabled(): i32 {
 }
 
 #[test]
+fn rejects_normal_call_return_abi_mismatch_during_lowering() {
+    let diagnostics = lower_named_function_diagnostics_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func answer(): i32 {
+    return 1
+}
+
+func uses_answer(): i32 {
+    let value = answer()
+    return value
+}
+"#,
+        "uses_answer",
+        context::FunctionSignatures::from_call_targets(HashMap::from([(
+            CallTarget::same_file("answer"),
+            context::FunctionSignature {
+                return_type: Type::I32,
+                parameter_types: Some(vec![]),
+                parameter_abi_word_count: Some(0),
+                success_return_passing: Some(ReturnPassing::Direct { words: 2 }),
+            },
+        )])),
+    );
+
+    assert_eq!(diagnostics[0].code, "E8006");
+    assert_eq!(
+        diagnostics[0].message,
+        "IR v0 call return ABI mismatch for function `answer`: expected callee success return to use `1 direct ABI word`, got `2 direct ABI words`"
+    );
+}
+
+#[test]
 fn lowers_entry_i32_nested_tail_call_argument() {
     let ir = lower_text(
         r#"func main(): i32 {

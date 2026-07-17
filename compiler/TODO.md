@@ -28,6 +28,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: validate scalar call return ABI passing
+  - shares IR-type to success-return `ReturnPassing` mapping between aggregate return lowering and scalar/view call validators
+  - validates scalar/view/void normal and propagated fallible call lowering against indexed callee success-return ABI passing
+  - centralizes `ReturnPassing` descriptions in the ABI module so IR diagnostics report the same ABI spelling
 - Current checkpoint: index success return ABI passing
   - exposes a function-success-return ABI helper that classifies ordinary returns and fallible success returns, including aliases to `void` and `never`
   - records success-return `ReturnPassing` on IR lowering call signatures alongside parameter ABI word counts

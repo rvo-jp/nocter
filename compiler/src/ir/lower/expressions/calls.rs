@@ -5,6 +5,7 @@ use super::super::aggregates::{
 };
 use super::super::context::{AggregateFieldKind, LoweringContext};
 use super::super::functions::propagating_failure_mode;
+use super::super::types::success_return_passing_from_ir_type;
 use super::temporaries::TemporaryAllocator;
 use super::{
     lower_aggregate_member_field_access, lower_bool_expression_to_value_with_temporaries,
@@ -1290,7 +1291,12 @@ fn validate_normal_call_return_type(
     };
 
     if callee_return_type == &Type::I32 {
-        return Ok(());
+        return validate_call_success_return_passing(
+            target,
+            callee_name,
+            callee_return_type,
+            context,
+        );
     }
 
     Err(vec![Diagnostic::error(
@@ -1312,7 +1318,12 @@ fn validate_usize_normal_call_return_type(
     };
 
     if callee_return_type == &Type::Usize {
-        return Ok(());
+        return validate_call_success_return_passing(
+            target,
+            callee_name,
+            callee_return_type,
+            context,
+        );
     }
 
     Err(vec![Diagnostic::error(
@@ -1334,7 +1345,12 @@ fn validate_u8_normal_call_return_type(
     };
 
     if callee_return_type == &Type::U8 {
-        return Ok(());
+        return validate_call_success_return_passing(
+            target,
+            callee_name,
+            callee_return_type,
+            context,
+        );
     }
 
     Err(vec![Diagnostic::error(
@@ -1356,7 +1372,12 @@ fn validate_bool_normal_call_return_type(
     };
 
     if callee_return_type == &Type::Bool {
-        return Ok(());
+        return validate_call_success_return_passing(
+            target,
+            callee_name,
+            callee_return_type,
+            context,
+        );
     }
 
     Err(vec![Diagnostic::error(
@@ -1378,7 +1399,12 @@ fn validate_str_normal_call_return_type(
     };
 
     if callee_return_type == &Type::Str {
-        return Ok(());
+        return validate_call_success_return_passing(
+            target,
+            callee_name,
+            callee_return_type,
+            context,
+        );
     }
 
     Err(vec![Diagnostic::error(
@@ -1400,7 +1426,12 @@ fn validate_slice_normal_call_return_type(
     };
 
     if matches!(callee_return_type, Type::Slice { .. }) {
-        return Ok(());
+        return validate_call_success_return_passing(
+            target,
+            callee_name,
+            callee_return_type,
+            context,
+        );
     }
 
     Err(vec![Diagnostic::error(
@@ -1427,7 +1458,12 @@ fn validate_void_normal_call_return_type(
     };
 
     if callee_return_type == &Type::Void {
-        return Ok(());
+        return validate_call_success_return_passing(
+            target,
+            callee_name,
+            callee_return_type,
+            context,
+        );
     }
 
     Err(vec![Diagnostic::error(
@@ -1453,8 +1489,10 @@ fn validate_fallible_void_normal_call_return_type(
         )]);
     };
 
-    if matches!(callee_return_type, Type::Fallible(success) if success.as_ref() == &Type::Void) {
-        return Ok(());
+    if let Type::Fallible(success) = callee_return_type
+        && success.as_ref() == &Type::Void
+    {
+        return validate_call_success_return_passing(target, callee_name, success, context);
     }
 
     Err(vec![Diagnostic::error(
@@ -1480,8 +1518,10 @@ fn validate_fallible_i32_normal_call_return_type(
         )]);
     };
 
-    if matches!(callee_return_type, Type::Fallible(success) if success.as_ref() == &Type::I32) {
-        return Ok(());
+    if let Type::Fallible(success) = callee_return_type
+        && success.as_ref() == &Type::I32
+    {
+        return validate_call_success_return_passing(target, callee_name, success, context);
     }
 
     Err(vec![Diagnostic::error(
@@ -1507,8 +1547,10 @@ fn validate_fallible_usize_normal_call_return_type(
         )]);
     };
 
-    if matches!(callee_return_type, Type::Fallible(success) if success.as_ref() == &Type::Usize) {
-        return Ok(());
+    if let Type::Fallible(success) = callee_return_type
+        && success.as_ref() == &Type::Usize
+    {
+        return validate_call_success_return_passing(target, callee_name, success, context);
     }
 
     Err(vec![Diagnostic::error(
@@ -1534,8 +1576,10 @@ fn validate_fallible_u8_normal_call_return_type(
         )]);
     };
 
-    if matches!(callee_return_type, Type::Fallible(success) if success.as_ref() == &Type::U8) {
-        return Ok(());
+    if let Type::Fallible(success) = callee_return_type
+        && success.as_ref() == &Type::U8
+    {
+        return validate_call_success_return_passing(target, callee_name, success, context);
     }
 
     Err(vec![Diagnostic::error(
@@ -1561,8 +1605,10 @@ fn validate_fallible_bool_normal_call_return_type(
         )]);
     };
 
-    if matches!(callee_return_type, Type::Fallible(success) if success.as_ref() == &Type::Bool) {
-        return Ok(());
+    if let Type::Fallible(success) = callee_return_type
+        && success.as_ref() == &Type::Bool
+    {
+        return validate_call_success_return_passing(target, callee_name, success, context);
     }
 
     Err(vec![Diagnostic::error(
@@ -1588,8 +1634,10 @@ fn validate_fallible_str_normal_call_return_type(
         )]);
     };
 
-    if matches!(callee_return_type, Type::Fallible(success) if success.as_ref() == &Type::Str) {
-        return Ok(());
+    if let Type::Fallible(success) = callee_return_type
+        && success.as_ref() == &Type::Str
+    {
+        return validate_call_success_return_passing(target, callee_name, success, context);
     }
 
     Err(vec![Diagnostic::error(
@@ -1615,9 +1663,10 @@ fn validate_fallible_slice_normal_call_return_type(
         )]);
     };
 
-    if matches!(callee_return_type, Type::Fallible(success) if matches!(success.as_ref(), Type::Slice { .. }))
+    if let Type::Fallible(success) = callee_return_type
+        && matches!(success.as_ref(), Type::Slice { .. })
     {
-        return Ok(());
+        return validate_call_success_return_passing(target, callee_name, success, context);
     }
 
     Err(vec![Diagnostic::error(
@@ -1649,6 +1698,32 @@ fn validate_tail_call_return_type(
             context.function_name(),
             describe_type(context.return_type()),
             describe_type(callee_return_type),
+        ),
+    )])
+}
+
+fn validate_call_success_return_passing(
+    target: &CallTarget,
+    callee_name: &str,
+    expected_success_type: &Type,
+    context: &LoweringContext,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(actual) = context.call_success_return_passing(target) else {
+        return Ok(());
+    };
+    let Some(expected) = success_return_passing_from_ir_type(expected_success_type) else {
+        return Ok(());
+    };
+    if actual == expected {
+        return Ok(());
+    }
+
+    Err(vec![Diagnostic::error(
+        "E8006",
+        format!(
+            "IR v0 call return ABI mismatch for function `{callee_name}`: expected callee success return to use `{}`, got `{}`",
+            expected.description(),
+            actual.description(),
         ),
     )])
 }
