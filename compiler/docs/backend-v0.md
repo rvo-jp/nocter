@@ -257,7 +257,7 @@ Implement normal calls in this order:
 The backend currently supports the normal-call register and stack-argument portion of Nocter ABI v0 for supported non-generic aggregate structs:
 
 - direct aggregate parameters, arguments, and returns up to 16 bytes, including partial final ABI words
-- direct aggregate argument staging and call-result slot stores cover partial final ABI words, including a 9-byte value carried as two ABI words
+- direct aggregate argument staging, call-result slot stores, and fallible success-payload forwarding cover partial final ABI words, including a 9-byte value carried as two ABI words
 - indirect aggregate parameters, arguments, and returns larger than 16 bytes by pointer ABI word or caller-provided return storage
 - direct aggregate return range copies can target either direct return ABI word when the range stays within `x0,x1`; out-of-range direct return copies are rejected before emission
 - aggregate call-result slots for normal, propagated fallible, forced fallible, and caught fallible calls in the narrow expression positions lowered by IR

@@ -30,6 +30,9 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: cover fallible direct aggregate partial payloads
+  - fixes backend unit coverage for 9-byte fallible direct aggregate success payloads stored into aggregate slots from `x1,x2`
+  - fixes backend unit coverage for 9-byte fallible direct aggregate success payloads forwarded from `x1,x2` into direct return `x0,x1`
 - Current checkpoint: cover direct aggregate partial final ABI words
   - fixes backend unit coverage for 9-byte direct aggregate arguments so the partial final byte is zero-extended into the second ABI word before argument loading
   - fixes backend unit coverage for 9-byte direct aggregate call results so the partial final payload byte is stored from `x1` into the destination aggregate slot
