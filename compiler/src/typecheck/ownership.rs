@@ -933,6 +933,7 @@ fn check_expression_ownership(
                 environment,
                 ownership,
             );
+            let mut branch_ownerships = Vec::with_capacity(expression.arms.len() + 1);
             for arm in &expression.arms {
                 let mut arm_environment =
                     environment_for_pattern_conditional_arm(arm, resolved, environment);
@@ -953,15 +954,19 @@ fn check_expression_ownership(
                     &mut arm_environment,
                     &mut arm_ownership,
                 );
+                branch_ownerships.push(arm_ownership);
             }
+            let mut fallback_ownership = ownership.clone();
             check_expression_ownership(
                 sources,
                 &expression.fallback,
                 resolved,
                 diagnostics,
                 environment,
-                ownership,
+                &mut fallback_ownership,
             );
+            branch_ownerships.push(fallback_ownership);
+            ownership.join_branches(&branch_ownerships);
         }
         Expr::IntegerLiteral(_)
         | Expr::StringLiteral(_)
