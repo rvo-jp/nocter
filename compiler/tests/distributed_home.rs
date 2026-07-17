@@ -548,6 +548,46 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn distributed_std_string_from_str_forward_return_runs() {
+    let project = TempProject::new("distributed-home-string-from-str-forward-return-run");
+    let source = project.write_source(
+        "string_from_str_forward_return.nct",
+        r#"from std/io import print
+from std/mem import page_allocator
+from std/string import from_str, view
+
+func make(): String! {
+    var allocator = page_allocator()
+    return from_str(&+allocator, "Forwarded String")?
+}
+
+func main(): i32! {
+    var text = make()?
+    print(view(&text))?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"Forwarded String");
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn distributed_std_string_copy_view_runs() {
     let project = TempProject::new("distributed-home-string-copy-view-run");
     let source = project.write_source(

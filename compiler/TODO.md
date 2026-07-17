@@ -28,6 +28,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: cover direct fallible String forwarding
+  - adds distributed std native run coverage for `make(): String! { return from_str(&+allocator, "...")? }`
+  - verifies a fallible indirect aggregate call can write directly into the caller-provided `String` return storage through `std/string`
+  - keeps the hidden indirect return pointer regression covered above the low-level backend unit tests
 - Current checkpoint: run explicit String construction path
   - adds distributed std native run coverage for `make(): String! { ... return move out }`
   - verifies `std/mem.page_allocator`, `std/string.with_capacity`, `std/fmt.append_str`, `std/string.view`, `std/io.print`, aggregate return, and `String.drop` in one path
