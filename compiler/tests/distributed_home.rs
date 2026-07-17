@@ -874,6 +874,40 @@ func main(): i32 {
 }
 
 #[test]
+fn distributed_process_exit_raw_helper_is_not_public_api() {
+    let project = TempProject::new("distributed-home-process-exit-raw-private");
+    let source = project.write_source(
+        "process_exit_raw_private.nct",
+        r#"from std/process import exit_raw
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(
+        output.stdout.is_empty(),
+        "expected empty stdout, got:\n{}",
+        text(&output.stdout)
+    );
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("E0412") && stderr.contains("pub(nocter)"),
+        "expected pub(nocter) visibility diagnostic, got:\n{stderr}"
+    );
+}
+
+#[test]
 fn distributed_std_abort_builds_to_macho() {
     let project = TempProject::new("distributed-home-abort-build");
     let source = project.write_source(
@@ -891,6 +925,41 @@ func main(): i32 {
 
     assert_success(&output);
     assert_macho_executable(&executable);
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_process_exit_runs_with_requested_code() {
+    let project = TempProject::new("distributed-home-process-exit-run");
+    let source = project.write_source(
+        "process_exit_app.nct",
+        r#"from std/process import exit
+
+func main(): i32 {
+    return exit(7)
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(7),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(
+        output.stdout.is_empty(),
+        "expected empty stdout, got:\n{}",
+        text(&output.stdout)
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
+    );
 }
 
 #[test]

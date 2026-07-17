@@ -378,6 +378,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::ReturnFallibleSuccess
             | Instruction::ReturnFallibleFailure { .. }
             | Instruction::TailCall { .. }
+            | Instruction::ProcessExit { .. }
             | Instruction::Trap
             | Instruction::Break
             | Instruction::Continue,

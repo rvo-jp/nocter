@@ -360,6 +360,9 @@ pub(crate) enum Instruction {
         target: CallTarget,
         arguments: Vec<ScalarArgument>,
     },
+    ProcessExit {
+        code: I32Value,
+    },
     Trap,
     If {
         condition: BoolValue,

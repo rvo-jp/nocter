@@ -1,12 +1,14 @@
 //! macOS implementation of the user-facing `std/process` API.
 //!
 //! exit is a standard-library API, not a compiler primitive. The target-specific
-//! implementation will call the active target boundary and trap if the platform
-//! exit operation unexpectedly returns.
+//! implementation calls the active target boundary.
 
 from std/error import Error
 from std/os/macos import trap
 from std/vec import Vec
+
+#target("arm64-darwin")
+pub(nocter) primitive exit_raw(code: i32): never
 
 pub func args(): Vec<&str>! {
     return Error.new("std.process.unsupported", "process arguments are not implemented")
@@ -21,8 +23,7 @@ pub func cwd(): &str! {
 }
 
 pub func exit(code: i32): never {
-    // TODO: call macOS SYS_exit after syscall number constants are specified.
-    trap()
+    exit_raw(code)
 }
 
 pub func abort(): never {

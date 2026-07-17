@@ -1296,6 +1296,10 @@ pub(in crate::ir::lower) fn primitive_trap_call(
     )
 }
 
+pub(super) fn primitive_exit_raw_call(call: &CallExpr, context: &LoweringContext) -> bool {
+    matches!(context.primitive_name_for_call(call), Some("exit_raw"))
+}
+
 fn lower_legacy_i32_call_arguments(
     call: &CallExpr,
     callee_name: &str,
@@ -1988,6 +1992,24 @@ pub(super) fn lower_close_fd_raw_primitive_call(
     let fd = lower_i32_expression_to_value(&call.arguments[0], context, temporaries)?;
     let mut instructions = fd.instructions;
     instructions.push(Instruction::CloseFd { fd: fd.value });
+    Ok(instructions)
+}
+
+pub(super) fn lower_exit_raw_primitive_call(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if call.arguments.len() != 1 {
+        return Err(vec![Diagnostic::error(
+            "E8006",
+            "IR v0 can only lower primitive `exit_raw` with argument `(i32)`",
+        )]);
+    }
+
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let code = lower_i32_expression_to_value(&call.arguments[0], context, &mut temporaries)?;
+    let mut instructions = code.instructions;
+    instructions.push(Instruction::ProcessExit { code: code.value });
     Ok(instructions)
 }
 

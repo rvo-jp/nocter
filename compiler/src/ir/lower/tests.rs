@@ -1175,6 +1175,59 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_process_exit_to_target_exit_primitive() {
+    let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
+        r#"from std/process import exit
+
+func main(): i32 {
+    return exit(7)
+}
+"#,
+        crate::entry::DEFAULT_ENTRY_NAME,
+        &[std_process_file(), std_macos_file()],
+    );
+    let analysis = &fixture.analysis;
+    let process_source = analysis
+        .files
+        .iter()
+        .find(|file| {
+            !file.is_root
+                && file.ast.items.iter().any(|item| {
+                    matches!(item, crate::ast::Item::Function(function) if function.name == "exit")
+                })
+        })
+        .map(|file| file.ast.span.source)
+        .unwrap();
+
+    let ir =
+        lower_executable_with_entry(analysis, &fixture.sources, crate::entry::DEFAULT_ENTRY_NAME)
+            .unwrap();
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: CallTarget::same_file("main"),
+                return_type: Type::I32,
+                instructions: vec![Instruction::TailCall {
+                    target: CallTarget::imported(process_source, "exit"),
+                    arguments: vec![ScalarArgument::I32(I32Value::Const(7))],
+                }],
+            },
+            Function {
+                name: "exit".to_string(),
+                target: CallTarget::imported(process_source, "exit"),
+                return_type: Type::Never,
+                instructions: vec![Instruction::ProcessExit {
+                    code: I32Value::Location(I32Location::Parameter(0)),
+                }],
+            },
+        ])
+    );
+}
+
+#[test]
 fn collects_loaded_imported_call_targets() {
     let analysis = analyze_text_with_entry_and_nocter_home_files(
         r#"from std/math import answer
@@ -20253,6 +20306,13 @@ fn std_process_file() -> (&'static str, &'static str) {
     (
         "std/process.nct",
         r#"from std/os/macos import trap
+
+#target("arm64-darwin")
+pub(nocter) primitive exit_raw(code: i32): never
+
+pub func exit(code: i32): never {
+    exit_raw(code)
+}
 
 pub func abort(): never {
     trap()

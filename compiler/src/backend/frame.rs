@@ -413,6 +413,7 @@ fn instruction_clobbers_parameter_registers(instruction: &Instruction) -> bool {
         | Instruction::ReadSlice { .. }
         | Instruction::OpenRead { .. }
         | Instruction::CloseFd { .. }
+        | Instruction::ProcessExit { .. }
         | Instruction::DarwinSyscall { .. }
         | Instruction::CopyStrToPointer { .. }
         | Instruction::StoreU8ToPointer { .. } => true,
@@ -561,6 +562,7 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::TrapOnFailure
         | Instruction::ReturnFallibleSuccess
         | Instruction::ReturnFallibleFailure { .. }
+        | Instruction::ProcessExit { .. }
         | Instruction::SetI32 { .. }
         | Instruction::SetU8 { .. }
         | Instruction::SetUsize { .. }
@@ -704,6 +706,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::TrapOnFailure
         | Instruction::ReturnFallibleSuccess
         | Instruction::ReturnFallibleFailure { .. }
+        | Instruction::ProcessExit { .. }
         | Instruction::Break
         | Instruction::Continue => 0,
         Instruction::WriteStr { .. }
@@ -824,6 +827,7 @@ fn record_instruction_aggregate_slot_requests(
         | Instruction::TrapOnFailure
         | Instruction::ReturnFallibleSuccess
         | Instruction::ReturnFallibleFailure { .. }
+        | Instruction::ProcessExit { .. }
         | Instruction::WriteStr { .. }
         | Instruction::WriteSlice { .. }
         | Instruction::CloseFd { .. }
@@ -1077,6 +1081,11 @@ fn record_instruction_parameter_spill_requests(
             if include_value_parameters {
                 record_str_value_parameter_spill_requests(code, requests);
                 record_str_value_parameter_spill_requests(message, requests);
+            }
+        }
+        Instruction::ProcessExit { code } => {
+            if include_value_parameters {
+                record_i32_value_parameter_spill_requests(code, requests);
             }
         }
         Instruction::WriteStr { fd, text } => {
@@ -1625,6 +1634,9 @@ fn record_instruction_scalar_locals(
         Instruction::ReturnFallibleFailure { code, message } => {
             record_str_value(code, highest_local_index);
             record_str_value(message, highest_local_index);
+        }
+        Instruction::ProcessExit { code } => {
+            record_i32_value(code, highest_local_index);
         }
         Instruction::StoreAggregateUsize { value, .. } => {
             record_usize_value(value, highest_local_index);

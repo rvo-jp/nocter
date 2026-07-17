@@ -660,6 +660,9 @@ impl EntryEmitter {
             Instruction::TailCall { target, arguments } => {
                 self.emit_tail_call(FunctionSymbol::from_call_target(target), arguments, frame)?;
             }
+            Instruction::ProcessExit { code } => {
+                self.emit_process_exit(code)?;
+            }
             Instruction::Trap => {
                 self.emit_trap();
             }
@@ -715,6 +718,12 @@ impl EntryEmitter {
             }
         }
 
+        Ok(())
+    }
+
+    fn emit_process_exit(&mut self, code: &I32Value) -> Result<(), Vec<Diagnostic>> {
+        self.emit_i32_value_to_w(code, WReg::W0)?;
+        emit_darwin_exit_syscall(&mut self.encoder);
         Ok(())
     }
 

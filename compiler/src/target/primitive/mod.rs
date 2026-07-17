@@ -400,6 +400,10 @@ const CLOSE_FD_RAW_PARAMETERS: &[PrimitiveParameterSpec] = &[PrimitiveParameterS
     name: "fd",
     ty: "i32",
 }];
+const PROCESS_EXIT_RAW_PARAMETERS: &[PrimitiveParameterSpec] = &[PrimitiveParameterSpec {
+    name: "code",
+    ty: "i32",
+}];
 
 fn primitive_set() -> &'static [PrimitiveSpec] {
     &[
@@ -627,6 +631,15 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             generics: &[],
             parameters: CLOSE_FD_RAW_PARAMETERS,
             return_type: "void",
+        },
+        PrimitiveSpec {
+            module_path: "std/process",
+            target: Some("arm64-darwin"),
+            visibility: Visibility::Nocter,
+            name: "exit_raw",
+            generics: &[],
+            parameters: PROCESS_EXIT_RAW_PARAMETERS,
+            return_type: "never",
         },
     ]
 }

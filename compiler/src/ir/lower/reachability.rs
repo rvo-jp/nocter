@@ -98,7 +98,8 @@ fn collect_reachable_call_targets(
             Instruction::OpenRead { failure_mode, .. } => {
                 collect_failure_mode_reachable_call_targets(failure_mode, targets);
             }
-            Instruction::WriteStr { .. }
+            Instruction::ProcessExit { .. }
+            | Instruction::WriteStr { .. }
             | Instruction::WriteSlice { .. }
             | Instruction::CloseFd { .. }
             | Instruction::DarwinSyscall { .. }
