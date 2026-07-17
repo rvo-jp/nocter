@@ -1629,14 +1629,19 @@ fn record_borrow_source_parameter_spill_request(
         | BorrowSource::Bool(BoolLocation::Parameter(index)) => {
             requests.insert(index);
         }
-        BorrowSource::AggregateParameter(index) => {
+        BorrowSource::AggregateParameter(index)
+        | BorrowSource::AggregateParameterField {
+            parameter_index: index,
+            ..
+        } => {
             requests.insert(index);
         }
         BorrowSource::I32(I32Location::Return | I32Location::Local(_))
         | BorrowSource::U8(U8Location::Return | U8Location::Local(_))
         | BorrowSource::Usize(UsizeLocation::Return | UsizeLocation::Local(_))
         | BorrowSource::Bool(BoolLocation::Return | BoolLocation::Local(_))
-        | BorrowSource::AggregateSlot(_) => {}
+        | BorrowSource::AggregateSlot(_)
+        | BorrowSource::AggregateSlotField { .. } => {}
     }
 }
 
@@ -2132,7 +2137,10 @@ fn record_borrow_source(source: BorrowSource, highest_local_index: &mut Option<u
         BorrowSource::U8(location) => record_u8_location(location, highest_local_index),
         BorrowSource::Usize(location) => record_usize_location(location, highest_local_index),
         BorrowSource::Bool(location) => record_bool_location(location, highest_local_index),
-        BorrowSource::AggregateSlot(_) | BorrowSource::AggregateParameter(_) => {}
+        BorrowSource::AggregateSlot(_)
+        | BorrowSource::AggregateSlotField { .. }
+        | BorrowSource::AggregateParameter(_)
+        | BorrowSource::AggregateParameterField { .. } => {}
     }
 }
 

@@ -5,7 +5,7 @@ use super::aggregates::{
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
     type_expr_is_copy_struct,
 };
-use super::context::{AggregateFieldKind, LoweringContext};
+use super::context::{AggregateFieldKind, DropGlue, LoweringContext};
 use super::expressions::{
     TemporaryAllocator, aggregate_call_field, expression_contains_interpolated_string,
     expression_is_lowerable_bool_binding, lower_aggregate_member_field_access,
@@ -28,8 +28,9 @@ use crate::ast::{
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    AggregateLocation, BoolLocation, FallibleFailureMode, I32Location, Instruction, SliceLocation,
-    StrLocation, Type, U8Location, UsizeLocation,
+    AggregateLocation, BoolLocation, BorrowArgument, BorrowSource, FallibleFailureMode,
+    I32Location, Instruction, ScalarArgument, SliceLocation, StrLocation, Type, U8Location,
+    UsizeLocation,
 };
 
 pub(super) fn lower_local_binding(
@@ -83,7 +84,7 @@ fn lower_aggregate_struct_literal_binding(
     let Expr::StructLiteral(literal) = unwrap_group(&statement.initializer) else {
         return Ok(None);
     };
-    let Some((_root_source, resolved)) = context.resolved_calls() else {
+    let Some((root_source, resolved)) = context.resolved_calls() else {
         return Err(unsupported_binding_diagnostic(
             "IR v0 cannot lower aggregate struct literal bindings without resolved type information",
         ));
@@ -98,7 +99,8 @@ fn lower_aggregate_struct_literal_binding(
 
     let is_copy = type_expr_is_copy_struct(&literal.ty, resolved);
     let drop_glue = context.drop_glue_for_type_expr(&literal.ty);
-    let fields = aggregate_fields_from_type_expr(&literal.ty, resolved).unwrap_or_default();
+    let fields =
+        aggregate_fields_from_type_expr(&literal.ty, root_source, resolved).unwrap_or_default();
     let slot_index = context.define_aggregate_local(
         statement.name.clone(),
         value.layout,
@@ -767,6 +769,7 @@ fn lower_aggregate_field_assignment(
     let destination = field.source;
     let offset = field.offset;
     let field_is_copy = field.is_copy;
+    let field_drop_glue = field.drop_glue.clone();
     match field.kind {
         AggregateFieldKind::I32 => {
             let (mut instructions, value) = lower_i32_expression_to_word(value, context)?;
@@ -822,10 +825,18 @@ fn lower_aggregate_field_assignment(
             Ok(lowered.instructions)
         }
         AggregateFieldKind::Aggregate { layout, .. } => {
-            if !field_is_copy {
-                return Err(unsupported_assignment_diagnostic());
+            if field_is_copy {
+                lower_aggregate_member_value_assignment(destination, offset, layout, value, context)
+            } else {
+                lower_aggregate_member_replacement_assignment(
+                    destination,
+                    offset,
+                    layout,
+                    field_drop_glue,
+                    value,
+                    context,
+                )
             }
-            lower_aggregate_member_value_assignment(destination, offset, layout, value, context)
         }
     }
 }
@@ -862,6 +873,24 @@ fn lower_aggregate_member_value_assignment(
                 return Err(unsupported_assignment_diagnostic());
             };
             if source.layout != layout || !source.is_copy {
+                return Err(unsupported_assignment_diagnostic());
+            }
+            Ok(vec![Instruction::CopyAggregateRange {
+                destination,
+                destination_offset,
+                source: AggregateLocation::Slot(source.slot_index),
+                source_offset: 0,
+                layout,
+            }])
+        }
+        Expr::Unary(unary) if unary.operator == UnaryOperator::Move => {
+            let Expr::Identifier(identifier) = unwrap_group(&unary.operand) else {
+                return Err(unsupported_assignment_diagnostic());
+            };
+            let Some(source) = context.aggregate_local(&identifier.name) else {
+                return Err(unsupported_assignment_diagnostic());
+            };
+            if source.layout != layout {
                 return Err(unsupported_assignment_diagnostic());
             }
             Ok(vec![Instruction::CopyAggregateRange {
@@ -946,6 +975,117 @@ fn lower_aggregate_member_value_assignment(
             Ok(instructions)
         }
         _ => Err(unsupported_assignment_diagnostic()),
+    }
+}
+
+fn lower_aggregate_member_replacement_assignment(
+    destination: AggregateLocation,
+    destination_offset: u32,
+    layout: ValueLayout,
+    drop_glue: Option<DropGlue>,
+    value: &Expr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if !supported_aggregate_copy_layout(layout) {
+        return Err(unsupported_assignment_diagnostic());
+    }
+
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let replacement_slot = temporaries.next_aggregate_slot();
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index: replacement_slot,
+        layout,
+    }];
+    instructions.extend(lower_aggregate_member_value_assignment(
+        AggregateLocation::Slot(replacement_slot),
+        0,
+        layout,
+        value,
+        context,
+    )?);
+    if let Some(drop_instruction) = replacement_drop_for_aggregate_field(
+        destination,
+        destination_offset,
+        layout,
+        drop_glue,
+        context,
+    )? {
+        instructions.push(drop_instruction);
+    }
+    instructions.push(Instruction::CopyAggregateRange {
+        destination,
+        destination_offset,
+        source: AggregateLocation::Slot(replacement_slot),
+        source_offset: 0,
+        layout,
+    });
+    Ok(instructions)
+}
+
+fn replacement_drop_for_aggregate_field(
+    destination: AggregateLocation,
+    destination_offset: u32,
+    layout: ValueLayout,
+    drop_glue: Option<DropGlue>,
+    context: &LoweringContext,
+) -> Result<Option<Instruction>, Vec<Diagnostic>> {
+    let Some(drop_glue) = drop_glue else {
+        return Ok(None);
+    };
+    let Some(parameter_types) = context.call_parameter_types(&drop_glue.target) else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    if parameter_types.len() != 1
+        || !drop_parameter_matches_aggregate_layout(&parameter_types[0], layout)
+    {
+        return Err(unsupported_assignment_diagnostic());
+    }
+
+    let source = borrow_source_for_aggregate_field(destination, destination_offset)?;
+    Ok(Some(Instruction::CallVoid {
+        target: drop_glue.target,
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument { source })],
+    }))
+}
+
+fn borrow_source_for_aggregate_field(
+    destination: AggregateLocation,
+    offset: u32,
+) -> Result<BorrowSource, Vec<Diagnostic>> {
+    match destination {
+        AggregateLocation::Slot(slot_index) => {
+            Ok(BorrowSource::AggregateSlotField { slot_index, offset })
+        }
+        AggregateLocation::Parameter(parameter_index) => {
+            Ok(BorrowSource::AggregateParameterField {
+                parameter_index,
+                offset,
+            })
+        }
+        AggregateLocation::Return
+        | AggregateLocation::DirectReturn
+        | AggregateLocation::DirectParameter { .. } => Err(unsupported_assignment_diagnostic()),
+    }
+}
+
+fn drop_parameter_matches_aggregate_layout(parameter_type: &Type, layout: ValueLayout) -> bool {
+    let Type::Borrow {
+        is_readwrite: true,
+        inner,
+    } = parameter_type
+    else {
+        return false;
+    };
+
+    match inner.as_ref() {
+        Type::Aggregate {
+            layout: parameter_layout,
+        }
+        | Type::DirectAggregate {
+            layout: parameter_layout,
+            ..
+        } => *parameter_layout == layout,
+        _ => false,
     }
 }
 
@@ -1575,13 +1715,14 @@ fn call_success_aggregate_fields(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> Vec<super::context::AggregateField> {
-    let Some((_root_source, resolved)) = context.resolved_calls() else {
+    let Some((root_source, resolved)) = context.resolved_calls() else {
         return Vec::new();
     };
     let Some(signature) = resolved.call_signature_for_call(call) else {
         return Vec::new();
     };
-    aggregate_fields_from_type_expr(&signature.return_type, resolved).unwrap_or_default()
+    aggregate_fields_from_type_expr(&signature.return_type, root_source, resolved)
+        .unwrap_or_default()
 }
 
 fn call_success_drop_glue(
@@ -1615,7 +1756,7 @@ fn unsupported_binding_diagnostic(message: &'static str) -> Vec<Diagnostic> {
 fn unsupported_assignment_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8008",
-        "IR v0 can only lower simple `=` assignment to scalar local bindings, scalar aggregate fields, aggregate slots, or copy aggregate fields",
+        "IR v0 can only lower simple `=` assignment to scalar local bindings, scalar aggregate fields, aggregate slots, copy aggregate fields, or drop-aware aggregate field replacement",
     )]
 }
 

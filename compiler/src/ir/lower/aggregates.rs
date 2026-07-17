@@ -1,4 +1,6 @@
-use super::context::{AggregateField, AggregateFieldKind, LoweringContext};
+use super::context::{
+    AggregateField, AggregateFieldKind, LoweringContext, drop_glue_for_type_expr,
+};
 use super::expressions::{
     TemporaryAllocator, lower_aggregate_member_field_access, lower_bool_expression_to_value,
     lower_call_arguments_to_scalar_arguments_with_temporaries, lower_catch_failure_mode,
@@ -15,6 +17,7 @@ use crate::ir::{
     UsizeValue,
 };
 use crate::resolve::{ResolveOutput, StructFieldSignature, TypeSymbolKind};
+use crate::source::SourceId;
 use std::collections::{HashMap, HashSet};
 
 pub(super) fn supported_aggregate_copy_layout(layout: ValueLayout) -> bool {
@@ -273,6 +276,7 @@ fn lower_aggregate_struct_literal_to_location_at_offset_with_temporaries(
 
 pub(super) fn aggregate_fields_from_type_expr(
     ty: &TypeExpr,
+    root_source: SourceId,
     resolved: &ResolveOutput,
 ) -> Option<Vec<AggregateField>> {
     let ty = match ty {
@@ -300,6 +304,7 @@ pub(super) fn aggregate_fields_from_type_expr(
             &field.ty,
             Some(&source_field.ty),
             layout.offset,
+            root_source,
             resolved,
             &mut aggregate_fields,
         )?;
@@ -335,6 +340,7 @@ fn collect_aggregate_fields(
     ty: &AbiType,
     source_ty: Option<&TypeExpr>,
     base_offset: u64,
+    root_source: SourceId,
     resolved: &ResolveOutput,
     aggregate_fields: &mut Vec<AggregateField>,
 ) -> Option<()> {
@@ -345,6 +351,7 @@ fn collect_aggregate_fields(
             offset,
             kind,
             is_copy: true,
+            drop_glue: None,
         });
         return Some(());
     }
@@ -373,6 +380,7 @@ fn collect_aggregate_fields(
             &field.ty,
             nested_source_ty,
             layout.offset,
+            root_source,
             resolved,
             &mut nested_fields,
         )?;
@@ -385,6 +393,7 @@ fn collect_aggregate_fields(
             fields: nested_fields,
         },
         is_copy: source_ty.is_some_and(|ty| type_expr_is_copy_struct(ty, resolved)),
+        drop_glue: source_ty.and_then(|ty| drop_glue_for_type_expr(ty, root_source, resolved)),
     });
 
     for (index, (field, layout)) in fields.iter().zip(struct_layout.fields.iter()).enumerate() {
@@ -397,6 +406,7 @@ fn collect_aggregate_fields(
             &field.ty,
             nested_source_ty,
             offset,
+            root_source,
             resolved,
             aggregate_fields,
         )?;

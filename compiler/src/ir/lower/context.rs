@@ -823,6 +823,7 @@ impl<'a> LoweringContext<'a> {
                 kind: field.kind.clone(),
                 is_readwrite: true,
                 is_copy: field.is_copy,
+                drop_glue: field.drop_glue.clone(),
             })
     }
 
@@ -845,6 +846,7 @@ impl<'a> LoweringContext<'a> {
                 kind: field.kind.clone(),
                 is_readwrite: borrow.is_readwrite,
                 is_copy: field.is_copy,
+                drop_glue: field.drop_glue.clone(),
             })
     }
 
@@ -1050,6 +1052,7 @@ pub(super) struct AggregateField {
     pub(super) offset: u32,
     pub(super) kind: AggregateFieldKind,
     pub(super) is_copy: bool,
+    pub(super) drop_glue: Option<DropGlue>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1059,6 +1062,7 @@ pub(super) struct AggregateFieldAccess {
     pub(super) kind: AggregateFieldKind,
     pub(super) is_readwrite: bool,
     pub(super) is_copy: bool,
+    pub(super) drop_glue: Option<DropGlue>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

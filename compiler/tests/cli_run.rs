@@ -6289,6 +6289,91 @@ func set_header(packet: &+Packet, header: Header): void {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_non_copy_aggregate_field_replacement_assignment_exit_code() {
+    let project = TempProject::new("cli-run-non-copy-aggregate-field-replacement-assignment");
+    let source = project.write_source(
+        "non_copy_aggregate_field_replacement_assignment.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+struct Holder {
+    tag: i32
+    file: File
+}
+
+func main(): i32 {
+    var holder = Holder{ tag: 1, file: File{ fd: 7 } }
+    holder.file = File{ fd: 41 }
+    return holder.file.fd + holder.tag
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_borrowed_non_copy_aggregate_field_replacement_assignment_exit_code() {
+    let project = TempProject::new("cli-run-borrowed-non-copy-aggregate-field-replacement");
+    let source = project.write_source(
+        "borrowed_non_copy_aggregate_field_replacement.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+struct Holder {
+    tag: i32
+    file: File
+}
+
+func main(): i32 {
+    var holder = Holder{ tag: 1, file: File{ fd: 7 } }
+    replace(&+holder)
+    return holder.file.fd + holder.tag
+}
+
+func replace(holder: &+Holder): void {
+    holder.file = File{ fd: 41 }
+    return
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_five_byte_copy_aggregate_assignment_exit_code() {
     let project = TempProject::new("cli-run-five-byte-copy-aggregate-assignment");
     let source = project.write_source(

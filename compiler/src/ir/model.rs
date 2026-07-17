@@ -539,7 +539,9 @@ pub(crate) enum BorrowSource {
     Usize(UsizeLocation),
     Bool(BoolLocation),
     AggregateSlot(usize),
+    AggregateSlotField { slot_index: usize, offset: u32 },
     AggregateParameter(usize),
+    AggregateParameterField { parameter_index: usize, offset: u32 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

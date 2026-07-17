@@ -10384,8 +10384,8 @@ func update_code(): i32 {
 }
 
 #[test]
-fn rejects_non_copy_aggregate_field_assignment() {
-    let diagnostics = lower_text_diagnostics(
+fn lowers_non_copy_aggregate_field_replacement_assignment() {
+    let ir = lower_text(
         r#"struct File {
     fd: i32
 }
@@ -10397,19 +10397,135 @@ impl File {
 }
 
 struct Holder {
+    tag: i32
     file: File
 }
 
 func main(): i32 {
-    var holder = Holder{ file: File{ fd: 1 } }
+    var holder = Holder{ tag: 1, file: File{ fd: 1 } }
     holder.file = File{ fd: 2 }
-    return 0
+    return holder.file.fd
 }
 "#,
     );
+    let function = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
 
-    assert_eq!(diagnostics[0].code, "E8008");
-    assert!(diagnostics[0].message.contains("copy aggregate fields"));
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::ReserveAggregateSlot {
+                slot_index: 1,
+                layout: ValueLayout::new(4, 4),
+            })
+    );
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(1),
+                offset: 0,
+                value: I32Value::Const(2),
+            })
+    );
+    assert!(function.instructions.contains(&Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlotField {
+                slot_index: 0,
+                offset: 4,
+            },
+        })],
+    }));
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(0),
+                destination_offset: 4,
+                source: AggregateLocation::Slot(1),
+                source_offset: 0,
+                layout: ValueLayout::new(4, 4),
+            })
+    );
+}
+
+#[test]
+fn lowers_non_copy_borrowed_aggregate_field_replacement_assignment() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+struct Holder {
+    tag: i32
+    file: File
+}
+
+func main(): i32 {
+    var holder = Holder{ tag: 1, file: File{ fd: 1 } }
+    replace(&+holder)
+    return holder.file.fd
+}
+
+func replace(holder: &+Holder): void {
+    holder.file = File{ fd: 2 }
+    return
+}
+"#,
+    );
+    let function = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "replace")
+        .unwrap();
+
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            })
+    );
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: I32Value::Const(2),
+            })
+    );
+    assert!(function.instructions.contains(&Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateParameterField {
+                parameter_index: 0,
+                offset: 4,
+            },
+        })],
+    }));
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Parameter(0),
+                destination_offset: 4,
+                source: AggregateLocation::Slot(0),
+                source_offset: 0,
+                layout: ValueLayout::new(4, 4),
+            })
+    );
 }
 
 #[test]

@@ -309,7 +309,7 @@ fn lower_scalar_parameters(
 ) -> Result<LoweringParameterSlots, Vec<Diagnostic>> {
     let mut slots = LoweringParameterSlots::default();
     for parameter in parameters {
-        match lower_scalar_parameter_kind(parameter, function_name, resolved).map_err(
+        match lower_scalar_parameter_kind(parameter, function_name, root_source, resolved).map_err(
             |diagnostics| attach_primary_span_if_absent(diagnostics, sources, parameter.span),
         )? {
             ScalarParameterKind::I32 => {
@@ -484,6 +484,7 @@ enum ScalarParameterKind {
 fn lower_scalar_parameter_kind(
     parameter: &Parameter,
     function_name: &str,
+    root_source: SourceId,
     resolved: &ResolveOutput,
 ) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
     match scalar_or_view_type_from_type_expr(&parameter.ty, resolved) {
@@ -499,9 +500,11 @@ fn lower_scalar_parameter_kind(
     let value = abi_value_from_type_expr(&parameter.ty, resolved)
         .map_err(|_error| unsupported_parameter_type_diagnostic(function_name))?;
     match &value.ty {
-        AbiType::Borrow => lower_borrow_parameter_kind(parameter, function_name, resolved),
+        AbiType::Borrow => {
+            lower_borrow_parameter_kind(parameter, function_name, root_source, resolved)
+        }
         AbiType::Struct(_) => {
-            lower_aggregate_parameter_kind(parameter, function_name, resolved, &value)
+            lower_aggregate_parameter_kind(parameter, function_name, root_source, resolved, &value)
         }
         _ => Err(unsupported_parameter_type_diagnostic(function_name)),
     }
@@ -510,6 +513,7 @@ fn lower_scalar_parameter_kind(
 fn lower_borrow_parameter_kind(
     parameter: &Parameter,
     function_name: &str,
+    root_source: SourceId,
     resolved: &ResolveOutput,
 ) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
     let Some(borrow) = borrow_type_from_type_expr(&parameter.ty, resolved) else {
@@ -517,7 +521,7 @@ fn lower_borrow_parameter_kind(
     };
     match borrow_inner_type(&borrow.inner, resolved) {
         Some(Type::Aggregate { .. } | Type::DirectAggregate { .. }) => {
-            lower_aggregate_borrow_parameter_kind(parameter, function_name, resolved)
+            lower_aggregate_borrow_parameter_kind(parameter, function_name, root_source, resolved)
         }
         Some(_) => Ok(ScalarParameterKind::Borrow),
         None => Err(unsupported_parameter_type_diagnostic(function_name)),
@@ -527,6 +531,7 @@ fn lower_borrow_parameter_kind(
 fn lower_aggregate_borrow_parameter_kind(
     parameter: &Parameter,
     function_name: &str,
+    root_source: SourceId,
     resolved: &ResolveOutput,
 ) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
     let Some(borrow) = borrow_type_from_type_expr(&parameter.ty, resolved) else {
@@ -537,7 +542,7 @@ fn lower_aggregate_borrow_parameter_kind(
     if !matches!(value.ty, AbiType::Struct(_)) {
         return Err(unsupported_parameter_type_diagnostic(function_name));
     }
-    let fields = aggregate_fields_from_type_expr(&borrow.inner, resolved)
+    let fields = aggregate_fields_from_type_expr(&borrow.inner, root_source, resolved)
         .ok_or_else(|| unsupported_parameter_type_diagnostic(function_name))?;
     Ok(ScalarParameterKind::BorrowAggregate {
         layout: value.layout,
@@ -549,13 +554,14 @@ fn lower_aggregate_borrow_parameter_kind(
 fn lower_aggregate_parameter_kind(
     parameter: &Parameter,
     function_name: &str,
+    root_source: SourceId,
     resolved: &ResolveOutput,
     value: &AbiValue,
 ) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
     if !matches!(value.ty, AbiType::Struct(_)) || !supported_aggregate_copy_layout(value.layout) {
         return Err(unsupported_parameter_type_diagnostic(function_name));
     }
-    let fields = aggregate_fields_from_type_expr(&parameter.ty, resolved)
+    let fields = aggregate_fields_from_type_expr(&parameter.ty, root_source, resolved)
         .ok_or_else(|| unsupported_parameter_type_diagnostic(function_name))?;
     match value.classification {
         ValueClassification::Indirect => Ok(ScalarParameterKind::AggregateIndirect {

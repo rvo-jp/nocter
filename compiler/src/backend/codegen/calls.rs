@@ -1321,8 +1321,32 @@ impl EntryEmitter {
                         format!("borrow argument aggregate slot {slot_index} is not reserved"),
                     )]
                 })?,
+            BorrowSource::AggregateSlotField { slot_index, offset } => {
+                let slot = frame.aggregate_slot(slot_index).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9005",
+                        format!("borrow argument aggregate slot {slot_index} is not reserved"),
+                    )]
+                })?;
+                slot.offset().checked_add(offset).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "E9005",
+                        "borrow argument aggregate slot field offset overflows",
+                    )]
+                })?
+            }
             BorrowSource::AggregateParameter(index) => {
                 self.emit_parameter_word_to_x(index, register)?;
+                return Ok(());
+            }
+            BorrowSource::AggregateParameterField {
+                parameter_index,
+                offset,
+            } => {
+                self.emit_parameter_word_to_x(parameter_index, register)?;
+                if offset != 0 {
+                    self.encoder.emit_add_x_imm(register, register, offset);
+                }
                 return Ok(());
             }
             BorrowSource::I32(I32Location::Return)
