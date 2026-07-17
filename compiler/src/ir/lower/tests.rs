@@ -10529,6 +10529,155 @@ func replace(holder: &+Holder): void {
 }
 
 #[test]
+fn lowers_non_copy_aggregate_field_replacement_assignment_from_move() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+struct Holder {
+    tag: i32
+    file: File
+}
+
+func main(): i32 {
+    var replacement = File{ fd: 2 }
+    var holder = Holder{ tag: 1, file: File{ fd: 1 } }
+    holder.file = move replacement
+    return holder.file.fd
+}
+"#,
+    );
+    let function = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(2),
+                destination_offset: 0,
+                source: AggregateLocation::Slot(0),
+                source_offset: 0,
+                layout: ValueLayout::new(4, 4),
+            })
+    );
+    assert!(function.instructions.contains(&Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlotField {
+                slot_index: 1,
+                offset: 4,
+            },
+        })],
+    }));
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(1),
+                destination_offset: 4,
+                source: AggregateLocation::Slot(2),
+                source_offset: 0,
+                layout: ValueLayout::new(4, 4),
+            })
+    );
+    assert!(!function.instructions.contains(&Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    }));
+}
+
+#[test]
+fn lowers_non_copy_aggregate_field_replacement_assignment_from_call() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+struct Holder {
+    tag: i32
+    file: File
+}
+
+func main(): i32 {
+    var holder = Holder{ tag: 1, file: File{ fd: 1 } }
+    holder.file = make_file()
+    return holder.file.fd
+}
+
+func make_file(): File {
+    return File{ fd: 2 }
+}
+"#,
+    );
+    let function = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CallDirectAggregate {
+                destination: AggregateLocation::Slot(2),
+                target: CallTarget::same_file("make_file"),
+                arguments: vec![],
+                layout: ValueLayout::new(4, 4),
+            })
+    );
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(1),
+                destination_offset: 0,
+                source: AggregateLocation::Slot(2),
+                source_offset: 0,
+                layout: ValueLayout::new(4, 4),
+            })
+    );
+    assert!(function.instructions.contains(&Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlotField {
+                slot_index: 0,
+                offset: 4,
+            },
+        })],
+    }));
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CopyAggregateRange {
+                destination: AggregateLocation::Slot(0),
+                destination_offset: 4,
+                source: AggregateLocation::Slot(1),
+                source_offset: 0,
+                layout: ValueLayout::new(4, 4),
+            })
+    );
+}
+
+#[test]
 fn lowers_nested_borrowed_aggregate_parameter_field_return() {
     let function = lower_named_function(
         r#"struct Header {
