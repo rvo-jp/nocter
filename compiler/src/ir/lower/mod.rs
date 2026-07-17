@@ -9,15 +9,13 @@ mod functions;
 mod imported_calls;
 mod literals;
 mod reachability;
+mod types;
 
 #[cfg(test)]
 mod tests;
 
 use super::{CallTarget, Function, IrModule};
-use crate::abi::{
-    AbiType, AbiValue, ValueClassification, abi_value_from_type_expr,
-    function_parameter_abi_word_count_from_signature,
-};
+use crate::abi::function_parameter_abi_word_count_from_signature;
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
     DropDecl, FunctionDecl, ImplMember, Item, MethodDecl, Parameter, Stmt, TypeExpr, TypeReference,
@@ -33,6 +31,7 @@ use context::{ErrorPayloads, FunctionNames, FunctionSignature, FunctionSignature
 use imported_calls::imported_call_diagnostics;
 use reachability::reachable_call_targets;
 use std::collections::{HashMap, HashSet};
+use types::{parameter_type_from_type_expr, return_type_from_type_expr};
 
 pub(crate) fn lower_executable_with_entry(
     analysis: &CompileUnitAnalysis,
@@ -97,105 +96,11 @@ pub(crate) fn lower_executable_with_entry(
 }
 
 fn lower_signature_return_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {
-    match ty {
-        TypeExpr::Reference(reference) if reference.name == "i32" => Some(Type::I32),
-        TypeExpr::Reference(reference) if reference.name == "u8" => Some(Type::U8),
-        TypeExpr::Reference(reference) if reference.name == "usize" => Some(Type::Usize),
-        TypeExpr::Reference(reference) if reference.name == "bool" => Some(Type::Bool),
-        TypeExpr::Borrow(borrow)
-            if !borrow.is_readwrite
-                && matches!(borrow.inner.as_ref(), TypeExpr::Reference(reference) if reference.name == "str") =>
-        {
-            Some(Type::Str)
-        }
-        TypeExpr::Borrow(borrow) if is_u8_slice_data_type(&borrow.inner) => Some(Type::Slice {
-            is_readwrite: borrow.is_readwrite,
-        }),
-        TypeExpr::Reference(reference) if reference.name == "void" => Some(Type::Void),
-        TypeExpr::Reference(reference) if reference.name == "never" => Some(Type::Never),
-        TypeExpr::Fallible(fallible) => lower_signature_return_type(&fallible.success, resolved)
-            .map(|success| Type::Fallible(Box::new(success))),
-        _ => lower_aggregate_signature_return_type(ty, resolved),
-    }
-}
-
-fn lower_aggregate_signature_return_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {
-    let value = abi_value_from_type_expr(ty, resolved).ok()?;
-    aggregate_type_from_abi_value(&value)
+    return_type_from_type_expr(ty, resolved)
 }
 
 fn lower_signature_parameter_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {
-    match ty {
-        TypeExpr::Reference(reference) if reference.name == "i32" => Some(Type::I32),
-        TypeExpr::Reference(reference) if reference.name == "u8" => Some(Type::U8),
-        TypeExpr::Reference(reference) if reference.name == "usize" => Some(Type::Usize),
-        TypeExpr::Reference(reference) if reference.name == "bool" => Some(Type::Bool),
-        TypeExpr::Borrow(borrow)
-            if !borrow.is_readwrite
-                && matches!(borrow.inner.as_ref(), TypeExpr::Reference(reference) if reference.name == "str") =>
-        {
-            Some(Type::Str)
-        }
-        TypeExpr::Borrow(borrow) if is_u8_slice_data_type(&borrow.inner) => Some(Type::Slice {
-            is_readwrite: borrow.is_readwrite,
-        }),
-        TypeExpr::Borrow(borrow) => {
-            borrow_inner_type(&borrow.inner, resolved).map(|inner| Type::Borrow {
-                is_readwrite: borrow.is_readwrite,
-                inner: Box::new(inner),
-            })
-        }
-        _ => lower_aggregate_signature_parameter_type(ty, resolved),
-    }
-}
-
-fn lower_aggregate_signature_parameter_type(
-    ty: &TypeExpr,
-    resolved: &ResolveOutput,
-) -> Option<Type> {
-    let value = abi_value_from_type_expr(ty, resolved).ok()?;
-    aggregate_type_from_abi_value(&value)
-}
-
-fn is_u8_slice_data_type(ty: &TypeExpr) -> bool {
-    matches!(
-        ty,
-        TypeExpr::View(view)
-            if !view.is_readwrite
-                && matches!(view.element.as_ref(), TypeExpr::Reference(reference) if reference.name == "u8")
-    )
-}
-
-fn borrow_inner_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {
-    let scalar = match ty {
-        TypeExpr::Reference(reference) if reference.name == "i32" => Some(Type::I32),
-        TypeExpr::Reference(reference) if reference.name == "u8" => Some(Type::U8),
-        TypeExpr::Reference(reference) if reference.name == "usize" => Some(Type::Usize),
-        TypeExpr::Reference(reference) if reference.name == "bool" => Some(Type::Bool),
-        _ => None,
-    };
-    if scalar.is_some() {
-        return scalar;
-    }
-
-    let value = abi_value_from_type_expr(ty, resolved).ok()?;
-    aggregate_type_from_abi_value(&value)
-}
-
-fn aggregate_type_from_abi_value(value: &AbiValue) -> Option<Type> {
-    if !matches!(value.ty, AbiType::Struct(_)) {
-        return None;
-    }
-
-    match value.classification {
-        ValueClassification::Indirect => Some(Type::Aggregate {
-            layout: value.layout,
-        }),
-        ValueClassification::Direct { words } => Some(Type::DirectAggregate {
-            layout: value.layout,
-            words,
-        }),
-    }
+    parameter_type_from_type_expr(ty, resolved)
 }
 
 fn lower_reachable_functions(

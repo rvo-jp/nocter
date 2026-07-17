@@ -30,6 +30,9 @@ use super::expressions::{
     lower_u8_return_expression, lower_usize_expression_to_location, lower_usize_return_expression,
     lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
 };
+use super::types::{
+    borrow_inner_type, return_type_from_type_expr, scalar_or_view_type_from_type_expr,
+};
 use crate::abi::{
     AbiType, AbiValue, ValueClassification, abi_value_from_type_expr,
     function_parameter_abi_word_count_from_signature,
@@ -51,7 +54,6 @@ use crate::resolve::{
 };
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::TypecheckFacts;
-use std::collections::HashSet;
 
 pub(super) fn lower_function(
     function: &FunctionDecl,
@@ -482,19 +484,19 @@ fn lower_scalar_parameter_kind(
     function_name: &str,
     resolved: &ResolveOutput,
 ) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
+    match scalar_or_view_type_from_type_expr(&parameter.ty, resolved) {
+        Some(Type::I32) => return Ok(ScalarParameterKind::I32),
+        Some(Type::U8) => return Ok(ScalarParameterKind::U8),
+        Some(Type::Usize) => return Ok(ScalarParameterKind::Usize),
+        Some(Type::Bool) => return Ok(ScalarParameterKind::Bool),
+        Some(Type::Str) => return Ok(ScalarParameterKind::Str),
+        Some(Type::Slice { .. }) => return Ok(ScalarParameterKind::Slice),
+        _ => {}
+    }
+
     let value = abi_value_from_type_expr(&parameter.ty, resolved)
         .map_err(|_error| unsupported_parameter_type_diagnostic(function_name))?;
     match &value.ty {
-        AbiType::I32 => Ok(ScalarParameterKind::I32),
-        AbiType::U8 => Ok(ScalarParameterKind::U8),
-        AbiType::Usize => Ok(ScalarParameterKind::Usize),
-        AbiType::Bool => Ok(ScalarParameterKind::Bool),
-        AbiType::StrView if type_expr_is_readonly_borrow(&parameter.ty) => {
-            Ok(ScalarParameterKind::Str)
-        }
-        AbiType::SliceView if type_expr_is_u8_slice_borrow(&parameter.ty, resolved) => {
-            Ok(ScalarParameterKind::Slice)
-        }
         AbiType::Borrow => lower_borrow_parameter_kind(parameter, function_name, resolved),
         AbiType::Struct(_) => {
             lower_aggregate_parameter_kind(parameter, function_name, resolved, &value)
@@ -580,42 +582,8 @@ fn lower_function_return_type(
     name: &str,
     resolved: &ResolveOutput,
 ) -> Result<Type, Vec<Diagnostic>> {
-    match ty {
-        TypeExpr::Reference(reference) if reference.name == "void" => Ok(Type::Void),
-        TypeExpr::Reference(reference) if reference.name == "never" => Ok(Type::Never),
-        TypeExpr::Fallible(fallible) => {
-            lower_function_return_type(&fallible.success, name, resolved)
-                .map(|success| Type::Fallible(Box::new(success)))
-        }
-        _ => {
-            let value = abi_value_from_type_expr(ty, resolved)
-                .map_err(|_error| unsupported_function_return_type_diagnostic(name))?;
-            match &value.ty {
-                AbiType::I32 => Ok(Type::I32),
-                AbiType::U8 => Ok(Type::U8),
-                AbiType::Usize => Ok(Type::Usize),
-                AbiType::Bool => Ok(Type::Bool),
-                AbiType::StrView if type_expr_is_readonly_borrow(ty) => Ok(Type::Str),
-                AbiType::SliceView => lower_slice_return_type(ty, resolved)
-                    .ok_or_else(|| unsupported_function_return_type_diagnostic(name)),
-                AbiType::Struct(_) => aggregate_type_from_abi_value(&value)
-                    .ok_or_else(|| unsupported_function_return_type_diagnostic(name)),
-                _ => Err(unsupported_function_return_type_diagnostic(name)),
-            }
-        }
-    }
-}
-
-fn lower_slice_return_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {
-    let TypeExpr::Borrow(borrow) = ty else {
-        return None;
-    };
-    if !is_u8_slice_data_type(&borrow.inner, resolved) {
-        return None;
-    }
-    Some(Type::Slice {
-        is_readwrite: borrow.is_readwrite,
-    })
+    return_type_from_type_expr(ty, resolved)
+        .ok_or_else(|| unsupported_function_return_type_diagnostic(name))
 }
 
 fn unsupported_function_return_type_diagnostic(name: &str) -> Vec<Diagnostic> {
@@ -625,78 +593,6 @@ fn unsupported_function_return_type_diagnostic(name: &str) -> Vec<Diagnostic> {
             "IR v0 can only lower function `{name}` return type `i32`, `u8`, `usize`, `bool`, `&str`, `&[u8]`, `&+[u8]`, `void`, `never`, aggregates, or a fallible form of those types"
         ),
     )]
-}
-
-fn type_expr_is_readonly_borrow(ty: &TypeExpr) -> bool {
-    matches!(ty, TypeExpr::Borrow(borrow) if !borrow.is_readwrite)
-}
-
-fn type_expr_is_u8_slice_borrow(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    matches!(ty, TypeExpr::Borrow(borrow) if is_u8_slice_data_type(&borrow.inner, resolved))
-}
-
-fn is_u8_slice_data_type(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    is_u8_slice_data_type_inner(ty, resolved, &mut HashSet::new())
-}
-
-fn is_u8_slice_data_type_inner(
-    ty: &TypeExpr,
-    resolved: &ResolveOutput,
-    resolving_names: &mut HashSet<String>,
-) -> bool {
-    match ty {
-        TypeExpr::View(view) => {
-            !view.is_readwrite
-                && matches!(view.element.as_ref(), TypeExpr::Reference(reference) if reference.name == "u8")
-        }
-        TypeExpr::Reference(reference) => {
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
-                return false;
-            };
-            let Some(target) = &symbol.alias_target else {
-                return false;
-            };
-            if !resolving_names.insert(symbol.canonical_name.clone()) {
-                return false;
-            }
-            let result = is_u8_slice_data_type_inner(target, resolved, resolving_names);
-            resolving_names.remove(&symbol.canonical_name);
-            result
-        }
-        _ => false,
-    }
-}
-
-fn borrow_inner_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {
-    let scalar = match ty {
-        TypeExpr::Reference(reference) if reference.name == "i32" => Some(Type::I32),
-        TypeExpr::Reference(reference) if reference.name == "u8" => Some(Type::U8),
-        TypeExpr::Reference(reference) if reference.name == "usize" => Some(Type::Usize),
-        TypeExpr::Reference(reference) if reference.name == "bool" => Some(Type::Bool),
-        _ => None,
-    };
-    if scalar.is_some() {
-        return scalar;
-    }
-
-    let value = abi_value_from_type_expr(ty, resolved).ok()?;
-    aggregate_type_from_abi_value(&value)
-}
-
-fn aggregate_type_from_abi_value(value: &AbiValue) -> Option<Type> {
-    if !matches!(value.ty, AbiType::Struct(_)) {
-        return None;
-    }
-
-    match value.classification {
-        ValueClassification::Indirect => Some(Type::Aggregate {
-            layout: value.layout,
-        }),
-        ValueClassification::Direct { words } => Some(Type::DirectAggregate {
-            layout: value.layout,
-            words,
-        }),
-    }
 }
 
 fn lower_callable_body(

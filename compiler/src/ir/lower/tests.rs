@@ -101,6 +101,43 @@ func answer(value: Exit): Exit {
 }
 
 #[test]
+fn indexes_alias_parameter_and_return_signatures_for_calls() {
+    let ir = lower_text(
+        r#"type Exit = i32
+type Text = str
+
+func main(): i32 {
+    return wrapper("Nocter")
+}
+
+func wrapper(name: &Text): Exit {
+    return consume(name, 42)
+}
+
+func consume(name: &Text, code: Exit): Exit {
+    return code
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[1],
+        Function {
+            name: "wrapper".to_string(),
+            target: crate::ir::CallTarget::same_file("wrapper".to_string()),
+            return_type: Type::I32,
+            instructions: vec![Instruction::TailCall {
+                target: CallTarget::same_file("consume"),
+                arguments: vec![
+                    ScalarArgument::Str(StrValue::Location(StrLocation::Parameter(0))),
+                    ScalarArgument::I32(I32Value::Const(42)),
+                ],
+            }],
+        }
+    );
+}
+
+#[test]
 fn lowers_method_call_receiver_as_implicit_readwrite_borrow() {
     let ir = lower_text(
         r#"struct File {
@@ -13249,6 +13286,82 @@ func echo(name: &Text): &Text {
 }
 
 #[test]
+fn lowers_str_alias_annotated_local_binding() {
+    let function = lower_named_function(
+        r#"type Text = str
+
+func main(): i32 {
+    return 0
+}
+
+func echo(name: &Text): &Text {
+    let view: &Text = name
+    return view
+}
+"#,
+        "echo",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "echo".to_string(),
+            target: crate::ir::CallTarget::same_file("echo".to_string()),
+            return_type: Type::Str,
+            instructions: vec![
+                Instruction::SetStr {
+                    destination: StrLocation::Local(0),
+                    value: StrValue::Location(StrLocation::Parameter(0)),
+                },
+                Instruction::SetStr {
+                    destination: StrLocation::Return,
+                    value: StrValue::Location(StrLocation::Local(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_str_view_alias_annotated_local_binding() {
+    let function = lower_named_function(
+        r#"type TextView = &str
+
+func main(): i32 {
+    return 0
+}
+
+func echo(name: TextView): TextView {
+    let view: TextView = name
+    return view
+}
+"#,
+        "echo",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "echo".to_string(),
+            target: crate::ir::CallTarget::same_file("echo".to_string()),
+            return_type: Type::Str,
+            instructions: vec![
+                Instruction::SetStr {
+                    destination: StrLocation::Local(0),
+                    value: StrValue::Location(StrLocation::Parameter(0)),
+                },
+                Instruction::SetStr {
+                    destination: StrLocation::Return,
+                    value: StrValue::Location(StrLocation::Local(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_str_tail_call_return() {
     let function = lower_named_function_with_signatures(
         r#"func main(): i32 {
@@ -13480,6 +13593,82 @@ func echo(bytes: &+Bytes): &+Bytes {
                 Instruction::SetSlice {
                     destination: SliceLocation::Return,
                     value: SliceValue::Location(SliceLocation::Parameter(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_u8_slice_alias_annotated_local_binding() {
+    let function = lower_named_function(
+        r#"type Bytes = [u8]
+
+func main(): i32 {
+    return 0
+}
+
+func echo(bytes: &+Bytes): &+Bytes {
+    let view: &+Bytes = bytes
+    return view
+}
+"#,
+        "echo",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "echo".to_string(),
+            target: crate::ir::CallTarget::same_file("echo".to_string()),
+            return_type: readwrite_u8_slice_type(),
+            instructions: vec![
+                Instruction::SetSlice {
+                    destination: SliceLocation::Local(0),
+                    value: SliceValue::Location(SliceLocation::Parameter(0)),
+                },
+                Instruction::SetSlice {
+                    destination: SliceLocation::Return,
+                    value: SliceValue::Location(SliceLocation::Local(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_u8_slice_view_alias_annotated_local_binding() {
+    let function = lower_named_function(
+        r#"type BytesView = &+[u8]
+
+func main(): i32 {
+    return 0
+}
+
+func echo(bytes: BytesView): BytesView {
+    let view: BytesView = bytes
+    return view
+}
+"#,
+        "echo",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "echo".to_string(),
+            target: crate::ir::CallTarget::same_file("echo".to_string()),
+            return_type: readwrite_u8_slice_type(),
+            instructions: vec![
+                Instruction::SetSlice {
+                    destination: SliceLocation::Local(0),
+                    value: SliceValue::Location(SliceLocation::Parameter(0)),
+                },
+                Instruction::SetSlice {
+                    destination: SliceLocation::Return,
+                    value: SliceValue::Location(SliceLocation::Local(0)),
                 },
                 Instruction::Return,
             ],
@@ -14530,6 +14719,34 @@ fn lowers_entry_i32_annotated_let_binding_then_return() {
     let ir = lower_text(
         r#"func main(): i32 {
     let value: i32 = 42
+    return value
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: i32_const(42),
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
+fn lowers_entry_scalar_alias_annotated_let_binding_then_return() {
+    let ir = lower_text(
+        r#"type Exit = i32
+
+func main(): i32 {
+    let value: Exit = 42
     return value
 }
 "#,

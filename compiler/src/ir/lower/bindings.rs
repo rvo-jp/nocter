@@ -19,10 +19,11 @@ use super::expressions::{
     lower_usize_expression_to_location, lower_usize_expression_to_word,
 };
 use super::functions::{propagating_failure_mode, replacement_drop_for_aggregate_slot};
+use super::types::scalar_or_view_type_from_type_expr;
 use crate::abi::{ValueLayout, abi_value_from_type_expr};
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, BinaryOperator, BindingStmt, CallExpr, Expr, MemberExpr,
-    TypeExpr, UnaryOperator,
+    UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -1404,15 +1405,24 @@ fn scalar_binding_kind(
     context: &LoweringContext,
 ) -> Result<ScalarBindingKind, Vec<Diagnostic>> {
     match &statement.ty {
-        Some(ty) if is_i32_type(ty) => Ok(ScalarBindingKind::I32),
-        Some(ty) if is_u8_type(ty) => Ok(ScalarBindingKind::U8),
-        Some(ty) if is_usize_type(ty) => Ok(ScalarBindingKind::Usize),
-        Some(ty) if is_bool_type(ty) => Ok(ScalarBindingKind::Bool),
-        Some(ty) if is_str_type(ty) => Ok(ScalarBindingKind::Str),
-        Some(ty) if is_u8_slice_type(ty) => Ok(ScalarBindingKind::Slice),
-        Some(_) => Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower local bindings annotated as `i32`, `u8`, `usize`, `bool`, `&str`, `&[u8]`, or `&+[u8]`",
-        )),
+        Some(ty) => {
+            let Some((_root_source, resolved)) = context.resolved_calls() else {
+                return Err(unsupported_binding_diagnostic(
+                    "IR v0 cannot lower annotated local bindings without resolved type information",
+                ));
+            };
+            match scalar_or_view_type_from_type_expr(ty, resolved) {
+                Some(Type::I32) => Ok(ScalarBindingKind::I32),
+                Some(Type::U8) => Ok(ScalarBindingKind::U8),
+                Some(Type::Usize) => Ok(ScalarBindingKind::Usize),
+                Some(Type::Bool) => Ok(ScalarBindingKind::Bool),
+                Some(Type::Str) => Ok(ScalarBindingKind::Str),
+                Some(Type::Slice { .. }) => Ok(ScalarBindingKind::Slice),
+                _ => Err(unsupported_binding_diagnostic(
+                    "IR v0 can only lower local bindings annotated as `i32`, `u8`, `usize`, `bool`, `&str`, `&[u8]`, `&+[u8]`, or aliases to those types",
+                )),
+            }
+        }
         None if expression_is_lowerable_bool_binding(&statement.initializer, context) => {
             Ok(ScalarBindingKind::Bool)
         }
@@ -1458,44 +1468,6 @@ fn expression_is_bool_returning_call(expression: &Expr, context: &LoweringContex
         Expr::Group(group) => expression_is_bool_returning_call(&group.expression, context),
         _ => false,
     }
-}
-
-fn is_i32_type(ty: &TypeExpr) -> bool {
-    matches!(ty, TypeExpr::Reference(reference) if reference.name == "i32")
-}
-
-fn is_u8_type(ty: &TypeExpr) -> bool {
-    matches!(ty, TypeExpr::Reference(reference) if reference.name == "u8")
-}
-
-fn is_usize_type(ty: &TypeExpr) -> bool {
-    matches!(ty, TypeExpr::Reference(reference) if reference.name == "usize")
-}
-
-fn is_bool_type(ty: &TypeExpr) -> bool {
-    matches!(ty, TypeExpr::Reference(reference) if reference.name == "bool")
-}
-
-fn is_str_type(ty: &TypeExpr) -> bool {
-    matches!(
-        ty,
-        TypeExpr::Borrow(borrow)
-            if !borrow.is_readwrite
-                && matches!(borrow.inner.as_ref(), TypeExpr::Reference(reference) if reference.name == "str")
-    )
-}
-
-fn is_u8_slice_type(ty: &TypeExpr) -> bool {
-    matches!(
-        ty,
-        TypeExpr::Borrow(borrow)
-            if matches!(
-                borrow.inner.as_ref(),
-                TypeExpr::View(view)
-                    if !view.is_readwrite
-                        && matches!(view.element.as_ref(), TypeExpr::Reference(reference) if reference.name == "u8")
-            )
-    )
 }
 
 fn call_success_type_is_copy_struct(call: &CallExpr, context: &LoweringContext) -> bool {
