@@ -66,7 +66,7 @@ Already buildable in the narrow scalar subset:
 - straight-line scope-end drop insertion for aggregate locals and by-value aggregate parameters whose type declares a drop member
 - top-level tail-call and terminal-if branch scope-end drop insertion for aggregate locals and by-value aggregate parameters whose type declares a drop member
 - branch-local explicit `drop name` and void call lowering before terminal-if leaf returns
-- supported non-terminal `if`/`while` branch/body-local assignments, outer whole-binding scalar/view local assignments, explicit drops, return cleanup, body scope-end drops, and `while` `break`/`continue` cleanup
+- supported non-terminal `if`/`while`/`loop` branch/body-local assignments, outer whole-binding scalar/view local assignments, explicit drops, return cleanup, body scope-end drops, and `while`/`loop` `break`/`continue` cleanup
 - propagation-failure cleanup, supported catch-handler cleanup, and drop-aware whole-binding aggregate replacement
 - distributed `std/mem.page_allocator`, `std/string.with_capacity`, `std/fmt.append_str`, and `return move out` in the explicit construction shape build to Mach-O with the current stub standard-library bodies
 

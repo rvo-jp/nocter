@@ -5030,6 +5030,146 @@ func touch(): void {
 }
 
 #[test]
+fn lowers_nonterminal_loop_before_return() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    var value = 0
+    loop {
+        value = 42
+        break
+    }
+    return value
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: i32_const(0),
+            },
+            Instruction::While {
+                condition_instructions: vec![],
+                condition: BoolValue::Const(true),
+                body_instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(42),
+                    },
+                    Instruction::Break,
+                ],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
+fn lowers_scope_end_drop_inside_nonterminal_loop_body() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    loop {
+        var file = File{ fd: 1 }
+        break
+    }
+    return 0
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::While {
+                condition_instructions: vec![],
+                condition: BoolValue::Const(true),
+                body_instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::Slot(0),
+                        offset: 0,
+                        value: i32_const(1),
+                    },
+                    Instruction::CallVoid {
+                        target: CallTarget::same_file("File.drop"),
+                        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                            source: BorrowSource::AggregateSlot(0),
+                        })],
+                    },
+                    Instruction::Break,
+                ],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_const(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
+fn lowers_terminal_loop_return() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    loop {
+        return 42
+    }
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![Instruction::While {
+            condition_instructions: vec![],
+            condition: BoolValue::Const(true),
+            body_instructions: vec![
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: i32_const(42),
+                },
+                Instruction::Return,
+            ],
+        }],
+    );
+}
+
+#[test]
 fn lowers_explicit_drop_inside_nonterminal_while_body_without_scope_end_duplicate() {
     let ir = lower_text(
         r#"struct File {

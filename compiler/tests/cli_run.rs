@@ -4935,6 +4935,59 @@ func first_byte(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, text: &s
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_loop_break_exit_code() {
+    let project = TempProject::new("cli-run-loop-break");
+    let source = project.write_source(
+        "loop_break.nct",
+        r#"func main(): i32 {
+    var value = 0
+    loop {
+        value = 42
+        break
+    }
+    return value
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_terminal_loop_exit_code() {
+    let project = TempProject::new("cli-run-terminal-loop");
+    let source = project.write_source(
+        "terminal_loop.nct",
+        r#"func main(): i32 {
+    loop {
+        return 42
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_alias_i32_conversion_exit_code() {
     let project = TempProject::new("cli-run-alias-i32-conversion");
     let source = project.write_source(

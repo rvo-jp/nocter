@@ -16,12 +16,12 @@ use super::functions::{
     mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
 };
 use crate::ast::{
-    AssignmentOperator, BinaryExpr, BinaryOperator, Block, Expr, IfStmt, Stmt, WhileStmt,
+    AssignmentOperator, BinaryExpr, BinaryOperator, Block, Expr, IfStmt, LoopStmt, Stmt, WhileStmt,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolLocation, I32Location, Instruction, SliceLocation, StrLocation, Type, U8Location,
-    UsizeLocation,
+    BoolLocation, BoolValue, I32Location, Instruction, SliceLocation, StrLocation, Type,
+    U8Location, UsizeLocation,
 };
 use crate::source::{ByteSpan, SourceMap};
 
@@ -390,6 +390,23 @@ pub(super) fn lower_nonterminal_while_statement(
     }])
 }
 
+pub(super) fn lower_nonterminal_loop_statement(
+    statement: &LoopStmt,
+    context: &mut LoweringContext,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let body_instructions =
+        lower_nonterminal_while_block(&statement.body, context, diagnostic_code, subject, sources)?;
+
+    Ok(vec![Instruction::While {
+        condition_instructions: Vec::new(),
+        condition: BoolValue::Const(true),
+        body_instructions,
+    }])
+}
+
 fn lower_nonterminal_while_block(
     block: &Block,
     context: &LoweringContext,
@@ -611,6 +628,18 @@ fn lower_nonterminal_loop_block_statements(
                     attach_primary_span_if_absent(diagnostics, sources, statement.span)
                 })?,
             ),
+            Stmt::Loop(statement) => instructions.extend(
+                lower_nonterminal_loop_statement(
+                    statement,
+                    context,
+                    diagnostic_code,
+                    subject,
+                    sources,
+                )
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                })?,
+            ),
             Stmt::Break(_) => {
                 instructions.extend(
                     lower_nonterminal_loop_control_statement(
@@ -724,7 +753,7 @@ fn statement_may_exit_current_loop(statement: &Stmt) -> bool {
                     .as_ref()
                     .is_some_and(block_may_exit_current_loop)
         }
-        Stmt::While(_) => false,
+        Stmt::While(_) | Stmt::Loop(_) => false,
         _ => false,
     }
 }
@@ -1351,7 +1380,7 @@ fn unsupported_nonterminal_if_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower non-terminal `if`/`while` statements for {subject} when branches contain supported local bindings, branch/body-local assignments, outer scalar/view local assignments, explicit aggregate drops, void call statements, returns, or nested non-terminal `if`/`while` statements"
+            "IR v0 can only lower non-terminal `if`/`while`/`loop` statements for {subject} when branches/bodies contain supported local bindings, branch/body-local assignments, outer scalar/view local assignments, explicit aggregate drops, void call statements, returns, or nested non-terminal `if`/`while`/`loop` statements"
         ),
     )]
 }

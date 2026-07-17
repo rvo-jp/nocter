@@ -173,7 +173,7 @@ Currently buildable:
 - `i32` shifts with `<<` and `>>` used in lowerable `i32` expressions; shift counts trap when negative or greater than or equal to 32
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` or `usize` comparisons used in lowerable bool expressions
 - terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over literal/local operands, or `i32`/`usize` comparison conditions and supported leading bindings, assignments, explicit `drop`, or void call statements before direct or nested terminal branches returning entry `i32`/`void`, or non-entry `i32`, `u8`, `usize`, `bool`, `void`, `&str`, u8 slices, or supported aggregate return expressions, including direct aggregate branches staged across pending drops
-- non-terminal `if` and `while` statements before a final return, when branches/bodies contain supported local bindings, branch/body-local assignments, outer whole-binding scalar/view local assignments, branch/body-local explicit aggregate drops, void call statements, supported returns, supported `while` `break`/`continue`, or nested supported non-terminal `if`/`while` statements; branch/body-local aggregate values with drop glue are dropped at scope end, before supported return exits, and before supported loop exits, and lowerable `while` condition instructions are re-evaluated at the loop head
+- non-terminal `if`, `while`, and `loop` statements before a final return, when branches/bodies contain supported local bindings, branch/body-local assignments, outer whole-binding scalar/view local assignments, branch/body-local explicit aggregate drops, void call statements, supported returns, supported `while`/`loop` `break`/`continue`, or nested supported non-terminal `if`/`while`/`loop` statements; branch/body-local aggregate values with drop glue are dropped at scope end, before supported return exits, and before supported loop exits, lowerable `while` condition instructions are re-evaluated at the loop head, and source `loop` lowers as an always-true loop
 - non-entry `never` functions that end with a lowerable call returning `never`; frame-dependent, aggregate-pointer, or stack-passed `never` calls lower as normal calls followed by a trap guard
 - the `std/os/macos.trap` and `std/os/macos.unreachable` target primitives as ARM64 `brk #0`
 - simple fallible entry success
@@ -186,7 +186,7 @@ Currently buildable:
 Currently not buildable even when it may be checkable:
 
 - general local storage beyond the listed scalar/view and aggregate slot paths
-- general `if`/`while` forms beyond the supported terminal and scalar/view plus branch/body-local non-terminal subsets, `while let`, `loop`, range `for`, and `match`
+- general `if`/`while`/`loop` forms beyond the supported terminal and scalar/view plus branch/body-local non-terminal subsets, `while let`, range `for`, and `match`
 - unloaded imported function placeholders
 - `usize` arithmetic and `usize` entry return values
 - `&str` member operations and view/byte iteration
