@@ -2986,19 +2986,19 @@ func check(pair: Pair): i32 {
 
     assert_eq!(output.status.code(), Some(1));
     assert!(
-        stderr.contains("error[E8006]"),
-        "expected aggregate argument diagnostic, got:\n{stderr}"
+        stderr.contains("error[E0392]"),
+        "expected aggregate argument typecheck diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("aggregate` arguments for function `check`"),
-        "expected non-copy aggregate argument lowering diagnostic, got:\n{stderr}"
+        stderr.contains("cannot implicitly copy non-copy struct `Pair` from `pair`"),
+        "expected non-copy aggregate argument diagnostic, got:\n{stderr}"
     );
     assert!(
         stderr.contains("|     return check(pair)"),
         "expected source line for aggregate argument diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("|            ^^^^^^^^^^^"),
+        stderr.contains("|                  ^^^^"),
         "expected source underline for aggregate argument diagnostic, got:\n{stderr}"
     );
 }
@@ -3030,12 +3030,12 @@ func make(): Text {
 
     assert_eq!(output.status.code(), Some(1));
     assert!(
-        stderr.contains("error[E8007]"),
-        "expected aggregate return diagnostic, got:\n{stderr}"
+        stderr.contains("error[E0393]"),
+        "expected aggregate return typecheck diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("aggregate returns from function `make`"),
-        "expected non-copy aggregate return lowering diagnostic, got:\n{stderr}"
+        stderr.contains("cannot implicitly copy non-copy struct `Text` from `text`"),
+        "expected non-copy aggregate return diagnostic, got:\n{stderr}"
     );
     assert!(
         stderr.contains("|     return text"),

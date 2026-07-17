@@ -8,6 +8,7 @@ use super::controls::{
     check_for_range_bounds, check_if_condition, check_if_let_initializer, check_while_condition,
     check_while_let_initializer,
 };
+use super::copyability::implicit_non_copy_struct_identifier_source;
 use super::diagnostics::{
     assignment_type_mismatch_diagnostic, immutable_assignment_diagnostic,
     loop_control_outside_loop_diagnostic, non_copy_struct_assignment_diagnostic,
@@ -38,7 +39,7 @@ use crate::ast::{
     AssignmentStmt, AstFile, Block, Expr, ImplDecl, ImplMember, InterpolatedStringPart, Item, Stmt,
 };
 use crate::diagnostics::Diagnostic;
-use crate::resolve::{ResolveOutput, TypeSymbolKind};
+use crate::resolve::ResolveOutput;
 use crate::source::SourceMap;
 
 pub(super) fn check_body_expressions(
@@ -492,7 +493,7 @@ fn check_assignment_statement(
     }
 
     if let Some((source_name, type_name)) =
-        non_copy_struct_identifier_assignment(&statement.value, resolved, environment)
+        implicit_non_copy_struct_identifier_source(&statement.value, resolved, environment)
     {
         diagnostics.push(non_copy_struct_assignment_diagnostic(
             sources,
@@ -527,34 +528,6 @@ fn assignment_targets_readwrite_borrow_field(
         }
         _ => false,
     }
-}
-
-fn non_copy_struct_identifier_assignment<'a>(
-    expression: &'a Expr,
-    resolved: &'a ResolveOutput,
-    environment: &TypeEnvironment,
-) -> Option<(&'a str, &'a str)> {
-    match expression {
-        Expr::Identifier(identifier) => {
-            let value_type = expression_type(expression, resolved, environment);
-            non_copy_struct_type_name(&value_type, resolved)
-                .map(|type_name| (identifier.name.as_str(), type_name))
-        }
-        Expr::Group(group) => {
-            non_copy_struct_identifier_assignment(&group.expression, resolved, environment)
-        }
-        _ => None,
-    }
-}
-
-fn non_copy_struct_type_name<'a>(ty: &Type, resolved: &'a ResolveOutput) -> Option<&'a str> {
-    let Type::Named(canonical_name) = ty else {
-        return None;
-    };
-    resolved
-        .type_symbol_by_canonical_name(canonical_name)
-        .filter(|symbol| symbol.kind == TypeSymbolKind::Struct && !symbol.is_copy)
-        .map(|symbol| symbol.canonical_name.as_str())
 }
 
 fn check_expression_tree(

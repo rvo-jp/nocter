@@ -66,3 +66,32 @@ pub(in crate::typecheck) fn argument_type_mismatch_diagnostic(
     diagnostic.help = Some(format!("pass a value of type `{}`", expected.display()));
     diagnostic
 }
+
+pub(in crate::typecheck) fn non_copy_struct_argument_diagnostic(
+    sources: &SourceMap,
+    index: usize,
+    argument: &Expr,
+    parameter: &ParameterSignature,
+    source_name: &str,
+    type_name: &str,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0392",
+        format!(
+            "cannot implicitly copy non-copy struct `{type_name}` from `{source_name}` into argument {}",
+            index + 1
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(argument.span()).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(parameter.ty.span()) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: format!(
+                "parameter `{}` takes `{type_name}` by value",
+                parameter.name
+            ),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some(format!("write `move {source_name}` to transfer ownership"));
+    diagnostic
+}

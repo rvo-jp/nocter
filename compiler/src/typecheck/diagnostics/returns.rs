@@ -63,6 +63,27 @@ pub(in crate::typecheck) fn return_type_mismatch_diagnostic(
     diagnostic
 }
 
+pub(in crate::typecheck) fn non_copy_struct_return_diagnostic(
+    sources: &SourceMap,
+    expression: &Expr,
+    source_name: &str,
+    type_name: &str,
+    context: &ReturnContext,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0393",
+        format!(
+            "cannot implicitly copy non-copy struct `{type_name}` from `{source_name}` in `return`"
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(expression.span()).ok().map(Box::new);
+    add_declared_return_note(sources, &mut diagnostic, context);
+    diagnostic.help = Some(format!(
+        "write `return move {source_name}` to transfer ownership"
+    ));
+    diagnostic
+}
+
 pub(in crate::typecheck) fn never_return_statement_diagnostic(
     sources: &SourceMap,
     statement: &ReturnStmt,

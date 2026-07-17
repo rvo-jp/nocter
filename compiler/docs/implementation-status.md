@@ -100,7 +100,7 @@ Currently buildable:
 - indirect aggregate parameters, call arguments, and returns for supported non-generic structs larger than 16 bytes, passed by slot address in registers or stack argument words, or returned through caller-provided `x8` storage
 - aggregate struct-literal returns and local slots, aggregate call-result slot bindings and assignments, copy aggregate bindings, copy aggregate field bindings from non-copy local or call-result owners, explicit aggregate move bindings and struct-literal aggregate field moves, aggregate slot borrow arguments, matching copy-struct or explicit-move slot assignment, and scalar field reads from supported aggregate slots, parameters, and call results
 - drop-aware whole-binding aggregate replacement in the current supported aggregate assignment paths, with replacement RHS staging before the old value is dropped
-- non-copy aggregate local slots can be passed by value or returned by name only through the current explicit `move name` form; implicit copy is limited to aggregate locals and parameters whose source type is `copy struct`
+- type checking diagnoses implicit by-value argument and return-by-name copies from non-copy aggregate bindings; non-copy aggregate local slots can be passed by value or returned by name only through the current explicit `move name` form, and implicit copy is limited to aggregate locals and parameters whose source type is `copy struct`
 - distributed `std/io.print` execution through the target-gated `std/io.write_text_raw` bootstrap primitive
 
 Currently not buildable even when it may be checkable:

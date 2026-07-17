@@ -1,10 +1,42 @@
-use super::model::Type;
-use crate::ast::TypeExpr;
+use super::expressions::expression_type;
+use super::model::{Type, TypeEnvironment};
+use crate::ast::{Expr, TypeExpr};
 use crate::resolve::{ResolveOutput, TypeSymbol, TypeSymbolKind};
 use std::collections::HashSet;
 
 pub(super) fn type_expr_is_copy(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<bool> {
     type_expr_is_copy_inner(ty, resolved, &mut HashSet::new())
+}
+
+pub(super) fn implicit_non_copy_struct_identifier_source<'a>(
+    expression: &'a Expr,
+    resolved: &'a ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<(&'a str, &'a str)> {
+    match expression {
+        Expr::Identifier(identifier) => {
+            let value_type = expression_type(expression, resolved, environment);
+            non_copy_struct_type_name(&value_type, resolved)
+                .map(|type_name| (identifier.name.as_str(), type_name))
+        }
+        Expr::Group(group) => {
+            implicit_non_copy_struct_identifier_source(&group.expression, resolved, environment)
+        }
+        _ => None,
+    }
+}
+
+pub(super) fn non_copy_struct_type_name<'a>(
+    ty: &Type,
+    resolved: &'a ResolveOutput,
+) -> Option<&'a str> {
+    let Type::Named(canonical_name) = ty else {
+        return None;
+    };
+    resolved
+        .type_symbol_by_canonical_name(canonical_name)
+        .filter(|symbol| symbol.kind == TypeSymbolKind::Struct && !symbol.is_copy)
+        .map(|symbol| symbol.canonical_name.as_str())
 }
 
 fn type_expr_is_copy_inner(

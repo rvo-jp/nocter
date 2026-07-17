@@ -1,8 +1,9 @@
+use super::copyability::implicit_non_copy_struct_identifier_source;
 use super::diagnostics::{
     argument_count_mismatch_diagnostic, argument_type_mismatch_diagnostic,
     associated_function_unknown_diagnostic, field_called_as_method_diagnostic,
     method_readwrite_receiver_requires_var_diagnostic, method_receiver_unsupported_diagnostic,
-    method_unknown_diagnostic,
+    method_unknown_diagnostic, non_copy_struct_argument_diagnostic,
 };
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment};
@@ -53,6 +54,20 @@ pub(super) fn check_known_function_call(
         if !is_expression_assignable(&expected, argument, resolved, environment) {
             diagnostics.push(argument_type_mismatch_diagnostic(
                 sources, index, argument, parameter, &expected, &actual,
+            ));
+            continue;
+        }
+
+        if let Some((source_name, type_name)) =
+            implicit_non_copy_struct_identifier_source(argument, resolved, environment)
+        {
+            diagnostics.push(non_copy_struct_argument_diagnostic(
+                sources,
+                index,
+                argument,
+                parameter,
+                source_name,
+                type_name,
             ));
         }
     }

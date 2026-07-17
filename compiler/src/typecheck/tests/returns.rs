@@ -117,3 +117,50 @@ func enabled(): bool {
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
+
+#[test]
+fn diagnoses_implicit_non_copy_struct_return() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return make().len
+}
+
+struct Text {
+    start: i32
+    len: i32
+}
+
+func make(): Text {
+    let text = Text{ start: 1, len: 42 }
+    return text
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0393");
+    assert!(diagnostics[0].message.contains("Text"));
+    assert!(diagnostics[0].message.contains("text"));
+}
+
+#[test]
+fn accepts_moved_non_copy_struct_return() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return make().len
+}
+
+struct Text {
+    start: i32
+    len: i32
+}
+
+func make(): Text {
+    let text = Text{ start: 1, len: 42 }
+    return move text
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}

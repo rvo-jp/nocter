@@ -1,8 +1,9 @@
 use super::bindings::{check_optional_let_else_statement, continuing_binding_type};
+use super::copyability::implicit_non_copy_struct_identifier_source;
 use super::diagnostics::{
     fallible_success_error_diagnostic, missing_return_diagnostic, missing_return_value_diagnostic,
-    never_return_statement_diagnostic, return_type_mismatch_diagnostic,
-    unexpected_return_value_diagnostic,
+    never_return_statement_diagnostic, non_copy_struct_return_diagnostic,
+    return_type_mismatch_diagnostic, unexpected_return_value_diagnostic,
 };
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
@@ -804,6 +805,19 @@ fn check_return_statement(
             if !is_expression_assignable(expected, expression, resolved, environment) {
                 diagnostics.push(return_type_mismatch_diagnostic(
                     sources, expression, expected, &actual, context,
+                ));
+                return;
+            }
+
+            if let Some((source_name, type_name)) =
+                implicit_non_copy_struct_identifier_source(expression, resolved, environment)
+            {
+                diagnostics.push(non_copy_struct_return_diagnostic(
+                    sources,
+                    expression,
+                    source_name,
+                    type_name,
+                    context,
                 ));
             }
         }
