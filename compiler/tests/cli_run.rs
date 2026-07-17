@@ -6844,6 +6844,59 @@ fn run_command_returns_fallible_entry_success_exit_code() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_optional_force_unwrap_success_exit_code() {
+    let project = TempProject::new("cli-run-optional-force-success");
+    let source = project.write_source(
+        "optional_force_success.nct",
+        r#"func main(): i32 {
+    return maybe_answer()!
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_traps_optional_force_unwrap_none() {
+    let project = TempProject::new("cli-run-optional-force-none");
+    let source = project.write_source(
+        "optional_force_none.nct",
+        r#"func main(): i32 {
+    return maybe_answer()!
+}
+
+func maybe_answer(): i32? {
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert!(
+        !output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_reports_fallible_entry_failure() {
     let project = TempProject::new("cli-run-fallible-failure");
     project.write_nocter_home_file(

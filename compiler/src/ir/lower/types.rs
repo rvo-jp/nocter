@@ -12,6 +12,39 @@ pub(super) fn return_type_from_type_expr(ty: &TypeExpr, resolved: &ResolveOutput
     return_type_from_type_expr_inner(ty, resolved, &mut HashSet::new())
 }
 
+pub(super) fn return_type_expr_is_top_level_optional(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+) -> bool {
+    return_type_expr_is_top_level_optional_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn return_type_expr_is_top_level_optional_inner(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> bool {
+    match ty {
+        TypeExpr::Optional(_) => true,
+        TypeExpr::Reference(reference) => {
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+                return false;
+            };
+            let Some(target) = &symbol.alias_target else {
+                return false;
+            };
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return false;
+            }
+            let result =
+                return_type_expr_is_top_level_optional_inner(target, resolved, resolving_names);
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
+        _ => false,
+    }
+}
+
 fn return_type_from_type_expr_inner(
     ty: &TypeExpr,
     resolved: &ResolveOutput,
@@ -37,6 +70,10 @@ fn return_type_from_type_expr_inner(
         }
         TypeExpr::Fallible(fallible) => {
             return_type_from_type_expr_inner(&fallible.success, resolved, resolving_names)
+                .map(|success| Type::Fallible(Box::new(success)))
+        }
+        TypeExpr::Optional(optional) => {
+            return_type_from_type_expr_inner(&optional.inner, resolved, resolving_names)
                 .map(|success| Type::Fallible(Box::new(success)))
         }
         _ => scalar_or_view_type_from_type_expr(ty, resolved)

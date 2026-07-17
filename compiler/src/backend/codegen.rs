@@ -724,6 +724,9 @@ impl EntryEmitter {
             Instruction::ReturnFallibleSuccess => {
                 self.emit_return_fallible_success(return_type, frame)?;
             }
+            Instruction::ReturnOptionalNone => {
+                self.emit_return_optional_none(frame);
+            }
             Instruction::ReturnFallibleFailure { code, message } => {
                 self.emit_return_fallible_failure(code, message, frame)?;
             }
@@ -863,6 +866,11 @@ impl EntryEmitter {
         emit_mov_i32_to_w0(&mut self.encoder, 1);
         self.emit_return(frame);
         Ok(())
+    }
+
+    fn emit_return_optional_none(&mut self, frame: Option<&FrameLayout>) {
+        emit_mov_i32_to_w0(&mut self.encoder, 1);
+        self.emit_return(frame);
     }
 
     fn emit_propagate_failure(

@@ -20,6 +20,7 @@ pub(super) struct LoweringContext<'a> {
     function_name: String,
     return_type: Type,
     function_return_type: Type,
+    function_returns_optional: bool,
     function_signatures: FunctionSignatures,
     call_resolution: Option<CallResolution<'a>>,
     function_names: FunctionNames,
@@ -43,6 +44,7 @@ impl<'a> Clone for LoweringContext<'a> {
             function_name: self.function_name.clone(),
             return_type: self.return_type.clone(),
             function_return_type: self.function_return_type.clone(),
+            function_returns_optional: self.function_returns_optional,
             function_signatures: self.function_signatures.clone(),
             call_resolution: self.call_resolution.clone(),
             function_names: self.function_names.clone(),
@@ -178,6 +180,7 @@ impl<'a> LoweringContext<'a> {
             function_name,
             function_return_type: return_type.clone(),
             return_type,
+            function_returns_optional: false,
             function_signatures,
             call_resolution: None,
             function_names: FunctionNames::default(),
@@ -229,6 +232,7 @@ impl<'a> LoweringContext<'a> {
             function_name,
             function_return_type: return_type.clone(),
             return_type,
+            function_returns_optional: false,
             function_signatures,
             call_resolution: None,
             function_names: FunctionNames::default(),
@@ -268,6 +272,14 @@ impl<'a> LoweringContext<'a> {
         self
     }
 
+    pub(super) fn with_function_returns_optional(
+        mut self,
+        function_returns_optional: bool,
+    ) -> Self {
+        self.function_returns_optional = function_returns_optional;
+        self
+    }
+
     pub(super) fn with_error_payloads(mut self, error_payloads: ErrorPayloads) -> Self {
         self.error_payloads = error_payloads;
         self
@@ -283,6 +295,10 @@ impl<'a> LoweringContext<'a> {
 
     pub(super) fn function_return_type(&self) -> &Type {
         &self.function_return_type
+    }
+
+    pub(super) fn function_returns_optional(&self) -> bool {
+        self.function_returns_optional
     }
 
     pub(super) fn call_return_type(&self, target: &CallTarget) -> Option<&Type> {

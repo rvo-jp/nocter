@@ -13,7 +13,7 @@ use super::functions::{
     lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
     mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
 };
-use super::types::return_type_from_type_expr;
+use super::types::{return_type_expr_is_top_level_optional, return_type_from_type_expr};
 use crate::ast::{FunctionDecl, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{CallTarget, Function, Instruction, Type};
@@ -128,6 +128,10 @@ fn lower_entry_body(
         function_signatures,
     )
     .with_function_return_type(return_type.clone())
+    .with_function_returns_optional(return_type_expr_is_top_level_optional(
+        &function.return_type,
+        resolved,
+    ))
     .with_call_resolution(root_source, resolved, typecheck_facts, function_names)
     .with_error_payloads(error_payloads);
     let mut instructions = lower_leading_bindings(leading, &mut context, sources)?;

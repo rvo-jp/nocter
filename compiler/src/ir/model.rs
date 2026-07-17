@@ -394,6 +394,7 @@ pub(crate) enum Instruction {
         failure_mode: FallibleFailureMode,
     },
     ReturnFallibleSuccess,
+    ReturnOptionalNone,
     ReturnFallibleFailure {
         code: StrValue,
         message: StrValue,

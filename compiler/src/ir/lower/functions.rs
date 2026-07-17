@@ -32,8 +32,8 @@ use super::expressions::{
     lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
 };
 use super::types::{
-    borrow_inner_type, borrow_type_from_type_expr, return_type_from_type_expr,
-    scalar_or_view_type_from_type_expr,
+    borrow_inner_type, borrow_type_from_type_expr, return_type_expr_is_top_level_optional,
+    return_type_from_type_expr, scalar_or_view_type_from_type_expr,
 };
 use crate::abi::{
     AbiType, AbiValue, ValueClassification, abi_value_from_type_expr,
@@ -122,6 +122,10 @@ pub(super) fn lower_function(
         parameters,
     )
     .with_function_return_type(return_type.clone())
+    .with_function_returns_optional(return_type_expr_is_top_level_optional(
+        &function.return_type,
+        resolved,
+    ))
     .with_call_resolution(root_source, resolved, typecheck_facts, function_names)
     .with_error_payloads(error_payloads);
     let mut instructions = parameter_setup;
@@ -187,6 +191,7 @@ pub(super) fn lower_drop_function(
         parameters,
     )
     .with_function_return_type(return_type.clone())
+    .with_function_returns_optional(false)
     .with_call_resolution(root_source, resolved, typecheck_facts, function_names)
     .with_error_payloads(error_payloads);
     let mut instructions = parameter_setup;
@@ -267,6 +272,10 @@ pub(super) fn lower_method_function(
         parameter_slots,
     )
     .with_function_return_type(return_type.clone())
+    .with_function_returns_optional(return_type_expr_is_top_level_optional(
+        &return_type_expr,
+        resolved,
+    ))
     .with_call_resolution(root_source, resolved, typecheck_facts, function_names)
     .with_error_payloads(error_payloads);
     let mut instructions = parameter_setup;
@@ -875,6 +884,13 @@ pub(super) fn lower_return_statement_with_scope_drops(
     }
 
     if let Some(expression) = &statement.expression
+        && context.function_returns_optional()
+        && expression_is_none_literal(expression)
+    {
+        return append_scope_end_drops_before_exit(vec![Instruction::ReturnOptionalNone], context);
+    }
+
+    if let Some(expression) = &statement.expression
         && let Some(return_instructions) =
             lower_value_return_with_scope_drops(&success_type, expression, &return_type, context)?
     {
@@ -962,7 +978,11 @@ pub(super) fn lower_return_statement_with_scope_drops(
             &function_name,
             "never",
         )),
-        (Type::Fallible(_), _) => unreachable!("fallible success type must be unwrapped"),
+        (Type::Fallible(_), _) => Err(unsupported_return_diagnostic(
+            diagnostic_code,
+            &function_name,
+            "nested fallible",
+        )),
     }?;
 
     let return_instructions = mark_fallible_success_returns(&return_type, return_instructions);
@@ -1575,6 +1595,7 @@ fn is_scope_exit_instruction(instruction: &Instruction) -> bool {
         instruction,
         Instruction::Return
             | Instruction::ReturnFallibleSuccess
+            | Instruction::ReturnOptionalNone
             | Instruction::ReturnFallibleFailure { .. }
             | Instruction::TailCall { .. }
     )
@@ -2341,6 +2362,10 @@ fn macos_syscall_primitive_call(call: &crate::ast::CallExpr, context: &LoweringC
 fn lower_fallible_failure(payload: ErrorPayload) -> Vec<Instruction> {
     let (code, message) = payload.into_str_values();
     vec![Instruction::ReturnFallibleFailure { code, message }]
+}
+
+fn expression_is_none_literal(expression: &Expr) -> bool {
+    matches!(unwrap_group(expression), Expr::NoneLiteral(_))
 }
 
 fn unsupported_function_body_diagnostic(function_name: &str) -> Vec<Diagnostic> {

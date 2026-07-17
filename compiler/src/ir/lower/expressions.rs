@@ -524,6 +524,17 @@ fn lower_catch_block(
             }
 
             if let Some(expression) = &statement.expression
+                && context.function_returns_optional()
+                && expression_is_none_literal(expression)
+            {
+                instructions.extend(append_scope_end_drops_before_exit(
+                    vec![Instruction::ReturnOptionalNone],
+                    context,
+                )?);
+                return Ok(instructions);
+            }
+
+            if let Some(expression) = &statement.expression
                 && let Some(return_instructions) = lower_value_return_with_scope_drops(
                     &success_type,
                     expression,
@@ -561,9 +572,7 @@ fn lower_catch_block(
                 | (Type::DirectAggregate { .. }, _)
                 | (Type::Borrow { .. }, _)
                 | (Type::Never, None) => Err(unsupported_catch_block_diagnostic()),
-                (Type::Fallible(_), _) => {
-                    unreachable!("fallible success type must be unwrapped")
-                }
+                (Type::Fallible(_), _) => Err(unsupported_catch_block_diagnostic()),
             }?;
             let return_instructions =
                 mark_fallible_success_returns(&function_return_type, return_instructions);
@@ -631,6 +640,10 @@ fn lower_catch_leading_statements(
 fn lower_fallible_failure(payload: ErrorPayload) -> Vec<Instruction> {
     let (code, message) = payload.into_str_values();
     vec![Instruction::ReturnFallibleFailure { code, message }]
+}
+
+fn expression_is_none_literal(expression: &Expr) -> bool {
+    matches!(unwrap_group(expression), Expr::NoneLiteral(_))
 }
 
 fn i32_destination_reserved_abi_words(destination: I32Location) -> usize {

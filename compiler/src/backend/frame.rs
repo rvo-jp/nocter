@@ -440,6 +440,7 @@ fn instruction_clobbers_parameter_registers(instruction: &Instruction) -> bool {
         | Instruction::PropagateFailure
         | Instruction::TrapOnFailure
         | Instruction::ReturnFallibleSuccess
+        | Instruction::ReturnOptionalNone
         | Instruction::ReturnFallibleFailure { .. }
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::CopyAggregate { .. }
@@ -565,6 +566,7 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         Instruction::PropagateFailure
         | Instruction::TrapOnFailure
         | Instruction::ReturnFallibleSuccess
+        | Instruction::ReturnOptionalNone
         | Instruction::ReturnFallibleFailure { .. }
         | Instruction::ProcessExit { .. }
         | Instruction::SetI32 { .. }
@@ -709,6 +711,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         Instruction::PropagateFailure
         | Instruction::TrapOnFailure
         | Instruction::ReturnFallibleSuccess
+        | Instruction::ReturnOptionalNone
         | Instruction::ReturnFallibleFailure { .. }
         | Instruction::ProcessExit { .. }
         | Instruction::Break
@@ -832,6 +835,7 @@ fn record_instruction_aggregate_slot_requests(
         Instruction::PropagateFailure
         | Instruction::TrapOnFailure
         | Instruction::ReturnFallibleSuccess
+        | Instruction::ReturnOptionalNone
         | Instruction::ReturnFallibleFailure { .. }
         | Instruction::ProcessExit { .. }
         | Instruction::WriteStr { .. }
@@ -1381,6 +1385,7 @@ fn record_instruction_parameter_spill_requests(
         Instruction::PropagateFailure
         | Instruction::TrapOnFailure
         | Instruction::ReturnFallibleSuccess
+        | Instruction::ReturnOptionalNone
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::Trap
         | Instruction::Break
@@ -1662,6 +1667,7 @@ fn record_instruction_scalar_locals(
         Instruction::PropagateFailure
         | Instruction::TrapOnFailure
         | Instruction::ReturnFallibleSuccess
+        | Instruction::ReturnOptionalNone
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::CopyAggregate { .. }
         | Instruction::CopyAggregateRange { .. }

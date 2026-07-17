@@ -329,11 +329,35 @@ pub fn function_success_return_passing_from_signature(
     signature: &FunctionSignature,
     resolved: &ResolveOutput,
 ) -> Result<ReturnPassing, AbiTypeError> {
-    let success_type = match &signature.return_type {
-        TypeExpr::Fallible(fallible) => &fallible.success,
-        _ => &signature.return_type,
-    };
+    let success_type =
+        top_level_success_return_type_expr(&signature.return_type, resolved, &mut HashSet::new())?;
     abi_return_from_type_expr(success_type, resolved).map(|return_value| return_value.passing())
+}
+
+fn top_level_success_return_type_expr<'a>(
+    ty: &'a TypeExpr,
+    resolved: &'a ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> Result<&'a TypeExpr, AbiTypeError> {
+    match ty {
+        TypeExpr::Reference(reference) => {
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+                return Ok(ty);
+            };
+            let Some(target) = &symbol.alias_target else {
+                return Ok(ty);
+            };
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return Err(AbiTypeError::RecursiveType(symbol.canonical_name.clone()));
+            }
+            let result = top_level_success_return_type_expr(target, resolved, resolving_names);
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
+        TypeExpr::Fallible(fallible) => Ok(&fallible.success),
+        TypeExpr::Optional(optional) => Ok(&optional.inner),
+        _ => Ok(ty),
+    }
 }
 
 pub fn abi_type_from_type_expr(
@@ -822,6 +846,59 @@ func text(): Text! {
         assert_eq!(
             function_success_return_passing_from_signature(
                 resolved_function_signature(&resolved, "header"),
+                &resolved,
+            )
+            .unwrap(),
+            ReturnPassing::Direct { words: 2 }
+        );
+        assert_eq!(
+            function_success_return_passing_from_signature(
+                resolved_function_signature(&resolved, "text"),
+                &resolved,
+            )
+            .unwrap(),
+            ReturnPassing::IndirectPointer
+        );
+    }
+
+    #[test]
+    fn classifies_optional_signature_success_return_passing() {
+        let (_ast, resolved) = parse_and_resolve(
+            r#"type MaybeHeader = Header?
+
+struct Header {
+    tag: u64
+    len: u64
+}
+
+struct Text {
+    ptr: *u8
+    len: usize
+    capacity: usize
+}
+
+func header(): Header? {
+}
+
+func aliased_header(): MaybeHeader {
+}
+
+func text(): Text? {
+}
+"#,
+        );
+
+        assert_eq!(
+            function_success_return_passing_from_signature(
+                resolved_function_signature(&resolved, "header"),
+                &resolved,
+            )
+            .unwrap(),
+            ReturnPassing::Direct { words: 2 }
+        );
+        assert_eq!(
+            function_success_return_passing_from_signature(
+                resolved_function_signature(&resolved, "aliased_header"),
                 &resolved,
             )
             .unwrap(),

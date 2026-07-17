@@ -16670,6 +16670,144 @@ func answer(): i32! {
 }
 
 #[test]
+fn lowers_optional_i32_function_none_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func maybe_answer(): i32? {
+    return none
+}
+"#,
+        "maybe_answer",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "maybe_answer".to_string(),
+            target: crate::ir::CallTarget::same_file("maybe_answer".to_string()),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![Instruction::ReturnOptionalNone],
+        }
+    );
+}
+
+#[test]
+fn lowers_optional_alias_i32_function_none_return() {
+    let function = lower_named_function(
+        r#"type MaybeI32 = i32?
+
+func main(): i32 {
+    return 0
+}
+
+func maybe_answer(): MaybeI32 {
+    return none
+}
+"#,
+        "maybe_answer",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "maybe_answer".to_string(),
+            target: crate::ir::CallTarget::same_file("maybe_answer".to_string()),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![Instruction::ReturnOptionalNone],
+        }
+    );
+}
+
+#[test]
+fn lowers_optional_i32_function_success_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+"#,
+        "maybe_answer",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "maybe_answer".to_string(),
+            target: crate::ir::CallTarget::same_file("maybe_answer".to_string()),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![set_return_i32(42), Instruction::ReturnFallibleSuccess],
+        }
+    );
+}
+
+#[test]
+fn lowers_optional_i32_return_propagation() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    return value()!
+}
+
+func value(): i32? {
+    return maybe_answer()?
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+"#,
+    );
+    let function = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "value")
+        .unwrap();
+
+    assert_eq!(
+        function,
+        &Function {
+            name: "value".to_string(),
+            target: crate::ir::CallTarget::same_file("value".to_string()),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![
+                Instruction::CallFallibleI32 {
+                    destination: I32Location::Return,
+                    target: CallTarget::same_file("maybe_answer"),
+                    arguments: vec![],
+                    failure_mode: FallibleFailureMode::Propagate,
+                },
+                Instruction::ReturnFallibleSuccess,
+            ],
+        }
+    );
+}
+
+#[test]
+fn diagnoses_nested_optional_success_none_return_without_panic() {
+    let diagnostics = lower_named_function_diagnostics_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func value(): (i32?)! {
+    return none
+}
+"#,
+        "value",
+        context::FunctionSignatures::new(HashMap::new()),
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E8007");
+    assert!(diagnostics[0].message.contains("nested fallible"));
+}
+
+#[test]
 fn lowers_fallible_i32_return_propagation() {
     let ir = lower_text(
         r#"func main(): i32! {

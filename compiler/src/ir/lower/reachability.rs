@@ -121,6 +121,7 @@ fn collect_reachable_call_targets(
             | Instruction::PropagateFailure
             | Instruction::TrapOnFailure
             | Instruction::ReturnFallibleSuccess
+            | Instruction::ReturnOptionalNone
             | Instruction::ReturnFallibleFailure { .. }
             | Instruction::SetI32 { .. }
             | Instruction::SetU8 { .. }
