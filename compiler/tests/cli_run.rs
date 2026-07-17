@@ -4061,6 +4061,63 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_runs_reinitialization_after_explicit_drop() {
+    let project = TempProject::new("cli-run-reinitialize-after-explicit-drop");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"from std/io import write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "reinitialize_after_explicit_drop.nct",
+        r#"from std/log import write
+
+struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        write("drop\n")!
+        return
+    }
+}
+
+func main(): i32! {
+    var file = File{ fd: 1 }
+    drop file
+    file = File{ fd: 42 }
+    return file.fd
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"drop\ndrop\n");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_preserves_terminal_if_return_value_after_scope_drop() {
     let project = TempProject::new("cli-run-terminal-if-return-drop");
     project.write_nocter_home_file(

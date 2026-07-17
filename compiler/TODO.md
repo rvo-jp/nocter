@@ -28,6 +28,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: cover aggregate reinitialization after explicit drop
+  - fixes the documented buildable subset around supported aggregate slot reinitialization after explicit move/drop
+  - verifies that explicit `drop name` suppresses replacement-drop emission for the next assignment
+  - covers native execution where explicit drop and later scope-end drop run exactly once each
 - Current checkpoint: lower source loop through while IR
   - lowers source-level `loop` as an always-true IR `While`
   - reuses existing body-local scope-end drop insertion and `break`/`continue` cleanup
