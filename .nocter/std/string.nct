@@ -115,6 +115,42 @@ pub func is_empty(text: &String): bool {
     return String.is_empty(text)
 }
 
+pub func String.reserve(text: &+String, additional: usize): void! {
+    let text_len: usize = text.len
+    if additional > 18446744073709551615 - text_len {
+        return capacity_overflow()
+    }
+
+    let required_capacity: usize = text_len + additional
+    if required_capacity <= text.capacity {
+        return
+    }
+
+    let address: usize = alloc_pages_impl(required_capacity)?
+    copy_str_to_ptr(from_addr(address), 0, str_from_raw_parts(text.ptr, text_len))
+    if text.capacity != 0 {
+        free_pages_impl(addr(text.ptr), text.capacity)
+    }
+    text.ptr = from_addr(address)
+    text.capacity = required_capacity
+    return
+}
+
+pub func reserve(text: &+String, additional: usize): void! {
+    String.reserve(text, additional)?
+    return
+}
+
+pub func String.clear(text: &+String): void {
+    text.len = 0
+    return
+}
+
+pub func clear(text: &+String): void {
+    String.clear(text)
+    return
+}
+
 pub func bytes(value: &str): &[u8] {
     return bytes_from_str(value)
 }
@@ -125,26 +161,10 @@ pub func String.bytes(text: &String): &[u8] {
 
 pub func String.push_str(text: &+String, value: &str): void! {
     let value_len: usize = value.len()
-    if value_len > 18446744073709551615 - text.len {
-        return capacity_overflow()
-    }
-
-    let new_len: usize = text.len + value_len
-    if new_len <= text.capacity {
-        copy_str_to_ptr(text.ptr, text.len, value)
-        text.len = new_len
-        return
-    }
-
-    let address: usize = alloc_pages_impl(new_len)?
-    copy_str_to_ptr(from_addr(address), 0, str_from_raw_parts(text.ptr, text.len))
-    copy_str_to_ptr(from_addr(address), text.len, value)
-    if text.capacity != 0 {
-        free_pages_impl(addr(text.ptr), text.capacity)
-    }
-    text.ptr = from_addr(address)
-    text.len = new_len
-    text.capacity = new_len
+    let old_len: usize = text.len
+    String.reserve(text, value_len)?
+    copy_str_to_ptr(text.ptr, old_len, value)
+    text.len = old_len + value_len
     return
 }
 

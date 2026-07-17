@@ -169,7 +169,7 @@ from std/mem import Allocator, Layout, RawBuffer, alloc, free, invalid_argument,
 from std/os import OSError, OSErrorKind, Platform
 from std/process import abort, args, cwd, env, exit
 from std/ptr import addr, from_ref, from_ref_mut
-from std/string import bytes, capacity, capacity_overflow, empty, from_str, is_empty, len, push_str, view, with_capacity
+from std/string import bytes, capacity, capacity_overflow, clear, empty, from_str, is_empty, len, push_str, reserve, view, with_capacity
 
 func main(): i32 {
     return 0
@@ -201,6 +201,16 @@ func string_capacity(text: &String): usize {
 
 func string_is_empty(text: &String): bool {
     return is_empty(text)
+}
+
+func string_reserve(text: &+String, additional: usize): void! {
+    reserve(text, additional)?
+    return
+}
+
+func string_clear(text: &+String): void {
+    clear(text)
+    return
 }
 "#,
     );
@@ -284,6 +294,11 @@ func main(): i32! {
     let copy = String.from_str(&+allocator, String.view(&text))?
     if String.len(&copy) != 4 {
         return 4
+    }
+    String.reserve(&+empty, 8)?
+    String.clear(&+empty)
+    if !String.is_empty(&empty) {
+        return 5
     }
     drop copy
     drop text
@@ -1114,7 +1129,7 @@ fn distributed_std_string_push_str_runs() {
         "string_push_str.nct",
         r#"from std/io import print
 from std/mem import page_allocator
-from std/string import capacity, is_empty, len, push_str, view, with_capacity
+from std/string import capacity, clear, is_empty, len, push_str, reserve, view, with_capacity
 
 func main(): i32! {
     var allocator = page_allocator()
@@ -1122,13 +1137,15 @@ func main(): i32! {
     if !is_empty(&text) {
         return 1
     }
-    push_str(&+text, "Hello")?
-    if len(&text) != 5 {
+    reserve(&+text, 5)?
+    if capacity(&text) != 5 {
         return 2
     }
-    if capacity(&text) != 5 {
+    push_str(&+text, "Hello")?
+    if len(&text) != 5 {
         return 3
     }
+    reserve(&+text, 7)?
     push_str(&+text, " String")?
     if len(&text) != 12 {
         return 4
@@ -1137,6 +1154,13 @@ func main(): i32! {
         return 5
     }
     print(view(&text))?
+    clear(&+text)
+    if !is_empty(&text) {
+        return 6
+    }
+    if capacity(&text) != 12 {
+        return 7
+    }
     return 0
 }
 "#,
