@@ -410,6 +410,7 @@ fn instruction_clobbers_parameter_registers(instruction: &Instruction) -> bool {
         | Instruction::CallFallibleVoid { .. }
         | Instruction::WriteStr { .. }
         | Instruction::WriteSlice { .. }
+        | Instruction::CloseFd { .. }
         | Instruction::DarwinSyscall { .. }
         | Instruction::CopyStrToPointer { .. } => true,
         Instruction::If {
@@ -523,6 +524,7 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::WriteStr { .. }
         | Instruction::WriteSlice { .. }
+        | Instruction::CloseFd { .. }
         | Instruction::DarwinSyscall { .. }
         | Instruction::CopyStrToPointer { .. } => true,
         Instruction::CopyAggregate {
@@ -694,6 +696,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::Continue => 0,
         Instruction::WriteStr { .. }
         | Instruction::WriteSlice { .. }
+        | Instruction::CloseFd { .. }
         | Instruction::CopyStrToPointer { .. }
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::StoreAggregateUsize { .. }
@@ -807,6 +810,7 @@ fn record_instruction_aggregate_slot_requests(
         | Instruction::ReturnFallibleFailure { .. }
         | Instruction::WriteStr { .. }
         | Instruction::WriteSlice { .. }
+        | Instruction::CloseFd { .. }
         | Instruction::DarwinSyscall { .. }
         | Instruction::CopyStrToPointer { .. }
         | Instruction::SetI32 { .. }
@@ -1067,6 +1071,11 @@ fn record_instruction_parameter_spill_requests(
             if include_value_parameters {
                 record_i32_value_parameter_spill_requests(fd, requests);
                 record_slice_value_parameter_spill_requests(bytes, requests);
+            }
+        }
+        Instruction::CloseFd { fd } => {
+            if include_value_parameters {
+                record_i32_value_parameter_spill_requests(fd, requests);
             }
         }
         Instruction::DarwinSyscall {
@@ -1585,6 +1594,9 @@ fn record_instruction_scalar_locals(
         Instruction::WriteSlice { fd, bytes } => {
             record_i32_value(fd, highest_local_index);
             record_slice_value(bytes, highest_local_index);
+        }
+        Instruction::CloseFd { fd } => {
+            record_i32_value(fd, highest_local_index);
         }
         Instruction::DarwinSyscall {
             number, arguments, ..

@@ -14,6 +14,9 @@ pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 pub(nocter) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
 
 #target("arm64-darwin")
+pub(nocter) primitive close_fd_raw(fd: i32): void
+
+#target("arm64-darwin")
 pub(nocter) func stdout_fd(): i32 {
     return 1
 }
@@ -47,6 +50,7 @@ pub(nocter) func write_text_fd(fd: i32, text: &str): void! {
 
 #target("arm64-darwin")
 pub(nocter) func close_fd(fd: i32): void {
+    close_fd_raw(fd)
     return
 }
 

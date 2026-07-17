@@ -17354,6 +17354,42 @@ pub func write_bytes_catch(bytes: &[u8]): void! {
 }
 
 #[test]
+fn lowers_close_fd_raw_call() {
+    let close = lower_imported_named_function_with_nocter_home_files(
+        r#"from std/io_close import close_raw
+
+func main(): void {
+    return
+}
+"#,
+        "close_raw",
+        &[
+            std_io_file(),
+            (
+                "std/io_close.nct",
+                r#"from std/io import close_fd_raw
+
+pub func close_raw(fd: i32): void {
+    close_fd_raw(fd)
+    return
+}
+"#,
+            ),
+        ],
+    );
+
+    assert_eq!(
+        close.instructions,
+        vec![
+            Instruction::CloseFd {
+                fd: I32Value::Location(I32Location::Parameter(0)),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_string_bytes_to_slice_view() {
     let bytes = lower_imported_named_function_with_nocter_home_files(
         r#"from std/string import bytes
@@ -19959,6 +19995,9 @@ pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 
 #target("arm64-darwin")
 pub(nocter) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
+
+#target("arm64-darwin")
+pub(nocter) primitive close_fd_raw(fd: i32): void
 
 pub func print(text: &str): void! {
     write_text_raw(1, text)?

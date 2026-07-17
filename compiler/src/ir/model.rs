@@ -49,6 +49,9 @@ pub(crate) enum Instruction {
         fd: I32Value,
         bytes: SliceValue,
     },
+    CloseFd {
+        fd: I32Value,
+    },
     SetI32 {
         destination: I32Location,
         value: I32Value,

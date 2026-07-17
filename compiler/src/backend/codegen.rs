@@ -157,6 +157,9 @@ impl EntryEmitter {
             Instruction::WriteSlice { fd, bytes } => {
                 self.emit_write_slice(fd, bytes, frame)?;
             }
+            Instruction::CloseFd { fd } => {
+                self.emit_close_fd(fd, frame)?;
+            }
             Instruction::SetI32 { destination, value } => {
                 self.emit_set_i32(*destination, value)?;
             }
@@ -1019,6 +1022,25 @@ impl EntryEmitter {
         emit_mov_i32_to_w0(&mut self.encoder, 1);
 
         self.patch_branch_placeholder_to_current(end_branch, "write syscall end target")?;
+        Ok(())
+    }
+
+    fn emit_close_fd(
+        &mut self,
+        fd: &I32Value,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "fd close emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_i32_value_to_w(fd, WReg::W0)?;
+        emit_darwin_close_syscall(&mut self.encoder);
+        self.emit_scalar_reloads(frame)?;
         Ok(())
     }
 
@@ -1889,6 +1911,11 @@ fn emit_darwin_write_syscall(encoder: &mut Encoder) {
     encoder.emit_svc(DARWIN_SYSCALL_TRAP);
 }
 
+fn emit_darwin_close_syscall(encoder: &mut Encoder) {
+    emit_mov_u32_to_w(encoder, WReg::W16, DARWIN_CLOSE_SYSCALL);
+    encoder.emit_svc(DARWIN_SYSCALL_TRAP);
+}
+
 fn align_usize(value: usize, alignment: usize) -> usize {
     debug_assert!(alignment.is_power_of_two());
     (value + alignment - 1) & !(alignment - 1)
@@ -1905,6 +1932,7 @@ const ADR_MAX_BYTE_OFFSET: i64 = (1 << 20) - 1;
 const BRANCH_MIN_BYTE_OFFSET: i64 = -(1 << 27);
 const BRANCH_MAX_BYTE_OFFSET: i64 = (1 << 27) - 4;
 const DARWIN_WRITE_SYSCALL: u32 = 0x0200_0004;
+const DARWIN_CLOSE_SYSCALL: u32 = 0x0200_0006;
 const DARWIN_EXIT_SYSCALL: u32 = 0x0200_0001;
 const DARWIN_SYSCALL_TRAP: u16 = 0x80;
 const I32_BIT_WIDTH: i32 = 32;
@@ -5138,6 +5166,40 @@ mod tests {
 
         assert_eq!(output.status.code(), Some(0));
         assert_eq!(output.stdout, b"bytes\n");
+        assert!(output.stderr.is_empty());
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
+    fn generated_close_fd_closes_stdout() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::CloseFd {
+                    fd: I32Value::Const(1),
+                },
+                Instruction::WriteStr {
+                    fd: I32Value::Const(1),
+                    text: StrValue::StaticBytes(b"hidden\n".to_vec()),
+                },
+                set_return_i32(0),
+                Instruction::Return,
+            ],
+        }]);
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let image = crate::target::macho::write_arm64_macos_executable_with_data(
+            &code.text,
+            &code.read_only_data,
+        );
+        let executable = write_temp_executable("codegen-close-fd-runs", &image.bytes);
+
+        let output = std::process::Command::new(&executable).output().unwrap();
+        let _ = std::fs::remove_file(executable);
+
+        assert_eq!(output.status.code(), Some(0));
+        assert!(output.stdout.is_empty());
         assert!(output.stderr.is_empty());
     }
 

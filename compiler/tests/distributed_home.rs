@@ -479,6 +479,40 @@ func main(): i32 {
 }
 
 #[test]
+fn distributed_io_close_raw_helper_is_not_public_api() {
+    let project = TempProject::new("distributed-home-io-close-raw-private");
+    let source = project.write_source(
+        "io_close_raw_private.nct",
+        r#"from std/io import close_fd_raw
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(
+        output.stdout.is_empty(),
+        "expected empty stdout, got:\n{}",
+        text(&output.stdout)
+    );
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("E0412") && stderr.contains("pub(nocter)"),
+        "expected pub(nocter) visibility diagnostic, got:\n{stderr}"
+    );
+}
+
+#[test]
 fn distributed_std_abort_builds_to_macho() {
     let project = TempProject::new("distributed-home-abort-build");
     let source = project.write_source(

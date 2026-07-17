@@ -28,6 +28,11 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: connect std file close to Darwin `close`
+  - adds target-gated `std/io.close_fd_raw(fd: i32): void` as a closed `pub(nocter)` primitive and routes `close_fd` through it
+  - lowers the primitive to `Instruction::CloseFd` and emits Darwin syscall `0x02000006` in the backend, ignoring the result for drop glue
+  - records close as a syscall-like instruction for frame planning, parameter spills, reachability, and control-flow termination checks
+  - covers IR lowering, native backend execution by closing stdout before a write, distributed doctor, and raw-helper privacy
 - Current checkpoint: expose `&str` byte views for slice writes
   - adds `std/string.bytes(value: &str): &[u8]` and `String.bytes(text: &String): &[u8]` backed by the closed `bytes_from_str` primitive
   - represents string-backed byte slices in IR as `SliceValue::StrBytes(StrValue)` so lowering and backend reuse the existing two-word string/view ABI without copying
@@ -44,7 +49,7 @@ Recent committed work:
   - verifies the distributed std check/run suite still passes
 - Current checkpoint: add `std/io.File` drop glue
   - defines `File.drop` in the distributed std so owned files follow the `close_on_drop` contract
-  - keeps `stdout()`/`stderr()` handles non-owning while allowing future real `close_fd` to attach under the existing drop path
+  - keeps `stdout()`/`stderr()` handles non-owning while allowing real `close_fd` to attach under the existing drop path
   - verifies the distributed std check/run suite still lowers imported drop members and scope-end drops
 - Current checkpoint: cover direct fallible String forwarding
   - adds distributed std native run coverage for `make(): String! { return from_str(&+allocator, "...")? }`

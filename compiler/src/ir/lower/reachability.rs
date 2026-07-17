@@ -94,6 +94,7 @@ fn collect_reachable_call_targets(
             }
             Instruction::WriteStr { .. }
             | Instruction::WriteSlice { .. }
+            | Instruction::CloseFd { .. }
             | Instruction::DarwinSyscall { .. }
             | Instruction::CopyStrToPointer { .. }
             | Instruction::ReserveAggregateSlot { .. }

@@ -1755,6 +1755,10 @@ pub(super) fn primitive_write_bytes_raw_call(call: &CallExpr, context: &Lowering
     )
 }
 
+pub(super) fn primitive_close_fd_raw_call(call: &CallExpr, context: &LoweringContext) -> bool {
+    matches!(context.primitive_name_for_call(call), Some("close_fd_raw"))
+}
+
 pub(super) fn primitive_bytes_from_str_call(call: &CallExpr, context: &LoweringContext) -> bool {
     matches!(
         context.primitive_name_for_call(call),
@@ -1870,6 +1874,24 @@ pub(super) fn lower_str_bytes_primitive_call_to_value(
 
     let text = lower_str_expression_to_value(&call.arguments[0], context, temporaries)?;
     Ok((text.instructions, SliceValue::StrBytes(text.value)))
+}
+
+pub(super) fn lower_close_fd_raw_primitive_call(
+    call: &CallExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if call.arguments.len() != 1 {
+        return Err(vec![Diagnostic::error(
+            "E8006",
+            "IR v0 can only lower primitive `close_fd_raw` with argument `(i32)`",
+        )]);
+    }
+
+    let fd = lower_i32_expression_to_value(&call.arguments[0], context, temporaries)?;
+    let mut instructions = fd.instructions;
+    instructions.push(Instruction::CloseFd { fd: fd.value });
+    Ok(instructions)
 }
 
 fn macos_syscall_arity(call: &CallExpr, context: &LoweringContext) -> Option<usize> {
