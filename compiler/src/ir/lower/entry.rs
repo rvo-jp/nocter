@@ -12,6 +12,7 @@ use super::functions::{
     lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
     mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
 };
+use super::types::return_type_from_type_expr;
 use crate::ast::{FunctionDecl, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{CallTarget, Function, Instruction, Type};
@@ -41,9 +42,10 @@ pub(super) fn lower_entry_function(
         ));
     }
 
-    let return_type = lower_entry_return_type(&function.return_type).map_err(|diagnostics| {
-        attach_primary_span_if_absent(diagnostics, sources, function.return_type.span())
-    })?;
+    let return_type =
+        lower_entry_return_type(&function.return_type, resolved).map_err(|diagnostics| {
+            attach_primary_span_if_absent(diagnostics, sources, function.return_type.span())
+        })?;
     let instructions = lower_entry_body(
         function,
         &return_type,
@@ -64,17 +66,33 @@ pub(super) fn lower_entry_function(
     })
 }
 
-fn lower_entry_return_type(ty: &TypeExpr) -> Result<Type, Vec<Diagnostic>> {
-    match ty {
-        TypeExpr::Reference(reference) if reference.name == "i32" => Ok(Type::I32),
-        TypeExpr::Reference(reference) if reference.name == "void" => Ok(Type::Void),
-        TypeExpr::Fallible(fallible) => lower_entry_return_type(&fallible.success)
-            .map(|success| Type::Fallible(Box::new(success))),
-        _ => Err(vec![Diagnostic::error(
-            "E8001",
-            "IR v0 can only lower entry function return type `i32`, `i32!`, `void`, or `void!`",
-        )]),
+fn lower_entry_return_type(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+) -> Result<Type, Vec<Diagnostic>> {
+    let Some(return_type) = return_type_from_type_expr(ty, resolved) else {
+        return Err(unsupported_entry_return_type_diagnostic());
+    };
+    if entry_return_type_is_supported(&return_type) {
+        Ok(return_type)
+    } else {
+        Err(unsupported_entry_return_type_diagnostic())
     }
+}
+
+fn entry_return_type_is_supported(ty: &Type) -> bool {
+    match ty {
+        Type::I32 | Type::Void => true,
+        Type::Fallible(success) => entry_return_type_is_supported(success),
+        _ => false,
+    }
+}
+
+fn unsupported_entry_return_type_diagnostic() -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8001",
+        "IR v0 can only lower entry function return type `i32`, `i32!`, `void`, or `void!`",
+    )]
 }
 
 fn lower_entry_body(

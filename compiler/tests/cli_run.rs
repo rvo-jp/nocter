@@ -150,6 +150,31 @@ func answer(value: Exit): Exit {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_accepts_alias_entry_return_type() {
+    let project = TempProject::new("cli-run-alias-entry-return");
+    let source = project.write_source(
+        "alias_entry_return.nct",
+        r#"type Exit = i32
+
+func main(): Exit {
+    return 42
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_uses_alias_view_signature_for_call_arguments() {
     let project = TempProject::new("cli-run-alias-view-signature-call");
     let source = project.write_source(

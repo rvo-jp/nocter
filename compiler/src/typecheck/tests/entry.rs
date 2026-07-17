@@ -29,6 +29,38 @@ func run(): i32! {
 }
 
 #[test]
+fn accepts_default_main_i32_alias() {
+    let diagnostics = check_text(
+        r#"type Exit = i32
+
+func main(): Exit {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_default_main_i32_fallible_alias() {
+    let diagnostics = check_text(
+        r#"type ExitResult = i32!
+
+func main(): ExitResult {
+    return run()?
+}
+
+func run(): ExitResult {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn accepts_default_main_void() {
     let diagnostics = check_text(
         r#"func main(): void {

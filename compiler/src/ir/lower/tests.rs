@@ -13104,6 +13104,49 @@ func choose(value: &i32, code: i32): i32 {
 }
 
 #[test]
+fn indexes_scalar_borrow_alias_parameter_for_calls() {
+    let ir = lower_text(
+        r#"type IntBorrow = &i32
+
+func main(): i32 {
+    let value = 7
+    return choose(&value, 42)
+}
+
+func choose(value: IntBorrow, code: i32): i32 {
+    return code
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0],
+        Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::SetI32 {
+                    destination: I32Location::Local(0),
+                    value: I32Value::Const(7),
+                },
+                Instruction::CallI32 {
+                    destination: I32Location::Return,
+                    target: CallTarget::same_file("choose"),
+                    arguments: vec![
+                        ScalarArgument::Borrow(BorrowArgument {
+                            source: BorrowSource::I32(I32Location::Local(0)),
+                        }),
+                        ScalarArgument::I32(I32Value::Const(42)),
+                    ],
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_scalar_parameter_borrow_call_argument() {
     let function = lower_named_function_with_signatures(
         r#"func main(): i32 {
@@ -15480,9 +15523,53 @@ fn lowers_entry_returning_negative_i32_literal() {
 }
 
 #[test]
+fn lowers_entry_scalar_alias_return_type() {
+    let ir = lower_text(
+        r#"type Exit = i32
+
+func main(): Exit {
+    return 42
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![set_return_i32(42), Instruction::Return],
+        }])
+    );
+}
+
+#[test]
 fn lowers_fallible_entry_returning_i32_literal() {
     let ir = lower_text(
         r#"func main(): i32! {
+    return 7
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![set_return_i32(7), Instruction::ReturnFallibleSuccess],
+        }])
+    );
+}
+
+#[test]
+fn lowers_fallible_entry_alias_return_type() {
+    let ir = lower_text(
+        r#"type ExitResult = i32!
+
+func main(): ExitResult {
     return 7
 }
 "#,

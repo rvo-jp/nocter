@@ -31,7 +31,8 @@ use super::expressions::{
     lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
 };
 use super::types::{
-    borrow_inner_type, return_type_from_type_expr, scalar_or_view_type_from_type_expr,
+    borrow_inner_type, borrow_type_from_type_expr, return_type_from_type_expr,
+    scalar_or_view_type_from_type_expr,
 };
 use crate::abi::{
     AbiType, AbiValue, ValueClassification, abi_value_from_type_expr,
@@ -510,7 +511,7 @@ fn lower_borrow_parameter_kind(
     function_name: &str,
     resolved: &ResolveOutput,
 ) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
-    let TypeExpr::Borrow(borrow) = &parameter.ty else {
+    let Some(borrow) = borrow_type_from_type_expr(&parameter.ty, resolved) else {
         return Err(unsupported_parameter_type_diagnostic(function_name));
     };
     match borrow_inner_type(&borrow.inner, resolved) {
@@ -527,7 +528,7 @@ fn lower_aggregate_borrow_parameter_kind(
     function_name: &str,
     resolved: &ResolveOutput,
 ) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
-    let TypeExpr::Borrow(borrow) = &parameter.ty else {
+    let Some(borrow) = borrow_type_from_type_expr(&parameter.ty, resolved) else {
         unreachable!("aggregate borrow parameter lowering requires a borrow type");
     };
     let value = abi_value_from_type_expr(&borrow.inner, resolved)

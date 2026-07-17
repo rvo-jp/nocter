@@ -44,7 +44,7 @@ Recent committed work:
 - Current checkpoint: normalize alias value ABI in IR lowering
   - classifies scalar, `&str`, u8-slice, and aggregate function parameter/return types through resolved ABI values instead of raw source spellings
   - lowers aliases to supported scalar/view targets with the same ABI as their targets, while keeping aggregate borrow metadata attached to the IR lowering context
-  - shares resolved type normalization between function signature indexing, function return/parameter lowering, and annotated scalar/view local bindings so aliases do not fall back to raw spelling checks there
+  - shares resolved type normalization between entry signature validation/lowering, function signature indexing, function return/parameter lowering, and annotated scalar/view local bindings so aliases, including aliases to supported borrow/view/fallible forms, do not fall back to raw spelling checks there
 - Current checkpoint: validate callee parameter slots against function ABI
   - exposes the ABI word count represented by IR lowering's parameter slot tables
   - checks each lowered function/drop parameter table against the parameter-only function ABI helper before backend planning

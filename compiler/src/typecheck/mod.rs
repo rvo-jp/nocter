@@ -44,7 +44,7 @@ pub fn check(
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
 
-    check_default_entry_function(sources, ast, entry_name, &mut diagnostics);
+    check_default_entry_function(sources, ast, resolved, entry_name, &mut diagnostics);
     diagnostics.extend(check_module(sources, ast, resolved));
 
     diagnostics
