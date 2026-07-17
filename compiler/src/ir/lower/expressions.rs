@@ -2231,9 +2231,7 @@ pub(super) fn aggregate_call_field(
     member_name: &str,
     context: &LoweringContext,
 ) -> Option<super::context::AggregateField> {
-    let Some((_root_source, resolved)) = context.resolved_calls() else {
-        return None;
-    };
+    let (_root_source, resolved) = context.resolved_calls()?;
     let signature = resolved.call_signature_for_call(call)?;
     aggregate_fields_from_type_expr(&signature.return_type, resolved)?
         .into_iter()

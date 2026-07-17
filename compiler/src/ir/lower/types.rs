@@ -164,9 +164,7 @@ fn borrow_type_from_type_expr_inner<'a>(
     match ty {
         TypeExpr::Borrow(borrow) => Some(borrow),
         TypeExpr::Reference(reference) => {
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
-                return None;
-            };
+            let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
             let Some(target) = &symbol.alias_target else {
                 return None;
             };
@@ -204,9 +202,7 @@ fn view_type_from_type_expr_inner(
             }
         }
         TypeExpr::Reference(reference) => {
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
-                return None;
-            };
+            let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
             let Some(target) = &symbol.alias_target else {
                 return None;
             };

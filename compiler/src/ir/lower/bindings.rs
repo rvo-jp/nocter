@@ -1052,7 +1052,7 @@ fn aggregate_assignment_target_path(target: &MemberExpr) -> Option<(&str, String
     Some((identifier_name, fields.join(".")))
 }
 
-fn aggregate_assignment_root_and_path<'a>(expression: &'a Expr) -> Option<(&'a str, Vec<&'a str>)> {
+fn aggregate_assignment_root_and_path(expression: &Expr) -> Option<(&str, Vec<&str>)> {
     match unwrap_group(expression) {
         Expr::Identifier(identifier) => Some((&identifier.name, Vec::new())),
         Expr::Member(member) => {
@@ -1497,9 +1497,7 @@ fn call_success_drop_glue(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> Option<super::context::DropGlue> {
-    let Some((_root_source, resolved)) = context.resolved_calls() else {
-        return None;
-    };
+    let (_root_source, resolved) = context.resolved_calls()?;
     let signature = resolved.call_signature_for_call(call)?;
     context.drop_glue_for_type_expr(&signature.return_type)
 }

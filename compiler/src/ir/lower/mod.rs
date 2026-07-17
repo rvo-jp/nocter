@@ -263,7 +263,7 @@ impl<'a> FunctionIndex<'a> {
         FunctionNames::from_declarations(
             self.definitions
                 .values()
-                .filter_map(|function| function.name_declaration().map(|(span, name)| (span, name)))
+                .filter_map(|function| function.name_declaration())
                 .collect(),
         )
     }

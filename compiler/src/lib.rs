@@ -1,3 +1,6 @@
+#![allow(clippy::large_enum_variant)]
+#![allow(clippy::too_many_arguments)]
+
 pub mod abi;
 pub mod analysis;
 pub mod ast;

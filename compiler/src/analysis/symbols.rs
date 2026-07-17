@@ -105,11 +105,7 @@ fn item_document_symbol(text: &str, item: &Item) -> Option<DocumentSymbolInfo> {
             DocumentSymbolKind::Interface,
             trait_.span,
             trait_.name_span,
-            trait_
-                .methods
-                .iter()
-                .map(|method| method_document_symbol(method))
-                .collect(),
+            trait_.methods.iter().map(method_document_symbol).collect(),
         )),
         Item::Impl(impl_) => Some(document_symbol(
             format!("impl {}", source_fragment(text, impl_.target_ty.span())),
@@ -119,7 +115,7 @@ fn item_document_symbol(text: &str, item: &Item) -> Option<DocumentSymbolInfo> {
             impl_
                 .members
                 .iter()
-                .map(|member| impl_member_document_symbol(member))
+                .map(impl_member_document_symbol)
                 .collect(),
         )),
     }

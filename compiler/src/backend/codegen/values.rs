@@ -1849,7 +1849,7 @@ fn aggregate_copy_chunk_has_aligned_offset(offset: u32, chunk_bytes: u32) -> boo
             | AGGREGATE_I32_STORE_BYTES
             | AGGREGATE_U16_STORE_BYTES
             | AGGREGATE_U8_STORE_BYTES
-    ) && offset % chunk_bytes == 0
+    ) && offset.is_multiple_of(chunk_bytes)
 }
 
 fn w_reg_for_x_reg(register: XReg) -> Option<WReg> {

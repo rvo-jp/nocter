@@ -12732,7 +12732,7 @@ func main(): i32 {
             _ => None,
         })
         .unwrap();
-    let index = FunctionIndex::new(&analysis, root.ast.span.source);
+    let index = FunctionIndex::new(analysis, root.ast.span.source);
 
     let function = entry::lower_entry_function(
         entry,
@@ -19255,7 +19255,7 @@ fn lower_imported_named_function_with_nocter_home_files(
         .map(|file| file.ast.span.source)
         .unwrap();
     let target = CallTarget::imported(imported_source, function_name);
-    let index = FunctionIndex::new(&analysis, root.ast.span.source);
+    let index = FunctionIndex::new(analysis, root.ast.span.source);
     let function = index.definition(&target).unwrap();
 
     function

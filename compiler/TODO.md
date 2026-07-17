@@ -28,6 +28,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: restore compiler verify under current clippy
+  - keeps `too_many_arguments` and `large_enum_variant` allowed at the crate boundary because the current compiler pipeline intentionally passes phase context through explicit parameters and keeps resolver symbol payloads inline
+  - applies current clippy mechanical cleanups for redundant closures, optional `?` flow, identity maps, repeat markers, alignment checks, and needless test borrows
+  - confirms the standard `./compiler/scripts/verify.sh` path now passes again after the ABI return metadata work
 - Current checkpoint: validate scalar call return ABI passing
   - shares IR-type to success-return `ReturnPassing` mapping between aggregate return lowering and scalar/view call validators
   - validates scalar/view/void normal and propagated fallible call lowering against indexed callee success-return ABI passing

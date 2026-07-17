@@ -140,7 +140,7 @@ fn marker_for_line_span(line: &str, span: &JsonSpan, line_number: usize) -> Stri
         marker.push(if ch == '\t' { '\t' } else { ' ' });
     }
 
-    marker.extend(std::iter::repeat('^').take(marker_len));
+    marker.extend(std::iter::repeat_n('^', marker_len));
     marker
 }
 

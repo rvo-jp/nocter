@@ -1287,10 +1287,7 @@ fn append_scope_drops_then_restore_return(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut tail =
         append_scope_end_drops_before_exit(vec![success_return_instruction(return_type)], context)?;
-    let Some(return_index) = tail
-        .iter()
-        .rposition(|instruction| is_scope_exit_instruction(instruction))
-    else {
+    let Some(return_index) = tail.iter().rposition(is_scope_exit_instruction) else {
         return Ok(());
     };
     tail.splice(return_index..return_index, restore_return);
@@ -1483,10 +1480,7 @@ pub(super) fn append_scope_end_drops_before_exit(
     mut instructions: Vec<Instruction>,
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let Some(return_index) = instructions
-        .iter()
-        .rposition(|instruction| is_scope_exit_instruction(instruction))
-    else {
+    let Some(return_index) = instructions.iter().rposition(is_scope_exit_instruction) else {
         return Ok(instructions);
     };
     let drops = lower_scope_end_drop_instructions(context)?;

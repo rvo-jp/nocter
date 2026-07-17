@@ -607,14 +607,14 @@ pub(super) fn lower_call_arguments(
     }
 
     let actual_abi_words = validate_call_argument_abi_word_count(callee_name, &arguments)?;
-    if let Some(expected_abi_words) = context.call_parameter_abi_word_count(target) {
-        if actual_abi_words != expected_abi_words {
-            return Err(call_argument_abi_word_count_mismatch_diagnostic(
-                callee_name,
-                expected_abi_words,
-                actual_abi_words,
-            ));
-        }
+    if let Some(expected_abi_words) = context.call_parameter_abi_word_count(target)
+        && actual_abi_words != expected_abi_words
+    {
+        return Err(call_argument_abi_word_count_mismatch_diagnostic(
+            callee_name,
+            expected_abi_words,
+            actual_abi_words,
+        ));
     }
     Ok((instructions, arguments))
 }
