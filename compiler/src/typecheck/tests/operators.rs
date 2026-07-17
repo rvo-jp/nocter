@@ -419,6 +419,38 @@ fn diagnoses_move_non_binding_operand() {
 }
 
 #[test]
+fn diagnoses_move_of_copy_scalar_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    let value = 42
+    return move value
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0394");
+    assert!(diagnostics[0].message.contains("i32"));
+}
+
+#[test]
+fn diagnoses_move_of_borrow_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    let value = 42
+    let borrowed = &value
+    let moved = move borrowed
+    return value
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0394");
+    assert!(diagnostics[0].message.contains("&i32"));
+}
+
+#[test]
 fn diagnoses_negative_integer_literal_unsigned_binding() {
     let diagnostics = check_text(
         r#"func main(): i32 {

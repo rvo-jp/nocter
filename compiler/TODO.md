@@ -149,7 +149,7 @@ Recent committed work:
 - Current checkpoint: track owned aggregate move/drop state
   - adds typecheck-owned initialized/moved/dropped state for non-copy struct bindings in function, method, and drop bodies
   - rejects use-after-move, double move, use-after-explicit-drop, double explicit drop, and explicit drop of copy/non-owned values through normal diagnostics
-  - accepts `var` reinitialization after move/drop and keeps copy struct `move name` usable as a copy-like expression
+  - accepts `var` reinitialization after move/drop and rejects `move name` on copy, borrow, scalar, and otherwise non-owned values
   - propagates simple `if`/`if is`/`if let` and `match` ownership-state joins, including maybe-initialized diagnostics when incoming paths disagree
   - propagates conservative loop state joins and excludes unreachable paths after `return`, `break`, `continue`, and `never` expression statements
   - keeps full ownership-fact export from type checking into IR lowering and broad control-flow drop lowering disabled
@@ -243,7 +243,7 @@ Recent committed work:
   - keeps richer type hovers, references, rename, and other editor-only features deferred while backend core work remains the main priority
 - Current checkpoint: parse and lower narrow move returns
   - parses `move name` as a unary expression and formats it with keyword spacing
-  - type-checks only the v0 operand shape rule that `move` must target a binding name, leaving copy/move-only classification and initialized-state tracking for the ownership pass
+  - type-checks the v0 operand shape rule that `move` must target a binding name; later type checking rejects copy and non-owned operands and tracks initialized state for owned non-copy structs
   - lowers aggregate `return move name` from reserved aggregate slots through the existing `CopyAggregate` return path
   - keeps general source-level aggregate moves, use-after-move checking, moved-value drop suppression, by-value aggregate arguments, and drop glue disabled
 - Current checkpoint: lower fallible direct aggregate slots

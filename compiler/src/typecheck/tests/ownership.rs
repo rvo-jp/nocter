@@ -124,7 +124,7 @@ func main(): i32 {
 }
 
 #[test]
-fn accepts_copy_struct_after_move_expression() {
+fn diagnoses_move_of_copy_struct() {
     let diagnostics = check_text(
         r#"copy struct Pair {
     left: i32
@@ -139,7 +139,9 @@ func main(): i32 {
 "#,
     );
 
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0394");
+    assert!(diagnostics[0].message.contains("Pair"));
 }
 
 #[test]

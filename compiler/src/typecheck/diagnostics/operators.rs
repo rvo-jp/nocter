@@ -215,3 +215,24 @@ pub(in crate::typecheck) fn move_operand_must_be_binding_diagnostic(
     diagnostic.help = Some("write `move name` with a binding name as the operand".to_string());
     diagnostic
 }
+
+pub(in crate::typecheck) fn move_operand_not_move_only_diagnostic(
+    sources: &SourceMap,
+    expression: &UnaryExpr,
+    actual: &Type,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0394",
+        format!(
+            "`move` cannot transfer `{}` because the operand is not a move-only owned binding",
+            actual.display()
+        ),
+    );
+    diagnostic.primary_span = sources
+        .span_to_json(expression.operand.span())
+        .ok()
+        .map(Box::new);
+    diagnostic.help =
+        Some("remove `move` for copy values, or use a non-copy owned binding".to_string());
+    diagnostic
+}

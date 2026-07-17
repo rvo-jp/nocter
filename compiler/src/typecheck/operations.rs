@@ -1,9 +1,10 @@
 use super::arrays::array_length_matches;
+use super::copyability::non_copy_struct_type_name;
 use super::diagnostics::{
     arithmetic_operand_type_mismatch_diagnostic, equality_operand_type_mismatch_diagnostic,
     logical_not_operand_type_mismatch_diagnostic, logical_operand_type_mismatch_diagnostic,
-    move_operand_must_be_binding_diagnostic, negative_shift_count_diagnostic,
-    numeric_negate_operand_type_mismatch_diagnostic,
+    move_operand_must_be_binding_diagnostic, move_operand_not_move_only_diagnostic,
+    negative_shift_count_diagnostic, numeric_negate_operand_type_mismatch_diagnostic,
     ordered_comparison_operand_type_mismatch_diagnostic, shift_operand_type_mismatch_diagnostic,
     type_conversion_not_lossless_diagnostic,
 };
@@ -152,6 +153,12 @@ pub(super) fn check_unary_expression(
         UnaryOperator::Move => {
             if !matches!(expression.operand.as_ref(), Expr::Identifier(_)) {
                 diagnostics.push(move_operand_must_be_binding_diagnostic(sources, expression));
+            } else if non_copy_struct_type_name(&operand_type, resolved).is_none() {
+                diagnostics.push(move_operand_not_move_only_diagnostic(
+                    sources,
+                    expression,
+                    &operand_type,
+                ));
             }
         }
     }
