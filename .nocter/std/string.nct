@@ -92,6 +92,10 @@ pub func bytes(value: &str): &[u8] {
     return bytes_from_str(value)
 }
 
+pub func String.bytes(text: &String): &[u8] {
+    return bytes_from_str(String.view(text))
+}
+
 pub func String.push_str(text: &+String, value: &str): void! {
     let value_len: usize = value.len()
     if value_len > 18446744073709551615 - text.len {

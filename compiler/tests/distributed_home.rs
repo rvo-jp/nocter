@@ -169,7 +169,7 @@ from std/mem import Allocator, Layout, RawBuffer, alloc, free, invalid_argument,
 from std/os import OSError, OSErrorKind, Platform
 from std/process import abort, args, cwd, env, exit
 from std/ptr import addr, from_ref, from_ref_mut
-from std/string import capacity_overflow, empty, from_str, push_str, view, with_capacity
+from std/string import bytes, capacity_overflow, empty, from_str, push_str, view, with_capacity
 
 func main(): i32 {
     return 0
@@ -633,6 +633,43 @@ func main(): i32! {
         text(&output.stderr)
     );
     assert_eq!(output.stdout, b"Hello String");
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_string_bytes_file_write_runs() {
+    let project = TempProject::new("distributed-home-string-bytes-file-write-run");
+    let source = project.write_source(
+        "string_bytes_file_write.nct",
+        r#"from std/io import stdout
+from std/mem import page_allocator
+from std/string import from_str
+
+func main(): i32! {
+    var allocator = page_allocator()
+    let text = from_str(&+allocator, "Owned bytes")?
+    var out = stdout()
+    out.write(String.bytes(&text))?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"Owned bytes");
     assert!(
         output.stderr.is_empty(),
         "expected empty stderr, got:\n{}",

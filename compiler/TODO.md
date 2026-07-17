@@ -29,7 +29,7 @@ Recommended next implementation order:
 Recent committed work:
 
 - Current checkpoint: expose `&str` byte views for slice writes
-  - adds `std/string.bytes(value: &str): &[u8]` backed by the closed `bytes_from_str` primitive
+  - adds `std/string.bytes(value: &str): &[u8]` and `String.bytes(text: &String): &[u8]` backed by the closed `bytes_from_str` primitive
   - represents string-backed byte slices in IR as `SliceValue::StrBytes(StrValue)` so lowering and backend reuse the existing two-word string/view ABI without copying
   - handles `.len()` and indexing on string-backed byte slices by reusing the existing string length/index value lowering
   - verifies `stdout().write(bytes("..."))` through the distributed standard library and native backend execution tests
