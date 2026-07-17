@@ -17392,6 +17392,60 @@ pub func read_count(buffer: &+[u8]): usize! {
 }
 
 #[test]
+fn lowers_fallible_read_bytes_raw_catch_binding() {
+    let read_bytes = lower_imported_named_function_with_nocter_home_files(
+        r#"from std/io_bytes_catch import read_count_catch
+
+func main(): void {
+    return
+}
+"#,
+        "read_count_catch",
+        &[
+            std_error_file(),
+            std_io_file(),
+            (
+                "std/io_bytes_catch.nct",
+                r#"from std/error import Error
+from std/io import read_bytes_raw
+
+pub func read_count_catch(buffer: &+[u8]): usize! {
+    let count = read_bytes_raw(0, buffer) catch error {
+        return Error.new("app.read", error.message)
+    }
+    return count
+}
+"#,
+            ),
+        ],
+    );
+
+    assert_eq!(
+        read_bytes.instructions,
+        vec![
+            Instruction::ReadSlice {
+                destination: UsizeLocation::Local(0),
+                fd: I32Value::Const(0),
+                buffer: SliceValue::Location(SliceLocation::Parameter(0)),
+                failure_mode: FallibleFailureMode::Catch {
+                    code: StrLocation::Local(1),
+                    message: StrLocation::Local(3),
+                    instructions: vec![Instruction::ReturnFallibleFailure {
+                        code: StrValue::StaticBytes(b"app.read".to_vec()),
+                        message: StrValue::Location(StrLocation::Local(3)),
+                    }],
+                },
+            },
+            Instruction::SetUsize {
+                destination: UsizeLocation::Return,
+                value: UsizeValue::Location(UsizeLocation::Local(0)),
+            },
+            Instruction::ReturnFallibleSuccess,
+        ]
+    );
+}
+
+#[test]
 fn lowers_fallible_open_read_raw_propagation() {
     let open = lower_imported_named_function_with_nocter_home_files(
         r#"from std/io_open import open_raw

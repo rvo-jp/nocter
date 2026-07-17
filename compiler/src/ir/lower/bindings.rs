@@ -1436,7 +1436,94 @@ fn scalar_binding_kind(
         {
             Ok(ScalarBindingKind::Bool)
         }
-        None => Ok(ScalarBindingKind::I32),
+        None => Ok(
+            expression_scalar_binding_kind(&statement.initializer, context)
+                .unwrap_or(ScalarBindingKind::I32),
+        ),
+    }
+}
+
+fn expression_scalar_binding_kind(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Option<ScalarBindingKind> {
+    match unwrap_group(expression) {
+        Expr::Call(call) => call_return_scalar_binding_kind(call, context),
+        Expr::Propagate(propagation) => fallible_call_success_scalar_binding_kind(
+            unwrap_group(&propagation.expression),
+            context,
+        ),
+        Expr::Force(force) => {
+            fallible_call_success_scalar_binding_kind(unwrap_group(&force.expression), context)
+        }
+        Expr::Catch(catch) => {
+            fallible_call_success_scalar_binding_kind(unwrap_group(&catch.expression), context)
+        }
+        _ => None,
+    }
+}
+
+fn call_return_scalar_binding_kind(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> Option<ScalarBindingKind> {
+    if let Some(kind) = primitive_call_scalar_binding_kind(call, context) {
+        return Some(kind);
+    }
+
+    let (target, _call_name) = context.direct_call_target_and_name(call)?;
+    scalar_binding_kind_from_type(context.call_return_type(&target)?)
+}
+
+fn fallible_call_success_scalar_binding_kind(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Option<ScalarBindingKind> {
+    let Expr::Call(call) = expression else {
+        return None;
+    };
+    if let Some(kind) = primitive_call_fallible_success_scalar_binding_kind(call, context) {
+        return Some(kind);
+    }
+
+    let (target, _call_name) = context.direct_call_target_and_name(call)?;
+    let Type::Fallible(success) = context.call_return_type(&target)? else {
+        return None;
+    };
+    scalar_binding_kind_from_type(success)
+}
+
+fn primitive_call_scalar_binding_kind(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> Option<ScalarBindingKind> {
+    match context.primitive_name_for_call(call)? {
+        "addr" => Some(ScalarBindingKind::Usize),
+        "bytes_from_str" => Some(ScalarBindingKind::Slice),
+        _ => None,
+    }
+}
+
+fn primitive_call_fallible_success_scalar_binding_kind(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> Option<ScalarBindingKind> {
+    match context.primitive_name_for_call(call)? {
+        "open_read_raw" => Some(ScalarBindingKind::I32),
+        "read_bytes_raw" => Some(ScalarBindingKind::Usize),
+        _ => None,
+    }
+}
+
+fn scalar_binding_kind_from_type(ty: &Type) -> Option<ScalarBindingKind> {
+    match ty {
+        Type::I32 => Some(ScalarBindingKind::I32),
+        Type::U8 => Some(ScalarBindingKind::U8),
+        Type::Usize => Some(ScalarBindingKind::Usize),
+        Type::Bool => Some(ScalarBindingKind::Bool),
+        Type::Str => Some(ScalarBindingKind::Str),
+        Type::Slice { .. } => Some(ScalarBindingKind::Slice),
+        _ => None,
     }
 }
 

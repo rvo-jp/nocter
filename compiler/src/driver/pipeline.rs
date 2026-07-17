@@ -1042,15 +1042,19 @@ pub(nocter) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
         .unwrap();
         fs::write(
             nocter_home.join("std/io.nct"),
-            r#"from std/ptr import from_addr
+            r#"from std/error import Error
+from std/ptr import from_addr
 from std/ptr import slice_from_raw_parts_mut
 
 #target("arm64-darwin")
 pub(nocter) primitive read_bytes_raw(fd: i32, buffer: &+[u8]): usize!
 
-pub func fail_read(): usize! {
+pub func fail_read(): void! {
     let buffer: &+[u8] = slice_from_raw_parts_mut(from_addr(1), 1)
-    return read_bytes_raw(-1, buffer)?
+    let count = read_bytes_raw(-1, buffer) catch error {
+        return Error.new("app.read", error.code)
+    }
+    return
 }
 "#,
         )
@@ -1061,7 +1065,7 @@ pub func fail_read(): usize! {
             r#"from std/io import fail_read
 
 func main(): void! {
-    let count: usize = fail_read()?
+    fail_read()?
     return
 }
 "#,
@@ -1081,7 +1085,7 @@ func main(): void! {
         let output = std::process::Command::new(&executable).output().unwrap();
         assert_eq!(output.status.code(), Some(1));
         assert!(output.stdout.is_empty());
-        assert_eq!(output.stderr, b"std.io.invalid_input: invalid I/O input\n");
+        assert_eq!(output.stderr, b"app.read: std.io.invalid_input\n");
     }
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
