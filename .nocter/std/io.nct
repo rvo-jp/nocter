@@ -7,7 +7,7 @@
 from std/error import Error
 from std/mem import alloc_pages
 from std/mem import free_pages
-from std/os import OSError
+from std/os import OSError, OSErrorKind
 from std/ptr import copy_str_to_ptr
 from std/ptr import from_addr
 from std/ptr import store_u8_to_ptr
@@ -77,7 +77,7 @@ pub(nocter) func close_fd(fd: i32): void {
 
 // Compatibility classification type. It is an ordinary enum, not the fallible
 // payload type.
-pub enum IOError {
+pub(nocter) enum IOError {
     interrupted(error: OSError)
     would_block(error: OSError)
     not_found(error: OSError)
@@ -95,7 +95,34 @@ pub struct File {
     close_on_drop: bool
 }
 
-pub func from_os_error(error: OSError): error {
+pub(nocter) func from_os_error(error: OSError): error {
+    if error.kind is OSErrorKind.interrupted {
+        return Error.new("std.io.interrupted", "operation interrupted")
+    }
+    if error.kind is OSErrorKind.would_block {
+        return Error.new("std.io.would_block", "operation would block")
+    }
+    if error.kind is OSErrorKind.not_found {
+        return Error.new("std.io.not_found", "file not found")
+    }
+    if error.kind is OSErrorKind.permission_denied {
+        return Error.new("std.io.permission_denied", "permission denied")
+    }
+    if error.kind is OSErrorKind.already_exists {
+        return Error.new("std.io.already_exists", "file already exists")
+    }
+    if error.kind is OSErrorKind.invalid_input {
+        return Error.new("std.io.invalid_input", "invalid I/O input")
+    }
+    if error.kind is OSErrorKind.broken_pipe {
+        return Error.new("std.io.broken_pipe", "broken pipe")
+    }
+    if error.kind is OSErrorKind.timed_out {
+        return Error.new("std.io.timed_out", "operation timed out")
+    }
+    if error.kind is OSErrorKind.unsupported {
+        return Error.new("std.io.unsupported", "unsupported I/O operation")
+    }
     return Error.new("std.io.os_error", "OS operation failed")
 }
 

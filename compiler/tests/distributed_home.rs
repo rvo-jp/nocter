@@ -164,9 +164,8 @@ fn distributed_std_public_api_passes_check() {
     let source = project.write_source(
         "std_smoke.nct",
         r#"from std/fmt import append_bool, append_i32, append_str, append_string, unsupported as fmt_unsupported
-from std/io import File, from_os_error, print, stderr, stdout, unsupported as io_unsupported, write_text
+from std/io import File, print, stderr, stdout, unsupported as io_unsupported, write_text
 from std/mem import Allocator, Layout, RawBuffer, alloc, free, invalid_argument, out_of_memory, page_allocator
-from std/os import OSError, OSErrorKind, Platform
 from std/process import abort, args, cwd, env, exit
 from std/ptr import addr, from_ref, from_ref_mut
 from std/string import bytes, capacity, capacity_overflow, clear, empty, from_str, is_empty, len, push_str, reserve, view, with_capacity
@@ -246,6 +245,38 @@ func main(): void! {
     assert_eq!(
         output.stderr,
         b"std.mem.invalid_argument: invalid allocation request\n"
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_os_error_model_is_not_public_api() {
+    let project = TempProject::new("distributed-home-os-error-private");
+    let source = project.write_source(
+        "os_error_private.nct",
+        r#"from std/os import OSErrorKind
+
+func main(): i32 {
+    let kind = OSErrorKind.not_found
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("E0412") && stderr.contains("pub(nocter)"),
+        "expected pub(nocter) visibility diagnostic, got:\n{stderr}"
     );
 }
 
@@ -565,6 +596,40 @@ func main(): i32 {
     assert!(
         stderr.contains("E0377") && stderr.contains("not visible here"),
         "expected private File field diagnostic, got:\n{stderr}"
+    );
+}
+
+#[test]
+fn distributed_io_os_error_converter_is_not_public_api() {
+    let project = TempProject::new("distributed-home-io-os-error-converter-private");
+    let source = project.write_source(
+        "io_os_error_converter_private.nct",
+        r#"from std/io import from_os_error
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(
+        output.stdout.is_empty(),
+        "expected empty stdout, got:\n{}",
+        text(&output.stdout)
+    );
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("E0412") && stderr.contains("pub(nocter)"),
+        "expected pub(nocter) visibility diagnostic, got:\n{stderr}"
     );
 }
 

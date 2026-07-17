@@ -1,16 +1,16 @@
-//! Common OS error model.
+//! Common internal OS error model.
 //!
-//! Target overlays convert their raw platform error values into OSError. User
-//! facing modules convert OSError into the built-in `error` payload instead of
-//! exposing raw syscall results or platform errno values.
+//! Target overlays convert raw platform error values into OSError. User-facing
+//! modules expose only the built-in `error` payload from fallible APIs; OSError
+//! and OSErrorKind stay behind `pub(nocter)` visibility.
 
-pub enum Platform {
+pub(nocter) enum Platform {
     macos
     linux
     windows
 }
 
-pub enum OSErrorKind {
+pub(nocter) enum OSErrorKind {
     interrupted
     would_block
     not_found
@@ -23,7 +23,7 @@ pub enum OSErrorKind {
     unknown
 }
 
-pub copy struct OSError {
+pub(nocter) copy struct OSError {
     pub platform: Platform
     pub code: i32
     pub kind: OSErrorKind
