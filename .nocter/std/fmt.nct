@@ -31,6 +31,11 @@ pub func append_i32(out: &+String, value: i32): void! {
     return
 }
 
+pub func append_usize(out: &+String, value: usize): void! {
+    append_usize_digits(out, value)?
+    return
+}
+
 func append_i32_digits(out: &+String, value: i32): void! {
     if value >= 10 {
         append_i32_digits(out, value / 10)?
@@ -39,7 +44,56 @@ func append_i32_digits(out: &+String, value: i32): void! {
     return
 }
 
+func append_usize_digits(out: &+String, value: usize): void! {
+    if value >= 10 {
+        append_usize_digits(out, value / 10)?
+    }
+    append_usize_digit(out, value % 10)?
+    return
+}
+
 func append_i32_digit(out: &+String, value: i32): void! {
+    if value == 0 {
+        append_str(out, "0")?
+        return
+    }
+    if value == 1 {
+        append_str(out, "1")?
+        return
+    }
+    if value == 2 {
+        append_str(out, "2")?
+        return
+    }
+    if value == 3 {
+        append_str(out, "3")?
+        return
+    }
+    if value == 4 {
+        append_str(out, "4")?
+        return
+    }
+    if value == 5 {
+        append_str(out, "5")?
+        return
+    }
+    if value == 6 {
+        append_str(out, "6")?
+        return
+    }
+    if value == 7 {
+        append_str(out, "7")?
+        return
+    }
+    if value == 8 {
+        append_str(out, "8")?
+        return
+    }
+    append_str(out, "9")?
+    return
+}
+
+func append_usize_digit(out: &+String, value: usize): void! {
     if value == 0 {
         append_str(out, "0")?
         return

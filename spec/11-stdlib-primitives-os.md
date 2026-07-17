@@ -155,6 +155,7 @@ Initial `std/fmt` public surface direction:
 pub func append_str(out: &+String, value: &str): void!
 pub func append_string(out: &+String, value: &String): void!
 pub func append_i32(out: &+String, value: i32): void!
+pub func append_usize(out: &+String, value: usize): void!
 pub func append_bool(out: &+String, value: bool): void!
 pub func unsupported(): error
 ```
@@ -255,7 +256,7 @@ Initial public surface direction:
 ```nct
 pub func args(): Vec<&str>!
 pub func env(name: &str): &str?!
-pub func cwd(): &str!
+pub func cwd(allocator: &+Allocator): String!
 pub func exit(code: i32): never
 pub func abort(): never
 ```
@@ -273,15 +274,16 @@ Rules:
 - `env(name)` has type `&str?!`.
 - `env(name)` succeeds with `none` when the variable is absent.
 - `env(name)` succeeds with a present `&str` when the variable is present and valid UTF-8.
-- `cwd()` returns the current working directory or fails with `error`.
+- `cwd(allocator)` returns an owned current-working-directory string or fails with `error`.
 - Process context string storage is valid for the whole program.
-- Argument, environment, and current-working-directory views returned by `std/process` are not owned by the caller and must be treated as borrowed view data.
+- Argument and environment views returned by `std/process` are not owned by the caller and must be treated as borrowed view data.
 - The caller must not drop process-context storage.
+- The `cwd(allocator)` result is owned by the caller and must be dropped normally.
 - APIs that need owned strings must explicitly copy into an allocator-owned `String`.
 - Target implementations must validate process strings before exposing them as `&str`.
 - `args()` fails with `"std.process.invalid_encoding"` if any returned argument cannot be represented as UTF-8.
 - `env(name)` fails with `"std.process.invalid_encoding"` if the matching environment value exists but cannot be represented as UTF-8.
-- `cwd()` fails with `"std.process.invalid_encoding"` if the current working directory cannot be represented as UTF-8.
+- `cwd(allocator)` fails with `"std.process.invalid_encoding"` if the current working directory cannot be represented as UTF-8.
 
 Example:
 

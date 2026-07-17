@@ -16,6 +16,7 @@ The backend can now build and run the explicit standard-library construction sha
 var out = string.with_capacity(&+allocator, capacity)?
 fmt.append_str(&+out, "hello ")?
 fmt.append_i32(&+out, count)?
+fmt.append_usize(&+out, size)?
 fmt.append_bool(&+out, ready)?
 return move out
 ```
@@ -36,6 +37,7 @@ Once an explicit allocator source exists, interpolation lowering should be equiv
    - `&str` -> `std/fmt.append_str`
    - `String` -> `std/fmt.append_string`
    - `i32` -> `std/fmt.append_i32`
+   - `usize` -> `std/fmt.append_usize`
    - `bool` -> `std/fmt.append_bool`
 7. Return the owned `String`.
 

@@ -4,7 +4,9 @@
 //! implementation calls the active target boundary.
 
 from std/error import Error
+from std/mem import Allocator
 from std/os/macos import trap
+from std/string import String
 from std/vec import Vec
 
 #target("arm64-darwin")
@@ -18,7 +20,7 @@ pub func env(name: &str): (&str?)! {
     return none
 }
 
-pub func cwd(): &str! {
+pub func cwd(allocator: &+Allocator): String! {
     return Error.new("std.process.unsupported", "current working directory is not implemented")
 }
 

@@ -163,7 +163,7 @@ fn distributed_std_public_api_passes_check() {
     let project = TempProject::new("distributed-home-smoke");
     let source = project.write_source(
         "std_smoke.nct",
-        r#"from std/fmt import append_bool, append_i32, append_str, append_string, unsupported as fmt_unsupported
+        r#"from std/fmt import append_bool, append_i32, append_str, append_string, append_usize, unsupported as fmt_unsupported
 from std/io import File, print, stderr, stdout, unsupported as io_unsupported, write_text
 from std/mem import Allocator, Layout, RawBuffer, alloc, free, invalid_argument, out_of_memory, page_allocator
 from std/process import abort, args, cwd, env, exit
@@ -210,6 +210,10 @@ func string_reserve(text: &+String, additional: usize): void! {
 func string_clear(text: &+String): void {
     clear(text)
     return
+}
+
+func process_cwd(allocator: &+Allocator): String! {
+    return cwd(allocator)?
 }
 "#,
     );
@@ -1470,6 +1474,48 @@ func main(): i32! {
         text(&output.stderr)
     );
     assert_eq!(output.stdout, b"0 42 -17 -2147483648");
+    assert!(
+        output.stderr.is_empty(),
+        "expected empty stderr, got:\n{}",
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_fmt_append_usize_runs() {
+    let project = TempProject::new("distributed-home-fmt-append-usize-run");
+    let source = project.write_source(
+        "fmt_append_usize.nct",
+        r#"from std/fmt import append_str, append_usize
+from std/io import print
+from std/mem import page_allocator
+from std/string import view, with_capacity
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var text = with_capacity(&+allocator, 8)?
+    append_usize(&+text, 0)?
+    append_str(&+text, " ")?
+    append_usize(&+text, 42)?
+    append_str(&+text, " ")?
+    append_usize(&+text, 18446744073709551615)?
+    print(view(&text))?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"0 42 18446744073709551615");
     assert!(
         output.stderr.is_empty(),
         "expected empty stderr, got:\n{}",
