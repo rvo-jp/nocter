@@ -955,6 +955,34 @@ impl EntryEmitter {
         self.encoder.emit_ret();
     }
 
+    fn emit_static_error_payload(
+        &mut self,
+        code: &[u8],
+        message: &[u8],
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_str_value_to_x_pair(&StrValue::StaticBytes(code.to_vec()), XReg::X1, XReg::X2)?;
+        self.emit_str_value_to_x_pair(
+            &StrValue::StaticBytes(message.to_vec()),
+            XReg::X3,
+            XReg::X4,
+        )?;
+        emit_mov_i32_to_w0(&mut self.encoder, 1);
+        Ok(())
+    }
+
+    fn emit_open_failure_payload_from_errno(&mut self) -> Result<(), Vec<Diagnostic>> {
+        emit_mov_i32_to_w(&mut self.encoder, WReg::W17, DARWIN_ENOENT);
+        self.encoder.emit_cmp_w(WReg::W0, WReg::W17);
+        let not_not_found = self.emit_cond_branch_placeholder(BranchCondition::Ne);
+        self.emit_static_error_payload(IO_NOT_FOUND_CODE, IO_NOT_FOUND_MESSAGE)?;
+        let done = self.emit_branch_placeholder();
+
+        self.patch_branch_placeholder_to_current(not_not_found, "open fallback failure target")?;
+        self.emit_static_error_payload(OPEN_FAILURE_CODE, OPEN_FAILURE_MESSAGE)?;
+
+        self.patch_branch_placeholder_to_current(done, "open failure payload end target")
+    }
+
     pub(super) fn emit_indirect_return_pointer_to_x8(&mut self, frame: Option<&FrameLayout>) {
         if let Some(offset) = frame.and_then(FrameLayout::indirect_return_pointer_offset) {
             self.encoder.emit_ldr_x_sp(XReg::X8, offset);
@@ -1132,17 +1160,7 @@ impl EntryEmitter {
         let normalized_branch = self.emit_branch_placeholder();
 
         self.patch_branch_placeholder_to_current(failure_branch, "open syscall failure target")?;
-        self.emit_str_value_to_x_pair(
-            &StrValue::StaticBytes(OPEN_FAILURE_CODE.to_vec()),
-            XReg::X1,
-            XReg::X2,
-        )?;
-        self.emit_str_value_to_x_pair(
-            &StrValue::StaticBytes(OPEN_FAILURE_MESSAGE.to_vec()),
-            XReg::X3,
-            XReg::X4,
-        )?;
-        emit_mov_i32_to_w0(&mut self.encoder, 1);
+        self.emit_open_failure_payload_from_errno()?;
 
         self.patch_branch_placeholder_to_current(normalized_branch, "open syscall result target")?;
         self.encoder.emit_cmp_x_zero(XReg::X0);
@@ -2086,6 +2104,8 @@ const READ_FAILURE_CODE: &[u8] = b"std.io.read_failed";
 const READ_FAILURE_MESSAGE: &[u8] = b"read failed";
 const OPEN_FAILURE_CODE: &[u8] = b"std.io.open_failed";
 const OPEN_FAILURE_MESSAGE: &[u8] = b"open failed";
+const IO_NOT_FOUND_CODE: &[u8] = b"std.io.not_found";
+const IO_NOT_FOUND_MESSAGE: &[u8] = b"file not found";
 const ADR_MIN_BYTE_OFFSET: i64 = -(1 << 20);
 const ADR_MAX_BYTE_OFFSET: i64 = (1 << 20) - 1;
 const BRANCH_MIN_BYTE_OFFSET: i64 = -(1 << 27);
@@ -2096,6 +2116,7 @@ const DARWIN_WRITE_SYSCALL: u32 = 0x0200_0004;
 const DARWIN_CLOSE_SYSCALL: u32 = 0x0200_0006;
 const DARWIN_EXIT_SYSCALL: u32 = 0x0200_0001;
 const DARWIN_SYSCALL_TRAP: u16 = 0x80;
+const DARWIN_ENOENT: i32 = 2;
 const I32_BIT_WIDTH: i32 = 32;
 const USIZE_BIT_WIDTH: u64 = 64;
 

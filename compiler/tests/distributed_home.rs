@@ -461,7 +461,7 @@ func main(): i32! {
     assert!(output.stdout.is_empty(), "expected empty stdout");
     let stderr = text(&output.stderr);
     assert!(
-        stderr.contains("std.io.open_failed") && stderr.contains("open failed"),
+        stderr.contains("std.io.not_found") && stderr.contains("file not found"),
         "stderr:\n{}",
         stderr
     );
