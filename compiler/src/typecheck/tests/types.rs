@@ -182,6 +182,76 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_copy_struct_field_with_non_copy_struct_type() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    ptr: *u8
+    len: usize
+}
+
+copy struct Wrapper {
+    text: Text
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0390");
+    assert!(diagnostics[0].message.contains("Wrapper"));
+    assert!(diagnostics[0].message.contains("text"));
+    assert!(diagnostics[0].message.contains("Text"));
+}
+
+#[test]
+fn diagnoses_copy_struct_field_with_readwrite_borrow_type() {
+    let diagnostics = check_text(
+        r#"copy struct Handle {
+    value: &+i32
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0390");
+    assert!(diagnostics[0].message.contains("&+i32"));
+}
+
+#[test]
+fn accepts_copy_struct_fields_with_copy_alias_payloadless_enum_and_readonly_borrow() {
+    let diagnostics = check_text(
+        r#"type Count = i32
+
+enum Mode {
+    read
+    write
+}
+
+copy struct Header {
+    count: Count
+    mode: Mode
+    label: &str
+    count_ref: &Count
+    ptr: *u8
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_alias_to_unsized_str_in_value_position() {
     let diagnostics = check_text(
         r#"type Text = str

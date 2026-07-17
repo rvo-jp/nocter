@@ -1,7 +1,9 @@
 use super::{
     ByteSpan, Diagnostic, DiagnosticNote, ResolveOutput, SourceMap, StructFieldSignature,
-    StructLiteralExpr, StructLiteralField, Type, TypeSymbol, type_symbol_kind_name,
+    StructLiteralExpr, StructLiteralField, Type, TypeExpr, TypeSymbol, type_expr_display_lossy,
+    type_symbol_kind_name,
 };
+use crate::ast::{DropDecl, StructDecl, StructField};
 
 pub(in crate::typecheck) fn struct_literal_target_type_mismatch_diagnostic(
     sources: &SourceMap,
@@ -169,6 +171,55 @@ pub(in crate::typecheck) fn struct_literal_inaccessible_missing_field_diagnostic
     diagnostic.message = format!(
         "struct `{}` literal cannot initialize hidden field `{}`",
         struct_symbol.canonical_name, field.name
+    );
+    diagnostic
+}
+
+pub(in crate::typecheck) fn copy_struct_field_not_copy_diagnostic(
+    sources: &SourceMap,
+    struct_: &StructDecl,
+    field: &StructField,
+    field_type: &Type,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0390",
+        format!(
+            "copy struct `{}` field `{}` has non-copy type `{}`",
+            struct_.name,
+            field.name,
+            field_type.display()
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(field.ty.span()).ok().map(Box::new);
+    diagnostic.help = Some(format!(
+        "remove `copy` from `{}` or change field `{}` to a copy type",
+        struct_.name, field.name
+    ));
+    diagnostic
+}
+
+pub(in crate::typecheck) fn copy_struct_drop_member_diagnostic(
+    sources: &SourceMap,
+    struct_name: &str,
+    target_ty: &TypeExpr,
+    drop_: &DropDecl,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0391",
+        format!("copy struct `{struct_name}` cannot define `drop`"),
+    );
+    diagnostic.primary_span = sources.span_to_json(drop_.span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(target_ty.span()) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: format!(
+                "impl target `{}` resolves to copy struct `{struct_name}`",
+                type_expr_display_lossy(target_ty)
+            ),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some(
+        "remove the `drop` member or make the type an ordinary move-only `struct`".to_string(),
     );
     diagnostic
 }

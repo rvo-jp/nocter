@@ -5,6 +5,7 @@ mod bindings;
 mod body;
 mod calls;
 mod controls;
+mod copyability;
 mod diagnostics;
 mod drop_members;
 mod entry;
@@ -57,7 +58,7 @@ pub fn check_module(
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
 
-    check_drop_members(sources, ast, &mut diagnostics);
+    check_drop_members(sources, ast, resolved, &mut diagnostics);
     check_sized_value_types(sources, ast, resolved, &mut diagnostics);
     check_body_expressions(sources, ast, resolved, &mut diagnostics);
     check_ownership_states(sources, ast, resolved, &mut diagnostics);

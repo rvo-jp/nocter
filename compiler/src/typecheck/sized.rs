@@ -4,6 +4,7 @@ mod walk;
 use super::environments::function_self_type;
 use super::model::Type;
 use super::type_expr::type_expr_to_type_with_self_type;
+use super::{copyability::type_expr_is_copy, diagnostics::copy_struct_field_not_copy_diagnostic};
 use crate::ast::{
     AstFile, FunctionDecl, ImplDecl, ImplMember, Item, MethodDecl, Parameter, PrimitiveDecl,
     TraitDecl,
@@ -34,6 +35,22 @@ pub(super) fn check_sized_value_types(
                 for field in &struct_.fields {
                     let subject = format!("struct field `{}.{}`", struct_.name, field.name);
                     check_value_type(sources, &field.ty, &subject, resolved, None, diagnostics);
+                    if struct_.is_copy {
+                        let field_type =
+                            type_expr_to_type_with_self_type(&field.ty, resolved, None);
+                        if !field_type.is_unknown_or_unresolved()
+                            && field_type.first_unsized_part().is_none()
+                            && type_expr_is_copy(&field.ty, resolved)
+                                .is_some_and(|is_copy| !is_copy)
+                        {
+                            diagnostics.push(copy_struct_field_not_copy_diagnostic(
+                                sources,
+                                struct_,
+                                field,
+                                &field_type,
+                            ));
+                        }
+                    }
                 }
             }
             Item::Enum(enum_) => {
