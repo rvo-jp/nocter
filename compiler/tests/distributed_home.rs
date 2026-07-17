@@ -169,7 +169,7 @@ from std/mem import Allocator, Layout, RawBuffer, alloc, free, invalid_argument,
 from std/os import OSError, OSErrorKind, Platform
 from std/process import abort, args, cwd, env, exit
 from std/ptr import addr, from_ref, from_ref_mut
-from std/string import bytes, capacity_overflow, empty, from_str, push_str, view, with_capacity
+from std/string import bytes, capacity, capacity_overflow, empty, from_str, is_empty, len, push_str, view, with_capacity
 
 func main(): i32 {
     return 0
@@ -183,12 +183,24 @@ func raw_buffer_view_mut(buffer: &+RawBuffer): &+[u8] {
     return RawBuffer.bytes_mut(buffer)
 }
 
-func raw_buffer_prefix(buffer: &RawBuffer, len: usize): &[u8]! {
-    return RawBuffer.prefix(buffer, len)?
+func raw_buffer_prefix(buffer: &RawBuffer, prefix_len: usize): &[u8]! {
+    return RawBuffer.prefix(buffer, prefix_len)?
 }
 
-func raw_buffer_prefix_mut(buffer: &+RawBuffer, len: usize): &+[u8]! {
-    return RawBuffer.prefix_mut(buffer, len)?
+func raw_buffer_prefix_mut(buffer: &+RawBuffer, prefix_len: usize): &+[u8]! {
+    return RawBuffer.prefix_mut(buffer, prefix_len)?
+}
+
+func string_len(text: &String): usize {
+    return len(text)
+}
+
+func string_capacity(text: &String): usize {
+    return capacity(text)
+}
+
+func string_is_empty(text: &String): bool {
+    return is_empty(text)
 }
 "#,
     );
@@ -256,11 +268,23 @@ fn distributed_std_string_associated_api_passes_check() {
 func main(): i32! {
     var allocator = page_allocator()
     var empty = String.empty()
+    if !String.is_empty(&empty) {
+        return 1
+    }
     String.push_str(&+empty, "Grow")?
+    if String.len(&empty) != 4 {
+        return 2
+    }
     let empty_view = String.view(&empty)
     var text = String.with_capacity(&+allocator, 16)?
+    if String.capacity(&text) != 16 {
+        return 3
+    }
     String.push_str(&+text, empty_view)?
     let copy = String.from_str(&+allocator, String.view(&text))?
+    if String.len(&copy) != 4 {
+        return 4
+    }
     drop copy
     drop text
     drop empty
@@ -1090,13 +1114,28 @@ fn distributed_std_string_push_str_runs() {
         "string_push_str.nct",
         r#"from std/io import print
 from std/mem import page_allocator
-from std/string import push_str, view, with_capacity
+from std/string import capacity, is_empty, len, push_str, view, with_capacity
 
 func main(): i32! {
     var allocator = page_allocator()
     var text = with_capacity(&+allocator, 5)?
+    if !is_empty(&text) {
+        return 1
+    }
     push_str(&+text, "Hello")?
+    if len(&text) != 5 {
+        return 2
+    }
+    if capacity(&text) != 5 {
+        return 3
+    }
     push_str(&+text, " String")?
+    if len(&text) != 12 {
+        return 4
+    }
+    if capacity(&text) != 12 {
+        return 5
+    }
     print(view(&text))?
     return 0
 }

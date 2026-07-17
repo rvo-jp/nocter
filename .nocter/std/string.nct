@@ -40,35 +40,35 @@ pub func empty(): String {
     return String.empty()
 }
 
-pub func String.with_capacity(allocator: &+Allocator, capacity: usize): String! {
-    if capacity == 0 {
+pub func String.with_capacity(allocator: &+Allocator, requested_capacity: usize): String! {
+    if requested_capacity == 0 {
         return String.empty()
     }
 
-    let address: usize = alloc_pages_impl(capacity)?
+    let address: usize = alloc_pages_impl(requested_capacity)?
     return String {
         ptr: from_addr(address),
         len: 0,
-        capacity: capacity,
+        capacity: requested_capacity,
     }
 }
 
-pub func with_capacity(allocator: &+Allocator, capacity: usize): String! {
-    return String.with_capacity(allocator, capacity)?
+pub func with_capacity(allocator: &+Allocator, requested_capacity: usize): String! {
+    return String.with_capacity(allocator, requested_capacity)?
 }
 
 pub func String.from_str(allocator: &+Allocator, value: &str): String! {
-    let capacity: usize = value.len()
-    if capacity == 0 {
+    let value_len: usize = value.len()
+    if value_len == 0 {
         return String.empty()
     }
 
-    let address: usize = alloc_pages_impl(capacity)?
+    let address: usize = alloc_pages_impl(value_len)?
     copy_str_to_ptr(from_addr(address), 0, value)
     return String {
         ptr: from_addr(address),
-        len: capacity,
-        capacity: capacity,
+        len: value_len,
+        capacity: value_len,
     }
 }
 
@@ -86,6 +86,33 @@ pub func String.view(text: &String): &str {
 
 pub func view(text: &String): &str {
     return String.view(text)
+}
+
+pub func String.len(text: &String): usize {
+    let text_len: usize = text.len
+    return text_len
+}
+
+pub func len(text: &String): usize {
+    return String.len(text)
+}
+
+pub func String.capacity(text: &String): usize {
+    let text_capacity: usize = text.capacity
+    return text_capacity
+}
+
+pub func capacity(text: &String): usize {
+    return String.capacity(text)
+}
+
+pub func String.is_empty(text: &String): bool {
+    let text_len: usize = text.len
+    return text_len == 0
+}
+
+pub func is_empty(text: &String): bool {
+    return String.is_empty(text)
 }
 
 pub func bytes(value: &str): &[u8] {
