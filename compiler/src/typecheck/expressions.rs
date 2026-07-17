@@ -3,7 +3,7 @@ use super::calls::resolved_call_signature;
 use super::diagnostics::error_member_unknown_diagnostic;
 use super::environments::environment_for_pattern_conditional_arm;
 use super::model::{Type, TypeEnvironment};
-use super::operations::{binary_expression_type, is_assignable};
+use super::operations::{binary_expression_type, is_expression_assignable};
 use super::strings::interpolated_string_type;
 use super::structs::{struct_literal_type, struct_member_type};
 use super::type_expr::{type_expr_to_type_in_environment, type_expr_to_type_with_self_type};
@@ -46,12 +46,19 @@ pub(super) fn check_error_member_expression(
     diagnostics.push(error_member_unknown_diagnostic(sources, member));
 }
 
-fn optional_default_type(value_type: Type, default_type: Type) -> Type {
+fn optional_default_type(
+    value_type: Type,
+    default: &Expr,
+    default_type: Type,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Type {
     let Type::Optional(inner) = value_type else {
         return default_type;
     };
 
-    if default_type.is_unknown() || is_assignable(&inner, &default_type) {
+    if default_type.is_unknown() || is_expression_assignable(&inner, default, resolved, environment)
+    {
         *inner
     } else {
         default_type
@@ -111,7 +118,13 @@ pub(super) fn expression_type(
         Expr::OptionalDefault(expression) => {
             let value_type = expression_type(&expression.value, resolved, environment);
             let default_type = expression_type(&expression.default, resolved, environment);
-            optional_default_type(value_type, default_type)
+            optional_default_type(
+                value_type,
+                &expression.default,
+                default_type,
+                resolved,
+                environment,
+            )
         }
         Expr::PatternConditional(expression) => {
             let fallback_type = expression_type(&expression.fallback, resolved, environment);

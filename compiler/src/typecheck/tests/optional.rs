@@ -444,3 +444,74 @@ func maybe_title(): &str? {
     assert_eq!(diagnostics[0].code, "E0312");
     assert!(diagnostics[0].message.contains("str"));
 }
+
+#[test]
+fn accepts_optional_default_expression() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return maybe_answer() ?? 7
+}
+
+func maybe_answer(): i32? {
+    return none
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_optional_default_contextual_integer_literal() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return widen(maybe_byte() ?? 0)
+}
+
+func maybe_byte(): u8? {
+    return 7
+}
+
+func widen(value: u8): i32 {
+    return value as i32
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_optional_default_non_optional_left_operand() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    let value = 1 ?? 2
+    return value
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0396");
+    assert!(diagnostics[0].message.contains("i32"));
+}
+
+#[test]
+fn diagnoses_optional_default_fallback_type_mismatch() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    maybe_answer() ?? "missing"
+    return 0
+}
+
+func maybe_answer(): i32? {
+    return none
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0397");
+    assert!(diagnostics[0].message.contains("i32"));
+    assert!(diagnostics[0].message.contains("str"));
+}

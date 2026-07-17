@@ -5,6 +5,7 @@ use super::diagnostics::{
     logical_not_operand_type_mismatch_diagnostic, logical_operand_type_mismatch_diagnostic,
     move_operand_must_be_binding_diagnostic, move_operand_not_move_only_diagnostic,
     negative_shift_count_diagnostic, numeric_negate_operand_type_mismatch_diagnostic,
+    optional_default_non_optional_diagnostic, optional_default_type_mismatch_diagnostic,
     ordered_comparison_operand_type_mismatch_diagnostic, shift_operand_type_mismatch_diagnostic,
     type_conversion_not_lossless_diagnostic,
 };
@@ -16,7 +17,10 @@ use super::numeric::{
     is_signed_integer_type, negative_integer_literal_fits_type,
 };
 use super::type_expr::type_expr_to_type_in_environment;
-use crate::ast::{BinaryExpr, BinaryOperator, Expr, TypeConversionExpr, UnaryExpr, UnaryOperator};
+use crate::ast::{
+    BinaryExpr, BinaryOperator, Expr, OptionalDefaultExpr, TypeConversionExpr, UnaryExpr,
+    UnaryOperator,
+};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
 use crate::source::SourceMap;
@@ -192,6 +196,42 @@ pub(super) fn check_type_conversion_expression(
             expression,
             &source_type,
             &target_type,
+        ));
+    }
+}
+
+pub(super) fn check_optional_default_expression(
+    sources: &SourceMap,
+    expression: &OptionalDefaultExpr,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+    environment: &TypeEnvironment,
+) {
+    let value_type = expression_type(&expression.value, resolved, environment);
+    if value_type.is_unknown_or_unresolved() {
+        return;
+    }
+
+    let Type::Optional(payload_type) = value_type else {
+        diagnostics.push(optional_default_non_optional_diagnostic(
+            sources,
+            expression,
+            &value_type,
+        ));
+        return;
+    };
+
+    let default_type = expression_type(&expression.default, resolved, environment);
+    if default_type.is_unknown_or_unresolved() {
+        return;
+    }
+
+    if !is_expression_assignable(&payload_type, &expression.default, resolved, environment) {
+        diagnostics.push(optional_default_type_mismatch_diagnostic(
+            sources,
+            expression,
+            &payload_type,
+            &default_type,
         ));
     }
 }

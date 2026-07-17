@@ -26,8 +26,8 @@ use super::expressions::{
 use super::fallible::check_force_unwrap_operand;
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
 use super::operations::{
-    check_binary_expression, check_type_conversion_expression, check_unary_expression,
-    is_expression_assignable,
+    check_binary_expression, check_optional_default_expression, check_type_conversion_expression,
+    check_unary_expression, is_expression_assignable,
 };
 use super::strings::check_interpolated_string_expression;
 use super::structs::{check_struct_literal_expression, check_struct_member_expression};
@@ -858,6 +858,13 @@ fn check_expression_tree(
                 diagnostics,
                 environment,
                 loop_depth,
+            );
+            check_optional_default_expression(
+                sources,
+                expression,
+                resolved,
+                diagnostics,
+                environment,
             );
         }
         Expr::PatternConditional(expression) => {

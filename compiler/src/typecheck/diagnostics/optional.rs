@@ -1,5 +1,6 @@
 use super::{
-    BindingStmt, Block, Diagnostic, IfLetStmt, SourceMap, Type, WhileLetStmt, binding_keyword,
+    BindingStmt, Block, Diagnostic, IfLetStmt, OptionalDefaultExpr, SourceMap, Type, WhileLetStmt,
+    binding_keyword,
 };
 
 pub(in crate::typecheck) fn optional_if_let_non_optional_diagnostic(
@@ -86,5 +87,50 @@ pub(in crate::typecheck) fn optional_let_else_fallthrough_diagnostic(
         "end the `else` block with `return` in parser/check v0; later phases will add `break`, `continue`, and `never` support"
             .to_string(),
     );
+    diagnostic
+}
+
+pub(in crate::typecheck) fn optional_default_non_optional_diagnostic(
+    sources: &SourceMap,
+    expression: &OptionalDefaultExpr,
+    actual: &Type,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0396",
+        format!(
+            "`??` requires an optional left operand, but the left operand has type `{}`",
+            actual.display()
+        ),
+    );
+    diagnostic.primary_span = sources
+        .span_to_json(expression.value.span())
+        .ok()
+        .map(Box::new);
+    diagnostic.help = Some("use a value whose type is `T?` on the left side of `??`".to_string());
+    diagnostic
+}
+
+pub(in crate::typecheck) fn optional_default_type_mismatch_diagnostic(
+    sources: &SourceMap,
+    expression: &OptionalDefaultExpr,
+    expected: &Type,
+    actual: &Type,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0397",
+        format!(
+            "`??` fallback has type `{}`, but the optional payload has type `{}`",
+            actual.display(),
+            expected.display()
+        ),
+    );
+    diagnostic.primary_span = sources
+        .span_to_json(expression.default.span())
+        .ok()
+        .map(Box::new);
+    diagnostic.help = Some(format!(
+        "change the fallback expression to produce `{}`",
+        expected.display()
+    ));
     diagnostic
 }
