@@ -182,6 +182,14 @@ func raw_buffer_view(buffer: &RawBuffer): &[u8] {
 func raw_buffer_view_mut(buffer: &+RawBuffer): &+[u8] {
     return RawBuffer.bytes_mut(buffer)
 }
+
+func raw_buffer_prefix(buffer: &RawBuffer, len: usize): &[u8]! {
+    return RawBuffer.prefix(buffer, len)?
+}
+
+func raw_buffer_prefix_mut(buffer: &+RawBuffer, len: usize): &+[u8]! {
+    return RawBuffer.prefix_mut(buffer, len)?
+}
 "#,
     );
 
@@ -372,7 +380,8 @@ func main(): i32! {
     var input = File.open("input.txt")?
     let count: usize = input.read(RawBuffer.bytes_mut(&+buffer))?
     var out = stdout()
-    out.write(RawBuffer.bytes(&buffer))?
+    let bytes: &[u8] = RawBuffer.prefix(&buffer, count)?
+    out.write(bytes)?
     free(&+allocator, move buffer)
     return 0
 }
