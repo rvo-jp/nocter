@@ -28,6 +28,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: validate direct aggregate return metadata
+  - checks direct aggregate function return and fallible success metadata before ARM64 emission
+  - rejects direct aggregate return layouts that require more than two direct ABI words
+  - catches layout/word-count drift in hand-built or stale IR before call-result or payload codegen
 - Current checkpoint: validate direct aggregate argument metadata
   - checks direct aggregate call and tail-call arguments before ARM64 emission
   - rejects mismatched direct aggregate argument ABI word counts from hand-built or drifted IR before frame planning/staging

@@ -1152,6 +1152,7 @@ fn validate_module_call_return_shapes(module: &IrModule) -> Result<(), Vec<Diagn
     let mut diagnostics = Vec::new();
 
     for function in &module.functions {
+        validate_function_return_type_shape(function, &mut diagnostics);
         validate_instruction_list_call_return_shapes(
             &function.instructions,
             &function.return_type,
@@ -1165,6 +1166,61 @@ fn validate_module_call_return_shapes(module: &IrModule) -> Result<(), Vec<Diagn
     } else {
         Err(diagnostics)
     }
+}
+
+fn validate_function_return_type_shape(function: &Function, diagnostics: &mut Vec<Diagnostic>) {
+    validate_return_type_shape(
+        &function.return_type,
+        &format!("function `{}` return type", function.name),
+        diagnostics,
+    );
+}
+
+fn validate_return_type_shape(ty: &Type, subject: &str, diagnostics: &mut Vec<Diagnostic>) {
+    match ty {
+        Type::DirectAggregate { layout, words } => {
+            validate_direct_aggregate_type_shape(*layout, *words, subject, diagnostics);
+        }
+        Type::Fallible(success) => {
+            let subject = format!("{subject} fallible success type");
+            validate_return_type_shape(success, &subject, diagnostics);
+        }
+        _ => {}
+    }
+}
+
+fn validate_direct_aggregate_type_shape(
+    layout: crate::abi::ValueLayout,
+    words: usize,
+    subject: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(expected_words) = direct_aggregate_layout_word_count(layout) else {
+        diagnostics.push(Diagnostic::error(
+            "E9002",
+            format!("codegen {subject} layout exceeds host word count range"),
+        ));
+        return;
+    };
+    if expected_words > DIRECT_AGGREGATE_REGISTER_WORD_COUNT {
+        diagnostics.push(Diagnostic::error(
+            "E9002",
+            format!(
+                "codegen {subject} requires {expected_words} direct ABI words, but direct aggregate codegen supports at most {DIRECT_AGGREGATE_REGISTER_WORD_COUNT}"
+            ),
+        ));
+        return;
+    }
+    if words == expected_words {
+        return;
+    }
+    diagnostics.push(Diagnostic::error(
+        "E9002",
+        format!(
+            "codegen {subject} uses {words} ABI words, but layout {} requires {expected_words}",
+            layout_description(layout),
+        ),
+    ));
 }
 
 fn validate_instruction_list_call_return_shapes(
@@ -1788,6 +1844,7 @@ fn align_usize(value: usize, alignment: usize) -> usize {
 const STDERR_FILENO: u64 = 2;
 const FALLIBLE_REPORT_FRAME_SIZE: u32 = 32;
 const FALLIBLE_SUCCESS_PAYLOAD_REGISTER_COUNT: usize = 2;
+const DIRECT_AGGREGATE_REGISTER_WORD_COUNT: usize = 2;
 const WRITE_FAILURE_CODE: &[u8] = b"std.io.write_failed";
 const WRITE_FAILURE_MESSAGE: &[u8] = b"write failed";
 const ADR_MIN_BYTE_OFFSET: i64 = -(1 << 20);
@@ -1961,7 +2018,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_fallible_direct_success_payload_wider_than_two_words() {
+    fn rejects_direct_aggregate_return_wider_than_two_words_before_codegen() {
         let module = IrModule::new(vec![
             Function {
                 name: "main".to_string(),
@@ -1986,7 +2043,7 @@ mod tests {
         assert!(
             diagnostics[0]
                 .message
-                .contains("fallible success payload uses 3 direct ABI words")
+                .contains("requires 3 direct ABI words")
         );
     }
 
