@@ -167,6 +167,18 @@ fn filter_target_items(ast: &mut AstFile, target: &str) {
             .target
             .as_ref()
             .is_none_or(|directive| directive.target == target),
+        Item::TypeAlias(alias) => alias
+            .target_directive
+            .as_ref()
+            .is_none_or(|directive| directive.target == target),
+        Item::Struct(struct_) => struct_
+            .target
+            .as_ref()
+            .is_none_or(|directive| directive.target == target),
+        Item::Enum(enum_) => enum_
+            .target
+            .as_ref()
+            .is_none_or(|directive| directive.target == target),
         _ => true,
     });
 }

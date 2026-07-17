@@ -77,6 +77,7 @@ impl Formatter {
     }
 
     fn format_type_alias_decl(&mut self, item: &TypeAliasDecl) {
+        self.format_target_directive(item.target_directive.as_ref());
         self.format_visibility(item.visibility);
         self.write("type ");
         self.write(&item.name);
@@ -86,6 +87,7 @@ impl Formatter {
     }
 
     fn format_struct_decl(&mut self, item: &StructDecl) {
+        self.format_target_directive(item.target.as_ref());
         self.format_visibility(item.visibility);
         if item.is_copy {
             self.write("copy ");
@@ -115,6 +117,7 @@ impl Formatter {
     }
 
     fn format_enum_decl(&mut self, item: &EnumDecl) {
+        self.format_target_directive(item.target.as_ref());
         self.format_visibility(item.visibility);
         self.write("enum ");
         self.write(&item.name);

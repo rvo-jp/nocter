@@ -144,18 +144,23 @@ impl Item {
                     children,
                 )
             }
-            Item::TypeAlias(item) => JsonAstNode::with_value(
-                "type_alias_decl",
-                item.name.clone(),
-                json_span(sources, item.span),
-                vec![
+            Item::TypeAlias(item) => {
+                let mut children = target_directive_json(item.target_directive.as_ref(), sources);
+                children.extend([
                     visibility_json(item.visibility),
                     item.generics.to_json(sources),
                     item.target.to_json(sources),
-                ],
-            ),
+                ]);
+                JsonAstNode::with_value(
+                    "type_alias_decl",
+                    item.name.clone(),
+                    json_span(sources, item.span),
+                    children,
+                )
+            }
             Item::Struct(item) => {
-                let mut children = vec![visibility_json(item.visibility)];
+                let mut children = target_directive_json(item.target.as_ref(), sources);
+                children.push(visibility_json(item.visibility));
                 if item.is_copy {
                     children.push(JsonAstNode::new("copy_modifier", None, Vec::new()));
                 }
@@ -169,10 +174,11 @@ impl Item {
                 )
             }
             Item::Enum(item) => {
-                let mut children = vec![
+                let mut children = target_directive_json(item.target.as_ref(), sources);
+                children.extend([
                     visibility_json(item.visibility),
                     item.generics.to_json(sources),
-                ];
+                ]);
                 children.extend(item.variants.iter().map(|variant| variant.to_json(sources)));
                 JsonAstNode::with_value(
                     "enum_decl",

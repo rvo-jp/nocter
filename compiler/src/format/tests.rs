@@ -91,6 +91,34 @@ pub(nocter) func free_pages(address:usize,size:usize):void{return}
 }
 
 #[test]
+fn formats_target_directive_on_type_declarations() {
+    assert_formats_stably(
+        r#"#target("arm64-darwin")
+pub(nocter) type RawWord=usize
+#target("arm64-darwin")
+pub(nocter) copy struct SyscallResult{pub value:usize,errno:i32}
+#target("arm64-darwin")
+pub(nocter) enum PlatformError{interrupted}
+"#,
+        concat!(
+            "#target(\"arm64-darwin\")\n",
+            "pub(nocter) type RawWord = usize\n",
+            "\n",
+            "#target(\"arm64-darwin\")\n",
+            "pub(nocter) copy struct SyscallResult {\n",
+            "    pub value: usize,\n",
+            "    errno: i32,\n",
+            "}\n",
+            "\n",
+            "#target(\"arm64-darwin\")\n",
+            "pub(nocter) enum PlatformError {\n",
+            "    interrupted,\n",
+            "}\n",
+        ),
+    );
+}
+
+#[test]
 fn formats_control_flow_and_postfix_expressions() {
     assert_formats_stably(
         r#"func main():i32!{

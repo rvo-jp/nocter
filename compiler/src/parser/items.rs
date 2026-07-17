@@ -35,7 +35,7 @@ impl Parser<'_> {
         if self.at_keyword(Keyword::Use) {
             if target.is_some() {
                 self.error_current(
-                    "`#target` applies only to function or primitive declarations in v0",
+                    "`#target` applies only to function, primitive, or type declarations in v0",
                 );
                 return Err(());
             }
@@ -45,7 +45,7 @@ impl Parser<'_> {
         if self.at_keyword(Keyword::From) {
             if target.is_some() {
                 self.error_current(
-                    "`#target` applies only to function or primitive declarations in v0",
+                    "`#target` applies only to function, primitive, or type declarations in v0",
                 );
                 return Err(());
             }
@@ -55,7 +55,7 @@ impl Parser<'_> {
         if self.at_keyword(Keyword::Import) {
             if target.is_some() {
                 self.error_current(
-                    "`#target` applies only to function or primitive declarations in v0",
+                    "`#target` applies only to function, primitive, or type declarations in v0",
                 );
                 return Err(());
             }
@@ -95,47 +95,29 @@ impl Parser<'_> {
         }
 
         if self.at_keyword(Keyword::Type) {
-            if target.is_some() {
-                self.error_current(
-                    "`#target` applies only to function or primitive declarations in v0",
-                );
-                return Err(());
-            }
             if is_copy {
                 self.error_current("`copy` applies only to `struct` declarations in v0");
                 return Err(());
             }
-            return self.parse_type_alias_decl(visibility);
+            return self.parse_type_alias_decl(visibility, target);
         }
 
         if self.at_keyword(Keyword::Struct) {
-            if target.is_some() {
-                self.error_current(
-                    "`#target` applies only to function or primitive declarations in v0",
-                );
-                return Err(());
-            }
-            return self.parse_struct_decl(visibility, is_copy);
+            return self.parse_struct_decl(visibility, target, is_copy);
         }
 
         if self.at_keyword(Keyword::Enum) {
-            if target.is_some() {
-                self.error_current(
-                    "`#target` applies only to function or primitive declarations in v0",
-                );
-                return Err(());
-            }
             if is_copy {
                 self.error_current("`copy` applies only to `struct` declarations in v0");
                 return Err(());
             }
-            return self.parse_enum_decl(visibility);
+            return self.parse_enum_decl(visibility, target);
         }
 
         if self.at_identifier_text("trait") {
             if target.is_some() {
                 self.error_current(
-                    "`#target` applies only to function or primitive declarations in v0",
+                    "`#target` applies only to function, primitive, or type declarations in v0",
                 );
                 return Err(());
             }
@@ -150,7 +132,7 @@ impl Parser<'_> {
         if self.at_keyword(Keyword::Impl) {
             if target.is_some() {
                 self.error_current(
-                    "`#target` applies only to function or primitive declarations in v0",
+                    "`#target` applies only to function, primitive, or type declarations in v0",
                 );
                 return Err(());
             }
@@ -172,7 +154,7 @@ impl Parser<'_> {
 
         if target.is_some() {
             self.error_current(
-                "`#target` applies only to function or primitive declarations in v0",
+                "`#target` applies only to function, primitive, or type declarations in v0",
             );
             return Err(());
         }
@@ -403,7 +385,11 @@ impl Parser<'_> {
         }))
     }
 
-    pub(super) fn parse_type_alias_decl(&mut self, visibility: Visibility) -> ParseResult<Item> {
+    pub(super) fn parse_type_alias_decl(
+        &mut self,
+        visibility: Visibility,
+        target_directive: Option<TargetDirective>,
+    ) -> ParseResult<Item> {
         let start = self.expect_keyword(Keyword::Type, "`type`")?;
         let name = self.expect_identifier("expected type alias name after `type`")?;
         let generics = self.parse_generic_param_list()?;
@@ -412,8 +398,14 @@ impl Parser<'_> {
         let end = target.span().end;
 
         Ok(Item::TypeAlias(TypeAliasDecl {
-            span: self.span(start.span.start, end),
+            span: self.span(
+                target_directive
+                    .as_ref()
+                    .map_or(start.span.start, |target| target.span.start),
+                end,
+            ),
             visibility,
+            target_directive,
             name: name.value,
             name_span: name.span,
             generics,
@@ -424,6 +416,7 @@ impl Parser<'_> {
     pub(super) fn parse_struct_decl(
         &mut self,
         visibility: Visibility,
+        target: Option<TargetDirective>,
         is_copy: bool,
     ) -> ParseResult<Item> {
         let start = self.expect_keyword(Keyword::Struct, "`struct`")?;
@@ -433,8 +426,14 @@ impl Parser<'_> {
         let end = fields.0.end;
 
         Ok(Item::Struct(StructDecl {
-            span: self.span(start.span.start, end),
+            span: self.span(
+                target
+                    .as_ref()
+                    .map_or(start.span.start, |target| target.span.start),
+                end,
+            ),
             visibility,
+            target,
             is_copy,
             name: name.value,
             name_span: name.span,
@@ -475,7 +474,11 @@ impl Parser<'_> {
         Ok((self.span(start.span.start, end.span.end), fields))
     }
 
-    pub(super) fn parse_enum_decl(&mut self, visibility: Visibility) -> ParseResult<Item> {
+    pub(super) fn parse_enum_decl(
+        &mut self,
+        visibility: Visibility,
+        target: Option<TargetDirective>,
+    ) -> ParseResult<Item> {
         let start = self.expect_keyword(Keyword::Enum, "`enum`")?;
         let name = self.expect_identifier("expected enum name after `enum`")?;
         let generics = self.parse_generic_param_list()?;
@@ -483,8 +486,14 @@ impl Parser<'_> {
         let end = variants.0.end;
 
         Ok(Item::Enum(EnumDecl {
-            span: self.span(start.span.start, end),
+            span: self.span(
+                target
+                    .as_ref()
+                    .map_or(start.span.start, |target| target.span.start),
+                end,
+            ),
             visibility,
+            target,
             name: name.value,
             name_span: name.span,
             generics,

@@ -404,22 +404,63 @@ func main(): i32 {
 }
 
 #[test]
-fn rejects_target_directive_on_struct_declaration() {
-    let output = parse_text(
+fn parses_target_directive_on_type_declarations() {
+    let (sources, output) = parse_text_with_sources(
         r#"#target("arm64-darwin")
-struct File {
-    fd: i32
+pub(nocter) type RawWord = usize
+
+#target("arm64-darwin")
+pub(nocter) copy struct SyscallResult {
+    pub value: usize
+    pub errno: i32
+}
+
+#target("arm64-darwin")
+pub(nocter) enum PlatformError {
+    interrupted
 }
 "#,
     );
 
-    assert!(output.ast.is_none());
-    assert_eq!(output.diagnostics.len(), 1);
-    assert!(
-        output.diagnostics[0]
-            .message
-            .contains("function or primitive")
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::TypeAlias(alias) = &ast.items[0] else {
+        panic!("expected type alias declaration");
+    };
+    let Item::Struct(struct_) = &ast.items[1] else {
+        panic!("expected struct declaration");
+    };
+    let Item::Enum(enum_) = &ast.items[2] else {
+        panic!("expected enum declaration");
+    };
+    assert_eq!(
+        alias
+            .target_directive
+            .as_ref()
+            .expect("expected target directive")
+            .target,
+        "arm64-darwin"
     );
+    assert_eq!(
+        struct_
+            .target
+            .as_ref()
+            .expect("expected target directive")
+            .target,
+        "arm64-darwin"
+    );
+    assert_eq!(
+        enum_
+            .target
+            .as_ref()
+            .expect("expected target directive")
+            .target,
+        "arm64-darwin"
+    );
+
+    let json = ast.to_json(&sources);
+    let directive = find_json_node(&json, "target_directive").expect("expected target directive");
+    assert_eq!(directive.value.as_deref(), Some("arm64-darwin"));
 }
 
 #[test]

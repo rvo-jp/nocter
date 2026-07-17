@@ -223,6 +223,29 @@ pub func answer(): &str {
     return "inactive"
 }
 
+#target("x64-linux")
+pub type RawAnswer = &str
+
+#target("x64-linux")
+pub copy struct Handle {
+    pub raw: &str
+}
+
+#target("x64-linux")
+pub enum Status {
+    inactive
+}
+
+pub type RawAnswer = i32
+
+pub copy struct Handle {
+    pub raw: i32
+}
+
+pub enum Status {
+    active
+}
+
 pub func answer(): i32 {
     return 1
 }

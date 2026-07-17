@@ -37,8 +37,6 @@ The distributable archive root for the initial host is:
         process.nct
         ptr.nct
         string.nct
-        os/
-            macos.nct
 ```
 
 Users normally install that archive root as `~/.nocter/`. `compiler/src/` contains the implementation used to build the `nocter` compiler. `.nocter/` contains the current development host package for the user-facing compiler binary and standard library. The package metadata and standard-library sources are tracked in git; the generated `.nocter/nocter` compiler binary is ignored.
@@ -175,7 +173,7 @@ Currently buildable:
 - terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over literal/local operands, or `i32`/`usize` comparison conditions and supported leading bindings, assignments, explicit `drop`, or void call statements before direct or nested terminal branches returning entry `i32`/`void`, or non-entry `i32`, `u8`, `usize`, `bool`, `void`, `&str`, u8 slices, or supported aggregate return expressions, including direct aggregate branches staged across pending drops
 - non-terminal `if`, `while`, and `loop` statements before a final return, when branches/bodies contain supported local bindings, branch/body-local assignments, outer whole-binding scalar/view local assignments, branch/body-local explicit aggregate drops, void call statements, supported returns, supported `while`/`loop` `break`/`continue`, or nested supported non-terminal `if`/`while`/`loop` statements; branch/body-local aggregate values with drop glue are dropped at scope end, before supported return exits, and before supported loop exits, lowerable `while` condition instructions are re-evaluated at the loop head, and source `loop` lowers as an always-true loop
 - non-entry `never` functions that end with a lowerable call returning `never`; frame-dependent, aggregate-pointer, or stack-passed `never` calls lower as normal calls followed by a trap guard
-- the `std/os/macos.trap` and `std/os/macos.unreachable` target primitives as ARM64 `brk #0`
+- the `std/os.trap` and `std/os.unreachable` target primitives as ARM64 `brk #0`
 - simple fallible entry success
 - simple fallible entry failure through a loaded static `error` constructor call with string code and message literals, where the message may be single-line or multi-line
 - scalar/view `var` bindings and simple `=` assignment for the lowerable scalar/view value subset
@@ -561,7 +559,7 @@ If source loading, lexing, or parsing fails, `check` returns a `nocter.diagnosti
 
 `CompileUnitAnalysis` is the `analysis/` module's semantic-analysis result for the whole reachable compile unit. Each `FileAnalysis` keeps the file AST, its file-scoped `ResolveOutput`, that file's diagnostics, and whether the file is the executable root. Flattened diagnostics are sorted by loaded file order, primary span start byte, primary span end byte, diagnostic code, and message. This keeps the command-line checker aligned with future LSP features such as hover, completion, and definition lookup, where editor features need the semantic state for a specific file rather than only a flattened diagnostics list.
 
-The first standard-library source files are `.nocter/std/prelude.nct`, `.nocter/std/string.nct`, `.nocter/std/fmt.nct`, `.nocter/std/mem.nct`, `.nocter/std/ptr.nct`, `.nocter/std/os.nct`, `.nocter/std/io.nct`, `.nocter/std/process.nct`, and `.nocter/std/os/macos.nct`. They currently form a Parser v0-readable skeleton for the synthetic user prelude, owning string type, explicit formatting append boundary, initial memory API, core pointer primitive boundary, common OS error model, user-facing I/O errors, `File`, `stdout`, `stderr`, `print`, macOS raw file-descriptor helpers, macOS process API placeholders, and macOS primitive boundary. `std/string.String` is an ordinary standard-library struct with private `ptr`, `len`, and `capacity` fields; `empty()` builds the zero-capacity value through the restricted `std/ptr.from_addr` primitive, while allocation-backed construction and mutation use `std/mem`'s `pub(nocter)` page helpers. `std/process.abort` and the placeholder `exit` terminate through the target `trap` primitive today. Future target support should add `#target`-gated declarations without changing ordinary user-facing APIs.
+The first standard-library source files are `.nocter/std/prelude.nct`, `.nocter/std/string.nct`, `.nocter/std/fmt.nct`, `.nocter/std/mem.nct`, `.nocter/std/ptr.nct`, `.nocter/std/os.nct`, `.nocter/std/io.nct`, and `.nocter/std/process.nct`. They currently form a Parser v0-readable skeleton for the synthetic user prelude, owning string type, explicit formatting append boundary, initial memory API, core pointer primitive boundary, common OS error model, user-facing I/O errors, `File`, `stdout`, `stderr`, `print`, macOS raw file-descriptor helpers, macOS process API placeholders, and macOS primitive boundary. Target-dependent declarations live in the common module files behind `#target`, not in target-named standard-library source paths. `std/string.String` is an ordinary standard-library struct with private `ptr`, `len`, and `capacity` fields; `empty()` builds the zero-capacity value through the restricted `std/ptr.from_addr` primitive, while allocation-backed construction and mutation use `std/mem`'s `pub(nocter)` page helpers. `std/process.abort` and the placeholder `exit` terminate through the target `trap` primitive today. Future target support should add `#target`-gated declarations without changing ordinary user-facing APIs.
 
 The target-independent core pointer primitive set is:
 
@@ -577,15 +575,15 @@ std/ptr.from_addr
 The initial `arm64-darwin` primitive set is deliberately small:
 
 ```text
-std/os/macos.syscall0
-std/os/macos.syscall1
-std/os/macos.syscall2
-std/os/macos.syscall3
-std/os/macos.syscall4
-std/os/macos.syscall5
-std/os/macos.syscall6
-std/os/macos.trap
-std/os/macos.unreachable
+std/os.syscall0
+std/os.syscall1
+std/os.syscall2
+std/os.syscall3
+std/os.syscall4
+std/os.syscall5
+std/os.syscall6
+std/os.trap
+std/os.unreachable
 ```
 
 The compiler should validate primitives by module path, name, and exact signature. `print`, `args`, `env`, `cwd`, `exit`, file APIs, allocator APIs, `String`, and `Buffer` are standard-library APIs, not compiler primitives.
@@ -597,8 +595,8 @@ Initial `std/io.nct` should expose `File`, `File.open`, `File.read`, `File.write
 OS error flow belongs in the standard library:
 
 ```text
-std/os/macos.SyscallResult
-std/os/macos.Errno
+std/os.SyscallResult
+std/os.Errno
 std/os.OSError
 built-in error
 ```
@@ -663,9 +661,9 @@ Milestone grouping:
 29. initial `.nocter/std/os.nct`
 30. initial `.nocter/std/io.nct`
 31. initial `.nocter/std/process.nct` with process context APIs and termination APIs
-32. initial `.nocter/std/os/macos.nct`
+32. initial `#target`-gated Darwin boundary in `.nocter/std/os.nct`
 33. core pointer primitive validation and lowering for `std/ptr`
-34. closed target primitive set validation for `std/os/macos.syscall0..6`, `trap`, and `unreachable`
+34. closed target primitive set validation for `std/os.syscall0..6`, `trap`, and `unreachable`
 35. primitive lowering for the active target
 36. imports from the active Nocter home `std`
 38. standard-library growth

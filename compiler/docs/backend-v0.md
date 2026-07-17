@@ -245,7 +245,7 @@ Implement normal calls in this order:
 20. Done: lower `i32` division and remainder through the same arithmetic staging path, including same-file `i32` normal calls inside `/` and `%` expressions, and emit zero-divisor plus signed-overflow trap checks before ARM64 `sdiv`.
 21. Done: emit signed-overflow trap checks for lowered `i32` addition, subtraction, and multiplication.
 22. Done: lower `i32` shift operators with shift-count trap checks.
-23. Done: lower terminal calls returning `never` and the `std/os/macos.trap` / `unreachable` primitives to ARM64 `brk #0`.
+23. Done: lower terminal calls returning `never` and the `std/os.trap` / `unreachable` primitives to ARM64 `brk #0`.
 24. Done: type call arguments as scalar `i32`/`usize` IR values, lower `usize` parameters, and stage ARM64 call arguments through W or X registers according to each ABI argument index.
 25. Done: extend typed scalar call arguments and parameter lowering to `bool`, using W registers at the same ABI argument index.
 26. Done: lower static string literals and `&str` parameters as `&str` call arguments, represented as `ptr,len` ABI word pairs in consecutive X argument registers.

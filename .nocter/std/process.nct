@@ -5,7 +5,7 @@
 
 from std/error import Error
 from std/mem import Allocator
-from std/os/macos import trap
+from std/os import trap
 from std/string import String
 from std/vec import Vec
 

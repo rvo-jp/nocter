@@ -121,6 +121,7 @@ pub struct TargetDirective {
 pub struct TypeAliasDecl {
     pub span: ByteSpan,
     pub visibility: Visibility,
+    pub target_directive: Option<TargetDirective>,
     pub name: String,
     pub name_span: ByteSpan,
     pub generics: GenericParamList,
@@ -131,6 +132,7 @@ pub struct TypeAliasDecl {
 pub struct StructDecl {
     pub span: ByteSpan,
     pub visibility: Visibility,
+    pub target: Option<TargetDirective>,
     pub is_copy: bool,
     pub name: String,
     pub name_span: ByteSpan,
@@ -151,6 +153,7 @@ pub struct StructField {
 pub struct EnumDecl {
     pub span: ByteSpan,
     pub visibility: Visibility,
+    pub target: Option<TargetDirective>,
     pub name: String,
     pub name_span: ByteSpan,
     pub generics: GenericParamList,

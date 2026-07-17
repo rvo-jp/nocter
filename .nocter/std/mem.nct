@@ -10,7 +10,7 @@
 //! provide the OS boundary behind this common API.
 
 from std/error import Error
-from std/os/macos import syscall2, syscall6
+from std/os import syscall2, syscall6
 from std/ptr import addr
 from std/ptr import from_addr
 from std/ptr import slice_from_raw_parts

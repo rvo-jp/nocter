@@ -1133,7 +1133,7 @@ func main(): i32 {
 }
 "#,
         crate::entry::DEFAULT_ENTRY_NAME,
-        &[std_process_file(), std_macos_file()],
+        &[std_process_file(), std_os_file()],
     );
     let analysis = &fixture.analysis;
     let process_source = analysis
@@ -1184,7 +1184,7 @@ func main(): i32 {
 }
 "#,
         crate::entry::DEFAULT_ENTRY_NAME,
-        &[std_process_file(), std_macos_file()],
+        &[std_process_file(), std_os_file()],
     );
     let analysis = &fixture.analysis;
     let process_source = analysis
@@ -20453,7 +20453,7 @@ pub func bytes(value: &str): &[u8] {
 fn std_process_file() -> (&'static str, &'static str) {
     (
         "std/process.nct",
-        r#"from std/os/macos import trap
+        r#"from std/os import trap
 
 #target("arm64-darwin")
 pub(nocter) primitive exit_raw(code: i32): never
@@ -20469,9 +20469,9 @@ pub func abort(): never {
     )
 }
 
-fn std_macos_file() -> (&'static str, &'static str) {
+fn std_os_file() -> (&'static str, &'static str) {
     (
-        "std/os/macos.nct",
+        "std/os.nct",
         r#"#target("arm64-darwin")
 pub(nocter) primitive trap(): never
 
