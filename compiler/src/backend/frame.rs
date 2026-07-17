@@ -410,6 +410,7 @@ fn instruction_clobbers_parameter_registers(instruction: &Instruction) -> bool {
         | Instruction::CallFallibleVoid { .. }
         | Instruction::WriteStr { .. }
         | Instruction::WriteSlice { .. }
+        | Instruction::ReadSlice { .. }
         | Instruction::CloseFd { .. }
         | Instruction::DarwinSyscall { .. }
         | Instruction::CopyStrToPointer { .. } => true,
@@ -524,6 +525,7 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::WriteStr { .. }
         | Instruction::WriteSlice { .. }
+        | Instruction::ReadSlice { .. }
         | Instruction::CloseFd { .. }
         | Instruction::DarwinSyscall { .. }
         | Instruction::CopyStrToPointer { .. } => true,
@@ -673,6 +675,9 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
             .map(ScalarArgument::abi_word_count)
             .sum::<usize>()
             .max(failure_mode_max_call_argument_count(failure_mode)),
+        Instruction::ReadSlice { failure_mode, .. } => {
+            failure_mode_max_call_argument_count(failure_mode)
+        }
         Instruction::If {
             then_instructions,
             else_instructions,
@@ -801,6 +806,7 @@ fn record_instruction_aggregate_slot_requests(
         | Instruction::CallFallibleDirectAggregate { failure_mode, .. }
         | Instruction::CallFallibleAggregate { failure_mode, .. }
         | Instruction::CallFallibleVoid { failure_mode, .. }
+        | Instruction::ReadSlice { failure_mode, .. }
         | Instruction::CheckFailure { failure_mode } => {
             record_failure_mode_aggregate_slot_requests(failure_mode, requests)
         }
@@ -1072,6 +1078,22 @@ fn record_instruction_parameter_spill_requests(
                 record_i32_value_parameter_spill_requests(fd, requests);
                 record_slice_value_parameter_spill_requests(bytes, requests);
             }
+        }
+        Instruction::ReadSlice {
+            fd,
+            buffer,
+            failure_mode,
+            ..
+        } => {
+            if include_value_parameters {
+                record_i32_value_parameter_spill_requests(fd, requests);
+                record_slice_value_parameter_spill_requests(buffer, requests);
+            }
+            record_failure_mode_parameter_spill_requests(
+                failure_mode,
+                requests,
+                include_value_parameters,
+            );
         }
         Instruction::CloseFd { fd } => {
             if include_value_parameters {
@@ -1594,6 +1616,17 @@ fn record_instruction_scalar_locals(
         Instruction::WriteSlice { fd, bytes } => {
             record_i32_value(fd, highest_local_index);
             record_slice_value(bytes, highest_local_index);
+        }
+        Instruction::ReadSlice {
+            destination,
+            fd,
+            buffer,
+            failure_mode,
+        } => {
+            record_usize_location(*destination, highest_local_index);
+            record_i32_value(fd, highest_local_index);
+            record_slice_value(buffer, highest_local_index);
+            record_failure_mode_scalar_locals(failure_mode, highest_local_index);
         }
         Instruction::CloseFd { fd } => {
             record_i32_value(fd, highest_local_index);

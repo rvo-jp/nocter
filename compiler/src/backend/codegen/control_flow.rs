@@ -395,6 +395,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
         Some(
             Instruction::WriteStr { .. }
             | Instruction::WriteSlice { .. }
+            | Instruction::ReadSlice { .. }
             | Instruction::CloseFd { .. }
             | Instruction::DarwinSyscall { .. }
             | Instruction::CopyStrToPointer { .. }

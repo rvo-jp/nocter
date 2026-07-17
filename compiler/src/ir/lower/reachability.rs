@@ -92,6 +92,9 @@ fn collect_reachable_call_targets(
             Instruction::CheckFailure { failure_mode } => {
                 collect_failure_mode_reachable_call_targets(failure_mode, targets);
             }
+            Instruction::ReadSlice { failure_mode, .. } => {
+                collect_failure_mode_reachable_call_targets(failure_mode, targets);
+            }
             Instruction::WriteStr { .. }
             | Instruction::WriteSlice { .. }
             | Instruction::CloseFd { .. }

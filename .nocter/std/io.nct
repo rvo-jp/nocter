@@ -14,6 +14,9 @@ pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 pub(nocter) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
 
 #target("arm64-darwin")
+pub(nocter) primitive read_bytes_raw(fd: i32, buffer: &+[u8]): usize!
+
+#target("arm64-darwin")
 pub(nocter) primitive close_fd_raw(fd: i32): void
 
 #target("arm64-darwin")
@@ -33,7 +36,7 @@ pub(nocter) func open_read_fd(path: &str): i32! {
 
 #target("arm64-darwin")
 pub(nocter) func read_fd(fd: i32, buffer: &+[u8]): usize! {
-    return Error.new("std.io.unsupported", "file read is not implemented")
+    return read_bytes_raw(fd, buffer)?
 }
 
 #target("arm64-darwin")

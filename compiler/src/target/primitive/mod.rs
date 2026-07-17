@@ -358,6 +358,16 @@ const WRITE_BYTES_RAW_PARAMETERS: &[PrimitiveParameterSpec] = &[
         ty: "&[u8]",
     },
 ];
+const READ_BYTES_RAW_PARAMETERS: &[PrimitiveParameterSpec] = &[
+    PrimitiveParameterSpec {
+        name: "fd",
+        ty: "i32",
+    },
+    PrimitiveParameterSpec {
+        name: "buffer",
+        ty: "&+[u8]",
+    },
+];
 const CLOSE_FD_RAW_PARAMETERS: &[PrimitiveParameterSpec] = &[PrimitiveParameterSpec {
     name: "fd",
     ty: "i32",
@@ -535,6 +545,15 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             generics: &[],
             parameters: WRITE_BYTES_RAW_PARAMETERS,
             return_type: "void!",
+        },
+        PrimitiveSpec {
+            module_path: "std/io",
+            target: Some("arm64-darwin"),
+            visibility: Visibility::Nocter,
+            name: "read_bytes_raw",
+            generics: &[],
+            parameters: READ_BYTES_RAW_PARAMETERS,
+            return_type: "usize!",
         },
         PrimitiveSpec {
             module_path: "std/io",

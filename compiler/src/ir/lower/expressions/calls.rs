@@ -100,6 +100,16 @@ pub(super) fn lower_fallible_usize_normal_call(
     temporaries: &mut TemporaryAllocator,
     failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if primitive_read_bytes_raw_call(call, context) {
+        return lower_read_bytes_raw_primitive_call(
+            call,
+            destination,
+            context,
+            temporaries,
+            failure_mode,
+        );
+    }
+
     let Some((target, callee_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_non_tail_call_diagnostic());
     };
@@ -1755,6 +1765,13 @@ pub(super) fn primitive_write_bytes_raw_call(call: &CallExpr, context: &Lowering
     )
 }
 
+pub(super) fn primitive_read_bytes_raw_call(call: &CallExpr, context: &LoweringContext) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("read_bytes_raw")
+    )
+}
+
 pub(super) fn primitive_close_fd_raw_call(call: &CallExpr, context: &LoweringContext) -> bool {
     matches!(context.primitive_name_for_call(call), Some("close_fd_raw"))
 }
@@ -1891,6 +1908,33 @@ pub(super) fn lower_close_fd_raw_primitive_call(
     let fd = lower_i32_expression_to_value(&call.arguments[0], context, temporaries)?;
     let mut instructions = fd.instructions;
     instructions.push(Instruction::CloseFd { fd: fd.value });
+    Ok(instructions)
+}
+
+fn lower_read_bytes_raw_primitive_call(
+    call: &CallExpr,
+    destination: UsizeLocation,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+    failure_mode: FallibleFailureMode,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if call.arguments.len() != 2 {
+        return Err(vec![Diagnostic::error(
+            "E8006",
+            "IR v0 can only lower primitive `read_bytes_raw` with arguments `(i32, &+[u8])`",
+        )]);
+    };
+
+    let fd = lower_i32_expression_to_value(&call.arguments[0], context, temporaries)?;
+    let buffer = lower_slice_expression_to_value(&call.arguments[1], context, temporaries)?;
+    let mut instructions = fd.instructions;
+    instructions.extend(buffer.instructions);
+    instructions.push(Instruction::ReadSlice {
+        destination,
+        fd: fd.value,
+        buffer: buffer.value,
+        failure_mode,
+    });
     Ok(instructions)
 }
 

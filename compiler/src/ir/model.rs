@@ -49,6 +49,12 @@ pub(crate) enum Instruction {
         fd: I32Value,
         bytes: SliceValue,
     },
+    ReadSlice {
+        destination: UsizeLocation,
+        fd: I32Value,
+        buffer: SliceValue,
+        failure_mode: FallibleFailureMode,
+    },
     CloseFd {
         fd: I32Value,
     },

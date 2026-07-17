@@ -17354,6 +17354,44 @@ pub func write_bytes_catch(bytes: &[u8]): void! {
 }
 
 #[test]
+fn lowers_fallible_read_bytes_raw_propagation() {
+    let read_bytes = lower_imported_named_function_with_nocter_home_files(
+        r#"from std/io_bytes import read_count
+
+func main(): void {
+    return
+}
+"#,
+        "read_count",
+        &[
+            std_io_file(),
+            (
+                "std/io_bytes.nct",
+                r#"from std/io import read_bytes_raw
+
+pub func read_count(buffer: &+[u8]): usize! {
+    return read_bytes_raw(0, buffer)?
+}
+"#,
+            ),
+        ],
+    );
+
+    assert_eq!(
+        read_bytes.instructions,
+        vec![
+            Instruction::ReadSlice {
+                destination: UsizeLocation::Return,
+                fd: I32Value::Const(0),
+                buffer: SliceValue::Location(SliceLocation::Parameter(0)),
+                failure_mode: FallibleFailureMode::Propagate,
+            },
+            Instruction::ReturnFallibleSuccess,
+        ]
+    );
+}
+
+#[test]
 fn lowers_close_fd_raw_call() {
     let close = lower_imported_named_function_with_nocter_home_files(
         r#"from std/io_close import close_raw
@@ -19995,6 +20033,9 @@ pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 
 #target("arm64-darwin")
 pub(nocter) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
+
+#target("arm64-darwin")
+pub(nocter) primitive read_bytes_raw(fd: i32, buffer: &+[u8]): usize!
 
 #target("arm64-darwin")
 pub(nocter) primitive close_fd_raw(fd: i32): void

@@ -3,7 +3,7 @@ use crate::backend::frame::{FrameLayout, FunctionFrame, plan_function_frame};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     CallTarget, DirectAggregateArgument, FallibleFailureMode, Function, I32Value, Instruction,
-    IrModule, ScalarArgument, SliceValue, StrValue, Type,
+    IrModule, ScalarArgument, SliceValue, StrValue, Type, UsizeLocation,
 };
 use crate::target::arm64::{BranchCondition, Encoder, MoveWideShift, WReg, XReg};
 use std::collections::HashMap;
@@ -156,6 +156,14 @@ impl EntryEmitter {
             }
             Instruction::WriteSlice { fd, bytes } => {
                 self.emit_write_slice(fd, bytes, frame)?;
+            }
+            Instruction::ReadSlice {
+                destination,
+                fd,
+                buffer,
+                failure_mode,
+            } => {
+                self.emit_read_slice(*destination, fd, buffer, failure_mode, frame, return_type)?;
             }
             Instruction::CloseFd { fd } => {
                 self.emit_close_fd(fd, frame)?;
@@ -1025,6 +1033,57 @@ impl EntryEmitter {
         Ok(())
     }
 
+    fn emit_read_slice(
+        &mut self,
+        destination: UsizeLocation,
+        fd: &I32Value,
+        buffer: &SliceValue,
+        failure_mode: &FallibleFailureMode,
+        frame: Option<&FrameLayout>,
+        return_type: &Type,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "slice read emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_slice_value_to_x_pair(buffer, XReg::X3, XReg::X4)?;
+        self.emit_i32_value_to_w(fd, WReg::W0)?;
+        self.encoder.emit_mov_x(XReg::X1, XReg::X3);
+        self.encoder.emit_mov_x(XReg::X2, XReg::X4);
+        emit_darwin_read_syscall(&mut self.encoder);
+
+        let failure_branch = self.emit_cond_branch_placeholder(BranchCondition::Cs);
+        self.encoder.emit_mov_x(XReg::X1, XReg::X0);
+        emit_mov_i32_to_w0(&mut self.encoder, 0);
+        let normalized_branch = self.emit_branch_placeholder();
+
+        self.patch_branch_placeholder_to_current(failure_branch, "read syscall failure target")?;
+        self.emit_str_value_to_x_pair(
+            &StrValue::StaticBytes(READ_FAILURE_CODE.to_vec()),
+            XReg::X1,
+            XReg::X2,
+        )?;
+        self.emit_str_value_to_x_pair(
+            &StrValue::StaticBytes(READ_FAILURE_MESSAGE.to_vec()),
+            XReg::X3,
+            XReg::X4,
+        )?;
+        emit_mov_i32_to_w0(&mut self.encoder, 1);
+
+        self.patch_branch_placeholder_to_current(normalized_branch, "read syscall result target")?;
+        self.encoder.emit_cmp_x_zero(XReg::X0);
+        let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+        self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
+        self.patch_branch_placeholder_to_current(success_branch, "read syscall success target")?;
+        self.encoder.emit_mov_x(XReg::X16, XReg::X1);
+        self.emit_scalar_reloads(frame)?;
+        self.emit_x_to_usize_location(XReg::X16, destination)
+    }
+
     fn emit_close_fd(
         &mut self,
         fd: &I32Value,
@@ -1375,6 +1434,14 @@ fn validate_instruction_list_call_return_shapes(
                     return_types,
                     diagnostics,
                 );
+                validate_failure_mode_call_return_shapes(
+                    failure_mode,
+                    current_return_type,
+                    return_types,
+                    diagnostics,
+                );
+            }
+            Instruction::ReadSlice { failure_mode, .. } => {
                 validate_failure_mode_call_return_shapes(
                     failure_mode,
                     current_return_type,
@@ -1911,6 +1978,11 @@ fn emit_darwin_write_syscall(encoder: &mut Encoder) {
     encoder.emit_svc(DARWIN_SYSCALL_TRAP);
 }
 
+fn emit_darwin_read_syscall(encoder: &mut Encoder) {
+    emit_mov_u32_to_w(encoder, WReg::W16, DARWIN_READ_SYSCALL);
+    encoder.emit_svc(DARWIN_SYSCALL_TRAP);
+}
+
 fn emit_darwin_close_syscall(encoder: &mut Encoder) {
     emit_mov_u32_to_w(encoder, WReg::W16, DARWIN_CLOSE_SYSCALL);
     encoder.emit_svc(DARWIN_SYSCALL_TRAP);
@@ -1927,10 +1999,13 @@ const FALLIBLE_SUCCESS_PAYLOAD_REGISTER_COUNT: usize = 2;
 const DIRECT_AGGREGATE_REGISTER_WORD_COUNT: usize = 2;
 const WRITE_FAILURE_CODE: &[u8] = b"std.io.write_failed";
 const WRITE_FAILURE_MESSAGE: &[u8] = b"write failed";
+const READ_FAILURE_CODE: &[u8] = b"std.io.read_failed";
+const READ_FAILURE_MESSAGE: &[u8] = b"read failed";
 const ADR_MIN_BYTE_OFFSET: i64 = -(1 << 20);
 const ADR_MAX_BYTE_OFFSET: i64 = (1 << 20) - 1;
 const BRANCH_MIN_BYTE_OFFSET: i64 = -(1 << 27);
 const BRANCH_MAX_BYTE_OFFSET: i64 = (1 << 27) - 4;
+const DARWIN_READ_SYSCALL: u32 = 0x0200_0003;
 const DARWIN_WRITE_SYSCALL: u32 = 0x0200_0004;
 const DARWIN_CLOSE_SYSCALL: u32 = 0x0200_0006;
 const DARWIN_EXIT_SYSCALL: u32 = 0x0200_0001;
@@ -5194,6 +5269,39 @@ mod tests {
             &code.read_only_data,
         );
         let executable = write_temp_executable("codegen-close-fd-runs", &image.bytes);
+
+        let output = std::process::Command::new(&executable).output().unwrap();
+        let _ = std::fs::remove_file(executable);
+
+        assert_eq!(output.status.code(), Some(0));
+        assert!(output.stdout.is_empty());
+        assert!(output.stderr.is_empty());
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
+    fn generated_read_zero_bytes_runs() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReadSlice {
+                    destination: UsizeLocation::Local(0),
+                    fd: I32Value::Const(0),
+                    buffer: SliceValue::StrBytes(StrValue::StaticBytes(Vec::new())),
+                    failure_mode: FallibleFailureMode::Trap,
+                },
+                set_return_i32(0),
+                Instruction::Return,
+            ],
+        }]);
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let image = crate::target::macho::write_arm64_macos_executable_with_data(
+            &code.text,
+            &code.read_only_data,
+        );
+        let executable = write_temp_executable("codegen-read-zero-runs", &image.bytes);
 
         let output = std::process::Command::new(&executable).output().unwrap();
         let _ = std::fs::remove_file(executable);

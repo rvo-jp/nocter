@@ -28,6 +28,11 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: connect std file read to Darwin `read`
+  - adds target-gated `std/io.read_bytes_raw(fd: i32, buffer: &+[u8]): usize!` as a closed `pub(nocter)` primitive and routes `read_fd`/`File.read` through it
+  - lowers the primitive to `Instruction::ReadSlice`, carrying a fallible failure mode so success byte counts do not conflict with the fallible status register
+  - emits Darwin syscall `0x02000003` in the backend and normalizes syscall success/failure into the existing fallible call ABI before storing the `usize` success payload
+  - covers IR lowering, native backend execution with a non-blocking zero-byte read, distributed std typecheck, and raw-helper privacy
 - Current checkpoint: connect std file close to Darwin `close`
   - adds target-gated `std/io.close_fd_raw(fd: i32): void` as a closed `pub(nocter)` primitive and routes `close_fd` through it
   - lowers the primitive to `Instruction::CloseFd` and emits Darwin syscall `0x02000006` in the backend, ignoring the result for drop glue

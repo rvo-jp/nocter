@@ -1084,7 +1084,7 @@ impl EntryEmitter {
         self.emit_x_to_usize_location(XReg::X0, destination)
     }
 
-    fn emit_x_to_usize_location(
+    pub(super) fn emit_x_to_usize_location(
         &mut self,
         source: XReg,
         destination: UsizeLocation,
