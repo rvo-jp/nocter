@@ -150,6 +150,45 @@ func answer(value: Exit): Exit {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_aggregate_alias_parameter_and_return_exit_code() {
+    let project = TempProject::new("cli-run-aggregate-alias-parameter-return");
+    let source = project.write_source(
+        "aggregate_alias_parameter_return.nct",
+        r#"copy struct Pair {
+    left: i32
+    right: i32
+}
+
+type PairAlias = Pair
+
+func main(): i32 {
+    let pair = make()
+    return sum(pair)
+}
+
+func make(): PairAlias {
+    return PairAlias{ left: 20, right: 22 }
+}
+
+func sum(pair: PairAlias): i32 {
+    return pair.left + pair.right
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_imported_bool_condition_exit_code() {
     let project = TempProject::new("cli-run-imported-bool-condition");
     project.write_nocter_home_file(
