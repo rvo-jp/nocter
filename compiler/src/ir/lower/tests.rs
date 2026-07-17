@@ -16788,6 +16788,48 @@ func maybe_answer(): i32? {
 }
 
 #[test]
+fn lowers_optional_i32_let_else_call_binding() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let value = maybe_answer() else {
+        return 1
+    }
+
+    return value
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0],
+        Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::CallFallibleI32 {
+                    destination: I32Location::Local(0),
+                    target: CallTarget::same_file("maybe_answer"),
+                    arguments: vec![],
+                    failure_mode: FallibleFailureMode::Handle {
+                        instructions: vec![set_return_i32(1), Instruction::Return],
+                    },
+                },
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: i32_local(0),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn diagnoses_nested_optional_success_none_return_without_panic() {
     let diagnostics = lower_named_function_diagnostics_with_signatures(
         r#"func main(): i32 {

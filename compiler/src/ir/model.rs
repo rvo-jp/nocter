@@ -411,6 +411,9 @@ pub(crate) enum FallibleFailureMode {
         instructions: Vec<Instruction>,
     },
     Trap,
+    Handle {
+        instructions: Vec<Instruction>,
+    },
     Catch {
         code: StrLocation,
         message: StrLocation,

@@ -900,11 +900,12 @@ impl EntryEmitter {
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
         match failure_mode {
             FallibleFailureMode::Propagate => self.emit_return(frame),
-            FallibleFailureMode::PropagateWithCleanup { .. } => {
+            FallibleFailureMode::PropagateWithCleanup { .. }
+            | FallibleFailureMode::Handle { .. } => {
                 let Some(frame) = frame else {
                     return Err(vec![Diagnostic::error(
                         "E9005",
-                        "propagate cleanup emission requires a stack frame",
+                        "fallible failure handler emission requires a stack frame",
                     )]);
                 };
                 self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
@@ -953,6 +954,13 @@ impl EntryEmitter {
             }
             FallibleFailureMode::Trap => {
                 self.emit_trap();
+                Ok(())
+            }
+            FallibleFailureMode::Handle { instructions } => {
+                self.emit_scalar_reloads(frame)?;
+                for instruction in instructions {
+                    self.emit_instruction(instruction, Some(frame), return_type)?;
+                }
                 Ok(())
             }
             FallibleFailureMode::Catch {
@@ -1864,6 +1872,7 @@ fn validate_failure_mode_call_return_shapes(
     match failure_mode {
         FallibleFailureMode::Propagate | FallibleFailureMode::Trap => {}
         FallibleFailureMode::PropagateWithCleanup { instructions, .. }
+        | FallibleFailureMode::Handle { instructions }
         | FallibleFailureMode::Catch { instructions, .. } => {
             validate_instruction_list_call_return_shapes(
                 instructions,

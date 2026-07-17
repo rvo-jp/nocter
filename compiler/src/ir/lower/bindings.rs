@@ -12,19 +12,26 @@ use super::expressions::{
     lower_bool_expression_to_location, lower_bool_expression_to_value,
     lower_call_arguments_to_scalar_arguments,
     lower_call_arguments_to_scalar_arguments_with_temporaries, lower_catch_failure_mode,
+    lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
+    lower_fallible_slice_normal_call, lower_fallible_str_normal_call,
+    lower_fallible_u8_normal_call, lower_fallible_usize_normal_call,
     lower_i32_expression_to_location, lower_i32_expression_to_word,
     lower_macos_syscall_primitive_call_to_location, lower_pointer_address_expression_to_word,
     lower_slice_expression_to_location, lower_str_expression_to_location,
     lower_u8_expression_to_location, lower_u8_expression_to_word,
     lower_usize_expression_to_location, lower_usize_expression_to_word,
+    lower_void_expression_statement,
 };
-use super::functions::{propagating_failure_mode, replacement_drop_for_aggregate_slot};
+use super::functions::{
+    lower_drop_statement, lower_return_statement_with_scope_drops, propagating_failure_mode,
+    replacement_drop_for_aggregate_slot,
+};
 use super::literals::{lower_u16_literal, lower_u32_literal};
-use super::types::scalar_or_view_type_from_type_expr;
+use super::types::{return_type_expr_is_top_level_optional, scalar_or_view_type_from_type_expr};
 use crate::abi::{ValueLayout, abi_value_from_type_expr};
 use crate::ast::{
-    AssignmentOperator, AssignmentStmt, BinaryOperator, BindingStmt, CallExpr, Expr, MemberExpr,
-    UnaryOperator,
+    AssignmentOperator, AssignmentStmt, BinaryOperator, BindingStmt, Block, CallExpr, Expr,
+    MemberExpr, Stmt, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -37,14 +44,18 @@ pub(super) fn lower_local_binding(
     statement: &BindingStmt,
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if expression_contains_interpolated_string(&statement.initializer) {
+        return Err(unsupported_interpolated_string_diagnostic());
+    }
+
+    if let Some(instructions) = lower_optional_let_else_binding(statement, context)? {
+        return Ok(instructions);
+    }
+
     if statement.else_block.is_some() {
         return Err(unsupported_binding_diagnostic(
             "IR v0 cannot lower optional `let ... else` or `var ... else` bindings",
         ));
-    }
-
-    if expression_contains_interpolated_string(&statement.initializer) {
-        return Err(unsupported_interpolated_string_diagnostic());
     }
 
     if let Some(instructions) = lower_aggregate_struct_literal_binding(statement, context)? {
@@ -74,6 +85,216 @@ pub(super) fn lower_local_binding(
         ScalarBindingKind::Bool => lower_bool_local_binding(statement, context),
         ScalarBindingKind::Str => lower_str_local_binding(statement, context),
         ScalarBindingKind::Slice => lower_slice_local_binding(statement, context),
+    }
+}
+
+fn lower_optional_let_else_binding(
+    statement: &BindingStmt,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Some(else_block) = &statement.else_block else {
+        return Ok(None);
+    };
+
+    let Expr::Call(call) = unwrap_group(&statement.initializer) else {
+        return Ok(None);
+    };
+
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 cannot lower optional `let ... else` bindings without resolved call information",
+        ));
+    };
+    let Some(signature) = resolved.call_signature_for_call(call) else {
+        return Ok(None);
+    };
+    if !return_type_expr_is_top_level_optional(&signature.return_type, resolved) {
+        return Ok(None);
+    }
+
+    let Some((target, _call_name)) = context.direct_call_target_and_name(call) else {
+        return Ok(None);
+    };
+    let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
+        return Ok(None);
+    };
+    let Some(kind) =
+        optional_let_else_scalar_binding_kind(statement, success_type.as_ref(), context)?
+    else {
+        return Ok(None);
+    };
+
+    let failure_mode = lower_optional_let_else_failure_mode(else_block, context)?;
+    lower_optional_let_else_scalar_call_binding(statement, call, kind, failure_mode, context)
+        .map(Some)
+}
+
+fn optional_let_else_scalar_binding_kind(
+    statement: &BindingStmt,
+    success_type: &Type,
+    context: &LoweringContext,
+) -> Result<Option<ScalarBindingKind>, Vec<Diagnostic>> {
+    let Some(ty) = &statement.ty else {
+        return Ok(scalar_binding_kind_from_type(success_type));
+    };
+
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 cannot lower annotated optional `let ... else` bindings without resolved type information",
+        ));
+    };
+    Ok(match scalar_or_view_type_from_type_expr(ty, resolved) {
+        Some(Type::I32) => Some(ScalarBindingKind::I32),
+        Some(Type::U8) => Some(ScalarBindingKind::U8),
+        Some(Type::Usize) => Some(ScalarBindingKind::Usize),
+        Some(Type::Bool) => Some(ScalarBindingKind::Bool),
+        Some(Type::Str) => Some(ScalarBindingKind::Str),
+        Some(Type::Slice { .. }) => Some(ScalarBindingKind::Slice),
+        _ => None,
+    })
+}
+
+fn lower_optional_let_else_failure_mode(
+    else_block: &Block,
+    context: &LoweringContext,
+) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
+    let mut else_context = context.clone();
+    let instructions = lower_optional_let_else_block(else_block, &mut else_context)?;
+    Ok(FallibleFailureMode::Handle { instructions })
+}
+
+fn lower_optional_let_else_block(
+    block: &Block,
+    context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some((terminal, leading)) = block.statements.split_last() else {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 cannot lower empty optional `let ... else` blocks",
+        ));
+    };
+
+    let mut instructions = Vec::new();
+    for statement in leading {
+        instructions.extend(lower_optional_let_else_leading_statement(
+            statement, context,
+        )?);
+    }
+
+    match terminal {
+        Stmt::Return(statement) => {
+            instructions.extend(lower_return_statement_with_scope_drops(
+                statement, context, "E8008",
+            )?);
+            Ok(instructions)
+        }
+        _ => Err(unsupported_binding_diagnostic(
+            "IR v0 can only lower optional `let ... else` blocks ending in `return`",
+        )),
+    }
+}
+
+fn lower_optional_let_else_leading_statement(
+    statement: &Stmt,
+    context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match statement {
+        Stmt::Binding(statement) => lower_local_binding(statement, context),
+        Stmt::Assignment(statement) => lower_assignment(statement, context),
+        Stmt::Drop(statement) => lower_drop_statement(statement, context),
+        Stmt::Expression(statement) => {
+            lower_void_expression_statement(&statement.expression, context)?.ok_or_else(|| {
+                unsupported_binding_diagnostic(
+                    "IR v0 can only lower optional `let ... else` leading expression statements that call `void` functions",
+                )
+            })
+        }
+        _ => Err(unsupported_binding_diagnostic(
+            "IR v0 cannot lower this statement inside optional `let ... else` blocks",
+        )),
+    }
+}
+
+fn lower_optional_let_else_scalar_call_binding(
+    statement: &BindingStmt,
+    call: &CallExpr,
+    kind: ScalarBindingKind,
+    failure_mode: FallibleFailureMode,
+    context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    match kind {
+        ScalarBindingKind::I32 => {
+            let destination = context.next_i32_local_location()?;
+            let instructions = lower_fallible_i32_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_i32_local(statement.name.clone());
+            Ok(instructions)
+        }
+        ScalarBindingKind::U8 => {
+            let destination = context.next_u8_local_location()?;
+            let instructions = lower_fallible_u8_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_u8_local(statement.name.clone());
+            Ok(instructions)
+        }
+        ScalarBindingKind::Usize => {
+            let destination = context.next_usize_local_location()?;
+            let instructions = lower_fallible_usize_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_usize_local(statement.name.clone());
+            Ok(instructions)
+        }
+        ScalarBindingKind::Bool => {
+            let destination = context.next_bool_local_location()?;
+            let instructions = lower_fallible_bool_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_bool_local(statement.name.clone());
+            Ok(instructions)
+        }
+        ScalarBindingKind::Str => {
+            let destination = context.next_str_local_location()?;
+            let instructions = lower_fallible_str_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_str_local(statement.name.clone());
+            Ok(instructions)
+        }
+        ScalarBindingKind::Slice => {
+            let destination = context.next_slice_local_location()?;
+            let instructions = lower_fallible_slice_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_slice_local(statement.name.clone());
+            Ok(instructions)
+        }
     }
 }
 

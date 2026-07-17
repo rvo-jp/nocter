@@ -6897,6 +6897,68 @@ func maybe_answer(): i32? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_optional_let_else_success_exit_code() {
+    let project = TempProject::new("cli-run-optional-let-else-success");
+    let source = project.write_source(
+        "optional_let_else_success.nct",
+        r#"func main(): i32 {
+    let value = maybe_answer() else {
+        return 7
+    }
+
+    return value
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_optional_let_else_none_exit_code() {
+    let project = TempProject::new("cli-run-optional-let-else-none");
+    let source = project.write_source(
+        "optional_let_else_none.nct",
+        r#"func main(): i32 {
+    let value = maybe_answer() else {
+        return 7
+    }
+
+    return value
+}
+
+func maybe_answer(): i32? {
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(7),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_reports_fallible_entry_failure() {
     let project = TempProject::new("cli-run-fallible-failure");
     project.write_nocter_home_file(

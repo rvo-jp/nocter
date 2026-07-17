@@ -45,7 +45,7 @@ pub(super) fn lower_i32_normal_call(
     Ok(instructions)
 }
 
-pub(super) fn lower_fallible_i32_normal_call(
+pub(in crate::ir::lower) fn lower_fallible_i32_normal_call(
     call: &CallExpr,
     destination: I32Location,
     context: &LoweringContext,
@@ -103,7 +103,7 @@ pub(super) fn lower_usize_normal_call(
     Ok(instructions)
 }
 
-pub(super) fn lower_fallible_usize_normal_call(
+pub(in crate::ir::lower) fn lower_fallible_usize_normal_call(
     call: &CallExpr,
     destination: UsizeLocation,
     context: &LoweringContext,
@@ -161,7 +161,7 @@ pub(super) fn lower_u8_normal_call(
     Ok(instructions)
 }
 
-pub(super) fn lower_fallible_u8_normal_call(
+pub(in crate::ir::lower) fn lower_fallible_u8_normal_call(
     call: &CallExpr,
     destination: U8Location,
     context: &LoweringContext,
@@ -209,7 +209,7 @@ pub(super) fn lower_bool_normal_call(
     Ok(instructions)
 }
 
-pub(super) fn lower_fallible_bool_normal_call(
+pub(in crate::ir::lower) fn lower_fallible_bool_normal_call(
     call: &CallExpr,
     destination: BoolLocation,
     context: &LoweringContext,
@@ -257,7 +257,7 @@ pub(super) fn lower_str_normal_call(
     Ok(instructions)
 }
 
-pub(super) fn lower_fallible_str_normal_call(
+pub(in crate::ir::lower) fn lower_fallible_str_normal_call(
     call: &CallExpr,
     destination: StrLocation,
     context: &LoweringContext,
@@ -305,7 +305,7 @@ pub(super) fn lower_slice_normal_call(
     Ok(instructions)
 }
 
-pub(super) fn lower_fallible_slice_normal_call(
+pub(in crate::ir::lower) fn lower_fallible_slice_normal_call(
     call: &CallExpr,
     destination: SliceLocation,
     context: &LoweringContext,
@@ -374,6 +374,7 @@ pub(super) fn lower_fallible_void_normal_call(
             FallibleFailureMode::Propagate => Instruction::PropagateFailure,
             FallibleFailureMode::Trap => Instruction::TrapOnFailure,
             FallibleFailureMode::PropagateWithCleanup { .. }
+            | FallibleFailureMode::Handle { .. }
             | FallibleFailureMode::Catch { .. } => Instruction::CheckFailure { failure_mode },
         });
         return Ok(instructions);
