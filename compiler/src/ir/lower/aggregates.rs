@@ -77,6 +77,9 @@ fn type_expr_is_copy_struct_inner(
         TypeExpr::Fallible(fallible) => {
             type_expr_is_copy_struct_inner(&fallible.success, resolved, resolving_names)
         }
+        TypeExpr::Optional(optional) => {
+            type_expr_is_copy_struct_inner(&optional.inner, resolved, resolving_names)
+        }
         _ => false,
     }
 }
@@ -281,6 +284,7 @@ pub(super) fn aggregate_fields_from_type_expr(
 ) -> Option<Vec<AggregateField>> {
     let ty = match ty {
         TypeExpr::Fallible(fallible) => &fallible.success,
+        TypeExpr::Optional(optional) => &optional.inner,
         _ => ty,
     };
     let value = abi_value_from_type_expr(ty, resolved).ok()?;
@@ -330,6 +334,9 @@ fn struct_field_signatures_from_type_expr<'a>(
         }
         TypeExpr::Fallible(fallible) => {
             struct_field_signatures_from_type_expr(&fallible.success, resolved)
+        }
+        TypeExpr::Optional(optional) => {
+            struct_field_signatures_from_type_expr(&optional.inner, resolved)
         }
         _ => None,
     }

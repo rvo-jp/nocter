@@ -1145,8 +1145,19 @@ pub(super) fn drop_glue_for_type_expr(
     root_source: SourceId,
     resolved: &ResolveOutput,
 ) -> Option<DropGlue> {
-    let TypeExpr::Reference(reference) = ty else {
-        return None;
+    match ty {
+        TypeExpr::Fallible(fallible) => {
+            return drop_glue_for_type_expr(&fallible.success, root_source, resolved);
+        }
+        TypeExpr::Optional(optional) => {
+            return drop_glue_for_type_expr(&optional.inner, root_source, resolved);
+        }
+        _ => {}
+    }
+
+    let reference = match ty {
+        TypeExpr::Reference(reference) => reference,
+        _ => return None,
     };
     let (symbol, type_symbol) =
         resolved.type_symbol_definition_by_reference_name(&reference.name)?;
