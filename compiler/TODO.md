@@ -28,6 +28,10 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: add `std/io.File` drop glue
+  - defines `File.drop` in the distributed std so owned files follow the `close_on_drop` contract
+  - keeps `stdout()`/`stderr()` handles non-owning while allowing future real `close_fd` to attach under the existing drop path
+  - verifies the distributed std check/run suite still lowers imported drop members and scope-end drops
 - Current checkpoint: cover direct fallible String forwarding
   - adds distributed std native run coverage for `make(): String! { return from_str(&+allocator, "...")? }`
   - verifies a fallible indirect aggregate call can write directly into the caller-provided `String` return storage through `std/string`

@@ -97,6 +97,13 @@ impl File {
         write_text_fd(file.fd, text)?
         return
     }
+
+    drop file: &+Self {
+        if file.close_on_drop {
+            close_fd(file.fd)
+        }
+        return
+    }
 }
 
 pub func print(text: &str): void! {
