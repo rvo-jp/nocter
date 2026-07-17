@@ -841,6 +841,105 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_lowers_nonterminal_loop_break_cleanup() {
+    let project = TempProject::new("cli-build-nonterminal-loop-break-cleanup");
+    let source = project.write_source(
+        "nonterminal_loop_break_cleanup.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    loop {
+        var file = File{ fd: 1 }
+        break
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_lowers_terminal_nested_if_in_nonterminal_loop_body() {
+    let project = TempProject::new("cli-build-terminal-nested-if-in-nonterminal-loop-body");
+    let source = project.write_source(
+        "terminal_nested_if_in_nonterminal_loop_body.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    loop {
+        var file = File{ fd: 1 }
+        if true {
+            break
+        } else {
+            continue
+        }
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_lowers_terminal_loop_body_return_cleanup() {
+    let project = TempProject::new("cli-build-terminal-loop-body-return-cleanup");
+    let source = project.write_source(
+        "terminal_loop_body_return_cleanup.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    loop {
+        var file = File{ fd: 1 }
+        return 7
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_return_in_nonterminal_while_body() {
     let project = TempProject::new("cli-build-return-in-nonterminal-while-body");
     let source = project.write_source(

@@ -5170,6 +5170,91 @@ fn lowers_terminal_loop_return() {
 }
 
 #[test]
+fn skips_unreachable_scope_drop_after_terminal_nested_if_in_nonterminal_loop_body() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    loop {
+        var file = File{ fd: 1 }
+        if done() {
+            break
+        } else {
+            continue
+        }
+    }
+    return 0
+}
+
+func done(): bool {
+    return true
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::While {
+                condition_instructions: vec![],
+                condition: BoolValue::Const(true),
+                body_instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::Slot(0),
+                        offset: 0,
+                        value: i32_const(1),
+                    },
+                    call_bool(BoolLocation::Local(0), "done", vec![]),
+                    Instruction::If {
+                        condition: BoolValue::Location(BoolLocation::Local(0)),
+                        then_instructions: vec![
+                            Instruction::CallVoid {
+                                target: CallTarget::same_file("File.drop"),
+                                arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                                    source: BorrowSource::AggregateSlot(0),
+                                })],
+                            },
+                            Instruction::Break,
+                        ],
+                        else_instructions: vec![
+                            Instruction::CallVoid {
+                                target: CallTarget::same_file("File.drop"),
+                                arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                                    source: BorrowSource::AggregateSlot(0),
+                                })],
+                            },
+                            Instruction::Continue,
+                        ],
+                    },
+                ],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_const(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
 fn lowers_explicit_drop_inside_nonterminal_while_body_without_scope_end_duplicate() {
     let ir = lower_text(
         r#"struct File {
