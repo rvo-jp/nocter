@@ -282,6 +282,40 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_duplicate_function_generic_parameter_names() {
+    let output = resolve_text(
+        r#"func identity<T, T>(value: i32): i32 {
+    return value
+}
+
+func main(): i32 {
+    return identity(1)
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0420");
+}
+
+#[test]
+fn diagnoses_duplicate_struct_generic_parameter_names() {
+    let output = resolve_text(
+        r#"struct Box<T, T> {
+    value: i32
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0420");
+}
+
+#[test]
 fn diagnoses_local_shadowing_top_level_function() {
     let output = resolve_text(
         r#"func main(): i32 {

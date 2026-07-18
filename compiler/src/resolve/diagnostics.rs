@@ -141,6 +141,28 @@ pub(super) fn duplicate_enum_variant_payload_name_diagnostic(
     diagnostic
 }
 
+pub(super) fn duplicate_generic_parameter_name_diagnostic(
+    sources: &SourceMap,
+    subject: &str,
+    parameter_name: &str,
+    first_span: ByteSpan,
+    duplicate_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0420",
+        format!("{subject} already has a generic parameter named `{parameter_name}`"),
+    );
+    diagnostic.primary_span = sources.span_to_json(duplicate_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(first_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "first generic parameter with this name is here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some("choose a distinct generic parameter name".to_string());
+    diagnostic
+}
+
 pub(super) fn invalid_associated_function_owner_diagnostic(
     sources: &SourceMap,
     owner_name: &str,

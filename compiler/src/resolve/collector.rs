@@ -1,8 +1,9 @@
 use super::builtins::is_reserved_type_declaration_name;
 use super::diagnostics::{
     builtin_type_declaration_name_reuse_diagnostic, duplicate_enum_variant_name_diagnostic,
-    duplicate_enum_variant_payload_name_diagnostic, duplicate_struct_field_name_diagnostic,
-    duplicate_visible_name_diagnostic, invalid_associated_function_owner_diagnostic,
+    duplicate_enum_variant_payload_name_diagnostic, duplicate_generic_parameter_name_diagnostic,
+    duplicate_struct_field_name_diagnostic, duplicate_visible_name_diagnostic,
+    invalid_associated_function_owner_diagnostic,
 };
 use super::signatures::{
     alias_type_symbol, associated_function_signature, drop_signature,
@@ -13,7 +14,8 @@ use super::signatures::{
 };
 use super::{Resolver, SymbolKind, TypeSymbol, TypeSymbolKind};
 use crate::ast::{
-    AstFile, EnumDecl, EnumVariant, FunctionDecl, ImplDecl, Item, PrimitiveDecl, StructDecl,
+    AstFile, EnumDecl, EnumVariant, FunctionDecl, GenericParamList, ImplDecl, Item, PrimitiveDecl,
+    StructDecl,
 };
 use crate::diagnostics::Diagnostic;
 use crate::source::{ByteSpan, SourceMap};
@@ -26,23 +28,56 @@ impl Resolver<'_> {
                 Item::Use(item) => self.collect_use_symbols(item),
                 Item::Import(item) => self.collect_import_namespace_symbol(item),
                 Item::FromImport(item) => self.collect_imported_symbols(item),
-                Item::Function(function) if function.owner.is_none() => {
-                    self.collect_function_symbol(function);
+                Item::Function(function) => {
+                    self.output
+                        .diagnostics
+                        .extend(duplicate_generic_param_name_diagnostics(
+                            self.sources,
+                            &format!("function `{}`", function.name),
+                            &function.generics,
+                        ));
+                    if function.owner.is_none() {
+                        self.collect_function_symbol(function);
+                    }
                 }
-                Item::Function(_) => {}
-                Item::Primitive(primitive) => self.collect_primitive_symbol(primitive),
-                Item::TypeAlias(alias) => self.collect_type_symbol(
-                    alias.name.clone(),
-                    alias.name_span,
-                    alias.span,
-                    alias_type_symbol(alias.name.clone(), alias.target.clone()),
-                ),
+                Item::Primitive(primitive) => {
+                    self.output
+                        .diagnostics
+                        .extend(duplicate_generic_param_name_diagnostics(
+                            self.sources,
+                            &format!("primitive `{}`", primitive.name),
+                            &primitive.generics,
+                        ));
+                    self.collect_primitive_symbol(primitive);
+                }
+                Item::TypeAlias(alias) => {
+                    self.output
+                        .diagnostics
+                        .extend(duplicate_generic_param_name_diagnostics(
+                            self.sources,
+                            &format!("type alias `{}`", alias.name),
+                            &alias.generics,
+                        ));
+                    self.collect_type_symbol(
+                        alias.name.clone(),
+                        alias.name_span,
+                        alias.span,
+                        alias_type_symbol(alias.name.clone(), alias.target.clone()),
+                    );
+                }
                 Item::Struct(struct_) => {
                     self.output
                         .diagnostics
                         .extend(duplicate_struct_field_name_diagnostics(
                             self.sources,
                             struct_,
+                        ));
+                    self.output
+                        .diagnostics
+                        .extend(duplicate_generic_param_name_diagnostics(
+                            self.sources,
+                            &format!("struct `{}`", struct_.name),
+                            &struct_.generics,
                         ));
                     self.collect_type_symbol(
                         struct_.name.clone(),
@@ -55,6 +90,13 @@ impl Resolver<'_> {
                     self.output
                         .diagnostics
                         .extend(duplicate_enum_decl_diagnostics(self.sources, enum_));
+                    self.output
+                        .diagnostics
+                        .extend(duplicate_generic_param_name_diagnostics(
+                            self.sources,
+                            &format!("enum `{}`", enum_.name),
+                            &enum_.generics,
+                        ));
                     self.collect_type_symbol(
                         enum_.name.clone(),
                         enum_.name_span,
@@ -62,12 +104,21 @@ impl Resolver<'_> {
                         enum_type_symbol(enum_.name.clone(), &enum_.variants),
                     );
                 }
-                Item::Trait(trait_) => self.collect_type_symbol(
-                    trait_.name.clone(),
-                    trait_.name_span,
-                    trait_.span,
-                    nominal_type_symbol(trait_.name.clone(), TypeSymbolKind::Trait),
-                ),
+                Item::Trait(trait_) => {
+                    self.output
+                        .diagnostics
+                        .extend(duplicate_generic_param_name_diagnostics(
+                            self.sources,
+                            &format!("trait `{}`", trait_.name),
+                            &trait_.generics,
+                        ));
+                    self.collect_type_symbol(
+                        trait_.name.clone(),
+                        trait_.name_span,
+                        trait_.span,
+                        nominal_type_symbol(trait_.name.clone(), TypeSymbolKind::Trait),
+                    );
+                }
                 Item::Impl(_) => {}
             }
         }
@@ -296,6 +347,31 @@ fn duplicate_struct_field_name_diagnostics(
             ));
         } else {
             seen.insert(field.name.as_str(), field.name_span);
+        }
+    }
+
+    diagnostics
+}
+
+fn duplicate_generic_param_name_diagnostics(
+    sources: &SourceMap,
+    subject: &str,
+    generics: &GenericParamList,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let mut seen = HashMap::new();
+
+    for parameter in &generics.parameters {
+        if let Some(first_span) = seen.get(parameter.name.as_str()).copied() {
+            diagnostics.push(duplicate_generic_parameter_name_diagnostic(
+                sources,
+                subject,
+                &parameter.name,
+                first_span,
+                parameter.span,
+            ));
+        } else {
+            seen.insert(parameter.name.as_str(), parameter.span);
         }
     }
 
