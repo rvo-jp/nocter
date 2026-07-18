@@ -133,6 +133,10 @@ impl Parser<'_> {
     pub(super) fn parse_drop_statement(&mut self) -> ParseResult<Stmt> {
         let start = self.bump();
         let name = self.expect_identifier("expected binding name after `drop`")?;
+        if let Some(message) = deferred_drop_target_message(self.current().kind) {
+            self.error_current(message);
+            return Err(());
+        }
         self.expect_statement_end("expected end of drop statement after binding name")?;
 
         Ok(Stmt::Drop(DropStmt {
@@ -476,6 +480,15 @@ impl Parser<'_> {
         };
         let token = self.bump();
         Some((operator, token.span))
+    }
+}
+
+fn deferred_drop_target_message(kind: TokenKind) -> Option<&'static str> {
+    match kind {
+        TokenKind::Punctuation(".") => Some("`drop object.field` is not part of v0"),
+        TokenKind::Punctuation("[") => Some("`drop array[index]` is not part of v0"),
+        TokenKind::Punctuation("(") => Some("`drop make_value()` is not part of v0"),
+        _ => None,
     }
 }
 

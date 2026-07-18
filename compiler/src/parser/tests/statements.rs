@@ -153,6 +153,48 @@ fn parses_drop_statement_without_reserving_drop_identifier() {
 }
 
 #[test]
+fn diagnoses_deferred_drop_field_target() {
+    let output = parse_text(
+        r#"func main(): void {
+    drop file.handle
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(output.diagnostics[0].message.contains("drop object.field"));
+}
+
+#[test]
+fn diagnoses_deferred_drop_index_target() {
+    let output = parse_text(
+        r#"func main(): void {
+    drop files[0]
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(output.diagnostics[0].message.contains("drop array[index]"));
+}
+
+#[test]
+fn diagnoses_deferred_drop_call_target() {
+    let output = parse_text(
+        r#"func main(): void {
+    drop make_file()
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(output.diagnostics[0].message.contains("drop make_value()"));
+}
+
+#[test]
 fn rejects_non_place_assignment_target() {
     let output = parse_text(
         r#"func main(): i32 {
