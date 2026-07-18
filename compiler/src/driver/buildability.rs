@@ -1,7 +1,7 @@
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    AssignmentOperator, BinaryExpr, BinaryOperator, Block, CallExpr, DropDecl, Expr, FunctionDecl,
-    ImplDecl, ImplMember, Item, Stmt, TypeExpr, UnaryOperator,
+    AssignmentOperator, BinaryExpr, BinaryOperator, Block, CallExpr, DropDecl, Expr, ForRangeStmt,
+    FunctionDecl, ImplDecl, ImplMember, Item, Stmt, TypeExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::CallTarget;
@@ -454,12 +454,14 @@ fn collect_statement_diagnostics(
             }
         }
         Stmt::ForRange(statement) => {
-            diagnostics.push(unsupported_v0_build_diagnostic(
-                sources,
-                statement.range_span,
-                "range `for` loops",
-                "use `while` with explicit scalar state until range `for` lowering is promoted",
-            ));
+            if !range_for_binding_type_is_buildable(statement, typecheck_facts) {
+                diagnostics.push(unsupported_v0_build_diagnostic(
+                    sources,
+                    statement.range_span,
+                    "range `for` loops outside i32/usize bounds",
+                    "use `i32` or `usize` bounds, or use `while` with explicit scalar state until broader range `for` lowering is promoted",
+                ));
+            }
             collect_expression_diagnostics(
                 &statement.start,
                 sources,
@@ -621,6 +623,16 @@ fn fallible_void_statement_inner_is_supported(expression: &Expr, resolved: &Reso
         },
         _ => false,
     }
+}
+
+fn range_for_binding_type_is_buildable(
+    statement: &ForRangeStmt,
+    typecheck_facts: &TypecheckFacts,
+) -> bool {
+    matches!(
+        typecheck_facts.binding_type_label(statement.name_span),
+        Some("i32" | "usize")
+    )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

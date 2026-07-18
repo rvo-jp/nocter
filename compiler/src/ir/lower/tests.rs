@@ -5177,6 +5177,121 @@ fn lowers_nonterminal_loop_before_return() {
 }
 
 #[test]
+fn lowers_nonterminal_i32_range_for_before_return() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    var total = 0
+    for value in 0..<4 {
+        total = total + value
+    }
+    return total
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: i32_const(0),
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Local(1),
+                value: i32_const(0),
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Local(2),
+                value: i32_const(4),
+            },
+            Instruction::While {
+                condition_instructions: vec![],
+                condition: BoolValue::I32Comparison {
+                    operator: I32ComparisonOperator::Less,
+                    left: i32_local(1),
+                    right: i32_local(2),
+                },
+                body_instructions: vec![
+                    Instruction::AddI32 {
+                        destination: I32Location::Local(0),
+                        left: i32_local(0),
+                        right: i32_local(1),
+                    },
+                    Instruction::AddI32 {
+                        destination: I32Location::Local(1),
+                        left: i32_local(1),
+                        right: i32_const(1),
+                    },
+                ],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
+fn lowers_continue_inside_nonterminal_range_for_with_increment() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    for value in 0..<4 {
+        continue
+    }
+    return 0
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: i32_const(0),
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Local(1),
+                value: i32_const(4),
+            },
+            Instruction::While {
+                condition_instructions: vec![],
+                condition: BoolValue::I32Comparison {
+                    operator: I32ComparisonOperator::Less,
+                    left: i32_local(0),
+                    right: i32_local(1),
+                },
+                body_instructions: vec![
+                    Instruction::AddI32 {
+                        destination: I32Location::Local(0),
+                        left: i32_local(0),
+                        right: i32_const(1),
+                    },
+                    Instruction::Continue,
+                ],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_const(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
 fn lowers_scope_end_drop_inside_nonterminal_loop_body() {
     let ir = lower_text(
         r#"struct File {
@@ -5544,6 +5659,60 @@ func main(): i32 {
             Instruction::SetI32 {
                 destination: I32Location::Return,
                 value: i32_const(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
+fn lowers_local_binding_reusing_range_for_name_after_loop() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    for value in 0..<2 {
+    }
+    let value = 5
+    return value
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::SetI32 {
+                destination: I32Location::Local(0),
+                value: i32_const(0),
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Local(1),
+                value: i32_const(2),
+            },
+            Instruction::While {
+                condition_instructions: vec![],
+                condition: BoolValue::I32Comparison {
+                    operator: I32ComparisonOperator::Less,
+                    left: i32_local(0),
+                    right: i32_local(1),
+                },
+                body_instructions: vec![Instruction::AddI32 {
+                    destination: I32Location::Local(0),
+                    left: i32_local(0),
+                    right: i32_const(1),
+                }],
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Local(2),
+                value: i32_const(5),
+            },
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(2),
             },
             Instruction::Return,
         ],

@@ -4,9 +4,9 @@ use super::bindings::{
 use super::context::LoweringContext;
 use super::expressions::{
     expression_contains_call, lower_bool_expression_to_value, lower_bool_return_expression,
-    lower_i32_return_expression, lower_slice_return_expression, lower_str_return_expression,
-    lower_u8_return_expression, lower_usize_return_expression, lower_void_expression_statement,
-    primitive_trap_call,
+    lower_i32_expression_to_location, lower_i32_return_expression, lower_slice_return_expression,
+    lower_str_return_expression, lower_u8_return_expression, lower_usize_expression_to_location,
+    lower_usize_return_expression, lower_void_expression_statement, primitive_trap_call,
 };
 use super::functions::{
     append_scope_end_drops_before_exit, expression_contains_explicit_aggregate_move,
@@ -16,12 +16,13 @@ use super::functions::{
     mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
 };
 use crate::ast::{
-    AssignmentOperator, BinaryExpr, BinaryOperator, Block, Expr, IfStmt, LoopStmt, Stmt, WhileStmt,
+    AssignmentOperator, BinaryExpr, BinaryOperator, Block, Expr, ForRangeStmt, IfStmt, LoopStmt,
+    Stmt, WhileStmt,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolLocation, BoolValue, I32Location, Instruction, SliceLocation, StrLocation, Type,
-    U8Location, UsizeLocation,
+    BoolLocation, BoolValue, I32ComparisonOperator, I32Location, I32Value, Instruction,
+    SliceLocation, StrLocation, Type, U8Location, UsizeLocation, UsizeValue,
 };
 use crate::source::{ByteSpan, SourceMap};
 
@@ -326,6 +327,7 @@ pub(super) fn lower_nonterminal_if_statement(
     statement: &IfStmt,
     context: &LoweringContext,
     loop_scope_mark: Option<usize>,
+    continue_instructions: &[Instruction],
     diagnostic_code: &'static str,
     subject: &str,
     sources: &SourceMap,
@@ -334,6 +336,7 @@ pub(super) fn lower_nonterminal_if_statement(
         &statement.then_block,
         context,
         loop_scope_mark,
+        continue_instructions,
         diagnostic_code,
         subject,
         sources,
@@ -343,6 +346,7 @@ pub(super) fn lower_nonterminal_if_statement(
             else_block,
             context,
             loop_scope_mark,
+            continue_instructions,
             diagnostic_code,
             subject,
             sources,
@@ -407,6 +411,197 @@ pub(super) fn lower_nonterminal_loop_statement(
     }])
 }
 
+pub(super) fn lower_nonterminal_for_range_statement(
+    statement: &ForRangeStmt,
+    context: &mut LoweringContext,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match context.binding_type_label(statement.name_span) {
+        Some("i32") => lower_nonterminal_i32_for_range_statement(
+            statement,
+            context,
+            diagnostic_code,
+            subject,
+            sources,
+        ),
+        Some("usize") => lower_nonterminal_usize_for_range_statement(
+            statement,
+            context,
+            diagnostic_code,
+            subject,
+            sources,
+        ),
+        _ => Err(unsupported_nonterminal_if_diagnostic(
+            diagnostic_code,
+            subject,
+        )),
+    }
+}
+
+fn lower_nonterminal_i32_for_range_statement(
+    statement: &ForRangeStmt,
+    context: &mut LoweringContext,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let value_hidden = hidden_for_range_local_name(statement, "value");
+    let end_hidden = hidden_for_range_local_name(statement, "end");
+    let value = context.next_i32_local_location()?;
+    context.define_i32_local(value_hidden.clone());
+    let end = context.next_i32_local_location()?;
+    context.define_i32_local(end_hidden);
+
+    let mut instructions =
+        lower_i32_expression_to_location(&statement.start, value.clone(), context).map_err(
+            |diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, statement.start.span())
+            },
+        )?;
+    instructions.extend(
+        lower_i32_expression_to_location(&statement.end, end.clone(), context).map_err(
+            |diagnostics| attach_primary_span_if_absent(diagnostics, sources, statement.end.span()),
+        )?,
+    );
+    if !context.rename_local(&value_hidden, statement.name.clone()) {
+        return Err(unsupported_nonterminal_if_diagnostic(
+            diagnostic_code,
+            subject,
+        ));
+    }
+
+    let increment = vec![Instruction::AddI32 {
+        destination: value.clone(),
+        left: I32Value::Location(value.clone()),
+        right: I32Value::Const(1),
+    }];
+    let body_instructions = lower_nonterminal_for_range_block(
+        &statement.body,
+        context,
+        &increment,
+        diagnostic_code,
+        subject,
+        sources,
+    )?;
+    if !context.rename_local(&statement.name, value_hidden) {
+        return Err(unsupported_nonterminal_if_diagnostic(
+            diagnostic_code,
+            subject,
+        ));
+    }
+    instructions.push(Instruction::While {
+        condition_instructions: Vec::new(),
+        condition: BoolValue::I32Comparison {
+            operator: I32ComparisonOperator::Less,
+            left: I32Value::Location(value),
+            right: I32Value::Location(end),
+        },
+        body_instructions,
+    });
+    Ok(instructions)
+}
+
+fn lower_nonterminal_usize_for_range_statement(
+    statement: &ForRangeStmt,
+    context: &mut LoweringContext,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let value_hidden = hidden_for_range_local_name(statement, "value");
+    let end_hidden = hidden_for_range_local_name(statement, "end");
+    let value = context.next_usize_local_location()?;
+    context.define_usize_local(value_hidden.clone());
+    let end = context.next_usize_local_location()?;
+    context.define_usize_local(end_hidden);
+
+    let mut instructions = lower_usize_expression_to_location(&statement.start, value, context)
+        .map_err(|diagnostics| {
+            attach_primary_span_if_absent(diagnostics, sources, statement.start.span())
+        })?;
+    instructions.extend(
+        lower_usize_expression_to_location(&statement.end, end, context).map_err(
+            |diagnostics| attach_primary_span_if_absent(diagnostics, sources, statement.end.span()),
+        )?,
+    );
+    if !context.rename_local(&value_hidden, statement.name.clone()) {
+        return Err(unsupported_nonterminal_if_diagnostic(
+            diagnostic_code,
+            subject,
+        ));
+    }
+
+    let increment = vec![Instruction::AddUsize {
+        destination: value,
+        left: UsizeValue::Location(value),
+        right: UsizeValue::Const(1),
+    }];
+    let body_instructions = lower_nonterminal_for_range_block(
+        &statement.body,
+        context,
+        &increment,
+        diagnostic_code,
+        subject,
+        sources,
+    )?;
+    if !context.rename_local(&statement.name, value_hidden) {
+        return Err(unsupported_nonterminal_if_diagnostic(
+            diagnostic_code,
+            subject,
+        ));
+    }
+    instructions.push(Instruction::While {
+        condition_instructions: Vec::new(),
+        condition: BoolValue::UsizeComparison {
+            operator: I32ComparisonOperator::Less,
+            left: UsizeValue::Location(value),
+            right: UsizeValue::Location(end),
+        },
+        body_instructions,
+    });
+    Ok(instructions)
+}
+
+fn lower_nonterminal_for_range_block(
+    block: &Block,
+    context: &LoweringContext,
+    increment_instructions: &[Instruction],
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut body_context = context.clone();
+    let local_mark = body_context.local_mark();
+    let lowered = lower_nonterminal_loop_block_statements(
+        &block.statements,
+        &mut body_context,
+        local_mark,
+        Some(local_mark),
+        increment_instructions,
+        diagnostic_code,
+        subject,
+        sources,
+    )?;
+    let mut instructions = lowered.instructions;
+    if !lowered.ends_execution {
+        instructions.extend(lower_scope_end_drops_for_locals_since(
+            &mut body_context,
+            local_mark,
+        )?);
+        instructions.extend(increment_instructions.iter().cloned());
+    }
+    Ok(instructions)
+}
+
+fn hidden_for_range_local_name(statement: &ForRangeStmt, role: &str) -> String {
+    format!(
+        "<for-range:{}:{}:{role}>",
+        statement.name_span.start, statement.name_span.end
+    )
+}
+
 fn lower_nonterminal_while_block(
     block: &Block,
     context: &LoweringContext,
@@ -421,6 +616,7 @@ fn lower_nonterminal_while_block(
         &mut body_context,
         local_mark,
         Some(local_mark),
+        &[],
         diagnostic_code,
         subject,
         sources,
@@ -439,6 +635,7 @@ fn lower_nonterminal_if_block(
     block: &Block,
     context: &LoweringContext,
     loop_scope_mark: Option<usize>,
+    continue_instructions: &[Instruction],
     diagnostic_code: &'static str,
     subject: &str,
     sources: &SourceMap,
@@ -450,6 +647,7 @@ fn lower_nonterminal_if_block(
         &mut branch_context,
         local_mark,
         loop_scope_mark,
+        continue_instructions,
         diagnostic_code,
         subject,
         sources,
@@ -469,6 +667,7 @@ fn lower_nonterminal_loop_block_statements(
     context: &mut LoweringContext,
     local_mark: usize,
     loop_scope_mark: Option<usize>,
+    continue_instructions: &[Instruction],
     diagnostic_code: &'static str,
     subject: &str,
     sources: &SourceMap,
@@ -606,6 +805,7 @@ fn lower_nonterminal_loop_block_statements(
                     statement,
                     context,
                     loop_scope_mark,
+                    continue_instructions,
                     diagnostic_code,
                     subject,
                     sources,
@@ -618,6 +818,18 @@ fn lower_nonterminal_loop_block_statements(
             }
             Stmt::While(statement) => instructions.extend(
                 lower_nonterminal_while_statement(
+                    statement,
+                    context,
+                    diagnostic_code,
+                    subject,
+                    sources,
+                )
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                })?,
+            ),
+            Stmt::ForRange(statement) => instructions.extend(
+                lower_nonterminal_for_range_statement(
                     statement,
                     context,
                     diagnostic_code,
@@ -646,6 +858,7 @@ fn lower_nonterminal_loop_block_statements(
                         Instruction::Break,
                         context,
                         loop_scope_mark,
+                        &[],
                         diagnostic_code,
                         subject,
                     )
@@ -662,6 +875,7 @@ fn lower_nonterminal_loop_block_statements(
                         Instruction::Continue,
                         context,
                         loop_scope_mark,
+                        continue_instructions,
                         diagnostic_code,
                         subject,
                     )
@@ -795,6 +1009,7 @@ fn lower_nonterminal_loop_control_statement(
     instruction: Instruction,
     context: &mut LoweringContext,
     loop_scope_mark: Option<usize>,
+    continue_instructions: &[Instruction],
     diagnostic_code: &'static str,
     subject: &str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
@@ -806,6 +1021,9 @@ fn lower_nonterminal_loop_control_statement(
     };
 
     let mut instructions = lower_scope_end_drops_for_locals_since(context, loop_scope_mark)?;
+    if matches!(instruction, Instruction::Continue) {
+        instructions.extend(continue_instructions.iter().cloned());
+    }
     instructions.push(instruction);
     Ok(instructions)
 }

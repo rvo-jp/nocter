@@ -160,6 +160,7 @@ Currently buildable:
 - same-file non-generic normal calls returning `bool` in `let` initializers, unary-not expressions, bool equality/inequality operands, short-circuit bool value expressions, and terminal `if` conditions
 - short-circuit bool expressions can combine `i32` call comparisons with bool calls, such as `if answer() == 42 && ready()` and `let matched = answer() == 42 && ready()`
 - `usize` comparisons over literals, locals, and same-file or loaded imported normal calls in lowerable bool expressions and terminal `if` conditions
+- non-terminal range `for` over `i32` or `usize` bounds before a final return; start and end are evaluated once, body-local cleanup runs on normal iteration and before `break`/`continue`, and `continue` increments before jumping to the next condition check
 - nested scalar normal-call arguments such as `let value = outer(inner())`, for `i32`, `usize`, and `bool` parameter positions
 - nested scalar tail-call arguments such as `return outer(inner())`, for `i32`, `usize`, and `bool` parameter positions
 - static string literals and `&str` parameters as call arguments, passed as `ptr,len` ABI word pairs
@@ -173,7 +174,7 @@ Currently buildable:
 - `i32` shifts with `<<` and `>>` used in lowerable `i32` expressions; shift counts trap when negative or greater than or equal to 32
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` or `usize` comparisons used in lowerable bool expressions
 - terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over literal/local operands, or `i32`/`usize` comparison conditions and supported leading bindings, assignments, explicit `drop`, or void call statements before direct or nested terminal branches returning entry `i32`/`usize`/`void`, or non-entry `i32`, `u8`, `usize`, `bool`, `void`, `&str`, u8 slices, or supported aggregate return expressions, including direct aggregate branches staged across pending drops
-- non-terminal `if`, `while`, and `loop` statements before a final return, when branches/bodies contain supported local bindings, branch/body-local assignments, outer whole-binding scalar/view local assignments, branch/body-local explicit aggregate drops, void call statements, supported returns, supported `while`/`loop` `break`/`continue`, or nested supported non-terminal `if`/`while`/`loop` statements; branch/body-local aggregate values with drop glue are dropped at scope end, before supported return exits, and before supported loop exits, lowerable `while` condition instructions are re-evaluated at the loop head, and source `loop` lowers as an always-true loop
+- non-terminal `if`, `while`, `loop`, and `i32`/`usize` range `for` statements before a final return, when branches/bodies contain supported local bindings, branch/body-local assignments, outer whole-binding scalar/view local assignments, branch/body-local explicit aggregate drops, void call statements, supported returns, supported `while`/`loop`/range-`for` `break`/`continue`, or nested supported non-terminal `if`/`while`/`loop`/range-`for` statements; branch/body-local aggregate values with drop glue are dropped at scope end, before supported return exits, and before supported loop exits, lowerable `while` condition instructions are re-evaluated at the loop head, source `loop` lowers as an always-true loop, and range `for` evaluates start/end once before looping
 - non-entry `never` functions that end with a lowerable call returning `never`; frame-dependent, aggregate-pointer, or stack-passed `never` calls lower as normal calls followed by a trap guard
 - the `std/os.trap` and `std/os.unreachable` target primitives as ARM64 `brk #0`
 - simple fallible entry success
@@ -186,7 +187,7 @@ Currently buildable:
 Currently not buildable even when it may be checkable:
 
 - general local storage beyond the listed scalar/view and aggregate slot paths
-- general `if`/`while`/`loop` forms beyond the supported terminal and scalar/view plus branch/body-local non-terminal subsets, `while let`, range `for`, and `match`
+- general `if`/`while`/`loop`/range-`for` forms beyond the supported terminal and scalar/view plus branch/body-local non-terminal subsets, `while let`, non-`i32`/`usize` range `for`, and `match`
 - unloaded imported function placeholders; reachable calls are rejected by the buildability preflight
 - general `&str`/view member operations beyond `.len()`, and iteration over views or bytes; direct byte indexing remains buildable in lowerable `u8` positions
 - interpolated string construction

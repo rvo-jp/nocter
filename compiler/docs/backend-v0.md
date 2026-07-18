@@ -204,6 +204,7 @@ Terminal-if conditions such as `if enabled() && other() { ... }` lower to nested
 Bool short-circuit value expressions with calls, such as `let ready = enabled() && other()` or `return enabled() && other()`, lower to nested `Instruction::If` nodes that materialize `true` or `false` into the destination bool location.
 `&str` normal-call results are staged into two consecutive local ABI words. They are lowerable in annotated `&str` `let` initializers and as `&str` call or tail-call arguments, for example `let text: &str = title()` and `return consume(title())`.
 Loaded imported calls use the same narrow call subset as same-file calls. Reachable unloaded imported placeholders are rejected by the buildability preflight before IR lowering.
+Non-terminal `i32` and `usize` range `for` loops lower to `Instruction::While` with start and end stored once in scalar locals, a `<` condition over those locals, and an increment at the end of normal iteration or immediately before a lowered `continue`.
 
 ### Encoder Work Required First
 
@@ -263,7 +264,7 @@ The backend currently supports the normal-call register and stack-argument porti
 - direct aggregate return range copies can target either direct return ABI word when the range stays within `x0,x1`; out-of-range direct return copies are rejected before emission
 - aggregate call-result slots for normal, propagated fallible, forced fallible, and caught fallible calls in the narrow expression positions lowered by IR
 - aggregate slot-to-slot copies, aggregate struct-literal slots including explicit aggregate field moves, aggregate copy bindings and copy aggregate field bindings from non-copy local or call-result owners, explicit aggregate move bindings, and aggregate slot borrow arguments for the current supported field and assignment paths
-- branch/body-local assignments, outer whole-binding scalar/view local assignments, aggregate slots, scope-end drops, supported returns, and supported `while`/`loop` `break`/`continue` cleanup for the narrow non-terminal `if`/`while`/`loop` subsets
+- branch/body-local assignments, outer whole-binding scalar/view local assignments, aggregate slots, scope-end drops, supported returns, and supported `while`/`loop`/range-`for` `break`/`continue` cleanup for the narrow non-terminal `if`/`while`/`loop`/`i32`/`usize` range-`for` subsets
 
 Stack-passed normal-call arguments are buildable for the current scalar/view and supported aggregate subset. Tail calls with stack-passed arguments are lowered through the normal-call-plus-return path rather than emitted as stack-argument tail calls.
 
@@ -272,7 +273,7 @@ Stack-passed normal-call arguments are buildable for the current scalar/view and
 Do not combine normal-call work with:
 
 - stack-backed `var` and reassignment
-- general loops or broader non-terminal control flow beyond the narrow scalar/view plus branch/body-local `if`/`while`/`loop` subset
+- general loops or broader non-terminal control flow beyond the narrow scalar/view plus branch/body-local `if`/`while`/`loop`/`i32`/`usize` range-`for` subset, including non-`i32`/`usize` range `for`
 - imported calls or external linking
 - aggregate forms outside the current supported slot/call-result subset
 - ownership/drop lowering

@@ -847,6 +847,60 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_usize_range_for_exit_code() {
+    let project = TempProject::new("cli-run-usize-range-for");
+    let source = project.write_source(
+        "usize_range_for.nct",
+        r#"func main(): usize {
+    let limit: usize = 4
+    var total: usize = 0
+    for value in 0..<limit {
+        total = total + value
+    }
+    return total
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(6),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_binding_reusing_range_for_name_after_loop() {
+    let project = TempProject::new("cli-run-range-for-name-reuse");
+    let source = project.write_source(
+        "range_for_name_reuse.nct",
+        r#"func main(): i32 {
+    for value in 0..<2 {
+    }
+    let value = 5
+    return value
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(5),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_reordered_i32_tail_call_exit_code() {
     let project = TempProject::new("cli-run-reordered-tail-call");
     let source = project.write_source(

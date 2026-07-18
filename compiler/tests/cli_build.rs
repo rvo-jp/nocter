@@ -2665,20 +2665,21 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_reports_reachable_range_for_before_ir_lowering() {
-    let project = TempProject::new("cli-build-range-for-boundary");
+fn build_command_lowers_reachable_i32_range_for() {
+    let project = TempProject::new("cli-build-range-for");
     let source = project.write_source(
-        "range_for_boundary.nct",
+        "range_for.nct",
         r#"func main(): i32 {
     return helper()
 }
 
 func helper(): i32 {
+    var total = 0
     for value in 0..<4 {
-        return value
+        total = total + value
     }
 
-    return 0
+    return total
 }
 "#,
     );
@@ -2686,28 +2687,10 @@ func helper(): i32 {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("range `for` loops"),
-        "expected range for diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("6 |     for value in 0..<4 {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
+    let status = Command::new(&executable).status().unwrap();
+    assert_eq!(status.code(), Some(6));
 }
 
 #[test]
@@ -2737,25 +2720,54 @@ func unused(): i32 {
 }
 
 #[test]
-fn build_command_reports_loaded_imported_range_for_before_ir_lowering() {
-    let project = TempProject::new("cli-build-imported-range-for-boundary");
+fn build_command_lowers_loaded_imported_i32_range_for() {
+    let project = TempProject::new("cli-build-imported-range-for");
     project.write_nocter_home_file(
         "std/loops.nct",
         r#"pub func helper(): i32 {
+    var total = 0
     for value in 0..<4 {
-        return value
+        total = total + value
     }
 
-    return 0
+    return total
 }
 "#,
     );
     let source = project.write_source(
-        "imported_range_for_boundary.nct",
+        "imported_range_for.nct",
         r#"use std/loops.helper
 
 func main(): i32 {
     return helper()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+    let status = Command::new(&executable).status().unwrap();
+    assert_eq!(status.code(), Some(6));
+}
+
+#[test]
+fn build_command_reports_unsupported_u64_range_for_before_ir_lowering() {
+    let project = TempProject::new("cli-build-u64-range-for-boundary");
+    let source = project.write_source(
+        "u64_range_for_boundary.nct",
+        r#"func main(): i32 {
+    return helper(4)
+}
+
+func helper(limit: u64): i32 {
+    for value in 0..<limit {
+        return 1
+    }
+
+    return 0
 }
 "#,
     );
@@ -2770,16 +2782,16 @@ func main(): i32 {
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("range `for` loops"),
+        stderr.contains("range `for` loops outside i32/usize bounds"),
         "expected range for diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("2 |     for value in 0..<4 {"),
-        "expected imported source line, got:\n{stderr}"
+        stderr.contains("6 |     for value in 0..<limit {"),
+        "expected source line, got:\n{stderr}"
     );
     assert!(
         !stderr.contains("error[E800"),
-        "buildability preflight should reject imported helper before IR lowering, got:\n{stderr}"
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
     );
     assert!(
         !executable.exists(),

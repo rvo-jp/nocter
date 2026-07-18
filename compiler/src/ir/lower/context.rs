@@ -399,6 +399,13 @@ impl<'a> LoweringContext<'a> {
             .map(|resolution| (resolution.root_source, resolution.resolved))
     }
 
+    pub(super) fn binding_type_label(&self, name_span: ByteSpan) -> Option<&str> {
+        self.call_resolution
+            .as_ref()?
+            .typecheck_facts
+            .binding_type_label(name_span)
+    }
+
     pub(super) fn method_call_receiver<'b>(&self, call: &'b CallExpr) -> Option<&'b Expr> {
         let resolution = self.call_resolution.as_ref()?;
         let Expr::Member(member) = call.callee.as_ref() else {
@@ -486,6 +493,14 @@ impl<'a> LoweringContext<'a> {
 
     pub(super) fn define_slice_local(&mut self, name: String) {
         self.define_local(name, LocalKind::Slice);
+    }
+
+    pub(super) fn rename_local(&mut self, old_name: &str, new_name: String) -> bool {
+        let Some(local) = self.locals.iter_mut().find(|local| local.name == old_name) else {
+            return false;
+        };
+        local.name = new_name;
+        true
     }
 
     pub(super) fn define_aggregate_local(
