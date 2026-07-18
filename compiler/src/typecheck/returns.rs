@@ -17,6 +17,7 @@ use super::fallible::{check_catch_operand, check_propagation};
 use super::model::{CallableKind, ReturnContext, Type, TypeEnvironment, binding_kind_is_mutable};
 use super::operations::is_expression_assignable;
 use super::type_expr::type_expr_to_type_with_self_type;
+use super::variants::switch_statement_covers_all_variants;
 use crate::ast::{
     AstFile, Block, Expr, ImplDecl, ImplMember, InterpolatedStringPart, Item, ReturnStmt, Stmt,
 };
@@ -880,18 +881,32 @@ fn statement_guarantees_return_or_never(
             block_guarantees_return_or_never(&statement.then_block, resolved, environment)
                 && block_guarantees_return_or_never(else_block, resolved, environment)
         }),
-        Stmt::Switch(statement) => statement.else_arm.as_ref().is_some_and(|else_arm| {
-            statement
-                .arms
-                .iter()
-                .all(|arm| block_guarantees_return_or_never(&arm.body, resolved, environment))
-                && block_guarantees_return_or_never(&else_arm.body, resolved, environment)
-        }),
+        Stmt::Switch(statement) => {
+            if !switch_arms_guarantee_return_or_never(statement, resolved, environment) {
+                return false;
+            }
+
+            statement.else_arm.as_ref().map_or_else(
+                || switch_statement_covers_all_variants(statement, resolved, environment),
+                |else_arm| block_guarantees_return_or_never(&else_arm.body, resolved, environment),
+            )
+        }
         Stmt::Loop(statement) => {
             block_guarantees_return_or_never(&statement.body, resolved, environment)
         }
         _ => statement_guarantees_return(statement),
     }
+}
+
+fn switch_arms_guarantee_return_or_never(
+    statement: &crate::ast::SwitchStmt,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    statement.arms.iter().all(|arm| {
+        let arm_environment = environment_for_switch_arm(arm, resolved, environment);
+        block_guarantees_return_or_never(&arm.body, resolved, &arm_environment)
+    })
 }
 
 fn statement_guarantees_return(statement: &Stmt) -> bool {

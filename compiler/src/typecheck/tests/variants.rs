@@ -65,6 +65,35 @@ func describe(error: AppError): &str {
 }
 
 #[test]
+fn accepts_exhaustive_switch_without_else_as_terminal_statement() {
+    let diagnostics = check_text(
+        r#"enum AppError {
+    missing_path
+    open_failed
+}
+
+func main(): i32 {
+    return 0
+}
+
+func code(error: AppError): i32 {
+    match error {
+        AppError.missing_path {
+            return 1
+        }
+
+        AppError.open_failed {
+            return 2
+        }
+    }
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn accepts_if_is_over_enum() {
     let diagnostics = check_text(
         r#"enum AppError {
@@ -287,6 +316,32 @@ func code(error: AppError): i32 {
 
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].code, "E0365");
+}
+
+#[test]
+fn diagnoses_duplicate_pattern_conditional_arm_variant() {
+    let diagnostics = check_text(
+        r#"enum AppError {
+    missing_path
+    open_failed
+}
+
+func main(): i32 {
+    return 0
+}
+
+func code(error: AppError): i32 {
+    return error ?{
+        AppError.missing_path : 1
+        AppError.missing_path : 2
+        : 0
+    }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0399");
 }
 
 #[test]
@@ -574,10 +629,43 @@ func code(error: AppError): i32 {
 }
 
 #[test]
+fn diagnoses_duplicate_switch_arm_variant() {
+    let diagnostics = check_text(
+        r#"enum AppError {
+    missing_path
+    open_failed
+}
+
+func main(): i32 {
+    return 0
+}
+
+func code(error: AppError): i32 {
+    match error {
+        AppError.missing_path {
+            return 1
+        }
+
+        AppError.missing_path {
+            return 2
+        }
+    }
+
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0398");
+}
+
+#[test]
 fn diagnoses_switch_as_non_terminal_statement() {
     let diagnostics = check_text(
         r#"enum AppError {
     missing_path
+    open_failed
 }
 
 func main(): i32 {

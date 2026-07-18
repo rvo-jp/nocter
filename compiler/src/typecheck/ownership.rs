@@ -9,6 +9,7 @@ use super::environments::{
 };
 use super::expressions::{collection_len_call_type, expression_type};
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
+use super::variants::switch_statement_covers_all_variants;
 use crate::ast::{
     AstFile, Block, Expr, IdentifierExpr, ImplDecl, ImplMember, Item, Stmt, TypeExpr, UnaryOperator,
 };
@@ -458,7 +459,7 @@ fn check_statement_ownership(
                     branch_ownerships.push(else_ownership);
                 }
                 flow.extend_nested(else_flow);
-            } else {
+            } else if !switch_statement_covers_all_variants(statement, resolved, environment) {
                 branch_ownerships.push(ownership.clone());
             }
             flow.reaches_end = !branch_ownerships.is_empty();

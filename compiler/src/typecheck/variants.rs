@@ -1,4 +1,5 @@
 use super::diagnostics::{
+    duplicate_pattern_conditional_arm_variant_diagnostic, duplicate_switch_arm_variant_diagnostic,
     enum_variant_payload_count_mismatch_diagnostic, enum_variant_payload_type_mismatch_diagnostic,
     enum_variant_payloadless_call_diagnostic, enum_variant_unknown_diagnostic,
     if_is_enum_mismatch_diagnostic, if_is_non_enum_diagnostic, if_is_payload_mismatch_diagnostic,
@@ -26,6 +27,7 @@ use crate::ast::{
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{EnumVariantSignature, ResolveOutput, TypeSymbol, TypeSymbolKind};
 use crate::source::SourceMap;
+use std::collections::{HashMap, HashSet};
 
 pub(super) fn check_switch_statement(
     sources: &SourceMap,
@@ -50,6 +52,16 @@ pub(super) fn check_switch_statement(
 
     for arm in &statement.arms {
         check_switch_arm_pattern(sources, arm, target_symbol, resolved, diagnostics);
+    }
+
+    if let Some(target_symbol) = target_symbol {
+        check_duplicate_switch_arm_variants(
+            sources,
+            statement,
+            target_symbol,
+            resolved,
+            diagnostics,
+        );
     }
 }
 
@@ -101,6 +113,16 @@ pub(super) fn check_pattern_conditional_expression(
 
     for arm in &expression.arms {
         check_pattern_conditional_arm_pattern(sources, arm, target_symbol, resolved, diagnostics);
+    }
+
+    if let Some(target_symbol) = target_symbol {
+        check_duplicate_pattern_conditional_arm_variants(
+            sources,
+            expression,
+            target_symbol,
+            resolved,
+            diagnostics,
+        );
     }
 
     let expected = pattern_conditional_expression_type(expression, resolved, environment);
@@ -359,6 +381,128 @@ fn check_switch_arm_pattern(
             provided_payload_count,
         ));
     }
+}
+
+fn check_duplicate_switch_arm_variants(
+    sources: &SourceMap,
+    statement: &SwitchStmt,
+    target_symbol: &TypeSymbol,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut seen = HashMap::new();
+
+    for arm in &statement.arms {
+        if valid_switch_arm_variant(arm, target_symbol, resolved).is_none() {
+            continue;
+        }
+
+        if let Some(first_span) = seen.get(arm.variant_name.as_str()).copied() {
+            diagnostics.push(duplicate_switch_arm_variant_diagnostic(
+                sources,
+                arm,
+                target_symbol,
+                first_span,
+            ));
+        } else {
+            seen.insert(arm.variant_name.as_str(), arm.variant_name_span);
+        }
+    }
+}
+
+fn check_duplicate_pattern_conditional_arm_variants(
+    sources: &SourceMap,
+    expression: &PatternConditionalExpr,
+    target_symbol: &TypeSymbol,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut seen = HashMap::new();
+
+    for arm in &expression.arms {
+        if valid_pattern_conditional_arm_variant(arm, target_symbol, resolved).is_none() {
+            continue;
+        }
+
+        if let Some(first_span) = seen.get(arm.variant_name.as_str()).copied() {
+            diagnostics.push(duplicate_pattern_conditional_arm_variant_diagnostic(
+                sources,
+                arm,
+                target_symbol,
+                first_span,
+            ));
+        } else {
+            seen.insert(arm.variant_name.as_str(), arm.variant_name_span);
+        }
+    }
+}
+
+pub(super) fn switch_statement_covers_all_variants(
+    statement: &SwitchStmt,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    let target_type = expression_type(&statement.expression, resolved, environment);
+    let Some(target_symbol) = enum_type_symbol_for_type(&target_type, resolved) else {
+        return false;
+    };
+
+    let covered = valid_switch_arm_variants(&statement.arms, target_symbol, resolved);
+    target_symbol
+        .variants
+        .iter()
+        .all(|variant| covered.contains(variant.name.as_str()))
+}
+
+fn valid_switch_arm_variants<'a>(
+    arms: &[SwitchArm],
+    target_symbol: &'a TypeSymbol,
+    resolved: &ResolveOutput,
+) -> HashSet<&'a str> {
+    arms.iter()
+        .filter_map(|arm| valid_switch_arm_variant(arm, target_symbol, resolved))
+        .map(|variant| variant.name.as_str())
+        .collect()
+}
+
+fn valid_switch_arm_variant<'a>(
+    arm: &SwitchArm,
+    target_symbol: &'a TypeSymbol,
+    resolved: &ResolveOutput,
+) -> Option<&'a EnumVariantSignature> {
+    let pattern_symbol = resolved.type_symbol_by_name(&arm.enum_name)?;
+    if pattern_symbol.kind != TypeSymbolKind::Enum
+        || pattern_symbol.canonical_name != target_symbol.canonical_name
+    {
+        return None;
+    }
+
+    let variant = target_symbol
+        .variants
+        .iter()
+        .find(|variant| variant.name == arm.variant_name)?;
+    let provided_payload_count = usize::from(arm.payload.is_some());
+    (variant.payload.len() == provided_payload_count).then_some(variant)
+}
+
+fn valid_pattern_conditional_arm_variant<'a>(
+    arm: &PatternConditionalArm,
+    target_symbol: &'a TypeSymbol,
+    resolved: &ResolveOutput,
+) -> Option<&'a EnumVariantSignature> {
+    let pattern_symbol = resolved.type_symbol_by_name(&arm.enum_name)?;
+    if pattern_symbol.kind != TypeSymbolKind::Enum
+        || pattern_symbol.canonical_name != target_symbol.canonical_name
+    {
+        return None;
+    }
+
+    let variant = target_symbol
+        .variants
+        .iter()
+        .find(|variant| variant.name == arm.variant_name)?;
+    let provided_payload_count = usize::from(arm.payload.is_some());
+    (variant.payload.len() == provided_payload_count).then_some(variant)
 }
 
 fn enum_type_symbol_for_type<'a>(ty: &Type, resolved: &'a ResolveOutput) -> Option<&'a TypeSymbol> {

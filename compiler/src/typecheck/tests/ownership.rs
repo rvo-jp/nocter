@@ -352,6 +352,46 @@ func take(text: Text): i32 {
 }
 
 #[test]
+fn diagnoses_uninitialized_after_exhaustive_match_without_else_branches_move_and_drop() {
+    let diagnostics = check_text(
+        r#"enum Choice {
+    move_it
+    drop_it
+}
+
+struct Text {
+    start: i32
+    len: i32
+    capacity: i32
+}
+
+func main(): i32 {
+    let choice = Choice.move_it
+    let text = Text{ start: 1, len: 42, capacity: 3 }
+    match choice {
+        Choice.move_it {
+            let length = take(move text)
+        }
+
+        Choice.drop_it {
+            drop text
+        }
+    }
+    return text.len
+}
+
+func take(text: Text): i32 {
+    return text.len
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0385");
+    assert!(diagnostics[0].message.contains("is uninitialized"));
+}
+
+#[test]
 fn diagnoses_maybe_uninitialized_after_match_without_else_moves() {
     let diagnostics = check_text(
         r#"enum Choice {

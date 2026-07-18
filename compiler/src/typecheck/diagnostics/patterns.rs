@@ -1,6 +1,6 @@
 use super::{
-    Diagnostic, IfIsStmt, PatternConditionalArm, PatternConditionalExpr, SourceMap, SwitchArm,
-    SwitchStmt, Type, TypeSymbol, type_symbol_kind_name,
+    ByteSpan, Diagnostic, DiagnosticNote, IfIsStmt, PatternConditionalArm, PatternConditionalExpr,
+    SourceMap, SwitchArm, SwitchStmt, Type, TypeSymbol, type_symbol_kind_name,
 };
 
 pub(in crate::typecheck) fn switch_target_type_mismatch_diagnostic(
@@ -111,6 +111,33 @@ pub(in crate::typecheck) fn switch_arm_payload_mismatch_diagnostic(
         "match the variant payload shape; v0 supports either no payload or one payload binding"
             .to_string(),
     );
+    diagnostic
+}
+
+pub(in crate::typecheck) fn duplicate_switch_arm_variant_diagnostic(
+    sources: &SourceMap,
+    arm: &SwitchArm,
+    enum_symbol: &TypeSymbol,
+    first_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0398",
+        format!(
+            "`match` arm for `{}.{}` is duplicated",
+            enum_symbol.canonical_name, arm.variant_name
+        ),
+    );
+    diagnostic.primary_span = sources
+        .span_to_json(arm.variant_name_span)
+        .ok()
+        .map(Box::new);
+    if let Ok(span) = sources.span_to_json(first_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "first arm for this variant is here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some("remove one of the duplicate match arms".to_string());
     diagnostic
 }
 
@@ -372,5 +399,32 @@ pub(in crate::typecheck) fn pattern_conditional_arm_type_mismatch_diagnostic(
         .map(Box::new);
     diagnostic.help =
         Some("make every pattern conditional arm produce the same value type".to_string());
+    diagnostic
+}
+
+pub(in crate::typecheck) fn duplicate_pattern_conditional_arm_variant_diagnostic(
+    sources: &SourceMap,
+    arm: &PatternConditionalArm,
+    enum_symbol: &TypeSymbol,
+    first_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0399",
+        format!(
+            "`?{{}}` arm for `{}.{}` is duplicated",
+            enum_symbol.canonical_name, arm.variant_name
+        ),
+    );
+    diagnostic.primary_span = sources
+        .span_to_json(arm.variant_name_span)
+        .ok()
+        .map(Box::new);
+    if let Ok(span) = sources.span_to_json(first_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "first arm for this variant is here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some("remove one of the duplicate pattern conditional arms".to_string());
     diagnostic
 }
