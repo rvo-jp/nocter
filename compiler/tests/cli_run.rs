@@ -743,6 +743,34 @@ func one(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_ignores_scalar_call_expression_statement() {
+    let project = TempProject::new("cli-run-ignored-scalar-call-statement");
+    let source = project.write_source(
+        "ignored_scalar_call_statement.nct",
+        r#"func main(): i32 {
+    value()
+    return 42
+}
+
+func value(): i32 {
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_writes_reassigned_str_local() {
     let project = TempProject::new("cli-run-str-var-assignment");
     project.write_nocter_home_file(

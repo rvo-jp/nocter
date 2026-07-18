@@ -592,14 +592,15 @@ fn unsupported_expression_statement_diagnostic(
         sources,
         expression.span(),
         "value-producing expression statements",
-        "call a void or never function, handle a void! call with `?`, `!`, or `catch`, or bind/return the value explicitly",
+        "call a void, never, or discardable scalar function, handle a void! call with `?`, `!`, or `catch`, or bind/return the value explicitly",
     ))
 }
 
 fn expression_statement_is_supported(expression: &Expr, resolved: &ResolveOutput) -> bool {
     match unwrap_group_expr(expression) {
         Expr::Call(call) => match call_return_shape(call, resolved) {
-            Some(ReturnShape::Void | ReturnShape::Never) | None => true,
+            Some(ReturnShape::Void | ReturnShape::Never | ReturnShape::DiscardableScalar)
+            | None => true,
             Some(ReturnShape::FallibleVoid | ReturnShape::Other) => false,
         },
         Expr::Propagate(expression) => {
@@ -619,7 +620,12 @@ fn fallible_void_statement_inner_is_supported(expression: &Expr, resolved: &Reso
     match unwrap_group_expr(expression) {
         Expr::Call(call) => match call_return_shape(call, resolved) {
             Some(ReturnShape::FallibleVoid) | None => true,
-            Some(ReturnShape::Void | ReturnShape::Never | ReturnShape::Other) => false,
+            Some(
+                ReturnShape::Void
+                | ReturnShape::Never
+                | ReturnShape::DiscardableScalar
+                | ReturnShape::Other,
+            ) => false,
         },
         _ => false,
     }
@@ -659,6 +665,7 @@ fn assignment_operator_is_buildable(
 enum ReturnShape {
     Void,
     Never,
+    DiscardableScalar,
     FallibleVoid,
     Other,
 }
@@ -683,6 +690,11 @@ fn return_shape_from_type_expr_inner(
     match ty {
         TypeExpr::Reference(reference) if reference.name == "void" => ReturnShape::Void,
         TypeExpr::Reference(reference) if reference.name == "never" => ReturnShape::Never,
+        TypeExpr::Reference(reference)
+            if matches!(reference.name.as_str(), "i32" | "u8" | "usize" | "bool") =>
+        {
+            ReturnShape::DiscardableScalar
+        }
         TypeExpr::Reference(reference) => {
             let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
                 return ReturnShape::Other;
@@ -700,9 +712,10 @@ fn return_shape_from_type_expr_inner(
         TypeExpr::Fallible(fallible) => {
             match return_shape_from_type_expr_inner(&fallible.success, resolved, resolving_names) {
                 ReturnShape::Void => ReturnShape::FallibleVoid,
-                ReturnShape::Never | ReturnShape::FallibleVoid | ReturnShape::Other => {
-                    ReturnShape::Other
-                }
+                ReturnShape::Never
+                | ReturnShape::DiscardableScalar
+                | ReturnShape::FallibleVoid
+                | ReturnShape::Other => ReturnShape::Other,
             }
         }
         _ => ReturnShape::Other,

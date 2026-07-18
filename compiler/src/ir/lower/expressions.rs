@@ -418,12 +418,29 @@ pub(super) fn lower_void_expression_statement(
             let Some((target, _call_name)) = context.direct_call_target_and_name(call) else {
                 return Ok(None);
             };
-            if context.call_return_type(&target) != Some(&Type::Void) {
-                return Ok(None);
-            }
 
             let mut temporaries = TemporaryAllocator::new(context)?;
-            lower_void_normal_call(call, context, &mut temporaries).map(Some)
+            match context.call_return_type(&target) {
+                Some(Type::Void) => lower_void_normal_call(call, context, &mut temporaries),
+                Some(Type::I32) => {
+                    let destination = temporaries.next_i32()?;
+                    lower_i32_normal_call(call, destination, context, &mut temporaries)
+                }
+                Some(Type::U8) => {
+                    let destination = temporaries.next_u8()?;
+                    lower_u8_normal_call(call, destination, context, &mut temporaries)
+                }
+                Some(Type::Usize) => {
+                    let destination = temporaries.next_usize()?;
+                    lower_usize_normal_call(call, destination, context, &mut temporaries)
+                }
+                Some(Type::Bool) => {
+                    let destination = temporaries.next_bool()?;
+                    lower_bool_normal_call(call, destination, context, &mut temporaries)
+                }
+                _ => return Ok(None),
+            }
+            .map(Some)
         }
         Expr::Group(group) => lower_void_expression_statement(&group.expression, context),
         Expr::Propagate(propagation) => lower_fallible_void_expression_statement(
@@ -684,7 +701,7 @@ fn slice_destination_reserved_abi_words(destination: SliceLocation) -> usize {
 fn unsupported_catch_block_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8007",
-        "IR v0 can only lower catch blocks containing leading scalar local bindings, scalar assignments, or void call statements followed by `return`",
+        "IR v0 can only lower catch blocks containing leading scalar local bindings, scalar assignments, or effect-only call statements followed by `return`",
     )]
 }
 

@@ -2610,12 +2610,38 @@ fn build_command_reports_compile_diagnostics_without_output() {
 }
 
 #[test]
-fn build_command_reports_value_expression_statement_before_ir_lowering() {
-    let project = TempProject::new("cli-build-value-expression-statement-boundary");
+fn build_command_lowers_ignored_scalar_call_expression_statement() {
+    let project = TempProject::new("cli-build-ignored-scalar-call-statement");
     let source = project.write_source(
-        "value_expression_statement_boundary.nct",
+        "ignored_scalar_call_statement.nct",
         r#"func value(): i32 {
     return 1
+}
+
+func main(): void {
+    value()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_reports_ignored_aggregate_call_statement_before_ir_lowering() {
+    let project = TempProject::new("cli-build-ignored-aggregate-call-boundary");
+    let source = project.write_source(
+        "ignored_aggregate_call_boundary.nct",
+        r#"struct Value {
+    code: i32
+}
+
+func value(): Value {
+    return Value{ code: 1 }
 }
 
 func main(): void {
@@ -2638,7 +2664,7 @@ func main(): void {
         "expected value expression statement diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("6 |     value()"),
+        stderr.contains("10 |     value()"),
         "expected source line, got:\n{stderr}"
     );
     assert!(

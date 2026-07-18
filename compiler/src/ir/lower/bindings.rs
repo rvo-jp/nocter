@@ -235,7 +235,7 @@ fn lower_optional_let_else_leading_statement(
         Stmt::Expression(statement) => {
             lower_void_expression_statement(&statement.expression, context)?.ok_or_else(|| {
                 unsupported_binding_diagnostic(
-                    "IR v0 can only lower optional `let ... else` leading expression statements that call `void` functions",
+                    "IR v0 can only lower optional `let ... else` leading expression statements that make effect-only calls",
                 )
             })
         }

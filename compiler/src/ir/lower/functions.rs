@@ -1499,7 +1499,7 @@ fn lower_leading_bindings(
                     return Err(attach_primary_span_if_absent(
                         vec![Diagnostic::error(
                             "E8007",
-                            "IR v0 can only lower leading scalar local bindings, scalar assignments, drop statements, or void call statements before `return`",
+                            "IR v0 can only lower leading scalar local bindings, scalar assignments, drop statements, or effect-only call statements before `return`",
                         )],
                         sources,
                         statement.span,
@@ -1576,7 +1576,7 @@ fn lower_leading_bindings(
                 return Err(attach_primary_span_if_absent(
                     vec![Diagnostic::error(
                         "E8007",
-                        "IR v0 can only lower leading scalar local bindings, scalar assignments, drop statements, void call statements, or supported non-terminal `if`/`for`/`while`/`loop` statements before `return`",
+                        "IR v0 can only lower leading scalar local bindings, scalar assignments, drop statements, effect-only call statements, or supported non-terminal `if`/`for`/`while`/`loop` statements before `return`",
                     )],
                     sources,
                     statement.span(),
@@ -2954,7 +2954,7 @@ fn unsupported_function_body_diagnostic(function_name: &str) -> Vec<Diagnostic> 
     vec![Diagnostic::error(
         "E8007",
         format!(
-            "IR v0 can only lower function `{function_name}` bodies containing leading scalar local bindings, scalar assignments, or void call statements followed by `return`"
+            "IR v0 can only lower function `{function_name}` bodies containing leading scalar local bindings, scalar assignments, or effect-only call statements followed by `return`"
         ),
     )]
 }

@@ -16254,6 +16254,46 @@ func answer(): i32 {
 }
 
 #[test]
+fn lowers_ignored_i32_call_expression_statement() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    value()
+    return 0
+}
+
+func value(): i32 {
+    return 1
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_i32(I32Location::Local(0), "value", vec![]),
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_const(0),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "value".to_string(),
+                target: crate::ir::CallTarget::same_file("value".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(1), Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
 fn lowers_usize_compound_remainder_assignment() {
     let ir = lower_text(
         r#"func main(): usize {
@@ -22433,8 +22473,12 @@ func done(): bool {
 #[test]
 fn reports_unsupported_entry_body() {
     let diagnostics = lower_text_diagnostics(
-        r#"func value(): i32 {
-    return 1
+        r#"struct Value {
+    code: i32
+}
+
+func value(): Value {
+    return Value{ code: 1 }
 }
 
 func main(): void {
