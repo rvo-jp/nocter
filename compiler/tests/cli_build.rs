@@ -1490,6 +1490,56 @@ fn build_command_lowers_compound_bool_equality_condition() {
 }
 
 #[test]
+fn build_command_reports_compound_bool_equality_nested_call_before_ir_lowering() {
+    let project = TempProject::new("cli-build-compound-bool-equality-call-boundary");
+    let source = project.write_source(
+        "compound_bool_equality_call_boundary.nct",
+        r#"func main(): i32 {
+    if (ready() && other()) == true {
+        return 0
+    } else {
+        return 1
+    }
+}
+
+func ready(): bool {
+    return true
+}
+
+func other(): bool {
+    return true
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("compound bool equality operands with nested calls"),
+        "expected compound bool equality diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("2 |     if (ready() && other()) == true {"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E8006]"),
+        "buildability preflight should reject before IR bool lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_lowers_compound_bool_equality_in_nonterminal_while_condition() {
     let project = TempProject::new("cli-build-nonterminal-while-condition-span");
     let source = project.write_source(

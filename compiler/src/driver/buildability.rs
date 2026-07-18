@@ -1,7 +1,7 @@
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    AssignmentOperator, Block, CallExpr, DropDecl, Expr, FunctionDecl, ImplDecl, ImplMember, Item,
-    Stmt, TypeExpr, UnaryOperator,
+    AssignmentOperator, BinaryExpr, BinaryOperator, Block, CallExpr, DropDecl, Expr, FunctionDecl,
+    ImplDecl, ImplMember, Item, Stmt, TypeExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::CallTarget;
@@ -885,6 +885,11 @@ fn collect_expression_diagnostics(
             diagnostics,
         ),
         Expr::Binary(expression) => {
+            if let Some(diagnostic) =
+                unsupported_compound_bool_equality_call_operand_diagnostic(sources, expression)
+            {
+                diagnostics.push(diagnostic);
+            }
             collect_expression_diagnostics(
                 &expression.left,
                 sources,
@@ -1060,6 +1065,46 @@ fn collect_expression_diagnostics(
     }
 }
 
+fn unsupported_compound_bool_equality_call_operand_diagnostic(
+    sources: &SourceMap,
+    binary: &BinaryExpr,
+) -> Option<Diagnostic> {
+    if !matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) {
+        return None;
+    }
+
+    let operand = [&binary.left, &binary.right]
+        .into_iter()
+        .find(|operand| bool_equality_operand_is_unsupported_call_compound(operand))?;
+
+    Some(unsupported_v0_build_diagnostic(
+        sources,
+        operand.span(),
+        "compound bool equality operands with nested calls",
+        "bind the compound bool result to a local before comparing it, or compare direct bool calls as atomic operands",
+    ))
+}
+
+fn bool_equality_operand_is_unsupported_call_compound(expression: &Expr) -> bool {
+    match unwrap_group_expr(expression) {
+        Expr::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+            expression_contains_call(&unary.operand)
+        }
+        Expr::Binary(binary)
+            if matches!(
+                binary.operator,
+                BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
+            ) =>
+        {
+            expression_contains_call(expression)
+        }
+        _ => false,
+    }
+}
+
 fn unsupported_dynamic_failure_payload_diagnostic(
     sources: &SourceMap,
     call: &CallExpr,
@@ -1131,6 +1176,57 @@ fn unwrap_group_expr(expression: &Expr) -> &Expr {
     match expression {
         Expr::Group(group) => unwrap_group_expr(&group.expression),
         _ => expression,
+    }
+}
+
+fn expression_contains_call(expression: &Expr) -> bool {
+    match expression {
+        Expr::Call(_) => true,
+        Expr::Identifier(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::StringLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::NoneLiteral(_) => false,
+        Expr::InterpolatedString(expression) => expression.parts.iter().any(|part| {
+            if let crate::ast::InterpolatedStringPart::Expression(part) = part {
+                expression_contains_call(&part.expression)
+            } else {
+                false
+            }
+        }),
+        Expr::ArrayLiteral(expression) => expression.elements.iter().any(expression_contains_call),
+        Expr::StructLiteral(expression) => expression
+            .fields
+            .iter()
+            .any(|field| expression_contains_call(&field.value)),
+        Expr::Propagate(expression) => expression_contains_call(&expression.expression),
+        Expr::Force(expression) => expression_contains_call(&expression.expression),
+        Expr::Catch(expression) => expression_contains_call(&expression.expression),
+        Expr::Borrow(expression) => expression_contains_call(&expression.expression),
+        Expr::Unary(expression) => expression_contains_call(&expression.operand),
+        Expr::Binary(expression) => {
+            expression_contains_call(&expression.left)
+                || expression_contains_call(&expression.right)
+        }
+        Expr::TypeConversion(expression) => expression_contains_call(&expression.expression),
+        Expr::Member(expression) => expression_contains_call(&expression.object),
+        Expr::Index(expression) => {
+            expression_contains_call(&expression.object)
+                || expression_contains_call(&expression.index)
+        }
+        Expr::Group(expression) => expression_contains_call(&expression.expression),
+        Expr::OptionalDefault(expression) => {
+            expression_contains_call(&expression.value)
+                || expression_contains_call(&expression.default)
+        }
+        Expr::PatternConditional(expression) => {
+            expression_contains_call(&expression.target)
+                || expression
+                    .arms
+                    .iter()
+                    .any(|arm| expression_contains_call(&arm.expression))
+                || expression_contains_call(&expression.fallback)
+        }
     }
 }
 
