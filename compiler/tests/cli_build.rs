@@ -2777,6 +2777,102 @@ func header(): [u8; 2] {
 }
 
 #[test]
+fn build_command_reports_dynamic_failure_payload_before_ir_lowering() {
+    let project = TempProject::new("cli-build-dynamic-failure-payload-boundary");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    let source = project.write_source(
+        "dynamic_failure_payload_boundary.nct",
+        r#"use std/error.Error
+
+func main(): i32! {
+    return Error.new("app.failed", dynamic())
+}
+
+func dynamic(): &str {
+    return "failed"
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("dynamic failure payload arguments"),
+        "expected dynamic failure payload diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("4 |     return Error.new(\"app.failed\", dynamic())"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
+fn build_command_does_not_reject_unreachable_dynamic_failure_payload() {
+    let project = TempProject::new("cli-build-unreachable-dynamic-failure-payload");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    let source = project.write_source(
+        "unreachable_dynamic_failure_payload.nct",
+        r#"use std/error.Error
+
+func main(): i32 {
+    return 0
+}
+
+func unused(): i32! {
+    return Error.new("app.failed", dynamic())
+}
+
+func dynamic(): &str {
+    return "failed"
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn check_command_reports_source_snippet_for_compile_diagnostic() {
     let project = TempProject::new("cli-check-source-diagnostic");
     let source = project.write_source(
