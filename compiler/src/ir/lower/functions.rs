@@ -24,12 +24,14 @@ use super::errors::{ErrorPayload, lower_error_payload};
 use super::expressions::{
     TemporaryAllocator, lower_aggregate_member_field_access, lower_bool_expression_to_location,
     lower_bool_return_expression, lower_call_arguments_to_scalar_arguments,
-    lower_catch_failure_mode, lower_fallible_i32_normal_call, lower_i32_expression_to_location,
-    lower_i32_return_expression, lower_macos_syscall_primitive_call_to_location,
-    lower_never_return_expression, lower_slice_expression_to_location,
-    lower_slice_return_expression, lower_str_expression_to_location, lower_str_return_expression,
-    lower_u8_expression_to_location, lower_u8_return_expression,
-    lower_usize_expression_to_location, lower_usize_return_expression,
+    lower_catch_failure_mode, lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
+    lower_fallible_slice_normal_call, lower_fallible_str_normal_call,
+    lower_fallible_u8_normal_call, lower_fallible_usize_normal_call,
+    lower_i32_expression_to_location, lower_i32_return_expression,
+    lower_macos_syscall_primitive_call_to_location, lower_never_return_expression,
+    lower_slice_expression_to_location, lower_slice_return_expression,
+    lower_str_expression_to_location, lower_str_return_expression, lower_u8_expression_to_location,
+    lower_u8_return_expression, lower_usize_expression_to_location, lower_usize_return_expression,
     lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
 };
 use super::types::{
@@ -892,7 +894,7 @@ pub(super) fn lower_return_statement_with_scope_drops(
     }
 
     if let Some(expression) = &statement.expression
-        && let Some(return_instructions) = lower_optional_default_i32_return_with_scope_drops(
+        && let Some(return_instructions) = lower_optional_default_scalar_return_with_scope_drops(
             expression,
             &success_type,
             &return_type,
@@ -2377,14 +2379,16 @@ fn lower_fallible_failure(payload: ErrorPayload) -> Vec<Instruction> {
     vec![Instruction::ReturnFallibleFailure { code, message }]
 }
 
-fn lower_optional_default_i32_return_with_scope_drops(
+fn lower_optional_default_scalar_return_with_scope_drops(
     expression: &Expr,
     success_type: &Type,
     return_type: &Type,
     context: &mut LoweringContext,
     diagnostic_code: &'static str,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
-    if success_type != &Type::I32 || !context.pending_aggregate_drops().is_empty() {
+    if !optional_default_return_supports_success_type(success_type)
+        || !context.pending_aggregate_drops().is_empty()
+    {
         return Ok(None);
     }
 
@@ -2401,15 +2405,84 @@ fn lower_optional_default_i32_return_with_scope_drops(
     let failure_mode =
         lower_optional_default_return_failure_mode(&default.default, context, diagnostic_code)?;
     let mut temporaries = TemporaryAllocator::new(context)?;
-    let mut instructions = lower_fallible_i32_normal_call(
+    let mut instructions = lower_optional_default_scalar_return_call(
         call,
-        I32Location::Return,
+        success_type,
         context,
         &mut temporaries,
         failure_mode,
     )?;
     instructions.push(success_return_instruction(return_type));
     append_scope_end_drops_before_exit(instructions, context).map(Some)
+}
+
+fn optional_default_return_supports_success_type(success_type: &Type) -> bool {
+    matches!(
+        success_type,
+        Type::I32 | Type::U8 | Type::Usize | Type::Bool | Type::Str | Type::Slice { .. }
+    )
+}
+
+fn lower_optional_default_scalar_return_call(
+    call: &CallExpr,
+    success_type: &Type,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+    failure_mode: FallibleFailureMode,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match success_type {
+        Type::I32 => lower_fallible_i32_normal_call(
+            call,
+            I32Location::Return,
+            context,
+            temporaries,
+            failure_mode,
+        ),
+        Type::U8 => lower_fallible_u8_normal_call(
+            call,
+            U8Location::Return,
+            context,
+            temporaries,
+            failure_mode,
+        ),
+        Type::Usize => lower_fallible_usize_normal_call(
+            call,
+            UsizeLocation::Return,
+            context,
+            temporaries,
+            failure_mode,
+        ),
+        Type::Bool => lower_fallible_bool_normal_call(
+            call,
+            BoolLocation::Return,
+            context,
+            temporaries,
+            failure_mode,
+        ),
+        Type::Str => lower_fallible_str_normal_call(
+            call,
+            StrLocation::Return,
+            context,
+            temporaries,
+            failure_mode,
+        ),
+        Type::Slice { .. } => lower_fallible_slice_normal_call(
+            call,
+            SliceLocation::Return,
+            context,
+            temporaries,
+            failure_mode,
+        ),
+        Type::Aggregate { .. }
+        | Type::DirectAggregate { .. }
+        | Type::Borrow { .. }
+        | Type::Void
+        | Type::Never
+        | Type::Fallible(_) => Err(vec![Diagnostic::error(
+            "E8007",
+            "IR v0 can only lower optional default returns for scalar success types",
+        )]),
+    }
 }
 
 fn call_return_type_expr_is_top_level_optional(call: &CallExpr, context: &LoweringContext) -> bool {

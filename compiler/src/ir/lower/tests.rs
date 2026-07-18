@@ -16864,6 +16864,185 @@ func maybe_answer(): i32? {
 }
 
 #[test]
+fn lowers_optional_scalar_default_returns() {
+    let source = r#"func main(): i32 {
+    return 0
+}
+
+func use_byte(): u8 {
+    return maybe_byte() ?? 7
+}
+
+func maybe_byte(): u8? {
+    return 42
+}
+
+func use_size(): usize {
+    return maybe_size() ?? 7
+}
+
+func maybe_size(): usize? {
+    return 42
+}
+
+func use_flag(): bool {
+    return maybe_flag() ?? true
+}
+
+func maybe_flag(): bool? {
+    return false
+}
+
+func use_text(): &str {
+    return maybe_text() ?? "fallback"
+}
+
+func maybe_text(): &str? {
+    return "text"
+}
+
+func use_bytes(bytes: &[u8]): &[u8] {
+    return maybe_bytes(bytes) ?? bytes
+}
+
+func maybe_bytes(bytes: &[u8]): &[u8]? {
+    return bytes
+}
+"#;
+    let signatures = function_signatures(vec![
+        ("maybe_byte", Type::Fallible(Box::new(Type::U8)), vec![]),
+        ("maybe_size", Type::Fallible(Box::new(Type::Usize)), vec![]),
+        ("maybe_flag", Type::Fallible(Box::new(Type::Bool)), vec![]),
+        ("maybe_text", Type::Fallible(Box::new(Type::Str)), vec![]),
+        (
+            "maybe_bytes",
+            Type::Fallible(Box::new(Type::Slice {
+                is_readwrite: false,
+            })),
+            vec![Type::Slice {
+                is_readwrite: false,
+            }],
+        ),
+    ]);
+
+    let use_byte =
+        lower_named_function_with_signatures(source, "use_byte", signatures.clone()).unwrap();
+    assert_eq!(
+        use_byte.instructions,
+        vec![
+            Instruction::CallFallibleU8 {
+                destination: U8Location::Return,
+                target: CallTarget::same_file("maybe_byte"),
+                arguments: vec![],
+                failure_mode: FallibleFailureMode::Handle {
+                    instructions: vec![
+                        Instruction::SetU8 {
+                            destination: U8Location::Return,
+                            value: U8Value::Const(7),
+                        },
+                        Instruction::Return,
+                    ],
+                },
+            },
+            Instruction::Return,
+        ]
+    );
+
+    let use_size =
+        lower_named_function_with_signatures(source, "use_size", signatures.clone()).unwrap();
+    assert_eq!(
+        use_size.instructions,
+        vec![
+            Instruction::CallFallibleUsize {
+                destination: UsizeLocation::Return,
+                target: CallTarget::same_file("maybe_size"),
+                arguments: vec![],
+                failure_mode: FallibleFailureMode::Handle {
+                    instructions: vec![
+                        Instruction::SetUsize {
+                            destination: UsizeLocation::Return,
+                            value: UsizeValue::Const(7),
+                        },
+                        Instruction::Return,
+                    ],
+                },
+            },
+            Instruction::Return,
+        ]
+    );
+
+    let use_flag =
+        lower_named_function_with_signatures(source, "use_flag", signatures.clone()).unwrap();
+    assert_eq!(
+        use_flag.instructions,
+        vec![
+            Instruction::CallFallibleBool {
+                destination: BoolLocation::Return,
+                target: CallTarget::same_file("maybe_flag"),
+                arguments: vec![],
+                failure_mode: FallibleFailureMode::Handle {
+                    instructions: vec![
+                        Instruction::SetBool {
+                            destination: BoolLocation::Return,
+                            value: BoolValue::Const(true),
+                        },
+                        Instruction::Return,
+                    ],
+                },
+            },
+            Instruction::Return,
+        ]
+    );
+
+    let use_text =
+        lower_named_function_with_signatures(source, "use_text", signatures.clone()).unwrap();
+    assert_eq!(
+        use_text.instructions,
+        vec![
+            Instruction::CallFallibleStr {
+                destination: StrLocation::Return,
+                target: CallTarget::same_file("maybe_text"),
+                arguments: vec![],
+                failure_mode: FallibleFailureMode::Handle {
+                    instructions: vec![
+                        Instruction::SetStr {
+                            destination: StrLocation::Return,
+                            value: str_static_value(b"fallback"),
+                        },
+                        Instruction::Return,
+                    ],
+                },
+            },
+            Instruction::Return,
+        ]
+    );
+
+    let use_bytes = lower_named_function_with_signatures(source, "use_bytes", signatures).unwrap();
+    assert_eq!(
+        use_bytes.instructions,
+        vec![
+            Instruction::CallFallibleSlice {
+                destination: SliceLocation::Return,
+                target: CallTarget::same_file("maybe_bytes"),
+                arguments: vec![ScalarArgument::Slice(SliceValue::Location(
+                    SliceLocation::Parameter(0),
+                ))],
+                failure_mode: FallibleFailureMode::Handle {
+                    instructions: vec![
+                        Instruction::SetSlice {
+                            destination: SliceLocation::Return,
+                            value: SliceValue::Location(SliceLocation::Parameter(0)),
+                        },
+                        Instruction::Return,
+                    ],
+                },
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_optional_i32_default_call_binding() {
     let ir = lower_text(
         r#"func main(): i32 {

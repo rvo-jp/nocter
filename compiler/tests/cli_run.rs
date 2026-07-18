@@ -7165,6 +7165,134 @@ func maybe_text(): &str? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_optional_scalar_default_return_success_exit_code() {
+    let project = TempProject::new("cli-run-optional-scalar-default-return-success");
+    let source = project.write_source(
+        "optional_scalar_default_return_success.nct",
+        r#"func main(): i32 {
+    let byte: u8 = choose_byte()
+    let size = choose_size()
+    let flag = choose_flag()
+    let text = choose_text()
+
+    if flag && size == 40 {
+        return byte as i32
+    } else {
+        return 1
+    }
+}
+
+func choose_byte(): u8 {
+    return maybe_byte() ?? 1
+}
+
+func choose_size(): usize {
+    return maybe_size() ?? 2
+}
+
+func choose_flag(): bool {
+    return maybe_flag() ?? false
+}
+
+func choose_text(): &str {
+    return maybe_text() ?? "fallback"
+}
+
+func maybe_byte(): u8? {
+    return 42
+}
+
+func maybe_size(): usize? {
+    return 40
+}
+
+func maybe_flag(): bool? {
+    return true
+}
+
+func maybe_text(): &str? {
+    return "text"
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_optional_scalar_default_return_fallback_exit_code() {
+    let project = TempProject::new("cli-run-optional-scalar-default-return-fallback");
+    let source = project.write_source(
+        "optional_scalar_default_return_fallback.nct",
+        r#"func main(): i32 {
+    let byte: u8 = choose_byte()
+    let size = choose_size()
+    let flag = choose_flag()
+    let text = choose_text()
+
+    if flag && size == 40 {
+        return byte as i32
+    } else {
+        return 1
+    }
+}
+
+func choose_byte(): u8 {
+    return maybe_byte() ?? 42
+}
+
+func choose_size(): usize {
+    return maybe_size() ?? 40
+}
+
+func choose_flag(): bool {
+    return maybe_flag() ?? true
+}
+
+func choose_text(): &str {
+    return maybe_text() ?? "fallback"
+}
+
+func maybe_byte(): u8? {
+    return none
+}
+
+func maybe_size(): usize? {
+    return none
+}
+
+func maybe_flag(): bool? {
+    return none
+}
+
+func maybe_text(): &str? {
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_optional_direct_aggregate_force_unwrap_exit_code() {
     let project = TempProject::new("cli-run-optional-direct-aggregate-force");
     let source = project.write_source(
