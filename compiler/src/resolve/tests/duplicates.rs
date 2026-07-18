@@ -299,6 +299,51 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_duplicate_function_parameter_names() {
+    let output = resolve_text(
+        r#"func add(value: i32, value: i32): i32 {
+    return value
+}
+
+func main(): i32 {
+    return add(1, 2)
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0421");
+    assert!(output.diagnostics[0].message.contains("function `add`"));
+}
+
+#[test]
+fn diagnoses_duplicate_associated_function_parameter_names() {
+    let output = resolve_text(
+        r#"struct Counter {
+    value: i32
+}
+
+func Counter.new(value: i32, value: i32): Counter {
+    return Counter { value: value }
+}
+
+func main(): i32 {
+    let counter = Counter.new(1, 2)
+    return counter.value
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0421");
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("function `Counter.new`")
+    );
+}
+
+#[test]
 fn diagnoses_duplicate_struct_generic_parameter_names() {
     let output = resolve_text(
         r#"struct Box<T, T> {
@@ -404,6 +449,30 @@ func main(): i32 {
             .message
             .contains("parameter named `writer`")
     );
+}
+
+#[test]
+fn diagnoses_inherent_method_parameter_reusing_receiver_name_once() {
+    let output = resolve_text(
+        r#"struct Counter {
+    value: i32
+}
+
+impl Counter {
+    method (counter: &Self).add(counter: i32): i32 {
+        return counter
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0421");
+    assert!(output.diagnostics[0].message.contains("method `add`"));
 }
 
 #[test]

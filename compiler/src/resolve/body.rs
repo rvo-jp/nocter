@@ -66,12 +66,7 @@ impl Resolver<'_> {
 
     fn define_parameters(&mut self, parameters: &[Parameter], scope: &mut Scope) {
         for parameter in parameters {
-            self.define_local_name(
-                parameter.name.clone(),
-                parameter.name_span,
-                LocalSymbolKind::Parameter,
-                scope,
-            );
+            self.define_parameter_name(parameter.name.clone(), parameter.name_span, scope);
         }
     }
 
@@ -374,6 +369,30 @@ impl Resolver<'_> {
         }
 
         let id = self.output.define_local_symbol(name.clone(), span, kind);
+        scope.define(name, span, id);
+    }
+
+    fn define_parameter_name(&mut self, name: String, span: ByteSpan, scope: &mut Scope) {
+        if is_builtin_type_name(&name) {
+            self.output
+                .diagnostics
+                .push(builtin_name_reuse_diagnostic(self.sources, &name, span));
+        } else if scope.get(&name).is_none() {
+            if let Some(symbol) = self.output.symbols.symbol_by_name(&name) {
+                self.output
+                    .diagnostics
+                    .push(duplicate_visible_name_diagnostic(
+                        self.sources,
+                        &name,
+                        symbol.name_span,
+                        span,
+                    ));
+            }
+        }
+
+        let id = self
+            .output
+            .define_local_symbol(name.clone(), span, LocalSymbolKind::Parameter);
         scope.define(name, span, id);
     }
 }

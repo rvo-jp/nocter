@@ -36,6 +36,13 @@ impl Resolver<'_> {
                             &format!("function `{}`", function.name),
                             &function.generics,
                         ));
+                    self.output
+                        .diagnostics
+                        .extend(duplicate_parameter_name_diagnostics(
+                            self.sources,
+                            &format!("function `{}`", function.name),
+                            &function.parameters.parameters,
+                        ));
                     if function.owner.is_none() {
                         self.collect_function_symbol(function);
                     }
