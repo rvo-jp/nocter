@@ -72,6 +72,75 @@ pub(super) fn duplicate_inherent_member_name_diagnostic(
     diagnostic
 }
 
+pub(super) fn duplicate_struct_field_name_diagnostic(
+    sources: &SourceMap,
+    struct_name: &str,
+    field_name: &str,
+    first_span: ByteSpan,
+    duplicate_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0417",
+        format!("struct `{struct_name}` already has a field named `{field_name}`"),
+    );
+    diagnostic.primary_span = sources.span_to_json(duplicate_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(first_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "first field with this name is here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some("choose a distinct struct field name".to_string());
+    diagnostic
+}
+
+pub(super) fn duplicate_enum_variant_name_diagnostic(
+    sources: &SourceMap,
+    enum_name: &str,
+    variant_name: &str,
+    first_span: ByteSpan,
+    duplicate_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0418",
+        format!("enum `{enum_name}` already has a variant named `{variant_name}`"),
+    );
+    diagnostic.primary_span = sources.span_to_json(duplicate_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(first_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "first variant with this name is here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some("choose a distinct enum variant name".to_string());
+    diagnostic
+}
+
+pub(super) fn duplicate_enum_variant_payload_name_diagnostic(
+    sources: &SourceMap,
+    enum_name: &str,
+    variant_name: &str,
+    payload_name: &str,
+    first_span: ByteSpan,
+    duplicate_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0419",
+        format!(
+            "enum variant `{enum_name}.{variant_name}` already has a payload named `{payload_name}`"
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(duplicate_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(first_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "first payload with this name is here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some("choose a distinct enum payload name".to_string());
+    diagnostic
+}
+
 pub(super) fn invalid_associated_function_owner_diagnostic(
     sources: &SourceMap,
     owner_name: &str,

@@ -229,6 +229,59 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_duplicate_struct_field_names() {
+    let output = resolve_text(
+        r#"struct Packet {
+    len: i32
+    len: i32
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0417");
+}
+
+#[test]
+fn diagnoses_duplicate_enum_variant_names() {
+    let output = resolve_text(
+        r#"enum AppError {
+    missing_path
+    missing_path
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0418");
+}
+
+#[test]
+fn diagnoses_duplicate_enum_variant_payload_names() {
+    let output = resolve_text(
+        r#"enum AppError {
+    open_failed(path: &str, path: i32)
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0419");
+}
+
+#[test]
 fn diagnoses_local_shadowing_top_level_function() {
     let output = resolve_text(
         r#"func main(): i32 {

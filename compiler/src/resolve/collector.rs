@@ -1,7 +1,8 @@
 use super::builtins::is_reserved_type_declaration_name;
 use super::diagnostics::{
-    builtin_type_declaration_name_reuse_diagnostic, duplicate_visible_name_diagnostic,
-    invalid_associated_function_owner_diagnostic,
+    builtin_type_declaration_name_reuse_diagnostic, duplicate_enum_variant_name_diagnostic,
+    duplicate_enum_variant_payload_name_diagnostic, duplicate_struct_field_name_diagnostic,
+    duplicate_visible_name_diagnostic, invalid_associated_function_owner_diagnostic,
 };
 use super::signatures::{
     alias_type_symbol, associated_function_signature, drop_signature,
@@ -11,8 +12,12 @@ use super::signatures::{
     type_symbol_accepts_inherent_impl,
 };
 use super::{Resolver, SymbolKind, TypeSymbol, TypeSymbolKind};
-use crate::ast::{AstFile, FunctionDecl, ImplDecl, Item, PrimitiveDecl};
-use crate::source::ByteSpan;
+use crate::ast::{
+    AstFile, EnumDecl, EnumVariant, FunctionDecl, ImplDecl, Item, PrimitiveDecl, StructDecl,
+};
+use crate::diagnostics::Diagnostic;
+use crate::source::{ByteSpan, SourceMap};
+use std::collections::HashMap;
 
 impl Resolver<'_> {
     pub(super) fn collect_top_level_symbols(&mut self, ast: &AstFile) {
@@ -32,18 +37,31 @@ impl Resolver<'_> {
                     alias.span,
                     alias_type_symbol(alias.name.clone(), alias.target.clone()),
                 ),
-                Item::Struct(struct_) => self.collect_type_symbol(
-                    struct_.name.clone(),
-                    struct_.name_span,
-                    struct_.span,
-                    struct_type_symbol(struct_.name.clone(), struct_.is_copy, &struct_.fields),
-                ),
-                Item::Enum(enum_) => self.collect_type_symbol(
-                    enum_.name.clone(),
-                    enum_.name_span,
-                    enum_.span,
-                    enum_type_symbol(enum_.name.clone(), &enum_.variants),
-                ),
+                Item::Struct(struct_) => {
+                    self.output
+                        .diagnostics
+                        .extend(duplicate_struct_field_name_diagnostics(
+                            self.sources,
+                            struct_,
+                        ));
+                    self.collect_type_symbol(
+                        struct_.name.clone(),
+                        struct_.name_span,
+                        struct_.span,
+                        struct_type_symbol(struct_.name.clone(), struct_.is_copy, &struct_.fields),
+                    );
+                }
+                Item::Enum(enum_) => {
+                    self.output
+                        .diagnostics
+                        .extend(duplicate_enum_decl_diagnostics(self.sources, enum_));
+                    self.collect_type_symbol(
+                        enum_.name.clone(),
+                        enum_.name_span,
+                        enum_.span,
+                        enum_type_symbol(enum_.name.clone(), &enum_.variants),
+                    );
+                }
                 Item::Trait(trait_) => self.collect_type_symbol(
                     trait_.name.clone(),
                     trait_.name_span,
@@ -258,6 +276,90 @@ impl Resolver<'_> {
         };
         self.output.diagnostics.extend(diagnostics);
     }
+}
+
+fn duplicate_struct_field_name_diagnostics(
+    sources: &SourceMap,
+    struct_: &StructDecl,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let mut seen = HashMap::new();
+
+    for field in &struct_.fields {
+        if let Some(first_span) = seen.get(field.name.as_str()).copied() {
+            diagnostics.push(duplicate_struct_field_name_diagnostic(
+                sources,
+                &struct_.name,
+                &field.name,
+                first_span,
+                field.name_span,
+            ));
+        } else {
+            seen.insert(field.name.as_str(), field.name_span);
+        }
+    }
+
+    diagnostics
+}
+
+fn duplicate_enum_decl_diagnostics(sources: &SourceMap, enum_: &EnumDecl) -> Vec<Diagnostic> {
+    let mut diagnostics = duplicate_enum_variant_name_diagnostics(sources, enum_);
+    for variant in &enum_.variants {
+        diagnostics.extend(duplicate_enum_variant_payload_name_diagnostics(
+            sources, enum_, variant,
+        ));
+    }
+    diagnostics
+}
+
+fn duplicate_enum_variant_name_diagnostics(
+    sources: &SourceMap,
+    enum_: &EnumDecl,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let mut seen = HashMap::new();
+
+    for variant in &enum_.variants {
+        if let Some(first_span) = seen.get(variant.name.as_str()).copied() {
+            diagnostics.push(duplicate_enum_variant_name_diagnostic(
+                sources,
+                &enum_.name,
+                &variant.name,
+                first_span,
+                variant.name_span,
+            ));
+        } else {
+            seen.insert(variant.name.as_str(), variant.name_span);
+        }
+    }
+
+    diagnostics
+}
+
+fn duplicate_enum_variant_payload_name_diagnostics(
+    sources: &SourceMap,
+    enum_: &EnumDecl,
+    variant: &EnumVariant,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let mut seen = HashMap::new();
+
+    for payload in &variant.payload {
+        if let Some(first_span) = seen.get(payload.name.as_str()).copied() {
+            diagnostics.push(duplicate_enum_variant_payload_name_diagnostic(
+                sources,
+                &enum_.name,
+                &variant.name,
+                &payload.name,
+                first_span,
+                payload.name_span,
+            ));
+        } else {
+            seen.insert(payload.name.as_str(), payload.name_span);
+        }
+    }
+
+    diagnostics
 }
 
 fn duplicate_associated_function_name_diagnostics(
