@@ -7293,6 +7293,83 @@ func maybe_text(): &str? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_runs_optional_scalar_default_return_scope_drops() {
+    let project = TempProject::new("cli-run-optional-scalar-default-return-scope-drops");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"from std/io import write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "optional_scalar_default_return_scope_drops.nct",
+        r#"from std/log import write
+
+struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        write("drop\n")!
+        return
+    }
+}
+
+func main(): i32 {
+    let success = choose_success()
+    let fallback = choose_fallback()
+    if success == 42 && fallback == 7 {
+        return 0
+    } else {
+        return 1
+    }
+}
+
+func choose_success(): i32 {
+    var file = File{ fd: 3 }
+    return maybe_answer_success() ?? 7
+}
+
+func choose_fallback(): i32 {
+    var file = File{ fd: 4 }
+    return maybe_answer_none() ?? 7
+}
+
+func maybe_answer_success(): i32? {
+    return 42
+}
+
+func maybe_answer_none(): i32? {
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"drop\ndrop\n");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_optional_direct_aggregate_let_else_success_exit_code() {
     let project = TempProject::new("cli-run-optional-direct-aggregate-let-else-success");
     let source = project.write_source(
@@ -7755,6 +7832,86 @@ func maybe_header(): Header? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_runs_optional_direct_aggregate_default_return_scope_drops() {
+    let project = TempProject::new("cli-run-optional-direct-aggregate-default-return-scope-drops");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"from std/io import write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "optional_direct_aggregate_default_return_scope_drops.nct",
+        r#"from std/log import write
+
+struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        write("drop\n")!
+        return
+    }
+}
+
+copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    let success = choose_success()
+    let fallback = choose_fallback()
+    return success.code + fallback.code
+}
+
+func choose_success(): Header {
+    var file = File{ fd: 3 }
+    return maybe_header_success() ?? Header{ tag: 1, ok: false, code: 7, len: 2 }
+}
+
+func choose_fallback(): Header {
+    var file = File{ fd: 4 }
+    return maybe_header_none() ?? Header{ tag: 1, ok: false, code: 7, len: 2 }
+}
+
+func maybe_header_success(): Header? {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+
+func maybe_header_none(): Header? {
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(49),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"drop\ndrop\n");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_optional_indirect_aggregate_default_return_success_exit_code() {
     let project = TempProject::new("cli-run-optional-indirect-aggregate-default-return-success");
     let source = project.write_source(
@@ -7835,6 +7992,94 @@ func maybe_triple(): Triple? {
         text(&output.stdout),
         text(&output.stderr)
     );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_runs_optional_indirect_aggregate_default_return_scope_drops() {
+    let project =
+        TempProject::new("cli-run-optional-indirect-aggregate-default-return-scope-drops");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"from std/io import write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "optional_indirect_aggregate_default_return_scope_drops.nct",
+        r#"from std/log import write
+
+struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        write("drop\n")!
+        return
+    }
+}
+
+copy struct Triple {
+    first: usize
+    second: usize
+    third: usize
+}
+
+func main(): i32 {
+    let success = choose_success()
+    let fallback = choose_fallback()
+    return code(success.second + fallback.second)
+}
+
+func code(value: usize): i32 {
+    if value == 49 {
+        return 49
+    } else {
+        return 1
+    }
+}
+
+func choose_success(): Triple {
+    var file = File{ fd: 3 }
+    return maybe_triple_success() ?? Triple{ first: 1, second: 7, third: 3 }
+}
+
+func choose_fallback(): Triple {
+    var file = File{ fd: 4 }
+    return maybe_triple_none() ?? Triple{ first: 1, second: 7, third: 3 }
+}
+
+func maybe_triple_success(): Triple? {
+    return Triple{ first: 1, second: 42, third: 3 }
+}
+
+func maybe_triple_none(): Triple? {
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(49),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"drop\ndrop\n");
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

@@ -1,6 +1,6 @@
 use super::aggregates::{
     aggregate_call_return_layout_from_resolved, aggregate_fields_from_type_expr,
-    lower_aggregate_struct_literal_to_location,
+    aggregate_type_layout, lower_aggregate_struct_literal_to_location,
     lower_aggregate_struct_literal_to_location_with_temporaries, push_aggregate_call_instruction,
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
     type_expr_is_copy_struct,
@@ -39,7 +39,7 @@ use super::types::{
     return_type_from_type_expr, scalar_or_view_type_from_type_expr,
 };
 use crate::abi::{
-    AbiType, AbiValue, ValueClassification, abi_value_from_type_expr,
+    AbiType, AbiValue, ValueClassification, ValueLayout, abi_value_from_type_expr,
     function_parameter_abi_word_count_from_signature,
 };
 use crate::ast::{
@@ -900,6 +900,17 @@ pub(super) fn lower_return_statement_with_scope_drops(
             &return_type,
             context,
             diagnostic_code,
+        )?
+    {
+        return Ok(return_instructions);
+    }
+
+    if let Some(expression) = &statement.expression
+        && let Some(return_instructions) = lower_optional_default_aggregate_return_with_scope_drops(
+            expression,
+            &success_type,
+            &return_type,
+            context,
         )?
     {
         return Ok(return_instructions);
@@ -2451,9 +2462,7 @@ fn lower_optional_default_scalar_return_with_scope_drops(
     context: &mut LoweringContext,
     diagnostic_code: &'static str,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
-    if !optional_default_return_supports_success_type(success_type)
-        || !context.pending_aggregate_drops().is_empty()
-    {
+    if !optional_default_return_supports_success_type(success_type) {
         return Ok(None);
     }
 
@@ -2467,10 +2476,27 @@ fn lower_optional_default_scalar_return_with_scope_drops(
         return Ok(None);
     }
 
+    mark_explicit_moves_in_expression(&default.value, context);
     let failure_mode =
         lower_optional_default_return_failure_mode(&default.default, context, diagnostic_code)?;
+    if !context.pending_aggregate_drops().is_empty() {
+        let mut instructions = lower_optional_default_scalar_return_call_to_temporary(
+            call,
+            success_type,
+            context,
+            failure_mode,
+        )?;
+        append_scope_drops_then_restore_scalar_return(
+            &mut instructions,
+            success_type,
+            return_type,
+            context,
+        )?;
+        return Ok(Some(instructions));
+    }
+
     let mut temporaries = TemporaryAllocator::new(context)?;
-    let mut instructions = lower_optional_default_scalar_return_call(
+    let mut instructions = lower_optional_default_scalar_return_call_to_return(
         call,
         success_type,
         context,
@@ -2488,7 +2514,7 @@ fn optional_default_return_supports_success_type(success_type: &Type) -> bool {
     )
 }
 
-fn lower_optional_default_scalar_return_call(
+fn lower_optional_default_scalar_return_call_to_return(
     call: &CallExpr,
     success_type: &Type,
     context: &LoweringContext,
@@ -2548,6 +2574,271 @@ fn lower_optional_default_scalar_return_call(
             "IR v0 can only lower optional default returns for scalar success types",
         )]),
     }
+}
+
+fn lower_optional_default_scalar_return_call_to_temporary(
+    call: &CallExpr,
+    success_type: &Type,
+    context: &LoweringContext,
+    failure_mode: FallibleFailureMode,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match success_type {
+        Type::I32 => {
+            let destination = context.next_i32_local_location()?;
+            let expression_context = context.with_reserved_local_abi_words(1);
+            let mut temporaries = TemporaryAllocator::new(&expression_context)?;
+            lower_fallible_i32_normal_call(
+                call,
+                destination,
+                &expression_context,
+                &mut temporaries,
+                failure_mode,
+            )
+        }
+        Type::U8 => {
+            let destination = context.next_u8_local_location()?;
+            let expression_context = context.with_reserved_local_abi_words(1);
+            let mut temporaries = TemporaryAllocator::new(&expression_context)?;
+            lower_fallible_u8_normal_call(
+                call,
+                destination,
+                &expression_context,
+                &mut temporaries,
+                failure_mode,
+            )
+        }
+        Type::Usize => {
+            let destination = context.next_usize_local_location()?;
+            let expression_context = context.with_reserved_local_abi_words(1);
+            let mut temporaries = TemporaryAllocator::new(&expression_context)?;
+            lower_fallible_usize_normal_call(
+                call,
+                destination,
+                &expression_context,
+                &mut temporaries,
+                failure_mode,
+            )
+        }
+        Type::Bool => {
+            let destination = context.next_bool_local_location()?;
+            let expression_context = context.with_reserved_local_abi_words(1);
+            let mut temporaries = TemporaryAllocator::new(&expression_context)?;
+            lower_fallible_bool_normal_call(
+                call,
+                destination,
+                &expression_context,
+                &mut temporaries,
+                failure_mode,
+            )
+        }
+        Type::Str => {
+            let destination = context.next_str_local_location()?;
+            let expression_context = context.with_reserved_local_abi_words(2);
+            let mut temporaries = TemporaryAllocator::new(&expression_context)?;
+            lower_fallible_str_normal_call(
+                call,
+                destination,
+                &expression_context,
+                &mut temporaries,
+                failure_mode,
+            )
+        }
+        Type::Slice { .. } => {
+            let destination = context.next_slice_local_location()?;
+            let expression_context = context.with_reserved_local_abi_words(2);
+            let mut temporaries = TemporaryAllocator::new(&expression_context)?;
+            lower_fallible_slice_normal_call(
+                call,
+                destination,
+                &expression_context,
+                &mut temporaries,
+                failure_mode,
+            )
+        }
+        Type::Aggregate { .. }
+        | Type::DirectAggregate { .. }
+        | Type::Borrow { .. }
+        | Type::Void
+        | Type::Never
+        | Type::Fallible(_) => Err(vec![Diagnostic::error(
+            "E8007",
+            "IR v0 can only lower optional default returns for scalar success types",
+        )]),
+    }
+}
+
+fn append_scope_drops_then_restore_scalar_return(
+    instructions: &mut Vec<Instruction>,
+    success_type: &Type,
+    return_type: &Type,
+    context: &mut LoweringContext,
+) -> Result<(), Vec<Diagnostic>> {
+    let restore_return = match success_type {
+        Type::I32 => vec![Instruction::SetI32 {
+            destination: I32Location::Return,
+            value: I32Value::Location(context.next_i32_local_location()?),
+        }],
+        Type::U8 => vec![Instruction::SetU8 {
+            destination: U8Location::Return,
+            value: U8Value::Location(context.next_u8_local_location()?),
+        }],
+        Type::Usize => vec![Instruction::SetUsize {
+            destination: UsizeLocation::Return,
+            value: UsizeValue::Location(context.next_usize_local_location()?),
+        }],
+        Type::Bool => vec![Instruction::SetBool {
+            destination: BoolLocation::Return,
+            value: BoolValue::Location(context.next_bool_local_location()?),
+        }],
+        Type::Str => vec![Instruction::SetStr {
+            destination: StrLocation::Return,
+            value: StrValue::Location(context.next_str_local_location()?),
+        }],
+        Type::Slice { .. } => vec![Instruction::SetSlice {
+            destination: SliceLocation::Return,
+            value: SliceValue::Location(context.next_slice_local_location()?),
+        }],
+        Type::Aggregate { .. }
+        | Type::DirectAggregate { .. }
+        | Type::Borrow { .. }
+        | Type::Void
+        | Type::Never
+        | Type::Fallible(_) => {
+            return Err(vec![Diagnostic::error(
+                "E8007",
+                "IR v0 can only restore optional default returns for scalar success types",
+            )]);
+        }
+    };
+    append_scope_drops_then_restore_return(instructions, restore_return, return_type, context)
+}
+
+fn lower_optional_default_aggregate_return_with_scope_drops(
+    expression: &Expr,
+    success_type: &Type,
+    function_return_type: &Type,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    if context.pending_aggregate_drops().is_empty() {
+        return Ok(None);
+    }
+    let Some(layout) = aggregate_type_layout(success_type) else {
+        return Ok(None);
+    };
+    if !supported_aggregate_copy_layout(layout) {
+        return Ok(None);
+    }
+
+    let Expr::OptionalDefault(default) = unwrap_group(expression) else {
+        return Ok(None);
+    };
+    let Expr::Call(call) = unwrap_group(&default.value) else {
+        return Ok(None);
+    };
+    if !call_return_type_expr_is_top_level_optional(call, context) {
+        return Ok(None);
+    }
+
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_aggregate_return_diagnostic(
+            context.function_name(),
+        ));
+    };
+    let function_name = context.function_name().to_string();
+    let (_, destination) = aggregate_return_layout_and_destination(success_type);
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let slot_index = temporaries.next_aggregate_slot();
+    let staged_destination = AggregateLocation::Slot(slot_index);
+    let mut instructions = vec![Instruction::ReserveAggregateSlot { slot_index, layout }];
+
+    mark_explicit_moves_in_expression(&default.value, context);
+    let failure_mode = lower_aggregate_optional_default_return_failure_mode_with_scope_drops(
+        &default.default,
+        success_type,
+        function_return_type,
+        slot_index,
+        destination,
+        &function_name,
+        resolved,
+        context,
+    )?;
+    instructions.extend(lower_aggregate_fallible_call_return_to_location(
+        call,
+        success_type,
+        staged_destination,
+        &function_name,
+        context,
+        failure_mode,
+    )?);
+    append_scope_drops_then_restore_aggregate_return(
+        &mut instructions,
+        slot_index,
+        layout,
+        destination,
+        function_return_type,
+        context,
+    )?;
+    Ok(Some(instructions))
+}
+
+fn lower_aggregate_optional_default_return_failure_mode_with_scope_drops(
+    fallback: &Expr,
+    success_type: &Type,
+    function_return_type: &Type,
+    slot_index: usize,
+    destination: AggregateLocation,
+    function_name: &str,
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
+    let mut fallback_context = context.clone();
+    mark_explicit_moves_in_expression(fallback, &mut fallback_context);
+    let layout = aggregate_type_layout(success_type)
+        .ok_or_else(|| unsupported_aggregate_return_diagnostic(function_name))?;
+    let mut instructions = lower_aggregate_return_expression_to_location(
+        fallback,
+        success_type,
+        AggregateLocation::Slot(slot_index),
+        function_name,
+        resolved,
+        &fallback_context,
+    )?;
+    append_scope_drops_then_restore_aggregate_return(
+        &mut instructions,
+        slot_index,
+        layout,
+        destination,
+        function_return_type,
+        &mut fallback_context,
+    )?;
+    Ok(FallibleFailureMode::Handle { instructions })
+}
+
+fn append_scope_drops_then_restore_aggregate_return(
+    instructions: &mut Vec<Instruction>,
+    slot_index: usize,
+    layout: ValueLayout,
+    destination: AggregateLocation,
+    function_return_type: &Type,
+    context: &mut LoweringContext,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut tail = append_scope_end_drops_before_exit(
+        vec![success_return_instruction(function_return_type)],
+        context,
+    )?;
+    let Some(return_index) = tail.iter().rposition(is_scope_exit_instruction) else {
+        return Ok(());
+    };
+    tail.insert(
+        return_index,
+        Instruction::CopyAggregate {
+            destination,
+            source: AggregateLocation::Slot(slot_index),
+            layout,
+        },
+    );
+    instructions.extend(tail);
+    Ok(())
 }
 
 fn call_return_type_expr_is_top_level_optional(call: &CallExpr, context: &LoweringContext) -> bool {

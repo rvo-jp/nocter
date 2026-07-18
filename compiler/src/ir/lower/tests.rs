@@ -16864,6 +16864,86 @@ func maybe_answer(): i32? {
 }
 
 #[test]
+fn lowers_optional_i32_default_return_with_scope_cleanup() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    return choose()
+}
+
+func choose(): i32 {
+    var file = File{ fd: 3 }
+    return maybe_answer() ?? 7
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+"#,
+    );
+
+    let drop_call = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let choose = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "choose")
+        .unwrap();
+    assert_eq!(
+        choose.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(3),
+            },
+            Instruction::CallFallibleI32 {
+                destination: I32Location::Local(0),
+                target: CallTarget::same_file("maybe_answer"),
+                arguments: vec![],
+                failure_mode: FallibleFailureMode::Handle {
+                    instructions: vec![
+                        Instruction::SetI32 {
+                            destination: I32Location::Local(0),
+                            value: i32_const(7),
+                        },
+                        drop_call.clone(),
+                        Instruction::SetI32 {
+                            destination: I32Location::Return,
+                            value: i32_local(0),
+                        },
+                        Instruction::Return,
+                    ],
+                },
+            },
+            drop_call,
+            Instruction::SetI32 {
+                destination: I32Location::Return,
+                value: i32_local(0),
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
 fn lowers_optional_scalar_default_returns() {
     let source = r#"func main(): i32 {
     return 0
@@ -17153,6 +17233,350 @@ func make(): Triple? {
         value: UsizeValue::Const(7),
     }));
     assert_eq!(instructions.last(), Some(&Instruction::Return));
+}
+
+#[test]
+fn lowers_optional_direct_aggregate_default_return_with_scope_cleanup() {
+    let aggregate_type = Type::Fallible(Box::new(Type::DirectAggregate {
+        layout: ValueLayout::new(16, 8),
+        words: 2,
+    }));
+    let file_type = Type::DirectAggregate {
+        layout: ValueLayout::new(4, 4),
+        words: 1,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func choose(): Header {
+    var file = File{ fd: 3 }
+    return make() ?? Header{ tag: 1, ok: false, code: 7, len: 2 }
+}
+
+func make(): Header? {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+"#,
+        "choose",
+        function_signatures(vec![
+            (
+                "File.drop",
+                Type::Void,
+                vec![Type::Borrow {
+                    is_readwrite: true,
+                    inner: Box::new(file_type),
+                }],
+            ),
+            ("make", aggregate_type, vec![]),
+        ]),
+    )
+    .unwrap();
+
+    let drop_call = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let [
+        Instruction::ReserveAggregateSlot {
+            slot_index: file_slot,
+            layout: file_layout,
+        },
+        Instruction::StoreAggregateI32 {
+            destination: file_destination,
+            offset: file_offset,
+            value: file_value,
+        },
+        Instruction::ReserveAggregateSlot {
+            slot_index: staged_slot,
+            layout: staged_layout,
+        },
+        Instruction::CallFallibleDirectAggregate {
+            destination,
+            target,
+            arguments,
+            layout,
+            failure_mode: FallibleFailureMode::Handle { instructions },
+        },
+        top_drop,
+        Instruction::CopyAggregate {
+            destination: top_copy_destination,
+            source: top_copy_source,
+            layout: top_copy_layout,
+        },
+        Instruction::Return,
+    ] = function.instructions.as_slice()
+    else {
+        panic!("{function:?}");
+    };
+
+    assert_eq!(*file_slot, 0);
+    assert_eq!(*file_layout, ValueLayout::new(4, 4));
+    assert_eq!(*file_destination, AggregateLocation::Slot(0));
+    assert_eq!(*file_offset, 0);
+    assert_eq!(*file_value, i32_const(3));
+    assert_eq!(*staged_slot, 1);
+    assert_eq!(*staged_layout, ValueLayout::new(16, 8));
+    assert_eq!(*destination, AggregateLocation::Slot(1));
+    assert_eq!(*target, CallTarget::same_file("make"));
+    assert!(arguments.is_empty());
+    assert_eq!(*layout, ValueLayout::new(16, 8));
+    assert_eq!(top_drop, &drop_call);
+    assert_eq!(*top_copy_destination, AggregateLocation::DirectReturn);
+    assert_eq!(*top_copy_source, AggregateLocation::Slot(1));
+    assert_eq!(*top_copy_layout, ValueLayout::new(16, 8));
+    assert!(instructions.contains(&Instruction::StoreAggregateI32 {
+        destination: AggregateLocation::Slot(1),
+        offset: 4,
+        value: i32_const(7),
+    }));
+    assert!(instructions.as_slice().ends_with(&[
+        drop_call,
+        Instruction::CopyAggregate {
+            destination: AggregateLocation::DirectReturn,
+            source: AggregateLocation::Slot(1),
+            layout: ValueLayout::new(16, 8),
+        },
+        Instruction::Return,
+    ]));
+}
+
+#[test]
+fn lowers_optional_direct_aggregate_default_fallible_return_with_scope_cleanup() {
+    let header_type = Type::DirectAggregate {
+        layout: ValueLayout::new(16, 8),
+        words: 2,
+    };
+    let file_type = Type::DirectAggregate {
+        layout: ValueLayout::new(4, 4),
+        words: 1,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func choose(): Header! {
+    var file = File{ fd: 3 }
+    return make() ?? Header{ tag: 1, ok: false, code: 7, len: 2 }
+}
+
+func make(): Header? {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+"#,
+        "choose",
+        function_signatures(vec![
+            (
+                "File.drop",
+                Type::Void,
+                vec![Type::Borrow {
+                    is_readwrite: true,
+                    inner: Box::new(file_type),
+                }],
+            ),
+            (
+                "make",
+                Type::Fallible(Box::new(header_type.clone())),
+                vec![],
+            ),
+        ]),
+    )
+    .unwrap();
+
+    let drop_call = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let copy_to_return = Instruction::CopyAggregate {
+        destination: AggregateLocation::DirectReturn,
+        source: AggregateLocation::Slot(1),
+        layout: ValueLayout::new(16, 8),
+    };
+    let Some(Instruction::CallFallibleDirectAggregate {
+        destination,
+        failure_mode: FallibleFailureMode::Handle { instructions },
+        ..
+    }) = function
+        .instructions
+        .iter()
+        .find(|instruction| matches!(instruction, Instruction::CallFallibleDirectAggregate { .. }))
+    else {
+        panic!("{function:?}");
+    };
+
+    assert_eq!(*destination, AggregateLocation::Slot(1));
+    assert!(instructions.as_slice().ends_with(&[
+        drop_call.clone(),
+        copy_to_return.clone(),
+        Instruction::ReturnFallibleSuccess,
+    ]));
+    assert!(function.instructions.ends_with(&[
+        drop_call,
+        copy_to_return,
+        Instruction::ReturnFallibleSuccess,
+    ]));
+}
+
+#[test]
+fn lowers_optional_indirect_aggregate_default_return_with_scope_cleanup() {
+    let aggregate_type = Type::Fallible(Box::new(Type::Aggregate {
+        layout: ValueLayout::new(24, 8),
+    }));
+    let file_type = Type::DirectAggregate {
+        layout: ValueLayout::new(4, 4),
+        words: 1,
+    };
+    let function = lower_named_function_with_signatures(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+copy struct Triple {
+    first: usize
+    second: usize
+    third: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func choose(): Triple {
+    var file = File{ fd: 3 }
+    return make() ?? Triple{ first: 1, second: 7, third: 3 }
+}
+
+func make(): Triple? {
+    return Triple{ first: 1, second: 42, third: 3 }
+}
+"#,
+        "choose",
+        function_signatures(vec![
+            (
+                "File.drop",
+                Type::Void,
+                vec![Type::Borrow {
+                    is_readwrite: true,
+                    inner: Box::new(file_type),
+                }],
+            ),
+            ("make", aggregate_type, vec![]),
+        ]),
+    )
+    .unwrap();
+
+    let drop_call = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let [
+        Instruction::ReserveAggregateSlot {
+            slot_index: file_slot,
+            layout: file_layout,
+        },
+        Instruction::StoreAggregateI32 {
+            destination: file_destination,
+            offset: file_offset,
+            value: file_value,
+        },
+        Instruction::ReserveAggregateSlot {
+            slot_index: staged_slot,
+            layout: staged_layout,
+        },
+        Instruction::CallFallibleAggregate {
+            destination,
+            target,
+            arguments,
+            failure_mode: FallibleFailureMode::Handle { instructions },
+        },
+        top_drop,
+        Instruction::CopyAggregate {
+            destination: top_copy_destination,
+            source: top_copy_source,
+            layout: top_copy_layout,
+        },
+        Instruction::Return,
+    ] = function.instructions.as_slice()
+    else {
+        panic!("{function:?}");
+    };
+
+    assert_eq!(*file_slot, 0);
+    assert_eq!(*file_layout, ValueLayout::new(4, 4));
+    assert_eq!(*file_destination, AggregateLocation::Slot(0));
+    assert_eq!(*file_offset, 0);
+    assert_eq!(*file_value, i32_const(3));
+    assert_eq!(*staged_slot, 1);
+    assert_eq!(*staged_layout, ValueLayout::new(24, 8));
+    assert_eq!(*destination, AggregateLocation::Slot(1));
+    assert_eq!(*target, CallTarget::same_file("make"));
+    assert!(arguments.is_empty());
+    assert_eq!(top_drop, &drop_call);
+    assert_eq!(*top_copy_destination, AggregateLocation::Return);
+    assert_eq!(*top_copy_source, AggregateLocation::Slot(1));
+    assert_eq!(*top_copy_layout, ValueLayout::new(24, 8));
+    assert!(instructions.contains(&Instruction::StoreAggregateUsize {
+        destination: AggregateLocation::Slot(1),
+        offset: 8,
+        value: usize_const(7),
+    }));
+    assert!(instructions.as_slice().ends_with(&[
+        drop_call,
+        Instruction::CopyAggregate {
+            destination: AggregateLocation::Return,
+            source: AggregateLocation::Slot(1),
+            layout: ValueLayout::new(24, 8),
+        },
+        Instruction::Return,
+    ]));
 }
 
 #[test]
