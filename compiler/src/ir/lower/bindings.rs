@@ -122,15 +122,26 @@ fn lower_optional_let_else_binding(
     let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
         return Ok(None);
     };
-    let Some(kind) =
-        optional_let_else_scalar_binding_kind(statement, success_type.as_ref(), context)?
-    else {
-        return Ok(None);
-    };
-
     let failure_mode = lower_optional_let_else_failure_mode(else_block, context)?;
-    lower_optional_let_else_scalar_call_binding(statement, call, kind, failure_mode, context)
-        .map(Some)
+
+    if let Some(kind) =
+        optional_let_else_scalar_binding_kind(statement, success_type.as_ref(), context)?
+    {
+        return lower_optional_let_else_scalar_call_binding(
+            statement,
+            call,
+            kind,
+            failure_mode,
+            context,
+        )
+        .map(Some);
+    }
+
+    if aggregate_type_layout(success_type.as_ref()).is_some() {
+        return lower_aggregate_fallible_call_binding(statement, call, failure_mode, context);
+    }
+
+    Ok(None)
 }
 
 fn optional_let_else_scalar_binding_kind(

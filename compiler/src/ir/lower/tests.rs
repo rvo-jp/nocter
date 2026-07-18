@@ -17593,6 +17593,104 @@ func make(): Header! {
 }
 
 #[test]
+fn lowers_optional_direct_aggregate_let_else_call_binding() {
+    let aggregate_type = Type::Fallible(Box::new(Type::DirectAggregate {
+        layout: ValueLayout::new(16, 8),
+        words: 2,
+    }));
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    let header = make() else {
+        return 7
+    }
+
+    return header.code
+}
+
+func make(): Header? {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+"#,
+        "main",
+        function_signatures(vec![("make", aggregate_type, vec![])]),
+    )
+    .unwrap();
+
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CallFallibleDirectAggregate {
+                destination: AggregateLocation::Slot(0),
+                target: CallTarget::same_file("make"),
+                arguments: vec![],
+                layout: ValueLayout::new(16, 8),
+                failure_mode: FallibleFailureMode::Handle {
+                    instructions: vec![set_return_i32(7), Instruction::Return],
+                },
+            }),
+        "{function:?}"
+    );
+}
+
+#[test]
+fn lowers_optional_indirect_aggregate_let_else_call_binding() {
+    let aggregate_type = Type::Fallible(Box::new(Type::Aggregate {
+        layout: ValueLayout::new(32, 8),
+    }));
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+copy struct Packet {
+    prefix: usize
+    header: Header
+    tail: usize
+}
+
+func main(): i32 {
+    let packet = make() else {
+        return 7
+    }
+
+    return packet.header.code
+}
+
+func make(): Packet? {
+    return Packet{ prefix: 1, header: Header{ tag: 7, ok: true, code: 42, len: 11 }, tail: 2 }
+}
+"#,
+        "main",
+        function_signatures(vec![("make", aggregate_type, vec![])]),
+    )
+    .unwrap();
+
+    assert!(
+        function
+            .instructions
+            .contains(&Instruction::CallFallibleAggregate {
+                destination: AggregateLocation::Slot(0),
+                target: CallTarget::same_file("make"),
+                arguments: vec![],
+                failure_mode: FallibleFailureMode::Handle {
+                    instructions: vec![set_return_i32(7), Instruction::Return],
+                },
+            }),
+        "{function:?}"
+    );
+}
+
+#[test]
 fn lowers_fallible_aggregate_force_unwrap_member_binding_as_trapping_fallible_call() {
     let packet_type = Type::Fallible(Box::new(Type::Aggregate {
         layout: ValueLayout::new(32, 8),
