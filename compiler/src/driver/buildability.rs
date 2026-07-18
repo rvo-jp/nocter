@@ -603,6 +603,12 @@ fn collect_expression_diagnostics(
             }
         }
         Expr::ArrayLiteral(expression) => {
+            diagnostics.push(unsupported_v0_build_diagnostic(
+                sources,
+                expression.span,
+                "array literals",
+                "use scalar/view values or a std collection API once v0 array storage is promoted",
+            ));
             for element in &expression.elements {
                 collect_expression_diagnostics(
                     element,
