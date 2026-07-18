@@ -2463,6 +2463,63 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_reports_explicit_move_in_condition_before_ir_lowering() {
+    let project = TempProject::new("cli-build-move-in-condition-boundary");
+    let source = project.write_source(
+        "move_in_condition_boundary.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func consume(file: File): bool {
+    return true
+}
+
+func main(): i32 {
+    var file = File{ fd: 1 }
+    if consume(move file) {
+        return 0
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("explicit aggregate moves in control-flow conditions"),
+        "expected move condition diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("17 |     if consume(move file) {"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E8002]"),
+        "buildability preflight should reject before IR control-flow lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_reachable_range_for_before_ir_lowering() {
     let project = TempProject::new("cli-build-range-for-boundary");
     let source = project.write_source(

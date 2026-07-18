@@ -1,7 +1,7 @@
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
     AssignmentOperator, Block, CallExpr, DropDecl, Expr, FunctionDecl, ImplDecl, ImplMember, Item,
-    Stmt, TypeExpr,
+    Stmt, TypeExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::CallTarget;
@@ -293,6 +293,7 @@ fn collect_statement_diagnostics(
             );
         }
         Stmt::If(statement) => {
+            push_explicit_move_condition_diagnostic(sources, &statement.condition, diagnostics);
             collect_expression_diagnostics(
                 &statement.condition,
                 sources,
@@ -487,6 +488,7 @@ fn collect_statement_diagnostics(
             );
         }
         Stmt::While(statement) => {
+            push_explicit_move_condition_diagnostic(sources, &statement.condition, diagnostics);
             collect_expression_diagnostics(
                 &statement.condition,
                 sources,
@@ -668,6 +670,79 @@ fn return_shape_from_type_expr_inner(
             }
         }
         _ => ReturnShape::Other,
+    }
+}
+
+fn push_explicit_move_condition_diagnostic(
+    sources: &SourceMap,
+    condition: &Expr,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(span) = first_explicit_move_span(condition) else {
+        return;
+    };
+
+    diagnostics.push(unsupported_v0_build_diagnostic(
+        sources,
+        span,
+        "explicit aggregate moves in control-flow conditions",
+        "keep conditions to scalar/view values and non-moving calls until condition move lowering is promoted",
+    ));
+}
+
+fn first_explicit_move_span(expression: &Expr) -> Option<ByteSpan> {
+    match expression {
+        Expr::Identifier(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::StringLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::NoneLiteral(_) => None,
+        Expr::InterpolatedString(expression) => expression.parts.iter().find_map(|part| {
+            if let crate::ast::InterpolatedStringPart::Expression(part) = part {
+                first_explicit_move_span(&part.expression)
+            } else {
+                None
+            }
+        }),
+        Expr::ArrayLiteral(expression) => expression
+            .elements
+            .iter()
+            .find_map(first_explicit_move_span),
+        Expr::StructLiteral(expression) => expression
+            .fields
+            .iter()
+            .find_map(|field| first_explicit_move_span(&field.value)),
+        Expr::Propagate(expression) => first_explicit_move_span(&expression.expression),
+        Expr::Force(expression) => first_explicit_move_span(&expression.expression),
+        Expr::Catch(expression) => first_explicit_move_span(&expression.expression),
+        Expr::Borrow(expression) => first_explicit_move_span(&expression.expression),
+        Expr::Unary(expression) if expression.operator == UnaryOperator::Move => {
+            Some(expression.operator_span)
+        }
+        Expr::Unary(expression) => first_explicit_move_span(&expression.operand),
+        Expr::Binary(expression) => first_explicit_move_span(&expression.left)
+            .or_else(|| first_explicit_move_span(&expression.right)),
+        Expr::TypeConversion(expression) => first_explicit_move_span(&expression.expression),
+        Expr::Call(expression) => first_explicit_move_span(&expression.callee).or_else(|| {
+            expression
+                .arguments
+                .iter()
+                .find_map(first_explicit_move_span)
+        }),
+        Expr::Member(expression) => first_explicit_move_span(&expression.object),
+        Expr::Index(expression) => first_explicit_move_span(&expression.object)
+            .or_else(|| first_explicit_move_span(&expression.index)),
+        Expr::Group(expression) => first_explicit_move_span(&expression.expression),
+        Expr::OptionalDefault(expression) => first_explicit_move_span(&expression.value)
+            .or_else(|| first_explicit_move_span(&expression.default)),
+        Expr::PatternConditional(expression) => first_explicit_move_span(&expression.target)
+            .or_else(|| {
+                expression
+                    .arms
+                    .iter()
+                    .find_map(|arm| first_explicit_move_span(&arm.expression))
+            })
+            .or_else(|| first_explicit_move_span(&expression.fallback)),
     }
 }
 
