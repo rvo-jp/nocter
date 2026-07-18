@@ -779,7 +779,7 @@ func choose(code: i32, flag: bool, size: usize): bool {
 #[test]
 fn lowers_imported_i32_normal_call() {
     let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
-        r#"from std/math import answer
+        r#"use std/math.answer
 
 func main(): i32 {
     let value = answer()
@@ -847,7 +847,7 @@ func main(): i32 {
 #[test]
 fn lowers_imported_function_returning_hidden_nested_aggregate_type() {
     let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
-        r#"from std/pack import make
+        r#"use std/pack.make
 
 func main(): i32 {
     var outer = make()
@@ -925,7 +925,7 @@ pub func make(): Outer {
 #[test]
 fn lowers_imported_i32_associated_function_normal_call() {
     let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
-        r#"from std/point import Point
+        r#"use std/point.Point
 
 func main(): i32 {
     let value = Point.origin()
@@ -997,7 +997,7 @@ pub func Point.origin(): i32 {
 #[test]
 fn lowers_imported_bool_normal_call_in_terminal_if_condition() {
     let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
-        r#"from std/flags import ready
+        r#"use std/flags.ready
 
 func main(): i32 {
     if ready() {
@@ -1072,7 +1072,7 @@ func main(): i32 {
 #[test]
 fn imported_alias_call_uses_imported_declaration_name_as_target() {
     let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
-        r#"from std/math import answer as imported_answer
+        r#"use std/math.answer as imported_answer
 
 func main(): i32 {
     return imported_answer()
@@ -1126,7 +1126,7 @@ func main(): i32 {
 #[test]
 fn lowers_never_function_returning_target_trap_primitive() {
     let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
-        r#"from std/process import abort
+        r#"use std/process.abort
 
 func main(): i32 {
     return abort()
@@ -1177,7 +1177,7 @@ func main(): i32 {
 #[test]
 fn lowers_process_exit_to_target_exit_primitive() {
     let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
-        r#"from std/process import exit
+        r#"use std/process.exit
 
 func main(): i32 {
     return exit(7)
@@ -1230,7 +1230,7 @@ func main(): i32 {
 #[test]
 fn collects_loaded_imported_call_targets() {
     let analysis = analyze_text_with_entry_and_nocter_home_files(
-        r#"from std/math import answer
+        r#"use std/math.answer
 
 func main(): i32 {
     let value = answer()
@@ -1277,7 +1277,7 @@ func main(): i32 {
 #[test]
 fn indexes_imported_function_signatures_by_call_target() {
     let analysis = analyze_text_with_entry_and_nocter_home_files(
-        r#"from std/math import answer
+        r#"use std/math.answer
 
 func main(): i32 {
     let value = answer()
@@ -2918,7 +2918,7 @@ func main(): i32 {
 #[test]
 fn lowers_imported_explicit_drop_to_imported_drop_member_call() {
     let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
-        r#"from std/file import File
+        r#"use std/file.File
 
 func main(): i32 {
     var file = File{ fd: 3 }
@@ -7209,7 +7209,7 @@ fn lowers_fallible_void_nested_terminal_if_entry() {
 #[test]
 fn lowers_pending_aggregate_drop_for_fallible_propagation_cleanup() {
     let ir = lower_text_with_std_error(
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 struct File {
     fd: i32
@@ -7591,7 +7591,7 @@ func main(): i32 {
 #[test]
 fn lowers_replacement_drop_for_fallible_aggregate_assignment() {
     let ir = lower_text_with_std_error(
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 struct File {
     fd: i32
@@ -10369,7 +10369,7 @@ func use_text(): i32! {
 #[test]
 fn lowers_pointer_from_addr_aggregate_field_return() {
     let function = lower_imported_named_function_with_nocter_home_files(
-        r#"from std/text import make
+        r#"use std/text.make
 
 func main(): i32 {
     return 0
@@ -10384,7 +10384,7 @@ func main(): i32 {
             ),
             (
                 "std/text.nct",
-                r#"from std/ptr import from_addr
+                r#"use std/ptr.from_addr
 
 pub struct Text {
     ptr: *u8
@@ -10437,7 +10437,7 @@ pub func make(): Text {
 #[test]
 fn lowers_pointer_from_addr_aggregate_field_binding_return() {
     let function = lower_imported_named_function_with_nocter_home_files(
-        r#"from std/text import make
+        r#"use std/text.make
 
 func main(): i32 {
     return 0
@@ -10452,7 +10452,7 @@ func main(): i32 {
             ),
             (
                 "std/text.nct",
-                r#"from std/ptr import from_addr
+                r#"use std/ptr.from_addr
 
 pub struct Text {
     ptr: *u8
@@ -13267,7 +13267,7 @@ func code_is_answer(): bool {
 #[test]
 fn lowers_fallible_aggregate_catch_field_read_in_comparison() {
     let ir = lower_text_with_std_error(
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 copy struct Header {
     tag: u8
@@ -13708,7 +13708,7 @@ func consume(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, pair: Pair)
 #[test]
 fn lowers_imported_i32_call_target_when_boundary_is_bypassed() {
     let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
-        r#"from std/math import answer
+        r#"use std/math.answer
 
 func main(): i32 {
     let value = answer()
@@ -19036,7 +19036,7 @@ func make(): Header {
 #[test]
 fn lowers_fallible_aggregate_catch_call_binding() {
     let ir = lower_text_with_std_error(
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 copy struct Header {
     tag: u8
@@ -19081,7 +19081,7 @@ func source(): Header! {
 #[test]
 fn lowers_fallible_aggregate_catch_call_return() {
     let ir = lower_text_with_std_error(
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 copy struct Header {
     tag: u8
@@ -19126,7 +19126,7 @@ func source(): Header! {
 #[test]
 fn lowers_fallible_aggregate_catch_value_argument() {
     let ir = lower_text_with_std_error(
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 copy struct Header {
     tag: u8
@@ -19173,7 +19173,7 @@ func source(): Header! {
 #[test]
 fn lowers_fallible_aggregate_catch_member_field_read() {
     let ir = lower_text_with_std_error(
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 copy struct Header {
     tag: u8
@@ -19217,7 +19217,7 @@ func source(): Header! {
 #[test]
 fn lowers_fallible_aggregate_catch_member_binding() {
     let ir = lower_text_with_std_error(
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 copy struct Header {
     tag: u8
@@ -19288,7 +19288,7 @@ func source(): Packet! {
 #[test]
 fn lowers_fallible_aggregate_catch_assignment() {
     let ir = lower_text_with_std_error(
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 copy struct Header {
     tag: u8
@@ -19334,7 +19334,7 @@ func source(): Header! {
 #[test]
 fn lowers_fallible_aggregate_catch_member_assignment() {
     let ir = lower_text_with_std_error(
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 copy struct Header {
     tag: u8
@@ -19390,7 +19390,7 @@ func source(): Header! {
 #[test]
 fn lowers_fallible_aggregate_catch_struct_literal_field() {
     let ir = lower_text_with_std_error(
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 copy struct Header {
     tag: u8
@@ -19445,7 +19445,7 @@ func source(): Header! {
 #[test]
 fn lowers_fallible_void_function_static_error_failure() {
     let ir = lower_text_with_std_error(
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 func main(): void! {
     fail()?
@@ -19475,7 +19475,7 @@ func fail(): void! {
 #[test]
 fn lowers_fallible_void_function_static_error_helper_failure() {
     let ir = lower_text_with_std_error(
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 func main(): void! {
     fail()?
@@ -19509,7 +19509,7 @@ func app_failed(): error {
 #[test]
 fn lowers_fallible_i32_catch_failure_return() {
     let ir = lower_text_with_std_error(
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 func main(): i32! {
     let value = answer() catch error {
@@ -19557,7 +19557,7 @@ func answer(): i32! {
 #[test]
 fn lowers_pending_aggregate_drop_for_catch_failure_return_cleanup() {
     let ir = lower_text_with_std_error(
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 struct File {
     fd: i32
@@ -19626,7 +19626,7 @@ func answer(): i32! {
 #[test]
 fn lowers_fallible_write_text_raw_catch_failure_return() {
     let ir = lower_text_with_nocter_home_files(
-        r#"from std/io_catch import print_catch
+        r#"use std/io_catch.print_catch
 
 func main(): void! {
     print_catch("hello\n")?
@@ -19637,8 +19637,8 @@ func main(): void! {
             std_io_file(),
             (
                 "std/io_catch.nct",
-                r#"from std/error import Error
-from std/io import write_text_raw
+                r#"use std/error.Error
+use std/io.write_text_raw
 
 pub func print_catch(text: &str): void! {
     write_text_raw(1, text) catch error {
@@ -19682,7 +19682,7 @@ pub func print_catch(text: &str): void! {
 #[test]
 fn lowers_fallible_write_bytes_raw_catch_failure_return() {
     let write_bytes = lower_imported_named_function_with_nocter_home_files(
-        r#"from std/io_bytes import write_bytes_catch
+        r#"use std/io_bytes.write_bytes_catch
 
 func main(): void {
     return
@@ -19694,8 +19694,8 @@ func main(): void {
             std_io_file(),
             (
                 "std/io_bytes.nct",
-                r#"from std/error import Error
-from std/io import write_bytes_raw
+                r#"use std/error.Error
+use std/io.write_bytes_raw
 
 pub func write_bytes_catch(bytes: &[u8]): void! {
     write_bytes_raw(1, bytes) catch error {
@@ -19733,7 +19733,7 @@ pub func write_bytes_catch(bytes: &[u8]): void! {
 #[test]
 fn lowers_fallible_read_bytes_raw_propagation() {
     let read_bytes = lower_imported_named_function_with_nocter_home_files(
-        r#"from std/io_bytes import read_count
+        r#"use std/io_bytes.read_count
 
 func main(): void {
     return
@@ -19744,7 +19744,7 @@ func main(): void {
             std_io_file(),
             (
                 "std/io_bytes.nct",
-                r#"from std/io import read_bytes_raw
+                r#"use std/io.read_bytes_raw
 
 pub func read_count(buffer: &+[u8]): usize! {
     return read_bytes_raw(0, buffer)?
@@ -19771,7 +19771,7 @@ pub func read_count(buffer: &+[u8]): usize! {
 #[test]
 fn lowers_fallible_read_bytes_raw_catch_binding() {
     let read_bytes = lower_imported_named_function_with_nocter_home_files(
-        r#"from std/io_bytes_catch import read_count_catch
+        r#"use std/io_bytes_catch.read_count_catch
 
 func main(): void {
     return
@@ -19783,8 +19783,8 @@ func main(): void {
             std_io_file(),
             (
                 "std/io_bytes_catch.nct",
-                r#"from std/error import Error
-from std/io import read_bytes_raw
+                r#"use std/error.Error
+use std/io.read_bytes_raw
 
 pub func read_count_catch(buffer: &+[u8]): usize! {
     let count = read_bytes_raw(0, buffer) catch error {
@@ -19825,7 +19825,7 @@ pub func read_count_catch(buffer: &+[u8]): usize! {
 #[test]
 fn lowers_fallible_open_read_raw_propagation() {
     let open = lower_imported_named_function_with_nocter_home_files(
-        r#"from std/io_open import open_raw
+        r#"use std/io_open.open_raw
 
 func main(): void {
     return
@@ -19846,8 +19846,8 @@ pub(nocter) primitive open_read_raw(path: *u8): i32!
             ),
             (
                 "std/io_open.nct",
-                r#"from std/io import open_read_raw
-from std/ptr import from_addr
+                r#"use std/io.open_read_raw
+use std/ptr.from_addr
 
 pub func open_raw(address: usize): i32! {
     return open_read_raw(from_addr(address))?
@@ -19873,7 +19873,7 @@ pub func open_raw(address: usize): i32! {
 #[test]
 fn lowers_close_fd_raw_call() {
     let close = lower_imported_named_function_with_nocter_home_files(
-        r#"from std/io_close import close_raw
+        r#"use std/io_close.close_raw
 
 func main(): void {
     return
@@ -19884,7 +19884,7 @@ func main(): void {
             std_io_file(),
             (
                 "std/io_close.nct",
-                r#"from std/io import close_fd_raw
+                r#"use std/io.close_fd_raw
 
 pub func close_raw(fd: i32): void {
     close_fd_raw(fd)
@@ -19909,7 +19909,7 @@ pub func close_raw(fd: i32): void {
 #[test]
 fn lowers_store_u8_to_ptr_call() {
     let store = lower_imported_named_function_with_nocter_home_files(
-        r#"from std/ptr_store import store_nul
+        r#"use std/ptr_store.store_nul
 
 func main(): void {
     return
@@ -19925,8 +19925,8 @@ pub(nocter) primitive store_u8_to_ptr(destination: *u8, offset: usize, value: u8
             ),
             (
                 "std/ptr_store.nct",
-                r#"from std/ptr import from_addr
-from std/ptr import store_u8_to_ptr
+                r#"use std/ptr.from_addr
+use std/ptr.store_u8_to_ptr
 
 pub func store_nul(address: usize, offset: usize): void {
     store_u8_to_ptr(from_addr(address), offset, 0)
@@ -19953,7 +19953,7 @@ pub func store_nul(address: usize, offset: usize): void {
 #[test]
 fn lowers_slice_from_raw_parts_call() {
     let view = lower_imported_named_function_with_nocter_home_files(
-        r#"from std/ptr_slice import view_mut
+        r#"use std/ptr_slice.view_mut
 
 func main(): void {
     return
@@ -19969,8 +19969,8 @@ pub(nocter) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
             ),
             (
                 "std/ptr_slice.nct",
-                r#"from std/ptr import from_addr
-from std/ptr import slice_from_raw_parts_mut
+                r#"use std/ptr.from_addr
+use std/ptr.slice_from_raw_parts_mut
 
 pub func view_mut(address: usize, len: usize): &+[u8] {
     return slice_from_raw_parts_mut(from_addr(address), len)
@@ -19996,7 +19996,7 @@ pub func view_mut(address: usize, len: usize): &+[u8] {
 #[test]
 fn lowers_string_bytes_to_slice_view() {
     let bytes = lower_imported_named_function_with_nocter_home_files(
-        r#"from std/string import bytes
+        r#"use std/string.bytes
 
 func main(): void {
     return
@@ -20021,7 +20021,7 @@ func main(): void {
 #[test]
 fn lowers_fallible_entry_return_static_error_constructor() {
     let ir = lower_text_with_std_error(
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 func main(): i32! {
     return Error.new("app.failed", "failed")
@@ -20046,7 +20046,7 @@ func main(): i32! {
 #[test]
 fn lowers_fallible_entry_return_static_error_constructor_with_multi_line_message() {
     let ir = lower_text_with_std_error(
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 func main(): i32! {
     return Error.new("app.failed", """
@@ -20069,7 +20069,7 @@ func main(): i32! {
 #[test]
 fn lowers_fallible_entry_return_error_message_without_duplicate_newline() {
     let ir = lower_text_with_std_error(
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 func main(): i32! {
     return Error.new("app.failed", "failed\n")
@@ -20089,7 +20089,7 @@ func main(): i32! {
 #[test]
 fn reports_unsupported_fail_payload() {
     let diagnostics = lower_text_diagnostics_with_std_error(
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 func main(): i32! {
     return Error.new("app.failed", dynamic())
@@ -20239,7 +20239,7 @@ func effect(): void {
 #[test]
 fn lowers_fallible_void_entry_propagating_std_print() {
     let ir = lower_text_with_nocter_home_files(
-        r#"from std/io import print
+        r#"use std/io.print
 
 func main(): void! {
     print("hello\n")?
@@ -22629,7 +22629,7 @@ pub func bytes(value: &str): &[u8] {
 fn std_process_file() -> (&'static str, &'static str) {
     (
         "std/process.nct",
-        r#"from std/os import trap
+        r#"use std/os.trap
 
 #target("arm64-darwin")
 pub(nocter) primitive exit_raw(code: i32): never

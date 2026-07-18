@@ -1,4 +1,4 @@
-from std/process import env
+use std/process.env
 
 func main(): i32! {
     let user = env("USER")? ?? "unknown"

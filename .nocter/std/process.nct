@@ -3,11 +3,11 @@
 //! exit is a standard-library API, not a compiler primitive. The target-specific
 //! implementation calls the active target boundary.
 
-from std/error import Error
-from std/mem import Allocator
-from std/os import trap
-from std/string import String
-from std/vec import Vec
+use std/error.Error
+use std/mem.Allocator
+use std/os.trap
+use std/string.String
+use std/vec.Vec
 
 #target("arm64-darwin")
 pub(nocter) primitive exit_raw(code: i32): never

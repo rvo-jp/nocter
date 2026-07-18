@@ -287,7 +287,7 @@ Required v0 diagnostic families:
 - `return` with a value in a `void` function.
 - `return` value type mismatch when both expected and actual types are known.
 - Non-`void` function reaching the end without an explicit return.
-- `pub from` attempting to re-export a private or `pub(nocter)` name.
+- `pub use path.Name` or `pub use path.{...}` attempting to re-export a private or `pub(nocter)` name.
 - Reserved target requested before implementation.
 
 These families do not require final numeric code assignment in the language design phase. The implementation should assign codes when the diagnostics are implemented.
@@ -300,7 +300,7 @@ Visibility:
 error[E0140]: `from_addr` is visible only inside the active Nocter home
   --> app.nct:3:22
    |
-3 | from std/ptr import from_addr
+3 | use std/ptr.from_addr
    |                      ^^^^^^^^^
    |
 note: `from_addr` is declared as `pub(nocter)`

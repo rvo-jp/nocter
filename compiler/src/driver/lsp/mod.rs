@@ -722,7 +722,7 @@ mod tests {
         .unwrap();
         let app = project.write_source(
             "app.nct",
-            "from std/io import print\n\nfunc main(): i32 {\n    return 0\n}\n",
+            "use std/io.print\n\nfunc main(): i32 {\n    return 0\n}\n",
         );
         let app_uri = file_uri(&app);
         let server = LspServer {
@@ -731,7 +731,7 @@ mod tests {
                 open_document(
                     app_uri.clone(),
                     Some(1),
-                    "from std/io import print\n\nfunc main(): i32 {\n    return 0\n}\n".to_string(),
+                    "use std/io.print\n\nfunc main(): i32 {\n    return 0\n}\n".to_string(),
                 ),
             )]),
             published_diagnostic_uris: HashSet::new(),
@@ -757,8 +757,8 @@ mod tests {
             json!("```nocter\nmodule std/io\n```\n\n**I/O** module.\nProvides file and text APIs.")
         );
         assert_eq!(response["result"]["range"]["start"]["line"], json!(0));
-        assert_eq!(response["result"]["range"]["start"]["character"], json!(5));
-        assert_eq!(response["result"]["range"]["end"]["character"], json!(11));
+        assert_eq!(response["result"]["range"]["start"]["character"], json!(4));
+        assert_eq!(response["result"]["range"]["end"]["character"], json!(10));
     }
 
     #[test]
@@ -952,7 +952,7 @@ mod tests {
         let _home = NocterHomeEnv::set(&home);
         let app = project.write_source(
             "app.nct",
-            "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
+            "use ./config.answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
         );
         let config = project.write_source(
             "config.nct",
@@ -967,7 +967,7 @@ mod tests {
                     open_document(
                         app_uri.clone(),
                         Some(1),
-                        "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n"
+                        "use ./config.answer\n\nfunc main(): i32 {\n    return answer()\n}\n"
                             .to_string(),
                     ),
                 ),
@@ -1081,7 +1081,7 @@ mod tests {
         let _home = NocterHomeEnv::set(&home);
         let app = project.write_source(
             "app.nct",
-            "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
+            "use ./config.answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
         );
         let config =
             project.write_source("config.nct", "pub func answer(): i32 {\n    return 42\n}\n");
@@ -1094,7 +1094,7 @@ mod tests {
                     open_document(
                         app_uri.clone(),
                         Some(1),
-                        "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n"
+                        "use ./config.answer\n\nfunc main(): i32 {\n    return answer()\n}\n"
                             .to_string(),
                     ),
                 ),
@@ -1146,7 +1146,7 @@ mod tests {
         .unwrap();
         let app = project.write_source(
             "app.nct",
-            "from std/io import print\n\nfunc main(): i32 {\n    return 0\n}\n",
+            "use std/io.print\n\nfunc main(): i32 {\n    return 0\n}\n",
         );
         let app_uri = file_uri(&app);
         let io = home.join("std/io.nct").canonicalize().unwrap();
@@ -1156,7 +1156,7 @@ mod tests {
                 open_document(
                     app_uri.clone(),
                     Some(1),
-                    "from std/io import print\n\nfunc main(): i32 {\n    return 0\n}\n".to_string(),
+                    "use std/io.print\n\nfunc main(): i32 {\n    return 0\n}\n".to_string(),
                 ),
             )]),
             published_diagnostic_uris: HashSet::new(),
@@ -1191,7 +1191,7 @@ mod tests {
         let _home = NocterHomeEnv::set(&home);
         let app = project.write_source(
             "app.nct",
-            "from ./config import Config\n\nfunc main(): i32 {\n    var config: Config = Config { value: 0 }\n    return 0\n}\n",
+            "use ./config.Config\n\nfunc main(): i32 {\n    var config: Config = Config { value: 0 }\n    return 0\n}\n",
         );
         let config = project.write_source("config.nct", "pub struct Config {\n    value: i32\n}\n");
         let app_uri = file_uri(&app);
@@ -1203,7 +1203,7 @@ mod tests {
                     open_document(
                         app_uri.clone(),
                         Some(1),
-                        "from ./config import Config\n\nfunc main(): i32 {\n    var config: Config = Config { value: 0 }\n    return 0\n}\n"
+                        "use ./config.Config\n\nfunc main(): i32 {\n    var config: Config = Config { value: 0 }\n    return 0\n}\n"
                             .to_string(),
                     ),
                 ),
@@ -1378,7 +1378,7 @@ mod tests {
         let _home = NocterHomeEnv::set(&home);
         let app = project.write_source(
             "app.nct",
-            "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
+            "use ./config.answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
         );
         let config =
             project.write_source("config.nct", "pub func answer(): i32 {\n    return 42\n}\n");
@@ -1391,7 +1391,7 @@ mod tests {
                     open_document(
                         app_uri.clone(),
                         Some(1),
-                        "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n"
+                        "use ./config.answer\n\nfunc main(): i32 {\n    return answer()\n}\n"
                             .to_string(),
                     ),
                 ),
@@ -1567,7 +1567,7 @@ mod tests {
         let project = TempProject::new("lsp-open-import");
         let app = project.write_source(
             "app.nct",
-            "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
+            "use ./config.answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
         );
         let config =
             project.write_source("config.nct", "pub func answer(): i32 {\n    return 0\n}\n");
@@ -1579,7 +1579,7 @@ mod tests {
                 open_document(
                     app_uri.clone(),
                     Some(1),
-                    "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n"
+                    "use ./config.answer\n\nfunc main(): i32 {\n    return answer()\n}\n"
                         .to_string(),
                 ),
             ),
@@ -1614,7 +1614,7 @@ mod tests {
         let _home = NocterHomeEnv::set(&home);
         let app = project.write_source(
             "app.nct",
-            "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
+            "use ./config.answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
         );
         let config = project.write_source(
             "config.nct",
@@ -1628,7 +1628,7 @@ mod tests {
                 open_document(
                     app_uri.clone(),
                     Some(1),
-                    "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n"
+                    "use ./config.answer\n\nfunc main(): i32 {\n    return answer()\n}\n"
                         .to_string(),
                 ),
             ),

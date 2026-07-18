@@ -8,7 +8,7 @@ fn check_loads_relative_imports() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"from ./config import answer
+        r#"use ./config.answer
 
 func main(): i32 {
     return answer()
@@ -39,7 +39,7 @@ fn check_uses_relative_imported_function_return_type() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"from ./config import title
+        r#"use ./config.title
 
 func main(): i32 {
     return title()
@@ -72,7 +72,7 @@ fn check_uses_relative_imported_function_parameters() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"from ./config import answer
+        r#"use ./config.answer
 
 func main(): i32 {
     return answer()
@@ -104,7 +104,7 @@ fn check_uses_relative_imported_associated_function_return_type() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"from ./geometry import Point
+        r#"use ./geometry.Point
 
 func main(): i32 {
     return Point.origin().x
@@ -139,7 +139,7 @@ fn check_uses_relative_imported_method_return_type() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"from ./geometry import Point
+        r#"use ./geometry.Point
 
 func main(): i32 {
     let point = Point.origin()
@@ -181,7 +181,7 @@ fn check_reports_relative_imported_function_body_errors() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"from ./config import answer
+        r#"use ./config.answer
 
 func main(): i32 {
     return 0
@@ -215,7 +215,7 @@ fn check_reports_relative_imported_impl_member_name_duplicates() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"from ./geometry import Point
+        r#"use ./geometry.Point
 
 func main(): i32 {
     return 0
@@ -257,7 +257,7 @@ fn check_reports_missing_relative_imported_names() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"from ./config import missing
+        r#"use ./config.missing
 
 func main(): i32 {
     return 0
@@ -289,7 +289,7 @@ fn check_reports_private_relative_imported_names() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"from ./config import answer
+        r#"use ./config.answer
 
 func main(): i32 {
     return 0
@@ -322,7 +322,7 @@ fn check_reports_relative_import_parse_errors() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"from ./config import answer
+        r#"use ./config.answer
 
 func main(): i32 {
     return 0
@@ -347,7 +347,7 @@ fn check_reports_missing_relative_imports() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"from ./missing import Missing
+        r#"use ./missing.Missing
 
 func main(): i32 {
     return 0

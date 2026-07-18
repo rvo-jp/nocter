@@ -73,6 +73,9 @@ Rules:
   parser recognizes the contextual `copy struct` source form.
 - `drop` is not a reserved keyword. It is emitted as an identifier token; the parser recognizes destructor members and explicit drop statements only by their source form.
 - `interface` is a reserved keyword.
+- `from` and `import` are not reserved keywords in v0. They are emitted as
+  identifier tokens; top-level legacy import syntax is diagnosed as removed
+  syntax by the parser.
 - `trait` is not a reserved keyword in v0. It is emitted as an identifier token;
   top-level trait syntax is diagnosed as removed syntax by the parser.
 - `Self` has identifier spelling but is reserved as contextual type syntax in

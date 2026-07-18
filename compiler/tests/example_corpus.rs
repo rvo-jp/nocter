@@ -383,8 +383,8 @@ impl TempProject {
             home.join("std/prelude.nct"),
             concat!(
                 "pub type Int = i32\n",
-                "pub from std/error import Error, ErrorCode\n",
-                "pub from std/string import String\n",
+                "pub use std/error.{Error, ErrorCode}\n",
+                "pub use std/string.String\n",
             ),
         )
         .unwrap();

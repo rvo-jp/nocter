@@ -425,7 +425,7 @@ Recent committed work:
   - lowers stack-backed scalar/view `var` bindings and simple whole-binding `=` assignment for `i32`, `u8`, `usize`, `bool`, `&str`, and slices in the current leading-statement subset
   - adds `nocter run` coverage for scalar assignment and reassigned `&str` output through `write_text_raw`
 - Current checkpoint: execute Hello through distributed std
-  - verifies `from std/io import print` plus `print("Hello")?` with the real distributed `.nocter/std` and `#target("arm64-darwin")` primitive boundary
+  - verifies `use std/io.print` plus `print("Hello")?` with the real distributed `.nocter/std` and `#target("arm64-darwin")` primitive boundary
   - covers the current Hello path end to end through `nocter run`, `std/io.print`, `std/io.write_text_raw`, fallible `?`, and generated executable stdout
 - Current checkpoint: cover non-i32 catch execution paths
   - adds native execution coverage for `catch` success and failure recovery across `u8`, `usize`, `bool`, `&str`, and `void`
@@ -532,7 +532,7 @@ Recent committed work:
   - confirms the build command reports `E8006` and leaves no executable when imported call lowering is unsupported
 - `Diagnose imported call lowering boundary`
   - adds `ir/lower/imported_calls.rs` to detect imported call targets using resolver output before same-file call lowering
-  - reports a dedicated `E8006` for reachable imported calls such as `from std/math import answer; answer()`
+  - reports a dedicated `E8006` for reachable imported calls such as `use std/math.answer; answer()`
   - keeps imported call runtime lowering disabled while making the boundary explicit for the next backend step
 - `Diagnose interpolated string lowering boundary`
   - detects interpolated string expressions inside lowered `let` initializers

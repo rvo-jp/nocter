@@ -95,7 +95,7 @@ impl Item {
                 vec![item.path.to_json(sources)],
             ),
             Item::Import(item) => JsonAstNode::with_value(
-                "import_item",
+                "use_namespace_item",
                 item.path.value.clone(),
                 json_span(sources, item.span),
                 vec![item.path.to_json(sources), item.alias.to_json(sources)],
@@ -105,8 +105,8 @@ impl Item {
                 children.extend(item.names.iter().map(|name| name.to_json(sources)));
                 JsonAstNode::with_value(
                     match item.visibility {
-                        Visibility::Public => "pub_from_import_item",
-                        Visibility::Private | Visibility::Nocter => "from_import_item",
+                        Visibility::Public => "pub_use_names_item",
+                        Visibility::Private | Visibility::Nocter => "use_names_item",
                     },
                     item.path.value.clone(),
                     json_span(sources, item.span),

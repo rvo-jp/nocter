@@ -381,10 +381,10 @@ Output:
 Initial grammar coverage:
 
 - `use std/prelude`
-- `from std/io import print`
-- `pub from std/string import String`
-- `from std/io import File as StdFile`
-- `import std/io as io`
+- `use std/io.print`
+- `pub use std/string.String`
+- `use std/io.File as StdFile`
+- `use std/io as io`
 - `func main(): i32! { ... }`, plus infallible `func main(): i32 { ... }`, `func main(): void { ... }`, and custom `--entry <name>` functions
 - `func name(...): Type { ... }`
 - `func Type.name(...): Type { ... }`
@@ -453,15 +453,15 @@ Current semantic coverage:
 - executable root has exactly one active entry function
 - entry return type is `i32!`, `i32`, or `void`
 - relative imports starting with `./` or `../` are loaded recursively and lexed/parsed before semantic checks run
-- `from ./path import name` resolves imported top-level `func`, `primitive`, `type`, `struct`, and `enum` declarations
+- `use ./path.name` resolves imported top-level `func`, `primitive`, `type`, `struct`, and `enum` declarations
 - imported `func` and `primitive` signatures are used for direct call checking
 - missing imported top-level names from relative imports are diagnosed
 - non-relative imports are loaded recursively from the active Nocter home when needed
 - `std/...` import paths resolve inside the active Nocter home `std/` tree
-- `from std/path import name` resolves imported top-level `func`, `primitive`, `type`, `struct`, and `enum` declarations
+- `use std/path.name` resolves imported top-level `func`, `primitive`, `type`, `struct`, and `enum` declarations
 - imported names must be `pub`, or `pub(nocter)` when the importing file is inside the active Nocter home; private and inaccessible `pub(nocter)` imports are diagnosed
 - eligible user project modules synthesize `use std/prelude`
-- explicit or synthetic `use std/prelude` loads the prelude and introduces its public declarations and public `pub from` re-exports
+- explicit or synthetic `use std/prelude` loads the prelude and introduces its public declarations and public `pub use` re-exports
 - same-file top-level `func`, `primitive`, `type`, `struct`, and `enum` declarations are collected into a resolver-owned symbol table
 - resolver type symbols retain whether a struct was declared with `copy struct`; aliases, enums, interfaces, and ordinary structs are non-copy in this metadata
 - duplicate visible names among same-file declarations, explicit imported names, parameters, locals, and catch bindings are diagnosed

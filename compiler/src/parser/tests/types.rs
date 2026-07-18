@@ -6,7 +6,7 @@ fn parses_function_with_fallible_return_type() {
     let output = parse_text(
         r#"use std/prelude
 
-from std/io import print
+use std/io.print
 
 func main(): i32 {
     run() catch error {

@@ -8,7 +8,7 @@ fn check_loads_non_relative_std_imports_from_nocter_home() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"from std/io import answer
+        r#"use std/io.answer
 
 func main(): i32 {
     return answer()
@@ -39,7 +39,7 @@ fn check_loads_namespace_imports_from_nocter_home() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"import std/io as io
+        r#"use std/io as io
 
 func main(): i32 {
     return 0
@@ -70,7 +70,7 @@ fn check_loads_std_fmt_import_graph_from_nocter_home() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"from std/fmt import append_i32
+        r#"use std/fmt.append_i32
 
 func main(): i32 {
     return 0
@@ -101,7 +101,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
     .unwrap();
     fs::write(
         home.join("std/string.nct"),
-        r#"from std/mem import Allocator
+        r#"use std/mem.Allocator
 
 pub struct String {
     ptr: *u8
@@ -113,8 +113,8 @@ pub struct String {
     .unwrap();
     fs::write(
         home.join("std/fmt.nct"),
-        r#"from std/error import Error
-from std/string import String
+        r#"use std/error.Error
+use std/string.String
 
 pub func append_i32(out: &+String, value: i32): void! {
     return
@@ -141,7 +141,7 @@ fn check_uses_non_relative_imported_function_return_type() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"from std/io import title
+        r#"use std/io.title
 
 func main(): i32 {
     return title()
@@ -174,7 +174,7 @@ fn check_loads_std_imports_from_common_std() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"from std/io import answer
+        r#"use std/io.answer
 
 func main(): i32 {
     return answer()
@@ -205,7 +205,7 @@ fn check_ignores_inactive_target_items_in_common_std() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"from std/io import answer
+        r#"use std/io.answer
 
 func main(): i32 {
     return answer()
@@ -267,7 +267,7 @@ fn check_reports_nocter_visibility_import_from_user_project() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"from std/ptr import internal
+        r#"use std/ptr.internal
 
 func main(): i32 {
     return 0
@@ -300,7 +300,7 @@ fn check_allows_nocter_visibility_import_inside_nocter_home() {
     let home = make_nocter_home(&root);
     fs::write(
         home.join("std/io.nct"),
-        r#"from std/ptr import internal
+        r#"use std/ptr.internal
 
 func main(): i32 {
     return internal()
@@ -383,7 +383,7 @@ fn check_reports_missing_non_relative_imports() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"from std/missing import answer
+        r#"use std/missing.answer
 
 func main(): i32 {
     return 0

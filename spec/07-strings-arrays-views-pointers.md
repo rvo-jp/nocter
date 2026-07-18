@@ -83,7 +83,7 @@ Rules:
 Example:
 
 ```nct
-import std/ptr as ptr
+use std/ptr as ptr
 
 func address_of(value: &u8): usize {
     let pointer = ptr.from_ref(value)
@@ -117,8 +117,8 @@ impl &str {
 Trusted standard-library implementation example:
 
 ```nct
-import std/ptr as ptr
-import std/os/macos as os
+use std/ptr as ptr
+use std/os/macos as os
 
 let bytes = text.bytes()
 let result = os.syscall3(

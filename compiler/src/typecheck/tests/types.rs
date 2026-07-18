@@ -343,7 +343,7 @@ func main(): i32 {
 #[test]
 fn accepts_raw_pointer_value_types() {
     let diagnostics = check_text(
-        r#"from std/ptr import addr
+        r#"use std/ptr.addr
 
 struct Buffer {
     ptr: *u8

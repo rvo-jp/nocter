@@ -4,13 +4,13 @@
 //! and fail with the compiler built-in `error` payload. Target-specific syscall
 //! results and errno wrappers stay behind `#target`-gated std internals.
 
-from std/error import Error
-from std/mem import alloc_pages
-from std/mem import free_pages
-from std/os import OSError, OSErrorKind
-from std/ptr import copy_str_to_ptr
-from std/ptr import from_addr
-from std/ptr import store_u8_to_ptr
+use std/error.Error
+use std/mem.alloc_pages
+use std/mem.free_pages
+use std/os.{OSError, OSErrorKind}
+use std/ptr.copy_str_to_ptr
+use std/ptr.from_addr
+use std/ptr.store_u8_to_ptr
 
 #target("arm64-darwin")
 pub(nocter) primitive open_read_raw(path: *u8): i32!

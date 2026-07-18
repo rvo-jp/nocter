@@ -687,7 +687,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
         let source = root.join("fallible_fail.nct");
         fs::write(
             &source,
-            r#"from std/error import Error
+            r#"use std/error.Error
 
 func main(): i32! {
     return Error.new("app.failed", "failed")
@@ -733,7 +733,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
         let source = root.join("fallible_void_fail.nct");
         fs::write(
             &source,
-            r#"from std/error import Error
+            r#"use std/error.Error
 
 func main(): void! {
     fail()?
@@ -808,7 +808,7 @@ func answer(): i32! {
         let source = root.join("fallible_i32_fail.nct");
         fs::write(
             &source,
-            r#"from std/error import Error
+            r#"use std/error.Error
 
 func main(): i32! {
     return fail()?
@@ -883,7 +883,7 @@ func answer(): i32! {
         let source = root.join("fallible_i32_catch_failure.nct");
         fs::write(
             &source,
-            r#"from std/error import Error
+            r#"use std/error.Error
 
 func main(): i32! {
     let value = answer() catch error {
@@ -923,7 +923,7 @@ func answer(): i32! {
         write_std_error(&nocter_home);
         fs::write(
             nocter_home.join("std/io.nct"),
-            r#"from std/error import Error
+            r#"use std/error.Error
 
 #target("arm64-darwin")
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
@@ -940,7 +940,7 @@ pub func fail_write(): void! {
         let source = root.join("write_catch_failure.nct");
         fs::write(
             &source,
-            r#"from std/io import fail_write
+            r#"use std/io.fail_write
 
 func main(): void! {
     fail_write()?
@@ -983,8 +983,8 @@ pub func bytes(value: &str): &[u8] {
         .unwrap();
         fs::write(
             nocter_home.join("std/io.nct"),
-            r#"from std/error import Error
-from std/string import bytes
+            r#"use std/error.Error
+use std/string.bytes
 
 #target("arm64-darwin")
 pub(nocter) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
@@ -1001,7 +1001,7 @@ pub func fail_write(): void! {
         let source = root.join("write_bytes_catch_failure.nct");
         fs::write(
             &source,
-            r#"from std/io import fail_write
+            r#"use std/io.fail_write
 
 func main(): void! {
     fail_write()?
@@ -1042,9 +1042,9 @@ pub(nocter) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
         .unwrap();
         fs::write(
             nocter_home.join("std/io.nct"),
-            r#"from std/error import Error
-from std/ptr import from_addr
-from std/ptr import slice_from_raw_parts_mut
+            r#"use std/error.Error
+use std/ptr.from_addr
+use std/ptr.slice_from_raw_parts_mut
 
 #target("arm64-darwin")
 pub(nocter) primitive read_bytes_raw(fd: i32, buffer: &+[u8]): usize!
@@ -1062,7 +1062,7 @@ pub func fail_read(): void! {
         let source = root.join("read_bytes_catch_failure.nct");
         fs::write(
             &source,
-            r#"from std/io import fail_read
+            r#"use std/io.fail_read
 
 func main(): void! {
     fail_read()?
@@ -1206,7 +1206,7 @@ func effect(): void! {
         let source = root.join("non_i32_catch_failure_recovery.nct");
         fs::write(
             &source,
-            r#"from std/error import Error
+            r#"use std/error.Error
 
 func main(): i32 {
     let left: i32 = recover_left()
@@ -1379,7 +1379,7 @@ pub func write(text: &str): void! {
         let source = root.join("fallible_str_success.nct");
         fs::write(
             &source,
-            r#"from std/io import write
+            r#"use std/io.write
 
 func main(): i32! {
     let text: &str = message()?
@@ -1495,7 +1495,7 @@ pub func print(text: &str): void! {
         let source = root.join("hello.nct");
         fs::write(
             &source,
-            r#"from std/io import print
+            r#"use std/io.print
 
 func main(): void! {
     let marker = 1

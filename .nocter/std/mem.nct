@@ -9,12 +9,12 @@
 //! not part of the compiler primitive set in v0; target-gated std internals
 //! provide the OS boundary behind this common API.
 
-from std/error import Error
-from std/os import syscall2, syscall6
-from std/ptr import addr
-from std/ptr import from_addr
-from std/ptr import slice_from_raw_parts
-from std/ptr import slice_from_raw_parts_mut
+use std/error.Error
+use std/os.{syscall2, syscall6}
+use std/ptr.addr
+use std/ptr.from_addr
+use std/ptr.slice_from_raw_parts
+use std/ptr.slice_from_raw_parts_mut
 
 pub copy struct Layout {
     pub size: usize

@@ -68,7 +68,7 @@ fn run_command_returns_imported_function_call_exit_code() {
     );
     let source = project.write_source(
         "call.nct",
-        r#"from std/math import answer
+        r#"use std/math.answer
 
 func main(): i32 {
     return answer()
@@ -100,7 +100,7 @@ fn run_command_returns_imported_alias_function_call_exit_code() {
     );
     let source = project.write_source(
         "call_alias.nct",
-        r#"from std/math import answer as imported_answer
+        r#"use std/math.answer as imported_answer
 
 func main(): i32 {
     return imported_answer()
@@ -255,7 +255,7 @@ fn run_command_returns_imported_bool_condition_exit_code() {
     );
     let source = project.write_source(
         "condition.nct",
-        r#"from std/flags import ready
+        r#"use std/flags.ready
 
 func main(): i32 {
     if ready() {
@@ -295,8 +295,8 @@ pub func add_one(value: i32): i32 {
     );
     let source = project.write_source(
         "nested.nct",
-        r#"from std/math import add_one
-from std/math import base
+        r#"use std/math.add_one
+use std/math.base
 
 func main(): i32 {
     return add_one(base())
@@ -337,7 +337,7 @@ pub func read_second(pair: Pair): i32 {
     );
     let source = project.write_source(
         "imported_direct_aggregate_call.nct",
-        r#"from std/text import Pair, make_pair, read_second
+        r#"use std/text.{Pair, make_pair, read_second}
 
 func main(): i32 {
     let pair = make_pair()
@@ -380,7 +380,7 @@ pub func read_code(value: Big): i32 {
     );
     let source = project.write_source(
         "imported_indirect_aggregate_call.nct",
-        r#"from std/text import Big, make_big, read_code
+        r#"use std/text.{Big, make_big, read_code}
 
 func main(): i32 {
     let value = make_big()
@@ -429,7 +429,7 @@ pub func read_ninth(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i
     );
     let source = project.write_source(
         "imported_stack_passed_direct_aggregate_arg.nct",
-        r#"from std/text import Bytes, read_ninth
+        r#"use std/text.{Bytes, read_ninth}
 
 func main(): i32 {
     return read_ninth(1, 2, 3, 4, 5, 6, 7, 8, Bytes{
@@ -477,7 +477,7 @@ pub func read_code(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i3
     );
     let source = project.write_source(
         "imported_stack_passed_indirect_aggregate_arg.nct",
-        r#"from std/text import Big, read_code
+        r#"use std/text.{Big, read_code}
 
 func main(): i32 {
     return read_code(1, 2, 3, 4, 5, 6, 7, 8, Big{ first: 10, second: 20, code: 42 })
@@ -665,7 +665,7 @@ pub func write(text: &str): void! {
     );
     let source = project.write_source(
         "str_var_assignment.nct",
-        r#"from std/io import write
+        r#"use std/io.write
 
 func main(): i32! {
     var text: &str = "wrong"
@@ -766,7 +766,7 @@ fn run_command_returns_imported_usize_condition_exit_code() {
     );
     let source = project.write_source(
         "imported_usize_condition.nct",
-        r#"from std/sizes import size
+        r#"use std/sizes.size
 
 func main(): i32 {
     let value: usize = size()
@@ -1575,7 +1575,7 @@ fn run_command_traps_stack_passed_never_call() {
     let project = TempProject::new("cli-run-stack-passed-never-call");
     let source = project.write_source(
         "stack_passed_never_call.nct",
-        r#"from std/process import abort
+        r#"use std/process.abort
 
 func main(): i32 {
     return fail(1, 2, 3, 4, 5, 6, 7, 8, 9)
@@ -1603,7 +1603,7 @@ fn run_command_traps_aggregate_argument_never_call() {
     let project = TempProject::new("cli-run-aggregate-argument-never-call");
     let source = project.write_source(
         "aggregate_argument_never_call.nct",
-        r#"from std/process import abort
+        r#"use std/process.abort
 
 copy struct Big {
     first: usize
@@ -2662,7 +2662,7 @@ fn run_command_runs_direct_aggregate_return_scope_drops() {
     let project = TempProject::new("cli-run-direct-aggregate-return-scope-drops");
     project.write_nocter_home_file(
         "std/log.nct",
-        r#"from std/io import write_text_raw
+        r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
     write_text_raw(1, text)?
@@ -2678,7 +2678,7 @@ pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
     );
     let source = project.write_source(
         "direct_aggregate_return_scope_drops.nct",
-        r#"from std/log import write
+        r#"use std/log.write
 
 struct File {
     fd: i32
@@ -3857,7 +3857,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
     );
     let source = project.write_source(
         "caught_direct_aggregate_call_argument_field.nct",
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 struct Pair {
     first: i32
@@ -3909,7 +3909,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
     );
     let source = project.write_source(
         "caught_direct_aggregate_call_argument_failure.nct",
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 struct Pair {
     first: i32
@@ -3957,7 +3957,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
     );
     let source = project.write_source(
         "propagate_cleanup_drop.nct",
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 struct File {
     fd: i32
@@ -4010,7 +4010,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
     );
     project.write_nocter_home_file(
         "std/log.nct",
-        r#"from std/io import write_text_raw
+        r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
     write_text_raw(1, text)?
@@ -4026,8 +4026,8 @@ pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
     );
     let source = project.write_source(
         "catch_cleanup_drop.nct",
-        r#"from std/error import Error
-from std/log import write
+        r#"use std/error.Error
+use std/log.write
 
 struct File {
     fd: i32
@@ -4073,7 +4073,7 @@ fn run_command_runs_replacement_and_scope_end_drops() {
     let project = TempProject::new("cli-run-replacement-drop");
     project.write_nocter_home_file(
         "std/log.nct",
-        r#"from std/io import write_text_raw
+        r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
     write_text_raw(1, text)?
@@ -4089,7 +4089,7 @@ pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
     );
     let source = project.write_source(
         "replacement_drop.nct",
-        r#"from std/log import write
+        r#"use std/log.write
 
 struct File {
     fd: i32
@@ -4129,7 +4129,7 @@ fn run_command_runs_reinitialization_after_explicit_drop() {
     let project = TempProject::new("cli-run-reinitialize-after-explicit-drop");
     project.write_nocter_home_file(
         "std/log.nct",
-        r#"from std/io import write_text_raw
+        r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
     write_text_raw(1, text)?
@@ -4145,7 +4145,7 @@ pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
     );
     let source = project.write_source(
         "reinitialize_after_explicit_drop.nct",
-        r#"from std/log import write
+        r#"use std/log.write
 
 struct File {
     fd: i32
@@ -4186,7 +4186,7 @@ fn run_command_preserves_terminal_if_return_value_after_scope_drop() {
     let project = TempProject::new("cli-run-terminal-if-return-drop");
     project.write_nocter_home_file(
         "std/log.nct",
-        r#"from std/io import write_text_raw
+        r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
     write_text_raw(1, text)?
@@ -4202,7 +4202,7 @@ pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
     );
     let source = project.write_source(
         "terminal_if_return_drop.nct",
-        r#"from std/log import write
+        r#"use std/log.write
 
 struct File {
     fd: i32
@@ -4275,7 +4275,7 @@ fn run_command_runs_outer_explicit_drop_before_nonterminal_if_return_once() {
     let project = TempProject::new("cli-run-nonterminal-if-outer-drop-return");
     project.write_nocter_home_file(
         "std/log.nct",
-        r#"from std/io import write_text_raw
+        r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
     write_text_raw(1, text)?
@@ -4291,7 +4291,7 @@ pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
     );
     let source = project.write_source(
         "nonterminal_if_outer_drop_return.nct",
-        r#"from std/log import write
+        r#"use std/log.write
 
 struct File {
     fd: i32
@@ -4346,7 +4346,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
     );
     let source = project.write_source(
         "caught_indirect_aggregate_call_argument_field.nct",
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 struct Big {
     first: usize
@@ -4400,7 +4400,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
     );
     let source = project.write_source(
         "caught_direct_aggregate_call_return_field.nct",
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 struct Pair {
     first: i32
@@ -4453,7 +4453,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
     );
     let source = project.write_source(
         "caught_direct_aggregate_call_comparison_field.nct",
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 struct Pair {
     first: i32
@@ -4505,7 +4505,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
     );
     let source = project.write_source(
         "caught_direct_aggregate_call_comparison_failure.nct",
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 struct Pair {
     first: i32
@@ -4553,7 +4553,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
     );
     let source = project.write_source(
         "caught_direct_aggregate_call_return_failure.nct",
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 struct Pair {
     first: i32
@@ -4602,7 +4602,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
     );
     let source = project.write_source(
         "caught_indirect_aggregate_call_return_field.nct",
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 struct Big {
     first: usize
@@ -4657,7 +4657,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
     );
     let source = project.write_source(
         "caught_indirect_aggregate_call_comparison_field.nct",
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 struct Big {
     first: usize
@@ -4711,7 +4711,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
     );
     let source = project.write_source(
         "caught_aggregate_member_assignment_field.nct",
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 copy struct Header {
     tag: u8
@@ -4773,7 +4773,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
     );
     let source = project.write_source(
         "caught_aggregate_struct_literal_field.nct",
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 copy struct Header {
     tag: u8
@@ -4834,7 +4834,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
     );
     let source = project.write_source(
         "caught_aggregate_struct_literal_field_failure.nct",
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 copy struct Header {
     tag: u8
@@ -4891,7 +4891,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
     );
     let source = project.write_source(
         "caught_indirect_aggregate_call_return_failure.nct",
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 struct Big {
     first: usize
@@ -7027,7 +7027,7 @@ fn run_command_runs_optional_let_else_never_scope_drop_before_trap() {
     let project = TempProject::new("cli-run-optional-let-else-never-cleanup");
     project.write_nocter_home_file(
         "std/log.nct",
-        r#"from std/io import write_text_raw
+        r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
     write_text_raw(1, text)?
@@ -7053,8 +7053,8 @@ pub func exit(code: i32): never {
     );
     let source = project.write_source(
         "optional_let_else_never_cleanup.nct",
-        r#"from std/log import write
-from std/process import exit
+        r#"use std/log.write
+use std/process.exit
 
 struct File {
     fd: i32
@@ -7441,7 +7441,7 @@ fn run_command_runs_optional_scalar_default_return_scope_drops() {
     let project = TempProject::new("cli-run-optional-scalar-default-return-scope-drops");
     project.write_nocter_home_file(
         "std/log.nct",
-        r#"from std/io import write_text_raw
+        r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
     write_text_raw(1, text)?
@@ -7457,7 +7457,7 @@ pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
     );
     let source = project.write_source(
         "optional_scalar_default_return_scope_drops.nct",
-        r#"from std/log import write
+        r#"use std/log.write
 
 struct File {
     fd: i32
@@ -7980,7 +7980,7 @@ fn run_command_runs_optional_direct_aggregate_default_return_scope_drops() {
     let project = TempProject::new("cli-run-optional-direct-aggregate-default-return-scope-drops");
     project.write_nocter_home_file(
         "std/log.nct",
-        r#"from std/io import write_text_raw
+        r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
     write_text_raw(1, text)?
@@ -7996,7 +7996,7 @@ pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
     );
     let source = project.write_source(
         "optional_direct_aggregate_default_return_scope_drops.nct",
-        r#"from std/log import write
+        r#"use std/log.write
 
 struct File {
     fd: i32
@@ -8145,7 +8145,7 @@ fn run_command_runs_optional_indirect_aggregate_default_return_scope_drops() {
         TempProject::new("cli-run-optional-indirect-aggregate-default-return-scope-drops");
     project.write_nocter_home_file(
         "std/log.nct",
-        r#"from std/io import write_text_raw
+        r#"use std/io.write_text_raw
 
 pub func write(text: &str): void! {
     write_text_raw(1, text)?
@@ -8161,7 +8161,7 @@ pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
     );
     let source = project.write_source(
         "optional_indirect_aggregate_default_return_scope_drops.nct",
-        r#"from std/log import write
+        r#"use std/log.write
 
 struct File {
     fd: i32
@@ -8388,7 +8388,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
     );
     let source = project.write_source(
         "fail.nct",
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 func main(): i32! {
     return Error.new("app.failed", "failed")
@@ -8421,7 +8421,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
     );
     let source = project.write_source(
         "fail.nct",
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 func main(): i32! {
     return Error.new("app.failed", """

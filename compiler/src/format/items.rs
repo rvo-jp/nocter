@@ -38,7 +38,7 @@ impl Formatter {
     }
 
     fn format_import_item(&mut self, item: &ImportItem) {
-        self.write("import ");
+        self.write("use ");
         self.write(&item.path.value);
         self.write(" as ");
         self.write(&item.alias.name);
@@ -46,10 +46,16 @@ impl Formatter {
 
     fn format_from_import_item(&mut self, item: &FromImportItem) {
         self.format_visibility(item.visibility);
-        self.write("from ");
+        self.write("use ");
         self.write(&item.path.value);
-        self.write(" import ");
-        self.write_comma_separated(&item.names, Self::format_imported_name);
+        self.write(".");
+        if item.names.len() == 1 {
+            self.format_imported_name(&item.names[0]);
+        } else {
+            self.write("{");
+            self.write_comma_separated(&item.names, Self::format_imported_name);
+            self.write("}");
+        }
     }
 
     fn format_function_decl(&mut self, item: &FunctionDecl) {

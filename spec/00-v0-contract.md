@@ -50,10 +50,12 @@ parser. `interface` is a reserved keyword.
 
 The v0 parser accepts these top-level item forms:
 
-- `use path`
-- `import path as name`
-- `from path import name`
-- `pub from path import name`
+- `use std/prelude`
+- `use path as name`
+- `use path.name`
+- `use path.name`
+- `pub use path.name`
+- `pub use path.name`
 - `primitive name<T>(...): Type`
 - `func name<T>(...): Type { ... }`
 - `func Type.name<T>(...): Type { ... }`

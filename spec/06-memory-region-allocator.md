@@ -103,9 +103,9 @@ Rules:
 Example:
 
 ```nct
-from std/mem import Allocator, RawBuffer
+use std/mem.{Allocator, RawBuffer}
 
-import std/mem as mem
+use std/mem as mem
 
 func make_bytes(allocator: &+Allocator, size: usize): RawBuffer! {
     let buffer = mem.alloc(allocator, size, 16)?

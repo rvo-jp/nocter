@@ -82,7 +82,7 @@ fn lsp_command_publishes_typecheck_diagnostic_context() {
     let project = TempProject::new("cli-lsp-diagnostic-context");
     let app = project.write_source(
         "app.nct",
-        "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
+        "use ./config.answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
     );
     let config = project.write_source(
         "config.nct",
@@ -108,7 +108,7 @@ fn lsp_command_publishes_typecheck_diagnostic_context() {
                         "uri": app_uri.clone(),
                         "languageId": "nocter",
                         "version": 1,
-                        "text": "from ./config import answer\n\nfunc main(): i32 {\n    return answer()\n}\n"
+                        "text": "use ./config.answer\n\nfunc main(): i32 {\n    return answer()\n}\n"
                     }
                 }
             }),
@@ -163,7 +163,7 @@ fn lsp_command_publishes_typecheck_diagnostic_context() {
 #[test]
 fn lsp_command_fallback_semantic_tokens_classify_builtin_types() {
     let project = TempProject::new("cli-lsp-fallback-semantic-types");
-    let source_text = "from ./missing import nope\n\nfunc main(path: &str): void! {\n    let byte: u8 = 0 as u8\n    return\n}\n";
+    let source_text = "use ./missing.nope\n\nfunc main(path: &str): void! {\n    let byte: u8 = 0 as u8\n    return\n}\n";
     let source = project.write_source("app.nct", source_text);
     let uri = file_uri(&source);
 

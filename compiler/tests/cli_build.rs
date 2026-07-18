@@ -441,7 +441,7 @@ fn build_command_lowers_imported_usize_call_condition() {
     );
     let source = project.write_source(
         "imported_usize_condition.nct",
-        r#"from std/sizes import size
+        r#"use std/sizes.size
 
 func main(): i32 {
     let value: usize = size()
@@ -1523,7 +1523,7 @@ fn build_command_lowers_imported_i32_call() {
     );
     let source = project.write_source(
         "imported_call.nct",
-        r#"from std/math import answer
+        r#"use std/math.answer
 
 func main(): i32 {
     let value = answer()
@@ -1553,7 +1553,7 @@ fn build_command_lowers_imported_alias_i32_call() {
     );
     let source = project.write_source(
         "imported_alias_call.nct",
-        r#"from std/math import answer as imported_answer
+        r#"use std/math.answer as imported_answer
 
 func main(): i32 {
     return imported_answer()
@@ -1614,7 +1614,7 @@ fn build_command_lowers_imported_bool_condition() {
     );
     let source = project.write_source(
         "imported_bool_condition.nct",
-        r#"from std/flags import ready
+        r#"use std/flags.ready
 
 func main(): i32 {
     if ready() {
@@ -1651,8 +1651,8 @@ pub func add_one(value: i32): i32 {
     );
     let source = project.write_source(
         "imported_nested_argument.nct",
-        r#"from std/math import add_one
-from std/math import base
+        r#"use std/math.add_one
+use std/math.base
 
 func main(): i32 {
     return add_one(base())
@@ -2031,7 +2031,7 @@ fn build_command_lowers_imported_copy_aggregate_slot_assignment_and_borrow_argum
     );
     let source = project.write_source(
         "imported_copy_aggregate_slot_assignment_borrow.nct",
-        r#"from std/text import Text
+        r#"use std/text.Text
 
 func main(): i32! {
     var source = Text{ start: 1, len: 2, capacity: 3 }
@@ -2250,8 +2250,8 @@ pub func page_allocator(): Allocator {
     );
     let source = project.write_source(
         "page_allocator_borrow.nct",
-        r#"from std/mem import Allocator
-from std/mem import page_allocator
+        r#"use std/mem.Allocator
+use std/mem.page_allocator
 
 func main(): i32 {
     var allocator = page_allocator()
@@ -3054,7 +3054,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
     );
     let source = project.write_source(
         "fail.nct",
-        r#"from std/error import Error
+        r#"use std/error.Error
 
 func main(): i32! {
     return Error.new("app.failed", "failed")

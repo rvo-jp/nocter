@@ -15,7 +15,7 @@ Use the formatter's output as the only canonical source style.
 Important spellings:
 
 ```nct
-from std/io import print
+use std/io.print
 
 func main(): i32! {
     print("Hello")?
@@ -47,8 +47,8 @@ Rules for generated code:
 Nocter does not use a `module` declaration. A file's module identity comes from its path.
 
 ```nct
-from std/io import print
-from ./config import Config
+use std/io.print
+use ./config.Config
 ```
 
 Rules:
@@ -56,8 +56,8 @@ Rules:
 - User project modules receive a synthetic `use std/prelude`.
 - Do not write `use std/prelude` in ordinary generated user code unless preserving existing source style.
 - Files inside `.nocter/std/` and target standard-library overlays do not receive the synthetic prelude.
-- `from path import Name` imports selected public names.
-- `import path as name` imports a namespace alias.
+- `use path.Name` imports selected public names.
+- `use path as name` imports a namespace alias.
 - Paths starting with `./` or `../` are resolved relative to the current file.
 - Paths such as `std/io` are resolved from the active Nocter home.
 - Do not invent wildcard imports, textual includes, explicit `.nct` import suffixes, or `module` declarations.
@@ -67,7 +67,7 @@ Rules:
 Fallible values use `T!`. The failure payload is always the built-in `error` type.
 
 ```nct
-from std/io import print
+use std/io.print
 
 func announce(text: &str): void! {
     print(text)?
@@ -127,7 +127,7 @@ let user = lookup("USER") ?? "unknown"
 Fallible optional success values use `T?!`.
 
 ```nct
-from std/process import env
+use std/process.env
 
 func user_name(): &str! {
     return env("USER")? ?? "unknown"
@@ -225,7 +225,7 @@ print("Hello")
 Prefer:
 
 ```nct
-from std/io import print
+use std/io.print
 
 func main(): i32! {
     print("Hello")?

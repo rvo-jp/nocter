@@ -16,7 +16,7 @@ fn check_synthesizes_standard_prelude_for_user_modules() {
     .unwrap();
     fs::write(
         home.join("std/prelude.nct"),
-        r#"pub from std/prelude_helpers import answer
+        r#"pub use std/prelude_helpers.answer
 "#,
     )
     .unwrap();

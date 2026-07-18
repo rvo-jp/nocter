@@ -418,7 +418,7 @@ Typical uses:
 Example:
 
 ```nct
-import std/process as process
+use std/process as process
 
 func require_path(path: &str?): &str {
     if let value = path {

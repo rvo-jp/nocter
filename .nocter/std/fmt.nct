@@ -4,8 +4,8 @@
 //! `std/string.String`. They are ordinary fallible standard-library functions,
 //! not compiler formatting primitives.
 
-from std/error import Error
-from std/string import String
+use std/error.Error
+use std/string.String
 
 pub func append_str(out: &+String, value: &str): void! {
     String.push_str(out, value)?

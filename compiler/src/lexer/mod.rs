@@ -40,8 +40,6 @@ impl TokenKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Keyword {
-    From,
-    Import,
     Use,
     Func,
     Pub,
@@ -78,8 +76,6 @@ pub enum Keyword {
 }
 
 pub(crate) const KEYWORD_LEXEMES: &[&str] = &[
-    "from",
-    "import",
     "use",
     "func",
     "pub",
@@ -856,8 +852,6 @@ fn digit_matches_base(byte: u8, base: NumberBase) -> bool {
 
 fn keyword(text: &str) -> Option<Keyword> {
     Some(match text {
-        "from" => Keyword::From,
-        "import" => Keyword::Import,
         "use" => Keyword::Use,
         "func" => Keyword::Func,
         "pub" => Keyword::Pub,
@@ -985,6 +979,8 @@ mod tests {
         assert!(!KEYWORD_LEXEMES.contains(&"drop"));
         assert!(!KEYWORD_LEXEMES.contains(&"copy"));
         assert!(!KEYWORD_LEXEMES.contains(&"trait"));
+        assert!(!KEYWORD_LEXEMES.contains(&"from"));
+        assert!(!KEYWORD_LEXEMES.contains(&"import"));
         assert!(KEYWORD_LEXEMES.contains(&"interface"));
     }
 

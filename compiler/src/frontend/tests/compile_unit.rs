@@ -12,7 +12,7 @@ fn compile_unit_analysis_retains_per_file_results() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"from ./config import answer
+        r#"use ./config.answer
 
 func main(): i32 {
     return answer()
@@ -81,7 +81,7 @@ fn compile_unit_reuses_preloaded_import_source() {
     let home = make_nocter_home(&root);
     fs::write(
         root.join("app.nct"),
-        r#"from ./config import answer
+        r#"use ./config.answer
 
 func main(): i32 {
     return answer()

@@ -6,7 +6,7 @@ fn parses_hello_entry_function() {
     let output = parse_text(
         r#"use std/prelude
 
-from std/io import print
+use std/io.print
 
 func main(): i32 {
     print("Hello") catch error {
@@ -29,9 +29,10 @@ func main(): i32 {
 #[test]
 fn parses_import_aliases() {
     let output = parse_text(
-        r#"import std/io as io
-from std/io import File as StdFile, stdout
-pub from std/string import String as StdString
+        r#"use std/io as io
+use std/io.File as StdFile
+use std/io.stdout
+pub use std/string.String as StdString
 
 func main(): i32 {
     return 0
@@ -47,7 +48,10 @@ func main(): i32 {
     let Item::FromImport(from_import) = &ast.items[1] else {
         panic!("expected from import");
     };
-    let Item::FromImport(reexport) = &ast.items[2] else {
+    let Item::FromImport(stdout_import) = &ast.items[2] else {
+        panic!("expected from import");
+    };
+    let Item::FromImport(reexport) = &ast.items[3] else {
         panic!("expected public re-export");
     };
 
@@ -55,10 +59,26 @@ func main(): i32 {
     assert_eq!(import.alias.name, "io");
     assert_eq!(from_import.names[0].name, "File");
     assert_eq!(from_import.names[0].local_name(), "StdFile");
-    assert_eq!(from_import.names[1].name, "stdout");
-    assert_eq!(from_import.names[1].local_name(), "stdout");
+    assert_eq!(stdout_import.names[0].name, "stdout");
+    assert_eq!(stdout_import.names[0].local_name(), "stdout");
     assert_eq!(reexport.visibility, Visibility::Public);
     assert_eq!(reexport.names[0].local_name(), "StdString");
+}
+
+#[test]
+fn diagnoses_removed_import_syntax() {
+    let output = parse_text(
+        r#"from std/io import print
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("`import` syntax has been removed")
+    );
 }
 
 #[test]
@@ -445,8 +465,8 @@ fn parses_trait_as_ordinary_function_name() {
 #[test]
 fn parses_relative_import_paths() {
     let output = parse_text(
-        r#"from ./config import Config
-from ../shared/path import Path
+        r#"use ./config.Config
+use ../shared/path.Path
 
 func main(): i32 {
     return 0
@@ -472,7 +492,7 @@ func main(): i32 {
 #[test]
 fn parses_public_reexports() {
     let output = parse_text(
-        r#"pub from std/string import String
+        r#"pub use std/string.String
 
 func main(): i32 {
     return 0

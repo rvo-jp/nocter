@@ -234,7 +234,7 @@ func invalid_rebind(value: &+Counter, other: &+Counter): void {
 Adopted: resource destruction uses a dedicated `drop` member inside an inherent `impl`, not a `Drop` trait.
 
 ```nct
-import std/os as os
+use std/os as os
 
 impl File {
     drop file: &+Self {

@@ -1,4 +1,4 @@
-from ./config import answer
+use ./config.answer
 
 func main(): i32 {
     return answer()

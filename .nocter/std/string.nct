@@ -10,14 +10,14 @@
 //! byte-slice view construction, and release are implemented in Nocter code
 //! through restricted runtime pointer primitives.
 
-from std/error import Error
-from std/mem import Allocator
-from std/mem import alloc_pages as alloc_pages_impl
-from std/mem import free_pages as free_pages_impl
-from std/ptr import addr
-from std/ptr import copy_str_to_ptr
-from std/ptr import from_addr
-from std/ptr import str_from_raw_parts
+use std/error.Error
+use std/mem.Allocator
+use std/mem.alloc_pages as alloc_pages_impl
+use std/mem.free_pages as free_pages_impl
+use std/ptr.addr
+use std/ptr.copy_str_to_ptr
+use std/ptr.from_addr
+use std/ptr.str_from_raw_parts
 
 pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 

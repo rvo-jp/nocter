@@ -39,50 +39,31 @@ impl Parser<'_> {
                 );
                 return Err(());
             }
-            return self.parse_use_item();
+            return self.parse_use_item(Visibility::Private);
         }
 
-        if self.at_keyword(Keyword::From) {
-            if target.is_some() {
-                self.error_current(
-                    "`#target` applies only to function, primitive, or type declarations in v0",
-                );
-                return Err(());
-            }
-            return self.parse_from_import_item(Visibility::Private);
-        }
-
-        if self.at_keyword(Keyword::Import) {
-            if target.is_some() {
-                self.error_current(
-                    "`#target` applies only to function, primitive, or type declarations in v0",
-                );
-                return Err(());
-            }
-            return self.parse_import_item();
+        if self.at_identifier_text("from") || self.at_identifier_text("import") {
+            self.error_current("`import` syntax has been removed; use `use` imports");
+            return Err(());
         }
 
         let visibility = self.parse_visibility()?;
         let is_copy = self.match_identifier_text("copy").is_some();
 
-        if self.at_keyword(Keyword::From) {
+        if self.at_keyword(Keyword::Use) {
             if is_copy {
                 self.error_current("`copy` applies only to `struct` declarations in v0");
                 return Err(());
             }
-            if visibility != Visibility::Public {
-                self.error_current("`pub(nocter) from` is not valid in v0");
+            if visibility == Visibility::Nocter {
+                self.error_current("`pub(nocter) use` is not valid in v0");
                 return Err(());
             }
-            return self.parse_from_import_item(visibility);
+            return self.parse_use_item(visibility);
         }
 
-        if self.at_keyword(Keyword::Import) {
-            if is_copy {
-                self.error_current("`copy` applies only to `struct` declarations in v0");
-                return Err(());
-            }
-            self.error_current("`pub import` is not valid in v0");
+        if self.at_identifier_text("from") || self.at_identifier_text("import") {
+            self.error_current("`import` syntax has been removed; use `use` imports");
             return Err(());
         }
 
@@ -222,55 +203,82 @@ impl Parser<'_> {
         Ok(Visibility::Nocter)
     }
 
-    pub(super) fn parse_use_item(&mut self) -> ParseResult<Item> {
+    pub(super) fn parse_use_item(&mut self, visibility: Visibility) -> ParseResult<Item> {
         let start = self.expect_keyword(Keyword::Use, "`use`")?;
         let path = self.parse_module_path()?;
+
+        if self.match_keyword(Keyword::As).is_some() {
+            if visibility != Visibility::Private {
+                self.error_current("namespace aliases cannot be re-exported in v0");
+                return Err(());
+            }
+            if path.value == "std/prelude" {
+                self.error_current("`use std/prelude as name` is not valid in v0");
+                return Err(());
+            }
+            let alias = self.expect_identifier("expected import alias after `as`")?;
+            return Ok(Item::Import(ImportItem {
+                span: self.span(start.span.start, alias.span.end),
+                path,
+                alias: ImportAlias {
+                    span: alias.span,
+                    name: alias.value,
+                },
+            }));
+        }
+
+        if self.match_punctuation(".").is_some() {
+            let (names, end) = if self.match_punctuation("{").is_some() {
+                self.skip_newlines();
+                let first = self.parse_imported_name("expected an imported name after `{`")?;
+                let mut names = vec![first];
+
+                loop {
+                    self.skip_newlines();
+                    if self.match_punctuation(",").is_none() {
+                        break;
+                    }
+                    self.skip_newlines();
+                    if self.at_punctuation("}") {
+                        break;
+                    }
+                    let name = self.parse_imported_name("expected an imported name after `,`")?;
+                    names.push(name);
+                }
+
+                self.skip_newlines();
+                let close = self.expect_punctuation("}", "`}`")?;
+                (names, close.span.end)
+            } else {
+                let name = self.parse_imported_name("expected an imported name after `.`")?;
+                let end = name.span.end;
+                (vec![name], end)
+            };
+
+            return Ok(Item::FromImport(FromImportItem {
+                span: self.span(start.span.start, end),
+                visibility,
+                path,
+                names,
+            }));
+        }
+
+        if visibility != Visibility::Private {
+            self.error_current("`pub use path` is not valid in v0; re-export explicit names");
+            return Err(());
+        }
+        if path.value != "std/prelude" {
+            self.error_current(
+                "`use path` is valid only for `std/prelude`; import explicit names with `use path.Name`",
+            );
+            return Err(());
+        }
+
         let end = path.span.end;
 
         Ok(Item::Use(UseItem {
             span: self.span(start.span.start, end),
             path,
-        }))
-    }
-
-    pub(super) fn parse_import_item(&mut self) -> ParseResult<Item> {
-        let start = self.expect_keyword(Keyword::Import, "`import`")?;
-        let path = self.parse_module_path()?;
-        self.expect_keyword(Keyword::As, "`as`")?;
-        let alias = self.expect_identifier("expected import alias after `as`")?;
-        let end = alias.span.end;
-
-        Ok(Item::Import(ImportItem {
-            span: self.span(start.span.start, end),
-            path,
-            alias: ImportAlias {
-                span: alias.span,
-                name: alias.value,
-            },
-        }))
-    }
-
-    pub(super) fn parse_from_import_item(&mut self, visibility: Visibility) -> ParseResult<Item> {
-        let start = self.expect_keyword(Keyword::From, "`from`")?;
-        let path = self.parse_module_path()?;
-        self.expect_keyword(Keyword::Import, "`import`")?;
-
-        let first = self.parse_imported_name("expected an imported name")?;
-        let mut end = first.span.end;
-        let mut names = vec![first];
-
-        while self.match_punctuation(",").is_some() {
-            self.skip_newlines();
-            let name = self.parse_imported_name("expected an imported name after `,`")?;
-            end = name.span.end;
-            names.push(name);
-        }
-
-        Ok(Item::FromImport(FromImportItem {
-            span: self.span(start.span.start, end),
-            visibility,
-            path,
-            names,
         }))
     }
 

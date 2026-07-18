@@ -163,12 +163,12 @@ fn distributed_std_public_api_passes_check() {
     let project = TempProject::new("distributed-home-smoke");
     let source = project.write_source(
         "std_smoke.nct",
-        r#"from std/fmt import append_bool, append_i32, append_str, append_string, append_usize, unsupported as fmt_unsupported
-from std/io import File, print, stderr, stdout, unsupported as io_unsupported, write_text
-from std/mem import Allocator, Layout, RawBuffer, alloc, free, invalid_argument, out_of_memory, page_allocator
-from std/process import abort, args, cwd, env, exit
-from std/ptr import addr, from_ref, from_ref_mut
-from std/string import bytes, capacity, capacity_overflow, clear, empty, from_str, is_empty, len, push_str, reserve, view, with_capacity
+        r#"use std/fmt.{append_bool, append_i32, append_str, append_string, append_usize, unsupported as fmt_unsupported}
+use std/io.{File, print, stderr, stdout, unsupported as io_unsupported, write_text}
+use std/mem.{Allocator, Layout, RawBuffer, alloc, free, invalid_argument, out_of_memory, page_allocator}
+use std/process.{abort, args, cwd, env, exit}
+use std/ptr.{addr, from_ref, from_ref_mut}
+use std/string.{bytes, capacity, capacity_overflow, clear, empty, from_str, is_empty, len, push_str, reserve, view, with_capacity}
 
 func main(): i32 {
     return 0
@@ -228,7 +228,7 @@ fn distributed_std_error_helper_return_runs() {
     let project = TempProject::new("distributed-home-error-helper-return-run");
     let source = project.write_source(
         "error_helper_return.nct",
-        r#"from std/mem import invalid_argument
+        r#"use std/mem.invalid_argument
 
 func main(): void! {
     return invalid_argument()
@@ -258,7 +258,7 @@ fn distributed_os_error_model_is_not_public_api() {
     let project = TempProject::new("distributed-home-os-error-private");
     let source = project.write_source(
         "os_error_private.nct",
-        r#"from std/os import OSErrorKind
+        r#"use std/os.OSErrorKind
 
 func main(): i32 {
     let kind = OSErrorKind.not_found
@@ -289,7 +289,7 @@ fn distributed_std_string_empty_passes_check() {
     let project = TempProject::new("distributed-home-string-empty");
     let source = project.write_source(
         "string_empty.nct",
-        r#"from std/string import empty, view
+        r#"use std/string.{empty, view}
 
 func main(): i32 {
     let text = empty()
@@ -308,7 +308,7 @@ fn distributed_std_string_associated_api_passes_check() {
     let project = TempProject::new("distributed-home-string-associated-api");
     let source = project.write_source(
         "string_associated_api.nct",
-        r#"from std/mem import page_allocator
+        r#"use std/mem.page_allocator
 
 func main(): i32! {
     var allocator = page_allocator()
@@ -352,7 +352,7 @@ fn distributed_std_string_representation_is_private() {
     let project = TempProject::new("distributed-home-string-private");
     let source = project.write_source(
         "string_private.nct",
-        r#"from std/string import String
+        r#"use std/string.String
 
 func main(): i32 {
     let text = String{ len: 0 }
@@ -387,7 +387,7 @@ fn distributed_io_file_methods_pass_check() {
     let project = TempProject::new("distributed-home-io-file-methods");
     let source = project.write_source(
         "io_file_methods.nct",
-        r#"from std/io import File, stdout
+        r#"use std/io.{File, stdout}
 
 func main(): i32! {
     let input = File.open("input.txt") catch error {
@@ -416,7 +416,7 @@ fn distributed_io_file_open_runs() {
     fs::write(project.root().join("input.txt"), b"open me").unwrap();
     let source = project.write_source(
         "file_open.nct",
-        r#"from std/io import File
+        r#"use std/io.File
 
 func main(): i32! {
     var input = File.open("input.txt")?
@@ -444,7 +444,7 @@ fn distributed_io_file_open_missing_reports_error() {
     let project = TempProject::new("distributed-home-io-file-open-missing");
     let source = project.write_source(
         "file_open_missing.nct",
-        r#"from std/io import File
+        r#"use std/io.File
 
 func main(): i32! {
     var input = File.open("missing.txt")?
@@ -478,8 +478,8 @@ fn distributed_io_file_read_raw_buffer_runs() {
     fs::write(project.root().join("input.txt"), b"Hi").unwrap();
     let source = project.write_source(
         "file_read_raw_buffer.nct",
-        r#"from std/io import File, stdout
-from std/mem import RawBuffer, alloc, free, page_allocator
+        r#"use std/io.{File, stdout}
+use std/mem.{RawBuffer, alloc, free, page_allocator}
 
 func main(): i32! {
     var allocator = page_allocator()
@@ -513,7 +513,7 @@ fn distributed_io_file_write_bytes_builds_to_macho() {
     let project = TempProject::new("distributed-home-file-write-bytes-build");
     let source = project.write_source(
         "file_write_bytes.nct",
-        r#"from std/io import stdout
+        r#"use std/io.stdout
 
 func write_bytes(bytes: &[u8]): void! {
     var out = stdout()
@@ -540,8 +540,8 @@ fn distributed_io_file_write_string_bytes_runs() {
     let project = TempProject::new("distributed-home-file-write-string-bytes-run");
     let source = project.write_source(
         "file_write_string_bytes.nct",
-        r#"from std/io import stdout
-from std/string import bytes
+        r#"use std/io.stdout
+use std/string.bytes
 
 func main(): i32! {
     var out = stdout()
@@ -573,7 +573,7 @@ fn distributed_io_file_representation_is_private() {
     let project = TempProject::new("distributed-home-io-file-private");
     let source = project.write_source(
         "io_file_private.nct",
-        r#"from std/io import File
+        r#"use std/io.File
 
 func main(): i32 {
     let file = File{ close_on_drop: false }
@@ -608,7 +608,7 @@ fn distributed_io_os_error_converter_is_not_public_api() {
     let project = TempProject::new("distributed-home-io-os-error-converter-private");
     let source = project.write_source(
         "io_os_error_converter_private.nct",
-        r#"from std/io import from_os_error
+        r#"use std/io.from_os_error
 
 func main(): i32 {
     return 0
@@ -642,7 +642,7 @@ fn distributed_io_raw_helper_is_not_public_api() {
     let project = TempProject::new("distributed-home-io-raw-private");
     let source = project.write_source(
         "io_raw_private.nct",
-        r#"from std/io import write_text_raw
+        r#"use std/io.write_text_raw
 
 func main(): i32 {
     write_text_raw(1, "x")!
@@ -677,7 +677,7 @@ fn distributed_io_byte_raw_helper_is_not_public_api() {
     let project = TempProject::new("distributed-home-io-byte-raw-private");
     let source = project.write_source(
         "io_byte_raw_private.nct",
-        r#"from std/io import write_bytes_raw
+        r#"use std/io.write_bytes_raw
 
 func main(): i32 {
     return 0
@@ -711,7 +711,7 @@ fn distributed_io_read_raw_helper_is_not_public_api() {
     let project = TempProject::new("distributed-home-io-read-raw-private");
     let source = project.write_source(
         "io_read_raw_private.nct",
-        r#"from std/io import read_bytes_raw
+        r#"use std/io.read_bytes_raw
 
 func main(): i32 {
     return 0
@@ -745,7 +745,7 @@ fn distributed_ptr_store_u8_helper_is_not_public_api() {
     let project = TempProject::new("distributed-home-ptr-store-u8-private");
     let source = project.write_source(
         "ptr_store_u8_private.nct",
-        r#"from std/ptr import store_u8_to_ptr
+        r#"use std/ptr.store_u8_to_ptr
 
 func main(): i32 {
     return 0
@@ -779,8 +779,8 @@ fn distributed_ptr_slice_raw_parts_helpers_are_not_public_api() {
     let project = TempProject::new("distributed-home-ptr-slice-raw-parts-private");
     let source = project.write_source(
         "ptr_slice_raw_parts_private.nct",
-        r#"from std/ptr import slice_from_raw_parts
-from std/ptr import slice_from_raw_parts_mut
+        r#"use std/ptr.slice_from_raw_parts
+use std/ptr.slice_from_raw_parts_mut
 
 func main(): i32 {
     return 0
@@ -814,7 +814,7 @@ fn distributed_io_open_raw_helper_is_not_public_api() {
     let project = TempProject::new("distributed-home-io-open-raw-private");
     let source = project.write_source(
         "io_open_raw_private.nct",
-        r#"from std/io import open_read_raw
+        r#"use std/io.open_read_raw
 
 func main(): i32 {
     return 0
@@ -848,7 +848,7 @@ fn distributed_io_close_raw_helper_is_not_public_api() {
     let project = TempProject::new("distributed-home-io-close-raw-private");
     let source = project.write_source(
         "io_close_raw_private.nct",
-        r#"from std/io import close_fd_raw
+        r#"use std/io.close_fd_raw
 
 func main(): i32 {
     return 0
@@ -882,7 +882,7 @@ fn distributed_process_exit_raw_helper_is_not_public_api() {
     let project = TempProject::new("distributed-home-process-exit-raw-private");
     let source = project.write_source(
         "process_exit_raw_private.nct",
-        r#"from std/process import exit_raw
+        r#"use std/process.exit_raw
 
 func main(): i32 {
     return 0
@@ -916,7 +916,7 @@ fn distributed_std_abort_builds_to_macho() {
     let project = TempProject::new("distributed-home-abort-build");
     let source = project.write_source(
         "abort_app.nct",
-        r#"from std/process import abort
+        r#"use std/process.abort
 
 func main(): i32 {
     abort()
@@ -937,7 +937,7 @@ fn distributed_std_process_exit_runs_with_requested_code() {
     let project = TempProject::new("distributed-home-process-exit-run");
     let source = project.write_source(
         "process_exit_app.nct",
-        r#"from std/process import exit
+        r#"use std/process.exit
 
 func main(): i32 {
     return exit(7)
@@ -971,9 +971,9 @@ fn distributed_std_explicit_string_construction_builds_to_macho() {
     let project = TempProject::new("distributed-home-explicit-string-build");
     let source = project.write_source(
         "explicit_string_app.nct",
-        r#"from std/fmt import append_str
-from std/mem import page_allocator
-from std/string import with_capacity
+        r#"use std/fmt.append_str
+use std/mem.page_allocator
+use std/string.with_capacity
 
 func make(): String! {
     var allocator = page_allocator()
@@ -1002,10 +1002,10 @@ fn distributed_std_explicit_string_construction_runs() {
     let project = TempProject::new("distributed-home-explicit-string-run");
     let source = project.write_source(
         "explicit_string_run.nct",
-        r#"from std/fmt import append_str
-from std/io import print
-from std/mem import page_allocator
-from std/string import view, with_capacity
+        r#"use std/fmt.append_str
+use std/io.print
+use std/mem.page_allocator
+use std/string.{view, with_capacity}
 
 func make(): String! {
     var allocator = page_allocator()
@@ -1046,7 +1046,7 @@ fn distributed_std_print_hello_runs() {
     let project = TempProject::new("distributed-home-print-hello-run");
     let source = project.write_source(
         "hello.nct",
-        r#"from std/io import print
+        r#"use std/io.print
 
 func main(): i32! {
     print("Hello")?
@@ -1078,9 +1078,9 @@ fn distributed_std_string_from_str_view_runs() {
     let project = TempProject::new("distributed-home-string-from-str-view-run");
     let source = project.write_source(
         "string_from_str_view.nct",
-        r#"from std/io import print
-from std/mem import page_allocator
-from std/string import from_str, view
+        r#"use std/io.print
+use std/mem.page_allocator
+use std/string.{from_str, view}
 
 func main(): i32! {
     var allocator = page_allocator()
@@ -1114,9 +1114,9 @@ fn distributed_std_string_bytes_file_write_runs() {
     let project = TempProject::new("distributed-home-string-bytes-file-write-run");
     let source = project.write_source(
         "string_bytes_file_write.nct",
-        r#"from std/io import stdout
-from std/mem import page_allocator
-from std/string import from_str
+        r#"use std/io.stdout
+use std/mem.page_allocator
+use std/string.from_str
 
 func main(): i32! {
     var allocator = page_allocator()
@@ -1151,9 +1151,9 @@ fn distributed_std_string_from_str_forward_return_runs() {
     let project = TempProject::new("distributed-home-string-from-str-forward-return-run");
     let source = project.write_source(
         "string_from_str_forward_return.nct",
-        r#"from std/io import print
-from std/mem import page_allocator
-from std/string import from_str, view
+        r#"use std/io.print
+use std/mem.page_allocator
+use std/string.{from_str, view}
 
 func make(): String! {
     var allocator = page_allocator()
@@ -1191,9 +1191,9 @@ fn distributed_std_string_copy_view_runs() {
     let project = TempProject::new("distributed-home-string-copy-view-run");
     let source = project.write_source(
         "string_copy_view.nct",
-        r#"from std/io import print
-from std/mem import page_allocator
-from std/string import view
+        r#"use std/io.print
+use std/mem.page_allocator
+use std/string.view
 
 func main(): i32! {
     var allocator = page_allocator()
@@ -1227,8 +1227,8 @@ fn distributed_std_string_associated_api_runs() {
     let project = TempProject::new("distributed-home-string-associated-api-run");
     let source = project.write_source(
         "string_associated_api_run.nct",
-        r#"from std/io import print
-from std/mem import page_allocator
+        r#"use std/io.print
+use std/mem.page_allocator
 
 func main(): i32! {
     var allocator = page_allocator()
@@ -1265,9 +1265,9 @@ fn distributed_std_string_push_str_runs() {
     let project = TempProject::new("distributed-home-string-push-str-run");
     let source = project.write_source(
         "string_push_str.nct",
-        r#"from std/io import print
-from std/mem import page_allocator
-from std/string import capacity, clear, is_empty, len, push_str, reserve, view, with_capacity
+        r#"use std/io.print
+use std/mem.page_allocator
+use std/string.{capacity, clear, is_empty, len, push_str, reserve, view, with_capacity}
 
 func main(): i32! {
     var allocator = page_allocator()
@@ -1327,8 +1327,8 @@ fn distributed_std_string_empty_push_str_runs() {
     let project = TempProject::new("distributed-home-string-empty-push-str-run");
     let source = project.write_source(
         "string_empty_push_str.nct",
-        r#"from std/io import print
-from std/string import empty, push_str, view
+        r#"use std/io.print
+use std/string.{empty, push_str, view}
 
 func main(): i32! {
     var text = empty()
@@ -1362,10 +1362,10 @@ fn distributed_std_fmt_append_str_runs() {
     let project = TempProject::new("distributed-home-fmt-append-str-run");
     let source = project.write_source(
         "fmt_append_str.nct",
-        r#"from std/fmt import append_str
-from std/io import print
-from std/mem import page_allocator
-from std/string import view, with_capacity
+        r#"use std/fmt.append_str
+use std/io.print
+use std/mem.page_allocator
+use std/string.{view, with_capacity}
 
 func main(): i32! {
     var allocator = page_allocator()
@@ -1401,10 +1401,10 @@ fn distributed_std_fmt_append_bool_and_string_runs() {
     let project = TempProject::new("distributed-home-fmt-append-bool-string-run");
     let source = project.write_source(
         "fmt_append_bool_string.nct",
-        r#"from std/fmt import append_bool, append_str, append_string
-from std/io import print
-from std/mem import page_allocator
-from std/string import from_str, view, with_capacity
+        r#"use std/fmt.{append_bool, append_str, append_string}
+use std/io.print
+use std/mem.page_allocator
+use std/string.{from_str, view, with_capacity}
 
 func main(): i32! {
     var allocator = page_allocator()
@@ -1443,10 +1443,10 @@ fn distributed_std_fmt_append_i32_runs() {
     let project = TempProject::new("distributed-home-fmt-append-i32-run");
     let source = project.write_source(
         "fmt_append_i32.nct",
-        r#"from std/fmt import append_i32, append_str
-from std/io import print
-from std/mem import page_allocator
-from std/string import view, with_capacity
+        r#"use std/fmt.{append_i32, append_str}
+use std/io.print
+use std/mem.page_allocator
+use std/string.{view, with_capacity}
 
 func main(): i32! {
     var allocator = page_allocator()
@@ -1487,10 +1487,10 @@ fn distributed_std_fmt_append_usize_runs() {
     let project = TempProject::new("distributed-home-fmt-append-usize-run");
     let source = project.write_source(
         "fmt_append_usize.nct",
-        r#"from std/fmt import append_str, append_usize
-from std/io import print
-from std/mem import page_allocator
-from std/string import view, with_capacity
+        r#"use std/fmt.{append_str, append_usize}
+use std/io.print
+use std/mem.page_allocator
+use std/string.{view, with_capacity}
 
 func main(): i32! {
     var allocator = page_allocator()
@@ -1529,7 +1529,7 @@ fn distributed_std_file_write_text_runs() {
     let project = TempProject::new("distributed-home-file-write-text-run");
     let source = project.write_source(
         "file_write_text.nct",
-        r#"from std/io import stdout, write_text
+        r#"use std/io.{stdout, write_text}
 
 func main(): i32! {
     var out = stdout()

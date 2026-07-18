@@ -203,8 +203,8 @@ func maybe_open(path:&str):File?{return none}
 #[test]
 fn formats_imports_impls_and_literals_stably() {
     assert_formats_stably(
-        r#"from std/io import print as write,File
-import std/process as process
+        r#"use std/io.{print as write,File}
+use std/process as process
 impl File{pub method(file:&+Self).write(text:&str):void!{let bytes=[1,2,3]
 var point=Point{x:1,y:2}
 while var item=next(){print(item)}
@@ -212,9 +212,9 @@ while var item=next(){print(item)}
 impl File{drop file:&+Self{drop file}}
 "#,
         concat!(
-            "from std/io import print as write, File\n",
+            "use std/io.{print as write, File}\n",
             "\n",
-            "import std/process as process\n",
+            "use std/process as process\n",
             "\n",
             "impl File {\n",
             "    pub method (file: &+Self).write(text: &str): void! {\n",

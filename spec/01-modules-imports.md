@@ -22,37 +22,39 @@ The file path is the source of truth. There is no separate module name inside th
 Imports make names from another module available.
 
 ```nct
-from std/io import File, stdout
-from std/mem import Allocator
+use std/io.{File, stdout}
+use std/mem.Allocator
 ```
 
 Adopted import forms:
 
 ```nct
-from std/mem import Allocator
-from std/io import File, stdout, stderr
-from std/io import File as StdFile
-from ./config import AppConfig
-from ../shared/path import Path
-pub from std/string import String
+use std/mem.Allocator
+use std/io.{File, stdout, stderr}
+use std/io.File as StdFile
+use ./config.AppConfig
+use ../shared/path.Path
+pub use std/string.String
 
-import std/io as io
+use std/io as io
 ```
 
 Meaning:
 
-- `from path import Name` imports one exported name into the current file.
-- `from path import NameA, NameB` imports multiple exported names from one file.
-- `from path import Name as Alias` imports one exported name under an alias.
-- Each imported item in a `from` list may independently use `as Alias`.
-- `pub from path import Name` imports and re-exports one public name.
-- `import path as alias` imports the module namespace under an alias.
+- `use path.Name` imports one exported name into the current file.
+- `use path.Name as Alias` imports one exported name under an alias.
+- `use path.Name` is accepted as the braced single-name spelling.
+- `use path.{NameA, NameB}` imports multiple exported names from one file.
+- `use path.Name as Alias` imports one exported name under an alias.
+- Each imported item in a braced `use` list may independently use `as Alias`.
+- `pub use path.Name` or `pub use path.Name` imports and re-exports one public name.
+- `use path as alias` imports the module namespace under an alias.
 
 Examples:
 
 ```nct
-import std/io as io
-from std/io import File as StdFile
+use std/io as io
+use std/io.File as StdFile
 
 var out = io.stdout()
 let file = StdFile.open(path)?
@@ -68,44 +70,44 @@ use std/prelude
 Name collisions are compile errors.
 
 ```nct
-from std/io import File
-from ./my/fs import File
+use std/io.File
+use ./my/fs.File
 // error: File is imported twice
 ```
 
 Use aliases to resolve collisions.
 
 ```nct
-from std/io import File as StdFile
-from ./my/fs import File as MyFile
+use std/io.File as StdFile
+use ./my/fs.File as MyFile
 ```
 
 Not adopted:
 
 ```nct
 import std/io
-from std/io import *
-pub from std/io import *
+use std/io.*
+pub use std/io.*
 import std/io.File
-pub import std/io as io
-from /absolute/path import Config
-from ./config.nct import Config
+pub use std/io as io
+use /absolute/path.Config
+use ./config.nct.Config
 use ./prelude
 include std/prelude
 ```
 
-Wildcard imports, bare imports without an alias, dotted import paths, namespace alias re-exports, absolute paths, explicit `.nct` extensions in import paths, project-local prelude use, and textual include are not part of the initial language.
+Wildcard imports, bare imports without an alias, dotted module paths, namespace alias re-exports, absolute paths, explicit `.nct` extensions in import paths, project-local prelude use, and textual include are not part of the initial language.
 
 ## Re-exports
 
-Adopted: public re-export uses `pub from`.
+Adopted: public re-export uses `pub use path.Name` or `pub use path.{...}`.
 
 ```nct
-pub from std/string import String
-pub from std/io import File as StdFile
+pub use std/string.String
+pub use std/io.File as StdFile
 ```
 
-`pub from path import Name` means:
+`pub use path.Name` and `pub use path.Name` mean:
 
 - load the module at `path`
 - import the public name `Name` into the current module
@@ -113,16 +115,16 @@ pub from std/io import File as StdFile
 
 Rules:
 
-- `pub from` is allowed only at top level.
-- `pub from` can re-export only public names from the source module.
-- `pub(nocter)` names are not public names for `pub from`.
-- Each item in a `pub from` list may independently use `as Alias`.
+- `pub use path.Name` and `pub use path.{...}` are allowed only at top level.
+- `pub use path.Name` and `pub use path.{...}` can re-export only public names from the source module.
+- `pub(nocter)` names are not public names for `pub use path.Name` or `pub use path.{...}`.
+- Each item in a `pub use` list may independently use `as Alias`.
 - Re-exported names participate in the same name collision checks as other imports and top-level declarations.
-- `pub from path import *` is invalid.
-- `pub import path as alias` is invalid in v0.
-- `pub from` does not make private names public.
-- `pub from` does not create a namespace alias.
-- Import cycles involving `pub from` are still import cycles and are errors in the initial design.
+- `pub use path.*` is invalid.
+- `pub use path as alias` is invalid in v0.
+- `pub use path.Name` and `pub use path.{...}` do not make private names public.
+- `pub use path.Name` and `pub use path.{...}` do not create a namespace alias.
+- Import cycles involving `pub use path.Name` or `pub use path.{...}` are still import cycles and are errors in the initial design.
 
 ## Synthetic Standard Prelude
 
@@ -148,7 +150,7 @@ Initial rules:
 - An explicit source-level `use std/prelude` does not introduce names twice and does not collide with the synthetic prelude.
 - If a file is ineligible for the synthetic prelude, an explicit `use std/prelude` follows the normal `use` rules.
 - `use std/prelude` is allowed only at top level.
-- In v0, `use` is accepted only for `std/prelude`.
+- In v0, bare `use path` is accepted only for `std/prelude`; ordinary imports must use explicit names or a namespace alias.
 - `use std/prelude as prelude` is invalid.
 - `use ./prelude` is invalid.
 - `include std/prelude` is invalid.
@@ -162,8 +164,8 @@ Initial prelude surface direction:
 ```nct
 pub type Int = i32
 
-pub from std/error import Error, ErrorCode
-pub from std/string import String
+pub use std/error.{Error, ErrorCode}
+pub use std/string.String
 ```
 
 The prelude must remain small. It should contain only core type aliases and ubiquitous value-free standard-library types needed to write ordinary signatures. Names such as `File`, `Allocator`, `Layout`, `RawBuffer`, `print`, `stdout`, `stderr`, `args`, `env`, `cwd`, `exit`, and `abort` should be imported explicitly from their domain modules.
@@ -203,8 +205,8 @@ Example:
 
 ```nct
 // app.nct
-from std/io import print
-from ./src/config import Config
+use std/io.print
+use ./src/config.Config
 
 func main(): i32! {
     let config = Config.default()
@@ -231,7 +233,7 @@ pub func Config.default(): Config {
 
 `nocter build app.nct`, `nocter run app.nct`, and `nocter check app.nct` treat `app.nct` as the root file. The CLI contract is specified in [Command Line Interface](15-command-line-interface.md).
 
-The compile unit is the root file plus every `.nct` file reached by following `from`, `pub from`, `import`, explicit `use std/prelude`, and eligible synthetic `use std/prelude` declarations recursively.
+The compile unit is the root file plus every `.nct` file reached by following explicit `use` declarations and eligible synthetic `use std/prelude` declarations recursively.
 
 Rules:
 
@@ -305,8 +307,8 @@ Import paths are source paths, not package names. The `.nct` extension is omitte
 Relative import paths start with `./` or `../`.
 
 ```nct
-from ./config import AppConfig
-from ../shared/path import Path
+use ./config.AppConfig
+use ../shared/path.Path
 ```
 
 Relative paths are resolved from the directory containing the current file:
@@ -320,8 +322,8 @@ resolved:     app/config.nct
 Non-relative import paths start with a directory or file name.
 
 ```nct
-from std/io import print
-from std/fs import File
+use std/io.print
+use std/fs.File
 ```
 
 Non-relative paths are resolved inside the active Nocter home, normally `~/.nocter/` after user installation.
@@ -337,7 +339,7 @@ For `std/...` paths, the common standard-library directory is searched:
 For other non-relative paths, the path is resolved directly inside Nocter home:
 
 ```text
-from vendor/json import Parser
+use vendor/json.Parser
 
 ~/.nocter/vendor/json.nct
 ```
@@ -345,7 +347,7 @@ from vendor/json import Parser
 Rules:
 
 - Local project imports must start with `./` or `../`.
-- `from config import Config` does not search next to the current file; it searches Nocter home for `config.nct`.
+- `use config.Config` does not search next to the current file; it searches Nocter home for `config.nct`.
 - `/absolute/path` imports are errors.
 - `.` is not a module separator in import paths.
 - `.nct` is not written in import declarations.
@@ -375,7 +377,7 @@ Initial rules:
 - A local binding must not reuse a visible local, parameter, top-level, imported, or built-in type name.
 - Two imports, a re-export, or a prelude name introducing the same local name are errors.
 - A same-file top-level declaration and an imported name must not have the same local name.
-- `import path as alias` introduces only the alias name.
+- `use path as alias` introduces only the alias name.
 - Names inside an imported namespace alias are accessed with member syntax, such as `io.stdout()`.
 - There is no wildcard import.
 - There is no implicit import of every name from `std`.
@@ -424,12 +426,12 @@ Rules:
   default, `pub interface Name { ... }` makes the contract importable and
   re-exportable, and `pub(nocter) interface Name { ... }` makes the contract
   importable only inside the active Nocter home.
-- `import` can import `pub` names from any module.
-- `import` can import `pub(nocter)` names only when the importing module is inside the active Nocter home.
+- `use` can import `pub` names from any module.
+- `use` can import `pub(nocter)` names only when the importing module is inside the active Nocter home.
 - User project modules cannot import `pub(nocter)` names.
-- `pub from` can re-export only `pub` names from the source module as part of the current module's public API.
-- `pub from` cannot re-export `pub(nocter)` names as public API.
-- `pub from` re-exports the imported name as part of the current module's public API.
+- `pub use path.Name` and `pub use path.{...}` can re-export only `pub` names from the source module as part of the current module's public API.
+- `pub use path.Name` and `pub use path.{...}` cannot re-export `pub(nocter)` names as public API.
+- `pub use path.Name` and `pub use path.{...}` re-export the imported name as part of the current module's public API.
 - Struct fields are private by default.
 - Public struct fields must be marked with `pub`.
 - `pub(nocter)` struct fields are visible only to modules inside the active Nocter home.

@@ -288,7 +288,7 @@ Rules:
 Example:
 
 ```nct
-from std/process import args
+use std/process.args
 
 func main(): i32! {
     let argv = args()?
@@ -340,7 +340,7 @@ The compiler must not special-case names such as `print`, `args`, `env`, `cwd`, 
 Standard library functions provide these features.
 
 ```nct
-from std/io import stdout
+use std/io.stdout
 
 func main(): i32! {
     var out = stdout()

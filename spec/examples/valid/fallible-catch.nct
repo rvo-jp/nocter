@@ -1,4 +1,4 @@
-from std/io import print
+use std/io.print
 
 func main(): i32! {
     run() catch error {
