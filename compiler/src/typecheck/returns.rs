@@ -9,14 +9,14 @@ use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
     environment_for_if_is_binding, environment_for_if_let_binding, environment_for_method,
     environment_for_parameters_with_self_type, environment_for_pattern_conditional_arm,
-    environment_for_switch_arm, environment_for_while_let_binding, function_self_type,
-    impl_member_name, impl_self_type,
+    environment_for_switch_arm, environment_for_while_let_binding, impl_member_name,
+    impl_self_type,
 };
 use super::expressions::expression_type;
 use super::fallible::{check_catch_operand, check_propagation};
 use super::model::{CallableKind, ReturnContext, Type, TypeEnvironment, binding_kind_is_mutable};
 use super::operations::is_expression_assignable;
-use super::type_expr::type_expr_to_type_with_self_type;
+use super::type_expr::{type_expr_to_type_in_environment, type_expr_to_type_with_self_type};
 use super::variants::switch_statement_covers_all_variants;
 use crate::ast::{
     AstFile, Block, Expr, ImplDecl, ImplMember, InterpolatedStringPart, Item, ReturnStmt, Stmt,
@@ -34,21 +34,16 @@ pub(super) fn check_return_types(
     for item in &ast.items {
         match item {
             Item::Function(function) => {
-                let self_type = function_self_type(function, resolved);
+                let mut environment = environment_for_function(function, resolved);
                 let context = ReturnContext::new(
                     if function.owner.is_some() {
                         CallableKind::AssociatedFunction(function.name.clone())
                     } else {
                         CallableKind::Function(function.name.clone())
                     },
-                    type_expr_to_type_with_self_type(
-                        &function.return_type,
-                        resolved,
-                        self_type.as_ref(),
-                    ),
+                    type_expr_to_type_in_environment(&function.return_type, resolved, &environment),
                     function.return_type.span(),
                 );
-                let mut environment = environment_for_function(function, resolved);
                 check_fallible_success_type(sources, &context, diagnostics);
                 check_block_returns(
                     sources,
@@ -819,7 +814,7 @@ fn check_return_statement(
                     sources,
                     expression,
                     source_name,
-                    type_name,
+                    &type_name,
                     context,
                 ));
             }

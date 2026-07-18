@@ -119,6 +119,44 @@ func enabled(): bool {
 }
 
 #[test]
+fn diagnoses_generic_parameter_return_type_mismatch() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func value<T>(input: T): i32 {
+    return input
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0312");
+    assert!(diagnostics[0].message.contains("T"));
+    assert!(diagnostics[0].message.contains("i32"));
+}
+
+#[test]
+fn diagnoses_generic_borrow_return_type_mismatch() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func value<T>(input: &T): T {
+    return input
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0312");
+    assert!(diagnostics[0].message.contains("&T"));
+    assert!(diagnostics[0].message.contains("T"));
+}
+
+#[test]
 fn diagnoses_implicit_non_copy_struct_return() {
     let diagnostics = check_text(
         r#"func main(): i32 {

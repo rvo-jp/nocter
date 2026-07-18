@@ -1,7 +1,7 @@
 use super::model::{Type, TypeEnvironment};
 use crate::ast::TypeExpr;
 use crate::resolve::ResolveOutput;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 pub(super) fn type_expr_to_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Type {
     type_expr_to_type_with_self_type(ty, resolved, None)
@@ -12,7 +12,12 @@ pub(super) fn type_expr_to_type_in_environment(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> Type {
-    type_expr_to_type_with_self_type(ty, resolved, environment.self_type())
+    type_expr_to_type_with_substitutions(
+        ty,
+        resolved,
+        environment.self_type(),
+        &environment.generic_parameter_substitutions(),
+    )
 }
 
 pub(super) fn type_expr_to_type_with_self_type(
@@ -20,13 +25,23 @@ pub(super) fn type_expr_to_type_with_self_type(
     resolved: &ResolveOutput,
     self_type: Option<&Type>,
 ) -> Type {
-    type_expr_to_type_inner(ty, resolved, self_type, &mut HashSet::new())
+    type_expr_to_type_with_substitutions(ty, resolved, self_type, &HashMap::new())
+}
+
+pub(super) fn type_expr_to_type_with_substitutions(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    self_type: Option<&Type>,
+    substitutions: &HashMap<String, Type>,
+) -> Type {
+    type_expr_to_type_inner(ty, resolved, self_type, substitutions, &mut HashSet::new())
 }
 
 fn type_expr_to_type_inner(
     ty: &TypeExpr,
     resolved: &ResolveOutput,
     self_type: Option<&Type>,
+    substitutions: &HashMap<String, Type>,
     resolving_aliases: &mut HashSet<String>,
 ) -> Type {
     match ty {
@@ -42,6 +57,10 @@ fn type_expr_to_type_inner(
             "error" => Type::Error,
             "void" => Type::Void,
             "never" => Type::Never,
+            name if substitutions.contains_key(name) => substitutions
+                .get(name)
+                .cloned()
+                .unwrap_or_else(|| Type::Unresolved(name.to_string())),
             name => resolved
                 .type_symbol_by_reference_name(name)
                 .map(|symbol| {
@@ -59,6 +78,7 @@ fn type_expr_to_type_inner(
                         alias_target,
                         resolved,
                         self_type,
+                        substitutions,
                         resolving_aliases,
                     );
                     resolving_aliases.remove(&canonical_name);
@@ -67,26 +87,86 @@ fn type_expr_to_type_inner(
                 .unwrap_or_else(|| Type::Unresolved(name.to_string())),
         },
         TypeExpr::Borrow(borrow) => {
-            let inner_type =
-                type_expr_to_type_inner(&borrow.inner, resolved, self_type, resolving_aliases);
+            let inner_type = type_expr_to_type_inner(
+                &borrow.inner,
+                resolved,
+                self_type,
+                substitutions,
+                resolving_aliases,
+            );
             match (borrow.is_readwrite, inner_type) {
                 (false, Type::StrData) => Type::Str,
                 (_, Type::ArrayData { element }) => Type::View {
                     is_readwrite: borrow.is_readwrite,
                     element,
                 },
-                _ => type_expr_display_with_self_type(ty, resolved, self_type)
-                    .map(Type::Named)
-                    .unwrap_or_else(|| Type::Unresolved(type_expr_display_lossy(ty))),
+                (_, inner_type) if inner_type.is_unknown_or_unresolved() => {
+                    Type::Unresolved(type_expr_display_lossy(ty))
+                }
+                (_, inner_type) => Type::Named(format!(
+                    "{}{}",
+                    if borrow.is_readwrite { "&+" } else { "&" },
+                    inner_type.display()
+                )),
             }
         }
-        TypeExpr::Generic(_) => type_expr_display_with_self_type(ty, resolved, self_type)
-            .map(Type::Named)
-            .unwrap_or_else(|| Type::Unresolved(type_expr_display_lossy(ty))),
+        TypeExpr::Generic(generic) => {
+            if substitutions.contains_key(&generic.name) {
+                return Type::Unresolved(generic.name.clone());
+            }
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&generic.name) else {
+                return Type::Unresolved(type_expr_display_lossy(ty));
+            };
+            if symbol.generic_arity != generic.arguments.len() {
+                return Type::Unresolved(type_expr_display_lossy(ty));
+            }
+            let arguments = generic
+                .arguments
+                .iter()
+                .map(|argument| {
+                    type_expr_to_type_inner(
+                        argument,
+                        resolved,
+                        self_type,
+                        substitutions,
+                        resolving_aliases,
+                    )
+                })
+                .collect::<Vec<_>>();
+
+            let Some(alias_target) = &symbol.alias_target else {
+                return Type::Generic {
+                    name: symbol.canonical_name.clone(),
+                    arguments,
+                };
+            };
+
+            let canonical_name = symbol.canonical_name.clone();
+            if !resolving_aliases.insert(canonical_name.clone()) {
+                return Type::Generic {
+                    name: canonical_name,
+                    arguments,
+                };
+            }
+            let mut alias_substitutions = substitutions.clone();
+            for (parameter, argument) in symbol.generic_parameters.iter().zip(arguments.iter()) {
+                alias_substitutions.insert(parameter.clone(), argument.clone());
+            }
+            let resolved_alias = type_expr_to_type_inner(
+                alias_target,
+                resolved,
+                self_type,
+                &alias_substitutions,
+                resolving_aliases,
+            );
+            resolving_aliases.remove(&canonical_name);
+            resolved_alias
+        }
         TypeExpr::Pointer(pointer) => Type::Pointer(Box::new(type_expr_to_type_inner(
             &pointer.inner,
             resolved,
             self_type,
+            substitutions,
             resolving_aliases,
         ))),
         TypeExpr::View(ty) => Type::ArrayData {
@@ -94,6 +174,7 @@ fn type_expr_to_type_inner(
                 &ty.element,
                 resolved,
                 self_type,
+                substitutions,
                 resolving_aliases,
             )),
         },
@@ -102,6 +183,7 @@ fn type_expr_to_type_inner(
                 &ty.element,
                 resolved,
                 self_type,
+                substitutions,
                 resolving_aliases,
             )),
             length: ty.length.value.clone(),
@@ -110,6 +192,7 @@ fn type_expr_to_type_inner(
             &ty.inner,
             resolved,
             self_type,
+            substitutions,
             resolving_aliases,
         ))),
         TypeExpr::Fallible(ty) => Type::Fallible {
@@ -117,80 +200,17 @@ fn type_expr_to_type_inner(
                 &ty.success,
                 resolved,
                 self_type,
+                substitutions,
                 resolving_aliases,
             )),
             error: Box::new(type_expr_to_type_inner(
                 &ty.error,
                 resolved,
                 self_type,
+                substitutions,
                 resolving_aliases,
             )),
         },
-    }
-}
-
-fn type_expr_display_with_self_type(
-    ty: &TypeExpr,
-    resolved: &ResolveOutput,
-    self_type: Option<&Type>,
-) -> Option<String> {
-    match ty {
-        TypeExpr::Reference(reference) => match reference.name.as_str() {
-            "Self" => self_type.map(Type::display),
-            "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "usize"
-            | "isize" | "str" | "error" | "void" | "never" => Some(reference.name.clone()),
-            name => resolved
-                .type_symbol_by_reference_name(name)
-                .map(|symbol| symbol.canonical_name.clone()),
-        },
-        TypeExpr::Generic(generic) => {
-            let arguments = generic
-                .arguments
-                .iter()
-                .map(|argument| type_expr_display_with_self_type(argument, resolved, self_type))
-                .collect::<Option<Vec<_>>>()?
-                .join(", ");
-            let name = resolved
-                .type_symbol_by_reference_name(&generic.name)
-                .and_then(|symbol| {
-                    (symbol.generic_arity == generic.arguments.len())
-                        .then(|| symbol.canonical_name.clone())
-                })?;
-            Some(format!("{name}<{arguments}>"))
-        }
-        TypeExpr::Pointer(pointer) => Some(format!(
-            "*{}",
-            type_expr_display_with_self_type(&pointer.inner, resolved, self_type)?
-        )),
-        TypeExpr::Borrow(borrow) if borrow.is_readwrite => Some(format!(
-            "&+{}",
-            type_expr_display_with_self_type(&borrow.inner, resolved, self_type)?
-        )),
-        TypeExpr::Borrow(borrow) => Some(format!(
-            "&{}",
-            type_expr_display_with_self_type(&borrow.inner, resolved, self_type)?
-        )),
-        TypeExpr::View(view) if view.is_readwrite => Some(format!(
-            "&+[{}]",
-            type_expr_display_with_self_type(&view.element, resolved, self_type)?
-        )),
-        TypeExpr::View(view) => Some(format!(
-            "[{}]",
-            type_expr_display_with_self_type(&view.element, resolved, self_type)?
-        )),
-        TypeExpr::Array(array) => Some(format!(
-            "[{}; {}]",
-            type_expr_display_with_self_type(&array.element, resolved, self_type)?,
-            array.length.value
-        )),
-        TypeExpr::Optional(optional) => Some(format!(
-            "{}?",
-            type_expr_display_with_self_type(&optional.inner, resolved, self_type)?
-        )),
-        TypeExpr::Fallible(fallible) => Some(format!(
-            "{}!",
-            type_expr_display_with_self_type(&fallible.success, resolved, self_type)?
-        )),
     }
 }
 

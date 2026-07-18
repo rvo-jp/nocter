@@ -1030,9 +1030,7 @@ fn owned_method_receiver_identifier<'a>(
 }
 
 fn non_copy_struct_type_name<'a>(ty: &Type, resolved: &'a ResolveOutput) -> Option<&'a str> {
-    let Type::Named(canonical_name) = ty else {
-        return None;
-    };
+    let canonical_name = ty.nominal_name()?;
     resolved
         .type_symbol_by_canonical_name(canonical_name)
         .filter(|symbol| symbol.kind == TypeSymbolKind::Struct && !symbol.is_copy)

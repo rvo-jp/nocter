@@ -165,9 +165,7 @@ fn resolve_target_symbol<'a>(
 }
 
 fn symbol_for_type<'a>(ty: &Type, resolved: &'a ResolveOutput) -> Option<&'a TypeSymbol> {
-    let Type::Named(canonical_name) = ty else {
-        return None;
-    };
+    let canonical_name = ty.nominal_name()?;
 
     resolved.type_symbol_by_canonical_name(canonical_name)
 }

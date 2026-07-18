@@ -11,15 +11,6 @@ use crate::ast::{
 };
 use crate::resolve::{ResolveOutput, TypeSymbolKind};
 
-pub(super) fn environment_for_parameters(
-    parameters: &[Parameter],
-    resolved: &ResolveOutput,
-) -> TypeEnvironment {
-    let mut environment = TypeEnvironment::default();
-    define_parameters_in_environment(parameters, resolved, &mut environment);
-    environment
-}
-
 pub(super) fn environment_for_parameters_with_self_type(
     parameters: &[Parameter],
     resolved: &ResolveOutput,
@@ -34,14 +25,19 @@ pub(super) fn environment_for_function(
     function: &FunctionDecl,
     resolved: &ResolveOutput,
 ) -> TypeEnvironment {
-    match function_self_type(function, resolved) {
-        Some(self_type) => environment_for_parameters_with_self_type(
-            &function.parameters.parameters,
-            resolved,
-            self_type,
-        ),
-        None => environment_for_parameters(&function.parameters.parameters, resolved),
-    }
+    let mut environment = match function_self_type(function, resolved) {
+        Some(self_type) => TypeEnvironment::with_self_type(self_type),
+        None => TypeEnvironment::default(),
+    };
+    environment.define_generic_parameters(
+        function
+            .generics
+            .parameters
+            .iter()
+            .map(|parameter| parameter.name.clone()),
+    );
+    define_parameters_in_environment(&function.parameters.parameters, resolved, &mut environment);
+    environment
 }
 
 pub(super) fn function_self_type(

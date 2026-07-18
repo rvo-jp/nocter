@@ -40,9 +40,7 @@ pub(super) fn check_drop_members(
 }
 
 fn copy_struct_name<'a>(ty: &Type, resolved: &'a ResolveOutput) -> Option<&'a str> {
-    let Type::Named(name) = ty else {
-        return None;
-    };
+    let name = ty.nominal_name()?;
     resolved
         .type_symbol_by_canonical_name(name)
         .filter(|symbol| symbol.kind == TypeSymbolKind::Struct && symbol.is_copy)

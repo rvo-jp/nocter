@@ -513,7 +513,7 @@ fn check_assignment_statement(
             sources,
             statement,
             source_name,
-            type_name,
+            &type_name,
         ));
     }
 }

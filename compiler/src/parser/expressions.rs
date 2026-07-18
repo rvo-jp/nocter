@@ -1,7 +1,7 @@
 use super::{ParseResult, Parser};
 use crate::ast::{
-    ArrayLiteralExpr, BinaryExpr, BorrowExpr, CallExpr, CatchExpr, Expr, ForceExpr, GroupExpr,
-    IdentifierExpr, IndexExpr, InterpolatedStringExpr, InterpolatedStringExpression,
+    ArrayLiteralExpr, BinaryExpr, BorrowExpr, CallExpr, CatchExpr, Expr, ForceExpr, GenericType,
+    GroupExpr, IdentifierExpr, IndexExpr, InterpolatedStringExpr, InterpolatedStringExpression,
     InterpolatedStringPart, InterpolatedStringText, LiteralExpr, MemberExpr, OptionalDefaultExpr,
     PatternConditionalArm, PatternConditionalExpr, PropagationExpr, StructLiteralExpr,
     StructLiteralField, TypeConversionExpr, TypeExpr, TypeReference, UnaryExpr,
@@ -435,6 +435,15 @@ impl Parser<'_> {
                             name,
                         },
                     ));
+                }
+                if self.looks_like_generic_struct_literal_body() {
+                    let (arguments, arguments_span) = self.parse_type_argument_list()?;
+                    return self.finish_struct_literal_expression(TypeExpr::Generic(GenericType {
+                        span: self.span(token.span.start, arguments_span.end),
+                        name,
+                        name_span: token.span,
+                        arguments,
+                    }));
                 }
 
                 Ok(Expr::Identifier(IdentifierExpr {

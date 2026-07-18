@@ -136,6 +136,115 @@ func main(): i32 {
 }
 
 #[test]
+fn accepts_generic_struct_literal_expression() {
+    let diagnostics = check_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+func main(): i32 {
+    let box = Box<i32>{
+        value: 1,
+    }
+    return box.value
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn uses_generic_struct_field_type_for_return_checking() {
+    let diagnostics = check_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+func text(box: Box<&str>): &str {
+    return box.value
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_generic_struct_field_return_type_mismatch() {
+    let diagnostics = check_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+func value<T>(box: Box<T>): i32 {
+    return box.value
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0312");
+    assert!(diagnostics[0].message.contains("T"));
+    assert!(diagnostics[0].message.contains("i32"));
+}
+
+#[test]
+fn accepts_generic_alias_struct_literal_expression() {
+    let diagnostics = check_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+type IntBox = Box<i32>
+type Alias<T> = Box<T>
+
+func main(): i32 {
+    let one = IntBox{
+        value: 1,
+    }
+    let two = Alias<i32>{
+        value: one.value,
+    }
+    return two.value
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_generic_alias_field_access_with_type_parameter() {
+    let diagnostics = check_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+type Alias<T> = Box<T>
+
+func value<T>(box: Alias<T>): T {
+    return box.value
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn accepts_contextual_integer_struct_literal_field() {
     let diagnostics = check_text(
         r#"struct Byte {
@@ -257,5 +366,52 @@ func main(): i32 {
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].code, "E0376");
     assert!(diagnostics[0].message.contains("str"));
+    assert!(diagnostics[0].message.contains("i32"));
+}
+
+#[test]
+fn diagnoses_generic_struct_literal_field_type_mismatch() {
+    let diagnostics = check_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+func main(): i32 {
+    let box = Box<i32>{
+        value: "bad",
+    }
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0376");
+    assert!(diagnostics[0].message.contains("&str"));
+    assert!(diagnostics[0].message.contains("i32"));
+}
+
+#[test]
+fn diagnoses_generic_struct_literal_type_parameter_field_mismatch() {
+    let diagnostics = check_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+func build<T>(): Box<T> {
+    return Box<T>{
+        value: 1,
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0376");
+    assert!(diagnostics[0].message.contains("T"));
     assert!(diagnostics[0].message.contains("i32"));
 }

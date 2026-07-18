@@ -12,11 +12,11 @@ pub(super) fn implicit_non_copy_struct_identifier_source<'a>(
     expression: &'a Expr,
     resolved: &'a ResolveOutput,
     environment: &TypeEnvironment,
-) -> Option<(&'a str, &'a str)> {
+) -> Option<(&'a str, String)> {
     match expression {
         Expr::Identifier(identifier) => {
             let value_type = expression_type(expression, resolved, environment);
-            non_copy_struct_type_name(&value_type, resolved)
+            non_copy_struct_type_display(&value_type, resolved)
                 .map(|type_name| (identifier.name.as_str(), type_name))
         }
         Expr::Group(group) => {
@@ -30,13 +30,18 @@ pub(super) fn non_copy_struct_type_name<'a>(
     ty: &Type,
     resolved: &'a ResolveOutput,
 ) -> Option<&'a str> {
-    let Type::Named(canonical_name) = ty else {
-        return None;
-    };
+    non_copy_struct_symbol(ty, resolved).map(|symbol| symbol.canonical_name.as_str())
+}
+
+fn non_copy_struct_type_display(ty: &Type, resolved: &ResolveOutput) -> Option<String> {
+    non_copy_struct_symbol(ty, resolved).map(|_| ty.display())
+}
+
+fn non_copy_struct_symbol<'a>(ty: &Type, resolved: &'a ResolveOutput) -> Option<&'a TypeSymbol> {
+    let canonical_name = ty.nominal_name()?;
     resolved
         .type_symbol_by_canonical_name(canonical_name)
         .filter(|symbol| symbol.kind == TypeSymbolKind::Struct && !symbol.is_copy)
-        .map(|symbol| symbol.canonical_name.as_str())
 }
 
 fn type_expr_is_copy_inner(
@@ -88,7 +93,7 @@ fn type_is_copy_inner(
             type_is_copy_inner(success, resolved, resolving_names)
                 && type_is_copy_inner(error, resolved, resolving_names)
         }
-        Type::Named(name) => resolved
+        Type::Named(name) | Type::Generic { name, .. } => resolved
             .type_symbol_by_canonical_name(name)
             .is_some_and(|symbol| type_symbol_is_copy(symbol, resolved, resolving_names)),
         Type::StrData
@@ -100,6 +105,7 @@ fn type_is_copy_inner(
         | Type::View {
             is_readwrite: true, ..
         }
+        | Type::Parameter(_)
         | Type::Unresolved(_)
         | Type::Unknown => false,
     }

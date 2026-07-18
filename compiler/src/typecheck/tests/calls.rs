@@ -136,6 +136,31 @@ func length(text: Text): i32 {
 }
 
 #[test]
+fn diagnoses_implicit_non_copy_generic_struct_argument_with_type_arguments() {
+    let diagnostics = check_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+func main(): i32 {
+    let box = Box<i32>{
+        value: 1,
+    }
+    return value(box)
+}
+
+func value(box: Box<i32>): i32 {
+    return box.value
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0392");
+    assert!(diagnostics[0].message.contains("Box<i32>"));
+}
+
+#[test]
 fn accepts_associated_function_return_type() {
     let diagnostics = check_text(
         r#"struct Point {
@@ -306,6 +331,29 @@ func main(): i32 {
     assert_eq!(diagnostics[0].code, "E0342");
     assert!(diagnostics[0].message.contains("i32"));
     assert!(diagnostics[0].message.contains("&str"));
+}
+
+#[test]
+fn infers_generic_function_return_type_from_generic_struct_argument() {
+    let diagnostics = check_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+func unwrap<T>(box: Box<T>): T {
+    return box.value
+}
+
+func main(): i32 {
+    let box = Box<i32>{
+        value: 1,
+    }
+    return unwrap(move box)
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]

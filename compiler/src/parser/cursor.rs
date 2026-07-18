@@ -229,11 +229,53 @@ impl Parser<'_> {
     }
 
     pub(super) fn looks_like_struct_literal_body(&self) -> bool {
-        if !self.at_punctuation("{") {
+        self.looks_like_struct_literal_body_at(self.index)
+    }
+
+    pub(super) fn looks_like_generic_struct_literal_body(&self) -> bool {
+        if !self.at_punctuation("<") {
             return false;
         }
 
-        let mut index = self.index + 1;
+        let mut depth = 0usize;
+        let mut index = self.index;
+        loop {
+            match self.tokens.get(index).map(|token| token.kind) {
+                Some(TokenKind::Punctuation("<")) => {
+                    depth += 1;
+                    index += 1;
+                }
+                Some(TokenKind::Punctuation(">")) => {
+                    depth = depth.saturating_sub(1);
+                    index += 1;
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                Some(TokenKind::Eof) | None => return false,
+                _ => index += 1,
+            }
+        }
+
+        while matches!(
+            self.tokens.get(index).map(|token| token.kind),
+            Some(TokenKind::Newline)
+        ) {
+            index += 1;
+        }
+
+        self.looks_like_struct_literal_body_at(index)
+    }
+
+    fn looks_like_struct_literal_body_at(&self, start: usize) -> bool {
+        if !matches!(
+            self.tokens.get(start).map(|token| token.kind),
+            Some(TokenKind::Punctuation("{"))
+        ) {
+            return false;
+        }
+
+        let mut index = start + 1;
         while matches!(
             self.tokens.get(index).map(|token| token.kind),
             Some(TokenKind::Newline)

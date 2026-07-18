@@ -8,7 +8,7 @@ use super::diagnostics::{
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment};
 use super::operations::is_expression_assignable;
-use super::type_expr::type_expr_to_type_with_self_type;
+use super::type_expr::type_expr_to_type_with_substitutions;
 use crate::ast::{CallExpr, Expr, MemberExpr, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{
@@ -43,7 +43,7 @@ pub(super) fn check_known_function_call(
         .zip(signature.signature.parameters.iter())
         .enumerate()
     {
-        let expected = type_expr_to_type_for_call(
+        let expected = type_expr_to_type_with_substitutions(
             &parameter.ty,
             resolved,
             signature.self_type.as_ref(),
@@ -73,7 +73,7 @@ pub(super) fn check_known_function_call(
                 argument,
                 parameter,
                 source_name,
-                type_name,
+                &type_name,
             ));
         }
     }
@@ -86,7 +86,7 @@ pub(super) fn call_return_type(
     environment: &TypeEnvironment,
 ) -> Type {
     let substitutions = infer_generic_substitutions(call, signature, resolved, environment);
-    type_expr_to_type_for_call(
+    type_expr_to_type_with_substitutions(
         &signature.signature.return_type,
         resolved,
         signature.self_type.as_ref(),
@@ -203,6 +203,7 @@ fn infer_generic_substitutions(
         infer_from_type_expr(
             &parameter.ty,
             &actual,
+            resolved,
             signature.self_type.as_ref(),
             &parameters,
             &mut substitutions,
@@ -214,6 +215,7 @@ fn infer_generic_substitutions(
 fn infer_from_type_expr(
     expected: &TypeExpr,
     actual: &Type,
+    resolved: &ResolveOutput,
     self_type: Option<&Type>,
     parameters: &HashSet<&str>,
     substitutions: &mut HashMap<String, Type>,
@@ -234,6 +236,7 @@ fn infer_from_type_expr(
                 infer_from_type_expr(
                     &pointer.inner,
                     actual_inner,
+                    resolved,
                     self_type,
                     parameters,
                     substitutions,
@@ -245,6 +248,7 @@ fn infer_from_type_expr(
                 infer_from_type_expr(
                     &borrow.inner,
                     &actual_inner,
+                    resolved,
                     self_type,
                     parameters,
                     substitutions,
@@ -253,7 +257,14 @@ fn infer_from_type_expr(
         }
         TypeExpr::View(view) => {
             if let Type::ArrayData { element } = actual {
-                infer_from_type_expr(&view.element, element, self_type, parameters, substitutions);
+                infer_from_type_expr(
+                    &view.element,
+                    element,
+                    resolved,
+                    self_type,
+                    parameters,
+                    substitutions,
+                );
             }
         }
         TypeExpr::Array(array) => {
@@ -261,6 +272,7 @@ fn infer_from_type_expr(
                 infer_from_type_expr(
                     &array.element,
                     element,
+                    resolved,
                     self_type,
                     parameters,
                     substitutions,
@@ -272,6 +284,7 @@ fn infer_from_type_expr(
                 infer_from_type_expr(
                     &optional.inner,
                     actual_inner,
+                    resolved,
                     self_type,
                     parameters,
                     substitutions,
@@ -283,15 +296,62 @@ fn infer_from_type_expr(
                 infer_from_type_expr(
                     &fallible.success,
                     success,
+                    resolved,
                     self_type,
                     parameters,
                     substitutions,
                 );
-                infer_from_type_expr(&fallible.error, error, self_type, parameters, substitutions);
+                infer_from_type_expr(
+                    &fallible.error,
+                    error,
+                    resolved,
+                    self_type,
+                    parameters,
+                    substitutions,
+                );
             }
         }
-        TypeExpr::Generic(_) => {}
+        TypeExpr::Generic(generic) => {
+            if let Some(expected_arguments) =
+                expected_generic_parts(generic, actual, resolved, self_type)
+                && expected_arguments.len() == generic.arguments.len()
+            {
+                for (expected_argument, actual_argument) in
+                    generic.arguments.iter().zip(expected_arguments.iter())
+                {
+                    infer_from_type_expr(
+                        expected_argument,
+                        actual_argument,
+                        resolved,
+                        self_type,
+                        parameters,
+                        substitutions,
+                    );
+                }
+            }
+        }
         TypeExpr::Reference(_) => {}
+    }
+}
+
+fn expected_generic_parts(
+    generic: &crate::ast::GenericType,
+    actual: &Type,
+    resolved: &ResolveOutput,
+    self_type: Option<&Type>,
+) -> Option<Vec<Type>> {
+    let expected_name = if generic.name == "Self" {
+        self_type?.nominal_name()?.to_string()
+    } else {
+        resolved
+            .type_symbol_by_reference_name(&generic.name)
+            .map(|symbol| symbol.canonical_name.clone())
+            .unwrap_or_else(|| generic.name.clone())
+    };
+
+    match actual {
+        Type::Generic { name, arguments } if *name == expected_name => Some(arguments.clone()),
+        _ => None,
     }
 }
 
@@ -328,112 +388,43 @@ fn simple_type_from_display_name(name: &str) -> Type {
         name if name.starts_with('*') => {
             Type::Pointer(Box::new(simple_type_from_display_name(&name[1..])))
         }
-        _ => Type::Named(name.to_string()),
+        name => parse_generic_display_type(name).unwrap_or_else(|| Type::Named(name.to_string())),
     }
 }
 
-fn type_expr_to_type_for_call(
-    ty: &TypeExpr,
-    resolved: &ResolveOutput,
-    self_type: Option<&Type>,
-    substitutions: &HashMap<String, Type>,
-) -> Type {
-    match ty {
-        TypeExpr::Reference(reference) if reference.name == "Self" => self_type
-            .cloned()
-            .unwrap_or_else(|| Type::Unresolved("Self".to_string())),
-        TypeExpr::Reference(reference) => substitutions
-            .get(&reference.name)
-            .cloned()
-            .unwrap_or_else(|| type_expr_to_type_with_self_type(ty, resolved, self_type)),
-        TypeExpr::Pointer(pointer) => Type::Pointer(Box::new(type_expr_to_type_for_call(
-            &pointer.inner,
-            resolved,
-            self_type,
-            substitutions,
-        ))),
-        TypeExpr::Borrow(borrow) => {
-            let inner =
-                type_expr_to_type_for_call(&borrow.inner, resolved, self_type, substitutions);
-            match (borrow.is_readwrite, inner) {
-                (false, Type::StrData) => Type::Str,
-                (is_readwrite, Type::ArrayData { element }) => Type::View {
-                    is_readwrite,
-                    element,
-                },
-                (is_readwrite, inner) if !inner.is_unknown_or_unresolved() => Type::Named(format!(
-                    "{}{}",
-                    if is_readwrite { "&+" } else { "&" },
-                    inner.display()
-                )),
-                _ => Type::Unknown,
+fn parse_generic_display_type(name: &str) -> Option<Type> {
+    let open = name.find('<')?;
+    let close = name.rfind('>')?;
+    if close != name.len() - 1 || close <= open {
+        return None;
+    }
+    let arguments = split_top_level_type_arguments(&name[open + 1..close])
+        .into_iter()
+        .map(simple_type_from_display_name)
+        .collect();
+    Some(Type::Generic {
+        name: name[..open].trim().to_string(),
+        arguments,
+    })
+}
+
+fn split_top_level_type_arguments(arguments: &str) -> Vec<&str> {
+    let mut result = Vec::new();
+    let mut depth = 0usize;
+    let mut start = 0usize;
+    for (index, ch) in arguments.char_indices() {
+        match ch {
+            '<' | '[' | '(' => depth += 1,
+            '>' | ']' | ')' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                result.push(arguments[start..index].trim());
+                start = index + ch.len_utf8();
             }
-        }
-        TypeExpr::View(view) => Type::ArrayData {
-            element: Box::new(type_expr_to_type_for_call(
-                &view.element,
-                resolved,
-                self_type,
-                substitutions,
-            )),
-        },
-        TypeExpr::Array(array) => Type::Array {
-            element: Box::new(type_expr_to_type_for_call(
-                &array.element,
-                resolved,
-                self_type,
-                substitutions,
-            )),
-            length: array.length.value.clone(),
-        },
-        TypeExpr::Optional(optional) => Type::Optional(Box::new(type_expr_to_type_for_call(
-            &optional.inner,
-            resolved,
-            self_type,
-            substitutions,
-        ))),
-        TypeExpr::Fallible(fallible) => Type::Fallible {
-            success: Box::new(type_expr_to_type_for_call(
-                &fallible.success,
-                resolved,
-                self_type,
-                substitutions,
-            )),
-            error: Box::new(type_expr_to_type_for_call(
-                &fallible.error,
-                resolved,
-                self_type,
-                substitutions,
-            )),
-        },
-        TypeExpr::Generic(generic) => {
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&generic.name) else {
-                return type_expr_to_type_with_self_type(ty, resolved, self_type);
-            };
-            if symbol.generic_arity != generic.arguments.len() {
-                return Type::Unresolved(generic.name.clone());
-            }
-            let arguments = generic
-                .arguments
-                .iter()
-                .map(|argument| {
-                    type_expr_to_type_for_call(argument, resolved, self_type, substitutions)
-                })
-                .collect::<Vec<_>>();
-            if arguments.iter().any(Type::is_unknown_or_unresolved) {
-                return Type::Unknown;
-            }
-            Type::Named(format!(
-                "{}<{}>",
-                symbol.canonical_name,
-                arguments
-                    .iter()
-                    .map(Type::display)
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ))
+            _ => {}
         }
     }
+    result.push(arguments[start..].trim());
+    result
 }
 
 pub(super) fn check_method_receiver_call(
@@ -562,9 +553,7 @@ fn inherent_method_owner_for_type<'a>(
     ty: &Type,
     resolved: &'a ResolveOutput,
 ) -> Option<&'a TypeSymbol> {
-    let Type::Named(canonical_name) = ty else {
-        return None;
-    };
+    let canonical_name = ty.nominal_name()?;
 
     resolved
         .type_symbol_by_canonical_name(canonical_name)

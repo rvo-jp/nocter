@@ -54,11 +54,11 @@ fn is_supported_interpolation_type(ty: &Type, resolved: &ResolveOutput) -> bool 
 }
 
 fn is_string_type(ty: &Type, resolved: &ResolveOutput) -> bool {
-    let Type::Named(canonical_name) = ty else {
+    let Some(canonical_name) = ty.nominal_name() else {
         return false;
     };
 
     resolved
         .type_symbol_by_name("String")
-        .is_some_and(|symbol| symbol.canonical_name == *canonical_name)
+        .is_some_and(|symbol| symbol.canonical_name == canonical_name)
 }

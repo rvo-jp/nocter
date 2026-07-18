@@ -8,7 +8,7 @@ use super::diagnostics::{
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment};
 use super::operations::is_expression_assignable;
-use super::type_expr::type_expr_to_type_in_environment;
+use super::type_expr::{type_expr_to_type_in_environment, type_expr_to_type_with_substitutions};
 use crate::ast::{MemberExpr, StructLiteralExpr, StructLiteralField};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{ResolveOutput, StructFieldSignature, TypeSymbol, TypeSymbolKind};
@@ -24,7 +24,15 @@ pub(super) fn struct_member_type(
     let struct_symbol = struct_type_symbol_for_type(&target_type, resolved)?;
     Some(
         struct_field_for_member(member, struct_symbol)
-            .map(|field| type_expr_to_type_in_environment(&field.ty, resolved, environment))
+            .map(|field| {
+                struct_field_type_for_owner(
+                    field,
+                    struct_symbol,
+                    &target_type,
+                    resolved,
+                    environment,
+                )
+            })
             .unwrap_or(Type::Unknown),
     )
 }
@@ -149,7 +157,13 @@ pub(super) fn check_struct_literal_expression(
             continue;
         }
 
-        let expected = type_expr_to_type_in_environment(&expected_field.ty, resolved, environment);
+        let expected = struct_field_type_for_owner(
+            expected_field,
+            struct_symbol,
+            &target_type,
+            resolved,
+            environment,
+        );
         let actual = expression_type(&field.value, resolved, environment);
         if expected.is_unknown_or_unresolved() || actual.is_unknown_or_unresolved() {
             continue;
@@ -194,17 +208,55 @@ fn struct_type_symbol_for_type<'a>(
     ty: &Type,
     resolved: &'a ResolveOutput,
 ) -> Option<&'a TypeSymbol> {
-    let Type::Named(canonical_name) = ty else {
-        return None;
+    let canonical_name = match ty {
+        Type::Named(canonical_name) => canonical_name
+            .strip_prefix("&+")
+            .or_else(|| canonical_name.strip_prefix('&'))
+            .unwrap_or(canonical_name),
+        Type::Generic { name, .. } => name,
+        _ => return None,
     };
-    let canonical_name = canonical_name
-        .strip_prefix("&+")
-        .or_else(|| canonical_name.strip_prefix('&'))
-        .unwrap_or(canonical_name);
 
     resolved
         .type_symbol_by_canonical_name(canonical_name)
         .filter(|symbol| symbol.kind == TypeSymbolKind::Struct)
+}
+
+fn struct_field_type_for_owner(
+    field: &StructFieldSignature,
+    struct_symbol: &TypeSymbol,
+    owner_type: &Type,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Type {
+    let substitutions = generic_substitutions_for_owner(struct_symbol, owner_type);
+    type_expr_to_type_with_substitutions(
+        &field.ty,
+        resolved,
+        environment.self_type(),
+        &substitutions,
+    )
+}
+
+fn generic_substitutions_for_owner(
+    struct_symbol: &TypeSymbol,
+    owner_type: &Type,
+) -> HashMap<String, Type> {
+    let Type::Generic { name, arguments } = owner_type else {
+        return HashMap::new();
+    };
+    if name != &struct_symbol.canonical_name
+        || arguments.len() != struct_symbol.generic_parameters.len()
+    {
+        return HashMap::new();
+    }
+
+    struct_symbol
+        .generic_parameters
+        .iter()
+        .cloned()
+        .zip(arguments.iter().cloned())
+        .collect()
 }
 
 fn struct_field_for_member<'a>(

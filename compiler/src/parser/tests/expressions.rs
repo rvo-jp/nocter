@@ -1,5 +1,7 @@
 use super::support::{find_json_node, parse_text, parse_text_with_sources};
-use crate::ast::{BinaryOperator, Expr, InterpolatedStringPart, Item, Stmt, UnaryOperator};
+use crate::ast::{
+    BinaryOperator, Expr, InterpolatedStringPart, Item, Stmt, TypeExpr, UnaryOperator,
+};
 
 #[test]
 fn parses_optional_default_expression() {
@@ -308,6 +310,41 @@ func main(): i32 {
     assert_eq!(literal.fields.len(), 2);
     assert_eq!(literal.fields[0].name, "x");
     assert_eq!(literal.fields[1].name, "label");
+}
+
+#[test]
+fn parses_generic_struct_literal_expression() {
+    let output = parse_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+func main(): i32 {
+    let box = Box<i32>{
+        value: 1,
+    }
+    return box.value
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[1] else {
+        panic!("expected function item");
+    };
+    let Stmt::Binding(binding) = &function.body.statements[0] else {
+        panic!("expected binding statement");
+    };
+    let Expr::StructLiteral(literal) = &binding.initializer else {
+        panic!("expected struct literal");
+    };
+    let TypeExpr::Generic(ty) = &literal.ty else {
+        panic!("expected generic struct literal type");
+    };
+    assert_eq!(ty.name, "Box");
+    assert_eq!(ty.arguments.len(), 1);
+    assert_eq!(literal.fields.len(), 1);
 }
 
 #[test]

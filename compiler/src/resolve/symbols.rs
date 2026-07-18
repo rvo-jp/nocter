@@ -337,6 +337,7 @@ pub struct FunctionSignature {
 pub struct TypeSymbol {
     pub kind: TypeSymbolKind,
     pub canonical_name: String,
+    pub generic_parameters: Vec<String>,
     pub generic_arity: usize,
     pub is_copy: bool,
     pub alias_target: Option<TypeExpr>,

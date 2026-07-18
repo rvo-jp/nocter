@@ -19,7 +19,7 @@ pub(in crate::typecheck) fn struct_literal_target_type_mismatch_diagnostic(
         ),
     );
     diagnostic.primary_span = sources.span_to_json(literal.ty.span()).ok().map(Box::new);
-    if let Type::Named(name) = actual
+    if let Some(name) = actual.nominal_name()
         && let Some(symbol) = resolved.type_symbol_by_canonical_name(name)
     {
         diagnostic.help = Some(format!(

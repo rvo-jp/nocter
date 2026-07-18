@@ -1,6 +1,6 @@
 use crate::ast::BindingKind;
 use crate::source::ByteSpan;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Type {
@@ -30,6 +30,11 @@ pub(super) enum Type {
         error: Box<Type>,
     },
     Named(String),
+    Generic {
+        name: String,
+        arguments: Vec<Type>,
+    },
+    Parameter(String),
     Unresolved(String),
     Unknown,
 }
@@ -59,8 +64,24 @@ impl Type {
             Type::Optional(inner) => format!("{}?", inner.display()),
             Type::Fallible { success, .. } => format!("{}!", success.display()),
             Type::Named(name) => name.clone(),
+            Type::Generic { name, arguments } => {
+                let arguments = arguments
+                    .iter()
+                    .map(Type::display)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("{name}<{arguments}>")
+            }
+            Type::Parameter(name) => name.clone(),
             Type::Unresolved(name) => name.clone(),
             Type::Unknown => "<unknown>".to_string(),
+        }
+    }
+
+    pub(super) fn nominal_name(&self) -> Option<&str> {
+        match self {
+            Type::Named(name) | Type::Generic { name, .. } => Some(name),
+            _ => None,
         }
     }
 
@@ -76,6 +97,7 @@ impl Type {
             Type::Array { element, .. } => element.is_unknown_or_unresolved(),
             Type::Pointer(inner) => inner.is_unknown_or_unresolved(),
             Type::Optional(inner) => inner.is_unknown_or_unresolved(),
+            Type::Generic { arguments, .. } => arguments.iter().any(Type::is_unknown_or_unresolved),
             Type::Fallible { success, error } => {
                 success.is_unknown_or_unresolved() || error.is_unknown_or_unresolved()
             }
@@ -87,7 +109,8 @@ impl Type {
             | Type::Void
             | Type::Never
             | Type::None
-            | Type::Named(_) => false,
+            | Type::Named(_)
+            | Type::Parameter(_) => false,
         }
     }
 
@@ -99,6 +122,7 @@ impl Type {
             }
             Type::Pointer(_) => None,
             Type::Optional(inner) => inner.first_unsized_part(),
+            Type::Generic { arguments, .. } => arguments.iter().find_map(Type::first_unsized_part),
             Type::Fallible { success, error } => success
                 .first_unsized_part()
                 .or_else(|| error.first_unsized_part()),
@@ -110,6 +134,7 @@ impl Type {
             | Type::Never
             | Type::None
             | Type::Named(_)
+            | Type::Parameter(_)
             | Type::Unresolved(_)
             | Type::Unknown => None,
         }
@@ -144,6 +169,7 @@ impl Type {
 pub(super) struct TypeEnvironment {
     bindings: HashMap<String, TypeBinding>,
     self_type: Option<Type>,
+    generic_parameters: HashSet<String>,
 }
 
 impl TypeEnvironment {
@@ -151,6 +177,7 @@ impl TypeEnvironment {
         Self {
             bindings: HashMap::new(),
             self_type: Some(self_type),
+            generic_parameters: HashSet::new(),
         }
     }
 
@@ -160,6 +187,10 @@ impl TypeEnvironment {
 
     pub(super) fn define_binding(&mut self, name: String, ty: Type, is_mutable: bool) {
         self.bindings.insert(name, TypeBinding { ty, is_mutable });
+    }
+
+    pub(super) fn define_generic_parameters(&mut self, names: impl IntoIterator<Item = String>) {
+        self.generic_parameters.extend(names);
     }
 
     pub(super) fn get(&self, name: &str) -> Option<&Type> {
@@ -174,6 +205,13 @@ impl TypeEnvironment {
 
     pub(super) fn self_type(&self) -> Option<&Type> {
         self.self_type.as_ref()
+    }
+
+    pub(super) fn generic_parameter_substitutions(&self) -> HashMap<String, Type> {
+        self.generic_parameters
+            .iter()
+            .map(|name| (name.clone(), Type::Parameter(name.clone())))
+            .collect()
     }
 }
 
