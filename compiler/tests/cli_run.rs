@@ -7069,6 +7069,102 @@ func maybe_answer(): i32? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_optional_scalar_default_bindings_exit_code() {
+    let project = TempProject::new("cli-run-optional-scalar-default-bindings");
+    let source = project.write_source(
+        "optional_scalar_default_bindings.nct",
+        r#"func main(): i32 {
+    let byte: u8 = maybe_byte() ?? 1
+    let size = maybe_size() ?? 2
+    let flag = maybe_flag() ?? false
+    let text = maybe_text() ?? "fallback"
+
+    if flag && size == 40 {
+        return byte as i32
+    } else {
+        return 1
+    }
+}
+
+func maybe_byte(): u8? {
+    return 42
+}
+
+func maybe_size(): usize? {
+    return 40
+}
+
+func maybe_flag(): bool? {
+    return true
+}
+
+func maybe_text(): &str? {
+    return "text"
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_optional_scalar_default_binding_fallbacks_exit_code() {
+    let project = TempProject::new("cli-run-optional-scalar-default-binding-fallbacks");
+    let source = project.write_source(
+        "optional_scalar_default_binding_fallbacks.nct",
+        r#"func main(): i32 {
+    let byte: u8 = maybe_byte() ?? 42
+    let size = maybe_size() ?? 40
+    let flag = maybe_flag() ?? true
+    let text = maybe_text() ?? "fallback"
+
+    if flag && size == 40 {
+        return byte as i32
+    } else {
+        return 1
+    }
+}
+
+func maybe_byte(): u8? {
+    return none
+}
+
+func maybe_size(): usize? {
+    return none
+}
+
+func maybe_flag(): bool? {
+    return none
+}
+
+func maybe_text(): &str? {
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_optional_direct_aggregate_force_unwrap_exit_code() {
     let project = TempProject::new("cli-run-optional-direct-aggregate-force");
     let source = project.write_source(

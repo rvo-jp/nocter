@@ -52,7 +52,7 @@ pub(super) fn lower_local_binding(
         return Ok(instructions);
     }
 
-    if let Some(instructions) = lower_optional_default_i32_binding(statement, context)? {
+    if let Some(instructions) = lower_optional_default_scalar_binding(statement, context)? {
         return Ok(instructions);
     }
 
@@ -302,7 +302,7 @@ fn lower_optional_let_else_scalar_call_binding(
     }
 }
 
-fn lower_optional_default_i32_binding(
+fn lower_optional_default_scalar_binding(
     statement: &BindingStmt,
     context: &mut LoweringContext,
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
@@ -336,36 +336,136 @@ fn lower_optional_default_i32_binding(
     else {
         return Ok(None);
     };
-    if !matches!(kind, ScalarBindingKind::I32) {
-        return Ok(None);
-    }
-
-    let destination = context.next_i32_local_location()?;
-    let expression_context = context.with_reserved_local_abi_words(1);
-    let failure_mode = lower_optional_default_i32_recover_failure_mode(
-        &default.default,
-        destination,
-        &expression_context,
-    )?;
-    let mut temporaries = TemporaryAllocator::new(&expression_context)?;
-    let instructions = lower_fallible_i32_normal_call(
-        call,
-        destination,
-        &expression_context,
-        &mut temporaries,
-        failure_mode,
-    )?;
-    context.define_i32_local(statement.name.clone());
-    Ok(Some(instructions))
+    lower_optional_default_scalar_call_binding(statement, call, &default.default, kind, context)
+        .map(Some)
 }
 
-fn lower_optional_default_i32_recover_failure_mode(
+fn lower_optional_default_scalar_call_binding(
+    statement: &BindingStmt,
+    call: &CallExpr,
     fallback: &Expr,
-    destination: I32Location,
-    context: &LoweringContext,
-) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
-    let instructions = lower_i32_expression_to_location(fallback, destination, context)?;
-    Ok(FallibleFailureMode::Recover { instructions })
+    kind: ScalarBindingKind,
+    context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let expression_context = context.with_reserved_local_abi_words(kind.abi_word_count());
+    let mut temporaries = TemporaryAllocator::new(&expression_context)?;
+    match kind {
+        ScalarBindingKind::I32 => {
+            let destination = context.next_i32_local_location()?;
+            let failure_mode = FallibleFailureMode::Recover {
+                instructions: lower_i32_expression_to_location(
+                    fallback,
+                    destination,
+                    &expression_context,
+                )?,
+            };
+            let instructions = lower_fallible_i32_normal_call(
+                call,
+                destination,
+                &expression_context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_i32_local(statement.name.clone());
+            Ok(instructions)
+        }
+        ScalarBindingKind::U8 => {
+            let destination = context.next_u8_local_location()?;
+            let failure_mode = FallibleFailureMode::Recover {
+                instructions: lower_u8_expression_to_location(
+                    fallback,
+                    destination,
+                    &expression_context,
+                )?,
+            };
+            let instructions = lower_fallible_u8_normal_call(
+                call,
+                destination,
+                &expression_context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_u8_local(statement.name.clone());
+            Ok(instructions)
+        }
+        ScalarBindingKind::Usize => {
+            let destination = context.next_usize_local_location()?;
+            let failure_mode = FallibleFailureMode::Recover {
+                instructions: lower_usize_expression_to_location(
+                    fallback,
+                    destination,
+                    &expression_context,
+                )?,
+            };
+            let instructions = lower_fallible_usize_normal_call(
+                call,
+                destination,
+                &expression_context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_usize_local(statement.name.clone());
+            Ok(instructions)
+        }
+        ScalarBindingKind::Bool => {
+            let destination = context.next_bool_local_location()?;
+            let failure_mode = FallibleFailureMode::Recover {
+                instructions: lower_bool_expression_to_location(
+                    fallback,
+                    destination,
+                    &expression_context,
+                    "E8008",
+                )?,
+            };
+            let instructions = lower_fallible_bool_normal_call(
+                call,
+                destination,
+                &expression_context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_bool_local(statement.name.clone());
+            Ok(instructions)
+        }
+        ScalarBindingKind::Str => {
+            let destination = context.next_str_local_location()?;
+            let failure_mode = FallibleFailureMode::Recover {
+                instructions: lower_str_expression_to_location(
+                    fallback,
+                    destination,
+                    &expression_context,
+                )?,
+            };
+            let instructions = lower_fallible_str_normal_call(
+                call,
+                destination,
+                &expression_context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_str_local(statement.name.clone());
+            Ok(instructions)
+        }
+        ScalarBindingKind::Slice => {
+            let destination = context.next_slice_local_location()?;
+            let failure_mode = FallibleFailureMode::Recover {
+                instructions: lower_slice_expression_to_location(
+                    fallback,
+                    destination,
+                    &expression_context,
+                )?,
+            };
+            let instructions = lower_fallible_slice_normal_call(
+                call,
+                destination,
+                &expression_context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_slice_local(statement.name.clone());
+            Ok(instructions)
+        }
+    }
 }
 
 fn lower_aggregate_struct_literal_binding(
@@ -2065,4 +2165,13 @@ enum ScalarBindingKind {
     Bool,
     Str,
     Slice,
+}
+
+impl ScalarBindingKind {
+    fn abi_word_count(&self) -> usize {
+        match self {
+            Self::I32 | Self::U8 | Self::Usize | Self::Bool => 1,
+            Self::Str | Self::Slice => 2,
+        }
+    }
 }
