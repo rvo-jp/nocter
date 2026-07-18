@@ -196,6 +196,364 @@ func take(text: Text): i32 {
 }
 
 #[test]
+fn accepts_move_after_readonly_borrow_last_use() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+func main(): i32 {
+    let text = Text{ len: 42 }
+    let read = &text
+    inspect(read)
+    return take(move text)
+}
+
+func inspect(text: &Text): void {
+    return
+}
+
+func take(text: Text): i32 {
+    return text.len
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_move_while_readonly_borrow_used_later() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+func main(): i32 {
+    let text = Text{ len: 42 }
+    let read = &text
+    let length = take(move text)
+    inspect(read)
+    return length
+}
+
+func inspect(text: &Text): void {
+    return
+}
+
+func take(text: Text): i32 {
+    return text.len
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0434");
+    assert!(diagnostics[0].message.contains("move"));
+    assert!(diagnostics[0].message.contains("text"));
+    assert!(diagnostics[0].message.contains("read"));
+}
+
+#[test]
+fn accepts_move_before_unreachable_borrow_use() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+func main(): i32 {
+    let text = Text{ len: 42 }
+    let read = &text
+    return take(move text)
+    inspect(read)
+    return 0
+}
+
+func inspect(text: &Text): void {
+    return
+}
+
+func take(text: Text): i32 {
+    return text.len
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_drop_while_readwrite_borrow_used_later() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+func main(): i32 {
+    var text = Text{ len: 42 }
+    let write = &+text
+    drop text
+    touch(write)
+    return 0
+}
+
+func touch(text: &+Text): void {
+    return
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0434");
+    assert!(diagnostics[0].message.contains("drop"));
+    assert!(diagnostics[0].message.contains("text"));
+    assert!(diagnostics[0].message.contains("write"));
+}
+
+#[test]
+fn accepts_readwrite_borrow_after_readonly_borrow_last_use() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+func main(): i32 {
+    var text = Text{ len: 42 }
+    let read = &text
+    inspect(read)
+    let write = &+text
+    touch(write)
+    return 0
+}
+
+func inspect(text: &Text): void {
+    return
+}
+
+func touch(text: &+Text): void {
+    return
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_readwrite_borrow_while_readonly_borrow_used_later() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+func main(): i32 {
+    var text = Text{ len: 42 }
+    let read = &text
+    let write = &+text
+    inspect(read)
+    touch(write)
+    return 0
+}
+
+func inspect(text: &Text): void {
+    return
+}
+
+func touch(text: &+Text): void {
+    return
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0434");
+    assert!(diagnostics[0].message.contains("readwrite borrow"));
+    assert!(diagnostics[0].message.contains("text"));
+    assert!(diagnostics[0].message.contains("read"));
+}
+
+#[test]
+fn diagnoses_assignment_while_readonly_borrow_used_later() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+func main(): i32 {
+    var text = Text{ len: 42 }
+    let read = &text
+    text = Text{ len: 7 }
+    inspect(read)
+    return 0
+}
+
+func inspect(text: &Text): void {
+    return
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0434");
+    assert!(diagnostics[0].message.contains("assign"));
+    assert!(diagnostics[0].message.contains("text"));
+    assert!(diagnostics[0].message.contains("read"));
+}
+
+#[test]
+fn diagnoses_owned_method_receiver_move_while_readonly_borrow_used_later() {
+    let diagnostics = check_text(
+        r#"struct Holder {
+    value: i32
+}
+
+impl Holder {
+    method (holder: Self).take(): i32 {
+        return holder.value
+    }
+}
+
+func main(): i32 {
+    let holder = Holder{ value: 21 }
+    let read = &holder
+    let value = holder.take()
+    inspect(read)
+    return value
+}
+
+func inspect(holder: &Holder): void {
+    return
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0434");
+    assert!(diagnostics[0].message.contains("move"));
+    assert!(diagnostics[0].message.contains("holder"));
+    assert!(diagnostics[0].message.contains("read"));
+}
+
+#[test]
+fn diagnoses_readwrite_method_receiver_while_readonly_borrow_used_later() {
+    let diagnostics = check_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    method (file: &+Self).write(): void {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 1 }
+    let read = &file
+    file.write()
+    inspect(read)
+    return 0
+}
+
+func inspect(file: &File): void {
+    return
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0434");
+    assert!(diagnostics[0].message.contains("readwrite borrow"));
+    assert!(diagnostics[0].message.contains("file"));
+    assert!(diagnostics[0].message.contains("read"));
+}
+
+#[test]
+fn diagnoses_readonly_method_receiver_while_readwrite_borrow_used_later() {
+    let diagnostics = check_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    method (file: &Self).fd_value(): i32 {
+        return file.fd
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 1 }
+    let write = &+file
+    let fd = file.fd_value()
+    touch(write)
+    return fd
+}
+
+func touch(file: &+File): void {
+    return
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0434");
+    assert!(diagnostics[0].message.contains("readonly borrow"));
+    assert!(diagnostics[0].message.contains("file"));
+    assert!(diagnostics[0].message.contains("write"));
+}
+
+#[test]
+fn diagnoses_field_read_while_readwrite_borrow_used_later() {
+    let diagnostics = check_text(
+        r#"struct File {
+    fd: i32
+}
+
+func main(): i32 {
+    var file = File{ fd: 1 }
+    let write = &+file
+    let fd = file.fd
+    touch(write)
+    return fd
+}
+
+func touch(file: &+File): void {
+    return
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0434");
+    assert!(diagnostics[0].message.contains("use"));
+    assert!(diagnostics[0].message.contains("file"));
+    assert!(diagnostics[0].message.contains("write"));
+}
+
+#[test]
+fn accepts_field_read_after_readwrite_borrow_last_use() {
+    let diagnostics = check_text(
+        r#"struct File {
+    fd: i32
+}
+
+func main(): i32 {
+    var file = File{ fd: 1 }
+    let write = &+file
+    touch(write)
+    return file.fd
+}
+
+func touch(file: &+File): void {
+    return
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_use_after_owned_method_receiver_move() {
     let diagnostics = check_text(
         r#"struct Holder {

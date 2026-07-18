@@ -60,3 +60,34 @@ pub(in crate::typecheck) fn invalid_drop_target_diagnostic(
     );
     diagnostic
 }
+
+pub(in crate::typecheck) fn active_borrow_conflict_diagnostic(
+    sources: &SourceMap,
+    source_name: &str,
+    action: &str,
+    action_span: ByteSpan,
+    borrow_name: &str,
+    borrow_span: ByteSpan,
+    is_readwrite: bool,
+) -> Diagnostic {
+    let borrow_kind = if is_readwrite {
+        "readwrite"
+    } else {
+        "readonly"
+    };
+    let mut diagnostic = Diagnostic::error(
+        "E0434",
+        format!("cannot {action} `{source_name}` while it is borrowed by `{borrow_name}`"),
+    );
+    diagnostic.primary_span = sources.span_to_json(action_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(borrow_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: format!("{borrow_kind} borrow `{borrow_name}` is created here"),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some(format!(
+        "use `{borrow_name}` before this operation, or move this operation after the borrow's last use"
+    ));
+    diagnostic
+}

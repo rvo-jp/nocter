@@ -1,6 +1,9 @@
 use super::bindings::continuing_binding_type;
 use super::calls::{method_member_for_call, resolved_method_for_call};
-use super::diagnostics::{invalid_drop_target_diagnostic, uninitialized_binding_diagnostic};
+use super::diagnostics::{
+    active_borrow_conflict_diagnostic, invalid_drop_target_diagnostic,
+    uninitialized_binding_diagnostic,
+};
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
     environment_for_if_is_binding, environment_for_if_let_binding, environment_for_method,
@@ -121,7 +124,23 @@ fn check_block_ownership(
     environment: &mut TypeEnvironment,
     ownership: &mut OwnershipState,
 ) -> FlowState {
-    for statement in &block.statements {
+    let mut active_borrows: Vec<ActiveBorrow> = Vec::new();
+    for (index, statement) in block.statements.iter().enumerate() {
+        active_borrows.retain(|borrow| {
+            statements_use_identifier_before_terminal(
+                &block.statements[index..],
+                &borrow.borrow_name,
+            )
+        });
+        check_statement_borrow_conflicts(
+            sources,
+            statement,
+            resolved,
+            environment,
+            &active_borrows,
+            diagnostics,
+        );
+
         let flow = check_statement_ownership(
             sources,
             statement,
@@ -130,11 +149,1022 @@ fn check_block_ownership(
             environment,
             ownership,
         );
+        record_statement_borrow(
+            statement,
+            &block.statements[index + 1..],
+            &mut active_borrows,
+        );
         if !flow.reaches_end {
             return flow;
         }
     }
     FlowState::fallthrough()
+}
+
+fn check_statement_borrow_conflicts(
+    sources: &SourceMap,
+    statement: &Stmt,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    active_borrows: &[ActiveBorrow],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut new_borrows = Vec::new();
+    collect_direct_borrow_expressions_in_statement(
+        statement,
+        resolved,
+        environment,
+        &mut new_borrows,
+    );
+
+    for borrow in active_borrows {
+        if let Some(action) =
+            statement_conflicting_action(statement, &borrow.source_name, resolved, environment)
+        {
+            diagnostics.push(active_borrow_conflict_diagnostic(
+                sources,
+                &borrow.source_name,
+                action.description,
+                action.span,
+                &borrow.borrow_name,
+                borrow.borrow_span,
+                borrow.is_readwrite,
+            ));
+            return;
+        }
+
+        if let Some(new_borrow) = new_borrows
+            .iter()
+            .find(|new_borrow| new_borrow.source_name == borrow.source_name)
+            && (new_borrow.is_readwrite || borrow.is_readwrite)
+        {
+            let action = if new_borrow.is_readwrite {
+                "create readwrite borrow of"
+            } else {
+                "create readonly borrow of"
+            };
+            diagnostics.push(active_borrow_conflict_diagnostic(
+                sources,
+                &borrow.source_name,
+                action,
+                new_borrow.source_span,
+                &borrow.borrow_name,
+                borrow.borrow_span,
+                borrow.is_readwrite,
+            ));
+            return;
+        }
+
+        if borrow.is_readwrite
+            && let Some(action) =
+                statement_read_action(statement, &borrow.source_name, resolved, environment)
+        {
+            diagnostics.push(active_borrow_conflict_diagnostic(
+                sources,
+                &borrow.source_name,
+                action.description,
+                action.span,
+                &borrow.borrow_name,
+                borrow.borrow_span,
+                borrow.is_readwrite,
+            ));
+            return;
+        }
+    }
+}
+
+fn record_statement_borrow(
+    statement: &Stmt,
+    later_statements: &[Stmt],
+    active_borrows: &mut Vec<ActiveBorrow>,
+) {
+    let Stmt::Binding(binding) = statement else {
+        return;
+    };
+    let Some(source) = direct_borrow_source(&binding.initializer) else {
+        return;
+    };
+    if !statements_use_identifier_before_terminal(later_statements, &binding.name) {
+        return;
+    }
+
+    active_borrows.push(ActiveBorrow {
+        source_name: source.source_name,
+        borrow_name: binding.name.clone(),
+        borrow_span: binding.name_span,
+        is_readwrite: source.is_readwrite,
+    });
+}
+
+fn statement_conflicting_action(
+    statement: &Stmt,
+    source_name: &str,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<BorrowAction> {
+    match statement {
+        Stmt::Drop(statement) if statement.name == source_name => Some(BorrowAction {
+            span: statement.name_span,
+            description: "drop",
+        }),
+        Stmt::Assignment(statement)
+            if assignment_target_root_name(&statement.target) == Some(source_name) =>
+        {
+            Some(BorrowAction {
+                span: statement.target.span(),
+                description: "assign to",
+            })
+        }
+        Stmt::Return(statement) => statement.expression.as_ref().and_then(|expression| {
+            expression_move_action(expression, source_name, resolved, environment)
+        }),
+        Stmt::Binding(statement) => {
+            expression_move_action(&statement.initializer, source_name, resolved, environment)
+        }
+        Stmt::Assignment(statement) => {
+            expression_move_action(&statement.value, source_name, resolved, environment)
+        }
+        Stmt::If(statement) => {
+            expression_move_action(&statement.condition, source_name, resolved, environment)
+                .or_else(|| {
+                    block_move_action(&statement.then_block, source_name, resolved, environment)
+                })
+                .or_else(|| {
+                    statement.else_block.as_ref().and_then(|block| {
+                        block_move_action(block, source_name, resolved, environment)
+                    })
+                })
+        }
+        Stmt::IfIs(statement) => {
+            expression_move_action(&statement.expression, source_name, resolved, environment)
+                .or_else(|| {
+                    block_move_action(&statement.then_block, source_name, resolved, environment)
+                })
+                .or_else(|| {
+                    statement.else_block.as_ref().and_then(|block| {
+                        block_move_action(block, source_name, resolved, environment)
+                    })
+                })
+        }
+        Stmt::IfLet(statement) => {
+            expression_move_action(&statement.initializer, source_name, resolved, environment)
+                .or_else(|| {
+                    block_move_action(&statement.then_block, source_name, resolved, environment)
+                })
+                .or_else(|| {
+                    statement.else_block.as_ref().and_then(|block| {
+                        block_move_action(block, source_name, resolved, environment)
+                    })
+                })
+        }
+        Stmt::Switch(statement) => {
+            expression_move_action(&statement.expression, source_name, resolved, environment)
+                .or_else(|| {
+                    statement.arms.iter().find_map(|arm| {
+                        block_move_action(&arm.body, source_name, resolved, environment)
+                    })
+                })
+                .or_else(|| {
+                    statement.else_arm.as_ref().and_then(|arm| {
+                        block_move_action(&arm.body, source_name, resolved, environment)
+                    })
+                })
+        }
+        Stmt::ForRange(statement) => {
+            expression_move_action(&statement.start, source_name, resolved, environment)
+                .or_else(|| {
+                    expression_move_action(&statement.end, source_name, resolved, environment)
+                })
+                .or_else(|| block_move_action(&statement.body, source_name, resolved, environment))
+        }
+        Stmt::While(statement) => {
+            expression_move_action(&statement.condition, source_name, resolved, environment)
+                .or_else(|| block_move_action(&statement.body, source_name, resolved, environment))
+        }
+        Stmt::WhileLet(statement) => {
+            expression_move_action(&statement.initializer, source_name, resolved, environment)
+                .or_else(|| block_move_action(&statement.body, source_name, resolved, environment))
+        }
+        Stmt::Loop(statement) => {
+            block_move_action(&statement.body, source_name, resolved, environment)
+        }
+        Stmt::Expression(statement) => {
+            expression_move_action(&statement.expression, source_name, resolved, environment)
+        }
+        Stmt::Drop(_) | Stmt::Break(_) | Stmt::Continue(_) => None,
+    }
+}
+
+fn block_move_action(
+    block: &Block,
+    source_name: &str,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<BorrowAction> {
+    block.statements.iter().find_map(|statement| {
+        statement_conflicting_action(statement, source_name, resolved, environment)
+    })
+}
+
+fn statement_read_action(
+    statement: &Stmt,
+    source_name: &str,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<BorrowAction> {
+    match statement {
+        Stmt::Return(statement) => statement.expression.as_ref().and_then(|expression| {
+            expression_read_action(expression, source_name, resolved, environment)
+        }),
+        Stmt::Binding(statement) => {
+            expression_read_action(&statement.initializer, source_name, resolved, environment)
+                .or_else(|| {
+                    statement.else_block.as_ref().and_then(|block| {
+                        block_read_action(block, source_name, resolved, environment)
+                    })
+                })
+        }
+        Stmt::Assignment(statement) => {
+            expression_read_action(&statement.target, source_name, resolved, environment).or_else(
+                || expression_read_action(&statement.value, source_name, resolved, environment),
+            )
+        }
+        Stmt::If(statement) => {
+            expression_read_action(&statement.condition, source_name, resolved, environment)
+                .or_else(|| {
+                    block_read_action(&statement.then_block, source_name, resolved, environment)
+                })
+                .or_else(|| {
+                    statement.else_block.as_ref().and_then(|block| {
+                        block_read_action(block, source_name, resolved, environment)
+                    })
+                })
+        }
+        Stmt::IfIs(statement) => {
+            expression_read_action(&statement.expression, source_name, resolved, environment)
+                .or_else(|| {
+                    block_read_action(&statement.then_block, source_name, resolved, environment)
+                })
+                .or_else(|| {
+                    statement.else_block.as_ref().and_then(|block| {
+                        block_read_action(block, source_name, resolved, environment)
+                    })
+                })
+        }
+        Stmt::IfLet(statement) => {
+            expression_read_action(&statement.initializer, source_name, resolved, environment)
+                .or_else(|| {
+                    block_read_action(&statement.then_block, source_name, resolved, environment)
+                })
+                .or_else(|| {
+                    statement.else_block.as_ref().and_then(|block| {
+                        block_read_action(block, source_name, resolved, environment)
+                    })
+                })
+        }
+        Stmt::Switch(statement) => {
+            expression_read_action(&statement.expression, source_name, resolved, environment)
+                .or_else(|| {
+                    statement.arms.iter().find_map(|arm| {
+                        block_read_action(&arm.body, source_name, resolved, environment)
+                    })
+                })
+                .or_else(|| {
+                    statement.else_arm.as_ref().and_then(|arm| {
+                        block_read_action(&arm.body, source_name, resolved, environment)
+                    })
+                })
+        }
+        Stmt::ForRange(statement) => {
+            expression_read_action(&statement.start, source_name, resolved, environment)
+                .or_else(|| {
+                    expression_read_action(&statement.end, source_name, resolved, environment)
+                })
+                .or_else(|| block_read_action(&statement.body, source_name, resolved, environment))
+        }
+        Stmt::While(statement) => {
+            expression_read_action(&statement.condition, source_name, resolved, environment)
+                .or_else(|| block_read_action(&statement.body, source_name, resolved, environment))
+        }
+        Stmt::WhileLet(statement) => {
+            expression_read_action(&statement.initializer, source_name, resolved, environment)
+                .or_else(|| block_read_action(&statement.body, source_name, resolved, environment))
+        }
+        Stmt::Loop(statement) => {
+            block_read_action(&statement.body, source_name, resolved, environment)
+        }
+        Stmt::Expression(statement) => {
+            expression_read_action(&statement.expression, source_name, resolved, environment)
+        }
+        Stmt::Drop(_) | Stmt::Break(_) | Stmt::Continue(_) => None,
+    }
+}
+
+fn block_read_action(
+    block: &Block,
+    source_name: &str,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<BorrowAction> {
+    block
+        .statements
+        .iter()
+        .find_map(|statement| statement_read_action(statement, source_name, resolved, environment))
+}
+
+fn expression_move_action(
+    expression: &Expr,
+    source_name: &str,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<BorrowAction> {
+    match expression {
+        Expr::Unary(expression) if expression.operator == UnaryOperator::Move => {
+            match expression.operand.as_ref() {
+                Expr::Identifier(identifier) if identifier.name == source_name => {
+                    Some(BorrowAction {
+                        span: identifier.span,
+                        description: "move",
+                    })
+                }
+                _ => None,
+            }
+        }
+        Expr::Propagate(expression) => {
+            expression_move_action(&expression.expression, source_name, resolved, environment)
+        }
+        Expr::Force(expression) => {
+            expression_move_action(&expression.expression, source_name, resolved, environment)
+        }
+        Expr::Catch(expression) => {
+            expression_move_action(&expression.expression, source_name, resolved, environment)
+                .or_else(|| {
+                    block_move_action(&expression.catch_block, source_name, resolved, environment)
+                })
+        }
+        Expr::Borrow(expression) => {
+            expression_move_action(&expression.expression, source_name, resolved, environment)
+        }
+        Expr::Binary(expression) => {
+            expression_move_action(&expression.left, source_name, resolved, environment).or_else(
+                || expression_move_action(&expression.right, source_name, resolved, environment),
+            )
+        }
+        Expr::Unary(expression) => {
+            expression_move_action(&expression.operand, source_name, resolved, environment)
+        }
+        Expr::TypeConversion(expression) => {
+            expression_move_action(&expression.expression, source_name, resolved, environment)
+        }
+        Expr::Call(expression) => {
+            if let Some(identifier) =
+                owned_method_receiver_identifier(expression, resolved, environment)
+                && identifier.name == source_name
+            {
+                return Some(BorrowAction {
+                    span: identifier.span,
+                    description: "move",
+                });
+            }
+            expression_move_action(&expression.callee, source_name, resolved, environment).or_else(
+                || {
+                    expression.arguments.iter().find_map(|argument| {
+                        expression_move_action(argument, source_name, resolved, environment)
+                    })
+                },
+            )
+        }
+        Expr::Member(expression) => {
+            expression_move_action(&expression.object, source_name, resolved, environment)
+        }
+        Expr::Index(expression) => {
+            expression_move_action(&expression.object, source_name, resolved, environment).or_else(
+                || expression_move_action(&expression.index, source_name, resolved, environment),
+            )
+        }
+        Expr::ArrayLiteral(expression) => expression.elements.iter().find_map(|element| {
+            expression_move_action(element, source_name, resolved, environment)
+        }),
+        Expr::StructLiteral(expression) => expression.fields.iter().find_map(|field| {
+            expression_move_action(&field.value, source_name, resolved, environment)
+        }),
+        Expr::Group(expression) => {
+            expression_move_action(&expression.expression, source_name, resolved, environment)
+        }
+        Expr::InterpolatedString(expression) => {
+            expression.parts.iter().find_map(|part| match part {
+                crate::ast::InterpolatedStringPart::Expression(part) => {
+                    expression_move_action(&part.expression, source_name, resolved, environment)
+                }
+                crate::ast::InterpolatedStringPart::Text(_) => None,
+            })
+        }
+        Expr::OptionalDefault(expression) => {
+            expression_move_action(&expression.value, source_name, resolved, environment).or_else(
+                || expression_move_action(&expression.default, source_name, resolved, environment),
+            )
+        }
+        Expr::PatternConditional(expression) => {
+            expression_move_action(&expression.target, source_name, resolved, environment)
+                .or_else(|| {
+                    expression.arms.iter().find_map(|arm| {
+                        expression_move_action(&arm.expression, source_name, resolved, environment)
+                    })
+                })
+                .or_else(|| {
+                    expression_move_action(&expression.fallback, source_name, resolved, environment)
+                })
+        }
+        Expr::Identifier(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::StringLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::NoneLiteral(_) => None,
+    }
+}
+
+fn expression_read_action(
+    expression: &Expr,
+    source_name: &str,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<BorrowAction> {
+    match expression {
+        Expr::Identifier(identifier) if identifier.name == source_name => Some(BorrowAction {
+            span: identifier.span,
+            description: "use",
+        }),
+        Expr::Unary(expression) if expression.operator == UnaryOperator::Move => None,
+        Expr::Propagate(expression) => {
+            expression_read_action(&expression.expression, source_name, resolved, environment)
+        }
+        Expr::Force(expression) => {
+            expression_read_action(&expression.expression, source_name, resolved, environment)
+        }
+        Expr::Catch(expression) => {
+            expression_read_action(&expression.expression, source_name, resolved, environment)
+                .or_else(|| {
+                    block_read_action(&expression.catch_block, source_name, resolved, environment)
+                })
+        }
+        Expr::Borrow(expression) => {
+            expression_read_action(&expression.expression, source_name, resolved, environment)
+        }
+        Expr::Binary(expression) => {
+            expression_read_action(&expression.left, source_name, resolved, environment).or_else(
+                || expression_read_action(&expression.right, source_name, resolved, environment),
+            )
+        }
+        Expr::Unary(expression) => {
+            expression_read_action(&expression.operand, source_name, resolved, environment)
+        }
+        Expr::TypeConversion(expression) => {
+            expression_read_action(&expression.expression, source_name, resolved, environment)
+        }
+        Expr::Call(expression) => {
+            expression_read_action(&expression.callee, source_name, resolved, environment).or_else(
+                || {
+                    expression.arguments.iter().find_map(|argument| {
+                        expression_read_action(argument, source_name, resolved, environment)
+                    })
+                },
+            )
+        }
+        Expr::Member(expression) => {
+            expression_read_action(&expression.object, source_name, resolved, environment)
+        }
+        Expr::Index(expression) => {
+            expression_read_action(&expression.object, source_name, resolved, environment).or_else(
+                || expression_read_action(&expression.index, source_name, resolved, environment),
+            )
+        }
+        Expr::ArrayLiteral(expression) => expression.elements.iter().find_map(|element| {
+            expression_read_action(element, source_name, resolved, environment)
+        }),
+        Expr::StructLiteral(expression) => expression.fields.iter().find_map(|field| {
+            expression_read_action(&field.value, source_name, resolved, environment)
+        }),
+        Expr::Group(expression) => {
+            expression_read_action(&expression.expression, source_name, resolved, environment)
+        }
+        Expr::InterpolatedString(expression) => {
+            expression.parts.iter().find_map(|part| match part {
+                crate::ast::InterpolatedStringPart::Expression(part) => {
+                    expression_read_action(&part.expression, source_name, resolved, environment)
+                }
+                crate::ast::InterpolatedStringPart::Text(_) => None,
+            })
+        }
+        Expr::OptionalDefault(expression) => {
+            expression_read_action(&expression.value, source_name, resolved, environment).or_else(
+                || expression_read_action(&expression.default, source_name, resolved, environment),
+            )
+        }
+        Expr::PatternConditional(expression) => {
+            expression_read_action(&expression.target, source_name, resolved, environment)
+                .or_else(|| {
+                    expression.arms.iter().find_map(|arm| {
+                        expression_read_action(&arm.expression, source_name, resolved, environment)
+                    })
+                })
+                .or_else(|| {
+                    expression_read_action(&expression.fallback, source_name, resolved, environment)
+                })
+        }
+        Expr::Identifier(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::StringLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::NoneLiteral(_) => None,
+    }
+}
+
+fn collect_direct_borrow_expressions_in_statement(
+    statement: &Stmt,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrows: &mut Vec<DirectBorrowSource>,
+) {
+    match statement {
+        Stmt::Return(statement) => {
+            if let Some(expression) = &statement.expression {
+                collect_direct_borrow_expressions(expression, resolved, environment, borrows);
+            }
+        }
+        Stmt::Binding(statement) => {
+            collect_direct_borrow_expressions(
+                &statement.initializer,
+                resolved,
+                environment,
+                borrows,
+            );
+            if let Some(else_block) = &statement.else_block {
+                collect_direct_borrow_expressions_in_block(
+                    else_block,
+                    resolved,
+                    environment,
+                    borrows,
+                );
+            }
+        }
+        Stmt::Assignment(statement) => {
+            collect_direct_borrow_expressions(&statement.target, resolved, environment, borrows);
+            collect_direct_borrow_expressions(&statement.value, resolved, environment, borrows);
+        }
+        Stmt::If(statement) => {
+            collect_direct_borrow_expressions(&statement.condition, resolved, environment, borrows);
+            collect_direct_borrow_expressions_in_block(
+                &statement.then_block,
+                resolved,
+                environment,
+                borrows,
+            );
+            if let Some(else_block) = &statement.else_block {
+                collect_direct_borrow_expressions_in_block(
+                    else_block,
+                    resolved,
+                    environment,
+                    borrows,
+                );
+            }
+        }
+        Stmt::IfIs(statement) => {
+            collect_direct_borrow_expressions(
+                &statement.expression,
+                resolved,
+                environment,
+                borrows,
+            );
+            collect_direct_borrow_expressions_in_block(
+                &statement.then_block,
+                resolved,
+                environment,
+                borrows,
+            );
+            if let Some(else_block) = &statement.else_block {
+                collect_direct_borrow_expressions_in_block(
+                    else_block,
+                    resolved,
+                    environment,
+                    borrows,
+                );
+            }
+        }
+        Stmt::IfLet(statement) => {
+            collect_direct_borrow_expressions(
+                &statement.initializer,
+                resolved,
+                environment,
+                borrows,
+            );
+            collect_direct_borrow_expressions_in_block(
+                &statement.then_block,
+                resolved,
+                environment,
+                borrows,
+            );
+            if let Some(else_block) = &statement.else_block {
+                collect_direct_borrow_expressions_in_block(
+                    else_block,
+                    resolved,
+                    environment,
+                    borrows,
+                );
+            }
+        }
+        Stmt::Switch(statement) => {
+            collect_direct_borrow_expressions(
+                &statement.expression,
+                resolved,
+                environment,
+                borrows,
+            );
+            for arm in &statement.arms {
+                collect_direct_borrow_expressions_in_block(
+                    &arm.body,
+                    resolved,
+                    environment,
+                    borrows,
+                );
+            }
+            if let Some(else_arm) = &statement.else_arm {
+                collect_direct_borrow_expressions_in_block(
+                    &else_arm.body,
+                    resolved,
+                    environment,
+                    borrows,
+                );
+            }
+        }
+        Stmt::ForRange(statement) => {
+            collect_direct_borrow_expressions(&statement.start, resolved, environment, borrows);
+            collect_direct_borrow_expressions(&statement.end, resolved, environment, borrows);
+            collect_direct_borrow_expressions_in_block(
+                &statement.body,
+                resolved,
+                environment,
+                borrows,
+            );
+        }
+        Stmt::While(statement) => {
+            collect_direct_borrow_expressions(&statement.condition, resolved, environment, borrows);
+            collect_direct_borrow_expressions_in_block(
+                &statement.body,
+                resolved,
+                environment,
+                borrows,
+            );
+        }
+        Stmt::WhileLet(statement) => {
+            collect_direct_borrow_expressions(
+                &statement.initializer,
+                resolved,
+                environment,
+                borrows,
+            );
+            collect_direct_borrow_expressions_in_block(
+                &statement.body,
+                resolved,
+                environment,
+                borrows,
+            );
+        }
+        Stmt::Loop(statement) => collect_direct_borrow_expressions_in_block(
+            &statement.body,
+            resolved,
+            environment,
+            borrows,
+        ),
+        Stmt::Expression(statement) => {
+            collect_direct_borrow_expressions(&statement.expression, resolved, environment, borrows)
+        }
+        Stmt::Drop(_) | Stmt::Break(_) | Stmt::Continue(_) => {}
+    }
+}
+
+fn collect_direct_borrow_expressions_in_block(
+    block: &Block,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrows: &mut Vec<DirectBorrowSource>,
+) {
+    for statement in &block.statements {
+        collect_direct_borrow_expressions_in_statement(statement, resolved, environment, borrows);
+    }
+}
+
+fn collect_direct_borrow_expressions(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrows: &mut Vec<DirectBorrowSource>,
+) {
+    if let Some(source) = direct_borrow_source(expression) {
+        borrows.push(source);
+    }
+
+    match expression {
+        Expr::Propagate(expression) => collect_direct_borrow_expressions(
+            &expression.expression,
+            resolved,
+            environment,
+            borrows,
+        ),
+        Expr::Force(expression) => collect_direct_borrow_expressions(
+            &expression.expression,
+            resolved,
+            environment,
+            borrows,
+        ),
+        Expr::Catch(expression) => {
+            collect_direct_borrow_expressions(
+                &expression.expression,
+                resolved,
+                environment,
+                borrows,
+            );
+            collect_direct_borrow_expressions_in_block(
+                &expression.catch_block,
+                resolved,
+                environment,
+                borrows,
+            );
+        }
+        Expr::Borrow(expression) => collect_direct_borrow_expressions(
+            &expression.expression,
+            resolved,
+            environment,
+            borrows,
+        ),
+        Expr::Binary(expression) => {
+            collect_direct_borrow_expressions(&expression.left, resolved, environment, borrows);
+            collect_direct_borrow_expressions(&expression.right, resolved, environment, borrows);
+        }
+        Expr::Unary(expression) => {
+            collect_direct_borrow_expressions(&expression.operand, resolved, environment, borrows)
+        }
+        Expr::TypeConversion(expression) => {
+            collect_direct_borrow_expressions(
+                &expression.expression,
+                resolved,
+                environment,
+                borrows,
+            );
+        }
+        Expr::Call(expression) => {
+            if let Some(source) = method_borrow_receiver_source(expression, resolved, environment) {
+                borrows.push(source);
+            }
+            collect_direct_borrow_expressions(&expression.callee, resolved, environment, borrows);
+            for argument in &expression.arguments {
+                collect_direct_borrow_expressions(argument, resolved, environment, borrows);
+            }
+        }
+        Expr::Member(expression) => {
+            collect_direct_borrow_expressions(&expression.object, resolved, environment, borrows)
+        }
+        Expr::Index(expression) => {
+            collect_direct_borrow_expressions(&expression.object, resolved, environment, borrows);
+            collect_direct_borrow_expressions(&expression.index, resolved, environment, borrows);
+        }
+        Expr::ArrayLiteral(expression) => {
+            for element in &expression.elements {
+                collect_direct_borrow_expressions(element, resolved, environment, borrows);
+            }
+        }
+        Expr::StructLiteral(expression) => {
+            for field in &expression.fields {
+                collect_direct_borrow_expressions(&field.value, resolved, environment, borrows);
+            }
+        }
+        Expr::Group(expression) => collect_direct_borrow_expressions(
+            &expression.expression,
+            resolved,
+            environment,
+            borrows,
+        ),
+        Expr::InterpolatedString(expression) => {
+            for part in &expression.parts {
+                if let crate::ast::InterpolatedStringPart::Expression(part) = part {
+                    collect_direct_borrow_expressions(
+                        &part.expression,
+                        resolved,
+                        environment,
+                        borrows,
+                    );
+                }
+            }
+        }
+        Expr::OptionalDefault(expression) => {
+            collect_direct_borrow_expressions(&expression.value, resolved, environment, borrows);
+            collect_direct_borrow_expressions(&expression.default, resolved, environment, borrows);
+        }
+        Expr::PatternConditional(expression) => {
+            collect_direct_borrow_expressions(&expression.target, resolved, environment, borrows);
+            for arm in &expression.arms {
+                collect_direct_borrow_expressions(&arm.expression, resolved, environment, borrows);
+            }
+            collect_direct_borrow_expressions(&expression.fallback, resolved, environment, borrows);
+        }
+        Expr::Identifier(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::StringLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::NoneLiteral(_) => {}
+    }
+}
+
+fn direct_borrow_source(expression: &Expr) -> Option<DirectBorrowSource> {
+    let Expr::Borrow(borrow) = unwrap_group(expression) else {
+        return None;
+    };
+    let Expr::Identifier(identifier) = unwrap_group(&borrow.expression) else {
+        return None;
+    };
+    Some(DirectBorrowSource {
+        source_name: identifier.name.clone(),
+        source_span: identifier.span,
+        is_readwrite: borrow.is_readwrite,
+    })
+}
+
+fn method_borrow_receiver_source(
+    call: &crate::ast::CallExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<DirectBorrowSource> {
+    let method = method_member_for_call(call)?;
+    let (_, signature) = resolved_method_for_call(resolved, call, environment)?;
+    let TypeExpr::Borrow(receiver) = &signature.receiver.ty else {
+        return None;
+    };
+    let Expr::Identifier(identifier) = unwrap_group(&method.object) else {
+        return None;
+    };
+    Some(DirectBorrowSource {
+        source_name: identifier.name.clone(),
+        source_span: identifier.span,
+        is_readwrite: receiver.is_readwrite,
+    })
+}
+
+fn statement_uses_identifier(statement: &Stmt, name: &str) -> bool {
+    match statement {
+        Stmt::Return(statement) => statement
+            .expression
+            .as_ref()
+            .is_some_and(|expression| expression_uses_identifier(expression, name)),
+        Stmt::Binding(statement) => {
+            expression_uses_identifier(&statement.initializer, name)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(|block| block_uses_identifier(block, name))
+        }
+        Stmt::Assignment(statement) => {
+            expression_uses_identifier(&statement.target, name)
+                || expression_uses_identifier(&statement.value, name)
+        }
+        Stmt::If(statement) => {
+            expression_uses_identifier(&statement.condition, name)
+                || block_uses_identifier(&statement.then_block, name)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(|block| block_uses_identifier(block, name))
+        }
+        Stmt::IfIs(statement) => {
+            expression_uses_identifier(&statement.expression, name)
+                || block_uses_identifier(&statement.then_block, name)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(|block| block_uses_identifier(block, name))
+        }
+        Stmt::IfLet(statement) => {
+            expression_uses_identifier(&statement.initializer, name)
+                || block_uses_identifier(&statement.then_block, name)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(|block| block_uses_identifier(block, name))
+        }
+        Stmt::Switch(statement) => {
+            expression_uses_identifier(&statement.expression, name)
+                || statement
+                    .arms
+                    .iter()
+                    .any(|arm| block_uses_identifier(&arm.body, name))
+                || statement
+                    .else_arm
+                    .as_ref()
+                    .is_some_and(|arm| block_uses_identifier(&arm.body, name))
+        }
+        Stmt::ForRange(statement) => {
+            expression_uses_identifier(&statement.start, name)
+                || expression_uses_identifier(&statement.end, name)
+                || block_uses_identifier(&statement.body, name)
+        }
+        Stmt::While(statement) => {
+            expression_uses_identifier(&statement.condition, name)
+                || block_uses_identifier(&statement.body, name)
+        }
+        Stmt::WhileLet(statement) => {
+            expression_uses_identifier(&statement.initializer, name)
+                || block_uses_identifier(&statement.body, name)
+        }
+        Stmt::Loop(statement) => block_uses_identifier(&statement.body, name),
+        Stmt::Expression(statement) => expression_uses_identifier(&statement.expression, name),
+        Stmt::Drop(statement) => statement.name == name,
+        Stmt::Break(_) | Stmt::Continue(_) => false,
+    }
+}
+
+fn block_uses_identifier(block: &Block, name: &str) -> bool {
+    statements_use_identifier_before_terminal(&block.statements, name)
+}
+
+fn statements_use_identifier_before_terminal(statements: &[Stmt], name: &str) -> bool {
+    for statement in statements {
+        if statement_uses_identifier(statement, name) {
+            return true;
+        }
+        if statement_is_unconditionally_terminal(statement) {
+            return false;
+        }
+    }
+    false
+}
+
+fn statement_is_unconditionally_terminal(statement: &Stmt) -> bool {
+    matches!(
+        statement,
+        Stmt::Return(_) | Stmt::Break(_) | Stmt::Continue(_)
+    )
+}
+
+fn expression_uses_identifier(expression: &Expr, name: &str) -> bool {
+    match expression {
+        Expr::Identifier(identifier) => identifier.name == name,
+        Expr::Propagate(expression) => expression_uses_identifier(&expression.expression, name),
+        Expr::Force(expression) => expression_uses_identifier(&expression.expression, name),
+        Expr::Catch(expression) => {
+            expression_uses_identifier(&expression.expression, name)
+                || block_uses_identifier(&expression.catch_block, name)
+        }
+        Expr::Borrow(expression) => expression_uses_identifier(&expression.expression, name),
+        Expr::Binary(expression) => {
+            expression_uses_identifier(&expression.left, name)
+                || expression_uses_identifier(&expression.right, name)
+        }
+        Expr::Unary(expression) => expression_uses_identifier(&expression.operand, name),
+        Expr::TypeConversion(expression) => {
+            expression_uses_identifier(&expression.expression, name)
+        }
+        Expr::Call(expression) => {
+            expression_uses_identifier(&expression.callee, name)
+                || expression
+                    .arguments
+                    .iter()
+                    .any(|argument| expression_uses_identifier(argument, name))
+        }
+        Expr::Member(expression) => expression_uses_identifier(&expression.object, name),
+        Expr::Index(expression) => {
+            expression_uses_identifier(&expression.object, name)
+                || expression_uses_identifier(&expression.index, name)
+        }
+        Expr::ArrayLiteral(expression) => expression
+            .elements
+            .iter()
+            .any(|element| expression_uses_identifier(element, name)),
+        Expr::StructLiteral(expression) => expression
+            .fields
+            .iter()
+            .any(|field| expression_uses_identifier(&field.value, name)),
+        Expr::Group(expression) => expression_uses_identifier(&expression.expression, name),
+        Expr::InterpolatedString(expression) => expression.parts.iter().any(|part| match part {
+            crate::ast::InterpolatedStringPart::Expression(part) => {
+                expression_uses_identifier(&part.expression, name)
+            }
+            crate::ast::InterpolatedStringPart::Text(_) => false,
+        }),
+        Expr::OptionalDefault(expression) => {
+            expression_uses_identifier(&expression.value, name)
+                || expression_uses_identifier(&expression.default, name)
+        }
+        Expr::PatternConditional(expression) => {
+            expression_uses_identifier(&expression.target, name)
+                || expression
+                    .arms
+                    .iter()
+                    .any(|arm| expression_uses_identifier(&arm.expression, name))
+                || expression_uses_identifier(&expression.fallback, name)
+        }
+        Expr::IntegerLiteral(_)
+        | Expr::StringLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::NoneLiteral(_) => false,
+    }
 }
 
 fn check_statement_ownership(
@@ -1003,6 +2033,22 @@ fn whole_identifier(expression: &Expr) -> Option<&IdentifierExpr> {
     }
 }
 
+fn assignment_target_root_name(expression: &Expr) -> Option<&str> {
+    match expression {
+        Expr::Identifier(identifier) => Some(identifier.name.as_str()),
+        Expr::Member(member) => assignment_target_root_name(&member.object),
+        Expr::Group(group) => assignment_target_root_name(&group.expression),
+        _ => None,
+    }
+}
+
+fn unwrap_group(expression: &Expr) -> &Expr {
+    match expression {
+        Expr::Group(group) => unwrap_group(&group.expression),
+        _ => expression,
+    }
+}
+
 fn owned_method_receiver_identifier<'a>(
     call: &'a crate::ast::CallExpr,
     resolved: &ResolveOutput,
@@ -1029,6 +2075,27 @@ fn non_copy_struct_type_name<'a>(ty: &Type, resolved: &'a ResolveOutput) -> Opti
         .type_symbol_by_canonical_name(canonical_name)
         .filter(|symbol| symbol.kind == TypeSymbolKind::Struct && !symbol.is_copy)
         .map(|symbol| symbol.canonical_name.as_str())
+}
+
+#[derive(Debug, Clone)]
+struct ActiveBorrow {
+    source_name: String,
+    borrow_name: String,
+    borrow_span: ByteSpan,
+    is_readwrite: bool,
+}
+
+#[derive(Debug, Clone)]
+struct DirectBorrowSource {
+    source_name: String,
+    source_span: ByteSpan,
+    is_readwrite: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct BorrowAction {
+    span: ByteSpan,
+    description: &'static str,
 }
 
 #[derive(Debug, Clone)]
