@@ -163,6 +163,38 @@ fn diagnoses_named_arguments_as_deferred() {
 }
 
 #[test]
+fn accepts_multiline_argument_trailing_comma() {
+    let output = parse_text(
+        r#"func main(): i32 {
+    return add(
+        1,
+    )
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+}
+
+#[test]
+fn diagnoses_single_line_argument_trailing_comma() {
+    let output = parse_text(
+        r#"func main(): i32 {
+    return add(1,)
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("single-line argument lists")
+    );
+}
+
+#[test]
 fn ast_json_includes_expression_operator_spans() {
     let (sources, output) = parse_text_with_sources(
         r#"func main(): i32 {

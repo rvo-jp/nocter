@@ -359,8 +359,15 @@ impl Parser<'_> {
             }
             arguments.push(self.parse_expression()?);
             self.skip_newlines();
-            if self.match_punctuation(",").is_none() {
+            let Some(comma) = self.match_punctuation(",") else {
                 break;
+            };
+            if self.at_punctuation(")") {
+                self.error_at(
+                    comma.span,
+                    "trailing commas in single-line argument lists are not part of v0",
+                );
+                return Err(());
             }
             self.skip_newlines();
         }

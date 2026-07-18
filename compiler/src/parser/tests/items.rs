@@ -188,6 +188,38 @@ fn diagnoses_variadic_parameters_as_deferred() {
 }
 
 #[test]
+fn accepts_multiline_parameter_trailing_comma() {
+    let output = parse_text(
+        r#"func add(
+    value: i32,
+): i32 {
+    return value
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+}
+
+#[test]
+fn diagnoses_single_line_parameter_trailing_comma() {
+    let output = parse_text(
+        r#"func add(value: i32,): i32 {
+    return value
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("single-line parameter lists")
+    );
+}
+
+#[test]
 fn parses_generic_impl_parameters() {
     let output = parse_text(
         r#"struct Box<T> {
