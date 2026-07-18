@@ -3,6 +3,7 @@
 This document tracks the gap between the language specification and the current compiler.
 Normative language rules live in `../../spec/`.
 This file describes implementation state only.
+The fixed completion definition lives in `v0-closure.md`.
 
 ## Legend
 

@@ -74,6 +74,8 @@ Every session that changes compiler behavior or structure should leave the repos
 Use this rule:
 
 - update `../TODO.md` for the next concrete action and current uncommitted state
+- update `v0-closure.md` when the v0 completion gate, target scope, or
+  `ship`/`reject`/`defer` decision changes
 - update `implementation-status.md` when user-visible behavior changes
 - update `roadmap.md` when the recommended next task changes
 - update `architecture.md` when module responsibilities change

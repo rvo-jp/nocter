@@ -22,11 +22,22 @@ Adopted user decisions:
 
 Recommended next implementation order:
 
-1. Keep bare interpolation lowering disabled until an explicit allocator source is designed. The explicit `std/mem.page_allocator` + `std/string.with_capacity` + `std/fmt.append_str` + `return move out` shape now builds and runs through the distributed standard-library bodies.
-2. Add the next runtime prerequisites around allocation-backed `String`: finish remaining broader branch/loop scope-end drop insertion, improve the allocator beyond the current page-backed surface, and continue tightening `std/mem`, `std/string`, and `std/fmt` failure behavior.
-3. Continue using the resolved-type function ABI helper from IR/backend planning before adding broader aggregate storage code. Loaded imported scalar calls, scalar/view arguments, direct and indirect aggregate by-value arguments including stack-passed normal-call ABI words, explicit `move name` aggregate local arguments/returns, explicit `drop name` calls to reachable drop members, straight-line scope-end drop insertion for aggregate locals/parameters with drop glue, top-level tail-call and terminal-if branch scope-end drops, terminal-if value-return staging across branch-local drops, terminal-if aggregate return expressions including direct aggregate branch staging across pending drops, propagation-failure cleanup for pending aggregate drops, supported catch-handler return cleanup, moved-value drop suppression in the current lowerable statement subset, supported non-terminal `if`/`while`/`loop` branch/body-local bindings, assignments, explicit drops, returns, body scope-end drops, and `while`/`loop` `break`/`continue` cleanup, local scalar, readonly scalar parameter, and aggregate slot borrow arguments, scalar/view `var` plus simple assignment, scalar aggregate field assignment, copy aggregate field assignment, aggregate struct-literal local slots, direct and narrow indirect aggregate normal call-result `let`/`var` slots, fallible direct aggregate call-result slots, supported aggregate slot reassignment including copy struct slot-to-slot assignment, explicit `target = move source`, and drop-aware whole-binding replacement, reserved aggregate slot `return move name`, and fallible propagation for the current scalar/view/void plus aggregate call-result subset are already buildable. IR call signatures now carry parameter ABI word counts and success-return ABI passing from the ABI helper, success-return ABI mapping lives on the normalized IR `Type`, aggregate and scalar/view call-result lowering validate callee success-return passing before emitting call instructions, and backend module emission validates call instruction return shapes against callee IR return types before generating code. Framed functions conservatively spill referenced parameter words when they contain normal calls/syscalls, and tail-position calls that need stack-passed arguments or borrow arguments lower through the normal-call-plus-return path.
-4. Lower interpolated strings only after the explicit standard-library construction path has a real allocator source and runtime mutation behavior.
-5. Defer broad control flow, aggregate values beyond the explicit `String` path, general mutable storage, full ownership/drop lowering, and optimizer work until their ABI/storage rules are designed.
+1. Use `docs/v0-closure.md` as the source of truth for what `v0 complete`
+   means. New accepted syntax, ABI changes, or public std APIs must update that
+   file in the same commit.
+2. Close the frontend audit row first: every parser-accepted form needs
+   resolver/typechecker facts or a stable rejection diagnostic before lowering.
+3. Add the backend rejection boundary for non-runtime rows so user source does
+   not fall through to accidental IR/backend unsupported errors.
+4. Continue aggregate ABI and ownership work around field-level state, enum
+   payload facts, direct/indirect aggregate edge cases, and drop cleanup.
+5. Continue standard-library runtime work around allocator behavior, owned
+   `String`, `fmt`, and `process.cwd`; add `Vec`, `args`, and `env` only after
+   their public API can remain stable.
+6. Keep bare interpolation lowering disabled until an explicit allocator source
+   is designed. The explicit `std/mem.page_allocator` +
+   `std/string.with_capacity` + `std/fmt.append_str` + `return move out` shape
+   now builds and runs through the distributed standard-library bodies.
 
 Recent committed work:
 
