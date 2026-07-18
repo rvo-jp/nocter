@@ -208,6 +208,28 @@ pub(super) fn duplicate_parameter_name_diagnostic(
     diagnostic
 }
 
+pub(super) fn unqualified_enum_variant_constructor_diagnostic(
+    sources: &SourceMap,
+    variant_name: &str,
+    variant_span: ByteSpan,
+    enum_name: &str,
+    reference_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0431",
+        format!("enum variant `{variant_name}` cannot be used unqualified in v0"),
+    );
+    diagnostic.primary_span = sources.span_to_json(reference_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(variant_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: format!("variant is declared as `{enum_name}.{variant_name}` here"),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some(format!("write `{enum_name}.{variant_name}`"));
+    diagnostic
+}
+
 pub(super) fn invalid_associated_function_owner_diagnostic(
     sources: &SourceMap,
     owner_name: &str,

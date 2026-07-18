@@ -89,6 +89,73 @@ fn reports_unresolved_call_callees() {
 }
 
 #[test]
+fn reports_unqualified_payload_variant_constructor() {
+    let output = resolve_text(
+        r#"enum Maybe {
+    some(value: i32)
+    empty
+}
+
+func main(): Maybe {
+    return some(1)
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0431");
+    assert!(output.diagnostics[0].message.contains("some"));
+    assert!(
+        output.diagnostics[0]
+            .help
+            .as_ref()
+            .is_some_and(|help| help.contains("Maybe.some"))
+    );
+}
+
+#[test]
+fn reports_unqualified_payloadless_variant() {
+    let output = resolve_text(
+        r#"enum Maybe {
+    some(value: i32)
+    empty
+}
+
+func main(): Maybe {
+    return empty
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0431");
+    assert!(output.diagnostics[0].message.contains("empty"));
+    assert!(
+        output.diagnostics[0]
+            .help
+            .as_ref()
+            .is_some_and(|help| help.contains("Maybe.empty"))
+    );
+}
+
+#[test]
+fn lets_locals_shadow_variant_names() {
+    let output = resolve_text(
+        r#"enum Maybe {
+    some(value: i32)
+}
+
+func main(): i32 {
+    let some = 1
+    return some
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+}
+
+#[test]
 fn reports_unresolved_drop_targets() {
     let output = resolve_text(
         r#"func main(): i32 {

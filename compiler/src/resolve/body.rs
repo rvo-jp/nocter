@@ -1,9 +1,9 @@
 use super::builtins::is_builtin_type_name;
 use super::diagnostics::{
     builtin_name_reuse_diagnostic, duplicate_visible_name_diagnostic,
-    unresolved_identifier_diagnostic,
+    unqualified_enum_variant_constructor_diagnostic, unresolved_identifier_diagnostic,
 };
-use super::{LocalSymbolId, LocalSymbolKind, Resolver, SymbolId};
+use super::{LocalSymbolId, LocalSymbolKind, Resolver, SymbolId, SymbolKind, TypeSymbolKind};
 use crate::ast::{
     AstFile, Block, Expr, IdentifierExpr, ImplDecl, ImplMember, InterpolatedStringPart, Item,
     Parameter, Stmt,
@@ -313,6 +313,19 @@ impl Resolver<'_> {
             return;
         }
 
+        if let Some((enum_name, variant_span)) = self.unqualified_enum_variant(&identifier.name) {
+            self.output
+                .diagnostics
+                .push(unqualified_enum_variant_constructor_diagnostic(
+                    self.sources,
+                    &identifier.name,
+                    variant_span,
+                    &enum_name,
+                    identifier.span,
+                ));
+            return;
+        }
+
         self.output
             .diagnostics
             .push(unresolved_identifier_diagnostic(
@@ -335,6 +348,22 @@ impl Resolver<'_> {
             .symbols
             .symbol_by_name(&identifier.name)
             .map(|symbol| symbol.id)
+    }
+
+    fn unqualified_enum_variant(&self, variant_name: &str) -> Option<(String, ByteSpan)> {
+        self.output
+            .symbols
+            .symbols()
+            .find_map(|symbol| match &symbol.kind {
+                SymbolKind::Type(type_symbol) if type_symbol.kind == TypeSymbolKind::Enum => {
+                    type_symbol
+                        .variants
+                        .iter()
+                        .find(|variant| variant.name == variant_name)
+                        .map(|variant| (symbol.name.clone(), variant.name_span))
+                }
+                _ => None,
+            })
     }
 
     fn define_local_name(
