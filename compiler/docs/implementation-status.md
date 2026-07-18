@@ -83,6 +83,7 @@ Currently buildable:
 - explicit local scalar borrow arguments such as `let result = choose(&value, 42)` and `touch(&+value)`, plus readonly scalar parameter borrow arguments such as `return choose(&value, 42)`, for `i32`, `u8`, `usize`, and `bool` normal-call parameter positions; explicit borrow call arguments from non-binding expressions such as `&value.field` are rejected by the buildability preflight
 - static string literals and `&str` parameters as call arguments, passed as `ptr,len` ABI word pairs
 - same-file and loaded imported non-generic normal calls returning `&str` in annotated `&str` `let` initializers and as `&str` call or tail-call arguments, with results staged into two local ABI words
+- `.len()` on `&str`, string literals, `&[u8]`, `&+[u8]`, and supported call results in lowerable `usize` positions; byte indexing into those values in lowerable `u8` positions
 - aliases to supported scalar/view/borrow/fallible parameter, return, entry return, call signature, annotated local binding, and explicit scalar conversion targets lower through the same resolved type and ABI classification as their targets
 - normal calls with scalar/view, borrow, and supported aggregate arguments can pass ABI words after `x7` through the caller stack argument area; tail-position calls that need stack-passed arguments or borrow arguments lower through the normal-call-plus-return path, and direct backend `TailCall` emission rejects borrow arguments
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
@@ -119,6 +120,6 @@ Currently not buildable even when it may be checkable:
 - scalar borrow arguments from non-binding expressions beyond locals and readonly parameters, readwrite borrows from parameters, and dereferencing scalar borrow parameters; known explicit call arguments such as `&value.field` are rejected by the buildability preflight
 - compound bool equality operands with nested calls such as `(ready() && other()) == true`; these are rejected by the buildability preflight
 - direct call expressions inside reachable static failure payload arguments
-- `&str` member operations and view/byte iteration
+- general `&str`/view member operations beyond `.len()`, and iteration over views or bytes; direct byte indexing remains buildable in lowerable `u8` positions
 - interpolated string construction; bare interpolation is rejected by the buildability preflight
 - general aggregate value expressions outside the supported struct-literal, call-result, slot-copy, explicit-move, explicit-drop, whole-binding replacement, and borrow paths; arrays, views, pointers, methods, interfaces, monomorphized generics, automatic ownership lowering, and broad branch/loop drop cleanup. Reachable array literals, generic functions, and generic impl members are rejected by the buildability preflight
