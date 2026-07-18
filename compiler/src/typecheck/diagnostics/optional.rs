@@ -83,10 +83,8 @@ pub(in crate::typecheck) fn optional_let_else_fallthrough_diagnostic(
         format!("`{keyword} ... else` requires an `else` block that cannot fall through"),
     );
     diagnostic.primary_span = sources.span_to_json(else_block.span).ok().map(Box::new);
-    diagnostic.help = Some(
-        "end the `else` block with `return` in parser/check v0; later phases will add `break`, `continue`, and `never` support"
-            .to_string(),
-    );
+    diagnostic.help =
+        Some("end the `else` block with `return` or a call returning `never`".to_string());
     diagnostic
 }
 

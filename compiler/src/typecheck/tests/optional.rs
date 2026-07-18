@@ -216,6 +216,28 @@ func log_missing(): void {
 }
 
 #[test]
+fn accepts_optional_let_else_never_terminal() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    let value = maybe_answer() else {
+        trap()
+    }
+
+    return value
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+
+primitive trap(): never
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn uses_optional_let_else_unwrapped_return_type() {
     let diagnostics = check_text(
         r#"func main(): i32 {

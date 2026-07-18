@@ -7023,6 +7023,86 @@ func maybe_answer(): i32? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_runs_optional_let_else_never_scope_drop_before_trap() {
+    let project = TempProject::new("cli-run-optional-let-else-never-cleanup");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"from std/io import write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/process.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive exit_raw(code: i32): never
+
+pub func exit(code: i32): never {
+    exit_raw(code)
+}
+"#,
+    );
+    let source = project.write_source(
+        "optional_let_else_never_cleanup.nct",
+        r#"from std/log import write
+from std/process import exit
+
+struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        write("drop\n")!
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 3 }
+    let value = maybe_answer() else {
+        exit(7)
+    }
+
+    return value
+}
+
+func maybe_answer(): i32? {
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(7),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(
+        output.stdout,
+        b"drop\n",
+        "status: {:?}\nstdout:\n{}\nstderr:\n{}",
+        output.status.code(),
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_optional_default_success_exit_code() {
     let project = TempProject::new("cli-run-optional-default-success");
     let source = project.write_source(

@@ -17004,6 +17004,138 @@ func maybe_answer(): i32? {
 }
 
 #[test]
+fn lowers_optional_i32_let_else_never_call_binding() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    let value = maybe_answer() else {
+        abort()
+    }
+
+    return value
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+
+func abort(): never {
+    abort()
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0],
+        Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::CallFallibleI32 {
+                    destination: I32Location::Local(0),
+                    target: CallTarget::same_file("maybe_answer"),
+                    arguments: vec![],
+                    failure_mode: FallibleFailureMode::Handle {
+                        instructions: vec![Instruction::TailCall {
+                            target: CallTarget::same_file("abort"),
+                            arguments: vec![],
+                        }],
+                    },
+                },
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: i32_local(0),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_optional_i32_let_else_never_call_binding_with_scope_cleanup() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+func main(): i32 {
+    var file = File{ fd: 3 }
+    let value = maybe_answer() else {
+        abort()
+    }
+
+    return value
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+
+func abort(): never {
+    abort()
+}
+"#,
+    );
+
+    let drop_call = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    assert_eq!(
+        ir.functions[0],
+        Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(4, 4),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: i32_const(3),
+                },
+                Instruction::CallFallibleI32 {
+                    destination: I32Location::Local(0),
+                    target: CallTarget::same_file("maybe_answer"),
+                    arguments: vec![],
+                    failure_mode: FallibleFailureMode::Handle {
+                        instructions: vec![
+                            drop_call.clone(),
+                            Instruction::TailCall {
+                                target: CallTarget::same_file("abort"),
+                                arguments: vec![],
+                            },
+                        ],
+                    },
+                },
+                Instruction::SetI32 {
+                    destination: I32Location::Local(1),
+                    value: i32_local(0),
+                },
+                drop_call,
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: i32_local(1),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_optional_i32_default_return() {
     let ir = lower_text(
         r#"func main(): i32 {

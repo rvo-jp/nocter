@@ -223,6 +223,8 @@ fn check_statement_returns(
                     sources,
                     statement,
                     &initializer_type,
+                    resolved,
+                    environment,
                     diagnostics,
                 );
                 let mut else_environment = environment.clone();
@@ -847,7 +849,7 @@ pub(super) fn block_guarantees_return(block: &Block) -> bool {
         .is_some_and(statement_guarantees_return)
 }
 
-fn block_guarantees_return_or_never(
+pub(super) fn block_guarantees_return_or_never(
     block: &Block,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,

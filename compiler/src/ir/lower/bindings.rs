@@ -23,7 +23,8 @@ use super::expressions::{
     lower_void_expression_statement,
 };
 use super::functions::{
-    lower_drop_statement, lower_return_statement_with_scope_drops, propagating_failure_mode,
+    lower_drop_statement, lower_never_expression_with_scope_drops,
+    lower_return_statement_with_scope_drops, propagating_failure_mode,
     replacement_drop_for_aggregate_slot,
 };
 use super::literals::{lower_u16_literal, lower_u32_literal};
@@ -206,8 +207,19 @@ fn lower_optional_let_else_block(
             )?);
             Ok(instructions)
         }
+        Stmt::Expression(statement) => {
+            let Some(terminating_instructions) =
+                lower_never_expression_with_scope_drops(&statement.expression, context)?
+            else {
+                return Err(unsupported_binding_diagnostic(
+                    "IR v0 can only lower optional `let ... else` blocks ending in `return` or a `never` expression",
+                ));
+            };
+            instructions.extend(terminating_instructions);
+            Ok(instructions)
+        }
         _ => Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower optional `let ... else` blocks ending in `return`",
+            "IR v0 can only lower optional `let ... else` blocks ending in `return` or a `never` expression",
         )),
     }
 }

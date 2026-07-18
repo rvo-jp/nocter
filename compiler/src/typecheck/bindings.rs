@@ -4,7 +4,7 @@ use super::diagnostics::{
 };
 use super::model::{Type, TypeEnvironment};
 use super::operations::is_expression_assignable;
-use super::returns::block_guarantees_return;
+use super::returns::block_guarantees_return_or_never;
 use super::type_expr::type_expr_to_type_in_environment;
 use crate::ast::BindingStmt;
 use crate::diagnostics::Diagnostic;
@@ -15,6 +15,8 @@ pub(super) fn check_optional_let_else_statement(
     sources: &SourceMap,
     statement: &BindingStmt,
     initializer_type: &Type,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !initializer_type.is_unknown() && !matches!(initializer_type, Type::Optional(_)) {
@@ -26,7 +28,7 @@ pub(super) fn check_optional_let_else_statement(
     }
 
     if let Some(else_block) = &statement.else_block
-        && !block_guarantees_return(else_block)
+        && !block_guarantees_return_or_never(else_block, resolved, environment)
     {
         diagnostics.push(optional_let_else_fallthrough_diagnostic(
             sources, statement, else_block,
