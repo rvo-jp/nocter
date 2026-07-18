@@ -56,6 +56,10 @@ pub(super) fn lower_local_binding(
         return Ok(instructions);
     }
 
+    if let Some(instructions) = lower_optional_default_aggregate_binding(statement, context)? {
+        return Ok(instructions);
+    }
+
     if statement.else_block.is_some() {
         return Err(unsupported_binding_diagnostic(
             "IR v0 cannot lower optional `let ... else` or `var ... else` bindings",
@@ -477,6 +481,95 @@ fn lower_optional_default_scalar_call_binding(
             Ok(instructions)
         }
     }
+}
+
+fn lower_optional_default_aggregate_binding(
+    statement: &BindingStmt,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Expr::OptionalDefault(default) = unwrap_group(&statement.initializer) else {
+        return Ok(None);
+    };
+    let Expr::Call(call) = unwrap_group(&default.value) else {
+        return Ok(None);
+    };
+
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 cannot lower optional default aggregate bindings without resolved call information",
+        ));
+    };
+    let Some(signature) = resolved.call_signature_for_call(call) else {
+        return Ok(None);
+    };
+    if !return_type_expr_is_top_level_optional(&signature.return_type, resolved) {
+        return Ok(None);
+    }
+
+    let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
+        return Ok(None);
+    };
+    let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
+        return Ok(None);
+    };
+    let Some(layout) = aggregate_type_layout(success_type.as_ref()) else {
+        return Ok(None);
+    };
+    validate_aggregate_binding_layout(layout)?;
+
+    let is_copy = call_success_type_is_copy_struct(call, context);
+    let drop_glue = call_success_drop_glue(call, context);
+    let fields = call_success_aggregate_fields(call, context);
+    let slot_index =
+        context.define_aggregate_local(statement.name.clone(), layout, is_copy, drop_glue, fields);
+    let failure_mode = lower_optional_default_aggregate_recover_failure_mode(
+        &default.default,
+        layout,
+        AggregateLocation::Slot(slot_index),
+        context,
+    )?;
+    let mut instructions = vec![Instruction::ReserveAggregateSlot { slot_index, layout }];
+    let (mut argument_instructions, arguments) =
+        lower_call_arguments_to_scalar_arguments(call, &target, &call_name, context)?;
+    instructions.append(&mut argument_instructions);
+    push_fallible_aggregate_call_instruction(
+        &mut instructions,
+        success_type.as_ref(),
+        AggregateLocation::Slot(slot_index),
+        target,
+        arguments,
+        layout,
+        failure_mode,
+    );
+    Ok(Some(instructions))
+}
+
+fn lower_optional_default_aggregate_recover_failure_mode(
+    fallback: &Expr,
+    layout: ValueLayout,
+    destination: AggregateLocation,
+    context: &LoweringContext,
+) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
+    let Expr::StructLiteral(literal) = unwrap_group(fallback) else {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 can only lower aggregate optional default bindings with struct literal fallbacks",
+        ));
+    };
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 cannot lower aggregate optional default struct literal fallbacks without resolved type information",
+        ));
+    };
+    let instructions = lower_aggregate_struct_literal_to_location(
+        literal,
+        layout,
+        destination,
+        "E8008",
+        "optional default aggregate bindings",
+        resolved,
+        context,
+    )?;
+    Ok(FallibleFailureMode::Recover { instructions })
 }
 
 fn lower_aggregate_struct_literal_binding(
