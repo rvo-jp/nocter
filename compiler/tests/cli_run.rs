@@ -7521,6 +7521,43 @@ func maybe_header(): Header? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_optional_direct_aggregate_default_binding_copy_fallback_exit_code() {
+    let project =
+        TempProject::new("cli-run-optional-direct-aggregate-default-binding-copy-fallback");
+    let source = project.write_source(
+        "optional_direct_aggregate_default_binding_copy_fallback.nct",
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    let fallback = Header{ tag: 1, ok: false, code: 7, len: 2 }
+    let header = maybe_header() ?? fallback
+    return header.code
+}
+
+func maybe_header(): Header? {
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(7),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_optional_indirect_aggregate_default_binding_success_exit_code() {
     let project = TempProject::new("cli-run-optional-indirect-aggregate-default-binding-success");
     let source = project.write_source(
@@ -7580,6 +7617,49 @@ func main(): i32 {
 
 func maybe_triple(): Triple? {
     return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(7),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_optional_indirect_aggregate_default_binding_call_fallback_exit_code() {
+    let project =
+        TempProject::new("cli-run-optional-indirect-aggregate-default-binding-call-fallback");
+    let source = project.write_source(
+        "optional_indirect_aggregate_default_binding_call_fallback.nct",
+        r#"copy struct Triple {
+    first: usize
+    second: usize
+    third: usize
+}
+
+func main(): i32 {
+    let value = maybe_triple() ?? fallback_triple()
+    if value.second == 42 {
+        return 42
+    } else {
+        return 7
+    }
+}
+
+func maybe_triple(): Triple? {
+    return none
+}
+
+func fallback_triple(): Triple {
+    return Triple{ first: 1, second: 7, third: 3 }
 }
 "#,
     );

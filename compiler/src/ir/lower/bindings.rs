@@ -550,25 +550,18 @@ fn lower_optional_default_aggregate_recover_failure_mode(
     destination: AggregateLocation,
     context: &LoweringContext,
 ) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
-    let Expr::StructLiteral(literal) = unwrap_group(fallback) else {
-        return Err(unsupported_binding_diagnostic(
-            "IR v0 can only lower aggregate optional default bindings with struct literal fallbacks",
-        ));
-    };
-    let Some((_root_source, resolved)) = context.resolved_calls() else {
-        return Err(unsupported_binding_diagnostic(
-            "IR v0 cannot lower aggregate optional default struct literal fallbacks without resolved type information",
-        ));
-    };
-    let instructions = lower_aggregate_struct_literal_to_location(
-        literal,
-        layout,
+    let instructions = lower_aggregate_member_value_assignment(
         destination,
-        "E8008",
-        "optional default aggregate bindings",
-        resolved,
+        0,
+        layout,
+        fallback,
         context,
-    )?;
+    )
+    .map_err(|_| {
+        unsupported_binding_diagnostic(
+            "IR v0 can only lower aggregate optional default bindings with supported aggregate value fallbacks",
+        )
+    })?;
     Ok(FallibleFailureMode::Recover { instructions })
 }
 

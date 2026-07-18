@@ -17908,6 +17908,123 @@ func make(): Triple? {
 }
 
 #[test]
+fn lowers_optional_direct_aggregate_default_call_binding_from_copy_local_fallback() {
+    let aggregate_type = Type::Fallible(Box::new(Type::DirectAggregate {
+        layout: ValueLayout::new(16, 8),
+        words: 2,
+    }));
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    let fallback = Header{ tag: 1, ok: false, code: 7, len: 2 }
+    let header = make() ?? fallback
+    return header.code
+}
+
+func make(): Header? {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+"#,
+        "main",
+        function_signatures(vec![("make", aggregate_type, vec![])]),
+    )
+    .unwrap();
+
+    let Some(Instruction::CallFallibleDirectAggregate {
+        destination,
+        failure_mode: FallibleFailureMode::Recover { instructions },
+        ..
+    }) = function
+        .instructions
+        .iter()
+        .find(|instruction| matches!(instruction, Instruction::CallFallibleDirectAggregate { .. }))
+    else {
+        panic!("{function:?}");
+    };
+    assert_eq!(*destination, AggregateLocation::Slot(1));
+    assert!(instructions.contains(&Instruction::CopyAggregateRange {
+        destination: AggregateLocation::Slot(1),
+        destination_offset: 0,
+        source: AggregateLocation::Slot(0),
+        source_offset: 0,
+        layout: ValueLayout::new(16, 8),
+    }));
+}
+
+#[test]
+fn lowers_optional_indirect_aggregate_default_call_binding_from_call_fallback() {
+    let aggregate_type = Type::Aggregate {
+        layout: ValueLayout::new(24, 8),
+    };
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Triple {
+    first: usize
+    second: usize
+    third: usize
+}
+
+func main(): i32 {
+    let value = make() ?? fallback()
+    if value.second == 42 {
+        return 42
+    } else {
+        return 7
+    }
+}
+
+func make(): Triple? {
+    return Triple{ first: 1, second: 42, third: 3 }
+}
+
+func fallback(): Triple {
+    return Triple{ first: 1, second: 7, third: 3 }
+}
+"#,
+        "main",
+        function_signatures(vec![
+            (
+                "make",
+                Type::Fallible(Box::new(aggregate_type.clone())),
+                vec![],
+            ),
+            ("fallback", aggregate_type, vec![]),
+        ]),
+    )
+    .unwrap();
+
+    let Some(Instruction::CallFallibleAggregate {
+        destination,
+        failure_mode: FallibleFailureMode::Recover { instructions },
+        ..
+    }) = function
+        .instructions
+        .iter()
+        .find(|instruction| matches!(instruction, Instruction::CallFallibleAggregate { .. }))
+    else {
+        panic!("{function:?}");
+    };
+    assert_eq!(*destination, AggregateLocation::Slot(0));
+    assert!(instructions.contains(&Instruction::CallAggregate {
+        destination: AggregateLocation::Slot(1),
+        target: CallTarget::same_file("fallback"),
+        arguments: vec![],
+    }));
+    assert!(instructions.contains(&Instruction::CopyAggregateRange {
+        destination: AggregateLocation::Slot(0),
+        destination_offset: 0,
+        source: AggregateLocation::Slot(1),
+        source_offset: 0,
+        layout: ValueLayout::new(24, 8),
+    }));
+}
+
+#[test]
 fn lowers_fallible_aggregate_force_unwrap_member_binding_as_trapping_fallible_call() {
     let packet_type = Type::Fallible(Box::new(Type::Aggregate {
         layout: ValueLayout::new(32, 8),
