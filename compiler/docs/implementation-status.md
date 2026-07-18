@@ -112,6 +112,7 @@ Currently not buildable even when it may be checkable:
 
 - compound assignment, general field/index assignment, reinitialization outside the supported aggregate slot paths, aggregate mutable storage, and general local storage beyond the current scalar/view subset; compound assignment is rejected by the buildability preflight
 - general `if`/`while`/`loop` forms beyond the supported terminal and branch/body-local non-terminal subsets, `if let`, `if is`, `while let`, range `for`, `match`, and pattern conditional `?{}`; the named frontend-only control-flow forms are rejected by the buildability preflight
+- value-producing expression statements; known direct calls that return non-void values are rejected by the buildability preflight
 - unloaded imported function placeholders
 - scalar borrow arguments from non-local places beyond locals and readonly parameters, readwrite borrows from parameters, and dereferencing scalar borrow parameters
 - compound bool equality operands with calls such as `(ready() && other()) == true`

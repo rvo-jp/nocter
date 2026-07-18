@@ -2381,6 +2381,48 @@ fn build_command_reports_compile_diagnostics_without_output() {
 }
 
 #[test]
+fn build_command_reports_value_expression_statement_before_ir_lowering() {
+    let project = TempProject::new("cli-build-value-expression-statement-boundary");
+    let source = project.write_source(
+        "value_expression_statement_boundary.nct",
+        r#"func value(): i32 {
+    return 1
+}
+
+func main(): void {
+    value()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("value-producing expression statements"),
+        "expected value expression statement diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("6 |     value()"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E8002]"),
+        "buildability preflight should reject before IR entry body lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_self_move_assignment_before_ir_lowering() {
     let project = TempProject::new("cli-build-self-move-assignment");
     let source = project.write_source(

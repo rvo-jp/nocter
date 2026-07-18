@@ -549,6 +549,13 @@ fn collect_statement_diagnostics(
             );
         }
         Stmt::Expression(statement) => {
+            if let Some(diagnostic) = unsupported_expression_statement_diagnostic(
+                sources,
+                &statement.expression,
+                resolved,
+            ) {
+                diagnostics.push(diagnostic);
+            }
             collect_expression_diagnostics(
                 &statement.expression,
                 sources,
@@ -561,6 +568,106 @@ fn collect_statement_diagnostics(
             );
         }
         Stmt::Break(_) | Stmt::Continue(_) | Stmt::Drop(_) => {}
+    }
+}
+
+fn unsupported_expression_statement_diagnostic(
+    sources: &SourceMap,
+    expression: &Expr,
+    resolved: &ResolveOutput,
+) -> Option<Diagnostic> {
+    if expression_statement_is_supported(expression, resolved) {
+        return None;
+    }
+
+    Some(unsupported_v0_build_diagnostic(
+        sources,
+        expression.span(),
+        "value-producing expression statements",
+        "call a void or never function, handle a void! call with `?`, `!`, or `catch`, or bind/return the value explicitly",
+    ))
+}
+
+fn expression_statement_is_supported(expression: &Expr, resolved: &ResolveOutput) -> bool {
+    match unwrap_group_expr(expression) {
+        Expr::Call(call) => match call_return_shape(call, resolved) {
+            Some(ReturnShape::Void | ReturnShape::Never) | None => true,
+            Some(ReturnShape::FallibleVoid | ReturnShape::Other) => false,
+        },
+        Expr::Propagate(expression) => {
+            fallible_void_statement_inner_is_supported(&expression.expression, resolved)
+        }
+        Expr::Force(expression) => {
+            fallible_void_statement_inner_is_supported(&expression.expression, resolved)
+        }
+        Expr::Catch(expression) => {
+            fallible_void_statement_inner_is_supported(&expression.expression, resolved)
+        }
+        _ => false,
+    }
+}
+
+fn fallible_void_statement_inner_is_supported(expression: &Expr, resolved: &ResolveOutput) -> bool {
+    match unwrap_group_expr(expression) {
+        Expr::Call(call) => match call_return_shape(call, resolved) {
+            Some(ReturnShape::FallibleVoid) | None => true,
+            Some(ReturnShape::Void | ReturnShape::Never | ReturnShape::Other) => false,
+        },
+        _ => false,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReturnShape {
+    Void,
+    Never,
+    FallibleVoid,
+    Other,
+}
+
+fn call_return_shape(call: &CallExpr, resolved: &ResolveOutput) -> Option<ReturnShape> {
+    let signature = resolved.call_signature_for_call(call)?;
+    Some(return_shape_from_type_expr(
+        &signature.return_type,
+        resolved,
+    ))
+}
+
+fn return_shape_from_type_expr(ty: &TypeExpr, resolved: &ResolveOutput) -> ReturnShape {
+    return_shape_from_type_expr_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn return_shape_from_type_expr_inner(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> ReturnShape {
+    match ty {
+        TypeExpr::Reference(reference) if reference.name == "void" => ReturnShape::Void,
+        TypeExpr::Reference(reference) if reference.name == "never" => ReturnShape::Never,
+        TypeExpr::Reference(reference) => {
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+                return ReturnShape::Other;
+            };
+            let Some(target) = &symbol.alias_target else {
+                return ReturnShape::Other;
+            };
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return ReturnShape::Other;
+            }
+            let shape = return_shape_from_type_expr_inner(target, resolved, resolving_names);
+            resolving_names.remove(&symbol.canonical_name);
+            shape
+        }
+        TypeExpr::Fallible(fallible) => {
+            match return_shape_from_type_expr_inner(&fallible.success, resolved, resolving_names) {
+                ReturnShape::Void => ReturnShape::FallibleVoid,
+                ReturnShape::Never | ReturnShape::FallibleVoid | ReturnShape::Other => {
+                    ReturnShape::Other
+                }
+            }
+        }
+        _ => ReturnShape::Other,
     }
 }
 
