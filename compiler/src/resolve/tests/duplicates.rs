@@ -316,6 +316,21 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_duplicate_primitive_parameter_names() {
+    let output = resolve_text(
+        r#"primitive syscall(fd: i32, fd: i32): i32
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0421");
+}
+
+#[test]
 fn diagnoses_local_shadowing_top_level_function() {
     let output = resolve_text(
         r#"func main(): i32 {

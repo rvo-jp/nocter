@@ -2,8 +2,8 @@ use super::builtins::is_reserved_type_declaration_name;
 use super::diagnostics::{
     builtin_type_declaration_name_reuse_diagnostic, duplicate_enum_variant_name_diagnostic,
     duplicate_enum_variant_payload_name_diagnostic, duplicate_generic_parameter_name_diagnostic,
-    duplicate_struct_field_name_diagnostic, duplicate_visible_name_diagnostic,
-    invalid_associated_function_owner_diagnostic,
+    duplicate_parameter_name_diagnostic, duplicate_struct_field_name_diagnostic,
+    duplicate_visible_name_diagnostic, invalid_associated_function_owner_diagnostic,
 };
 use super::signatures::{
     alias_type_symbol, associated_function_signature, drop_signature,
@@ -14,8 +14,8 @@ use super::signatures::{
 };
 use super::{Resolver, SymbolKind, TypeSymbol, TypeSymbolKind};
 use crate::ast::{
-    AstFile, EnumDecl, EnumVariant, FunctionDecl, GenericParamList, ImplDecl, Item, PrimitiveDecl,
-    StructDecl,
+    AstFile, EnumDecl, EnumVariant, FunctionDecl, GenericParamList, ImplDecl, Item, Parameter,
+    PrimitiveDecl, StructDecl,
 };
 use crate::diagnostics::Diagnostic;
 use crate::source::{ByteSpan, SourceMap};
@@ -47,6 +47,13 @@ impl Resolver<'_> {
                             self.sources,
                             &format!("primitive `{}`", primitive.name),
                             &primitive.generics,
+                        ));
+                    self.output
+                        .diagnostics
+                        .extend(duplicate_parameter_name_diagnostics(
+                            self.sources,
+                            &format!("primitive `{}`", primitive.name),
+                            &primitive.parameters.parameters,
                         ));
                     self.collect_primitive_symbol(primitive);
                 }
@@ -372,6 +379,31 @@ fn duplicate_generic_param_name_diagnostics(
             ));
         } else {
             seen.insert(parameter.name.as_str(), parameter.span);
+        }
+    }
+
+    diagnostics
+}
+
+fn duplicate_parameter_name_diagnostics(
+    sources: &SourceMap,
+    subject: &str,
+    parameters: &[Parameter],
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let mut seen = HashMap::new();
+
+    for parameter in parameters {
+        if let Some(first_span) = seen.get(parameter.name.as_str()).copied() {
+            diagnostics.push(duplicate_parameter_name_diagnostic(
+                sources,
+                subject,
+                &parameter.name,
+                first_span,
+                parameter.name_span,
+            ));
+        } else {
+            seen.insert(parameter.name.as_str(), parameter.name_span);
         }
     }
 
