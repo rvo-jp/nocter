@@ -923,6 +923,27 @@ pub(super) fn lower_return_statement_with_scope_drops(
         return Ok(return_instructions);
     }
 
+    if let Some(expression) = &statement.expression
+        && matches!(success_type, Type::DirectAggregate { .. })
+        && !context.pending_aggregate_drops().is_empty()
+    {
+        let Some((_root_source, resolved)) = context.resolved_calls() else {
+            return Err(unsupported_return_diagnostic(
+                diagnostic_code,
+                &function_name,
+                "aggregate",
+            ));
+        };
+        return lower_direct_aggregate_return_with_scope_drops(
+            expression,
+            &success_type,
+            &return_type,
+            &function_name,
+            resolved,
+            context,
+        );
+    }
+
     let return_instructions = match (&success_type, &statement.expression) {
         (Type::I32, Some(expression)) => lower_i32_return_expression(expression, context),
         (Type::U8, Some(expression)) => lower_u8_return_expression(expression, context),
@@ -1206,6 +1227,46 @@ fn lower_terminal_direct_aggregate_return_with_scope_drops(
         },
     );
     instructions.extend(tail);
+    Ok(instructions)
+}
+
+fn lower_direct_aggregate_return_with_scope_drops(
+    expression: &Expr,
+    success_type: &Type,
+    function_return_type: &Type,
+    function_name: &str,
+    resolved: &ResolveOutput,
+    context: &mut LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let (expected_layout, destination) = aggregate_return_layout_and_destination(success_type);
+    if !matches!(destination, AggregateLocation::DirectReturn)
+        || !supported_aggregate_copy_layout(expected_layout)
+    {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    }
+
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let slot_index = temporaries.next_aggregate_slot();
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index,
+        layout: expected_layout,
+    }];
+    instructions.extend(lower_aggregate_return_expression_to_location(
+        expression,
+        success_type,
+        AggregateLocation::Slot(slot_index),
+        function_name,
+        resolved,
+        context,
+    )?);
+    append_scope_drops_then_restore_aggregate_return(
+        &mut instructions,
+        slot_index,
+        expected_layout,
+        destination,
+        function_return_type,
+        context,
+    )?;
     Ok(instructions)
 }
 

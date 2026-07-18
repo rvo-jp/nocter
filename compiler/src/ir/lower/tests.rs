@@ -7994,6 +7994,180 @@ func choose(flag: bool): Pair {
 }
 
 #[test]
+fn lowers_direct_aggregate_struct_literal_return_after_scope_drop() {
+    let file_type = Type::DirectAggregate {
+        layout: ValueLayout::new(4, 4),
+        words: 1,
+    };
+    let choose = lower_named_function_with_signatures(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+struct Pair {
+    first: usize
+    second: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func choose(): Pair {
+    var file = File{ fd: 3 }
+    return Pair{ first: 1, second: 2 }
+}
+"#,
+        "choose",
+        function_signatures(vec![(
+            "File.drop",
+            Type::Void,
+            vec![Type::Borrow {
+                is_readwrite: true,
+                inner: Box::new(file_type),
+            }],
+        )]),
+    )
+    .unwrap();
+
+    let drop_call = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let pair_layout = ValueLayout::new(16, 8);
+    assert_eq!(
+        choose.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(3),
+            },
+            Instruction::ReserveAggregateSlot {
+                slot_index: 1,
+                layout: pair_layout,
+            },
+            Instruction::StoreAggregateUsize {
+                destination: AggregateLocation::Slot(1),
+                offset: 0,
+                value: usize_const(1),
+            },
+            Instruction::StoreAggregateUsize {
+                destination: AggregateLocation::Slot(1),
+                offset: 8,
+                value: usize_const(2),
+            },
+            drop_call,
+            Instruction::CopyAggregate {
+                destination: AggregateLocation::DirectReturn,
+                source: AggregateLocation::Slot(1),
+                layout: pair_layout,
+            },
+            Instruction::Return,
+        ],
+    );
+}
+
+#[test]
+fn lowers_direct_aggregate_fallible_struct_literal_return_after_scope_drop() {
+    let file_type = Type::DirectAggregate {
+        layout: ValueLayout::new(4, 4),
+        words: 1,
+    };
+    let choose = lower_named_function_with_signatures(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: &+Self {
+        return
+    }
+}
+
+struct Pair {
+    first: usize
+    second: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func choose(): Pair! {
+    var file = File{ fd: 3 }
+    return Pair{ first: 1, second: 2 }
+}
+"#,
+        "choose",
+        function_signatures(vec![(
+            "File.drop",
+            Type::Void,
+            vec![Type::Borrow {
+                is_readwrite: true,
+                inner: Box::new(file_type),
+            }],
+        )]),
+    )
+    .unwrap();
+
+    let drop_call = Instruction::CallVoid {
+        target: CallTarget::same_file("File.drop"),
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(0),
+        })],
+    };
+    let pair_layout = ValueLayout::new(16, 8);
+    assert_eq!(
+        choose.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(3),
+            },
+            Instruction::ReserveAggregateSlot {
+                slot_index: 1,
+                layout: pair_layout,
+            },
+            Instruction::StoreAggregateUsize {
+                destination: AggregateLocation::Slot(1),
+                offset: 0,
+                value: usize_const(1),
+            },
+            Instruction::StoreAggregateUsize {
+                destination: AggregateLocation::Slot(1),
+                offset: 8,
+                value: usize_const(2),
+            },
+            drop_call,
+            Instruction::CopyAggregate {
+                destination: AggregateLocation::DirectReturn,
+                source: AggregateLocation::Slot(1),
+                layout: pair_layout,
+            },
+            Instruction::ReturnFallibleSuccess,
+        ],
+    );
+}
+
+#[test]
 fn lowers_direct_aggregate_terminal_if_struct_literal_return_after_scope_drop() {
     let ir = lower_text(
         r#"struct File {
