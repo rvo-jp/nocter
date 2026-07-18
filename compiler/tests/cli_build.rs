@@ -1754,6 +1754,55 @@ func touch(value: &+Text): void! {
 }
 
 #[test]
+fn build_command_reports_non_binding_borrow_argument_before_ir_lowering() {
+    let project = TempProject::new("cli-build-non-binding-borrow-argument-boundary");
+    let source = project.write_source(
+        "non_binding_borrow_argument_boundary.nct",
+        r#"type IntRef = &i32
+
+copy struct Pair {
+    value: i32
+}
+
+func main(): i32 {
+    let pair = Pair{ value: 1 }
+    return choose(&pair.value, 0)
+}
+
+func choose(value: IntRef, fallback: i32): i32 {
+    return fallback
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("borrow call arguments from non-binding expressions"),
+        "expected borrow argument diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("9 |     return choose(&pair.value, 0)"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E8006]"),
+        "buildability preflight should reject before IR call argument lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_lowers_u16_u32_aggregate_scalar_fields() {
     let project = TempProject::new("cli-build-u16-u32-aggregate-scalar-fields");
     let source = project.write_source(

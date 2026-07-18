@@ -930,6 +930,11 @@ fn collect_expression_diagnostics(
             ) {
                 diagnostics.push(diagnostic);
             }
+            if let Some(diagnostic) =
+                unsupported_borrow_call_argument_diagnostic(sources, expression, resolved)
+            {
+                diagnostics.push(diagnostic);
+            }
             collect_expression_diagnostics(
                 &expression.callee,
                 sources,
@@ -1062,6 +1067,67 @@ fn collect_expression_diagnostics(
                 diagnostics,
             );
         }
+    }
+}
+
+fn unsupported_borrow_call_argument_diagnostic(
+    sources: &SourceMap,
+    call: &CallExpr,
+    resolved: &ResolveOutput,
+) -> Option<Diagnostic> {
+    let signature = resolved.call_signature_for_call(call)?;
+    let argument = call
+        .arguments
+        .iter()
+        .zip(signature.parameters.iter())
+        .find_map(|(argument, parameter)| {
+            if !type_expr_resolves_to_borrow(&parameter.ty, resolved) {
+                return None;
+            }
+            match unwrap_group_expr(argument) {
+                Expr::Borrow(borrow)
+                    if !matches!(unwrap_group_expr(&borrow.expression), Expr::Identifier(_)) =>
+                {
+                    Some(argument)
+                }
+                _ => None,
+            }
+        })?;
+
+    Some(unsupported_v0_build_diagnostic(
+        sources,
+        argument.span(),
+        "borrow call arguments from non-binding expressions",
+        "borrow a local binding or pass an existing borrow parameter until general borrow-place lowering is promoted",
+    ))
+}
+
+fn type_expr_resolves_to_borrow(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    type_expr_resolves_to_borrow_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn type_expr_resolves_to_borrow_inner(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> bool {
+    match ty {
+        TypeExpr::Borrow(_) => true,
+        TypeExpr::Reference(reference) => {
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+                return false;
+            };
+            let Some(target) = &symbol.alias_target else {
+                return false;
+            };
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return false;
+            }
+            let resolves = type_expr_resolves_to_borrow_inner(target, resolved, resolving_names);
+            resolving_names.remove(&symbol.canonical_name);
+            resolves
+        }
+        _ => false,
     }
 }
 

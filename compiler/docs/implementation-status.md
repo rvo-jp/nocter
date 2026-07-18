@@ -80,7 +80,7 @@ Currently buildable:
 - short-circuit bool expressions that combine `i32` call comparisons with bool calls, such as `if answer() == 42 && ready()` and `let matched = answer() == 42 && ready()`
 - nested scalar normal-call arguments such as `let value = outer(inner())`, for `i32`, `usize`, and `bool` parameter positions
 - nested scalar tail-call arguments such as `return outer(inner())`, for `i32`, `usize`, and `bool` parameter positions
-- explicit local scalar borrow arguments such as `let result = choose(&value, 42)` and `touch(&+value)`, plus readonly scalar parameter borrow arguments such as `return choose(&value, 42)`, for `i32`, `u8`, `usize`, and `bool` normal-call parameter positions
+- explicit local scalar borrow arguments such as `let result = choose(&value, 42)` and `touch(&+value)`, plus readonly scalar parameter borrow arguments such as `return choose(&value, 42)`, for `i32`, `u8`, `usize`, and `bool` normal-call parameter positions; explicit borrow call arguments from non-binding expressions such as `&value.field` are rejected by the buildability preflight
 - static string literals and `&str` parameters as call arguments, passed as `ptr,len` ABI word pairs
 - same-file and loaded imported non-generic normal calls returning `&str` in annotated `&str` `let` initializers and as `&str` call or tail-call arguments, with results staged into two local ABI words
 - aliases to supported scalar/view/borrow/fallible parameter, return, entry return, call signature, annotated local binding, and explicit scalar conversion targets lower through the same resolved type and ABI classification as their targets
@@ -116,7 +116,7 @@ Currently not buildable even when it may be checkable:
 - explicit aggregate moves inside control-flow conditions
 - nested fallible or optional return types
 - unloaded imported function placeholders
-- scalar borrow arguments from non-local places beyond locals and readonly parameters, readwrite borrows from parameters, and dereferencing scalar borrow parameters
+- scalar borrow arguments from non-binding expressions beyond locals and readonly parameters, readwrite borrows from parameters, and dereferencing scalar borrow parameters; known explicit call arguments such as `&value.field` are rejected by the buildability preflight
 - compound bool equality operands with nested calls such as `(ready() && other()) == true`; these are rejected by the buildability preflight
 - direct call expressions inside reachable static failure payload arguments
 - `usize` entry return values
