@@ -45,6 +45,9 @@ fn type_expr_to_type_inner(
             name => resolved
                 .type_symbol_by_reference_name(name)
                 .map(|symbol| {
+                    if symbol.generic_arity > 0 {
+                        return Type::Unresolved(name.to_string());
+                    }
                     let Some(alias_target) = &symbol.alias_target else {
                         return Type::Named(symbol.canonical_name.clone());
                     };
@@ -149,7 +152,10 @@ fn type_expr_display_with_self_type(
                 .join(", ");
             let name = resolved
                 .type_symbol_by_reference_name(&generic.name)
-                .map(|symbol| symbol.canonical_name.clone())?;
+                .and_then(|symbol| {
+                    (symbol.generic_arity == generic.arguments.len())
+                        .then(|| symbol.canonical_name.clone())
+                })?;
             Some(format!("{name}<{arguments}>"))
         }
         TypeExpr::Pointer(pointer) => Some(format!(

@@ -3,8 +3,8 @@ use super::{
     MethodSignature, ParameterSignature, StructFieldSignature, TypeSymbol, TypeSymbolKind,
 };
 use crate::ast::{
-    AstFile, EnumVariant, FunctionDecl, ImplDecl, ImplMember, InterfaceDecl, MethodDecl, Parameter,
-    PrimitiveDecl, StructField, TypeExpr,
+    AstFile, FunctionDecl, GenericParamList, ImplDecl, ImplMember, InterfaceDecl, MethodDecl,
+    Parameter, PrimitiveDecl, StructField, TypeAliasDecl, TypeExpr,
 };
 use crate::diagnostics::Diagnostic;
 use crate::source::{ByteSpan, SourceMap};
@@ -192,6 +192,7 @@ fn drop_name_span(span: ByteSpan) -> ByteSpan {
 
 pub(super) fn function_signature(function: &FunctionDecl) -> FunctionSignature {
     callable_signature(
+        &function.generics,
         &function.parameters.parameters,
         function.return_type.clone(),
     )
@@ -199,17 +200,19 @@ pub(super) fn function_signature(function: &FunctionDecl) -> FunctionSignature {
 
 pub(super) fn primitive_signature(primitive: &PrimitiveDecl) -> FunctionSignature {
     callable_signature(
+        &primitive.generics,
         &primitive.parameters.parameters,
         primitive.return_type.clone(),
     )
 }
 
-pub(super) fn alias_type_symbol(canonical_name: String, alias_target: TypeExpr) -> TypeSymbol {
+pub(super) fn alias_type_symbol(alias: &TypeAliasDecl) -> TypeSymbol {
     TypeSymbol {
         kind: TypeSymbolKind::Alias,
-        canonical_name,
+        canonical_name: alias.name.clone(),
+        generic_arity: alias.generics.parameters.len(),
         is_copy: false,
-        alias_target: Some(alias_target),
+        alias_target: Some(alias.target.clone()),
         fields: Vec::new(),
         variants: Vec::new(),
         associated_functions: Vec::new(),
@@ -222,6 +225,7 @@ pub(super) fn interface_type_symbol(interface: &InterfaceDecl) -> TypeSymbol {
     TypeSymbol {
         kind: TypeSymbolKind::Interface,
         canonical_name: interface.name.clone(),
+        generic_arity: interface.generics.parameters.len(),
         is_copy: false,
         alias_target: None,
         fields: Vec::new(),
@@ -233,13 +237,14 @@ pub(super) fn interface_type_symbol(interface: &InterfaceDecl) -> TypeSymbol {
 }
 
 pub(super) fn struct_type_symbol(
-    canonical_name: String,
+    struct_: &crate::ast::StructDecl,
     is_copy: bool,
     fields: &[StructField],
 ) -> TypeSymbol {
     TypeSymbol {
         kind: TypeSymbolKind::Struct,
-        canonical_name,
+        canonical_name: struct_.name.clone(),
+        generic_arity: struct_.generics.parameters.len(),
         is_copy,
         alias_target: None,
         fields: fields
@@ -259,14 +264,16 @@ pub(super) fn struct_type_symbol(
     }
 }
 
-pub(super) fn enum_type_symbol(canonical_name: String, variants: &[EnumVariant]) -> TypeSymbol {
+pub(super) fn enum_type_symbol(enum_: &crate::ast::EnumDecl) -> TypeSymbol {
     TypeSymbol {
         kind: TypeSymbolKind::Enum,
-        canonical_name,
+        canonical_name: enum_.name.clone(),
+        generic_arity: enum_.generics.parameters.len(),
         is_copy: false,
         alias_target: None,
         fields: Vec::new(),
-        variants: variants
+        variants: enum_
+            .variants
             .iter()
             .map(|variant| EnumVariantSignature {
                 name: variant.name.clone(),
@@ -287,12 +294,25 @@ fn method_signature(method: &MethodDecl) -> MethodSignature {
         visibility: method.visibility,
         is_accessible: true,
         receiver: parameter_signature(&method.receiver),
-        signature: callable_signature(&method.parameters.parameters, method.return_type.clone()),
+        signature: callable_signature(
+            &GenericParamList::empty(),
+            &method.parameters.parameters,
+            method.return_type.clone(),
+        ),
     }
 }
 
-fn callable_signature(parameters: &[Parameter], return_type: TypeExpr) -> FunctionSignature {
+fn callable_signature(
+    generics: &GenericParamList,
+    parameters: &[Parameter],
+    return_type: TypeExpr,
+) -> FunctionSignature {
     FunctionSignature {
+        generic_parameters: generics
+            .parameters
+            .iter()
+            .map(|parameter| parameter.name.clone())
+            .collect(),
         parameters: parameters.iter().map(parameter_signature).collect(),
         return_type,
     }

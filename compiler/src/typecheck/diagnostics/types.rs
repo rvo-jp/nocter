@@ -1,4 +1,5 @@
-use super::{Diagnostic, SourceMap, Type, TypeExpr, type_expr_display_lossy};
+use super::{Diagnostic, DiagnosticNote, SourceMap, Type, TypeExpr, type_expr_display_lossy};
+use crate::source::ByteSpan;
 
 pub(in crate::typecheck) fn unsized_value_type_diagnostic(
     sources: &SourceMap,
@@ -24,6 +25,51 @@ pub(in crate::typecheck) fn unsized_value_type_diagnostic(
             element.display()
         ),
         _ => "put the unsized type behind a borrow or use an owning sized type".to_string(),
+    });
+    diagnostic
+}
+
+pub(in crate::typecheck) fn generic_type_argument_count_diagnostic(
+    sources: &SourceMap,
+    name: &str,
+    name_span: ByteSpan,
+    declaration_span: Option<ByteSpan>,
+    expected: usize,
+    found: usize,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0427",
+        format!(
+            "type `{name}` expects {} type {}, got {found}",
+            expected,
+            if expected == 1 {
+                "argument"
+            } else {
+                "arguments"
+            }
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(name_span).ok().map(Box::new);
+    if let Some(declaration_span) = declaration_span
+        && let Ok(span) = sources.span_to_json(declaration_span)
+    {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "type is declared here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help = Some(if expected == 0 {
+        "remove the type argument list".to_string()
+    } else {
+        format!(
+            "write `{name}<...>` with exactly {} type {}",
+            expected,
+            if expected == 1 {
+                "argument"
+            } else {
+                "arguments"
+            }
+        )
     });
     diagnostic
 }

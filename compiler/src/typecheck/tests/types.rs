@@ -406,3 +406,111 @@ func main(): i32 {
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
+
+#[test]
+fn diagnoses_missing_generic_type_arguments() {
+    let diagnostics = check_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+struct Holder {
+    value: Box
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0427");
+    assert!(diagnostics[0].message.contains("Box"));
+    assert!(diagnostics[0].message.contains("expects 1 type argument"));
+    assert!(diagnostics[0].message.contains("got 0"));
+}
+
+#[test]
+fn diagnoses_extra_generic_type_arguments() {
+    let diagnostics = check_text(
+        r#"struct Count {
+    value: i32
+}
+
+struct Holder {
+    value: Count<i32>
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0427");
+    assert!(diagnostics[0].message.contains("Count"));
+    assert!(diagnostics[0].message.contains("expects 0 type arguments"));
+    assert!(diagnostics[0].message.contains("got 1"));
+}
+
+#[test]
+fn accepts_matching_generic_type_arguments_and_type_parameters() {
+    let diagnostics = check_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+struct Holder {
+    value: Box<i32>
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_type_arguments_on_generic_parameter() {
+    let diagnostics = check_text(
+        r#"struct Box<T> {
+    value: T<i32>
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0427");
+    assert!(diagnostics[0].message.contains("T"));
+    assert!(diagnostics[0].message.contains("expects 0 type arguments"));
+    assert!(diagnostics[0].message.contains("got 1"));
+}
+
+#[test]
+fn diagnoses_type_arguments_on_builtin_type() {
+    let diagnostics = check_text(
+        r#"struct Box {
+    value: i32<bool>
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0427");
+    assert!(diagnostics[0].message.contains("i32"));
+    assert!(diagnostics[0].message.contains("expects 0 type arguments"));
+    assert!(diagnostics[0].message.contains("got 1"));
+}

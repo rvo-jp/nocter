@@ -558,6 +558,7 @@ fn resolved_function_signature(
     return_type: TypeExpr,
 ) -> ResolvedFunctionSignature {
     ResolvedFunctionSignature {
+        generic_parameters: Vec::new(),
         parameters: parameters
             .iter()
             .map(|parameter| ParameterSignature {

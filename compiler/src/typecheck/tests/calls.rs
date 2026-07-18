@@ -287,3 +287,76 @@ func main(): i32 {
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].code, "E0320");
 }
+
+#[test]
+fn infers_generic_function_return_type_from_argument() {
+    let diagnostics = check_text(
+        r#"func identity<T>(value: T): T {
+    return value
+}
+
+func main(): i32 {
+    let value: i32 = identity("hello")
+    return value
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0342");
+    assert!(diagnostics[0].message.contains("i32"));
+    assert!(diagnostics[0].message.contains("&str"));
+}
+
+#[test]
+fn checks_repeated_generic_function_parameter_types() {
+    let diagnostics = check_text(
+        r#"func same<T>(left: T, right: T): void {
+}
+
+func main(): i32 {
+    same(1, "bad")
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0321");
+    assert!(diagnostics[0].message.contains("i32"));
+    assert!(diagnostics[0].message.contains("&str"));
+}
+
+#[test]
+fn infers_generic_primitive_return_type_through_borrow_parameter() {
+    let diagnostics = check_text(
+        r#"primitive from_ref<T>(value: &T): *T
+
+func main(): i32 {
+    let value = 1
+    let pointer: *i32 = from_ref(&value)
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_generic_primitive_return_type_mismatch_after_inference() {
+    let diagnostics = check_text(
+        r#"primitive from_ref<T>(value: &T): *T
+
+func main(): i32 {
+    let pointer: *i32 = from_ref("bad")
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0342");
+    assert!(diagnostics[0].message.contains("*i32"));
+    assert!(diagnostics[0].message.contains("*str"));
+}

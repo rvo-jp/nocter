@@ -1,11 +1,11 @@
 use super::arrays::{array_literal_type, index_expression_type};
-use super::calls::resolved_call_signature;
+use super::calls::{call_return_type, resolved_call_signature};
 use super::diagnostics::error_member_unknown_diagnostic;
 use super::model::{Type, TypeEnvironment};
 use super::operations::{binary_expression_type, is_expression_assignable};
 use super::strings::interpolated_string_type;
 use super::structs::{struct_literal_type, struct_member_type};
-use super::type_expr::{type_expr_to_type_in_environment, type_expr_to_type_with_self_type};
+use super::type_expr::type_expr_to_type_in_environment;
 use super::variants::{
     enum_variant_call_type, enum_variant_member_type, pattern_conditional_expression_type,
 };
@@ -104,13 +104,7 @@ pub(super) fn expression_type(
             }
 
             resolved_call_signature(resolved, expression, environment)
-                .map(|signature| {
-                    type_expr_to_type_with_self_type(
-                        &signature.signature.return_type,
-                        resolved,
-                        signature.self_type.as_ref(),
-                    )
-                })
+                .map(|signature| call_return_type(expression, &signature, resolved, environment))
                 .or_else(|| enum_variant_call_type(expression, resolved))
                 .unwrap_or(Type::Unknown)
         }

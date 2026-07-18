@@ -328,6 +328,7 @@ pub enum SymbolKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionSignature {
+    pub generic_parameters: Vec<String>,
     pub parameters: Vec<ParameterSignature>,
     pub return_type: TypeExpr,
 }
@@ -336,6 +337,7 @@ pub struct FunctionSignature {
 pub struct TypeSymbol {
     pub kind: TypeSymbolKind,
     pub canonical_name: String,
+    pub generic_arity: usize,
     pub is_copy: bool,
     pub alias_target: Option<TypeExpr>,
     pub fields: Vec<StructFieldSignature>,

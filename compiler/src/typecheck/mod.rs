@@ -13,6 +13,7 @@ mod environments;
 mod expressions;
 mod facts;
 mod fallible;
+mod generics;
 mod interfaces;
 mod model;
 mod numeric;
@@ -32,6 +33,7 @@ use crate::source::SourceMap;
 use body::*;
 use drop_members::*;
 use entry::*;
+use generics::*;
 use interfaces::*;
 use ownership::*;
 use returns::*;
@@ -60,6 +62,7 @@ pub fn check_module(
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
 
+    check_generic_type_arities(sources, ast, resolved, &mut diagnostics);
     check_drop_members(sources, ast, resolved, &mut diagnostics);
     check_sized_value_types(sources, ast, resolved, &mut diagnostics);
     check_interface_impls(sources, ast, resolved, &mut diagnostics);

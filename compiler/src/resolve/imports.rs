@@ -173,8 +173,7 @@ impl Resolver<'_> {
                     );
                 }
                 Item::Struct(struct_) => {
-                    let mut symbol =
-                        struct_type_symbol(struct_.name.clone(), struct_.is_copy, &struct_.fields);
+                    let mut symbol = struct_type_symbol(struct_, struct_.is_copy, &struct_.fields);
                     attach_inherent_impl_members_to_symbol(&mut symbol, ast, &struct_.name);
                     let imported = type_importable_symbol(
                         struct_.span,
@@ -192,7 +191,7 @@ impl Resolver<'_> {
                     );
                 }
                 Item::Enum(enum_) => {
-                    let mut symbol = enum_type_symbol(enum_.name.clone(), &enum_.variants);
+                    let mut symbol = enum_type_symbol(enum_);
                     attach_inherent_impl_members_to_symbol(&mut symbol, ast, &enum_.name);
                     let imported = type_importable_symbol(
                         enum_.span,
@@ -407,8 +406,7 @@ fn direct_importable_symbol(ast: &AstFile, name: &str) -> Option<ImportableSymbo
             ))
         }
         Item::Struct(struct_) if struct_.name == name => {
-            let mut symbol =
-                struct_type_symbol(struct_.name.clone(), struct_.is_copy, &struct_.fields);
+            let mut symbol = struct_type_symbol(struct_, struct_.is_copy, &struct_.fields);
             attach_inherent_impl_members_to_symbol(&mut symbol, ast, &struct_.name);
             Some(type_importable_symbol(
                 struct_.span,
@@ -418,7 +416,7 @@ fn direct_importable_symbol(ast: &AstFile, name: &str) -> Option<ImportableSymbo
             ))
         }
         Item::Enum(enum_) if enum_.name == name => {
-            let mut symbol = enum_type_symbol(enum_.name.clone(), &enum_.variants);
+            let mut symbol = enum_type_symbol(enum_);
             attach_inherent_impl_members_to_symbol(&mut symbol, ast, &enum_.name);
             Some(type_importable_symbol(
                 enum_.span,
@@ -438,7 +436,7 @@ fn direct_importable_symbol(ast: &AstFile, name: &str) -> Option<ImportableSymbo
 }
 
 fn type_alias_symbol_with_impl_members(ast: &AstFile, alias: &TypeAliasDecl) -> TypeSymbol {
-    let mut symbol = alias_type_symbol(alias.name.clone(), alias.target.clone());
+    let mut symbol = alias_type_symbol(alias);
     attach_inherent_impl_members_to_symbol(&mut symbol, ast, &alias.name);
     symbol
 }

@@ -72,6 +72,29 @@ pub(super) fn duplicate_inherent_member_name_diagnostic(
     diagnostic
 }
 
+pub(super) fn duplicate_interface_method_name_diagnostic(
+    sources: &SourceMap,
+    interface_name: &str,
+    method_name: &str,
+    first_span: ByteSpan,
+    duplicate_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0428",
+        format!("interface `{interface_name}` already has a method named `{method_name}`"),
+    );
+    diagnostic.primary_span = sources.span_to_json(duplicate_span).ok().map(Box::new);
+    if let Ok(span) = sources.span_to_json(first_span) {
+        diagnostic.notes.push(DiagnosticNote {
+            message: "first interface method with this name is here".to_string(),
+            span: Some(span),
+        });
+    }
+    diagnostic.help =
+        Some("choose a distinct method name; Nocter v0 does not support overloads".to_string());
+    diagnostic
+}
+
 pub(super) fn duplicate_struct_field_name_diagnostic(
     sources: &SourceMap,
     struct_name: &str,

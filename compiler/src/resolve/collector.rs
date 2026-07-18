@@ -2,8 +2,9 @@ use super::builtins::is_reserved_type_declaration_name;
 use super::diagnostics::{
     builtin_type_declaration_name_reuse_diagnostic, duplicate_enum_variant_name_diagnostic,
     duplicate_enum_variant_payload_name_diagnostic, duplicate_generic_parameter_name_diagnostic,
-    duplicate_parameter_name_diagnostic, duplicate_struct_field_name_diagnostic,
-    duplicate_visible_name_diagnostic, invalid_associated_function_owner_diagnostic,
+    duplicate_interface_method_name_diagnostic, duplicate_parameter_name_diagnostic,
+    duplicate_struct_field_name_diagnostic, duplicate_visible_name_diagnostic,
+    invalid_associated_function_owner_diagnostic,
 };
 use super::signatures::{
     alias_type_symbol, associated_function_signature, drop_signature,
@@ -13,8 +14,8 @@ use super::signatures::{
 };
 use super::{Resolver, SymbolKind, TypeSymbol};
 use crate::ast::{
-    AstFile, EnumDecl, EnumVariant, FunctionDecl, GenericParamList, ImplDecl, Item, Parameter,
-    PrimitiveDecl, StructDecl,
+    AstFile, EnumDecl, EnumVariant, FunctionDecl, GenericParamList, ImplDecl, InterfaceDecl, Item,
+    Parameter, PrimitiveDecl, StructDecl,
 };
 use crate::diagnostics::Diagnostic;
 use crate::source::{ByteSpan, SourceMap};
@@ -68,7 +69,7 @@ impl Resolver<'_> {
                         alias.name.clone(),
                         alias.name_span,
                         alias.span,
-                        alias_type_symbol(alias.name.clone(), alias.target.clone()),
+                        alias_type_symbol(alias),
                     );
                 }
                 Item::Struct(struct_) => {
@@ -89,7 +90,7 @@ impl Resolver<'_> {
                         struct_.name.clone(),
                         struct_.name_span,
                         struct_.span,
-                        struct_type_symbol(struct_.name.clone(), struct_.is_copy, &struct_.fields),
+                        struct_type_symbol(struct_, struct_.is_copy, &struct_.fields),
                     );
                 }
                 Item::Enum(enum_) => {
@@ -107,7 +108,7 @@ impl Resolver<'_> {
                         enum_.name.clone(),
                         enum_.name_span,
                         enum_.span,
-                        enum_type_symbol(enum_.name.clone(), &enum_.variants),
+                        enum_type_symbol(enum_),
                     );
                 }
                 Item::Interface(interface) => {
@@ -118,6 +119,22 @@ impl Resolver<'_> {
                             &format!("interface `{}`", interface.name),
                             &interface.generics,
                         ));
+                    self.output
+                        .diagnostics
+                        .extend(duplicate_interface_method_name_diagnostics(
+                            self.sources,
+                            interface,
+                        ));
+                    for method in &interface.methods {
+                        self.output.diagnostics.extend(
+                            duplicate_method_parameter_name_diagnostics(
+                                self.sources,
+                                &format!("interface method `{}.{}`", interface.name, method.name),
+                                &method.receiver,
+                                &method.parameters.parameters,
+                            ),
+                        );
+                    }
                     self.collect_type_symbol(
                         interface.name.clone(),
                         interface.name_span,
@@ -391,6 +408,56 @@ fn duplicate_parameter_name_diagnostics(
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     let mut seen = HashMap::new();
+
+    for parameter in parameters {
+        if let Some(first_span) = seen.get(parameter.name.as_str()).copied() {
+            diagnostics.push(duplicate_parameter_name_diagnostic(
+                sources,
+                subject,
+                &parameter.name,
+                first_span,
+                parameter.name_span,
+            ));
+        } else {
+            seen.insert(parameter.name.as_str(), parameter.name_span);
+        }
+    }
+
+    diagnostics
+}
+
+fn duplicate_interface_method_name_diagnostics(
+    sources: &SourceMap,
+    interface: &InterfaceDecl,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let mut seen = HashMap::new();
+
+    for method in &interface.methods {
+        if let Some(first_span) = seen.get(method.name.as_str()).copied() {
+            diagnostics.push(duplicate_interface_method_name_diagnostic(
+                sources,
+                &interface.name,
+                &method.name,
+                first_span,
+                method.name_span,
+            ));
+        } else {
+            seen.insert(method.name.as_str(), method.name_span);
+        }
+    }
+
+    diagnostics
+}
+
+fn duplicate_method_parameter_name_diagnostics(
+    sources: &SourceMap,
+    subject: &str,
+    receiver: &Parameter,
+    parameters: &[Parameter],
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let mut seen = HashMap::from([(receiver.name.as_str(), receiver.name_span)]);
 
     for parameter in parameters {
         if let Some(first_span) = seen.get(parameter.name.as_str()).copied() {

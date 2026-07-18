@@ -316,6 +316,74 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_duplicate_interface_method_names() {
+    let output = resolve_text(
+        r#"interface Writer {
+    pub method (writer: &Self).write(text: &str): void
+    pub method (writer: &Self).write(bytes: &[u8]): void
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0428");
+    assert!(output.diagnostics[0].message.contains("interface `Writer`"));
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("method named `write`")
+    );
+}
+
+#[test]
+fn diagnoses_duplicate_interface_method_parameter_names() {
+    let output = resolve_text(
+        r#"interface Writer {
+    pub method (writer: &Self).write(text: &str, text: &str): void
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0421");
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("interface method `Writer.write`")
+    );
+}
+
+#[test]
+fn diagnoses_interface_method_parameter_reusing_receiver_name() {
+    let output = resolve_text(
+        r#"interface Writer {
+    pub method (writer: &Self).write(writer: &str): void
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0421");
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("parameter named `writer`")
+    );
+}
+
+#[test]
 fn diagnoses_duplicate_primitive_parameter_names() {
     let output = resolve_text(
         r#"primitive syscall(fd: i32, fd: i32): i32

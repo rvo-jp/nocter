@@ -190,7 +190,7 @@ Currently not buildable even when it may be checkable:
 - `&str` member operations and view/byte iteration
 - interpolated string construction
 - optional values
-- source-level aggregate moves beyond the supported explicit `move name` argument/return/binding/assignment/struct-literal-field paths, broad branch/loop/catch scope-end drop insertion, arrays, general views beyond the listed slice ABI paths, raw pointer expressions beyond closed `std/ptr.from_addr` aggregate fields, methods, traits, generics, and full ownership lowering
+- source-level aggregate moves beyond the supported explicit `move name` argument/return/binding/assignment/struct-literal-field paths, broad branch/loop/catch scope-end drop insertion, arrays, general views beyond the listed slice ABI paths, raw pointer expressions beyond closed `std/ptr.from_addr` aggregate fields, methods, interfaces, generics, and full ownership lowering
 
 ### Backend V0 Register Convention
 
@@ -269,7 +269,7 @@ Responsibilities:
 - `parser/`: syntax parsing and parser diagnostics.
 - `ast/`: source-level syntax tree definitions.
 - `resolve/`: imports, canonical absolute source-file identity, path-derived modules, visibility, and name lookup.
-- `typecheck/`: type rules, generics, traits, fallible types, optional types, `never` reachability, ownership checks, non-lexical borrow live ranges, field-sensitive borrow checks, provenance checks, and region escape checks.
+- `typecheck/`: type rules, generics, interfaces, fallible types, optional types, `never` reachability, ownership checks, non-lexical borrow live ranges, field-sensitive borrow checks, provenance checks, and region escape checks.
 - `frontend/`: root `.nct` loading, lexing/parsing for semantic checks, recursive import graph loading, canonical-path module de-duplication, synthetic standard prelude insertion, Nocter home `std` import lookup, and active-target primitive filtering.
 - `home/`: installed Nocter home resolution, `VERSION` reading, `MANIFEST.json` parsing, manifest schema validation, release/host/default-target validation, archive metadata validation, and standard-library directory shape validation.
 - `analysis/`: whole-compile-unit semantic analysis that combines per-file resolve and typecheck output into reusable `CompileUnitAnalysis` and `FileAnalysis` records for CLI diagnostics and future LSP features.
@@ -463,7 +463,7 @@ Current semantic coverage:
 - eligible user project modules synthesize `use std/prelude`
 - explicit or synthetic `use std/prelude` loads the prelude and introduces its public declarations and public `pub from` re-exports
 - same-file top-level `func`, `primitive`, `type`, `struct`, and `enum` declarations are collected into a resolver-owned symbol table
-- resolver type symbols retain whether a struct was declared with `copy struct`; aliases, enums, traits, and ordinary structs are non-copy in this metadata
+- resolver type symbols retain whether a struct was declared with `copy struct`; aliases, enums, interfaces, and ordinary structs are non-copy in this metadata
 - duplicate visible names among same-file declarations, explicit imported names, parameters, locals, and catch bindings are diagnosed
 - whole-binding assignment from another binding diagnoses implicit copies of ordinary structs, while allowing `copy struct` values and aliases to copy structs
 - direct calls to same-file functions are resolved and checked for argument count
@@ -534,7 +534,7 @@ Current semantic coverage:
 - bare `return` is valid only for `void` success returns
 - non-`void` functions and `i32` / `i32!` entry functions must not fall through without an explicit return or failure
 
-The current `check` implementation loads imported files, applies import aliases, registers namespace aliases as visible names, and semantic-checks each reachable file in its own file scope. Remaining gaps should be tracked against the narrower v0 contract in `spec/00-v0-contract.md`; trait method calls and trait obligations are deferred after v0 rather than partially supported by `check`.
+The current `check` implementation loads imported files, applies import aliases, registers namespace aliases as visible names, and semantic-checks each reachable file in its own file scope. Remaining gaps should be tracked against the narrower v0 contract in `spec/00-v0-contract.md`; interface conformance is contract-only in v0, while generic bounds, interface-bound method lookup, and dynamic dispatch are deferred rather than partially supported by `check`.
 
 `nocter check app.nct --format json` runs:
 
