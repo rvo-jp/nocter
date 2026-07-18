@@ -101,6 +101,30 @@ pub(in crate::typecheck) fn non_copy_struct_assignment_diagnostic(
     diagnostic
 }
 
+pub(in crate::typecheck) fn non_copy_struct_binding_diagnostic(
+    sources: &SourceMap,
+    statement: &BindingStmt,
+    source_name: &str,
+    type_name: &str,
+) -> Diagnostic {
+    let keyword = binding_keyword(statement.kind);
+    let mut diagnostic = Diagnostic::error(
+        "E0432",
+        format!(
+            "cannot implicitly copy non-copy struct `{type_name}` from `{source_name}` into `{keyword}` binding `{}`",
+            statement.name
+        ),
+    );
+    diagnostic.primary_span = sources
+        .span_to_json(statement.initializer.span())
+        .ok()
+        .map(Box::new);
+    diagnostic.help = Some(format!(
+        "declare `{type_name}` with `copy struct` or write `move {source_name}` to transfer ownership"
+    ));
+    diagnostic
+}
+
 pub(in crate::typecheck) fn self_move_assignment_diagnostic(
     sources: &SourceMap,
     statement: &AssignmentStmt,

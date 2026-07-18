@@ -1,5 +1,7 @@
 use super::arrays::{check_array_literal_elements, check_index_expression};
-use super::bindings::{check_binding_annotation, continuing_binding_type};
+use super::bindings::{
+    check_binding_annotation, check_binding_initializer_copyability, continuing_binding_type,
+};
 use super::calls::{
     check_known_function_call, check_method_receiver_call, check_unresolved_member_call,
     method_member_for_call, resolved_call_signature,
@@ -174,6 +176,14 @@ fn check_statement_expressions(
                 );
             }
             check_binding_annotation(
+                sources,
+                statement,
+                &initializer_type,
+                resolved,
+                diagnostics,
+                environment,
+            );
+            check_binding_initializer_copyability(
                 sources,
                 statement,
                 &initializer_type,

@@ -1,6 +1,7 @@
+use super::copyability::implicit_non_copy_struct_identifier_source;
 use super::diagnostics::{
-    binding_type_mismatch_diagnostic, optional_let_else_fallthrough_diagnostic,
-    optional_let_else_non_optional_diagnostic,
+    binding_type_mismatch_diagnostic, non_copy_struct_binding_diagnostic,
+    optional_let_else_fallthrough_diagnostic, optional_let_else_non_optional_diagnostic,
     optional_let_else_projection_binding_kind_diagnostic,
 };
 use super::model::{Type, TypeEnvironment};
@@ -133,6 +134,48 @@ pub(super) fn check_binding_annotation(
             statement,
             &binding_type,
             initializer_type,
+        ));
+    }
+}
+
+pub(super) fn check_binding_initializer_copyability(
+    sources: &SourceMap,
+    statement: &BindingStmt,
+    initializer_type: &Type,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+    environment: &TypeEnvironment,
+) {
+    let binding_type =
+        continuing_binding_type(statement, initializer_type.clone(), resolved, environment);
+    if binding_type.is_unknown_or_unresolved() || binding_type.first_unsized_part().is_some() {
+        return;
+    }
+
+    let expected_initializer = if statement.else_block.is_some() {
+        Type::Optional(Box::new(binding_type))
+    } else {
+        binding_type
+    };
+    if expected_initializer.is_unknown_or_unresolved()
+        || !is_expression_assignable(
+            &expected_initializer,
+            &statement.initializer,
+            resolved,
+            environment,
+        )
+    {
+        return;
+    }
+
+    if let Some((source_name, type_name)) =
+        implicit_non_copy_struct_identifier_source(&statement.initializer, resolved, environment)
+    {
+        diagnostics.push(non_copy_struct_binding_diagnostic(
+            sources,
+            statement,
+            source_name,
+            &type_name,
         ));
     }
 }

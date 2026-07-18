@@ -155,6 +155,74 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_binding_from_non_copy_struct_binding() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    start: i32
+    len: i32
+    capacity: i32
+}
+
+func main(): i32 {
+    let source = Text{ start: 1, len: 2, capacity: 3 }
+    let target = source
+    return target.len
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0432");
+    assert!(diagnostics[0].message.contains("Text"));
+    assert!(diagnostics[0].message.contains("source"));
+    assert!(diagnostics[0].message.contains("target"));
+}
+
+#[test]
+fn accepts_binding_from_moved_non_copy_struct_binding() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    start: i32
+    len: i32
+    capacity: i32
+}
+
+func main(): i32 {
+    let source = Text{ start: 1, len: 2, capacity: 3 }
+    let target = move source
+    return target.len
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_optional_binding_from_non_copy_struct_binding() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    start: usize
+    len: usize
+    capacity: usize
+}
+
+func main(): i32 {
+    let source = Text{ start: 1, len: 2, capacity: 3 }
+    let target: Text? = source
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0432");
+    assert!(diagnostics[0].message.contains("Text"));
+    assert!(diagnostics[0].message.contains("source"));
+    assert!(diagnostics[0].message.contains("target"));
+}
+
+#[test]
 fn accepts_assignment_from_moved_non_copy_struct_binding() {
     let diagnostics = check_text(
         r#"struct Text {

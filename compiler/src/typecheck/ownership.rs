@@ -665,15 +665,6 @@ fn check_expression_ownership(
                     );
                     ownership.move_binding(sources, identifier, diagnostics);
                 }
-            } else {
-                check_expression_ownership(
-                    sources,
-                    &expression.operand,
-                    resolved,
-                    diagnostics,
-                    environment,
-                    ownership,
-                );
             }
         }
         Expr::Propagate(expression) => {

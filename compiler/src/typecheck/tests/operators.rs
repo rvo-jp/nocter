@@ -419,6 +419,64 @@ fn diagnoses_move_non_binding_operand() {
 }
 
 #[test]
+fn diagnoses_move_field_operand() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    start: i32
+    len: i32
+    capacity: i32
+}
+
+func main(): i32 {
+    let text = Text{ start: 1, len: 42, capacity: 3 }
+    return move text.len
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0370");
+    assert!(diagnostics[0].message.contains("binding"));
+}
+
+#[test]
+fn diagnoses_move_call_result_operand() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return move value()
+}
+
+func value(): i32 {
+    return 42
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0370");
+    assert!(diagnostics[0].message.contains("binding"));
+}
+
+#[test]
+fn diagnoses_move_index_operand() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func first(): u8 {
+    let values: [u8; 2] = [1, 2]
+    return move values[0]
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0370");
+    assert!(diagnostics[0].message.contains("binding"));
+}
+
+#[test]
 fn diagnoses_move_of_copy_scalar_binding() {
     let diagnostics = check_text(
         r#"func main(): i32 {

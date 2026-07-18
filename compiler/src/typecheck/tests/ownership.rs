@@ -56,6 +56,32 @@ func take(text: Text): i32 {
 }
 
 #[test]
+fn invalid_outer_move_operand_does_not_consume_nested_move() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    start: i32
+    len: i32
+    capacity: i32
+}
+
+func main(): i32 {
+    let text = Text{ start: 1, len: 42, capacity: 3 }
+    let invalid = move take(move text)
+    return text.len
+}
+
+func take(text: Text): i32 {
+    return text.len
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0370");
+    assert!(diagnostics[0].message.contains("binding"));
+}
+
+#[test]
 fn diagnoses_use_after_explicit_drop_of_non_copy_struct() {
     let diagnostics = check_text(
         r#"struct Text {
