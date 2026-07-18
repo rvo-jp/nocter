@@ -387,6 +387,173 @@ func title(): &str {
 }
 
 #[test]
+fn diagnoses_return_struct_literal_borrow_of_local_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+copy struct View {
+    value: &i32
+}
+
+func leak(): View {
+    let value = 1
+    return View{ value: &value }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn diagnoses_return_struct_alias_borrow_of_local_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+copy struct View {
+    value: &i32
+}
+
+func leak(): View {
+    let value = 1
+    let view = View{ value: &value }
+    return view
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn diagnoses_return_nested_struct_literal_borrow_of_local_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+copy struct Inner {
+    value: &i32
+}
+
+copy struct Outer {
+    inner: Inner
+}
+
+func leak(): Outer {
+    let value = 1
+    return Outer{ inner: Inner{ value: &value } }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn diagnoses_return_generic_struct_literal_borrow_of_local_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+struct Box<T> {
+    value: T
+}
+
+func leak(): Box<&i32> {
+    let value = 1
+    return Box<&i32>{ value: &value }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn diagnoses_return_enum_payload_borrow_of_local_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+enum MaybeRef {
+    some(value: &i32)
+    empty
+}
+
+func leak(): MaybeRef {
+    let value = 1
+    return MaybeRef.some(&value)
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn accepts_return_struct_literal_borrow_of_parameter() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+copy struct View {
+    value: &i32
+}
+
+func wrap(value: &i32): View {
+    return View{ value: value }
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_return_struct_alias_borrow_of_parameter() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+copy struct View {
+    value: &i32
+}
+
+func wrap(value: &i32): View {
+    let view = View{ value: value }
+    return view
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn accepts_bool_function_return() {
     let diagnostics = check_text(
         r#"func main(): i32 {

@@ -16,15 +16,16 @@ use super::expressions::expression_type;
 use super::fallible::{check_catch_operand, check_propagation};
 use super::model::{CallableKind, ReturnContext, Type, TypeEnvironment, binding_kind_is_mutable};
 use super::operations::is_expression_assignable;
-use super::type_expr::type_expr_to_type_in_environment;
-use super::variants::switch_statement_covers_all_variants;
+use super::type_expr::{type_expr_to_type_in_environment, type_expr_to_type_with_substitutions};
+use super::variants::{is_enum_variant_call, switch_statement_covers_all_variants};
 use crate::ast::{
     AstFile, Block, Expr, ImplDecl, ImplMember, InterpolatedStringPart, Item, ReturnStmt, Stmt,
+    TypeExpr,
 };
 use crate::diagnostics::Diagnostic;
-use crate::resolve::{LocalSymbolKind, ResolveOutput};
+use crate::resolve::{LocalSymbolKind, ResolveOutput, TypeSymbolKind};
 use crate::source::SourceMap;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Default)]
 struct BorrowReturnEnvironment {
@@ -39,10 +40,10 @@ impl BorrowReturnEnvironment {
     fn define_binding(
         &mut self,
         name: String,
-        ty: &Type,
+        contains_borrow_like: bool,
         provenance: Option<BorrowReturnProvenance>,
     ) {
-        if borrow_like_type(ty) {
+        if contains_borrow_like {
             if let Some(provenance) = provenance {
                 self.bindings.insert(name, provenance);
             } else {
@@ -302,6 +303,7 @@ fn check_statement_returns(
                 &statement.initializer,
                 &binding_type,
                 resolved,
+                environment,
                 borrow_provenance,
             );
             environment.define_binding(
@@ -309,7 +311,11 @@ fn check_statement_returns(
                 binding_type.clone(),
                 binding_kind_is_mutable(statement.kind),
             );
-            borrow_provenance.define_binding(statement.name.clone(), &binding_type, provenance);
+            borrow_provenance.define_binding(
+                statement.name.clone(),
+                type_contains_borrow_like(&binding_type, resolved),
+                provenance,
+            );
         }
         Stmt::Assignment(statement) => {
             check_expression_for_nested_returns(
@@ -337,9 +343,14 @@ fn check_statement_returns(
                     &statement.value,
                     target_type,
                     resolved,
+                    environment,
                     borrow_provenance,
                 );
-                borrow_provenance.define_binding(identifier.name.clone(), target_type, provenance);
+                borrow_provenance.define_binding(
+                    identifier.name.clone(),
+                    type_contains_borrow_like(target_type, resolved),
+                    provenance,
+                );
             }
         }
         Stmt::If(statement) => {
@@ -1008,8 +1019,10 @@ fn check_return_statement(
             check_borrow_return_provenance(
                 sources,
                 expression,
+                &actual,
                 context,
                 resolved,
+                environment,
                 borrow_provenance,
                 diagnostics,
             );
@@ -1032,14 +1045,20 @@ fn check_return_statement(
 fn check_borrow_return_provenance(
     sources: &SourceMap,
     expression: &Expr,
+    ty: &Type,
     context: &ReturnContext,
     resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
     borrow_provenance: &BorrowReturnEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(provenance) =
-        borrow_return_provenance_for_return_expression(expression, resolved, borrow_provenance)
-    else {
+    let Some(provenance) = borrow_return_provenance_for_expression(
+        expression,
+        ty,
+        resolved,
+        environment,
+        borrow_provenance,
+    ) else {
         return;
     };
 
@@ -1051,31 +1070,65 @@ fn check_borrow_return_provenance(
     ));
 }
 
-fn borrow_return_provenance_for_return_expression(
-    expression: &Expr,
-    resolved: &ResolveOutput,
-    borrow_provenance: &BorrowReturnEnvironment,
-) -> Option<BorrowReturnProvenance> {
-    match unwrap_group(expression) {
-        Expr::Borrow(_) => borrow_return_provenance_for_direct_borrow(expression, resolved),
-        Expr::Identifier(identifier) => borrow_provenance.get(&identifier.name).cloned(),
-        _ => None,
-    }
-}
-
 fn borrow_return_provenance_for_expression(
     expression: &Expr,
     ty: &Type,
     resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
     borrow_provenance: &BorrowReturnEnvironment,
 ) -> Option<BorrowReturnProvenance> {
-    if !borrow_like_type(ty) {
+    if !type_contains_borrow_like(ty, resolved) {
         return None;
     }
 
     match unwrap_group(expression) {
         Expr::Borrow(_) => borrow_return_provenance_for_direct_borrow(expression, resolved),
         Expr::Identifier(identifier) => borrow_provenance.get(&identifier.name).cloned(),
+        Expr::StructLiteral(literal) => {
+            for field in &literal.fields {
+                let field_type = expression_type(&field.value, resolved, environment);
+                if let Some(provenance) = borrow_return_provenance_for_expression(
+                    &field.value,
+                    &field_type,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                ) {
+                    return Some(provenance);
+                }
+            }
+            None
+        }
+        Expr::ArrayLiteral(literal) => {
+            for element in &literal.elements {
+                let element_type = expression_type(element, resolved, environment);
+                if let Some(provenance) = borrow_return_provenance_for_expression(
+                    element,
+                    &element_type,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                ) {
+                    return Some(provenance);
+                }
+            }
+            None
+        }
+        Expr::Call(call) if is_enum_variant_call(call, resolved) => {
+            for argument in &call.arguments {
+                let argument_type = expression_type(argument, resolved, environment);
+                if let Some(provenance) = borrow_return_provenance_for_expression(
+                    argument,
+                    &argument_type,
+                    resolved,
+                    environment,
+                    borrow_provenance,
+                ) {
+                    return Some(provenance);
+                }
+            }
+            None
+        }
         _ => None,
     }
 }
@@ -1105,13 +1158,164 @@ fn borrow_return_provenance_for_direct_borrow(
     Some(BorrowReturnProvenance { source })
 }
 
-fn borrow_like_type(ty: &Type) -> bool {
+fn type_contains_borrow_like(ty: &Type, resolved: &ResolveOutput) -> bool {
+    type_contains_borrow_like_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn type_contains_borrow_like_inner(
+    ty: &Type,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> bool {
     match ty {
         Type::Str | Type::View { .. } => true,
-        Type::Named(name) => name.starts_with('&'),
-        Type::Optional(inner) => borrow_like_type(inner),
-        Type::Fallible { success, .. } => borrow_like_type(success),
-        _ => false,
+        Type::Named(name) if name.starts_with('&') => true,
+        Type::Named(name) => {
+            type_symbol_contains_borrow_like(name, resolved, &HashMap::new(), resolving_names)
+        }
+        Type::Generic { name, arguments } => {
+            let Some(symbol) = resolved.type_symbol_by_canonical_name(name) else {
+                return false;
+            };
+            let substitutions = symbol
+                .generic_parameters
+                .iter()
+                .cloned()
+                .zip(arguments.iter().cloned())
+                .collect();
+            type_symbol_contains_borrow_like(name, resolved, &substitutions, resolving_names)
+        }
+        Type::Array { element, .. } | Type::Optional(element) => {
+            type_contains_borrow_like_inner(element, resolved, resolving_names)
+        }
+        Type::Fallible { success, error } => {
+            type_contains_borrow_like_inner(success, resolved, resolving_names)
+                || type_contains_borrow_like_inner(error, resolved, resolving_names)
+        }
+        Type::ArrayData { element } => {
+            type_contains_borrow_like_inner(element, resolved, resolving_names)
+        }
+        Type::I32
+        | Type::Primitive(_)
+        | Type::StrData
+        | Type::Error
+        | Type::Void
+        | Type::Never
+        | Type::None
+        | Type::Pointer(_)
+        | Type::Parameter(_)
+        | Type::Unresolved(_)
+        | Type::Unknown => false,
+    }
+}
+
+fn type_symbol_contains_borrow_like(
+    canonical_name: &str,
+    resolved: &ResolveOutput,
+    substitutions: &HashMap<String, Type>,
+    resolving_names: &mut HashSet<String>,
+) -> bool {
+    if !resolving_names.insert(canonical_name.to_string()) {
+        return false;
+    }
+
+    let result = resolved
+        .type_symbol_by_canonical_name(canonical_name)
+        .is_some_and(|symbol| match symbol.kind {
+            TypeSymbolKind::Alias => symbol.alias_target.as_ref().is_some_and(|target| {
+                type_expr_contains_borrow_like(target, resolved, substitutions, resolving_names)
+            }),
+            TypeSymbolKind::Struct => symbol.fields.iter().any(|field| {
+                type_expr_contains_borrow_like(&field.ty, resolved, substitutions, resolving_names)
+            }),
+            TypeSymbolKind::Enum => symbol.variants.iter().any(|variant| {
+                variant.payload.iter().any(|payload| {
+                    type_expr_contains_borrow_like(
+                        &payload.ty,
+                        resolved,
+                        substitutions,
+                        resolving_names,
+                    )
+                })
+            }),
+            TypeSymbolKind::Interface => false,
+        });
+
+    resolving_names.remove(canonical_name);
+    result
+}
+
+fn type_expr_contains_borrow_like(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    substitutions: &HashMap<String, Type>,
+    resolving_names: &mut HashSet<String>,
+) -> bool {
+    match ty {
+        TypeExpr::Borrow(_) => true,
+        TypeExpr::View(view) => {
+            type_expr_contains_borrow_like(&view.element, resolved, substitutions, resolving_names)
+        }
+        TypeExpr::Array(array) => {
+            type_expr_contains_borrow_like(&array.element, resolved, substitutions, resolving_names)
+        }
+        TypeExpr::Optional(optional) => type_expr_contains_borrow_like(
+            &optional.inner,
+            resolved,
+            substitutions,
+            resolving_names,
+        ),
+        TypeExpr::Fallible(fallible) => {
+            type_expr_contains_borrow_like(
+                &fallible.success,
+                resolved,
+                substitutions,
+                resolving_names,
+            ) || type_expr_contains_borrow_like(
+                &fallible.error,
+                resolved,
+                substitutions,
+                resolving_names,
+            )
+        }
+        TypeExpr::Pointer(_) => false,
+        TypeExpr::Reference(reference) => {
+            substitutions
+                .get(&reference.name)
+                .is_some_and(|ty| type_contains_borrow_like_inner(ty, resolved, resolving_names))
+                || resolved
+                    .type_symbol_by_reference_name(&reference.name)
+                    .is_some_and(|symbol| {
+                        type_symbol_contains_borrow_like(
+                            &symbol.canonical_name,
+                            resolved,
+                            &HashMap::new(),
+                            resolving_names,
+                        )
+                    })
+        }
+        TypeExpr::Generic(generic) => {
+            if let Some(ty) = substitutions.get(&generic.name) {
+                return type_contains_borrow_like_inner(ty, resolved, resolving_names);
+            }
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&generic.name) else {
+                return false;
+            };
+            let nested_substitutions = symbol
+                .generic_parameters
+                .iter()
+                .cloned()
+                .zip(generic.arguments.iter().map(|argument| {
+                    type_expr_to_type_with_substitutions(argument, resolved, None, substitutions)
+                }))
+                .collect();
+            type_symbol_contains_borrow_like(
+                &symbol.canonical_name,
+                resolved,
+                &nested_substitutions,
+                resolving_names,
+            )
+        }
     }
 }
 
