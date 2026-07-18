@@ -191,7 +191,7 @@ impl<'a> FunctionIndex<'a> {
                         );
                         definitions.insert(target, IndexedCallable::new_function(function, file));
                     }
-                    Item::Impl(impl_) if impl_.trait_ty.is_none() => {
+                    Item::Impl(impl_) if impl_.interface_ty.is_none() => {
                         let Some(type_name) = impl_target_type_name(&impl_.target_ty) else {
                             continue;
                         };

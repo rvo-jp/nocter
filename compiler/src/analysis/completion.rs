@@ -77,7 +77,7 @@ fn completion_kind_for_symbol(symbol: &Symbol) -> CompletionItemKind {
             TypeSymbolKind::Alias => CompletionItemKind::Class,
             TypeSymbolKind::Struct => CompletionItemKind::Struct,
             TypeSymbolKind::Enum => CompletionItemKind::Enum,
-            TypeSymbolKind::Trait => CompletionItemKind::Interface,
+            TypeSymbolKind::Interface => CompletionItemKind::Interface,
         },
         SymbolKind::Imported(_) => CompletionItemKind::Module,
     }
@@ -91,7 +91,7 @@ fn symbol_detail(symbol: &Symbol) -> String {
             TypeSymbolKind::Alias => "type".to_string(),
             TypeSymbolKind::Struct => "struct".to_string(),
             TypeSymbolKind::Enum => "enum".to_string(),
-            TypeSymbolKind::Trait => "trait".to_string(),
+            TypeSymbolKind::Interface => "interface".to_string(),
         },
         SymbolKind::Imported(imported) => format!("imported from {}", imported.path),
     }

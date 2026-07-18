@@ -99,6 +99,8 @@ pub(nocter) type RawWord=usize
 pub(nocter) copy struct SyscallResult{pub value:usize,errno:i32}
 #target("arm64-darwin")
 pub(nocter) enum PlatformError{interrupted}
+#target("arm64-darwin")
+pub(nocter) interface PlatformContract{pub method (value:&Self).code():i32}
 "#,
         concat!(
             "#target(\"arm64-darwin\")\n",
@@ -113,6 +115,11 @@ pub(nocter) enum PlatformError{interrupted}
             "#target(\"arm64-darwin\")\n",
             "pub(nocter) enum PlatformError {\n",
             "    interrupted,\n",
+            "}\n",
+            "\n",
+            "#target(\"arm64-darwin\")\n",
+            "pub(nocter) interface PlatformContract {\n",
+            "    pub method (value: &Self).code(): i32\n",
             "}\n",
         ),
     );

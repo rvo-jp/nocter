@@ -8,23 +8,43 @@ than the long-term language direction. A feature that is not listed here is not
 part of the v0 contract even if older notes or future-design sections mention
 it.
 
-## Excluded From v0
+## Interfaces And Excluded Features
 
-The following features are deferred after v0:
+Nocter v0 includes contract-only `interface` declarations and explicit
+interface conformance declarations.
+
+An interface contains only public method signatures. It cannot contain method
+bodies, fields, associated data, default methods, associated types, or reusable
+code.
+
+```nct
+pub interface Printable {
+    pub method (value: &Self).print(): i32
+}
+
+impl Printable for User
+```
+
+Conformance is explicit and structural. `impl Printable for User` opts `User`
+into the contract, and typechecking verifies that `User` has public inherent
+methods matching each interface method after substituting `Self` with `User`.
+The compiler does not infer accidental conformance from a matching shape alone.
+
+The following features are not part of v0:
 
 - `trait` declarations
-- `impl Trait for Type`
-- generic bounds such as `T: Trait`
-- trait method lookup
-- dynamic dispatch and `dyn Trait`
+- generic bounds such as `T: Interface`
+- interface-bound method lookup
+- dynamic dispatch and interface objects such as `dyn Printable`
 - `where` clauses
 - class inheritance
+- code reuse through interfaces
 - user-defined primitive declarations outside the trusted standard-library
   boundary
 
 `trait` is not a reserved keyword in v0. It is lexed as an identifier. Source
-forms that try to use trait syntax are diagnosed as deferred features by the
-parser.
+forms that try to use trait syntax are diagnosed as removed syntax by the
+parser. `interface` is a reserved keyword.
 
 ## Parser Contract
 
@@ -41,14 +61,17 @@ The v0 parser accepts these top-level item forms:
 - `copy struct Name<T> { ... }`
 - `struct Name<T> { ... }`
 - `enum Name<T> { ... }`
+- `interface Name<T> { pub method ... }`
 - `impl Type { method ...; drop ... }`
+- `impl Interface for Type`
+- `impl Interface for Type {}`
 
 The v0 parser rejects these forms with diagnostics instead of accepting them as
 partial language support:
 
 - `trait Name { ... }`
-- `impl Trait for Type { ... }`
-- generic bounds such as `<T: Trait>`
+- `impl Interface for Type { method ... }`
+- generic bounds such as `<T: Interface>`
 - `func` declarations inside `impl`
 
 The parser must not panic on malformed input. A parse failure must produce a
@@ -75,14 +98,14 @@ The resolver's v0 symbol space includes:
 - type aliases
 - structs
 - enums
+- interfaces
 - associated functions attached to nominal types
 - inherent methods attached to nominal types
 - inherent `drop` members attached to nominal types
 - local parameters and bindings
 
-Trait symbols are not part of the v0 source-level contract. Future-only
-internal data structures may still exist, but v0 source cannot create a trait
-symbol through the parser.
+Trait symbols are not part of the v0 source-level contract. v0 source can
+create interface symbols through the parser.
 
 ## Typecheck Contract
 
@@ -99,6 +122,7 @@ For v0, typechecking must produce or diagnose:
 - struct literal field checks
 - enum variant construction and payload checks
 - method call receiver type and selected inherent method
+- explicit interface conformance against public inherent methods
 - associated function call target
 - move, copy, and drop state for owned values
 - use-after-move and invalid explicit `drop` diagnostics

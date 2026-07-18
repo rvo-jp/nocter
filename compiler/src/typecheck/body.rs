@@ -72,7 +72,7 @@ pub(super) fn check_body_expressions(
             | Item::TypeAlias(_)
             | Item::Struct(_)
             | Item::Enum(_)
-            | Item::Trait(_) => {}
+            | Item::Interface(_) => {}
         }
     }
 }

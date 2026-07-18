@@ -3,9 +3,9 @@
 use super::single_file::{parse_single_file_text, resolve_single_file_ast};
 use super::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    AstFile, BindingStmt, Block, EnumDecl, Expr, FunctionDecl, ImplMember, InterpolatedStringPart,
-    Item, MethodDecl, ModulePath, Parameter, PrimitiveDecl, Stmt, StructDecl, StructField,
-    TraitDecl,
+    AstFile, BindingStmt, Block, EnumDecl, Expr, FunctionDecl, ImplMember, InterfaceDecl,
+    InterpolatedStringPart, Item, MethodDecl, ModulePath, Parameter, PrimitiveDecl, Stmt,
+    StructDecl, StructField,
 };
 use crate::comments::{DocumentationTarget, attach_documentation};
 use crate::resolve::{
@@ -209,7 +209,7 @@ pub(crate) fn module_path_at_offset(ast: &AstFile, offset: usize) -> Option<&Mod
             | Item::TypeAlias(_)
             | Item::Struct(_)
             | Item::Enum(_)
-            | Item::Trait(_)
+            | Item::Interface(_)
             | Item::Impl(_) => return None,
         };
 
@@ -394,7 +394,7 @@ fn collect_item_hover_symbols(text: &str, item: &Item, symbols: &mut Vec<HoverSy
         ),
         Item::Struct(struct_) => collect_struct_hover_symbols(text, struct_, symbols),
         Item::Enum(enum_) => collect_enum_hover_symbols(text, enum_, symbols),
-        Item::Trait(trait_) => collect_trait_hover_symbols(text, trait_, symbols),
+        Item::Interface(interface) => collect_interface_hover_symbols(text, interface, symbols),
         Item::Impl(impl_) => {
             for member in &impl_.members {
                 match member {
@@ -447,15 +447,19 @@ fn collect_enum_hover_symbols(text: &str, enum_: &EnumDecl, symbols: &mut Vec<Ho
     }
 }
 
-fn collect_trait_hover_symbols(text: &str, trait_: &TraitDecl, symbols: &mut Vec<HoverSymbol>) {
+fn collect_interface_hover_symbols(
+    text: &str,
+    interface: &InterfaceDecl,
+    symbols: &mut Vec<HoverSymbol>,
+) {
     push_hover_symbol(
         text,
-        trait_.name_span,
-        trait_.span.start,
-        format!("trait {}", trait_.name),
+        interface.name_span,
+        interface.span.start,
+        format!("interface {}", interface.name),
         symbols,
     );
-    for method in &trait_.methods {
+    for method in &interface.methods {
         collect_method_hover_symbols(text, method, symbols);
     }
 }
@@ -946,7 +950,7 @@ fn symbol_hover_label(text: &str, symbol: &Symbol) -> String {
                 .unwrap_or_else(|| format!("type {}", symbol.name)),
             TypeSymbolKind::Struct => format!("struct {}", symbol.name),
             TypeSymbolKind::Enum => format!("enum {}", symbol.name),
-            TypeSymbolKind::Trait => format!("trait {}", symbol.name),
+            TypeSymbolKind::Interface => format!("interface {}", symbol.name),
         },
         SymbolKind::Imported(imported) => format!("import {} from {}", symbol.name, imported.path),
     }
@@ -979,7 +983,7 @@ fn symbol_hover_label_for_sources(sources: &SourceMap, symbol: &Symbol) -> Strin
                 .unwrap_or_else(|| format!("type {}", symbol.name)),
             TypeSymbolKind::Struct => format!("struct {}", symbol.name),
             TypeSymbolKind::Enum => format!("enum {}", symbol.name),
-            TypeSymbolKind::Trait => format!("trait {}", symbol.name),
+            TypeSymbolKind::Interface => format!("interface {}", symbol.name),
         },
         SymbolKind::Imported(imported) => format!("import {} from {}", symbol.name, imported.path),
     }

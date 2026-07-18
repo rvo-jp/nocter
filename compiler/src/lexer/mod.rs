@@ -48,6 +48,7 @@ pub enum Keyword {
     Type,
     Struct,
     Enum,
+    Interface,
     Impl,
     Method,
     Let,
@@ -85,6 +86,7 @@ pub(crate) const KEYWORD_LEXEMES: &[&str] = &[
     "type",
     "struct",
     "enum",
+    "interface",
     "impl",
     "method",
     "let",
@@ -862,6 +864,7 @@ fn keyword(text: &str) -> Option<Keyword> {
         "type" => Keyword::Type,
         "struct" => Keyword::Struct,
         "enum" => Keyword::Enum,
+        "interface" => Keyword::Interface,
         "impl" => Keyword::Impl,
         "method" => Keyword::Method,
         "let" => Keyword::Let,
@@ -982,6 +985,7 @@ mod tests {
         assert!(!KEYWORD_LEXEMES.contains(&"drop"));
         assert!(!KEYWORD_LEXEMES.contains(&"copy"));
         assert!(!KEYWORD_LEXEMES.contains(&"trait"));
+        assert!(KEYWORD_LEXEMES.contains(&"interface"));
     }
 
     #[test]
@@ -992,6 +996,7 @@ mod tests {
         assert!(is_valid_identifier_name("copy"));
         assert!(is_valid_identifier_name("drop"));
         assert!(is_valid_identifier_name("trait"));
+        assert!(!is_valid_identifier_name("interface"));
         assert!(!is_valid_identifier_name(""));
         assert!(!is_valid_identifier_name("2main"));
         assert!(!is_valid_identifier_name("main-entry"));

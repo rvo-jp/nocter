@@ -1,8 +1,8 @@
 use super::{ParseResult, Parser};
 use crate::ast::{
     AstFile, DropDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl, FunctionOwner,
-    ImplDecl, ImplMember, ImportAlias, ImportItem, ImportedName, Item, MethodDecl, ModulePath,
-    Parameter, ParameterList, PrimitiveDecl, StructDecl, StructField, TargetDirective,
+    ImplDecl, ImplMember, ImportAlias, ImportItem, ImportedName, InterfaceDecl, Item, MethodDecl,
+    ModulePath, Parameter, ParameterList, PrimitiveDecl, StructDecl, StructField, TargetDirective,
     TypeAliasDecl, UseItem, Visibility,
 };
 use crate::lexer::Keyword;
@@ -114,6 +114,14 @@ impl Parser<'_> {
             return self.parse_enum_decl(visibility, target);
         }
 
+        if self.at_keyword(Keyword::Interface) {
+            if is_copy {
+                self.error_current("`copy` applies only to `struct` declarations in v0");
+                return Err(());
+            }
+            return self.parse_interface_decl(visibility, target);
+        }
+
         if self.at_identifier_text("trait") {
             if target.is_some() {
                 self.error_current(
@@ -125,7 +133,7 @@ impl Parser<'_> {
                 self.error_current("`copy` applies only to `struct` declarations in v0");
                 return Err(());
             }
-            self.error_current("trait declarations are deferred after v0");
+            self.error_current("`trait` has been removed; use `interface` for contracts");
             return Err(());
         }
 
@@ -540,11 +548,27 @@ impl Parser<'_> {
     pub(super) fn parse_impl_decl(&mut self) -> ParseResult<Item> {
         let start = self.expect_keyword(Keyword::Impl, "`impl`")?;
         let first_ty = self.parse_type()?;
-        if self.at_keyword(Keyword::For) {
-            self.error_current(
-                "trait implementations are deferred after v0; use inherent `impl Type` blocks",
-            );
-            return Err(());
+        if self.match_keyword(Keyword::For).is_some() {
+            let target_ty = self.parse_type()?;
+            let mut end = target_ty.span().end;
+            if self.match_punctuation("{").is_some() {
+                self.skip_newlines();
+                if !self.at_punctuation("}") {
+                    self.error_current(
+                        "interface conformance impl cannot contain members; define methods in an inherent `impl Type` block",
+                    );
+                    return Err(());
+                }
+                let close = self.expect_punctuation("}", "`}`")?;
+                end = close.span.end;
+            }
+
+            return Ok(Item::Impl(ImplDecl {
+                span: self.span(start.span.start, end),
+                interface_ty: Some(first_ty),
+                target_ty,
+                members: Vec::new(),
+            }));
         }
         let target_ty = first_ty;
         let open = self.expect_punctuation("{", "`{`")?;
@@ -590,9 +614,58 @@ impl Parser<'_> {
         let close = self.expect_punctuation("}", "`}`")?;
         Ok(Item::Impl(ImplDecl {
             span: self.span(start.span.start, close.span.end),
-            trait_ty: None,
+            interface_ty: None,
             target_ty,
             members,
+        }))
+    }
+
+    pub(super) fn parse_interface_decl(
+        &mut self,
+        visibility: Visibility,
+        target: Option<TargetDirective>,
+    ) -> ParseResult<Item> {
+        let start = self.expect_keyword(Keyword::Interface, "`interface`")?;
+        let name = self.expect_identifier("expected interface name after `interface`")?;
+        let generics = self.parse_generic_param_list()?;
+        let open = self.expect_punctuation("{", "`{`")?;
+        let mut methods = Vec::new();
+        self.skip_newlines();
+
+        while !self.at_punctuation("}") {
+            if self.at_eof() {
+                self.error_at(open.span, "expected `}` to close interface declaration");
+                return Err(());
+            }
+
+            let method_visibility = self.parse_visibility()?;
+            if method_visibility != Visibility::Public {
+                self.error_current("interface members must be marked `pub`");
+                return Err(());
+            }
+            if !self.at_keyword(Keyword::Method) {
+                self.error_current("expected `pub method` in interface declaration");
+                return Err(());
+            }
+            methods.push(self.parse_method_decl(method_visibility, false)?);
+
+            self.skip_newlines();
+        }
+
+        let close = self.expect_punctuation("}", "`}`")?;
+        Ok(Item::Interface(InterfaceDecl {
+            span: self.span(
+                target
+                    .as_ref()
+                    .map_or(start.span.start, |target| target.span.start),
+                close.span.end,
+            ),
+            visibility,
+            target,
+            name: name.value,
+            name_span: name.span,
+            generics,
+            methods,
         }))
     }
 
@@ -631,7 +704,7 @@ impl Parser<'_> {
         let body = if require_body {
             Some(self.parse_block()?)
         } else if self.at_punctuation("{") {
-            self.error_current("trait method signatures cannot have bodies in v0");
+            self.error_current("interface method signatures cannot have bodies");
             return Err(());
         } else {
             None

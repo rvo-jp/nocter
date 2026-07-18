@@ -420,6 +420,10 @@ Rules:
 - `pub(nocter)` is not user-project package visibility.
 - `nocter` is contextual inside the `pub(nocter)` modifier. It is not a globally reserved keyword.
 - Type aliases are top-level definitions. `type Name = Target` is private by default, `pub type Name = Target` makes the alias importable and re-exportable, and `pub(nocter) type Name = Target` makes the alias importable only inside the active Nocter home.
+- Interfaces are top-level definitions. `interface Name { ... }` is private by
+  default, `pub interface Name { ... }` makes the contract importable and
+  re-exportable, and `pub(nocter) interface Name { ... }` makes the contract
+  importable only inside the active Nocter home.
 - `import` can import `pub` names from any module.
 - `import` can import `pub(nocter)` names only when the importing module is inside the active Nocter home.
 - User project modules cannot import `pub(nocter)` names.
@@ -434,7 +438,7 @@ Rules:
 - Nocter-distribution-internal associated functions and methods may be marked with `pub(nocter)`.
 - `impl` blocks themselves are not marked `pub`.
 - Enum variants follow the visibility of their enum in the initial design.
-- Trait items are deferred after v0.
+- Interface members must be explicitly marked `pub`.
 - There is no `private` keyword in the initial design.
 - There is no standalone `export` declaration in the initial design.
 - `pub(package)`, `pub(crate)`, `pub(std)`, `pub(home)`, and `pub(trusted)` are not part of v0.

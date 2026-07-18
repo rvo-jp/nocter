@@ -4,11 +4,11 @@ use super::diagnostics::{
 use super::module_index::is_relative_module_path;
 use super::signatures::{
     alias_type_symbol, attach_inherent_impl_members_to_symbol, enum_type_symbol,
-    function_signature, nominal_type_symbol, primitive_signature, struct_type_symbol,
+    function_signature, interface_type_symbol, primitive_signature, struct_type_symbol,
 };
 use super::{
     FunctionSignature, ImportAccess, ImportedSymbol, ParameterSignature, Resolver, SymbolKind,
-    TypeSymbol, TypeSymbolKind,
+    TypeSymbol,
 };
 use crate::ast::{
     AstFile, FromImportItem, ImportItem, Item, TypeAliasDecl, TypeExpr, UseItem, Visibility,
@@ -209,17 +209,17 @@ impl Resolver<'_> {
                         access,
                     );
                 }
-                Item::Trait(trait_) => {
+                Item::Interface(interface) => {
                     let imported = type_importable_symbol(
-                        trait_.span,
-                        trait_.visibility,
-                        nominal_type_symbol(trait_.name.clone(), TypeSymbolKind::Trait),
+                        interface.span,
+                        interface.visibility,
+                        interface_type_symbol(interface),
                         type_decl_names(ast),
                     );
-                    let imported = qualify_imported_symbol(imported, module_path, &trait_.name);
+                    let imported = qualify_imported_symbol(imported, module_path, &interface.name);
                     self.collect_public_export(
-                        trait_.name.clone(),
-                        trait_.name_span,
+                        interface.name.clone(),
+                        interface.name_span,
                         imported,
                         access,
                     );
@@ -427,10 +427,10 @@ fn direct_importable_symbol(ast: &AstFile, name: &str) -> Option<ImportableSymbo
                 type_decl_names(ast),
             ))
         }
-        Item::Trait(trait_) if trait_.name == name => Some(type_importable_symbol(
-            trait_.span,
-            trait_.visibility,
-            nominal_type_symbol(trait_.name.clone(), TypeSymbolKind::Trait),
+        Item::Interface(interface) if interface.name == name => Some(type_importable_symbol(
+            interface.span,
+            interface.visibility,
+            interface_type_symbol(interface),
             type_decl_names(ast),
         )),
         _ => None,
@@ -597,7 +597,7 @@ fn type_decl_names(ast: &AstFile) -> Vec<String> {
             Item::TypeAlias(alias) => Some(alias.name.clone()),
             Item::Struct(struct_) => Some(struct_.name.clone()),
             Item::Enum(enum_) => Some(enum_.name.clone()),
-            Item::Trait(trait_) => Some(trait_.name.clone()),
+            Item::Interface(interface) => Some(interface.name.clone()),
             Item::Use(_)
             | Item::Import(_)
             | Item::FromImport(_)

@@ -53,7 +53,7 @@ pub(super) fn check_ownership_states(
             | Item::TypeAlias(_)
             | Item::Struct(_)
             | Item::Enum(_)
-            | Item::Trait(_) => {}
+            | Item::Interface(_) => {}
         }
     }
 }

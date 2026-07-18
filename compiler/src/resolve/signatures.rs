@@ -3,8 +3,8 @@ use super::{
     MethodSignature, ParameterSignature, StructFieldSignature, TypeSymbol, TypeSymbolKind,
 };
 use crate::ast::{
-    AstFile, EnumVariant, FunctionDecl, ImplDecl, ImplMember, MethodDecl, Parameter, PrimitiveDecl,
-    StructField, TypeExpr,
+    AstFile, EnumVariant, FunctionDecl, ImplDecl, ImplMember, InterfaceDecl, MethodDecl, Parameter,
+    PrimitiveDecl, StructField, TypeExpr,
 };
 use crate::diagnostics::Diagnostic;
 use crate::source::{ByteSpan, SourceMap};
@@ -29,7 +29,9 @@ pub(super) fn attach_inherent_impl_members_to_symbol(
         let crate::ast::Item::Impl(impl_) = item else {
             continue;
         };
-        if impl_.trait_ty.is_some() || impl_target_type_name(&impl_.target_ty) != Some(type_name) {
+        if impl_.interface_ty.is_some()
+            || impl_target_type_name(&impl_.target_ty) != Some(type_name)
+        {
             continue;
         }
 
@@ -216,16 +218,16 @@ pub(super) fn alias_type_symbol(canonical_name: String, alias_target: TypeExpr) 
     }
 }
 
-pub(super) fn nominal_type_symbol(canonical_name: String, kind: TypeSymbolKind) -> TypeSymbol {
+pub(super) fn interface_type_symbol(interface: &InterfaceDecl) -> TypeSymbol {
     TypeSymbol {
-        kind,
-        canonical_name,
+        kind: TypeSymbolKind::Interface,
+        canonical_name: interface.name.clone(),
         is_copy: false,
         alias_target: None,
         fields: Vec::new(),
         variants: Vec::new(),
         associated_functions: Vec::new(),
-        methods: Vec::new(),
+        methods: interface.methods.iter().map(method_signature).collect(),
         drop_member: None,
     }
 }

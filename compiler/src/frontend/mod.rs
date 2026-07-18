@@ -179,6 +179,10 @@ fn filter_target_items(ast: &mut AstFile, target: &str) {
             .target
             .as_ref()
             .is_none_or(|directive| directive.target == target),
+        Item::Interface(interface) => interface
+            .target
+            .as_ref()
+            .is_none_or(|directive| directive.target == target),
         _ => true,
     });
 }

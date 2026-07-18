@@ -28,7 +28,7 @@ impl Resolver<'_> {
                 | Item::TypeAlias(_)
                 | Item::Struct(_)
                 | Item::Enum(_)
-                | Item::Trait(_) => {}
+                | Item::Interface(_) => {}
             }
         }
     }

@@ -562,6 +562,7 @@ pub
 type
 struct
 enum
+interface
 impl
 method
 let
@@ -595,8 +596,10 @@ recognized only by the contextual `copy struct` source form.
 
 `drop` is not a reserved keyword. It is emitted as an identifier token and is recognized only by the contextual inherent destructor member form and explicit drop statement form specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#drop).
 
+`interface` is a reserved keyword for contract-only interface declarations.
+
 `trait` is not a reserved keyword in v0. It is emitted as an identifier token.
-Trait syntax is deferred after v0.
+Trait syntax has been removed; use `interface` for contracts.
 
 `@` is reserved for possible future attribute-like syntax, but attributes are not part of v0. A source-level `@` outside string literals, byte literals, or comments is invalid in v0.
 

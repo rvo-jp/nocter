@@ -1,9 +1,9 @@
 use super::Formatter;
 use crate::ast::{
     AstFile, DropDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl, GenericParam,
-    GenericParamList, ImplDecl, ImplMember, ImportItem, ImportedName, Item, MethodDecl, Parameter,
-    ParameterList, PrimitiveDecl, StructDecl, StructField, TraitDecl, TypeAliasDecl, UseItem,
-    Visibility,
+    GenericParamList, ImplDecl, ImplMember, ImportItem, ImportedName, InterfaceDecl, Item,
+    MethodDecl, Parameter, ParameterList, PrimitiveDecl, StructDecl, StructField, TypeAliasDecl,
+    UseItem, Visibility,
 };
 
 impl Formatter {
@@ -27,7 +27,7 @@ impl Formatter {
             Item::TypeAlias(item) => self.format_type_alias_decl(item),
             Item::Struct(item) => self.format_struct_decl(item),
             Item::Enum(item) => self.format_enum_decl(item),
-            Item::Trait(item) => self.format_trait_decl(item),
+            Item::Interface(item) => self.format_interface_decl(item),
             Item::Impl(item) => self.format_impl_decl(item),
         }
     }
@@ -143,9 +143,10 @@ impl Formatter {
         self.write("}");
     }
 
-    fn format_trait_decl(&mut self, item: &TraitDecl) {
+    fn format_interface_decl(&mut self, item: &InterfaceDecl) {
+        self.format_target_directive(item.target.as_ref());
         self.format_visibility(item.visibility);
-        self.write("trait ");
+        self.write("interface ");
         self.write(&item.name);
         self.format_generics(&item.generics);
         self.write(" ");
@@ -170,8 +171,8 @@ impl Formatter {
 
     fn format_impl_decl(&mut self, item: &ImplDecl) {
         self.write("impl ");
-        if let Some(trait_ty) = &item.trait_ty {
-            self.format_type(trait_ty);
+        if let Some(interface_ty) = &item.interface_ty {
+            self.format_type(interface_ty);
             self.write(" for ");
         }
         self.format_type(&item.target_ty);

@@ -5,7 +5,7 @@ pub(super) fn type_symbol_kind_name(kind: TypeSymbolKind) -> &'static str {
         TypeSymbolKind::Alias => "type alias",
         TypeSymbolKind::Struct => "struct",
         TypeSymbolKind::Enum => "enum",
-        TypeSymbolKind::Trait => "trait",
+        TypeSymbolKind::Interface => "interface",
     }
 }
 pub(super) fn binding_keyword(kind: BindingKind) -> &'static str {

@@ -515,7 +515,7 @@ fn abi_type_kind_from_symbol(
             }
             Ok(AbiTypeKind::Value(AbiType::Struct(fields)))
         }
-        TypeSymbolKind::Enum | TypeSymbolKind::Trait => {
+        TypeSymbolKind::Enum | TypeSymbolKind::Interface => {
             Err(AbiTypeError::UnsupportedType(symbol.canonical_name.clone()))
         }
     })();

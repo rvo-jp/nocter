@@ -253,8 +253,8 @@ Rules:
 - A `drop` member has the source form `drop name: &+Self { ... }`.
 - The binding name after `drop` is ordinary and scoped to the drop body.
 - The drop binding type must be exactly `&+Self`.
-- A `drop` member can appear only in an inherent `impl Type` block. Trait
-  declarations and trait implementations are deferred after v0.
+- A `drop` member can appear only in an inherent `impl Type` block. Interface
+  conformance declarations cannot contain `drop` members or method bodies.
 - A `drop` member has no return type annotation.
 - A `drop` member always returns no value.
 - A `drop` member cannot be fallible.

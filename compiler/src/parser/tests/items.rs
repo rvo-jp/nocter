@@ -106,7 +106,7 @@ func main(): i32 {
     let Item::Impl(inherent_impl) = &ast.items[2] else {
         panic!("expected inherent impl");
     };
-    assert!(inherent_impl.trait_ty.is_none());
+    assert!(inherent_impl.interface_ty.is_none());
     assert!(matches!(
         &inherent_impl.target_ty,
         TypeExpr::Reference(reference) if reference.name == "Counter"
@@ -135,27 +135,115 @@ func main(): i32 {
 }
 
 #[test]
-fn rejects_trait_declarations_in_v0() {
+fn parses_interface_declarations() {
+    let output = parse_text(
+        r#"pub interface Writer {
+    pub method (writer: &+Self).write(text: &str): void!
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Interface(interface) = &ast.items[0] else {
+        panic!("expected interface declaration");
+    };
+    assert_eq!(interface.visibility, Visibility::Public);
+    assert_eq!(interface.name, "Writer");
+    assert_eq!(interface.methods.len(), 1);
+    assert_eq!(interface.methods[0].visibility, Visibility::Public);
+    assert_eq!(interface.methods[0].name, "write");
+    assert!(interface.methods[0].body.is_none());
+}
+
+#[test]
+fn rejects_trait_declarations() {
     let output = parse_text(
         r#"pub trait Writer {
+    pub method (writer: &+Self).write(text: &str): void!
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(output.diagnostics[0].message.contains("has been removed"));
+}
+
+#[test]
+fn rejects_private_interface_methods() {
+    let output = parse_text(
+        r#"interface Writer {
     method (writer: &+Self).write(text: &str): void!
 }
 "#,
     );
 
     assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
-    assert!(output.diagnostics[0].message.contains("deferred after v0"));
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("must be marked `pub`")
+    );
 }
 
 #[test]
-fn rejects_trait_impls_in_v0() {
+fn rejects_interface_method_bodies() {
     let output = parse_text(
-        r#"struct Counter {
+        r#"interface Writer {
+    pub method (writer: &+Self).write(text: &str): void! {
+        return
+    }
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(output.diagnostics[0].message.contains("cannot have bodies"));
+}
+
+#[test]
+fn parses_interface_conformance_impls() {
+    let output = parse_text(
+        r#"interface Writer {
+    pub method (writer: &+Self).write(text: &str): void!
+}
+
+struct Counter {
+    value: i32
+}
+
+impl Writer for Counter
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Impl(interface_impl) = &ast.items[2] else {
+        panic!("expected interface impl");
+    };
+    assert!(
+        matches!(&interface_impl.interface_ty, Some(TypeExpr::Reference(reference)) if reference.name == "Writer")
+    );
+    assert!(matches!(
+        &interface_impl.target_ty,
+        TypeExpr::Reference(reference) if reference.name == "Counter"
+    ));
+    assert!(interface_impl.members.is_empty());
+}
+
+#[test]
+fn rejects_members_in_interface_conformance_impls() {
+    let output = parse_text(
+        r#"interface Writer {
+    pub method (writer: &+Self).write(text: &str): void!
+}
+
+struct Counter {
     value: i32
 }
 
 impl Writer for Counter {
-    method (counter: &+Self).write(text: &str): void! {
+    pub method (counter: &+Self).write(text: &str): void! {
         return
     }
 }
@@ -166,7 +254,7 @@ impl Writer for Counter {
     assert!(
         output.diagnostics[0]
             .message
-            .contains("trait implementations")
+            .contains("cannot contain members")
     );
 }
 
@@ -419,6 +507,11 @@ pub(nocter) copy struct SyscallResult {
 pub(nocter) enum PlatformError {
     interrupted
 }
+
+#target("arm64-darwin")
+pub(nocter) interface PlatformContract {
+    pub method (value: &Self).code(): i32
+}
 "#,
     );
 
@@ -432,6 +525,9 @@ pub(nocter) enum PlatformError {
     };
     let Item::Enum(enum_) = &ast.items[2] else {
         panic!("expected enum declaration");
+    };
+    let Item::Interface(interface) = &ast.items[3] else {
+        panic!("expected interface declaration");
     };
     assert_eq!(
         alias
@@ -451,6 +547,14 @@ pub(nocter) enum PlatformError {
     );
     assert_eq!(
         enum_
+            .target
+            .as_ref()
+            .expect("expected target directive")
+            .target,
+        "arm64-darwin"
+    );
+    assert_eq!(
+        interface
             .target
             .as_ref()
             .expect("expected target directive")

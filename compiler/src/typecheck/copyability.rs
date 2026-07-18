@@ -126,7 +126,7 @@ fn type_symbol_is_copy(
                 type_is_copy_inner(&target_type, resolved, resolving_names)
             })
         }),
-        TypeSymbolKind::Trait => false,
+        TypeSymbolKind::Interface => false,
     };
 
     resolving_names.remove(&symbol.canonical_name);

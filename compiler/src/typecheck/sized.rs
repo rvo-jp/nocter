@@ -6,8 +6,8 @@ use super::model::Type;
 use super::type_expr::type_expr_to_type_with_self_type;
 use super::{copyability::type_expr_is_copy, diagnostics::copy_struct_field_not_copy_diagnostic};
 use crate::ast::{
-    AstFile, FunctionDecl, ImplDecl, ImplMember, Item, MethodDecl, Parameter, PrimitiveDecl,
-    TraitDecl,
+    AstFile, FunctionDecl, ImplDecl, ImplMember, InterfaceDecl, Item, MethodDecl, Parameter,
+    PrimitiveDecl,
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
@@ -69,8 +69,8 @@ pub(super) fn check_sized_value_types(
                     }
                 }
             }
-            Item::Trait(trait_) => {
-                check_trait(sources, trait_, resolved, diagnostics);
+            Item::Interface(interface) => {
+                check_interface(sources, interface, resolved, diagnostics);
             }
             Item::Impl(impl_) => {
                 check_impl(sources, impl_, resolved, diagnostics);
@@ -132,14 +132,14 @@ fn check_primitive(
     );
 }
 
-fn check_trait(
+fn check_interface(
     sources: &SourceMap,
-    trait_: &TraitDecl,
+    interface: &InterfaceDecl,
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for method in &trait_.methods {
-        let prefix = format!("trait method `{}.{}`", trait_.name, method.name);
+    for method in &interface.methods {
+        let prefix = format!("interface method `{}.{}`", interface.name, method.name);
         check_method_with_prefix(sources, method, &prefix, resolved, None, diagnostics);
     }
 }

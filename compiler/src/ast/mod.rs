@@ -23,7 +23,7 @@ pub enum Item {
     TypeAlias(TypeAliasDecl),
     Struct(StructDecl),
     Enum(EnumDecl),
-    Trait(TraitDecl),
+    Interface(InterfaceDecl),
     Impl(ImplDecl),
 }
 
@@ -169,9 +169,10 @@ pub struct EnumVariant {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TraitDecl {
+pub struct InterfaceDecl {
     pub span: ByteSpan,
     pub visibility: Visibility,
+    pub target: Option<TargetDirective>,
     pub name: String,
     pub name_span: ByteSpan,
     pub generics: GenericParamList,
@@ -181,7 +182,7 @@ pub struct TraitDecl {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImplDecl {
     pub span: ByteSpan,
-    pub trait_ty: Option<TypeExpr>,
+    pub interface_ty: Option<TypeExpr>,
     pub target_ty: TypeExpr,
     pub members: Vec<ImplMember>,
 }
@@ -738,7 +739,7 @@ impl Item {
             Item::TypeAlias(item) => item.span,
             Item::Struct(item) => item.span,
             Item::Enum(item) => item.span,
-            Item::Trait(item) => item.span,
+            Item::Interface(item) => item.span,
             Item::Impl(item) => item.span,
         }
     }

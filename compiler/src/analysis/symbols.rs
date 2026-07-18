@@ -1,7 +1,7 @@
 //! Document outline symbols derived from the parsed AST.
 
 use super::single_file::parse_single_file_text;
-use crate::ast::{AstFile, ImplMember, Item, MethodDecl};
+use crate::ast::{AstFile, ImplDecl, ImplMember, Item, MethodDecl};
 use crate::source::ByteSpan;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -100,18 +100,22 @@ fn item_document_symbol(text: &str, item: &Item) -> Option<DocumentSymbolInfo> {
                 })
                 .collect(),
         )),
-        Item::Trait(trait_) => Some(document_symbol(
-            trait_.name.clone(),
+        Item::Interface(interface) => Some(document_symbol(
+            interface.name.clone(),
             DocumentSymbolKind::Interface,
-            trait_.span,
-            trait_.name_span,
-            trait_.methods.iter().map(method_document_symbol).collect(),
+            interface.span,
+            interface.name_span,
+            interface
+                .methods
+                .iter()
+                .map(method_document_symbol)
+                .collect(),
         )),
         Item::Impl(impl_) => Some(document_symbol(
-            format!("impl {}", source_fragment(text, impl_.target_ty.span())),
+            impl_document_symbol_name(text, impl_),
             DocumentSymbolKind::Class,
             impl_.span,
-            impl_.target_ty.span(),
+            impl_document_symbol_selection_span(impl_),
             impl_
                 .members
                 .iter()
@@ -142,6 +146,25 @@ fn method_document_symbol(method: &MethodDecl) -> DocumentSymbolInfo {
         method.name_span,
         Vec::new(),
     )
+}
+
+fn impl_document_symbol_name(text: &str, impl_: &ImplDecl) -> String {
+    if let Some(interface_ty) = &impl_.interface_ty {
+        return format!(
+            "impl {} for {}",
+            source_fragment(text, interface_ty.span()),
+            source_fragment(text, impl_.target_ty.span())
+        );
+    }
+
+    format!("impl {}", source_fragment(text, impl_.target_ty.span()))
+}
+
+fn impl_document_symbol_selection_span(impl_: &ImplDecl) -> ByteSpan {
+    impl_
+        .interface_ty
+        .as_ref()
+        .map_or(impl_.target_ty.span(), |interface_ty| interface_ty.span())
 }
 
 fn document_symbol(

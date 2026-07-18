@@ -226,9 +226,9 @@ impl TypecheckFactCollector<'_> {
                     self.collect_parameter_type_references(&variant.payload);
                 }
             }
-            Item::Trait(trait_) => {
-                self.collect_generic_param_type_references(&trait_.generics);
-                for method in &trait_.methods {
+            Item::Interface(interface) => {
+                self.collect_generic_param_type_references(&interface.generics);
+                for method in &interface.methods {
                     self.facts.declaration_hover_labels.insert(
                         method.name_span,
                         method_declaration_hover_label(method, self.resolved, None),
@@ -238,8 +238,8 @@ impl TypecheckFactCollector<'_> {
             }
             Item::Impl(impl_) => {
                 let self_type = impl_self_type(impl_, self.resolved);
-                if let Some(trait_ty) = &impl_.trait_ty {
-                    self.collect_type_expr_references(trait_ty);
+                if let Some(interface_ty) = &impl_.interface_ty {
+                    self.collect_type_expr_references(interface_ty);
                 }
                 self.collect_type_expr_references(&impl_.target_ty);
                 for member in &impl_.members {
@@ -285,7 +285,7 @@ impl TypecheckFactCollector<'_> {
             | Item::TypeAlias(_)
             | Item::Struct(_)
             | Item::Enum(_)
-            | Item::Trait(_) => {}
+            | Item::Interface(_) => {}
         }
     }
 

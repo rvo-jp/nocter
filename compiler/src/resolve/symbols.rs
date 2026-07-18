@@ -350,7 +350,7 @@ pub enum TypeSymbolKind {
     Alias,
     Struct,
     Enum,
-    Trait,
+    Interface,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

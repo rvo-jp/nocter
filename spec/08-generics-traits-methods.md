@@ -1,4 +1,4 @@
-# Generics and Methods
+# Generics, Interfaces, and Methods
 
 This file is part of the Nocter language specification.
 The specification entry point is [README.md](README.md).
@@ -6,25 +6,28 @@ The specification entry point is [README.md](README.md).
 ## v0 Scope
 
 Nocter v0 includes generic type parameters, associated functions, inherent
-`impl` blocks, receiver methods, and `Self` type syntax inside inherent member
-contexts.
+`impl` blocks, receiver methods, contract-only `interface` declarations,
+explicit interface conformance declarations, and `Self` type syntax inside
+inherent member and interface method contexts.
 
 Nocter v0 does not include traits.
 
-Deferred after v0:
+Not part of v0:
 
 - `trait` declarations
-- `impl Trait for Type`
-- generic bounds such as `T: Trait`
-- trait method lookup
-- trait objects such as `dyn Trait`
-- trait inheritance, associated types, default methods, blanket impls,
+- generic bounds such as `T: Interface`
+- interface-bound method lookup
+- interface objects such as `dyn Printable`
+- interface inheritance, associated types, default methods, blanket impls,
   specialization, and `where` clauses
+- code reuse through interfaces
 
 `trait` is not a reserved keyword in v0. It is lexed as an identifier. A source
-form that starts a top-level item with `trait` is diagnosed as a deferred
-feature, but the spelling remains available as an ordinary identifier in
+form that starts a top-level item with `trait` is diagnosed as removed syntax,
+but the spelling remains available as an ordinary identifier in
 positions such as a function name.
+
+`interface` is a reserved keyword.
 
 ## Impl Blocks
 
@@ -90,9 +93,24 @@ impl Int {
 // error: Int is a type alias, not a nominal type
 ```
 
-`impl Trait for Type` is not part of v0. The parser must diagnose this form as a
-deferred feature. If a concrete type should support a receiver call, define an
-inherent method on that concrete type.
+`impl Interface for Type` declares explicit conformance to an interface. It is
+not an inherent impl block and cannot contain members.
+
+```nct
+impl Printable for User
+impl Printable for User {}
+```
+
+The implementing methods are ordinary public inherent methods on the target
+type.
+
+```nct
+impl User {
+    pub method (user: &Self).print(): i32 {
+        return 0
+    }
+}
+```
 
 Initial receiver forms:
 
@@ -151,7 +169,7 @@ For `value.method(args)`, the compiler first determines the static type of
 If the receiver has a concrete nominal type, the compiler looks only for
 inherent methods declared in `impl Type` blocks for that nominal type.
 
-If the receiver is a generic type parameter, v0 has no trait-bound method lookup.
+If the receiver is a generic type parameter, v0 has no interface-bound method lookup.
 A method call through an unconstrained generic receiver is invalid unless a
 future feature supplies a bound and lookup rule.
 
@@ -160,7 +178,7 @@ Lookup order:
 1. inherent method on a concrete nominal receiver type
 2. no candidate, producing a compile error
 
-The compiler does not search visible trait implementations to resolve
+The compiler does not search visible interface conformance declarations to resolve
 `value.method(args)` in v0. This avoids import-dependent method lookup and keeps
 calls readable from the receiver type.
 
@@ -172,6 +190,62 @@ Initial implementation order:
 4. associated function calls such as `Type.function(...)`
 5. method declarations
 6. method calls such as `value.method(...)`
+
+## Interface Contracts
+
+An interface is a contract-only nominal declaration. It may be private,
+`pub`, or `pub(nocter)` like other top-level definitions. Every member inside
+an interface must be explicitly marked `pub`.
+
+```nct
+pub interface Printable {
+    pub method (value: &Self).print(): i32
+}
+```
+
+Rules:
+
+- Interface members are method signatures only.
+- Interface method signatures cannot have bodies.
+- Interface members cannot be private or `pub(nocter)`.
+- Interfaces cannot declare fields, associated functions, `drop` members,
+  default methods, associated types, or reusable code.
+- `Self` inside an interface method signature means the eventual conformance
+  target type for structural checking.
+- An interface conformance declaration is written `impl Interface for Type`.
+- A conformance declaration may omit `{}` or use an empty `{}` body.
+- A conformance declaration body cannot contain members.
+- The conformance target must be a nominal `struct` or `enum`.
+- Typechecking verifies that the target has a public inherent method with the
+  same name and signature for every interface method.
+- Method parameter names do not participate in conformance. Receiver type,
+  parameter types, and return type do.
+- Conformance is explicit. A type with matching methods does not satisfy an
+  interface unless source contains `impl Interface for Type`.
+
+Example:
+
+```nct
+interface Reader {
+    pub method (reader: &+Self).read_byte(): i32!
+}
+
+struct File {
+    fd: i32
+}
+
+impl File {
+    pub method (file: &+Self).read_byte(): i32! {
+        ...
+    }
+}
+
+impl Reader for File
+```
+
+This model prevents accidental conformance while keeping the contract check
+structural. It also keeps code reuse out of v0: interface declarations describe
+requirements only.
 
 ## Generics
 
@@ -195,7 +269,7 @@ GenericParameter  = Name
 ```
 
 Generic bounds are deferred after v0. The parser must diagnose a generic
-parameter colon such as `T: Format` as a deferred feature.
+parameter colon such as `T: Printable` as a deferred feature.
 
 Generic implementation uses monomorphization. Each concrete instantiation is
 compiled as concrete code.
@@ -217,25 +291,23 @@ Initial generic scope:
 
 Deferred generic features:
 
-- inline bounds such as `T: Trait`
+- inline bounds such as `T: Printable`
 - multiple bounds such as `T: A + B`
 - full `where` clauses
 - higher-kinded types
 - generic associated types
 - const generics beyond the minimum needed for fixed-size arrays
 
-## Future Trait Direction
+## Future Code Reuse Direction
 
-Traits remain a possible post-v0 feature, but they are not part of the v0
-contract. A future trait design must specify at least:
+Interfaces do not provide code reuse in v0. Any future code reuse design must
+be separate from interface conformance and must specify at least:
 
-- declaration syntax
-- implementation syntax
-- coherence rules
-- method lookup interaction with inherent methods
-- generic bound checking
+- declaration syntax for reusable code
+- whether reusable code may depend on interface contracts
+- interaction with inherent methods
+- generic checking rules
 - LSP hover, semantic token, completion, and diagnostic facts
-- backend dispatch model, including whether dispatch is static only or includes
-  explicit dynamic dispatch
+- backend lowering model
 
 Class inheritance is not part of the core language direction.

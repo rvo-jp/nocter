@@ -8,11 +8,10 @@ use super::diagnostics::{
 use super::signatures::{
     alias_type_symbol, associated_function_signature, drop_signature,
     duplicate_inherent_drop_diagnostics, duplicate_inherent_member_name_diagnostics,
-    enum_type_symbol, function_signature, impl_target_type_name, method_signatures,
-    nominal_type_symbol, primitive_signature, struct_type_symbol,
-    type_symbol_accepts_inherent_impl,
+    enum_type_symbol, function_signature, impl_target_type_name, interface_type_symbol,
+    method_signatures, primitive_signature, struct_type_symbol, type_symbol_accepts_inherent_impl,
 };
-use super::{Resolver, SymbolKind, TypeSymbol, TypeSymbolKind};
+use super::{Resolver, SymbolKind, TypeSymbol};
 use crate::ast::{
     AstFile, EnumDecl, EnumVariant, FunctionDecl, GenericParamList, ImplDecl, Item, Parameter,
     PrimitiveDecl, StructDecl,
@@ -111,19 +110,19 @@ impl Resolver<'_> {
                         enum_type_symbol(enum_.name.clone(), &enum_.variants),
                     );
                 }
-                Item::Trait(trait_) => {
+                Item::Interface(interface) => {
                     self.output
                         .diagnostics
                         .extend(duplicate_generic_param_name_diagnostics(
                             self.sources,
-                            &format!("trait `{}`", trait_.name),
-                            &trait_.generics,
+                            &format!("interface `{}`", interface.name),
+                            &interface.generics,
                         ));
                     self.collect_type_symbol(
-                        trait_.name.clone(),
-                        trait_.name_span,
-                        trait_.span,
-                        nominal_type_symbol(trait_.name.clone(), TypeSymbolKind::Trait),
+                        interface.name.clone(),
+                        interface.name_span,
+                        interface.span,
+                        interface_type_symbol(interface),
                     );
                 }
                 Item::Impl(_) => {}
@@ -286,7 +285,7 @@ impl Resolver<'_> {
     }
 
     fn collect_inherent_impl_members(&mut self, impl_: &ImplDecl) {
-        if impl_.trait_ty.is_some() {
+        if impl_.interface_ty.is_some() {
             return;
         }
 

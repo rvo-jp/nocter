@@ -40,9 +40,9 @@ fn collect_item_targets(text: &str, item: &Item, targets: &mut Vec<Documentation
                 push_target(text, variant.span, targets);
             }
         }
-        Item::Trait(trait_) => {
-            push_target(text, trait_.span, targets);
-            for method in &trait_.methods {
+        Item::Interface(interface) => {
+            push_target(text, interface.span, targets);
+            for method in &interface.methods {
                 push_target(text, method.span, targets);
             }
         }

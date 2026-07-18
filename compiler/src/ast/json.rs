@@ -187,14 +187,15 @@ impl Item {
                     children,
                 )
             }
-            Item::Trait(item) => {
-                let mut children = vec![
+            Item::Interface(item) => {
+                let mut children = target_directive_json(item.target.as_ref(), sources);
+                children.extend([
                     visibility_json(item.visibility),
                     item.generics.to_json(sources),
-                ];
+                ]);
                 children.extend(item.methods.iter().map(|method| method.to_json(sources)));
                 JsonAstNode::with_value(
-                    "trait_decl",
+                    "interface_decl",
                     item.name.clone(),
                     json_span(sources, item.span),
                     children,
@@ -202,11 +203,11 @@ impl Item {
             }
             Item::Impl(item) => {
                 let mut children = Vec::new();
-                if let Some(trait_ty) = &item.trait_ty {
+                if let Some(interface_ty) = &item.interface_ty {
                     children.push(JsonAstNode::new(
-                        "trait_type",
-                        json_span(sources, trait_ty.span()),
-                        vec![trait_ty.to_json(sources)],
+                        "interface_type",
+                        json_span(sources, interface_ty.span()),
+                        vec![interface_ty.to_json(sources)],
                     ));
                 }
                 children.push(JsonAstNode::new(

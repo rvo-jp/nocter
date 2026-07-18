@@ -13,6 +13,7 @@ mod environments;
 mod expressions;
 mod facts;
 mod fallible;
+mod interfaces;
 mod model;
 mod numeric;
 mod operations;
@@ -31,6 +32,7 @@ use crate::source::SourceMap;
 use body::*;
 use drop_members::*;
 use entry::*;
+use interfaces::*;
 use ownership::*;
 use returns::*;
 use sized::*;
@@ -60,6 +62,7 @@ pub fn check_module(
 
     check_drop_members(sources, ast, resolved, &mut diagnostics);
     check_sized_value_types(sources, ast, resolved, &mut diagnostics);
+    check_interface_impls(sources, ast, resolved, &mut diagnostics);
     check_body_expressions(sources, ast, resolved, &mut diagnostics);
     check_ownership_states(sources, ast, resolved, &mut diagnostics);
     check_return_types(sources, ast, resolved, &mut diagnostics);

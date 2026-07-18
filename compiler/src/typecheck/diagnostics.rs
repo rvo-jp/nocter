@@ -5,6 +5,7 @@ mod control_flow;
 mod drop_members;
 mod entry;
 mod fallible;
+mod interfaces;
 mod members;
 mod operators;
 mod optional;
@@ -22,8 +23,8 @@ use super::model::{ReturnContext, Type};
 use super::type_expr::type_expr_display_lossy;
 use crate::ast::{
     AssignmentStmt, BinaryExpr, BindingKind, BindingStmt, Block, BorrowExpr, CallExpr, Expr,
-    ForRangeStmt, IfIsStmt, IfLetStmt, IndexExpr, InterpolatedStringExpression, MemberExpr,
-    OptionalDefaultExpr, PatternConditionalArm, PatternConditionalExpr, ReturnStmt,
+    ForRangeStmt, IfIsStmt, IfLetStmt, ImplDecl, IndexExpr, InterpolatedStringExpression,
+    MemberExpr, OptionalDefaultExpr, PatternConditionalArm, PatternConditionalExpr, ReturnStmt,
     StructLiteralExpr, StructLiteralField, SwitchArm, SwitchStmt, TypeConversionExpr, TypeExpr,
     UnaryExpr, WhileLetStmt,
 };
@@ -41,6 +42,7 @@ pub(super) use control_flow::*;
 pub(super) use drop_members::*;
 pub(super) use entry::*;
 pub(super) use fallible::*;
+pub(super) use interfaces::*;
 pub(super) use members::*;
 pub(super) use operators::*;
 pub(super) use optional::*;

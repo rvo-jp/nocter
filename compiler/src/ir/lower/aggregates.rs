@@ -71,7 +71,7 @@ fn type_expr_is_copy_struct_inner(
                     resolving_names.remove(&symbol.canonical_name);
                     is_copy
                 }
-                TypeSymbolKind::Enum | TypeSymbolKind::Trait => false,
+                TypeSymbolKind::Enum | TypeSymbolKind::Interface => false,
             }
         }
         TypeExpr::Fallible(fallible) => {
@@ -329,7 +329,7 @@ fn struct_field_signatures_from_type_expr<'a>(
                     let target = symbol.alias_target.as_ref()?;
                     struct_field_signatures_from_type_expr(target, resolved)
                 }
-                TypeSymbolKind::Enum | TypeSymbolKind::Trait => None,
+                TypeSymbolKind::Enum | TypeSymbolKind::Interface => None,
             }
         }
         TypeExpr::Fallible(fallible) => {
