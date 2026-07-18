@@ -155,6 +155,27 @@ func main(): i32 {
 }
 
 #[test]
+fn accepts_nested_generic_struct_literal_expression() {
+    let diagnostics = check_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+func main(): i32 {
+    let nested: Box<Box<i32>> = Box<Box<i32>>{
+        value: Box<i32>{
+            value: 1,
+        },
+    }
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn uses_generic_struct_field_type_for_return_checking() {
     let diagnostics = check_text(
         r#"struct Box<T> {
@@ -389,6 +410,30 @@ func main(): i32 {
     assert_eq!(diagnostics[0].code, "E0376");
     assert!(diagnostics[0].message.contains("&str"));
     assert!(diagnostics[0].message.contains("i32"));
+}
+
+#[test]
+fn diagnoses_nested_generic_struct_literal_field_type_mismatch() {
+    let diagnostics = check_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+func main(): i32 {
+    let nested = Box<Box<i32>>{
+        value: Box<&str>{
+            value: "bad",
+        },
+    }
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0376");
+    assert!(diagnostics[0].message.contains("Box<&str>"));
+    assert!(diagnostics[0].message.contains("Box<i32>"));
 }
 
 #[test]

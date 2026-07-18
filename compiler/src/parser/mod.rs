@@ -34,6 +34,7 @@ pub fn parse(sources: &SourceMap, source: SourceId, tokens: &[Token]) -> ParseOu
         source,
         tokens,
         index: 0,
+        pending_token: None,
         diagnostics: Vec::new(),
     };
 
@@ -56,6 +57,7 @@ struct Parser<'a> {
     source: SourceId,
     tokens: &'a [Token],
     index: usize,
+    pending_token: Option<Token>,
     diagnostics: Vec<Diagnostic>,
 }
 

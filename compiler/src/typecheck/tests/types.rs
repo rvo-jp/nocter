@@ -476,6 +476,26 @@ func main(): i32 {
 }
 
 #[test]
+fn accepts_nested_generic_type_arguments() {
+    let diagnostics = check_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+struct Holder {
+    value: Box<Box<i32>>
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_type_arguments_on_generic_parameter() {
     let diagnostics = check_text(
         r#"struct Box<T> {

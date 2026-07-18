@@ -566,6 +566,7 @@ impl Parser<'_> {
             source: span.source,
             tokens: &lexed.tokens,
             index: 0,
+            pending_token: None,
             diagnostics: Vec::new(),
         };
         parser.skip_newlines();

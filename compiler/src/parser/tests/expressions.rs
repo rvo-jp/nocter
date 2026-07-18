@@ -348,6 +348,44 @@ func main(): i32 {
 }
 
 #[test]
+fn parses_nested_generic_struct_literal_expression() {
+    let output = parse_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+func main(): i32 {
+    let nested = Box<Box<i32>>{
+        value: Box<i32>{
+            value: 1,
+        },
+    }
+    return 0
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[1] else {
+        panic!("expected function item");
+    };
+    let Stmt::Binding(binding) = &function.body.statements[0] else {
+        panic!("expected binding statement");
+    };
+    let Expr::StructLiteral(literal) = &binding.initializer else {
+        panic!("expected struct literal");
+    };
+    let TypeExpr::Generic(outer) = &literal.ty else {
+        panic!("expected generic struct literal type");
+    };
+    assert_eq!(outer.name, "Box");
+    assert_eq!(outer.arguments.len(), 1);
+    assert!(matches!(outer.arguments[0], TypeExpr::Generic(_)));
+    assert_eq!(literal.fields.len(), 1);
+}
+
+#[test]
 fn parses_index_expression() {
     let output = parse_text(
         r#"func main(): i32 {

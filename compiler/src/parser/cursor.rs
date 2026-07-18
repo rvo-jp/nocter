@@ -55,6 +55,22 @@ impl Parser<'_> {
         punctuation: &str,
         expected: &str,
     ) -> ParseResult<Token> {
+        if punctuation == ">"
+            && matches!(self.current().kind, TokenKind::Punctuation(">>"))
+            && self.pending_token.is_none()
+        {
+            let token = self.bump();
+            let first = Token {
+                kind: TokenKind::Punctuation(">"),
+                span: self.span(token.span.start, token.span.start + 1),
+            };
+            self.pending_token = Some(Token {
+                kind: TokenKind::Punctuation(">"),
+                span: self.span(token.span.start + 1, token.span.end),
+            });
+            return Ok(first);
+        }
+
         if self.at_punctuation(punctuation) {
             return Ok(self.bump());
         }
@@ -215,15 +231,12 @@ impl Parser<'_> {
     }
 
     pub(super) fn next_is_identifier(&self) -> bool {
-        matches!(
-            self.tokens.get(self.index + 1).map(|token| token.kind),
-            Some(TokenKind::Identifier)
-        )
+        matches!(self.token_kind_at_offset(1), Some(TokenKind::Identifier))
     }
 
     pub(super) fn next_is_punctuation(&self, punctuation: &str) -> bool {
         matches!(
-            self.tokens.get(self.index + 1).map(|token| token.kind),
+            self.token_kind_at_offset(1),
             Some(TokenKind::Punctuation(actual)) if actual == punctuation
         )
     }
@@ -247,6 +260,16 @@ impl Parser<'_> {
                 }
                 Some(TokenKind::Punctuation(">")) => {
                     depth = depth.saturating_sub(1);
+                    index += 1;
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                Some(TokenKind::Punctuation(">>")) => {
+                    if depth < 2 {
+                        return false;
+                    }
+                    depth -= 2;
                     index += 1;
                     if depth == 0 {
                         break;
@@ -314,17 +337,25 @@ impl Parser<'_> {
 
     pub(super) fn skip_newlines(&mut self) {
         while self.current().kind == TokenKind::Newline {
-            self.index += 1;
+            self.bump();
         }
     }
 
     pub(super) fn current(&self) -> &Token {
+        if let Some(token) = &self.pending_token {
+            return token;
+        }
+
         self.tokens
             .get(self.index)
             .unwrap_or_else(|| self.tokens.last().expect("parser requires an EOF token"))
     }
 
     pub(super) fn bump(&mut self) -> Token {
+        if let Some(token) = self.pending_token.take() {
+            return token;
+        }
+
         let token = self.current().clone();
         if !self.at_eof() {
             self.index += 1;
@@ -342,6 +373,20 @@ impl Parser<'_> {
             .and_then(|file| file.text().get(token.span.start..token.span.end))
             .unwrap_or("")
             .to_string()
+    }
+
+    fn token_kind_at_offset(&self, offset: usize) -> Option<TokenKind> {
+        if self.pending_token.is_some() {
+            if offset == 0 {
+                return self.pending_token.as_ref().map(|token| token.kind);
+            }
+            return self
+                .tokens
+                .get(self.index + offset - 1)
+                .map(|token| token.kind);
+        }
+
+        self.tokens.get(self.index + offset).map(|token| token.kind)
     }
 
     pub(super) fn error_current(&mut self, message: impl Into<String>) {
