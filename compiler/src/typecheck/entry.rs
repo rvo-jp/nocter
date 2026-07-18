@@ -46,6 +46,7 @@ pub(super) fn is_valid_entry_return_type(ty: &TypeExpr, resolved: &ResolveOutput
 fn is_valid_entry_return_model_type(ty: &Type) -> bool {
     match ty {
         Type::I32 | Type::Void => true,
+        Type::Primitive(name) if name == "usize" => true,
         Type::Fallible { success, .. } => is_valid_entry_return_model_type(success),
         _ => false,
     }

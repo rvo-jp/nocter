@@ -11,7 +11,7 @@ pub(in crate::typecheck) fn missing_entry_function_diagnostic(
     );
     diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
     diagnostic.help = Some(format!(
-        "add `func {entry_name}(): i32! {{ ... }}`, `func {entry_name}(): i32 {{ ... }}`, `func {entry_name}(): void! {{ ... }}`, or `func {entry_name}(): void {{ ... }}`"
+        "add `func {entry_name}(): i32! {{ ... }}`, `func {entry_name}(): i32 {{ ... }}`, `func {entry_name}(): usize! {{ ... }}`, `func {entry_name}(): usize {{ ... }}`, `func {entry_name}(): void! {{ ... }}`, or `func {entry_name}(): void {{ ... }}`"
     ));
     diagnostic
 }
@@ -24,12 +24,12 @@ pub(in crate::typecheck) fn invalid_entry_function_diagnostic(
     let mut diagnostic = Diagnostic::error(
         "E0303",
         format!(
-            "entry function `{entry_name}` must have no parameters and return `i32!`, `i32`, `void!`, or `void` in v0"
+            "entry function `{entry_name}` must have no parameters and return `i32!`, `i32`, `usize!`, `usize`, `void!`, or `void` in v0"
         ),
     );
     diagnostic.primary_span = sources.span_to_json(function_span).ok().map(Box::new);
     diagnostic.help = Some(format!(
-        "use `func {entry_name}(): i32!`, `func {entry_name}(): i32`, `func {entry_name}(): void!`, or `func {entry_name}(): void`"
+        "use `func {entry_name}(): i32!`, `func {entry_name}(): i32`, `func {entry_name}(): usize!`, `func {entry_name}(): usize`, `func {entry_name}(): void!`, or `func {entry_name}(): void`"
     ));
     diagnostic
 }

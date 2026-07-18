@@ -147,7 +147,7 @@ The front end can parse and type-check more Nocter syntax than the backend can l
 Currently buildable:
 
 - root-file `main` or `--entry <name>`
-- entry return types `i32`, `i32!`, and `void`
+- entry return types `i32`, `usize`, `i32!`, `usize!`, `void`, and `void!`
 - literal `i32` returns
 - immutable local `let` bindings whose initializer is lowerable as `i32`, annotated `usize`, `bool`, or annotated `&str`
 - `void` entry with an empty body or bare `return`
@@ -166,11 +166,12 @@ Currently buildable:
 - same-file and loaded imported non-generic normal calls returning `&str` in annotated `&str` `let` initializers and as `&str` call or tail-call arguments, with results staged into two local ABI words
 - normal calls across scalar `i32`/`usize`/`bool`, local and readonly parameter scalar borrow, `&str`, slices, and supported aggregate arguments, including ABI words after `x7` passed through the caller stack argument area
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
-- non-entry functions returning `bool`, `usize`, or direct `&str` literal/parameter/local/tail-call values
+- functions returning `usize` literal/local/call/arithmetic/shift values in lowerable positions
+- non-entry functions returning `bool` or direct `&str` literal/parameter/local/tail-call values
 - `i32` arithmetic with `+`, `-`, `*`, `/`, and `%` used in lowerable `i32` expressions; addition, subtraction, and multiplication trap on signed overflow, and division and remainder trap on zero divisors and signed division overflow
 - `i32` shifts with `<<` and `>>` used in lowerable `i32` expressions; shift counts trap when negative or greater than or equal to 32
 - bool `!`, `&&`, `||`, bool equality/inequality over literal/local operands, and `i32` or `usize` comparisons used in lowerable bool expressions
-- terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over literal/local operands, or `i32`/`usize` comparison conditions and supported leading bindings, assignments, explicit `drop`, or void call statements before direct or nested terminal branches returning entry `i32`/`void`, or non-entry `i32`, `u8`, `usize`, `bool`, `void`, `&str`, u8 slices, or supported aggregate return expressions, including direct aggregate branches staged across pending drops
+- terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over literal/local operands, or `i32`/`usize` comparison conditions and supported leading bindings, assignments, explicit `drop`, or void call statements before direct or nested terminal branches returning entry `i32`/`usize`/`void`, or non-entry `i32`, `u8`, `usize`, `bool`, `void`, `&str`, u8 slices, or supported aggregate return expressions, including direct aggregate branches staged across pending drops
 - non-terminal `if`, `while`, and `loop` statements before a final return, when branches/bodies contain supported local bindings, branch/body-local assignments, outer whole-binding scalar/view local assignments, branch/body-local explicit aggregate drops, void call statements, supported returns, supported `while`/`loop` `break`/`continue`, or nested supported non-terminal `if`/`while`/`loop` statements; branch/body-local aggregate values with drop glue are dropped at scope end, before supported return exits, and before supported loop exits, lowerable `while` condition instructions are re-evaluated at the loop head, and source `loop` lowers as an always-true loop
 - non-entry `never` functions that end with a lowerable call returning `never`; frame-dependent, aggregate-pointer, or stack-passed `never` calls lower as normal calls followed by a trap guard
 - the `std/os.trap` and `std/os.unreachable` target primitives as ARM64 `brk #0`
@@ -385,7 +386,7 @@ Initial grammar coverage:
 - `pub use std/string.String`
 - `use std/io.File as StdFile`
 - `use std/io as io`
-- `func main(): i32! { ... }`, plus infallible `func main(): i32 { ... }`, `func main(): void { ... }`, and custom `--entry <name>` functions
+- `func main(): i32! { ... }` and `func main(): usize! { ... }`, plus infallible `func main(): i32 { ... }`, `func main(): usize { ... }`, `func main(): void { ... }`, and custom `--entry <name>` functions
 - `func name(...): Type { ... }`
 - `func Type.name(...): Type { ... }`
 - `impl Type { method ... drop ... }`
@@ -451,7 +452,7 @@ Current semantic coverage:
 - executable root has the active entry function, defaulting to `main`
 - entry selection through `--entry <name>` validates the selected top-level function
 - executable root has exactly one active entry function
-- entry return type is `i32!`, `i32`, or `void`
+- entry return type is `i32!`, `i32`, `usize!`, `usize`, `void!`, or `void`
 - relative imports starting with `./` or `../` are loaded recursively and lexed/parsed before semantic checks run
 - `use ./path.name` resolves imported top-level `func`, `primitive`, `type`, `struct`, and `enum` declarations
 - imported `func` and `primitive` signatures are used for direct call checking
@@ -642,10 +643,10 @@ Milestone grouping:
 10. name resolution and visibility
 11. basic type checking
 12. Nocter ABI v0 data layout for primitives, pointers, borrows, structs, enums, `T?`, and adopted `T!`
-13. executable entry validation, allowing `i32!`, `i32`, and `void` entry return types
+13. executable entry validation, allowing `i32!`, `i32`, `usize!`, `usize`, `void!`, and `void` entry return types
 14. ARM64 instruction encoder
 15. minimal Mach-O writer
-16. compile a `func main(): i32!` / `func main(): i32` returning a constant
+16. compile a `func main(): i32!` / `func main(): i32` / `func main(): usize` returning a constant
 17. string literal placement
 18. Nocter ABI v0 function call and return lowering
 19. statement control flow: `if`, `match`, `while`, `loop`, range `for`, `break`, `continue`

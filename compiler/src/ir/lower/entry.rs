@@ -3,7 +3,7 @@ use super::context::{ErrorPayloads, FunctionNames, FunctionSignatures, LoweringC
 use super::control_flow::{
     lower_nonterminal_if_statement, lower_nonterminal_loop_statement,
     lower_nonterminal_while_statement, lower_terminal_i32_if_statement,
-    lower_terminal_void_if_statement,
+    lower_terminal_usize_if_statement, lower_terminal_void_if_statement,
 };
 use super::expressions::{
     lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
@@ -83,7 +83,7 @@ fn lower_entry_return_type(
 
 fn entry_return_type_is_supported(ty: &Type) -> bool {
     match ty {
-        Type::I32 | Type::Void => true,
+        Type::I32 | Type::Usize | Type::Void => true,
         Type::Fallible(success) => entry_return_type_is_supported(success),
         _ => false,
     }
@@ -92,7 +92,7 @@ fn entry_return_type_is_supported(ty: &Type) -> bool {
 fn unsupported_entry_return_type_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8001",
-        "IR v0 can only lower entry function return type `i32`, `i32!`, `void`, or `void!`",
+        "IR v0 can only lower entry function return type `i32`, `usize`, `i32!`, `usize!`, `void`, or `void!`",
     )]
 }
 
@@ -153,6 +153,24 @@ fn lower_entry_body(
         }
         Stmt::If(statement) if success_type == &Type::I32 => {
             let branch_instructions = lower_terminal_i32_if_statement(
+                statement,
+                &context,
+                return_type,
+                "E8002",
+                "entry functions",
+                sources,
+            )
+            .map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, statement.span)
+            })?;
+            instructions.extend(mark_fallible_success_returns(
+                return_type,
+                branch_instructions,
+            ));
+            Ok(instructions)
+        }
+        Stmt::If(statement) if success_type == &Type::Usize => {
+            let branch_instructions = lower_terminal_usize_if_statement(
                 statement,
                 &context,
                 return_type,

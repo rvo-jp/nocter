@@ -310,6 +310,25 @@ func size(): usize {
 }
 
 #[test]
+fn build_command_lowers_usize_entry_return() {
+    let project = TempProject::new("cli-build-usize-entry-return");
+    let source = project.write_source(
+        "usize_entry_return.nct",
+        r#"func main(): usize {
+    let value: usize = 23
+    return value
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_usize_terminal_if_function() {
     let project = TempProject::new("cli-build-usize-terminal-if-function");
     let source = project.write_source(

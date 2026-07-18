@@ -175,6 +175,29 @@ func main(): Exit {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_usize_entry_exit_code() {
+    let project = TempProject::new("cli-run-usize-entry-return");
+    let source = project.write_source(
+        "usize_entry_return.nct",
+        r#"func main(): usize {
+    return 23
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(23),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_uses_alias_view_signature_for_call_arguments() {
     let project = TempProject::new("cli-run-alias-view-signature-call");
     let source = project.write_source(
@@ -6900,6 +6923,29 @@ fn run_command_returns_fallible_entry_success_exit_code() {
     assert_eq!(
         output.status.code(),
         Some(19),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_fallible_usize_entry_success_exit_code() {
+    let project = TempProject::new("cli-run-fallible-usize-success");
+    let source = project.write_source(
+        "exit_usize_29.nct",
+        r#"func main(): usize! {
+    return 29
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(29),
         "stdout:\n{}\nstderr:\n{}",
         text(&output.stdout),
         text(&output.stderr)

@@ -752,13 +752,16 @@ impl EntryEmitter {
             Type::I32 => {
                 self.encoder.emit_mov_w(WReg::W0, WReg::W1);
             }
+            Type::Usize => {
+                self.encoder.emit_mov_x(XReg::X0, XReg::X1);
+            }
             Type::Void => {
                 emit_mov_i32_to_w0(&mut self.encoder, 0);
             }
             _ => {
                 return Err(vec![Diagnostic::error(
                     "E9002",
-                    "codegen only supports `i32!` and `void!` executable entry returns",
+                    "codegen only supports `i32!`, `usize!`, and `void!` executable entry returns",
                 )]);
             }
         }
@@ -2463,6 +2466,27 @@ mod tests {
                 0xc0, 0x03, 0x5f, 0xd6, // ret
             ]
         );
+    }
+
+    #[test]
+    fn generates_exit_code_for_fallible_success_return_usize() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Fallible(Box::new(Type::Usize)),
+            instructions: vec![set_return_usize(7), Instruction::ReturnFallibleSuccess],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_mov_x(XReg::X1, XReg::X0)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_mov_x(XReg::X0, XReg::X1)
+        ));
     }
 
     #[test]
@@ -6074,6 +6098,13 @@ mod tests {
         Instruction::SetI32 {
             destination: I32Location::Return,
             value: i32_const(value),
+        }
+    }
+
+    fn set_return_usize(value: u64) -> Instruction {
+        Instruction::SetUsize {
+            destination: UsizeLocation::Return,
+            value: usize_const(value),
         }
     }
 

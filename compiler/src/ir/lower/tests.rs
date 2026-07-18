@@ -37,6 +37,54 @@ fn lowers_entry_returning_i32_literal() {
 }
 
 #[test]
+fn lowers_entry_returning_usize_literal() {
+    let ir = lower_text(
+        r#"func main(): usize {
+    return 42
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Usize,
+            instructions: vec![set_return_usize(42), Instruction::Return],
+        }])
+    );
+}
+
+#[test]
+fn lowers_entry_usize_terminal_if_return() {
+    let ir = lower_text(
+        r#"func main(): usize {
+    if true {
+        return 7
+    } else {
+        return 9
+    }
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Usize,
+            instructions: vec![Instruction::If {
+                condition: BoolValue::Const(true),
+                then_instructions: vec![set_return_usize(7), Instruction::Return],
+                else_instructions: vec![set_return_usize(9), Instruction::Return],
+            }],
+        }])
+    );
+}
+
+#[test]
 fn lowers_entry_i32_let_binding_then_return() {
     let ir = lower_text(
         r#"func main(): i32 {
