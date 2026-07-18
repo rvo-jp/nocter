@@ -18,6 +18,7 @@ mod interfaces;
 mod model;
 mod numeric;
 mod operations;
+mod optional_projections;
 mod ownership;
 mod returns;
 mod sized;

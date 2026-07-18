@@ -94,6 +94,37 @@ fn parses_assignment_and_compound_assignment_statements() {
 }
 
 #[test]
+fn parses_parenthesized_assignment_target() {
+    let output = parse_text(
+        r#"func main(): i32 {
+    var count = 0
+    (count) = 1
+    (stats.lines) += 1
+    return count
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
+    };
+
+    let Stmt::Assignment(assign) = &function.body.statements[1] else {
+        panic!("expected assignment statement");
+    };
+    assert_eq!(assign.operator, AssignmentOperator::Assign);
+    assert!(matches!(assign.target, Expr::Group(_)));
+
+    let Stmt::Assignment(field_assign) = &function.body.statements[2] else {
+        panic!("expected field assignment statement");
+    };
+    assert_eq!(field_assign.operator, AssignmentOperator::AddAssign);
+    assert!(matches!(field_assign.target, Expr::Group(_)));
+}
+
+#[test]
 fn parses_drop_statement_without_reserving_drop_identifier() {
     let output = parse_text(
         r#"func main(): void {
@@ -137,6 +168,26 @@ fn rejects_non_place_assignment_target() {
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.message == "expected assignment target")
+    );
+}
+
+#[test]
+fn diagnoses_deferred_index_assignment_target() {
+    let output = parse_text(
+        r#"func main(): i32 {
+    bytes[0] = 1
+    rows[0].count += 1
+    return 0
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert!(
+        output
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message == "index assignment is deferred after v0")
     );
 }
 

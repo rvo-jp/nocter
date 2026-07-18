@@ -88,6 +88,79 @@ pub(in crate::typecheck) fn optional_let_else_fallthrough_diagnostic(
     diagnostic
 }
 
+pub(in crate::typecheck) fn optional_let_else_projection_binding_kind_diagnostic(
+    sources: &SourceMap,
+    statement: &BindingStmt,
+    is_readwrite: bool,
+) -> Diagnostic {
+    let keyword = binding_keyword(statement.kind);
+    let construct = format!("{keyword} ... else");
+    let mut diagnostic = Diagnostic::error(
+        "E0429",
+        optional_projection_binding_kind_message(&construct, is_readwrite),
+    );
+    diagnostic.primary_span = sources
+        .span_to_json(statement.initializer.span())
+        .ok()
+        .map(Box::new);
+    diagnostic.help = Some(optional_projection_binding_kind_help(is_readwrite));
+    diagnostic
+}
+
+pub(in crate::typecheck) fn optional_if_let_projection_binding_kind_diagnostic(
+    sources: &SourceMap,
+    statement: &IfLetStmt,
+    is_readwrite: bool,
+) -> Diagnostic {
+    let keyword = binding_keyword(statement.kind);
+    let construct = format!("if {keyword}");
+    let mut diagnostic = Diagnostic::error(
+        "E0429",
+        optional_projection_binding_kind_message(&construct, is_readwrite),
+    );
+    diagnostic.primary_span = sources
+        .span_to_json(statement.initializer.span())
+        .ok()
+        .map(Box::new);
+    diagnostic.help = Some(optional_projection_binding_kind_help(is_readwrite));
+    diagnostic
+}
+
+pub(in crate::typecheck) fn optional_while_let_projection_deferred_diagnostic(
+    sources: &SourceMap,
+    statement: &WhileLetStmt,
+) -> Diagnostic {
+    let keyword = binding_keyword(statement.kind);
+    let mut diagnostic = Diagnostic::error(
+        "E0430",
+        format!("borrowed optional projections in `while {keyword}` are deferred after v0"),
+    );
+    diagnostic.primary_span = sources
+        .span_to_json(statement.initializer.span())
+        .ok()
+        .map(Box::new);
+    diagnostic.help =
+        Some("use `while let` with an expression that produces `T?` directly".to_string());
+    diagnostic
+}
+
+fn optional_projection_binding_kind_message(construct: &str, is_readwrite: bool) -> String {
+    let projection = if is_readwrite {
+        "readwrite"
+    } else {
+        "readonly"
+    };
+    format!("`{construct}` cannot bind a {projection} optional projection in v0")
+}
+
+fn optional_projection_binding_kind_help(is_readwrite: bool) -> String {
+    if is_readwrite {
+        "use `var name = &+place` for a readwrite projection".to_string()
+    } else {
+        "use `let name = &place` for a readonly projection".to_string()
+    }
+}
+
 pub(in crate::typecheck) fn optional_default_non_optional_diagnostic(
     sources: &SourceMap,
     expression: &OptionalDefaultExpr,

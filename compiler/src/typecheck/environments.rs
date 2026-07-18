@@ -2,6 +2,7 @@ use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable, same_known_type};
 use super::numeric::{is_integer_literal_expr, is_integer_type};
 use super::operations::is_expression_assignable;
+use super::optional_projections::optional_borrow_projection_type;
 use super::type_expr::{
     type_expr_display_lossy, type_expr_to_type_in_environment, type_expr_to_type_with_substitutions,
 };
@@ -179,6 +180,12 @@ fn if_let_binding_type(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> Type {
+    if let Some(projection) =
+        optional_borrow_projection_type(&statement.initializer, resolved, environment)
+    {
+        return projection.projected_type;
+    }
+
     match expression_type(&statement.initializer, resolved, environment) {
         Type::Optional(inner) => *inner,
         Type::Unknown => Type::Unknown,
@@ -205,6 +212,10 @@ fn while_let_binding_type(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> Type {
+    if optional_borrow_projection_type(&statement.initializer, resolved, environment).is_some() {
+        return Type::Unknown;
+    }
+
     match expression_type(&statement.initializer, resolved, environment) {
         Type::Optional(inner) => *inner,
         Type::Unknown => Type::Unknown,

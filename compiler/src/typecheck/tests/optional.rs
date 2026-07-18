@@ -174,6 +174,121 @@ func maybe_answer(): i32? {
 }
 
 #[test]
+fn accepts_readonly_optional_let_else_projection() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    var maybe = maybe_answer()
+    let value = &maybe else {
+        return 0
+    }
+
+    return read(value)
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+
+func read(value: &i32): i32 {
+    return 1
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn keeps_plain_optional_borrow_binding_as_borrow_of_optional() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    var maybe = maybe_answer()
+    let value: &i32 = &maybe
+    return 0
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0342");
+    assert!(diagnostics[0].message.contains("&i32?"));
+}
+
+#[test]
+fn accepts_readwrite_optional_let_else_projection() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    var maybe = maybe_answer()
+    var value = &+maybe else {
+        return 0
+    }
+
+    write(value)
+    return 0
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+
+func write(value: &+i32): void {
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_optional_let_else_projection_annotation_mismatch() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    var maybe = maybe_answer()
+    let value: &u8 = &maybe else {
+        return 0
+    }
+    return 0
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0342");
+    assert!(diagnostics[0].message.contains("&i32"));
+    assert!(diagnostics[0].message.contains("&u8"));
+}
+
+#[test]
+fn diagnoses_optional_let_else_projection_binding_kind_mismatch() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    var maybe = maybe_answer()
+    let value = &+maybe else {
+        return 0
+    }
+    return 0
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0429");
+    assert!(diagnostics[0].message.contains("readwrite"));
+}
+
+#[test]
 fn diagnoses_optional_let_else_non_optional_initializer() {
     let diagnostics = check_text(
         r#"func main(): i32 {
@@ -297,6 +412,78 @@ func maybe_answer(): i32? {
     );
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_readonly_optional_if_let_projection() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    var maybe = maybe_answer()
+    if let value = &maybe {
+        return read(value)
+    }
+
+    return 0
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+
+func read(value: &i32): i32 {
+    return 1
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_readwrite_optional_if_var_projection() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    var maybe = maybe_answer()
+    if var value = &+maybe {
+        write(value)
+    }
+
+    return 0
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+
+func write(value: &+i32): void {
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_optional_if_let_projection_binding_kind_mismatch() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    var maybe = maybe_answer()
+    if var value = &maybe {
+        return 1
+    }
+
+    return 0
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0429");
+    assert!(diagnostics[0].message.contains("readonly"));
 }
 
 #[test]
@@ -425,6 +612,29 @@ func maybe_answer(): i32? {
     );
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_borrowed_optional_while_let_projection_deferred() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    var maybe = maybe_answer()
+    while let value = &maybe {
+        return 1
+    }
+
+    return 0
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0430");
+    assert!(diagnostics[0].message.contains("while let"));
 }
 
 #[test]
