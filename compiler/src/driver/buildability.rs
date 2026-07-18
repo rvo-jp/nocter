@@ -133,11 +133,15 @@ struct BuildabilityIssue {
 
 impl<'a> IndexedCallable<'a> {
     fn new_function(function: &'a FunctionDecl, file: &'a FileAnalysis) -> Self {
+        let mut issues = Vec::new();
+        issues.extend(generic_function_issue(function));
+        issues.extend(nested_fallible_return_issue(function, &file.resolved));
+
         Self {
             body: &function.body,
             resolved: &file.resolved,
             typecheck_facts: &file.typecheck_facts,
-            issues: generic_function_issue(function).into_iter().collect(),
+            issues,
         }
     }
 
@@ -1216,6 +1220,55 @@ fn generic_function_issue(function: &FunctionDecl) -> Option<BuildabilityIssue> 
         construct: "generic functions",
         help: "define a monomorphic wrapper until v0 monomorphization is promoted",
     })
+}
+
+fn nested_fallible_return_issue(
+    function: &FunctionDecl,
+    resolved: &ResolveOutput,
+) -> Option<BuildabilityIssue> {
+    if type_expr_fallible_depth(&function.return_type, resolved) <= 1 {
+        return None;
+    }
+
+    Some(BuildabilityIssue {
+        span: function.return_type.span(),
+        construct: "nested fallible or optional return types",
+        help: "flatten the return boundary to a single optional or fallible layer until nested fallible lowering is promoted",
+    })
+}
+
+fn type_expr_fallible_depth(ty: &TypeExpr, resolved: &ResolveOutput) -> usize {
+    type_expr_fallible_depth_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn type_expr_fallible_depth_inner(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> usize {
+    match ty {
+        TypeExpr::Reference(reference) => {
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+                return 0;
+            };
+            let Some(target) = &symbol.alias_target else {
+                return 0;
+            };
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return 0;
+            }
+            let depth = type_expr_fallible_depth_inner(target, resolved, resolving_names);
+            resolving_names.remove(&symbol.canonical_name);
+            depth
+        }
+        TypeExpr::Fallible(fallible) => {
+            1 + type_expr_fallible_depth_inner(&fallible.success, resolved, resolving_names)
+        }
+        TypeExpr::Optional(optional) => {
+            1 + type_expr_fallible_depth_inner(&optional.inner, resolved, resolving_names)
+        }
+        _ => 0,
+    }
 }
 
 fn generic_impl_issue(impl_: &ImplDecl) -> Option<BuildabilityIssue> {
