@@ -301,6 +301,75 @@ func same(value: &i32): &i32 {
 }
 
 #[test]
+fn diagnoses_return_borrow_alias_after_if_branch_assignment_from_local_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func leak(value: &i32, condition: bool): &i32 {
+    var view = value
+    if condition {
+        let local = 1
+        view = &local
+    }
+    return view
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("local"));
+}
+
+#[test]
+fn accepts_borrow_alias_after_all_if_branches_reassign_to_parameter() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func same(value: &i32, condition: bool): &i32 {
+    let local = 1
+    var view = &local
+    if condition {
+        view = value
+    } else {
+        view = value
+    }
+    return view
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_borrow_alias_when_escaping_assignment_branch_returns() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func same(value: &i32, condition: bool): &i32 {
+    var view = value
+    if condition {
+        let local = 1
+        view = &local
+        return value
+    }
+    return view
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn accepts_str_literal_alias_return() {
     let diagnostics = check_text(
         r#"func main(): i32 {

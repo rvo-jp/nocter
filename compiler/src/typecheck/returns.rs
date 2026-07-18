@@ -52,6 +52,18 @@ impl BorrowReturnEnvironment {
             self.bindings.remove(&name);
         }
     }
+
+    fn join_reachable(&mut self, states: &[BorrowReturnEnvironment]) {
+        let mut joined = HashMap::new();
+        for state in states {
+            for (name, provenance) in &state.bindings {
+                joined
+                    .entry(name.clone())
+                    .or_insert_with(|| provenance.clone());
+            }
+        }
+        self.bindings = joined;
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -351,6 +363,11 @@ fn check_statement_returns(
                 &mut then_environment,
                 &mut then_borrow_provenance,
             );
+            let mut incoming = Vec::new();
+            if !block_guarantees_return_or_never(&statement.then_block, resolved, &then_environment)
+            {
+                incoming.push(then_borrow_provenance);
+            }
             if let Some(else_block) = &statement.else_block {
                 let mut else_environment = environment.clone();
                 let mut else_borrow_provenance = borrow_provenance.clone();
@@ -363,6 +380,14 @@ fn check_statement_returns(
                     &mut else_environment,
                     &mut else_borrow_provenance,
                 );
+                if !block_guarantees_return_or_never(else_block, resolved, &else_environment) {
+                    incoming.push(else_borrow_provenance);
+                }
+            } else {
+                incoming.push(borrow_provenance.clone());
+            }
+            if !incoming.is_empty() {
+                borrow_provenance.join_reachable(&incoming);
             }
         }
         Stmt::IfIs(statement) => {
@@ -387,6 +412,11 @@ fn check_statement_returns(
                 &mut then_environment,
                 &mut then_borrow_provenance,
             );
+            let mut incoming = Vec::new();
+            if !block_guarantees_return_or_never(&statement.then_block, resolved, &then_environment)
+            {
+                incoming.push(then_borrow_provenance);
+            }
             if let Some(else_block) = &statement.else_block {
                 let mut else_environment = environment.clone();
                 let mut else_borrow_provenance = borrow_provenance.clone();
@@ -399,6 +429,14 @@ fn check_statement_returns(
                     &mut else_environment,
                     &mut else_borrow_provenance,
                 );
+                if !block_guarantees_return_or_never(else_block, resolved, &else_environment) {
+                    incoming.push(else_borrow_provenance);
+                }
+            } else {
+                incoming.push(borrow_provenance.clone());
+            }
+            if !incoming.is_empty() {
+                borrow_provenance.join_reachable(&incoming);
             }
         }
         Stmt::IfLet(statement) => {
@@ -423,6 +461,11 @@ fn check_statement_returns(
                 &mut then_environment,
                 &mut then_borrow_provenance,
             );
+            let mut incoming = Vec::new();
+            if !block_guarantees_return_or_never(&statement.then_block, resolved, &then_environment)
+            {
+                incoming.push(then_borrow_provenance);
+            }
             if let Some(else_block) = &statement.else_block {
                 let mut else_environment = environment.clone();
                 let mut else_borrow_provenance = borrow_provenance.clone();
@@ -435,6 +478,14 @@ fn check_statement_returns(
                     &mut else_environment,
                     &mut else_borrow_provenance,
                 );
+                if !block_guarantees_return_or_never(else_block, resolved, &else_environment) {
+                    incoming.push(else_borrow_provenance);
+                }
+            } else {
+                incoming.push(borrow_provenance.clone());
+            }
+            if !incoming.is_empty() {
+                borrow_provenance.join_reachable(&incoming);
             }
         }
         Stmt::Switch(statement) => {
@@ -447,6 +498,7 @@ fn check_statement_returns(
                 environment,
                 borrow_provenance,
             );
+            let mut incoming = Vec::new();
             for arm in &statement.arms {
                 let mut arm_environment =
                     environment_for_switch_arm(arm, &statement.expression, resolved, environment);
@@ -460,6 +512,9 @@ fn check_statement_returns(
                     &mut arm_environment,
                     &mut arm_borrow_provenance,
                 );
+                if !block_guarantees_return_or_never(&arm.body, resolved, &arm_environment) {
+                    incoming.push(arm_borrow_provenance);
+                }
             }
             if let Some(else_arm) = &statement.else_arm {
                 let mut else_environment = environment.clone();
@@ -473,6 +528,14 @@ fn check_statement_returns(
                     &mut else_environment,
                     &mut else_borrow_provenance,
                 );
+                if !block_guarantees_return_or_never(&else_arm.body, resolved, &else_environment) {
+                    incoming.push(else_borrow_provenance);
+                }
+            } else if !switch_statement_covers_all_variants(statement, resolved, environment) {
+                incoming.push(borrow_provenance.clone());
+            }
+            if !incoming.is_empty() {
+                borrow_provenance.join_reachable(&incoming);
             }
         }
         Stmt::While(statement) => {
