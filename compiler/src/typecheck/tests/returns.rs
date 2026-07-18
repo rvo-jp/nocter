@@ -103,6 +103,103 @@ func title(): &str {
 }
 
 #[test]
+fn accepts_borrow_parameter_return() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func same(value: &i32): &i32 {
+    return value
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_return_borrow_of_local_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func leak(): &i32 {
+    let value = 1
+    return &value
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn diagnoses_return_readwrite_borrow_of_local_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func leak(): &+i32 {
+    var value = 1
+    return &+value
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn diagnoses_return_borrow_of_owned_parameter() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func leak(value: i32): &i32 {
+    return &value
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("parameter"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn diagnoses_return_borrow_of_temporary() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func value(): i32 {
+    return 1
+}
+
+func leak(): &i32 {
+    return &value()
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("temporary"));
+}
+
+#[test]
 fn accepts_bool_function_return() {
     let diagnostics = check_text(
         r#"func main(): i32 {

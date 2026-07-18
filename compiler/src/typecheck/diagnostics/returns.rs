@@ -84,6 +84,26 @@ pub(in crate::typecheck) fn non_copy_struct_return_diagnostic(
     diagnostic
 }
 
+pub(in crate::typecheck) fn borrow_return_escapes_diagnostic(
+    sources: &SourceMap,
+    expression: &Expr,
+    source: &str,
+    context: &ReturnContext,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0433",
+        format!(
+            "cannot return borrow of {source} because it does not outlive {}",
+            context.subject()
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(expression.span()).ok().map(Box::new);
+    add_declared_return_note(sources, &mut diagnostic, context);
+    diagnostic.help =
+        Some("return an existing borrow parameter, a static borrow-like value, or an owned value instead".to_string());
+    diagnostic
+}
+
 pub(in crate::typecheck) fn never_return_statement_diagnostic(
     sources: &SourceMap,
     statement: &ReturnStmt,

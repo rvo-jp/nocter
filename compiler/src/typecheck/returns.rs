@@ -1,9 +1,10 @@
 use super::bindings::{check_optional_let_else_statement, continuing_binding_type};
 use super::copyability::implicit_non_copy_struct_identifier_source;
 use super::diagnostics::{
-    fallible_success_error_diagnostic, missing_return_diagnostic, missing_return_value_diagnostic,
-    never_return_statement_diagnostic, non_copy_struct_return_diagnostic,
-    return_type_mismatch_diagnostic, unexpected_return_value_diagnostic,
+    borrow_return_escapes_diagnostic, fallible_success_error_diagnostic, missing_return_diagnostic,
+    missing_return_value_diagnostic, never_return_statement_diagnostic,
+    non_copy_struct_return_diagnostic, return_type_mismatch_diagnostic,
+    unexpected_return_value_diagnostic,
 };
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
@@ -21,7 +22,7 @@ use crate::ast::{
     AstFile, Block, Expr, ImplDecl, ImplMember, InterpolatedStringPart, Item, ReturnStmt, Stmt,
 };
 use crate::diagnostics::Diagnostic;
-use crate::resolve::ResolveOutput;
+use crate::resolve::{LocalSymbolKind, ResolveOutput};
 use crate::source::SourceMap;
 
 pub(super) fn check_return_types(
@@ -805,6 +806,8 @@ fn check_return_statement(
                 return;
             }
 
+            check_borrow_return_provenance(sources, expression, context, resolved, diagnostics);
+
             if let Some((source_name, type_name)) =
                 implicit_non_copy_struct_identifier_source(expression, resolved, environment)
             {
@@ -817,6 +820,43 @@ fn check_return_statement(
                 ));
             }
         }
+    }
+}
+
+fn check_borrow_return_provenance(
+    sources: &SourceMap,
+    expression: &Expr,
+    context: &ReturnContext,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Expr::Borrow(borrow) = unwrap_group(expression) else {
+        return;
+    };
+
+    let source = match unwrap_group(&borrow.expression) {
+        Expr::Identifier(identifier) => match resolved.local_symbol_for_identifier(identifier) {
+            Some(symbol) => match symbol.kind {
+                LocalSymbolKind::Parameter => format!("parameter `{}`", identifier.name),
+                LocalSymbolKind::Binding(_) => format!("local binding `{}`", identifier.name),
+                LocalSymbolKind::PatternPayload => format!("payload binding `{}`", identifier.name),
+                LocalSymbolKind::CatchError => format!("catch binding `{}`", identifier.name),
+                LocalSymbolKind::ForRange => format!("for-range binding `{}`", identifier.name),
+            },
+            None => return,
+        },
+        _ => "temporary expression".to_string(),
+    };
+
+    diagnostics.push(borrow_return_escapes_diagnostic(
+        sources, expression, &source, context,
+    ));
+}
+
+fn unwrap_group(expression: &Expr) -> &Expr {
+    match expression {
+        Expr::Group(group) => unwrap_group(&group.expression),
+        _ => expression,
     }
 }
 
