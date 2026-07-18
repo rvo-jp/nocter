@@ -161,6 +161,7 @@ fn collect_failure_mode_reachable_call_targets(
         FallibleFailureMode::Propagate | FallibleFailureMode::Trap => {}
         FallibleFailureMode::PropagateWithCleanup { instructions, .. }
         | FallibleFailureMode::Handle { instructions }
+        | FallibleFailureMode::Recover { instructions }
         | FallibleFailureMode::Catch { instructions, .. } => {
             collect_reachable_call_targets(instructions, targets);
         }

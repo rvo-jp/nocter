@@ -1,6 +1,6 @@
 use super::{
-    DARWIN_SYSCALL_TRAP, EntryEmitter, FunctionCallPatch, FunctionSymbol, emit_mov_i32_to_w,
-    emit_mov_u64_to_x,
+    DARWIN_SYSCALL_TRAP, EntryEmitter, FunctionCallPatch, FunctionSymbol,
+    control_flow::BranchPatch, emit_mov_i32_to_w, emit_mov_u64_to_x,
 };
 use crate::abi::{ABI_WORD_SIZE, ARGUMENT_REGISTER_COUNT, ValueLayout};
 use crate::backend::frame::{ArgumentStagingSlot, FrameLayout};
@@ -356,12 +356,14 @@ impl EntryEmitter {
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
         self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
+        let recover_done_branch = self.emit_recover_done_branch_if_needed(failure_mode);
         self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
         self.emit_fallible_direct_aggregate_result_to_location(
             call.destination,
             call.layout,
             frame,
         )?;
+        self.patch_recover_done_branch(recover_done_branch)?;
         self.emit_scalar_reloads(frame)?;
         Ok(())
     }
@@ -510,10 +512,13 @@ impl EntryEmitter {
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
         self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
+        let recover_done_branch = self.emit_recover_done_branch_if_needed(failure_mode);
         self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
         self.encoder.emit_mov_w(WReg::W16, WReg::W1);
         self.emit_scalar_reloads(frame)?;
-        self.emit_w_to_i32_location(WReg::W16, destination)
+        self.emit_w_to_i32_location(WReg::W16, destination)?;
+        self.patch_recover_done_branch(recover_done_branch)?;
+        Ok(())
     }
 
     pub(super) fn emit_call_usize(
@@ -563,10 +568,13 @@ impl EntryEmitter {
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
         self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
+        let recover_done_branch = self.emit_recover_done_branch_if_needed(failure_mode);
         self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
         self.encoder.emit_mov_x(XReg::X16, XReg::X1);
         self.emit_scalar_reloads(frame)?;
-        self.emit_x_to_usize_location(XReg::X16, destination)
+        self.emit_x_to_usize_location(XReg::X16, destination)?;
+        self.patch_recover_done_branch(recover_done_branch)?;
+        Ok(())
     }
 
     pub(super) fn emit_call_u8(
@@ -616,10 +624,13 @@ impl EntryEmitter {
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
         self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
+        let recover_done_branch = self.emit_recover_done_branch_if_needed(failure_mode);
         self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
         self.encoder.emit_mov_w(WReg::W16, WReg::W1);
         self.emit_scalar_reloads(frame)?;
-        self.emit_w_to_u8_location(WReg::W16, destination)
+        self.emit_w_to_u8_location(WReg::W16, destination)?;
+        self.patch_recover_done_branch(recover_done_branch)?;
+        Ok(())
     }
 
     pub(super) fn emit_call_bool(
@@ -669,10 +680,13 @@ impl EntryEmitter {
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
         self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
+        let recover_done_branch = self.emit_recover_done_branch_if_needed(failure_mode);
         self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
         self.encoder.emit_mov_w(WReg::W16, WReg::W1);
         self.emit_scalar_reloads(frame)?;
-        self.emit_w_to_bool_location(WReg::W16, destination)
+        self.emit_w_to_bool_location(WReg::W16, destination)?;
+        self.patch_recover_done_branch(recover_done_branch)?;
+        Ok(())
     }
 
     pub(super) fn emit_call_str(
@@ -722,11 +736,14 @@ impl EntryEmitter {
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
         self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
+        let recover_done_branch = self.emit_recover_done_branch_if_needed(failure_mode);
         self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
         self.encoder.emit_mov_x(XReg::X16, XReg::X1);
         self.encoder.emit_mov_x(XReg::X17, XReg::X2);
         self.emit_scalar_reloads(frame)?;
-        self.emit_x_pair_to_str_location(XReg::X16, XReg::X17, destination)
+        self.emit_x_pair_to_str_location(XReg::X16, XReg::X17, destination)?;
+        self.patch_recover_done_branch(recover_done_branch)?;
+        Ok(())
     }
 
     pub(super) fn emit_call_slice(
@@ -776,11 +793,32 @@ impl EntryEmitter {
         self.encoder.emit_cmp_x_zero(XReg::X0);
         let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
         self.emit_fallible_failure_action(failure_mode, frame, return_type)?;
+        let recover_done_branch = self.emit_recover_done_branch_if_needed(failure_mode);
         self.patch_branch_placeholder_to_current(success_branch, "fallible call success target")?;
         self.encoder.emit_mov_x(XReg::X16, XReg::X1);
         self.encoder.emit_mov_x(XReg::X17, XReg::X2);
         self.emit_scalar_reloads(frame)?;
-        self.emit_x_pair_to_slice_location(XReg::X16, XReg::X17, destination)
+        self.emit_x_pair_to_slice_location(XReg::X16, XReg::X17, destination)?;
+        self.patch_recover_done_branch(recover_done_branch)?;
+        Ok(())
+    }
+
+    fn emit_recover_done_branch_if_needed(
+        &mut self,
+        failure_mode: &FallibleFailureMode,
+    ) -> Option<BranchPatch> {
+        matches!(failure_mode, FallibleFailureMode::Recover { .. })
+            .then(|| self.emit_branch_placeholder())
+    }
+
+    fn patch_recover_done_branch(
+        &mut self,
+        branch: Option<BranchPatch>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if let Some(branch) = branch {
+            self.patch_branch_placeholder_to_current(branch, "fallible recover done target")?;
+        }
+        Ok(())
     }
 
     fn emit_staged_scalar_arguments(

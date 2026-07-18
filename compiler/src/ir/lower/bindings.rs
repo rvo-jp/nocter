@@ -52,6 +52,10 @@ pub(super) fn lower_local_binding(
         return Ok(instructions);
     }
 
+    if let Some(instructions) = lower_optional_default_i32_binding(statement, context)? {
+        return Ok(instructions);
+    }
+
     if statement.else_block.is_some() {
         return Err(unsupported_binding_diagnostic(
             "IR v0 cannot lower optional `let ... else` or `var ... else` bindings",
@@ -296,6 +300,72 @@ fn lower_optional_let_else_scalar_call_binding(
             Ok(instructions)
         }
     }
+}
+
+fn lower_optional_default_i32_binding(
+    statement: &BindingStmt,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Expr::OptionalDefault(default) = unwrap_group(&statement.initializer) else {
+        return Ok(None);
+    };
+    let Expr::Call(call) = unwrap_group(&default.value) else {
+        return Ok(None);
+    };
+
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_binding_diagnostic(
+            "IR v0 cannot lower optional default bindings without resolved call information",
+        ));
+    };
+    let Some(signature) = resolved.call_signature_for_call(call) else {
+        return Ok(None);
+    };
+    if !return_type_expr_is_top_level_optional(&signature.return_type, resolved) {
+        return Ok(None);
+    }
+
+    let Some((target, _call_name)) = context.direct_call_target_and_name(call) else {
+        return Ok(None);
+    };
+    let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
+        return Ok(None);
+    };
+    let Some(kind) =
+        optional_let_else_scalar_binding_kind(statement, success_type.as_ref(), context)?
+    else {
+        return Ok(None);
+    };
+    if !matches!(kind, ScalarBindingKind::I32) {
+        return Ok(None);
+    }
+
+    let destination = context.next_i32_local_location()?;
+    let expression_context = context.with_reserved_local_abi_words(1);
+    let failure_mode = lower_optional_default_i32_recover_failure_mode(
+        &default.default,
+        destination,
+        &expression_context,
+    )?;
+    let mut temporaries = TemporaryAllocator::new(&expression_context)?;
+    let instructions = lower_fallible_i32_normal_call(
+        call,
+        destination,
+        &expression_context,
+        &mut temporaries,
+        failure_mode,
+    )?;
+    context.define_i32_local(statement.name.clone());
+    Ok(Some(instructions))
+}
+
+fn lower_optional_default_i32_recover_failure_mode(
+    fallback: &Expr,
+    destination: I32Location,
+    context: &LoweringContext,
+) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
+    let instructions = lower_i32_expression_to_location(fallback, destination, context)?;
+    Ok(FallibleFailureMode::Recover { instructions })
 }
 
 fn lower_aggregate_struct_literal_binding(

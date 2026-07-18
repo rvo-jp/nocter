@@ -375,6 +375,7 @@ pub(super) fn lower_fallible_void_normal_call(
             FallibleFailureMode::Trap => Instruction::TrapOnFailure,
             FallibleFailureMode::PropagateWithCleanup { .. }
             | FallibleFailureMode::Handle { .. }
+            | FallibleFailureMode::Recover { .. }
             | FallibleFailureMode::Catch { .. } => Instruction::CheckFailure { failure_mode },
         });
         return Ok(instructions);

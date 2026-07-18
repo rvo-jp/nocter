@@ -901,7 +901,8 @@ impl EntryEmitter {
         match failure_mode {
             FallibleFailureMode::Propagate => self.emit_return(frame),
             FallibleFailureMode::PropagateWithCleanup { .. }
-            | FallibleFailureMode::Handle { .. } => {
+            | FallibleFailureMode::Handle { .. }
+            | FallibleFailureMode::Recover { .. } => {
                 let Some(frame) = frame else {
                     return Err(vec![Diagnostic::error(
                         "E9005",
@@ -957,6 +958,13 @@ impl EntryEmitter {
                 Ok(())
             }
             FallibleFailureMode::Handle { instructions } => {
+                self.emit_scalar_reloads(frame)?;
+                for instruction in instructions {
+                    self.emit_instruction(instruction, Some(frame), return_type)?;
+                }
+                Ok(())
+            }
+            FallibleFailureMode::Recover { instructions } => {
                 self.emit_scalar_reloads(frame)?;
                 for instruction in instructions {
                     self.emit_instruction(instruction, Some(frame), return_type)?;
@@ -1873,6 +1881,7 @@ fn validate_failure_mode_call_return_shapes(
         FallibleFailureMode::Propagate | FallibleFailureMode::Trap => {}
         FallibleFailureMode::PropagateWithCleanup { instructions, .. }
         | FallibleFailureMode::Handle { instructions }
+        | FallibleFailureMode::Recover { instructions }
         | FallibleFailureMode::Catch { instructions, .. } => {
             validate_instruction_list_call_return_shapes(
                 instructions,

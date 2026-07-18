@@ -489,6 +489,7 @@ fn failure_mode_clobbers_parameter_registers(failure_mode: &FallibleFailureMode)
         FallibleFailureMode::Propagate | FallibleFailureMode::Trap => false,
         FallibleFailureMode::PropagateWithCleanup { instructions, .. }
         | FallibleFailureMode::Handle { instructions }
+        | FallibleFailureMode::Recover { instructions }
         | FallibleFailureMode::Catch { instructions, .. } => {
             function_clobbers_parameter_registers(instructions)
         }
@@ -902,6 +903,7 @@ fn record_failure_mode_aggregate_slot_requests(
         FallibleFailureMode::Propagate | FallibleFailureMode::Trap => Ok(()),
         FallibleFailureMode::PropagateWithCleanup { instructions, .. }
         | FallibleFailureMode::Handle { instructions }
+        | FallibleFailureMode::Recover { instructions }
         | FallibleFailureMode::Catch { instructions, .. } => {
             record_instruction_list_aggregate_slot_requests(instructions, requests)
         }
@@ -936,6 +938,7 @@ fn failure_mode_max_call_argument_count(failure_mode: &FallibleFailureMode) -> u
         FallibleFailureMode::Propagate | FallibleFailureMode::Trap => 0,
         FallibleFailureMode::PropagateWithCleanup { instructions, .. }
         | FallibleFailureMode::Handle { instructions }
+        | FallibleFailureMode::Recover { instructions }
         | FallibleFailureMode::Catch { instructions, .. } => max_call_argument_count(instructions),
     }
 }
@@ -945,6 +948,7 @@ fn failure_mode_requires_frame(failure_mode: &FallibleFailureMode) -> bool {
         FallibleFailureMode::Propagate | FallibleFailureMode::Trap => false,
         FallibleFailureMode::PropagateWithCleanup { .. }
         | FallibleFailureMode::Handle { .. }
+        | FallibleFailureMode::Recover { .. }
         | FallibleFailureMode::Catch { .. } => true,
     }
 }
@@ -1402,6 +1406,7 @@ fn record_failure_mode_parameter_spill_requests(
         FallibleFailureMode::Propagate | FallibleFailureMode::Trap => {}
         FallibleFailureMode::PropagateWithCleanup { instructions, .. }
         | FallibleFailureMode::Handle { instructions }
+        | FallibleFailureMode::Recover { instructions }
         | FallibleFailureMode::Catch { instructions, .. } => {
             record_instruction_list_parameter_spill_requests(
                 instructions,
@@ -2103,6 +2108,9 @@ fn record_failure_mode_scalar_locals(
             record_instruction_list_scalar_locals(instructions, highest_local_index);
         }
         FallibleFailureMode::Handle { instructions } => {
+            record_instruction_list_scalar_locals(instructions, highest_local_index);
+        }
+        FallibleFailureMode::Recover { instructions } => {
             record_instruction_list_scalar_locals(instructions, highest_local_index);
         }
         FallibleFailureMode::Catch {
