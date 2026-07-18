@@ -1,4 +1,5 @@
 mod build;
+mod buildability;
 mod check;
 mod command;
 mod compile_options;

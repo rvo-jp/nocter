@@ -2421,6 +2421,186 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_reports_reachable_range_for_before_ir_lowering() {
+    let project = TempProject::new("cli-build-range-for-boundary");
+    let source = project.write_source(
+        "range_for_boundary.nct",
+        r#"func main(): i32 {
+    return helper()
+}
+
+func helper(): i32 {
+    for value in 0..<4 {
+        return value
+    }
+
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("range `for` loops"),
+        "expected range for diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("6 |     for value in 0..<4 {"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
+fn build_command_does_not_reject_unreachable_range_for_body() {
+    let project = TempProject::new("cli-build-unreachable-range-for");
+    let source = project.write_source(
+        "unreachable_range_for.nct",
+        r#"func main(): i32 {
+    return 0
+}
+
+func unused(): i32 {
+    for value in 0..<4 {
+        return value
+    }
+
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_reports_loaded_imported_range_for_before_ir_lowering() {
+    let project = TempProject::new("cli-build-imported-range-for-boundary");
+    project.write_nocter_home_file(
+        "std/loops.nct",
+        r#"pub func helper(): i32 {
+    for value in 0..<4 {
+        return value
+    }
+
+    return 0
+}
+"#,
+    );
+    let source = project.write_source(
+        "imported_range_for_boundary.nct",
+        r#"use std/loops.helper
+
+func main(): i32 {
+    return helper()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("range `for` loops"),
+        "expected range for diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("2 |     for value in 0..<4 {"),
+        "expected imported source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject imported helper before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
+fn build_command_reports_match_before_ir_lowering() {
+    let project = TempProject::new("cli-build-match-boundary");
+    let source = project.write_source(
+        "match_boundary.nct",
+        r#"enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    return describe(Choice.yes)
+}
+
+func describe(choice: Choice): i32 {
+    match choice {
+        Choice.yes {
+            return 0
+        }
+
+        else {
+            return 1
+        }
+    }
+
+    return 2
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("`match` statements"),
+        "expected match diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("11 |     match choice {"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn check_command_reports_source_snippet_for_compile_diagnostic() {
     let project = TempProject::new("cli-check-source-diagnostic");
     let source = project.write_source(

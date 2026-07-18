@@ -1,3 +1,4 @@
+use super::buildability::v0_buildability_diagnostics;
 use crate::analysis::analyze_compile_unit_with_entry;
 use crate::backend::{BuildRequest, build_executable};
 use crate::diagnostics::Diagnostic;
@@ -99,6 +100,15 @@ fn build_file_to_path_with_options(
             )],
         };
     };
+
+    let diagnostics = v0_buildability_diagnostics(&output.sources, analysis, entry_name);
+    if !diagnostics.is_empty() {
+        return BuildOutput {
+            output_path: output_path.to_path_buf(),
+            sources: output.sources,
+            diagnostics,
+        };
+    }
 
     let diagnostics = match build_executable(BuildRequest {
         analysis,
