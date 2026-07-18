@@ -421,7 +421,8 @@ fn check_statement_ownership(
             let mut flow = FlowState::terminal();
             let mut branch_ownerships = Vec::new();
             for arm in &statement.arms {
-                let mut arm_environment = environment_for_switch_arm(arm, resolved, environment);
+                let mut arm_environment =
+                    environment_for_switch_arm(arm, &statement.expression, resolved, environment);
                 let mut arm_ownership = ownership.clone();
                 if let Some(payload) = &arm.payload {
                     arm_ownership.define_binding_from_environment(
@@ -940,8 +941,12 @@ fn check_expression_ownership(
             );
             let mut branch_ownerships = Vec::with_capacity(expression.arms.len() + 1);
             for arm in &expression.arms {
-                let mut arm_environment =
-                    environment_for_pattern_conditional_arm(arm, resolved, environment);
+                let mut arm_environment = environment_for_pattern_conditional_arm(
+                    arm,
+                    &expression.target,
+                    resolved,
+                    environment,
+                );
                 let mut arm_ownership = ownership.clone();
                 if let Some(payload) = &arm.payload {
                     arm_ownership.define_binding_from_environment(

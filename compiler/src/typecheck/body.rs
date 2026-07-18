@@ -320,7 +320,8 @@ fn check_statement_expressions(
             check_switch_statement(sources, statement, resolved, diagnostics, environment);
 
             for arm in &statement.arms {
-                let mut arm_environment = environment_for_switch_arm(arm, resolved, environment);
+                let mut arm_environment =
+                    environment_for_switch_arm(arm, &statement.expression, resolved, environment);
                 check_block_expressions(
                     sources,
                     &arm.body,
@@ -877,8 +878,12 @@ fn check_expression_tree(
                 loop_depth,
             );
             for arm in &expression.arms {
-                let mut arm_environment =
-                    environment_for_pattern_conditional_arm(arm, resolved, environment);
+                let mut arm_environment = environment_for_pattern_conditional_arm(
+                    arm,
+                    &expression.target,
+                    resolved,
+                    environment,
+                );
                 check_expression_tree(
                     sources,
                     &arm.expression,

@@ -32,6 +32,67 @@ func describe(error: AppError): &str {
 }
 
 #[test]
+fn substitutes_generic_enum_switch_payload_binding_type() {
+    let diagnostics = check_text(
+        r#"enum Maybe<T> {
+    some(value: T)
+    empty
+}
+
+func main(): i32 {
+    return 0
+}
+
+func value(option: Maybe<i32>): i32 {
+    match option {
+        Maybe.some(inner) {
+            return inner
+        }
+
+        Maybe.empty {
+            return 0
+        }
+    }
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_generic_enum_switch_payload_binding_type_mismatch() {
+    let diagnostics = check_text(
+        r#"enum Maybe<T> {
+    some(value: T)
+    empty
+}
+
+func main(): i32 {
+    return 0
+}
+
+func value(option: Maybe<i32>): &str {
+    match option {
+        Maybe.some(inner) {
+            return inner
+        }
+
+        Maybe.empty {
+            return "none"
+        }
+    }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0312");
+    assert!(diagnostics[0].message.contains("i32"));
+    assert!(diagnostics[0].message.contains("&str"));
+}
+
+#[test]
 fn accepts_switch_else_as_terminal_statement() {
     let diagnostics = check_text(
         r#"enum AppError {
@@ -121,6 +182,31 @@ func describe(error: AppError): &str {
 }
 
 #[test]
+fn substitutes_generic_enum_if_is_payload_binding_type() {
+    let diagnostics = check_text(
+        r#"enum Maybe<T> {
+    some(value: T)
+    empty
+}
+
+func main(): i32 {
+    return 0
+}
+
+func describe(value: Maybe<&str>): &str {
+    if value is Maybe.some(text) {
+        return text
+    }
+
+    return "none"
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn accepts_pattern_conditional_over_enum() {
     let diagnostics = check_text(
         r#"enum AppError {
@@ -143,6 +229,59 @@ func describe(error: AppError): &str {
     );
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn substitutes_generic_enum_pattern_conditional_payload_binding_type() {
+    let diagnostics = check_text(
+        r#"enum Maybe<T> {
+    some(value: T)
+    empty
+}
+
+func main(): i32 {
+    return 0
+}
+
+func value(option: Maybe<i32>): i32 {
+    return option ?{
+        Maybe.some(inner) : inner
+        Maybe.empty : 0
+        : 0
+    }
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_generic_enum_pattern_conditional_payload_type_mismatch() {
+    let diagnostics = check_text(
+        r#"enum Maybe<T> {
+    some(value: T)
+    empty
+}
+
+func main(): i32 {
+    return 0
+}
+
+func value(option: Maybe<i32>): &str {
+    return option ?{
+        Maybe.some(inner) : inner
+        Maybe.empty : "none"
+        : "unknown"
+    }
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0366");
+    assert!(diagnostics[0].message.contains("i32"));
+    assert!(diagnostics[0].message.contains("&str"));
 }
 
 #[test]
@@ -406,6 +545,113 @@ func main(): i32 {
 
 func make(path: &str): AppError {
     return AppError.open_failed(path)
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn infers_generic_enum_variant_type_from_payload() {
+    let diagnostics = check_text(
+        r#"enum Maybe<T> {
+    some(value: T)
+    empty
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Maybe<i32> {
+    return Maybe.some(1)
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_contextual_generic_payloadless_enum_variant() {
+    let diagnostics = check_text(
+        r#"enum Maybe<T> {
+    some(value: T)
+    empty
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Maybe<i32> {
+    return Maybe.empty
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_generic_enum_variant_payload_type_mismatch_from_context() {
+    let diagnostics = check_text(
+        r#"enum Maybe<T> {
+    some(value: T)
+    empty
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Maybe<i32> {
+    return Maybe.some("bad")
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0312");
+    assert!(diagnostics[0].message.contains("Maybe<&str>"));
+    assert!(diagnostics[0].message.contains("Maybe<i32>"));
+}
+
+#[test]
+fn diagnoses_repeated_generic_enum_variant_payload_mismatch() {
+    let diagnostics = check_text(
+        r#"enum Pair<T> {
+    same(left: T, right: T)
+}
+
+func main(): i32 {
+    let pair = Pair.same(1, "bad")
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0368");
+    assert!(diagnostics[0].message.contains("i32"));
+    assert!(diagnostics[0].message.contains("&str"));
+}
+
+#[test]
+fn accepts_generic_enum_variant_construction_in_generic_function() {
+    let diagnostics = check_text(
+        r#"enum Maybe<T> {
+    some(value: T)
+    empty
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make<T>(value: T): Maybe<T> {
+    return Maybe.some(value)
 }
 "#,
     );

@@ -388,8 +388,12 @@ impl TypecheckFactCollector<'_> {
                 self.collect_expression_facts(&statement.expression, environment);
                 for arm in &statement.arms {
                     self.record_type_reference(&arm.enum_name, arm.enum_name_span);
-                    let mut arm_environment =
-                        environment_for_switch_arm(arm, self.resolved, environment);
+                    let mut arm_environment = environment_for_switch_arm(
+                        arm,
+                        &statement.expression,
+                        self.resolved,
+                        environment,
+                    );
                     if let Some(payload) = &arm.payload {
                         self.record_payload_binding(payload, &arm_environment);
                     }
@@ -588,8 +592,12 @@ impl TypecheckFactCollector<'_> {
                 self.collect_expression_facts(&expression.target, environment);
                 for arm in &expression.arms {
                     self.record_type_reference(&arm.enum_name, arm.enum_name_span);
-                    let mut arm_environment =
-                        environment_for_pattern_conditional_arm(arm, self.resolved, environment);
+                    let mut arm_environment = environment_for_pattern_conditional_arm(
+                        arm,
+                        &expression.target,
+                        self.resolved,
+                        environment,
+                    );
                     if let Some(payload) = &arm.payload {
                         self.record_payload_binding(payload, &arm_environment);
                     }

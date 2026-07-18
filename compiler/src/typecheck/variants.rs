@@ -19,7 +19,7 @@ use super::environments::environment_for_pattern_conditional_arm;
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment};
 use super::operations::is_expression_assignable;
-use super::type_expr::type_expr_to_type;
+use super::type_expr::{infer_type_expr_substitutions, type_expr_to_type_with_substitutions};
 use crate::ast::{
     CallExpr, Expr, IfIsStmt, MemberExpr, PatternConditionalArm, PatternConditionalExpr, SwitchArm,
     SwitchStmt,
@@ -131,7 +131,8 @@ pub(super) fn check_pattern_conditional_expression(
     }
 
     for arm in &expression.arms {
-        let arm_environment = environment_for_pattern_conditional_arm(arm, resolved, environment);
+        let arm_environment =
+            environment_for_pattern_conditional_arm(arm, &expression.target, resolved, environment);
         if !is_expression_assignable(&expected, &arm.expression, resolved, &arm_environment) {
             let actual = expression_type(&arm.expression, resolved, &arm_environment);
             diagnostics.push(pattern_conditional_arm_type_mismatch_diagnostic(
@@ -161,8 +162,12 @@ pub(super) fn pattern_conditional_expression_type(
         .arms
         .iter()
         .map(|arm| {
-            let arm_environment =
-                environment_for_pattern_conditional_arm(arm, resolved, environment);
+            let arm_environment = environment_for_pattern_conditional_arm(
+                arm,
+                &expression.target,
+                resolved,
+                environment,
+            );
             expression_type(&arm.expression, resolved, &arm_environment)
         })
         .find(|ty| !ty.is_unknown_or_unresolved())
@@ -176,8 +181,12 @@ fn compatible_pattern_conditional_arm_type(
     environment: &TypeEnvironment,
 ) -> Option<Type> {
     expression.arms.iter().find_map(|candidate_arm| {
-        let candidate_environment =
-            environment_for_pattern_conditional_arm(candidate_arm, resolved, environment);
+        let candidate_environment = environment_for_pattern_conditional_arm(
+            candidate_arm,
+            &expression.target,
+            resolved,
+            environment,
+        );
         let candidate_type =
             expression_type(&candidate_arm.expression, resolved, &candidate_environment);
         if candidate_type.is_unknown_or_unresolved() {
@@ -195,8 +204,12 @@ fn compatible_pattern_conditional_arm_type(
         }
 
         let arms_fit_candidate = expression.arms.iter().all(|arm| {
-            let arm_environment =
-                environment_for_pattern_conditional_arm(arm, resolved, environment);
+            let arm_environment = environment_for_pattern_conditional_arm(
+                arm,
+                &expression.target,
+                resolved,
+                environment,
+            );
             let arm_type = expression_type(&arm.expression, resolved, &arm_environment);
             arm_type.is_unknown_or_unresolved()
                 || is_expression_assignable(
@@ -536,12 +549,44 @@ pub(super) fn resolved_enum_variant_for_member<'a>(
     Some((enum_symbol, variant))
 }
 
-pub(super) fn enum_variant_call_type(call: &CallExpr, resolved: &ResolveOutput) -> Option<Type> {
+pub(super) fn enum_variant_call_type(
+    call: &CallExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<Type> {
     if resolved.associated_function_for_call(call).is_some() {
         return None;
     }
 
-    enum_member_for_call(call).and_then(|member| enum_variant_member_type(member, resolved))
+    let member = enum_member_for_call(call)?;
+    let enum_symbol = enum_symbol_for_member(member, resolved)?;
+    let variant = enum_variant_for_member(member, enum_symbol)?;
+    Some(enum_variant_constructor_type(
+        enum_symbol,
+        variant,
+        &call.arguments,
+        resolved,
+        environment,
+    ))
+}
+
+pub(super) fn enum_variant_expression_is_assignable(
+    expected: &Type,
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<bool> {
+    match expression {
+        Expr::Call(call) => enum_variant_call_is_assignable(expected, call, resolved, environment),
+        Expr::Member(member) => enum_variant_member_is_assignable(expected, member, resolved),
+        Expr::Group(group) => enum_variant_expression_is_assignable(
+            expected,
+            &group.expression,
+            resolved,
+            environment,
+        ),
+        _ => None,
+    }
 }
 
 pub(super) fn check_enum_variant_member(
@@ -624,13 +669,25 @@ pub(super) fn check_enum_variant_call(
         return;
     }
 
+    let substitutions = infer_enum_variant_substitutions(
+        enum_symbol,
+        variant,
+        &call.arguments,
+        resolved,
+        environment,
+    );
     for (index, (argument, parameter)) in call
         .arguments
         .iter()
         .zip(variant.payload.iter())
         .enumerate()
     {
-        let expected = type_expr_to_type(&parameter.ty, resolved);
+        let expected = type_expr_to_type_with_substitutions(
+            &parameter.ty,
+            resolved,
+            environment.self_type(),
+            &substitutions,
+        );
         let actual = expression_type(argument, resolved, environment);
         if expected.is_unknown_or_unresolved() || actual.is_unknown_or_unresolved() {
             continue;
@@ -648,6 +705,153 @@ pub(super) fn check_enum_variant_call(
             ));
         }
     }
+}
+
+fn enum_variant_constructor_type(
+    enum_symbol: &TypeSymbol,
+    variant: &EnumVariantSignature,
+    arguments: &[Expr],
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Type {
+    if enum_symbol.generic_parameters.is_empty() {
+        return Type::Named(enum_symbol.canonical_name.clone());
+    }
+
+    let substitutions =
+        infer_enum_variant_substitutions(enum_symbol, variant, arguments, resolved, environment);
+    let Some(arguments) = enum_symbol
+        .generic_parameters
+        .iter()
+        .map(|parameter| substitutions.get(parameter).cloned())
+        .collect::<Option<Vec<_>>>()
+    else {
+        return Type::Named(enum_symbol.canonical_name.clone());
+    };
+
+    Type::Generic {
+        name: enum_symbol.canonical_name.clone(),
+        arguments,
+    }
+}
+
+fn infer_enum_variant_substitutions(
+    enum_symbol: &TypeSymbol,
+    variant: &EnumVariantSignature,
+    arguments: &[Expr],
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> HashMap<String, Type> {
+    if enum_symbol.generic_parameters.is_empty() {
+        return HashMap::new();
+    }
+
+    let parameters = enum_symbol
+        .generic_parameters
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
+    let mut substitutions = HashMap::new();
+    for (argument, parameter) in arguments.iter().zip(variant.payload.iter()) {
+        let actual = expression_type(argument, resolved, environment);
+        if actual.is_unknown_or_unresolved() {
+            continue;
+        }
+        infer_type_expr_substitutions(
+            &parameter.ty,
+            &actual,
+            resolved,
+            environment.self_type(),
+            &parameters,
+            &mut substitutions,
+        );
+    }
+    substitutions
+}
+
+fn enum_variant_call_is_assignable(
+    expected: &Type,
+    call: &CallExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<bool> {
+    if !matches!(expected, Type::Generic { .. }) {
+        return None;
+    }
+    if resolved.associated_function_for_call(call).is_some() {
+        return None;
+    }
+
+    let expected_symbol = enum_type_symbol_for_type(expected, resolved)?;
+    let member = enum_member_for_call(call)?;
+    let enum_symbol = enum_symbol_for_member(member, resolved)?;
+    if enum_symbol.canonical_name != expected_symbol.canonical_name {
+        return Some(false);
+    }
+
+    let Some(variant) = enum_variant_for_member(member, enum_symbol) else {
+        return Some(true);
+    };
+    if variant.payload.len() != call.arguments.len()
+        || variant.payload.is_empty() && call.arguments.is_empty()
+    {
+        return Some(true);
+    }
+
+    let substitutions = generic_substitutions_for_enum_owner(expected_symbol, expected);
+    Some(
+        call.arguments
+            .iter()
+            .zip(variant.payload.iter())
+            .all(|(argument, parameter)| {
+                let expected = type_expr_to_type_with_substitutions(
+                    &parameter.ty,
+                    resolved,
+                    environment.self_type(),
+                    &substitutions,
+                );
+                expected.is_unknown_or_unresolved()
+                    || is_expression_assignable(&expected, argument, resolved, environment)
+            }),
+    )
+}
+
+fn enum_variant_member_is_assignable(
+    expected: &Type,
+    member: &MemberExpr,
+    resolved: &ResolveOutput,
+) -> Option<bool> {
+    if !matches!(expected, Type::Generic { .. }) {
+        return None;
+    }
+    let expected_symbol = enum_type_symbol_for_type(expected, resolved)?;
+    let enum_symbol = enum_symbol_for_member(member, resolved)?;
+    if enum_symbol.canonical_name != expected_symbol.canonical_name {
+        return Some(false);
+    }
+
+    Some(true)
+}
+
+fn generic_substitutions_for_enum_owner(
+    enum_symbol: &TypeSymbol,
+    owner_type: &Type,
+) -> HashMap<String, Type> {
+    let Type::Generic { name, arguments } = owner_type else {
+        return HashMap::new();
+    };
+    if name != &enum_symbol.canonical_name
+        || arguments.len() != enum_symbol.generic_parameters.len()
+    {
+        return HashMap::new();
+    }
+
+    enum_symbol
+        .generic_parameters
+        .iter()
+        .cloned()
+        .zip(arguments.iter().cloned())
+        .collect()
 }
 
 fn enum_symbol_for_member<'a>(

@@ -37,6 +37,128 @@ pub(super) fn type_expr_to_type_with_substitutions(
     type_expr_to_type_inner(ty, resolved, self_type, substitutions, &mut HashSet::new())
 }
 
+pub(super) fn infer_type_expr_substitutions(
+    expected: &TypeExpr,
+    actual: &Type,
+    resolved: &ResolveOutput,
+    self_type: Option<&Type>,
+    parameters: &HashSet<&str>,
+    substitutions: &mut HashMap<String, Type>,
+) {
+    match expected {
+        TypeExpr::Reference(reference) if reference.name == "Self" => {
+            if self_type.is_some_and(|self_type| self_type == actual) {
+                return;
+            }
+        }
+        TypeExpr::Reference(reference) if parameters.contains(reference.name.as_str()) => {
+            substitutions
+                .entry(reference.name.clone())
+                .or_insert_with(|| actual.clone());
+        }
+        TypeExpr::Pointer(pointer) => {
+            if let Type::Pointer(actual_inner) = actual {
+                infer_type_expr_substitutions(
+                    &pointer.inner,
+                    actual_inner,
+                    resolved,
+                    self_type,
+                    parameters,
+                    substitutions,
+                );
+            }
+        }
+        TypeExpr::Borrow(borrow) => {
+            if let Some(actual_inner) = borrowed_actual_inner_type(actual, borrow.is_readwrite) {
+                infer_type_expr_substitutions(
+                    &borrow.inner,
+                    &actual_inner,
+                    resolved,
+                    self_type,
+                    parameters,
+                    substitutions,
+                );
+            }
+        }
+        TypeExpr::View(view) => {
+            if let Type::ArrayData { element } = actual {
+                infer_type_expr_substitutions(
+                    &view.element,
+                    element,
+                    resolved,
+                    self_type,
+                    parameters,
+                    substitutions,
+                );
+            }
+        }
+        TypeExpr::Array(array) => {
+            if let Type::Array { element, .. } = actual {
+                infer_type_expr_substitutions(
+                    &array.element,
+                    element,
+                    resolved,
+                    self_type,
+                    parameters,
+                    substitutions,
+                );
+            }
+        }
+        TypeExpr::Optional(optional) => {
+            if let Type::Optional(actual_inner) = actual {
+                infer_type_expr_substitutions(
+                    &optional.inner,
+                    actual_inner,
+                    resolved,
+                    self_type,
+                    parameters,
+                    substitutions,
+                );
+            }
+        }
+        TypeExpr::Fallible(fallible) => {
+            if let Type::Fallible { success, error } = actual {
+                infer_type_expr_substitutions(
+                    &fallible.success,
+                    success,
+                    resolved,
+                    self_type,
+                    parameters,
+                    substitutions,
+                );
+                infer_type_expr_substitutions(
+                    &fallible.error,
+                    error,
+                    resolved,
+                    self_type,
+                    parameters,
+                    substitutions,
+                );
+            }
+        }
+        TypeExpr::Generic(generic) => {
+            if let Some(expected_arguments) =
+                expected_generic_parts(generic, actual, resolved, self_type)
+                && expected_arguments.len() == generic.arguments.len()
+            {
+                for (expected_argument, actual_argument) in
+                    generic.arguments.iter().zip(expected_arguments.iter())
+                {
+                    infer_type_expr_substitutions(
+                        expected_argument,
+                        actual_argument,
+                        resolved,
+                        self_type,
+                        parameters,
+                        substitutions,
+                    );
+                }
+            }
+        }
+        TypeExpr::Reference(_) => {}
+    }
+}
+
 fn type_expr_to_type_inner(
     ty: &TypeExpr,
     resolved: &ResolveOutput,
@@ -212,6 +334,99 @@ fn type_expr_to_type_inner(
             )),
         },
     }
+}
+
+fn expected_generic_parts(
+    generic: &crate::ast::GenericType,
+    actual: &Type,
+    resolved: &ResolveOutput,
+    self_type: Option<&Type>,
+) -> Option<Vec<Type>> {
+    let expected_name = if generic.name == "Self" {
+        self_type?.nominal_name()?.to_string()
+    } else {
+        resolved
+            .type_symbol_by_reference_name(&generic.name)
+            .map(|symbol| symbol.canonical_name.clone())
+            .unwrap_or_else(|| generic.name.clone())
+    };
+
+    match actual {
+        Type::Generic { name, arguments } if *name == expected_name => Some(arguments.clone()),
+        _ => None,
+    }
+}
+
+fn borrowed_actual_inner_type(actual: &Type, is_readwrite: bool) -> Option<Type> {
+    match actual {
+        Type::Str if !is_readwrite => Some(Type::StrData),
+        Type::View {
+            is_readwrite: actual_readwrite,
+            element,
+        } if *actual_readwrite == is_readwrite => Some(Type::ArrayData {
+            element: element.clone(),
+        }),
+        Type::Named(name) if is_readwrite => {
+            name.strip_prefix("&+").map(simple_type_from_display_name)
+        }
+        Type::Named(name) if !is_readwrite => {
+            name.strip_prefix('&').map(simple_type_from_display_name)
+        }
+        _ => None,
+    }
+}
+
+fn simple_type_from_display_name(name: &str) -> Type {
+    match name {
+        "i32" => Type::I32,
+        "bool" | "i8" | "i16" | "i64" | "u8" | "u16" | "u32" | "u64" | "usize" | "isize" => {
+            Type::Primitive(name.to_string())
+        }
+        "str" => Type::StrData,
+        "&str" => Type::Str,
+        "error" => Type::Error,
+        "void" => Type::Void,
+        "never" => Type::Never,
+        name if name.starts_with('*') => {
+            Type::Pointer(Box::new(simple_type_from_display_name(&name[1..])))
+        }
+        name => parse_generic_display_type(name).unwrap_or_else(|| Type::Named(name.to_string())),
+    }
+}
+
+fn parse_generic_display_type(name: &str) -> Option<Type> {
+    let open = name.find('<')?;
+    let close = name.rfind('>')?;
+    if close != name.len() - 1 || close <= open {
+        return None;
+    }
+    let arguments = split_top_level_type_arguments(&name[open + 1..close])
+        .into_iter()
+        .map(simple_type_from_display_name)
+        .collect();
+    Some(Type::Generic {
+        name: name[..open].trim().to_string(),
+        arguments,
+    })
+}
+
+fn split_top_level_type_arguments(arguments: &str) -> Vec<&str> {
+    let mut result = Vec::new();
+    let mut depth = 0usize;
+    let mut start = 0usize;
+    for (index, ch) in arguments.char_indices() {
+        match ch {
+            '<' | '[' | '(' => depth += 1,
+            '>' | ']' | ')' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                result.push(arguments[start..index].trim());
+                start = index + ch.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    result.push(arguments[start..].trim());
+    result
 }
 
 pub(super) fn type_expr_display_lossy(ty: &TypeExpr) -> String {

@@ -4,12 +4,14 @@ use super::numeric::{is_integer_literal_expr, is_integer_type};
 use super::operations::is_expression_assignable;
 use super::type_expr::{
     type_expr_display_lossy, type_expr_to_type, type_expr_to_type_in_environment,
+    type_expr_to_type_with_substitutions,
 };
 use crate::ast::{
     Expr, ForRangeStmt, FunctionDecl, IfIsStmt, IfLetStmt, ImplDecl, MethodDecl, Parameter,
     PatternConditionalArm, SwitchArm, WhileLetStmt,
 };
 use crate::resolve::{ResolveOutput, TypeSymbolKind};
+use std::collections::HashMap;
 
 pub(super) fn environment_for_parameters_with_self_type(
     parameters: &[Parameter],
@@ -125,10 +127,17 @@ pub(super) fn environment_for_if_is_binding(
 ) -> TypeEnvironment {
     let mut then_environment = environment.clone();
     if let Some(payload) = &statement.payload {
+        let target_type = expression_type(&statement.expression, resolved, environment);
         then_environment.define(
             payload.name.clone(),
-            enum_pattern_payload_type(&statement.enum_name, &statement.variant_name, resolved)
-                .unwrap_or(Type::Unknown),
+            enum_pattern_payload_type(
+                &statement.enum_name,
+                &statement.variant_name,
+                Some(&target_type),
+                resolved,
+                environment,
+            )
+            .unwrap_or(Type::Unknown),
         );
     }
     then_environment
@@ -174,15 +183,23 @@ fn while_let_binding_type(
 
 pub(super) fn environment_for_switch_arm(
     arm: &SwitchArm,
+    target: &Expr,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> TypeEnvironment {
     let mut arm_environment = environment.clone();
     if let Some(payload) = &arm.payload {
+        let target_type = expression_type(target, resolved, environment);
         arm_environment.define(
             payload.name.clone(),
-            enum_pattern_payload_type(&arm.enum_name, &arm.variant_name, resolved)
-                .unwrap_or(Type::Unknown),
+            enum_pattern_payload_type(
+                &arm.enum_name,
+                &arm.variant_name,
+                Some(&target_type),
+                resolved,
+                environment,
+            )
+            .unwrap_or(Type::Unknown),
         );
     }
     arm_environment
@@ -190,15 +207,23 @@ pub(super) fn environment_for_switch_arm(
 
 pub(super) fn environment_for_pattern_conditional_arm(
     arm: &PatternConditionalArm,
+    target: &Expr,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> TypeEnvironment {
     let mut arm_environment = environment.clone();
     if let Some(payload) = &arm.payload {
+        let target_type = expression_type(target, resolved, environment);
         arm_environment.define(
             payload.name.clone(),
-            enum_pattern_payload_type(&arm.enum_name, &arm.variant_name, resolved)
-                .unwrap_or(Type::Unknown),
+            enum_pattern_payload_type(
+                &arm.enum_name,
+                &arm.variant_name,
+                Some(&target_type),
+                resolved,
+                environment,
+            )
+            .unwrap_or(Type::Unknown),
         );
     }
     arm_environment
@@ -207,7 +232,9 @@ pub(super) fn environment_for_pattern_conditional_arm(
 fn enum_pattern_payload_type(
     enum_name: &str,
     variant_name: &str,
+    target_type: Option<&Type>,
     resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
 ) -> Option<Type> {
     let symbol = resolved.type_symbol_by_name(enum_name)?;
     if symbol.kind != TypeSymbolKind::Enum {
@@ -222,7 +249,36 @@ fn enum_pattern_payload_type(
         return None;
     };
 
-    Some(type_expr_to_type(&payload.ty, resolved))
+    let substitutions = target_type
+        .map(|ty| generic_substitutions_for_enum_owner(symbol, ty))
+        .unwrap_or_default();
+    Some(type_expr_to_type_with_substitutions(
+        &payload.ty,
+        resolved,
+        environment.self_type(),
+        &substitutions,
+    ))
+}
+
+fn generic_substitutions_for_enum_owner(
+    enum_symbol: &crate::resolve::TypeSymbol,
+    owner_type: &Type,
+) -> HashMap<String, Type> {
+    let Type::Generic { name, arguments } = owner_type else {
+        return HashMap::new();
+    };
+    if name != &enum_symbol.canonical_name
+        || arguments.len() != enum_symbol.generic_parameters.len()
+    {
+        return HashMap::new();
+    }
+
+    enum_symbol
+        .generic_parameters
+        .iter()
+        .cloned()
+        .zip(arguments.iter().cloned())
+        .collect()
 }
 
 pub(super) fn environment_for_for_range_binding(

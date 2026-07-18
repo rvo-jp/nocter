@@ -105,7 +105,7 @@ pub(super) fn expression_type(
 
             resolved_call_signature(resolved, expression, environment)
                 .map(|signature| call_return_type(expression, &signature, resolved, environment))
-                .or_else(|| enum_variant_call_type(expression, resolved))
+                .or_else(|| enum_variant_call_type(expression, resolved, environment))
                 .unwrap_or(Type::Unknown)
         }
         Expr::Group(expression) => expression_type(&expression.expression, resolved, environment),

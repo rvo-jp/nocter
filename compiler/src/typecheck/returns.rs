@@ -361,7 +361,8 @@ fn check_statement_returns(
                 environment,
             );
             for arm in &statement.arms {
-                let mut arm_environment = environment_for_switch_arm(arm, resolved, environment);
+                let mut arm_environment =
+                    environment_for_switch_arm(arm, &statement.expression, resolved, environment);
                 check_block_return_statements(
                     sources,
                     &arm.body,
@@ -717,8 +718,12 @@ fn check_expression_for_nested_returns(
                 environment,
             );
             for arm in &expression.arms {
-                let mut arm_environment =
-                    environment_for_pattern_conditional_arm(arm, resolved, environment);
+                let mut arm_environment = environment_for_pattern_conditional_arm(
+                    arm,
+                    &expression.target,
+                    resolved,
+                    environment,
+                );
                 check_expression_for_nested_returns(
                     sources,
                     &arm.expression,
@@ -899,7 +904,8 @@ fn switch_arms_guarantee_return_or_never(
     environment: &TypeEnvironment,
 ) -> bool {
     statement.arms.iter().all(|arm| {
-        let arm_environment = environment_for_switch_arm(arm, resolved, environment);
+        let arm_environment =
+            environment_for_switch_arm(arm, &statement.expression, resolved, environment);
         block_guarantees_return_or_never(&arm.body, resolved, &arm_environment)
     })
 }

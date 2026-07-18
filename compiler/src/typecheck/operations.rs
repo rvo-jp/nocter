@@ -17,6 +17,7 @@ use super::numeric::{
     is_signed_integer_type, negative_integer_literal_fits_type,
 };
 use super::type_expr::type_expr_to_type_in_environment;
+use super::variants::enum_variant_expression_is_assignable;
 use crate::ast::{
     BinaryExpr, BinaryOperator, Expr, OptionalDefaultExpr, TypeConversionExpr, UnaryExpr,
     UnaryOperator,
@@ -286,9 +287,12 @@ pub(super) fn is_expression_assignable(
         (_, Expr::Group(group)) => {
             is_expression_assignable(expected, &group.expression, resolved, environment)
         }
-        _ => {
-            let actual = expression_type(expression, resolved, environment);
-            is_assignable(expected, &actual)
+        (_, _) => {
+            enum_variant_expression_is_assignable(expected, expression, resolved, environment)
+                .unwrap_or_else(|| {
+                    let actual = expression_type(expression, resolved, environment);
+                    is_assignable(expected, &actual)
+                })
         }
     }
 }
