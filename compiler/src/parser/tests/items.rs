@@ -135,6 +135,59 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_var_parameters_as_deferred() {
+    let output = parse_text(
+        r#"func bump(var count: i32): i32 {
+    return count
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("`var` parameters are not part of v0")
+    );
+}
+
+#[test]
+fn diagnoses_default_parameters_as_deferred() {
+    let output = parse_text(
+        r#"func open(path: &str = "input.txt"): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("default parameters are not part of v0")
+    );
+}
+
+#[test]
+fn diagnoses_variadic_parameters_as_deferred() {
+    let output = parse_text(
+        r#"func print_all(parts: &str...): void {
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("variadic parameters are not part of v0")
+    );
+}
+
+#[test]
 fn parses_generic_impl_parameters() {
     let output = parse_text(
         r#"struct Box<T> {

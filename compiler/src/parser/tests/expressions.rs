@@ -145,6 +145,24 @@ fn parses_borrow_expressions() {
 }
 
 #[test]
+fn diagnoses_named_arguments_as_deferred() {
+    let output = parse_text(
+        r#"func main(): i32 {
+    return copy(source: "hello")
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("named arguments are not part of v0")
+    );
+}
+
+#[test]
 fn ast_json_includes_expression_operator_spans() {
     let (sources, output) = parse_text_with_sources(
         r#"func main(): i32 {

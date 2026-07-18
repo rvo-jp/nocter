@@ -353,6 +353,10 @@ impl Parser<'_> {
                 return Err(());
             }
 
+            if self.current().kind == TokenKind::Identifier && self.next_is_punctuation(":") {
+                self.error_current("named arguments are not part of v0");
+                return Err(());
+            }
             arguments.push(self.parse_expression()?);
             self.skip_newlines();
             if self.match_punctuation(",").is_none() {
