@@ -922,6 +922,11 @@ fn collect_expression_diagnostics(
             diagnostics,
         ),
         Expr::Call(expression) => {
+            if let Some(diagnostic) =
+                unsupported_unloaded_imported_call_diagnostic(sources, expression, resolved)
+            {
+                diagnostics.push(diagnostic);
+            }
             if let Some(diagnostic) = unsupported_dynamic_failure_payload_diagnostic(
                 sources,
                 expression,
@@ -1068,6 +1073,27 @@ fn collect_expression_diagnostics(
             );
         }
     }
+}
+
+fn unsupported_unloaded_imported_call_diagnostic(
+    sources: &SourceMap,
+    call: &CallExpr,
+    resolved: &ResolveOutput,
+) -> Option<Diagnostic> {
+    let symbol = resolved.symbol_for_call(call)?;
+    let SymbolKind::Imported(imported) = &symbol.kind else {
+        return None;
+    };
+
+    Some(unsupported_v0_build_diagnostic(
+        sources,
+        call.span,
+        "unloaded imported function calls",
+        &format!(
+            "load `{}` from the active Nocter home or use a same-file function until imported placeholder lowering is promoted",
+            imported.path
+        ),
+    ))
 }
 
 fn unsupported_borrow_call_argument_diagnostic(
@@ -1463,4 +1489,91 @@ fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {
 
 fn drop_name_span(span: ByteSpan) -> ByteSpan {
     ByteSpan::new(span.source, span.start, span.start + "drop".len())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::analysis::{CompileUnit, analyze_compile_unit_with_entry};
+    use crate::entry::DEFAULT_ENTRY_NAME;
+    use crate::lexer::lex;
+    use crate::parser::parse;
+    use std::collections::HashMap;
+
+    #[test]
+    fn reports_reachable_unloaded_imported_call_before_ir_lowering() {
+        let (sources, analysis) = analyze_text(
+            r#"use std/io.print
+
+func main(): i32 {
+    print("hello")
+    return 0
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis, DEFAULT_ENTRY_NAME);
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "E0435");
+        assert_eq!(
+            diagnostics[0].message,
+            "Nocter v0 build cannot lower unloaded imported function calls yet"
+        );
+        assert_eq!(
+            diagnostics[0].help.as_deref(),
+            Some(
+                "load `std/io` from the active Nocter home or use a same-file function until imported placeholder lowering is promoted"
+            )
+        );
+        assert!(diagnostics[0].primary_span.is_some());
+    }
+
+    #[test]
+    fn does_not_report_unreachable_unloaded_imported_call() {
+        let (sources, analysis) = analyze_text(
+            r#"use std/io.print
+
+func main(): i32 {
+    return 0
+}
+
+func unused(): i32 {
+    print("hello")
+    return 1
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis, DEFAULT_ENTRY_NAME);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    fn analyze_text(text: &str) -> (SourceMap, crate::analysis::CompileUnitAnalysis) {
+        let mut sources = SourceMap::new();
+        let source = sources.add_source("test.nct", None, text.to_string());
+        let lexed = lex(&sources, source);
+        assert!(
+            lexed.diagnostics.is_empty(),
+            "unexpected lex diagnostics: {:?}",
+            lexed.diagnostics
+        );
+        let parsed = parse(&sources, source, &lexed.tokens);
+        assert!(
+            parsed.diagnostics.is_empty(),
+            "unexpected parse diagnostics: {:?}",
+            parsed.diagnostics
+        );
+        let ast = parsed.ast.expect("expected ast");
+        let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new());
+        let analysis = analyze_compile_unit_with_entry(&sources, &unit, DEFAULT_ENTRY_NAME);
+        let diagnostics = analysis.diagnostics();
+        assert!(
+            diagnostics.is_empty(),
+            "unexpected frontend diagnostics: {diagnostics:?}"
+        );
+
+        (sources, analysis)
+    }
 }

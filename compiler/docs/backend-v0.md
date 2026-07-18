@@ -203,7 +203,7 @@ Terminal-if conditions such as `if enabled() && other() { ... }` lower to nested
 `if enabled() || other() { ... }` uses the same nested form with `other()` evaluated only when `enabled()` is false.
 Bool short-circuit value expressions with calls, such as `let ready = enabled() && other()` or `return enabled() && other()`, lower to nested `Instruction::If` nodes that materialize `true` or `false` into the destination bool location.
 `&str` normal-call results are staged into two consecutive local ABI words. They are lowerable in annotated `&str` `let` initializers and as `&str` call or tail-call arguments, for example `let text: &str = title()` and `return consume(title())`.
-Loaded imported calls use the same narrow call subset as same-file calls. Unloaded imported placeholders still diagnose before backend lowering.
+Loaded imported calls use the same narrow call subset as same-file calls. Reachable unloaded imported placeholders are rejected by the buildability preflight before IR lowering.
 
 ### Encoder Work Required First
 

@@ -187,7 +187,7 @@ Currently not buildable even when it may be checkable:
 
 - general local storage beyond the listed scalar/view and aggregate slot paths
 - general `if`/`while`/`loop` forms beyond the supported terminal and scalar/view plus branch/body-local non-terminal subsets, `while let`, range `for`, and `match`
-- unloaded imported function placeholders
+- unloaded imported function placeholders; reachable calls are rejected by the buildability preflight
 - general `&str`/view member operations beyond `.len()`, and iteration over views or bytes; direct byte indexing remains buildable in lowerable `u8` positions
 - interpolated string construction
 - optional control-flow and storage forms beyond the supported force unwrap, `let ... else`, and `??` binding/return paths
@@ -227,7 +227,7 @@ Addition and subtraction emission uses ARM64 flag-setting arithmetic and traps o
 Multiplication emission computes a signed 64-bit product and traps unless that product exactly fits in `i32`.
 Division and remainder emission inserts zero-divisor and signed-overflow trap checks before ARM64 `sdiv`.
 Shift emission checks the runtime count before ARM64 variable shift instructions and traps when the count is negative or greater than or equal to the shifted value width.
-Unloaded imported placeholders, general aggregate value expressions outside the supported struct-literal/call-result/slot-copy/explicit-move/borrow paths, ownership/drop lowering, and general control-flow call placement remain outside the buildable subset.
+Reachable unloaded imported placeholders are rejected by the buildability preflight. General aggregate value expressions outside the supported struct-literal/call-result/slot-copy/explicit-move/borrow paths, ownership/drop lowering, and general control-flow call placement remain outside the buildable subset.
 
 Use integration tests for user-visible CLI behavior and backend/unit tests for lower-level encoding and Mach-O layout. When extending build support, first add a small `nocter build` regression case, then expand IR lowering, code generation, and documentation together.
 
