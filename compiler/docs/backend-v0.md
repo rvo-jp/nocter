@@ -195,10 +195,9 @@ Multiple normal calls in an arithmetic expression are evaluated left to right an
 Nested normal-call arguments are also evaluated left to right before the parent scalar/view call.
 `i32` comparisons such as `if answer() == 42 { ... }`, `let matched = left() <= right()`, and `return left() < right()` evaluate lowerable call operands left to right, stage each call result in a temporary scalar local, and then build a `BoolValue::I32Comparison`.
 Those staged comparisons can also participate in buildable short-circuit bool expressions such as `if answer() == 42 && ready() { ... }` and `let matched = answer() == 42 && ready()`.
-Bool-returning normal calls are buildable in `let` initializers, unary-not bool expressions, bool equality/inequality operands, short-circuit bool value expressions, direct terminal-if conditions, and terminal-if short-circuit conditions.
+Bool-returning normal calls are buildable in `let` initializers, unary-not bool expressions, bool equality/inequality operands including nested short-circuit operands, short-circuit bool value expressions, direct terminal-if conditions, and terminal-if short-circuit conditions.
 For example, `let ready = enabled()`, `let disabled = !enabled()`, `if enabled() { ... }`, and `if !enabled() { ... }` lower by staging the bool call result in a temporary scalar local before the surrounding bool expression consumes it.
-Bool equality/inequality such as `let same = left() == right()` and `return ready() != false` evaluates call operands left to right, stages each result in a temporary scalar local, and then builds a `BoolValue::BoolComparison`.
-Compound bool comparison operands such as `(left() && right()) == true` remain disabled.
+Bool equality/inequality such as `let same = left() == right()`, `return ready() != false`, and `if (left() && right()) == true { ... }` evaluates call operands left to right, stages direct call results in temporary scalar locals, materializes nested short-circuit operands into temporary bool locals, and then builds a `BoolValue::BoolComparison`.
 Terminal-if conditions such as `if enabled() && other() { ... }` lower to nested `Instruction::If` nodes so `other()` is only evaluated when `enabled()` is true.
 `if enabled() || other() { ... }` uses the same nested form with `other()` evaluated only when `enabled()` is false.
 Bool short-circuit value expressions with calls, such as `let ready = enabled() && other()` or `return enabled() && other()`, lower to nested `Instruction::If` nodes that materialize `true` or `false` into the destination bool location.
@@ -241,7 +240,7 @@ Implement normal calls in this order:
 13. Done: lower direct same-file bool-returning normal calls in terminal-if conditions, including unary `!`, while keeping short-circuit call conditions disabled.
 14. Done: lower same-file bool-returning normal calls in terminal-if `&&` and `||` conditions by expanding to nested `Instruction::If` and preserving short-circuit evaluation.
 15. Done: lower same-file bool-returning normal calls in short-circuit bool value expressions by expanding to nested `Instruction::If` and materializing the bool result.
-16. Done: lower same-file bool-returning normal calls as atomic bool equality/inequality operands by staging call results left to right before `BoolValue::BoolComparison`.
+16. Done: lower same-file bool-returning normal calls as bool equality/inequality operands, including nested short-circuit operands, by staging call results left to right before `BoolValue::BoolComparison`.
 17. Done: lower nested `i32` tail-call arguments by staging child normal-call results before the final `TailCall`.
 18. Done: lower same-file `i32` normal calls as `i32` comparison operands by staging call results left to right before `BoolValue::I32Comparison`.
 19. Done: lower `i32` subtraction and multiplication through the same arithmetic staging path as addition, including same-file `i32` normal calls inside `+`, `-`, and `*` expressions.

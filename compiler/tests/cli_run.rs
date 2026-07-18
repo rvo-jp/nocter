@@ -7060,6 +7060,51 @@ fn run_command_returns_compound_bool_equality_exit_code() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_compound_bool_equality_nested_call_exit_code() {
+    let project = TempProject::new("cli-run-compound-bool-equality-nested-call");
+    let source = project.write_source(
+        "compound_bool_equality_nested_call.nct",
+        r#"func main(): i32 {
+    let both = (ready() && other()) == true
+    let neither = !(blocked() || closed()) == true
+    if both && neither {
+        return 31
+    } else {
+        return 7
+    }
+}
+
+func ready(): bool {
+    return true
+}
+
+func other(): bool {
+    return true
+}
+
+func blocked(): bool {
+    return false
+}
+
+func closed(): bool {
+    return false
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(31),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_fallible_entry_success_exit_code() {
     let project = TempProject::new("cli-run-fallible-success");
     let source = project.write_source(

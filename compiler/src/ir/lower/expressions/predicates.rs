@@ -122,11 +122,8 @@ pub(super) fn bool_comparison_contains_call(
     matches!(
         binary.operator,
         BinaryOperator::Equal | BinaryOperator::NotEqual
-    ) && expressions_are_lowerable_bool_comparison_operands_with_calls(
-        &binary.left,
-        &binary.right,
-        context,
-    )
+    ) && expressions_are_lowerable_bool_expressions(&binary.left, &binary.right, context)
+        && (expression_contains_call(&binary.left) || expression_contains_call(&binary.right))
 }
 
 pub(super) fn bool_comparison_needs_temporaries(
@@ -275,13 +272,7 @@ fn expression_is_lowerable_comparison_binding(
     matches!(
         binary.operator,
         BinaryOperator::Equal | BinaryOperator::NotEqual
-    ) && (expressions_are_lowerable_bool_values(&binary.left, &binary.right, context)
-        || expressions_are_lowerable_bool_comparison_operands_with_calls(
-            &binary.left,
-            &binary.right,
-            context,
-        )
-        || bool_comparison_needs_temporaries(binary, context))
+    ) && expressions_are_lowerable_bool_expressions(&binary.left, &binary.right, context)
 }
 
 fn expressions_are_lowerable_i32_values(
@@ -318,6 +309,58 @@ fn expressions_are_lowerable_u8_expressions(
 ) -> bool {
     expression_is_lowerable_u8_expression(left, context)
         && expression_is_lowerable_u8_expression(right, context)
+}
+
+fn expressions_are_lowerable_bool_expressions(
+    left: &Expr,
+    right: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    expression_is_lowerable_bool_expression(left, context)
+        && expression_is_lowerable_bool_expression(right, context)
+}
+
+fn expression_is_lowerable_bool_expression(expression: &Expr, context: &LoweringContext) -> bool {
+    match expression {
+        Expr::BoolLiteral(_) => true,
+        Expr::Identifier(identifier) => context.bool_location(&identifier.name).is_some(),
+        Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::Bool),
+        Expr::Member(_) => {
+            expression_is_aggregate_field_kind(expression, AggregateFieldKind::Bool, context)
+        }
+        Expr::Unary(unary) => {
+            unary.operator == UnaryOperator::LogicalNot
+                && expression_is_lowerable_bool_expression(&unary.operand, context)
+        }
+        Expr::Binary(binary) => expression_is_lowerable_bool_binary(binary, context),
+        Expr::Group(group) => expression_is_lowerable_bool_expression(&group.expression, context),
+        _ => false,
+    }
+}
+
+fn expression_is_lowerable_bool_binary(binary: &BinaryExpr, context: &LoweringContext) -> bool {
+    match binary.operator {
+        BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr => {
+            expression_is_lowerable_bool_expression(&binary.left, context)
+                && expression_is_lowerable_bool_expression(&binary.right, context)
+        }
+        BinaryOperator::Equal | BinaryOperator::NotEqual => {
+            u8_comparison_is_lowerable(binary, context)
+                || expressions_are_lowerable_i32_values(&binary.left, &binary.right, context)
+                || expressions_are_lowerable_i32_expressions(&binary.left, &binary.right, context)
+                || expressions_are_lowerable_usize_values(&binary.left, &binary.right, context)
+                || expressions_are_lowerable_usize_expressions(&binary.left, &binary.right, context)
+                || expressions_are_lowerable_bool_expressions(&binary.left, &binary.right, context)
+        }
+        _ if is_i32_comparison_operator(binary.operator) => {
+            u8_comparison_is_lowerable(binary, context)
+                || expressions_are_lowerable_i32_values(&binary.left, &binary.right, context)
+                || expressions_are_lowerable_i32_expressions(&binary.left, &binary.right, context)
+                || expressions_are_lowerable_usize_values(&binary.left, &binary.right, context)
+                || expressions_are_lowerable_usize_expressions(&binary.left, &binary.right, context)
+        }
+        _ => false,
+    }
 }
 
 fn expression_is_lowerable_u8_expression(expression: &Expr, context: &LoweringContext) -> bool {
@@ -574,32 +617,6 @@ fn expression_is_lowerable_bool_comparison_operand(
         Expr::Group(group) => {
             expression_is_lowerable_bool_comparison_operand(&group.expression, context)
         }
-        _ => false,
-    }
-}
-
-fn expressions_are_lowerable_bool_comparison_operands_with_calls(
-    left: &Expr,
-    right: &Expr,
-    context: &LoweringContext,
-) -> bool {
-    expression_is_lowerable_bool_comparison_operand_or_call(left, context)
-        && expression_is_lowerable_bool_comparison_operand_or_call(right, context)
-        && (expression_contains_call(left) || expression_contains_call(right))
-}
-
-fn expression_is_lowerable_bool_comparison_operand_or_call(
-    expression: &Expr,
-    context: &LoweringContext,
-) -> bool {
-    expression_is_lowerable_bool_comparison_operand(expression, context)
-        || expression_is_direct_bool_returning_call(expression, context)
-}
-
-fn expression_is_direct_bool_returning_call(expression: &Expr, context: &LoweringContext) -> bool {
-    match expression {
-        Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::Bool),
-        Expr::Group(group) => expression_is_direct_bool_returning_call(&group.expression, context),
         _ => false,
     }
 }

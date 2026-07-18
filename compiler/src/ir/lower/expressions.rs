@@ -1931,6 +1931,48 @@ fn lower_short_circuit_bool_expression_to_location(
     )
 }
 
+fn lower_short_circuit_bool_expression_to_value_with_temporaries(
+    binary: &BinaryExpr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
+    let temporary = temporaries.next_bool()?;
+    Ok(LoweredBoolValue {
+        instructions: lower_short_circuit_bool_expression_to_location_with_temporaries(
+            binary,
+            temporary,
+            context,
+            diagnostic_code,
+            temporaries,
+        )?,
+        value: BoolValue::Location(temporary),
+    })
+}
+
+fn lower_short_circuit_bool_expression_to_location_with_temporaries(
+    binary: &BinaryExpr,
+    destination: BoolLocation,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    lower_bool_expression_to_branch_with_temporaries(
+        &Expr::Binary(binary.clone()),
+        vec![Instruction::SetBool {
+            destination,
+            value: BoolValue::Const(true),
+        }],
+        vec![Instruction::SetBool {
+            destination,
+            value: BoolValue::Const(false),
+        }],
+        context,
+        diagnostic_code,
+        temporaries,
+    )
+}
+
 fn lower_bool_expression_to_branch(
     expression: &Expr,
     then_instructions: Vec<Instruction>,
@@ -1951,6 +1993,42 @@ fn lower_bool_expression_to_branch(
     }
 
     let condition = lower_bool_expression_to_value(expression, context, diagnostic_code)?;
+    let mut instructions = condition.instructions;
+    instructions.push(Instruction::If {
+        condition: condition.value,
+        then_instructions,
+        else_instructions,
+    });
+    Ok(instructions)
+}
+
+fn lower_bool_expression_to_branch_with_temporaries(
+    expression: &Expr,
+    then_instructions: Vec<Instruction>,
+    else_instructions: Vec<Instruction>,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Expr::Binary(binary) = unwrap_group(expression)
+        && short_circuit_bool_expression_contains_call(binary)
+    {
+        return lower_short_circuit_bool_expression_to_branch_with_temporaries(
+            binary,
+            then_instructions,
+            else_instructions,
+            context,
+            diagnostic_code,
+            temporaries,
+        );
+    }
+
+    let condition = lower_bool_expression_to_value_with_temporaries(
+        expression,
+        context,
+        diagnostic_code,
+        temporaries,
+    )?;
     let mut instructions = condition.instructions;
     instructions.push(Instruction::If {
         condition: condition.value,
@@ -1994,6 +2072,65 @@ fn lower_short_circuit_bool_expression_to_branch(
             context,
             diagnostic_code,
         ),
+        _ => unreachable!("short-circuit bool expression must be && or ||"),
+    }
+}
+
+fn lower_short_circuit_bool_expression_to_branch_with_temporaries(
+    binary: &BinaryExpr,
+    then_instructions: Vec<Instruction>,
+    else_instructions: Vec<Instruction>,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match binary.operator {
+        BinaryOperator::LogicalAnd => {
+            let left = lower_bool_expression_to_value_with_temporaries(
+                &binary.left,
+                context,
+                diagnostic_code,
+                temporaries,
+            )?;
+            let then_instructions = lower_bool_expression_to_branch_with_temporaries(
+                &binary.right,
+                then_instructions,
+                else_instructions.clone(),
+                context,
+                diagnostic_code,
+                temporaries,
+            )?;
+            let mut instructions = left.instructions;
+            instructions.push(Instruction::If {
+                condition: left.value,
+                then_instructions,
+                else_instructions,
+            });
+            Ok(instructions)
+        }
+        BinaryOperator::LogicalOr => {
+            let left = lower_bool_expression_to_value_with_temporaries(
+                &binary.left,
+                context,
+                diagnostic_code,
+                temporaries,
+            )?;
+            let else_instructions = lower_bool_expression_to_branch_with_temporaries(
+                &binary.right,
+                then_instructions.clone(),
+                else_instructions,
+                context,
+                diagnostic_code,
+                temporaries,
+            )?;
+            let mut instructions = left.instructions;
+            instructions.push(Instruction::If {
+                condition: left.value,
+                then_instructions,
+                else_instructions,
+            });
+            Ok(instructions)
+        }
         _ => unreachable!("short-circuit bool expression must be && or ||"),
     }
 }
@@ -2377,6 +2514,14 @@ fn lower_bool_expression_to_value_with_temporaries(
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
     match expression {
+        Expr::Binary(binary) if short_circuit_bool_expression_contains_call(binary) => {
+            lower_short_circuit_bool_expression_to_value_with_temporaries(
+                binary,
+                context,
+                diagnostic_code,
+                temporaries,
+            )
+        }
         Expr::Binary(binary) if bool_comparison_contains_call(binary, context) => {
             lower_bool_comparison_to_value_with_temporaries(
                 binary,

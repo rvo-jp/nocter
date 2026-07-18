@@ -1620,7 +1620,7 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_reports_compound_bool_equality_nested_call_before_ir_lowering() {
+fn build_command_lowers_compound_bool_equality_nested_call_operand() {
     let project = TempProject::new("cli-build-compound-bool-equality-call-boundary");
     let source = project.write_source(
         "compound_bool_equality_call_boundary.nct",
@@ -1645,27 +1645,15 @@ func other(): bool {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
     assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
+        output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
     );
     assert!(
-        stderr.contains("compound bool equality operands with nested calls"),
-        "expected compound bool equality diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("2 |     if (ready() && other()) == true {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E8006]"),
-        "buildability preflight should reject before IR bool lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
+        executable.exists(),
+        "build should leave an executable for nested call bool equality"
     );
 }
 
