@@ -1,15 +1,17 @@
+use super::calls::method_applies_to_receiver;
 use super::diagnostics::{
     duplicate_interface_impl_diagnostic, interface_impl_contract_not_interface_diagnostic,
     interface_impl_target_not_nominal_diagnostic, interface_method_missing_diagnostic,
     interface_method_not_public_diagnostic, interface_method_signature_mismatch_diagnostic,
 };
+use super::environments::generic_parameter_substitutions;
 use super::model::Type;
-use super::type_expr::type_expr_to_type_with_self_type;
+use super::type_expr::{infer_type_expr_substitutions, type_expr_to_type_with_substitutions};
 use crate::ast::{AstFile, ImplDecl, Item, TypeExpr, Visibility};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{MethodSignature, ResolveOutput, TypeSymbol, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceMap};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub(super) fn check_interface_impls(
     sources: &SourceMap,
@@ -38,19 +40,23 @@ fn check_interface_impl(
         return;
     };
 
-    let Some(interface_symbol) =
-        resolve_interface_symbol(interface_ty, resolved, diagnostics, sources)
+    let impl_substitutions = generic_parameter_substitutions(&impl_.generics);
+    let Some((interface_symbol, interface_type)) = resolve_interface_symbol(
+        interface_ty,
+        resolved,
+        diagnostics,
+        sources,
+        &impl_substitutions,
+    ) else {
+        return;
+    };
+    let Some((target_symbol, target_type)) =
+        resolve_target_symbol(impl_, resolved, diagnostics, sources, &impl_substitutions)
     else {
         return;
     };
-    let Some(target_symbol) = resolve_target_symbol(impl_, resolved, diagnostics, sources) else {
-        return;
-    };
 
-    let key = (
-        interface_symbol.canonical_name.clone(),
-        target_symbol.canonical_name.clone(),
-    );
+    let key = conformance_key(&interface_type, &target_type);
     match seen.entry(key) {
         std::collections::hash_map::Entry::Occupied(first) => {
             diagnostics.push(duplicate_interface_impl_diagnostic(
@@ -67,13 +73,13 @@ fn check_interface_impl(
         }
     }
 
-    let self_type = Type::Named(target_symbol.canonical_name.clone());
+    let self_type = target_type;
+    let interface_substitutions =
+        type_symbol_generic_substitutions(interface_symbol, &interface_type);
     for required in &interface_symbol.methods {
-        let Some(actual) = target_symbol
-            .methods
-            .iter()
-            .find(|method| method.name == required.name)
-        else {
+        let Some(actual) = target_symbol.methods.iter().find(|method| {
+            method.name == required.name && method_applies_to_receiver(method, &self_type, resolved)
+        }) else {
             diagnostics.push(interface_method_missing_diagnostic(
                 sources,
                 impl_,
@@ -95,8 +101,9 @@ fn check_interface_impl(
             continue;
         }
 
-        let expected = method_shape(required, resolved, &self_type);
-        let found = method_shape(actual, resolved, &self_type);
+        let actual_substitutions = method_impl_target_substitutions(actual, &self_type, resolved);
+        let expected = method_shape(required, resolved, &self_type, &interface_substitutions);
+        let found = method_shape(actual, resolved, &self_type, &actual_substitutions);
         if expected.has_unknown_or_unresolved() || found.has_unknown_or_unresolved() {
             continue;
         }
@@ -107,8 +114,8 @@ fn check_interface_impl(
                 target_symbol,
                 required,
                 actual,
-                method_shape_label(required, resolved, &self_type),
-                method_shape_label(actual, resolved, &self_type),
+                method_shape_label(required, resolved, &self_type, &interface_substitutions),
+                method_shape_label(actual, resolved, &self_type, &actual_substitutions),
             ));
         }
     }
@@ -119,8 +126,9 @@ fn resolve_interface_symbol<'a>(
     resolved: &'a ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
     sources: &SourceMap,
-) -> Option<&'a TypeSymbol> {
-    let actual_type = type_expr_to_type_with_self_type(ty, resolved, None);
+    substitutions: &HashMap<String, Type>,
+) -> Option<(&'a TypeSymbol, Type)> {
+    let actual_type = type_expr_to_type_with_substitutions(ty, resolved, None, substitutions);
     if actual_type.is_unknown_or_unresolved() {
         return None;
     }
@@ -135,7 +143,7 @@ fn resolve_interface_symbol<'a>(
         return None;
     }
 
-    symbol
+    symbol.map(|symbol| (symbol, actual_type))
 }
 
 fn resolve_target_symbol<'a>(
@@ -143,8 +151,10 @@ fn resolve_target_symbol<'a>(
     resolved: &'a ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
     sources: &SourceMap,
-) -> Option<&'a TypeSymbol> {
-    let actual_type = type_expr_to_type_with_self_type(&impl_.target_ty, resolved, None);
+    substitutions: &HashMap<String, Type>,
+) -> Option<(&'a TypeSymbol, Type)> {
+    let actual_type =
+        type_expr_to_type_with_substitutions(&impl_.target_ty, resolved, None, substitutions);
     if actual_type.is_unknown_or_unresolved() {
         return None;
     }
@@ -161,7 +171,7 @@ fn resolve_target_symbol<'a>(
         return None;
     }
 
-    symbol
+    symbol.map(|symbol| (symbol, actual_type))
 }
 
 fn symbol_for_type<'a>(ty: &Type, resolved: &'a ResolveOutput) -> Option<&'a TypeSymbol> {
@@ -170,25 +180,138 @@ fn symbol_for_type<'a>(ty: &Type, resolved: &'a ResolveOutput) -> Option<&'a Typ
     resolved.type_symbol_by_canonical_name(canonical_name)
 }
 
+fn conformance_key(interface_type: &Type, target_type: &Type) -> (String, String) {
+    let mut parameters = HashMap::new();
+    (
+        conformance_key_type(interface_type, &mut parameters),
+        conformance_key_type(target_type, &mut parameters),
+    )
+}
+
+fn conformance_key_type(ty: &Type, parameters: &mut HashMap<String, usize>) -> String {
+    match ty {
+        Type::I32 => "i32".to_string(),
+        Type::Primitive(name) => name.clone(),
+        Type::StrData => "str".to_string(),
+        Type::Str => "&str".to_string(),
+        Type::Error => "error".to_string(),
+        Type::Void => "void".to_string(),
+        Type::Never => "never".to_string(),
+        Type::None => "none".to_string(),
+        Type::ArrayData { element } => {
+            format!("[{}]", conformance_key_type(element, parameters))
+        }
+        Type::View {
+            is_readwrite,
+            element,
+        } => format!(
+            "&{}[{}]",
+            if *is_readwrite { "+" } else { "" },
+            conformance_key_type(element, parameters)
+        ),
+        Type::Array { element, length } => {
+            format!("[{}; {length}]", conformance_key_type(element, parameters))
+        }
+        Type::Pointer(inner) => format!("*{}", conformance_key_type(inner, parameters)),
+        Type::Optional(inner) => format!("{}?", conformance_key_type(inner, parameters)),
+        Type::Fallible { success, error } => format!(
+            "{}!{}",
+            conformance_key_type(success, parameters),
+            conformance_key_type(error, parameters)
+        ),
+        Type::Named(name) => name.clone(),
+        Type::Generic { name, arguments } => {
+            let arguments = arguments
+                .iter()
+                .map(|argument| conformance_key_type(argument, parameters))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{name}<{arguments}>")
+        }
+        Type::Parameter(name) => {
+            let next = parameters.len();
+            let index = *parameters.entry(name.clone()).or_insert(next);
+            format!("${index}")
+        }
+        Type::Unresolved(name) => name.clone(),
+        Type::Unknown => "<unknown>".to_string(),
+    }
+}
+
+fn type_symbol_generic_substitutions(symbol: &TypeSymbol, ty: &Type) -> HashMap<String, Type> {
+    let Type::Generic { name, arguments } = ty else {
+        return HashMap::new();
+    };
+    if name != &symbol.canonical_name {
+        return HashMap::new();
+    }
+
+    symbol
+        .generic_parameters
+        .iter()
+        .cloned()
+        .zip(arguments.iter().cloned())
+        .collect()
+}
+
+fn method_impl_target_substitutions(
+    method: &MethodSignature,
+    self_type: &Type,
+    resolved: &ResolveOutput,
+) -> HashMap<String, Type> {
+    let Some(impl_target_ty) = &method.impl_target_ty else {
+        return HashMap::new();
+    };
+
+    let parameters = method
+        .signature
+        .generic_parameters
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
+    let mut substitutions = HashMap::new();
+    infer_type_expr_substitutions(
+        impl_target_ty,
+        self_type,
+        resolved,
+        None,
+        &parameters,
+        &mut substitutions,
+    );
+    substitutions
+}
+
 fn method_shape(
     method: &MethodSignature,
     resolved: &ResolveOutput,
     self_type: &Type,
+    substitutions: &HashMap<String, Type>,
 ) -> MethodShape {
     MethodShape {
-        receiver: type_expr_to_type_with_self_type(&method.receiver.ty, resolved, Some(self_type)),
+        receiver: type_expr_to_type_with_substitutions(
+            &method.receiver.ty,
+            resolved,
+            Some(self_type),
+            substitutions,
+        ),
         parameters: method
             .signature
             .parameters
             .iter()
             .map(|parameter| {
-                type_expr_to_type_with_self_type(&parameter.ty, resolved, Some(self_type))
+                type_expr_to_type_with_substitutions(
+                    &parameter.ty,
+                    resolved,
+                    Some(self_type),
+                    substitutions,
+                )
             })
             .collect(),
-        return_type: type_expr_to_type_with_self_type(
+        return_type: type_expr_to_type_with_substitutions(
             &method.signature.return_type,
             resolved,
             Some(self_type),
+            substitutions,
         ),
     }
 }
@@ -197,8 +320,9 @@ fn method_shape_label(
     method: &MethodSignature,
     resolved: &ResolveOutput,
     self_type: &Type,
+    substitutions: &HashMap<String, Type>,
 ) -> String {
-    let shape = method_shape(method, resolved, self_type);
+    let shape = method_shape(method, resolved, self_type, substitutions);
     let parameters = shape
         .parameters
         .iter()

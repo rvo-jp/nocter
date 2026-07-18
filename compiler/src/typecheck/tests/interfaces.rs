@@ -29,6 +29,34 @@ func main(): i32 {
 }
 
 #[test]
+fn accepts_generic_interface_conformance() {
+    let diagnostics = check_text(
+        r#"interface Source<T> {
+    pub method (source: Self).get(): T
+}
+
+struct Box<T> {
+    value: T
+}
+
+impl<U> Box<U> {
+    pub method (box: Self).get(): U {
+        return box.value
+    }
+}
+
+impl<T> Source<T> for Box<T>
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_missing_interface_method() {
     let diagnostics = check_text(
         r#"interface Printable {
@@ -113,6 +141,36 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_generic_interface_method_signature_mismatch() {
+    let diagnostics = check_text(
+        r#"interface Source<T> {
+    pub method (source: Self).get(): T
+}
+
+struct Box<T> {
+    value: T
+}
+
+impl<U> Box<U> {
+    pub method (box: Self).get(): i32 {
+        return 0
+    }
+}
+
+impl<T> Source<T> for Box<T>
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0426");
+    assert!(diagnostics[0].message.contains("does not match"));
+}
+
+#[test]
 fn diagnoses_duplicate_interface_conformance() {
     let diagnostics = check_text(
         r#"interface Printable {
@@ -131,6 +189,36 @@ impl User {
 
 impl Printable for User
 impl Printable for User
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0424");
+}
+
+#[test]
+fn diagnoses_duplicate_generic_interface_conformance_with_renamed_parameters() {
+    let diagnostics = check_text(
+        r#"interface Source<T> {
+    pub method (source: Self).get(): T
+}
+
+struct Box<T> {
+    value: T
+}
+
+impl<U> Box<U> {
+    pub method (box: Self).get(): U {
+        return box.value
+    }
+}
+
+impl<T> Source<T> for Box<T>
+impl<U> Source<U> for Box<U>
 
 func main(): i32 {
     return 0

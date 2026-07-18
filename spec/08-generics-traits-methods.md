@@ -113,6 +113,12 @@ impl Printable for User
 impl Printable for User {}
 ```
 
+Generic conformance declarations use the same impl generic parameter list:
+
+```nct
+impl<T> Source<T> for Box<T>
+```
+
 The implementing methods are ordinary public inherent methods on the target
 type.
 

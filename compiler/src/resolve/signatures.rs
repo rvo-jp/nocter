@@ -248,7 +248,11 @@ pub(super) fn interface_type_symbol(interface: &InterfaceDecl) -> TypeSymbol {
         fields: Vec::new(),
         variants: Vec::new(),
         associated_functions: Vec::new(),
-        methods: interface.methods.iter().map(method_signature).collect(),
+        methods: interface
+            .methods
+            .iter()
+            .map(|method| method_signature_inner(method, None, &interface.generics))
+            .collect(),
         drop_member: None,
     }
 }
@@ -314,10 +318,6 @@ pub(super) fn enum_type_symbol(enum_: &crate::ast::EnumDecl) -> TypeSymbol {
         methods: Vec::new(),
         drop_member: None,
     }
-}
-
-fn method_signature(method: &MethodDecl) -> MethodSignature {
-    method_signature_inner(method, None, &GenericParamList::empty())
 }
 
 fn method_signature_in_impl(method: &MethodDecl, impl_: &ImplDecl) -> MethodSignature {

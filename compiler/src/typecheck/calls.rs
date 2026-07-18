@@ -233,7 +233,7 @@ fn infer_generic_substitutions(
     substitutions
 }
 
-fn method_applies_to_receiver(
+pub(super) fn method_applies_to_receiver(
     method: &MethodSignature,
     receiver_type: &Type,
     resolved: &ResolveOutput,
