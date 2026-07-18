@@ -2601,6 +2601,121 @@ func describe(choice: Choice): i32 {
 }
 
 #[test]
+fn build_command_reports_reachable_generic_function_before_ir_lowering() {
+    let project = TempProject::new("cli-build-generic-function-boundary");
+    let source = project.write_source(
+        "generic_function_boundary.nct",
+        r#"func main(): i32 {
+    return identity(42)
+}
+
+func identity<T>(value: T): T {
+    return value
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("generic functions"),
+        "expected generic function diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("5 | func identity<T>(value: T): T {"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
+fn build_command_does_not_reject_unreachable_generic_function() {
+    let project = TempProject::new("cli-build-unreachable-generic-function");
+    let source = project.write_source(
+        "unreachable_generic_function.nct",
+        r#"func main(): i32 {
+    return 0
+}
+
+func identity<T>(value: T): T {
+    return value
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_reports_reachable_generic_impl_method_before_ir_lowering() {
+    let project = TempProject::new("cli-build-generic-impl-method-boundary");
+    let source = project.write_source(
+        "generic_impl_method_boundary.nct",
+        r#"struct Box<T> {
+    value: T
+}
+
+impl<U> Box<U> {
+    method (box: Self).value(): U {
+        return box.value
+    }
+}
+
+func main(): i32 {
+    let box = Box<i32>{
+        value: 42,
+    }
+    return box.value()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("generic impl members"),
+        "expected generic impl diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("5 | impl<U> Box<U> {"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn check_command_reports_source_snippet_for_compile_diagnostic() {
     let project = TempProject::new("cli-check-source-diagnostic");
     let source = project.write_source(

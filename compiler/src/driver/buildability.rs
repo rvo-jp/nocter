@@ -1,6 +1,7 @@
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    AssignmentOperator, Block, DropDecl, Expr, FunctionDecl, ImplMember, Item, Stmt, TypeExpr,
+    AssignmentOperator, Block, DropDecl, Expr, FunctionDecl, ImplDecl, ImplMember, Item, Stmt,
+    TypeExpr,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::CallTarget;
@@ -83,8 +84,10 @@ impl<'a> CallableIndex<'a> {
                                         name.clone(),
                                     );
                                     names.insert(method.name_span, name.clone());
-                                    definitions
-                                        .insert(target, IndexedCallable::new_method(body, file));
+                                    definitions.insert(
+                                        target,
+                                        IndexedCallable::new_method(impl_, body, file),
+                                    );
                                 }
                                 ImplMember::Drop(drop_) => {
                                     let name = drop_function_name(type_name);
@@ -94,8 +97,10 @@ impl<'a> CallableIndex<'a> {
                                         name.clone(),
                                     );
                                     names.insert(drop_name_span(drop_.span), name.clone());
-                                    definitions
-                                        .insert(target, IndexedCallable::new_drop(drop_, file));
+                                    definitions.insert(
+                                        target,
+                                        IndexedCallable::new_drop(drop_, impl_, file),
+                                    );
                                 }
                             }
                         }
@@ -117,6 +122,13 @@ struct IndexedCallable<'a> {
     body: &'a Block,
     resolved: &'a ResolveOutput,
     typecheck_facts: &'a TypecheckFacts,
+    issues: Vec<BuildabilityIssue>,
+}
+
+struct BuildabilityIssue {
+    span: ByteSpan,
+    construct: &'static str,
+    help: &'static str,
 }
 
 impl<'a> IndexedCallable<'a> {
@@ -125,22 +137,25 @@ impl<'a> IndexedCallable<'a> {
             body: &function.body,
             resolved: &file.resolved,
             typecheck_facts: &file.typecheck_facts,
+            issues: generic_function_issue(function).into_iter().collect(),
         }
     }
 
-    fn new_method(body: &'a Block, file: &'a FileAnalysis) -> Self {
+    fn new_method(impl_: &'a ImplDecl, body: &'a Block, file: &'a FileAnalysis) -> Self {
         Self {
             body,
             resolved: &file.resolved,
             typecheck_facts: &file.typecheck_facts,
+            issues: generic_impl_issue(impl_).into_iter().collect(),
         }
     }
 
-    fn new_drop(drop_: &'a DropDecl, file: &'a FileAnalysis) -> Self {
+    fn new_drop(drop_: &'a DropDecl, impl_: &'a ImplDecl, file: &'a FileAnalysis) -> Self {
         Self {
             body: &drop_.body,
             resolved: &file.resolved,
             typecheck_facts: &file.typecheck_facts,
+            issues: generic_impl_issue(impl_).into_iter().collect(),
         }
     }
 }
@@ -153,6 +168,15 @@ fn collect_callable_diagnostics(
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    for issue in &callable.issues {
+        diagnostics.push(unsupported_v0_build_diagnostic(
+            sources,
+            issue.span,
+            issue.construct,
+            issue.help,
+        ));
+    }
+
     collect_block_diagnostics(
         callable.body,
         sources,
@@ -910,6 +934,38 @@ fn call_target_for_source(source: SourceId, root_source: SourceId, name: String)
 
 fn method_target_name(type_name: &str, method_name: &str) -> String {
     format!("{type_name}.{method_name}")
+}
+
+fn generic_function_issue(function: &FunctionDecl) -> Option<BuildabilityIssue> {
+    if function.generics.parameters.is_empty() {
+        return None;
+    }
+
+    Some(BuildabilityIssue {
+        span: function.generics.span.unwrap_or(function.span),
+        construct: "generic functions",
+        help: "define a monomorphic wrapper until v0 monomorphization is promoted",
+    })
+}
+
+fn generic_impl_issue(impl_: &ImplDecl) -> Option<BuildabilityIssue> {
+    if impl_.generics.parameters.is_empty() && !type_expr_is_generic_instantiation(&impl_.target_ty)
+    {
+        return None;
+    }
+
+    Some(BuildabilityIssue {
+        span: impl_
+            .generics
+            .span
+            .unwrap_or_else(|| impl_.target_ty.span()),
+        construct: "generic impl members",
+        help: "use a non-generic impl target until v0 monomorphization is promoted",
+    })
+}
+
+fn type_expr_is_generic_instantiation(ty: &TypeExpr) -> bool {
+    matches!(ty, TypeExpr::Generic(generic) if !generic.arguments.is_empty())
 }
 
 fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {
