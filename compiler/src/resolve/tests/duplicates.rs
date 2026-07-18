@@ -316,6 +316,29 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_duplicate_impl_generic_parameter_names() {
+    let output = resolve_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+impl<T, T> Box<T> {
+    method (box: Self).value(): T {
+        return box.value
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert_eq!(output.diagnostics[0].code, "E0420");
+}
+
+#[test]
 fn diagnoses_duplicate_interface_method_names() {
     let output = resolve_text(
         r#"interface Writer {

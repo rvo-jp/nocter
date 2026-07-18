@@ -524,6 +524,9 @@ fn qualify_type_symbol(symbol: &mut TypeSymbol, import_path: &str, local_type_na
         qualify_function_signature(&mut function.signature, import_path, local_type_names);
     }
     for method in &mut symbol.methods {
+        if let Some(impl_target_ty) = &mut method.impl_target_ty {
+            qualify_type_expr(impl_target_ty, import_path, local_type_names);
+        }
         qualify_parameter_signature(&mut method.receiver, import_path, local_type_names);
         qualify_function_signature(&mut method.signature, import_path, local_type_names);
     }

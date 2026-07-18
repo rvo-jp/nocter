@@ -135,6 +135,39 @@ func main(): i32 {
 }
 
 #[test]
+fn parses_generic_impl_parameters() {
+    let output = parse_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+impl<U> Box<U> {
+    method (box: Self).value(): U {
+        return box.value
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Impl(impl_) = &ast.items[1] else {
+        panic!("expected impl");
+    };
+    assert_eq!(impl_.generics.parameters.len(), 1);
+    assert_eq!(impl_.generics.parameters[0].name, "U");
+    let TypeExpr::Generic(target) = &impl_.target_ty else {
+        panic!("expected generic impl target");
+    };
+    assert_eq!(target.name, "Box");
+    assert_eq!(target.arguments.len(), 1);
+}
+
+#[test]
 fn parses_interface_declarations() {
     let output = parse_text(
         r#"pub interface Writer {

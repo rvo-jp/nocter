@@ -66,6 +66,18 @@ impl WordStats {
 }
 ```
 
+Generic impl blocks declare their own type parameters before the target type.
+Those parameters are in scope for the impl target, method signatures, drop
+members, and member bodies.
+
+```nct
+impl<T> Box<T> {
+    pub method (box: Self).value(): T {
+        return box.value
+    }
+}
+```
+
 ```nct
 stats.add_word()
 ```

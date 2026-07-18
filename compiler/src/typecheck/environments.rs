@@ -3,22 +3,22 @@ use super::model::{Type, TypeEnvironment, binding_kind_is_mutable, same_known_ty
 use super::numeric::{is_integer_literal_expr, is_integer_type};
 use super::operations::is_expression_assignable;
 use super::type_expr::{
-    type_expr_display_lossy, type_expr_to_type, type_expr_to_type_in_environment,
-    type_expr_to_type_with_substitutions,
+    type_expr_display_lossy, type_expr_to_type_in_environment, type_expr_to_type_with_substitutions,
 };
 use crate::ast::{
-    Expr, ForRangeStmt, FunctionDecl, IfIsStmt, IfLetStmt, ImplDecl, MethodDecl, Parameter,
-    PatternConditionalArm, SwitchArm, WhileLetStmt,
+    Expr, ForRangeStmt, FunctionDecl, GenericParamList, IfIsStmt, IfLetStmt, ImplDecl, MethodDecl,
+    Parameter, PatternConditionalArm, SwitchArm, WhileLetStmt,
 };
 use crate::resolve::{ResolveOutput, TypeSymbolKind};
 use std::collections::HashMap;
 
-pub(super) fn environment_for_parameters_with_self_type(
+pub(super) fn environment_for_parameters_in_impl(
     parameters: &[Parameter],
     resolved: &ResolveOutput,
-    self_type: Type,
+    impl_: &ImplDecl,
 ) -> TypeEnvironment {
-    let mut environment = TypeEnvironment::with_self_type(self_type);
+    let mut environment = TypeEnvironment::with_self_type(impl_self_type(impl_, resolved));
+    define_impl_generic_parameters(impl_, &mut environment);
     define_parameters_in_environment(parameters, resolved, &mut environment);
     environment
 }
@@ -58,9 +58,10 @@ pub(super) fn function_self_type(
 pub(super) fn environment_for_method(
     method: &MethodDecl,
     resolved: &ResolveOutput,
-    self_type: Type,
+    impl_: &ImplDecl,
 ) -> TypeEnvironment {
-    let mut environment = TypeEnvironment::with_self_type(self_type);
+    let mut environment = TypeEnvironment::with_self_type(impl_self_type(impl_, resolved));
+    define_impl_generic_parameters(impl_, &mut environment);
     let receiver_type =
         type_expr_to_type_in_environment(&method.receiver.ty, resolved, &environment);
     environment.define(method.receiver.name.clone(), receiver_type);
@@ -80,7 +81,12 @@ fn define_parameters_in_environment(
 }
 
 pub(super) fn impl_self_type(impl_: &ImplDecl, resolved: &ResolveOutput) -> Type {
-    type_expr_to_type(&impl_.target_ty, resolved)
+    type_expr_to_type_with_substitutions(
+        &impl_.target_ty,
+        resolved,
+        None,
+        &generic_parameter_substitutions(&impl_.generics),
+    )
 }
 
 pub(super) fn impl_member_name(impl_: &ImplDecl, member_name: &str) -> String {
@@ -89,6 +95,31 @@ pub(super) fn impl_member_name(impl_: &ImplDecl, member_name: &str) -> String {
         type_expr_display_lossy(&impl_.target_ty),
         member_name
     )
+}
+
+pub(super) fn generic_parameter_substitutions(
+    generics: &GenericParamList,
+) -> HashMap<String, Type> {
+    generics
+        .parameters
+        .iter()
+        .map(|parameter| {
+            (
+                parameter.name.clone(),
+                Type::Parameter(parameter.name.clone()),
+            )
+        })
+        .collect()
+}
+
+fn define_impl_generic_parameters(impl_: &ImplDecl, environment: &mut TypeEnvironment) {
+    environment.define_generic_parameters(
+        impl_
+            .generics
+            .parameters
+            .iter()
+            .map(|parameter| parameter.name.clone()),
+    );
 }
 
 pub(super) fn environment_for_catch(

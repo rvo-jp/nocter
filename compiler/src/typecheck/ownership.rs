@@ -4,8 +4,8 @@ use super::diagnostics::{invalid_drop_target_diagnostic, uninitialized_binding_d
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
     environment_for_if_is_binding, environment_for_if_let_binding, environment_for_method,
-    environment_for_parameters_with_self_type, environment_for_pattern_conditional_arm,
-    environment_for_switch_arm, environment_for_while_let_binding, impl_self_type,
+    environment_for_parameters_in_impl, environment_for_pattern_conditional_arm,
+    environment_for_switch_arm, environment_for_while_let_binding,
 };
 use super::expressions::{collection_len_call_type, expression_type};
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
@@ -64,15 +64,13 @@ fn check_impl_member_ownership(
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let self_type = impl_self_type(impl_, resolved);
-
     for member in &impl_.members {
         match member {
             ImplMember::Method(method) => {
                 let Some(body) = &method.body else {
                     continue;
                 };
-                let mut environment = environment_for_method(method, resolved, self_type.clone());
+                let mut environment = environment_for_method(method, resolved, impl_);
                 let mut ownership = OwnershipState::default();
                 ownership.define_binding_from_environment(
                     &method.receiver.name,
@@ -91,10 +89,10 @@ fn check_impl_member_ownership(
                 );
             }
             ImplMember::Drop(drop_) => {
-                let mut environment = environment_for_parameters_with_self_type(
+                let mut environment = environment_for_parameters_in_impl(
                     std::slice::from_ref(&drop_.binding),
                     resolved,
-                    self_type.clone(),
+                    impl_,
                 );
                 let mut ownership = OwnershipState::default();
                 ownership.define_parameters(

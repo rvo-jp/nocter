@@ -109,12 +109,9 @@ pub(in crate::typecheck) fn method_unknown_diagnostic(
     sources: &SourceMap,
     member: &MemberExpr,
     receiver_type: &Type,
-    owner: Option<&TypeSymbol>,
+    _owner: Option<&TypeSymbol>,
 ) -> Diagnostic {
-    let receiver_label = owner.map_or_else(
-        || receiver_type.display(),
-        |owner| owner.canonical_name.clone(),
-    );
+    let receiver_label = receiver_type.display();
     let mut diagnostic = Diagnostic::error(
         "E0389",
         format!(

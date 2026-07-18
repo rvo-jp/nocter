@@ -8,15 +8,14 @@ use super::diagnostics::{
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
     environment_for_if_is_binding, environment_for_if_let_binding, environment_for_method,
-    environment_for_parameters_with_self_type, environment_for_pattern_conditional_arm,
+    environment_for_parameters_in_impl, environment_for_pattern_conditional_arm,
     environment_for_switch_arm, environment_for_while_let_binding, impl_member_name,
-    impl_self_type,
 };
 use super::expressions::expression_type;
 use super::fallible::{check_catch_operand, check_propagation};
 use super::model::{CallableKind, ReturnContext, Type, TypeEnvironment, binding_kind_is_mutable};
 use super::operations::is_expression_assignable;
-use super::type_expr::{type_expr_to_type_in_environment, type_expr_to_type_with_self_type};
+use super::type_expr::type_expr_to_type_in_environment;
 use super::variants::switch_statement_covers_all_variants;
 use crate::ast::{
     AstFile, Block, Expr, ImplDecl, ImplMember, InterpolatedStringPart, Item, ReturnStmt, Stmt,
@@ -68,24 +67,18 @@ fn check_impl_member_return_types(
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let self_type = impl_self_type(impl_, resolved);
-
     for member in &impl_.members {
         match member {
             ImplMember::Method(method) => {
                 let Some(body) = &method.body else {
                     continue;
                 };
+                let mut environment = environment_for_method(method, resolved, impl_);
                 let context = ReturnContext::new(
                     CallableKind::Method(impl_member_name(impl_, &method.name)),
-                    type_expr_to_type_with_self_type(
-                        &method.return_type,
-                        resolved,
-                        Some(&self_type),
-                    ),
+                    type_expr_to_type_in_environment(&method.return_type, resolved, &environment),
                     method.return_type.span(),
                 );
-                let mut environment = environment_for_method(method, resolved, self_type.clone());
                 check_fallible_success_type(sources, &context, diagnostics);
                 check_block_returns(
                     sources,
@@ -102,10 +95,10 @@ fn check_impl_member_return_types(
                     Type::Void,
                     drop_.binding.ty.span(),
                 );
-                let mut environment = environment_for_parameters_with_self_type(
+                let mut environment = environment_for_parameters_in_impl(
                     std::slice::from_ref(&drop_.binding),
                     resolved,
-                    self_type.clone(),
+                    impl_,
                 );
                 check_block_returns(
                     sources,

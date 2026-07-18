@@ -69,6 +69,84 @@ func main(): i32 {
 }
 
 #[test]
+fn accepts_generic_impl_method_body_and_call_return_type() {
+    let diagnostics = check_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+impl<U> Box<U> {
+    method (box: Self).value(): U {
+        return box.value
+    }
+}
+
+func main(): i32 {
+    let box = Box<i32>{
+        value: 1,
+    }
+    return box.value()
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_generic_impl_method_return_type_mismatch() {
+    let diagnostics = check_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+impl<U> Box<U> {
+    method (box: Self).bad(): i32 {
+        return box.value
+    }
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0312");
+    assert!(diagnostics[0].message.contains("U"));
+    assert!(diagnostics[0].message.contains("i32"));
+}
+
+#[test]
+fn diagnoses_method_call_from_non_matching_generic_impl_target() {
+    let diagnostics = check_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+impl Box<i32> {
+    method (box: Self).value_i32(): i32 {
+        return box.value
+    }
+}
+
+func main(): i32 {
+    let box = Box<&str>{
+        value: "bad",
+    }
+    return box.value_i32()
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0389");
+    assert!(diagnostics[0].message.contains("Box<&str>"));
+    assert!(diagnostics[0].message.contains("value_i32"));
+}
+
+#[test]
 fn diagnoses_unknown_method_call_on_struct_value() {
     let diagnostics = check_text(
         r#"struct Parser {

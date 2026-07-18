@@ -547,6 +547,7 @@ impl Parser<'_> {
 
     pub(super) fn parse_impl_decl(&mut self) -> ParseResult<Item> {
         let start = self.expect_keyword(Keyword::Impl, "`impl`")?;
+        let generics = self.parse_generic_param_list()?;
         let first_ty = self.parse_type()?;
         if self.match_keyword(Keyword::For).is_some() {
             let target_ty = self.parse_type()?;
@@ -565,6 +566,7 @@ impl Parser<'_> {
 
             return Ok(Item::Impl(ImplDecl {
                 span: self.span(start.span.start, end),
+                generics,
                 interface_ty: Some(first_ty),
                 target_ty,
                 members: Vec::new(),
@@ -614,6 +616,7 @@ impl Parser<'_> {
         let close = self.expect_punctuation("}", "`}`")?;
         Ok(Item::Impl(ImplDecl {
             span: self.span(start.span.start, close.span.end),
+            generics,
             interface_ty: None,
             target_ty,
             members,

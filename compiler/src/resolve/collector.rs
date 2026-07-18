@@ -142,7 +142,27 @@ impl Resolver<'_> {
                         interface_type_symbol(interface),
                     );
                 }
-                Item::Impl(_) => {}
+                Item::Impl(impl_) => {
+                    self.output
+                        .diagnostics
+                        .extend(duplicate_generic_param_name_diagnostics(
+                            self.sources,
+                            "impl block",
+                            &impl_.generics,
+                        ));
+                    for member in &impl_.members {
+                        if let crate::ast::ImplMember::Method(method) = member {
+                            self.output.diagnostics.extend(
+                                duplicate_method_parameter_name_diagnostics(
+                                    self.sources,
+                                    &format!("method `{}`", method.name),
+                                    &method.receiver,
+                                    &method.parameters.parameters,
+                                ),
+                            );
+                        }
+                    }
+                }
             }
         }
 

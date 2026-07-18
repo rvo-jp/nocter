@@ -86,7 +86,7 @@ pub(super) fn associated_function_signature(
 
 pub(super) fn method_signatures(impl_: &ImplDecl) -> impl Iterator<Item = MethodSignature> + '_ {
     impl_.members.iter().filter_map(|member| match member {
-        ImplMember::Method(method) => Some(method_signature(method)),
+        ImplMember::Method(method) => Some(method_signature_in_impl(method, impl_)),
         ImplMember::Drop(_) => None,
     })
 }
@@ -175,11 +175,16 @@ pub(super) fn duplicate_inherent_drop_diagnostics(
 }
 
 pub(super) fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {
-    let TypeExpr::Reference(reference) = ty else {
-        return None;
-    };
-
-    Some(&reference.name)
+    match ty {
+        TypeExpr::Reference(reference) => Some(&reference.name),
+        TypeExpr::Generic(generic) => Some(&generic.name),
+        TypeExpr::Pointer(_)
+        | TypeExpr::Borrow(_)
+        | TypeExpr::View(_)
+        | TypeExpr::Array(_)
+        | TypeExpr::Optional(_)
+        | TypeExpr::Fallible(_) => None,
+    }
 }
 
 pub(crate) fn drop_function_name(type_name: &str) -> String {
@@ -312,14 +317,27 @@ pub(super) fn enum_type_symbol(enum_: &crate::ast::EnumDecl) -> TypeSymbol {
 }
 
 fn method_signature(method: &MethodDecl) -> MethodSignature {
+    method_signature_inner(method, None, &GenericParamList::empty())
+}
+
+fn method_signature_in_impl(method: &MethodDecl, impl_: &ImplDecl) -> MethodSignature {
+    method_signature_inner(method, Some(impl_.target_ty.clone()), &impl_.generics)
+}
+
+fn method_signature_inner(
+    method: &MethodDecl,
+    impl_target_ty: Option<TypeExpr>,
+    generics: &GenericParamList,
+) -> MethodSignature {
     MethodSignature {
         name: method.name.clone(),
         name_span: method.name_span,
         visibility: method.visibility,
         is_accessible: true,
+        impl_target_ty,
         receiver: parameter_signature(&method.receiver),
         signature: callable_signature(
-            &GenericParamList::empty(),
+            generics,
             &method.parameters.parameters,
             method.return_type.clone(),
         ),

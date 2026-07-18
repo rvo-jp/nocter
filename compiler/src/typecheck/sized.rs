@@ -1,7 +1,7 @@
 mod value;
 mod walk;
 
-use super::environments::function_self_type;
+use super::environments::{function_self_type, impl_self_type};
 use super::model::Type;
 use super::type_expr::type_expr_to_type_with_self_type;
 use super::{copyability::type_expr_is_copy, diagnostics::copy_struct_field_not_copy_diagnostic};
@@ -150,7 +150,7 @@ fn check_impl(
     resolved: &ResolveOutput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let self_type = type_expr_to_type_with_self_type(&impl_.target_ty, resolved, None);
+    let self_type = impl_self_type(impl_, resolved);
     for member in &impl_.members {
         match member {
             ImplMember::Method(method) => {

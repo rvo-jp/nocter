@@ -74,7 +74,7 @@ pub(super) fn check_generic_type_arities(
                 }
             }
             Item::Impl(impl_) => {
-                let scope = GenericScope::empty();
+                let scope = GenericScope::new(&impl_.generics);
                 if let Some(interface_ty) = &impl_.interface_ty {
                     check_type_expr(sources, interface_ty, resolved, &scope, diagnostics);
                 }
@@ -111,12 +111,6 @@ struct GenericScope<'a> {
 }
 
 impl<'a> GenericScope<'a> {
-    fn empty() -> Self {
-        Self {
-            parameters: HashMap::new(),
-        }
-    }
-
     fn new(generics: &'a GenericParamList) -> Self {
         Self {
             parameters: generics

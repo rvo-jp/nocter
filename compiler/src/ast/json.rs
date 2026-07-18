@@ -202,7 +202,7 @@ impl Item {
                 )
             }
             Item::Impl(item) => {
-                let mut children = Vec::new();
+                let mut children = vec![item.generics.to_json(sources)];
                 if let Some(interface_ty) = &item.interface_ty {
                     children.push(JsonAstNode::new(
                         "interface_type",

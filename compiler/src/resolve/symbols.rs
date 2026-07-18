@@ -388,6 +388,7 @@ pub struct MethodSignature {
     pub name_span: ByteSpan,
     pub visibility: Visibility,
     pub is_accessible: bool,
+    pub impl_target_ty: Option<TypeExpr>,
     pub receiver: ParameterSignature,
     pub signature: FunctionSignature,
 }

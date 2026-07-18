@@ -182,6 +182,7 @@ pub struct InterfaceDecl {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImplDecl {
     pub span: ByteSpan,
+    pub generics: GenericParamList,
     pub interface_ty: Option<TypeExpr>,
     pub target_ty: TypeExpr,
     pub members: Vec<ImplMember>,

@@ -98,6 +98,7 @@ pub(super) fn call_return_type(
 pub(super) struct CheckedCallSignature<'a> {
     pub(super) signature: &'a FunctionSignature,
     pub(super) self_type: Option<Type>,
+    pub(super) impl_target_ty: Option<&'a TypeExpr>,
     pub(super) name: String,
     pub(super) kind: CheckedCallKind,
     pub(super) declaration_span: Option<ByteSpan>,
@@ -129,6 +130,7 @@ pub(super) fn resolved_call_signature<'a>(
         return Some(CheckedCallSignature {
             signature,
             self_type: None,
+            impl_target_ty: None,
             name: resolved.call_name_for_diagnostic(call),
             kind: CheckedCallKind::Function,
             declaration_span: resolved
@@ -141,6 +143,7 @@ pub(super) fn resolved_call_signature<'a>(
         return Some(CheckedCallSignature {
             signature: &function.signature,
             self_type: Some(Type::Named(owner.canonical_name.clone())),
+            impl_target_ty: None,
             name: format!("{}.{}", owner.canonical_name, function.name),
             kind: CheckedCallKind::AssociatedFunction,
             declaration_span: Some(function.name_span),
@@ -148,9 +151,13 @@ pub(super) fn resolved_call_signature<'a>(
     }
 
     resolved_method_for_call(resolved, call, environment).map(|(owner, method)| {
+        let receiver_type = method_member_for_call(call)
+            .map(|member| expression_type(&member.object, resolved, environment))
+            .unwrap_or_else(|| Type::Named(owner.canonical_name.clone()));
         CheckedCallSignature {
             signature: &method.signature,
-            self_type: Some(Type::Named(owner.canonical_name.clone())),
+            self_type: Some(receiver_type),
+            impl_target_ty: method.impl_target_ty.as_ref(),
             name: format!("{}.{}", owner.canonical_name, method.name),
             kind: CheckedCallKind::Method,
             declaration_span: Some(method.name_span),
@@ -166,10 +173,11 @@ pub(super) fn resolved_method_for_call<'a>(
     let member = method_member_for_call(call)?;
     let receiver_type = expression_type(&member.object, resolved, environment);
     let owner = inherent_method_owner_for_type(&receiver_type, resolved)?;
-    let method = owner
-        .methods
-        .iter()
-        .find(|method| method.is_accessible && method.name == member.member)?;
+    let method = owner.methods.iter().find(|method| {
+        method.is_accessible
+            && method.name == member.member
+            && method_applies_to_receiver(method, &receiver_type, resolved)
+    })?;
 
     Some((owner, method))
 }
@@ -191,6 +199,19 @@ fn infer_generic_substitutions(
         .map(String::as_str)
         .collect::<HashSet<_>>();
     let mut substitutions = HashMap::new();
+    if let (Some(impl_target_ty), Some(self_type)) =
+        (signature.impl_target_ty, signature.self_type.as_ref())
+    {
+        infer_type_expr_substitutions(
+            impl_target_ty,
+            self_type,
+            resolved,
+            None,
+            &parameters,
+            &mut substitutions,
+        );
+    }
+
     for (argument, parameter) in call
         .arguments
         .iter()
@@ -210,6 +231,36 @@ fn infer_generic_substitutions(
         );
     }
     substitutions
+}
+
+fn method_applies_to_receiver(
+    method: &MethodSignature,
+    receiver_type: &Type,
+    resolved: &ResolveOutput,
+) -> bool {
+    let Some(impl_target_ty) = &method.impl_target_ty else {
+        return true;
+    };
+
+    let parameters = method
+        .signature
+        .generic_parameters
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
+    let mut substitutions = HashMap::new();
+    infer_type_expr_substitutions(
+        impl_target_ty,
+        receiver_type,
+        resolved,
+        None,
+        &parameters,
+        &mut substitutions,
+    );
+    let expected =
+        type_expr_to_type_with_substitutions(impl_target_ty, resolved, None, &substitutions);
+
+    !expected.is_unknown_or_unresolved() && expected == *receiver_type
 }
 
 pub(super) fn check_method_receiver_call(

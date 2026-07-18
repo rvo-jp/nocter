@@ -6,7 +6,7 @@ use super::calls::{method_member_for_call, resolved_method_for_call};
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
     environment_for_if_is_binding, environment_for_if_let_binding, environment_for_method,
-    environment_for_parameters_with_self_type, environment_for_pattern_conditional_arm,
+    environment_for_parameters_in_impl, environment_for_pattern_conditional_arm,
     environment_for_switch_arm, environment_for_while_let_binding, function_self_type,
     impl_self_type,
 };
@@ -290,16 +290,13 @@ impl TypecheckFactCollector<'_> {
     }
 
     fn collect_impl_member_body_facts(&mut self, impl_: &ImplDecl) {
-        let self_type = impl_self_type(impl_, self.resolved);
-
         for member in &impl_.members {
             match member {
                 ImplMember::Method(method) => {
                     let Some(body) = &method.body else {
                         continue;
                     };
-                    let mut environment =
-                        environment_for_method(method, self.resolved, self_type.clone());
+                    let mut environment = environment_for_method(method, self.resolved, impl_);
                     self.record_parameter_bindings(
                         std::slice::from_ref(&method.receiver),
                         &environment,
@@ -308,10 +305,10 @@ impl TypecheckFactCollector<'_> {
                     self.collect_block_facts(body, &mut environment);
                 }
                 ImplMember::Drop(drop_) => {
-                    let mut environment = environment_for_parameters_with_self_type(
+                    let mut environment = environment_for_parameters_in_impl(
                         std::slice::from_ref(&drop_.binding),
                         self.resolved,
-                        self_type.clone(),
+                        impl_,
                     );
                     self.record_parameter_bindings(
                         std::slice::from_ref(&drop_.binding),
