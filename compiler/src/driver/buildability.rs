@@ -1,7 +1,7 @@
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    AssignmentOperator, BinaryExpr, BinaryOperator, Block, CallExpr, DropDecl, Expr, ForRangeStmt,
-    FunctionDecl, ImplDecl, ImplMember, Item, Stmt, TypeExpr, UnaryOperator,
+    AssignmentOperator, AssignmentStmt, BinaryExpr, BinaryOperator, Block, CallExpr, DropDecl,
+    Expr, ForRangeStmt, FunctionDecl, ImplDecl, ImplMember, Item, Stmt, TypeExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::CallTarget;
@@ -267,12 +267,12 @@ fn collect_statement_diagnostics(
             }
         }
         Stmt::Assignment(statement) => {
-            if statement.operator != AssignmentOperator::Assign {
+            if !assignment_operator_is_buildable(statement, resolved, typecheck_facts) {
                 diagnostics.push(unsupported_v0_build_diagnostic(
                     sources,
                     statement.operator_span,
                     "compound assignment statements",
-                    "use `target = target op value` until compound assignment lowering is promoted",
+                    "use `i32` or `usize` whole-binding compound assignment, or use `target = target op value` until broader compound assignment lowering is promoted",
                 ));
             }
             collect_expression_diagnostics(
@@ -631,6 +631,26 @@ fn range_for_binding_type_is_buildable(
 ) -> bool {
     matches!(
         typecheck_facts.binding_type_label(statement.name_span),
+        Some("i32" | "usize")
+    )
+}
+
+fn assignment_operator_is_buildable(
+    statement: &AssignmentStmt,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+) -> bool {
+    if statement.operator == AssignmentOperator::Assign {
+        return true;
+    }
+    let Expr::Identifier(identifier) = unwrap_group_expr(&statement.target) else {
+        return false;
+    };
+    let Some(symbol) = resolved.local_symbol_for_identifier(identifier) else {
+        return false;
+    };
+    matches!(
+        typecheck_facts.binding_type_label(symbol.name_span),
         Some("i32" | "usize")
     )
 }

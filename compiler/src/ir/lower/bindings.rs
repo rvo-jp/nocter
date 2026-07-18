@@ -37,8 +37,8 @@ use crate::ast::{
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateLocation, BoolLocation, BorrowArgument, BorrowSource, FallibleFailureMode,
-    I32Location, Instruction, ScalarArgument, SliceLocation, StrLocation, Type, U8Location,
-    UsizeLocation,
+    I32Location, I32Value, Instruction, ScalarArgument, SliceLocation, StrLocation, Type,
+    U8Location, UsizeLocation, UsizeValue,
 };
 
 pub(super) fn lower_local_binding(
@@ -1168,7 +1168,7 @@ pub(super) fn lower_assignment(
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if statement.operator != AssignmentOperator::Assign {
-        return Err(unsupported_assignment_diagnostic());
+        return lower_compound_identifier_assignment(statement, context);
     }
 
     match unwrap_group(&statement.target) {
@@ -1177,6 +1177,115 @@ pub(super) fn lower_assignment(
         }
         Expr::Member(member) => lower_aggregate_field_assignment(member, &statement.value, context),
         _ => Err(unsupported_assignment_diagnostic()),
+    }
+}
+
+fn lower_compound_identifier_assignment(
+    statement: &AssignmentStmt,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Expr::Identifier(identifier) = unwrap_group(&statement.target) else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+
+    if let Some(destination) = context.i32_location(&identifier.name) {
+        let I32Location::Local(_) = destination else {
+            return Err(unsupported_assignment_diagnostic());
+        };
+        let (mut instructions, right) = lower_i32_expression_to_word(&statement.value, context)?;
+        instructions.push(i32_compound_assignment_instruction(
+            statement.operator,
+            destination,
+            right,
+        )?);
+        return Ok(instructions);
+    }
+
+    if let Some(destination) = context.usize_location(&identifier.name) {
+        let UsizeLocation::Local(_) = destination else {
+            return Err(unsupported_assignment_diagnostic());
+        };
+        let (mut instructions, right) = lower_usize_expression_to_word(&statement.value, context)?;
+        instructions.push(usize_compound_assignment_instruction(
+            statement.operator,
+            destination,
+            right,
+        )?);
+        return Ok(instructions);
+    }
+
+    Err(unsupported_assignment_diagnostic())
+}
+
+fn i32_compound_assignment_instruction(
+    operator: AssignmentOperator,
+    destination: I32Location,
+    right: I32Value,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    let left = I32Value::Location(destination);
+    match operator {
+        AssignmentOperator::AddAssign => Ok(Instruction::AddI32 {
+            destination,
+            left,
+            right,
+        }),
+        AssignmentOperator::SubtractAssign => Ok(Instruction::SubtractI32 {
+            destination,
+            left,
+            right,
+        }),
+        AssignmentOperator::MultiplyAssign => Ok(Instruction::MultiplyI32 {
+            destination,
+            left,
+            right,
+        }),
+        AssignmentOperator::DivideAssign => Ok(Instruction::DivideI32 {
+            destination,
+            left,
+            right,
+        }),
+        AssignmentOperator::RemainderAssign => Ok(Instruction::RemainderI32 {
+            destination,
+            left,
+            right,
+        }),
+        AssignmentOperator::Assign => Err(unsupported_assignment_diagnostic()),
+    }
+}
+
+fn usize_compound_assignment_instruction(
+    operator: AssignmentOperator,
+    destination: UsizeLocation,
+    right: UsizeValue,
+) -> Result<Instruction, Vec<Diagnostic>> {
+    let left = UsizeValue::Location(destination);
+    match operator {
+        AssignmentOperator::AddAssign => Ok(Instruction::AddUsize {
+            destination,
+            left,
+            right,
+        }),
+        AssignmentOperator::SubtractAssign => Ok(Instruction::SubtractUsize {
+            destination,
+            left,
+            right,
+        }),
+        AssignmentOperator::MultiplyAssign => Ok(Instruction::MultiplyUsize {
+            destination,
+            left,
+            right,
+        }),
+        AssignmentOperator::DivideAssign => Ok(Instruction::DivideUsize {
+            destination,
+            left,
+            right,
+        }),
+        AssignmentOperator::RemainderAssign => Ok(Instruction::RemainderUsize {
+            destination,
+            left,
+            right,
+        }),
+        AssignmentOperator::Assign => Err(unsupported_assignment_diagnostic()),
     }
 }
 

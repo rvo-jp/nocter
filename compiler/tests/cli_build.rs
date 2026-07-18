@@ -1536,6 +1536,90 @@ fn build_command_lowers_compound_bool_equality_condition() {
 }
 
 #[test]
+fn build_command_reports_bool_compound_assignment_before_ir_lowering() {
+    let project = TempProject::new("cli-build-bool-compound-assignment-boundary");
+    let source = project.write_source(
+        "bool_compound_assignment_boundary.nct",
+        r#"func main(): i32 {
+    var ready = true
+    ready += false
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("compound assignment statements"),
+        "expected compound assignment diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("3 |     ready += false"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
+fn build_command_reports_field_compound_assignment_before_ir_lowering() {
+    let project = TempProject::new("cli-build-field-compound-assignment-boundary");
+    let source = project.write_source(
+        "field_compound_assignment_boundary.nct",
+        r#"struct Counter {
+    value: i32
+}
+
+func main(): i32 {
+    var counter = Counter{ value: 1 }
+    counter.value += 1
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("compound assignment statements"),
+        "expected compound assignment diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("7 |     counter.value += 1"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_compound_bool_equality_nested_call_before_ir_lowering() {
     let project = TempProject::new("cli-build-compound-bool-equality-call-boundary");
     let source = project.write_source(

@@ -16204,6 +16204,88 @@ fn lowers_entry_i32_local_addition_binding_then_return() {
 }
 
 #[test]
+fn lowers_i32_compound_assignment_with_call_rhs() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    var total = 40
+    total += answer()
+    return total
+}
+
+func answer(): i32 {
+    return 2
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(40),
+                    },
+                    call_i32(I32Location::Local(1), "answer", vec![]),
+                    Instruction::AddI32 {
+                        destination: I32Location::Local(0),
+                        left: i32_local(0),
+                        right: i32_local(1),
+                    },
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "answer".to_string(),
+                target: crate::ir::CallTarget::same_file("answer".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(2), Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
+fn lowers_usize_compound_remainder_assignment() {
+    let ir = lower_text(
+        r#"func main(): usize {
+    var total: usize = 42
+    total %= 5
+    return total
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            Instruction::SetUsize {
+                destination: UsizeLocation::Local(0),
+                value: usize_const(42),
+            },
+            Instruction::RemainderUsize {
+                destination: UsizeLocation::Local(0),
+                left: usize_local(0),
+                right: usize_const(5),
+            },
+            Instruction::SetUsize {
+                destination: UsizeLocation::Return,
+                value: usize_local(0),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_entry_i32_subtract_and_multiply_with_normal_calls() {
     let ir = lower_text(
         r#"func main(): i32 {

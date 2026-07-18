@@ -179,14 +179,14 @@ Currently buildable:
 - the `std/os.trap` and `std/os.unreachable` target primitives as ARM64 `brk #0`
 - simple fallible entry success
 - simple fallible entry failure through a loaded static `error` constructor call with string code and message literals, where the message may be single-line or multi-line
-- scalar/view `var` bindings and simple `=` assignment for the lowerable scalar/view value subset
+- scalar/view `var` bindings, simple `=` assignment for the lowerable scalar/view value subset, and whole-binding `i32`/`usize` `+=`, `-=`, `*=`, `/=`, and `%=` assignment
 - aggregate struct-literal local slots, aggregate copy bindings from copy aggregate locals, copy aggregate field bindings from non-copy local or call-result owners, explicit aggregate field moves, explicit aggregate move bindings, direct aggregate call-result local slots, narrow indirect aggregate call-result local slots, fallible direct aggregate call-result local slots, and `&T`/`&+T` borrow arguments from those slots
 - simple aggregate slot reassignment from supported struct literals, direct or indirect normal aggregate calls, propagated fallible direct aggregate calls, propagated fallible indirect aggregate calls, copy struct local aggregate slots, and explicit `move name` aggregate slot sources
 - reserved aggregate slot `return move name` through the same return-storage copy path as return-by-name
 
 Currently not buildable even when it may be checkable:
 
-- general local storage beyond the listed scalar/view and aggregate slot paths
+- general local storage beyond the listed scalar/view and aggregate slot paths, and compound assignment outside the `i32`/`usize` whole-binding subset
 - general `if`/`while`/`loop`/range-`for` forms beyond the supported terminal and scalar/view plus branch/body-local non-terminal subsets, `while let`, non-`i32`/`usize` range `for`, and `match`
 - unloaded imported function placeholders; reachable calls are rejected by the buildability preflight
 - general `&str`/view member operations beyond `.len()`, and iteration over views or bytes; direct byte indexing remains buildable in lowerable `u8` positions

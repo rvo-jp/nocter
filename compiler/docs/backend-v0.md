@@ -205,6 +205,7 @@ Bool short-circuit value expressions with calls, such as `let ready = enabled() 
 `&str` normal-call results are staged into two consecutive local ABI words. They are lowerable in annotated `&str` `let` initializers and as `&str` call or tail-call arguments, for example `let text: &str = title()` and `return consume(title())`.
 Loaded imported calls use the same narrow call subset as same-file calls. Reachable unloaded imported placeholders are rejected by the buildability preflight before IR lowering.
 Non-terminal `i32` and `usize` range `for` loops lower to `Instruction::While` with start and end stored once in scalar locals, a `<` condition over those locals, and an increment at the end of normal iteration or immediately before a lowered `continue`.
+Whole-binding `i32` and `usize` compound assignments lower to the same scalar arithmetic instructions as explicit `target = target op value`, preserving the existing overflow and divide-by-zero trap checks.
 
 ### Encoder Work Required First
 

@@ -705,6 +705,44 @@ func ready(): bool {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_scalar_compound_assignment_exit_code() {
+    let project = TempProject::new("cli-run-scalar-compound-assignment");
+    let source = project.write_source(
+        "scalar_compound_assignment.nct",
+        r#"func main(): i32 {
+    var count = 40
+    count += one()
+    count *= 2
+    count -= 40
+    count /= 2
+    var size: usize = 47
+    size %= 5
+    if count == 21 && size == 2 {
+        return 23
+    } else {
+        return 1
+    }
+}
+
+func one(): i32 {
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(23),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_writes_reassigned_str_local() {
     let project = TempProject::new("cli-run-str-var-assignment");
     project.write_nocter_home_file(
