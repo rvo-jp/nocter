@@ -8,20 +8,37 @@ pub(super) fn type_expr_is_copy(ty: &TypeExpr, resolved: &ResolveOutput) -> Opti
     type_expr_is_copy_inner(ty, resolved, &mut HashSet::new())
 }
 
-pub(super) fn implicit_non_copy_struct_identifier_source<'a>(
-    expression: &'a Expr,
-    resolved: &'a ResolveOutput,
+pub(super) fn implicit_non_copy_struct_value_source(
+    expression: &Expr,
+    resolved: &ResolveOutput,
     environment: &TypeEnvironment,
-) -> Option<(&'a str, String)> {
+) -> Option<(String, String)> {
     match expression {
         Expr::Identifier(identifier) => {
             let value_type = expression_type(expression, resolved, environment);
             non_copy_struct_type_display(&value_type, resolved)
-                .map(|type_name| (identifier.name.as_str(), type_name))
+                .map(|type_name| (identifier.name.clone(), type_name))
+        }
+        Expr::Member(_) => {
+            let value_type = expression_type(expression, resolved, environment);
+            let type_name = non_copy_struct_type_display(&value_type, resolved)?;
+            member_source_path(expression).map(|source_name| (source_name, type_name))
         }
         Expr::Group(group) => {
-            implicit_non_copy_struct_identifier_source(&group.expression, resolved, environment)
+            implicit_non_copy_struct_value_source(&group.expression, resolved, environment)
         }
+        _ => None,
+    }
+}
+
+fn member_source_path(expression: &Expr) -> Option<String> {
+    match expression {
+        Expr::Identifier(identifier) => Some(identifier.name.clone()),
+        Expr::Member(member) => {
+            let object = member_source_path(&member.object)?;
+            Some(format!("{object}.{}", member.member))
+        }
+        Expr::Group(group) => member_source_path(&group.expression),
         _ => None,
     }
 }

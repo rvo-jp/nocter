@@ -114,6 +114,34 @@ func length(text: Text): i32 {
 }
 
 #[test]
+fn diagnoses_implicit_non_copy_struct_field_argument() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+struct Wrap {
+    text: Text
+}
+
+func main(): i32 {
+    let wrap = Wrap{ text: Text{ len: 42 } }
+    return length(wrap.text)
+}
+
+func length(text: Text): i32 {
+    return text.len
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0392");
+    assert!(diagnostics[0].message.contains("Text"));
+    assert!(diagnostics[0].message.contains("wrap.text"));
+}
+
+#[test]
 fn accepts_moved_non_copy_struct_argument() {
     let diagnostics = check_text(
         r#"struct Text {

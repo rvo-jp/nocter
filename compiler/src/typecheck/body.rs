@@ -10,7 +10,7 @@ use super::controls::{
     check_for_range_bounds, check_if_condition, check_if_let_initializer, check_while_condition,
     check_while_let_initializer,
 };
-use super::copyability::{implicit_non_copy_struct_identifier_source, non_copy_struct_type_name};
+use super::copyability::{implicit_non_copy_struct_value_source, non_copy_struct_type_name};
 use super::diagnostics::{
     assignment_type_mismatch_diagnostic, immutable_assignment_diagnostic,
     loop_control_outside_loop_diagnostic, non_copy_struct_assignment_diagnostic,
@@ -516,12 +516,12 @@ fn check_assignment_statement(
     }
 
     if let Some((source_name, type_name)) =
-        implicit_non_copy_struct_identifier_source(&statement.value, resolved, environment)
+        implicit_non_copy_struct_value_source(&statement.value, resolved, environment)
     {
         diagnostics.push(non_copy_struct_assignment_diagnostic(
             sources,
             statement,
-            source_name,
+            &source_name,
             &type_name,
         ));
     }

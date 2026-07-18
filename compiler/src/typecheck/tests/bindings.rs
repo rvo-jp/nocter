@@ -179,6 +179,31 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_binding_from_non_copy_struct_field() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+struct Wrap {
+    text: Text
+}
+
+func main(): i32 {
+    let wrap = Wrap{ text: Text{ len: 42 } }
+    let text = wrap.text
+    return text.len
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0432");
+    assert!(diagnostics[0].message.contains("Text"));
+    assert!(diagnostics[0].message.contains("wrap.text"));
+}
+
+#[test]
 fn accepts_binding_from_moved_non_copy_struct_binding() {
     let diagnostics = check_text(
         r#"struct Text {
@@ -241,6 +266,32 @@ func main(): i32 {
     );
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_assignment_from_non_copy_struct_field() {
+    let diagnostics = check_text(
+        r#"struct Text {
+    len: i32
+}
+
+struct Wrap {
+    text: Text
+}
+
+func main(): i32 {
+    var text = Text{ len: 1 }
+    let wrap = Wrap{ text: Text{ len: 42 } }
+    text = wrap.text
+    return text.len
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0384");
+    assert!(diagnostics[0].message.contains("Text"));
+    assert!(diagnostics[0].message.contains("wrap.text"));
 }
 
 #[test]

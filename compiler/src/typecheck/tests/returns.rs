@@ -397,6 +397,34 @@ func make(): Text {
 }
 
 #[test]
+fn diagnoses_implicit_non_copy_struct_field_return() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return extract().len
+}
+
+struct Text {
+    len: i32
+}
+
+struct Wrap {
+    text: Text
+}
+
+func extract(): Text {
+    let wrap = Wrap{ text: Text{ len: 42 } }
+    return wrap.text
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0393");
+    assert!(diagnostics[0].message.contains("Text"));
+    assert!(diagnostics[0].message.contains("wrap.text"));
+}
+
+#[test]
 fn accepts_moved_non_copy_struct_return() {
     let diagnostics = check_text(
         r#"func main(): i32 {

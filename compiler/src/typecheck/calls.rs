@@ -1,4 +1,4 @@
-use super::copyability::implicit_non_copy_struct_identifier_source;
+use super::copyability::implicit_non_copy_struct_value_source;
 use super::diagnostics::{
     argument_count_mismatch_diagnostic, argument_type_mismatch_diagnostic,
     associated_function_unknown_diagnostic, field_called_as_method_diagnostic,
@@ -65,14 +65,14 @@ pub(super) fn check_known_function_call(
         }
 
         if let Some((source_name, type_name)) =
-            implicit_non_copy_struct_identifier_source(argument, resolved, environment)
+            implicit_non_copy_struct_value_source(argument, resolved, environment)
         {
             diagnostics.push(non_copy_struct_argument_diagnostic(
                 sources,
                 index,
                 argument,
                 parameter,
-                source_name,
+                &source_name,
                 &type_name,
             ));
         }
