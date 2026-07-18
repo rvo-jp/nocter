@@ -7597,6 +7597,168 @@ func maybe_triple(): Triple? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_optional_direct_aggregate_default_return_success_exit_code() {
+    let project = TempProject::new("cli-run-optional-direct-aggregate-default-return-success");
+    let source = project.write_source(
+        "optional_direct_aggregate_default_return_success.nct",
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    let header = choose()
+    return header.code
+}
+
+func choose(): Header {
+    return maybe_header() ?? Header{ tag: 1, ok: false, code: 7, len: 2 }
+}
+
+func maybe_header(): Header? {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_optional_direct_aggregate_default_return_fallback_exit_code() {
+    let project = TempProject::new("cli-run-optional-direct-aggregate-default-return-fallback");
+    let source = project.write_source(
+        "optional_direct_aggregate_default_return_fallback.nct",
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    let header = choose()
+    return header.code
+}
+
+func choose(): Header {
+    return maybe_header() ?? Header{ tag: 1, ok: false, code: 7, len: 2 }
+}
+
+func maybe_header(): Header? {
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(7),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_optional_indirect_aggregate_default_return_success_exit_code() {
+    let project = TempProject::new("cli-run-optional-indirect-aggregate-default-return-success");
+    let source = project.write_source(
+        "optional_indirect_aggregate_default_return_success.nct",
+        r#"copy struct Triple {
+    first: usize
+    second: usize
+    third: usize
+}
+
+func main(): i32 {
+    let value = choose()
+    if value.second == 42 {
+        return 42
+    } else {
+        return 7
+    }
+}
+
+func choose(): Triple {
+    return maybe_triple() ?? Triple{ first: 1, second: 7, third: 3 }
+}
+
+func maybe_triple(): Triple? {
+    return Triple{ first: 1, second: 42, third: 3 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_optional_indirect_aggregate_default_return_fallback_exit_code() {
+    let project = TempProject::new("cli-run-optional-indirect-aggregate-default-return-fallback");
+    let source = project.write_source(
+        "optional_indirect_aggregate_default_return_fallback.nct",
+        r#"copy struct Triple {
+    first: usize
+    second: usize
+    third: usize
+}
+
+func main(): i32 {
+    let value = choose()
+    if value.second == 42 {
+        return 42
+    } else {
+        return 7
+    }
+}
+
+func choose(): Triple {
+    return maybe_triple() ?? Triple{ first: 1, second: 7, third: 3 }
+}
+
+func maybe_triple(): Triple? {
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(7),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_optional_direct_aggregate_force_unwrap_exit_code() {
     let project = TempProject::new("cli-run-optional-direct-aggregate-force");
     let source = project.write_source(

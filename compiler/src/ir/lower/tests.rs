@@ -17043,6 +17043,119 @@ func maybe_bytes(bytes: &[u8]): &[u8]? {
 }
 
 #[test]
+fn lowers_optional_direct_aggregate_default_return() {
+    let aggregate_type = Type::Fallible(Box::new(Type::DirectAggregate {
+        layout: ValueLayout::new(16, 8),
+        words: 2,
+    }));
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func choose(): Header {
+    return make() ?? Header{ tag: 1, ok: false, code: 7, len: 2 }
+}
+
+func make(): Header? {
+    return Header{ tag: 7, ok: true, code: 42, len: 11 }
+}
+"#,
+        "choose",
+        function_signatures(vec![("make", aggregate_type, vec![])]),
+    )
+    .unwrap();
+
+    let [
+        Instruction::CallFallibleDirectAggregate {
+            destination,
+            target,
+            arguments,
+            layout,
+            failure_mode: FallibleFailureMode::Handle { instructions },
+        },
+        Instruction::Return,
+    ] = function.instructions.as_slice()
+    else {
+        panic!("{function:?}");
+    };
+    assert_eq!(*destination, AggregateLocation::DirectReturn);
+    assert_eq!(*target, CallTarget::same_file("make"));
+    assert!(arguments.is_empty());
+    assert_eq!(*layout, ValueLayout::new(16, 8));
+    assert!(instructions.contains(&Instruction::StoreAggregateI32 {
+        destination: AggregateLocation::Slot(0),
+        offset: 4,
+        value: I32Value::Const(7),
+    }));
+    assert!(instructions.contains(&Instruction::CopyAggregate {
+        destination: AggregateLocation::DirectReturn,
+        source: AggregateLocation::Slot(0),
+        layout: ValueLayout::new(16, 8),
+    }));
+    assert_eq!(instructions.last(), Some(&Instruction::Return));
+}
+
+#[test]
+fn lowers_optional_indirect_aggregate_default_return() {
+    let aggregate_type = Type::Fallible(Box::new(Type::Aggregate {
+        layout: ValueLayout::new(24, 8),
+    }));
+    let function = lower_named_function_with_signatures(
+        r#"copy struct Triple {
+    first: usize
+    second: usize
+    third: usize
+}
+
+func main(): i32 {
+    return 0
+}
+
+func choose(): Triple {
+    return make() ?? Triple{ first: 1, second: 7, third: 3 }
+}
+
+func make(): Triple? {
+    return Triple{ first: 1, second: 42, third: 3 }
+}
+"#,
+        "choose",
+        function_signatures(vec![("make", aggregate_type, vec![])]),
+    )
+    .unwrap();
+
+    let [
+        Instruction::CallFallibleAggregate {
+            destination,
+            target,
+            arguments,
+            failure_mode: FallibleFailureMode::Handle { instructions },
+        },
+        Instruction::Return,
+    ] = function.instructions.as_slice()
+    else {
+        panic!("{function:?}");
+    };
+    assert_eq!(*destination, AggregateLocation::Return);
+    assert_eq!(*target, CallTarget::same_file("make"));
+    assert!(arguments.is_empty());
+    assert!(instructions.contains(&Instruction::StoreAggregateUsize {
+        destination: AggregateLocation::Return,
+        offset: 8,
+        value: UsizeValue::Const(7),
+    }));
+    assert_eq!(instructions.last(), Some(&Instruction::Return));
+}
+
+#[test]
 fn lowers_optional_i32_default_call_binding() {
     let ir = lower_text(
         r#"func main(): i32 {

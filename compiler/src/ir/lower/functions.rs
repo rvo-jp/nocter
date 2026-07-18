@@ -2029,6 +2029,14 @@ fn lower_aggregate_return_expression_to_location(
                 lower_catch_failure_mode(catch, context, 0)?,
             )
         }
+        Expr::OptionalDefault(default) => lower_aggregate_optional_default_return_to_location(
+            default,
+            return_type,
+            destination,
+            function_name,
+            resolved,
+            context,
+        ),
         Expr::Identifier(identifier) => lower_aggregate_local_return_to_location(
             &identifier.name,
             AggregateValueUse::ImplicitCopy,
@@ -2067,6 +2075,63 @@ fn lower_aggregate_return_expression_to_location(
         ),
         _ => Err(unsupported_aggregate_return_diagnostic(function_name)),
     }
+}
+
+fn lower_aggregate_optional_default_return_to_location(
+    default: &crate::ast::OptionalDefaultExpr,
+    return_type: &Type,
+    destination: AggregateLocation,
+    function_name: &str,
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if !context.pending_aggregate_drops().is_empty() {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    }
+
+    let Expr::Call(call) = unwrap_group(&default.value) else {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    };
+    if !call_return_type_expr_is_top_level_optional(call, context) {
+        return Err(unsupported_aggregate_return_diagnostic(function_name));
+    }
+
+    let failure_mode = lower_aggregate_optional_default_return_failure_mode(
+        &default.default,
+        return_type,
+        destination,
+        function_name,
+        resolved,
+        context,
+    )?;
+    lower_aggregate_fallible_call_return_to_location(
+        call,
+        return_type,
+        destination,
+        function_name,
+        context,
+        failure_mode,
+    )
+}
+
+fn lower_aggregate_optional_default_return_failure_mode(
+    fallback: &Expr,
+    return_type: &Type,
+    destination: AggregateLocation,
+    function_name: &str,
+    resolved: &ResolveOutput,
+    context: &LoweringContext,
+) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
+    let mut instructions = lower_aggregate_return_expression_to_location(
+        fallback,
+        return_type,
+        destination,
+        function_name,
+        resolved,
+        context,
+    )?;
+    instructions.push(Instruction::Return);
+    Ok(FallibleFailureMode::Handle { instructions })
 }
 
 fn unwrap_group(expression: &Expr) -> &Expr {
