@@ -606,6 +606,38 @@ func choose(value: &+i32, code: i32): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_u8_normal_and_tail_calls_exit_code() {
+    let project = TempProject::new("cli-run-u8-normal-tail-calls");
+    let source = project.write_source(
+        "u8_normal_tail_calls.nct",
+        r#"func main(): i32 {
+    let byte: u8 = forward(42)
+    return byte as i32
+}
+
+func forward(byte: u8): u8 {
+    return identity(byte)
+}
+
+func identity(byte: u8): u8 {
+    return byte
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_i32_normal_call_exit_code() {
     let project = TempProject::new("cli-run-normal-call");
     let source = project.write_source(

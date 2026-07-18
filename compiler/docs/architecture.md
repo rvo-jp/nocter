@@ -151,10 +151,10 @@ Currently buildable:
 - literal `i32` returns
 - immutable local `let` bindings whose initializer is lowerable as `i32`, annotated `usize`, `bool`, or annotated `&str`
 - `void` entry with an empty body or bare `return`
-- same-file non-generic tail calls returning `i32` or `bool`
+- same-file non-generic tail calls returning `i32`, `u8`, `usize`, or `bool`
 - same-file and loaded imported calls returning `never` in terminal return or expression-statement position
 - same-file non-generic normal calls returning `i32` in `let` initializers, `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, `i32` comparison operands, and nested scalar call arguments
-- same-file and loaded imported non-generic normal calls returning `usize` in annotated `let` initializers, including scalar call arguments
+- same-file and loaded imported non-generic normal calls returning `u8` or `usize` in annotated `let` initializers, including scalar call arguments
 - custom executable output paths through `build -o <path>`
 - explicit `--target arm64-darwin` selection for `build`, `run`, and `check`; reserved future targets are recognized but rejected as unimplemented
 - same-file non-generic normal calls returning `bool` in `let` initializers, unary-not expressions, bool equality/inequality operands, short-circuit bool value expressions, and terminal `if` conditions

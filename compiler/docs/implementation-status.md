@@ -63,12 +63,12 @@ Currently buildable:
 - optional force unwrap in lowerable return/value positions, trapping on `none`
 - optional `let ... else` call-result bindings for scalar/view and supported aggregate payloads, including supported cleanup before terminating `else` paths
 - optional `??` defaults for scalar/view and supported aggregate payloads in lowerable binding and return positions
-- same-file and loaded imported non-generic tail calls returning `i32` or `bool`
+- same-file and loaded imported non-generic tail calls returning `i32`, `u8`, `usize`, or `bool`
 - same-file and loaded imported calls returning `never` in terminal return or expression-statement position, with pending aggregate scope-end drops inserted before the supported `never` exit
 - same-file and loaded imported non-generic normal calls returning `i32` in `let` initializers
 - same-file and loaded imported non-generic normal calls returning `i32` in `i32` arithmetic and shift expressions using `+`, `-`, `*`, `/`, `%`, `<<`, and `>>`, evaluated left to right with distinct temporary locals
 - same-file and loaded imported non-generic normal calls returning `i32` as `i32` comparison operands such as `if answer() == 42`, `let matched = left() <= right()`, and `return left() < right()`
-- same-file and loaded imported non-generic normal calls returning `usize` in annotated `let` initializers and `usize` arithmetic or shift expressions, including calls with scalar arguments
+- same-file and loaded imported non-generic normal calls returning `u8` or `usize` in annotated `let` initializers, plus `usize` arithmetic or shift expressions, including calls with scalar arguments
 - functions returning `usize` literal/local/call/arithmetic/shift values in lowerable positions
 - `usize` comparisons over literals, locals, lowerable arithmetic or shift expressions, and same-file or loaded imported normal calls in lowerable bool expressions and terminal `if` conditions
 - same-file and loaded imported non-generic normal calls returning `bool` in `let` initializers

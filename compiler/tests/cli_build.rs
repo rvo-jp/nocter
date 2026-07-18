@@ -360,6 +360,33 @@ func choose(flag: bool): usize {
 }
 
 #[test]
+fn build_command_lowers_u8_normal_and_tail_calls() {
+    let project = TempProject::new("cli-build-u8-normal-tail-calls");
+    let source = project.write_source(
+        "u8_normal_tail_calls.nct",
+        r#"func main(): i32 {
+    let byte: u8 = forward(42)
+    return byte as i32
+}
+
+func forward(byte: u8): u8 {
+    return identity(byte)
+}
+
+func identity(byte: u8): u8 {
+    return byte
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_void_terminal_if_function() {
     let project = TempProject::new("cli-build-void-terminal-if-function");
     let source = project.write_source(
