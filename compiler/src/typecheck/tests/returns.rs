@@ -200,6 +200,124 @@ func leak(): &i32 {
 }
 
 #[test]
+fn diagnoses_return_borrow_alias_of_local_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func leak(): &i32 {
+    let value = 1
+    let view = &value
+    return view
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn diagnoses_return_borrow_alias_chain_of_local_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func leak(): &i32 {
+    let value = 1
+    let first = &value
+    let second = first
+    return second
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
+fn accepts_borrow_parameter_alias_return() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func same(value: &i32): &i32 {
+    let view = value
+    return view
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_return_borrow_alias_after_assignment_from_local_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func leak(value: &i32): &i32 {
+    var view = value
+    let local = 1
+    view = &local
+    return view
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("local"));
+}
+
+#[test]
+fn accepts_borrow_alias_reassigned_to_parameter_return() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func same(value: &i32): &i32 {
+    let local = 1
+    var view = &local
+    view = value
+    return view
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_str_literal_alias_return() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func title(): &str {
+    let text: &str = "hello"
+    return text
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn accepts_bool_function_return() {
     let diagnostics = check_text(
         r#"func main(): i32 {
