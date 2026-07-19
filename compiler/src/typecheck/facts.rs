@@ -735,7 +735,7 @@ impl TypecheckFactCollector<'_> {
         if !ty.is_unknown_or_unresolved() {
             self.facts
                 .binding_type_labels
-                .insert(name_span, ty.display());
+                .insert(name_span, type_hover_label(ty, self.resolved));
         }
     }
 
@@ -744,7 +744,7 @@ impl TypecheckFactCollector<'_> {
         if !ty.is_unknown_or_unresolved() {
             self.facts
                 .expression_type_labels
-                .insert(expression.span(), ty.display());
+                .insert(expression.span(), type_hover_label(&ty, self.resolved));
         }
     }
 
@@ -789,10 +789,16 @@ impl TypecheckFactCollector<'_> {
             span,
             format!(
                 "field {}.{}: {}",
-                owner.canonical_name,
+                type_owner_hover_label(owner, self.resolved),
                 field.name,
-                type_expr_to_type_with_self_type(&field.ty, self.resolved, environment.self_type())
-                    .display()
+                type_hover_label(
+                    &type_expr_to_type_with_self_type(
+                        &field.ty,
+                        self.resolved,
+                        environment.self_type()
+                    ),
+                    self.resolved
+                )
             ),
         );
     }
@@ -900,12 +906,16 @@ fn enum_variant_signature_hover_label(
     resolved: &ResolveOutput,
 ) -> String {
     if variant.payload.is_empty() {
-        return format!("variant {}.{}", owner.canonical_name, variant.name);
+        return format!(
+            "variant {}.{}",
+            type_owner_hover_label(owner, resolved),
+            variant.name
+        );
     }
 
     format!(
         "variant {}.{}({})",
-        owner.canonical_name,
+        type_owner_hover_label(owner, resolved),
         variant.name,
         parameter_signatures_label(&variant.payload, resolved, None)
     )
@@ -944,9 +954,14 @@ fn associated_function_signature_hover_label(
     resolved: &ResolveOutput,
 ) -> String {
     let self_type = Type::Named(owner.canonical_name.clone());
+    let name = format!(
+        "{}.{}",
+        type_owner_hover_label(owner, resolved),
+        function.name
+    );
     function_signature_hover_label(
         "func",
-        &function.target_name,
+        &name,
         &function.signature,
         resolved,
         Some(&self_type),
@@ -1053,5 +1068,74 @@ fn parameter_signature_type_label(
 }
 
 fn type_label(ty: &TypeExpr, resolved: &ResolveOutput, self_type: Option<&Type>) -> String {
-    type_expr_to_type_with_self_type(ty, resolved, self_type).display()
+    type_hover_label(
+        &type_expr_to_type_with_self_type(ty, resolved, self_type),
+        resolved,
+    )
+}
+
+fn type_hover_label(ty: &Type, resolved: &ResolveOutput) -> String {
+    match ty {
+        Type::I32 => "i32".to_string(),
+        Type::Primitive(name) => name.clone(),
+        Type::StrData => "str".to_string(),
+        Type::Str => "&str".to_string(),
+        Type::Error => "error".to_string(),
+        Type::Void => "void".to_string(),
+        Type::Never => "never".to_string(),
+        Type::None => "none".to_string(),
+        Type::ArrayData { element } => format!("[{}]", type_hover_label(element, resolved)),
+        Type::View {
+            is_readwrite: true,
+            element,
+        } => format!("&+[{}]", type_hover_label(element, resolved)),
+        Type::View {
+            is_readwrite: false,
+            element,
+        } => format!("&[{}]", type_hover_label(element, resolved)),
+        Type::Array { element, length } => {
+            format!("[{}; {}]", type_hover_label(element, resolved), length)
+        }
+        Type::Pointer(inner) => format!("*{}", type_hover_label(inner, resolved)),
+        Type::Optional(inner) => format!("{}?", type_hover_label(inner, resolved)),
+        Type::Fallible { success, .. } => format!("{}!", type_hover_label(success, resolved)),
+        Type::Named(name) => visible_type_name(name, resolved)
+            .map(str::to_string)
+            .unwrap_or_else(|| name.clone()),
+        Type::Generic { name, arguments } => {
+            let name = visible_type_name(name, resolved).unwrap_or(name);
+            let arguments = arguments
+                .iter()
+                .map(|argument| type_hover_label(argument, resolved))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{name}<{arguments}>")
+        }
+        Type::Parameter(name) => name.clone(),
+        Type::Unresolved(name) => name.clone(),
+        Type::Unknown => "<unknown>".to_string(),
+    }
+}
+
+fn type_owner_hover_label<'a>(owner: &'a TypeSymbol, resolved: &'a ResolveOutput) -> &'a str {
+    visible_type_name(&owner.canonical_name, resolved).unwrap_or(&owner.canonical_name)
+}
+
+fn visible_type_name<'a>(canonical_name: &str, resolved: &'a ResolveOutput) -> Option<&'a str> {
+    resolved
+        .symbols
+        .symbols()
+        .filter_map(|symbol| match &symbol.kind {
+            SymbolKind::Type(type_symbol)
+                if type_symbol.canonical_name == canonical_name
+                    && symbol.name != canonical_name =>
+            {
+                Some(symbol.name.as_str())
+            }
+            SymbolKind::Function(_)
+            | SymbolKind::Primitive(_)
+            | SymbolKind::Type(_)
+            | SymbolKind::Imported(_) => None,
+        })
+        .min_by_key(|name| name.len())
 }

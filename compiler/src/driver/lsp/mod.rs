@@ -902,6 +902,78 @@ mod tests {
     }
 
     #[test]
+    fn returns_short_visible_type_names_for_hover() {
+        let project = TempProject::new("lsp-hover-short-type-names");
+        let home = project.write_nocter_home();
+        std::fs::write(
+            home.join("std/string.nct"),
+            "pub copy struct String {\n    ptr: usize\n}\n",
+        )
+        .unwrap();
+        let _home = NocterHomeEnv::set(&home);
+        let text = "use std/string.String\n\nstruct TestStruct {\n    field3: String\n}\n\nfunc inspect(value: TestStruct): String {\n    let result = value.field3\n    return result\n}\n";
+        let app = project.write_source("app.nct", text);
+        let uri = file_uri(&app);
+        let document = open_document(uri.clone(), Some(1), text.to_string());
+        let server = LspServer {
+            documents: HashMap::from([(uri.clone(), document)]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let field_declaration = server.hover_response(
+            json!(7),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "position": {
+                    "line": 3,
+                    "character": 5
+                }
+            })),
+        );
+        let field_reference = server.hover_response(
+            json!(8),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "position": {
+                    "line": 7,
+                    "character": 25
+                }
+            })),
+        );
+        let inferred_binding = server.hover_response(
+            json!(9),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "position": {
+                    "line": 8,
+                    "character": 12
+                }
+            })),
+        );
+
+        assert_eq!(
+            field_declaration["result"]["contents"]["value"],
+            json!("```nocter\nfield field3: String\n```")
+        );
+        assert_eq!(
+            field_reference["result"]["contents"]["value"],
+            json!("```nocter\nfield TestStruct.field3: String\n```")
+        );
+        assert_eq!(
+            inferred_binding["result"]["contents"]["value"],
+            json!("```nocter\nlet result: String\n```")
+        );
+    }
+
+    #[test]
     fn returns_documented_workspace_hover_for_local_binding_reference() {
         let project = TempProject::new("lsp-hover-local-reference-docs");
         let app = project.write_source(
