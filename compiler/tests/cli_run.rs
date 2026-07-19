@@ -759,11 +759,7 @@ func main(): i32 {
     counter.count -= 40
     counter.count /= 2
     counter.size %= 5
-    return score(counter.count, counter.size)
-}
-
-func score(count: i32, size: usize): i32 {
-    if count == 21 && size == 2 {
+    if counter.count == 21 && counter.size == 2 {
         return 42
     } else {
         return 1

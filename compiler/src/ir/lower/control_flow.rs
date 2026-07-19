@@ -3,10 +3,11 @@ use super::bindings::{
 };
 use super::context::LoweringContext;
 use super::expressions::{
-    expression_contains_call, lower_bool_expression_to_value, lower_bool_return_expression,
-    lower_i32_expression_to_location, lower_i32_return_expression, lower_slice_return_expression,
-    lower_str_return_expression, lower_u8_return_expression, lower_usize_expression_to_location,
-    lower_usize_return_expression, lower_void_expression_statement, primitive_trap_call,
+    lower_bool_expression_to_value, lower_bool_return_expression, lower_i32_expression_to_location,
+    lower_i32_return_expression, lower_slice_return_expression, lower_str_return_expression,
+    lower_u8_return_expression, lower_usize_expression_to_location, lower_usize_return_expression,
+    lower_void_expression_statement, primitive_trap_call,
+    short_circuit_bool_expression_needs_branch,
 };
 use super::functions::{
     append_scope_end_drops_before_exit, expression_contains_explicit_aggregate_move,
@@ -300,7 +301,7 @@ pub(super) fn lower_terminal_condition(
         ));
     }
 
-    if let Some(binary) = short_circuit_condition_with_call(condition) {
+    if let Some(binary) = short_circuit_condition_needs_branch(condition, context) {
         return lower_short_circuit_terminal_condition(
             binary,
             then_instructions,
@@ -1082,20 +1083,19 @@ fn lower_short_circuit_terminal_condition(
     }
 }
 
-fn short_circuit_condition_with_call(condition: &Expr) -> Option<&BinaryExpr> {
+fn short_circuit_condition_needs_branch<'a>(
+    condition: &'a Expr,
+    context: &LoweringContext,
+) -> Option<&'a BinaryExpr> {
     let condition = unwrap_group(condition);
     let Expr::Binary(binary) = condition else {
         return None;
     };
 
-    match binary.operator {
-        BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
-            if expression_contains_call(&binary.left)
-                || expression_contains_call(&binary.right) =>
-        {
-            Some(binary)
-        }
-        _ => None,
+    if short_circuit_bool_expression_needs_branch(binary, context) {
+        Some(binary)
+    } else {
+        None
     }
 }
 

@@ -9,11 +9,38 @@ use crate::ast::{
 };
 use crate::ir::Type;
 
-pub(super) fn short_circuit_bool_expression_contains_call(binary: &BinaryExpr) -> bool {
+pub(in crate::ir::lower) fn short_circuit_bool_expression_needs_branch(
+    binary: &BinaryExpr,
+    context: &LoweringContext,
+) -> bool {
     matches!(
         binary.operator,
         BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
-    ) && (expression_contains_call(&binary.left) || expression_contains_call(&binary.right))
+    ) && (expression_contains_call(&binary.left)
+        || expression_contains_call(&binary.right)
+        || bool_expression_needs_temporaries(&binary.left, context)
+        || bool_expression_needs_temporaries(&binary.right, context))
+}
+
+fn bool_expression_needs_temporaries(expression: &Expr, context: &LoweringContext) -> bool {
+    match unwrap_group(expression) {
+        Expr::Member(_) => {
+            expression_is_aggregate_field_kind(expression, AggregateFieldKind::Bool, context)
+        }
+        Expr::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+            bool_expression_needs_temporaries(&unary.operand, context)
+        }
+        Expr::Binary(binary) => {
+            short_circuit_bool_expression_needs_branch(binary, context)
+                || bool_comparison_contains_call(binary, context)
+                || bool_comparison_needs_temporaries(binary, context)
+                || u8_comparison_needs_temporaries(binary, context)
+                || i32_comparison_needs_temporaries(binary, context)
+                || usize_comparison_needs_temporaries(binary, context)
+        }
+        Expr::Group(group) => bool_expression_needs_temporaries(&group.expression, context),
+        _ => false,
+    }
 }
 
 pub(in crate::ir::lower) fn expression_contains_call(expression: &Expr) -> bool {
@@ -160,6 +187,11 @@ pub(super) fn u8_comparison_is_lowerable(binary: &BinaryExpr, context: &Lowering
         && expressions_are_lowerable_u8_expressions(&binary.left, &binary.right, context)
         && (expression_is_known_u8_expression(&binary.left, context)
             || expression_is_known_u8_expression(&binary.right, context))
+}
+
+fn u8_comparison_needs_temporaries(binary: &BinaryExpr, context: &LoweringContext) -> bool {
+    u8_comparison_is_lowerable(binary, context)
+        && !expressions_are_lowerable_u8_values(&binary.left, &binary.right, context)
 }
 
 pub(in crate::ir::lower) fn expression_is_lowerable_bool_binding(
@@ -309,6 +341,15 @@ fn expressions_are_lowerable_u8_expressions(
 ) -> bool {
     expression_is_lowerable_u8_expression(left, context)
         && expression_is_lowerable_u8_expression(right, context)
+}
+
+fn expressions_are_lowerable_u8_values(
+    left: &Expr,
+    right: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    expression_is_lowerable_u8_value(left, context)
+        && expression_is_lowerable_u8_value(right, context)
 }
 
 fn expressions_are_lowerable_bool_expressions(

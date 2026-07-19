@@ -13415,6 +13415,73 @@ func ok_is_true(): bool {
 }
 
 #[test]
+fn lowers_aggregate_field_reads_in_short_circuit_comparison_condition() {
+    let ir = lower_text(
+        r#"struct Header {
+    tag: u8
+    ok: bool
+    code: i32
+    len: usize
+}
+
+func main(): i32 {
+    let value = Header{ tag: 7, ok: true, code: 42, len: 11 }
+    if value.code == 42 && value.len == 11 {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let main = &ir.functions[0];
+    assert!(
+        main.instructions.contains(&Instruction::LoadAggregateI32 {
+            destination: I32Location::Local(0),
+            source: AggregateLocation::Slot(0),
+            offset: 4,
+        }),
+        "{main:?}"
+    );
+    assert!(
+        main.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                Instruction::If {
+                    condition: BoolValue::I32Comparison {
+                        operator: I32ComparisonOperator::Equal,
+                        left,
+                        right,
+                    },
+                    then_instructions,
+                    ..
+                } if left == &i32_local(0)
+                    && right == &i32_const(42)
+                    && then_instructions.contains(&Instruction::LoadAggregateUsize {
+                        destination: UsizeLocation::Local(0),
+                        source: AggregateLocation::Slot(0),
+                        offset: 8,
+                    })
+                    && then_instructions.iter().any(|then_instruction| matches!(
+                        then_instruction,
+                        Instruction::If {
+                            condition: BoolValue::UsizeComparison {
+                                operator: I32ComparisonOperator::Equal,
+                                left,
+                                right,
+                            },
+                            ..
+                        } if left == &UsizeValue::Location(UsizeLocation::Local(0))
+                            && right == &UsizeValue::Const(11)
+                    ))
+            )
+        }),
+        "{main:?}"
+    );
+}
+
+#[test]
 fn lowers_aggregate_call_field_read_in_comparison() {
     let aggregate_type = Type::DirectAggregate {
         layout: ValueLayout::new(16, 8),

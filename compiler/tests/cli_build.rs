@@ -1328,6 +1328,34 @@ fn build_command_lowers_terminal_if_bool_logical() {
 }
 
 #[test]
+fn build_command_lowers_terminal_if_aggregate_scalar_field_short_circuit() {
+    let project = TempProject::new("cli-build-terminal-if-aggregate-scalar-field-short-circuit");
+    let source = project.write_source(
+        "terminal_if_aggregate_scalar_field_short_circuit.nct",
+        r#"struct Header {
+    tag: u8
+    ok: bool
+}
+
+func main(): i32 {
+    let header = Header{ tag: 7, ok: true }
+    if header.ok && header.tag == 7 {
+        return 0
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_bool_equality() {
     let project = TempProject::new("cli-build-bool-equality");
     let source = project.write_source(

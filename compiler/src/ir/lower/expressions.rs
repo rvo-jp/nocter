@@ -57,12 +57,12 @@ use predicates::{
     bool_comparison_contains_call, bool_comparison_needs_temporaries,
     expressions_are_lowerable_bool_comparison_operands, expressions_are_lowerable_bool_values,
     expressions_are_lowerable_usize_values, i32_comparison_needs_temporaries,
-    is_i32_binary_operator, is_usize_binary_operator, short_circuit_bool_expression_contains_call,
-    u8_comparison_is_lowerable, usize_comparison_needs_temporaries,
+    is_i32_binary_operator, is_usize_binary_operator, u8_comparison_is_lowerable,
+    usize_comparison_needs_temporaries,
 };
 pub(super) use predicates::{
-    expression_contains_call, expression_contains_interpolated_string,
-    expression_is_lowerable_bool_binding,
+    expression_contains_interpolated_string, expression_is_lowerable_bool_binding,
+    short_circuit_bool_expression_needs_branch,
 };
 pub(super) use temporaries::TemporaryAllocator;
 use temporaries::{
@@ -1754,7 +1754,7 @@ pub(super) fn lower_bool_expression_to_location(
     diagnostic_code: &'static str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
-        Expr::Binary(binary) if short_circuit_bool_expression_contains_call(binary) => {
+        Expr::Binary(binary) if short_circuit_bool_expression_needs_branch(binary, context) => {
             lower_short_circuit_bool_expression_to_location(
                 binary,
                 destination,
@@ -1989,7 +1989,7 @@ fn lower_bool_expression_to_branch(
     diagnostic_code: &'static str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if let Expr::Binary(binary) = unwrap_group(expression)
-        && short_circuit_bool_expression_contains_call(binary)
+        && short_circuit_bool_expression_needs_branch(binary, context)
     {
         return lower_short_circuit_bool_expression_to_branch(
             binary,
@@ -2019,7 +2019,7 @@ fn lower_bool_expression_to_branch_with_temporaries(
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if let Expr::Binary(binary) = unwrap_group(expression)
-        && short_circuit_bool_expression_contains_call(binary)
+        && short_circuit_bool_expression_needs_branch(binary, context)
     {
         return lower_short_circuit_bool_expression_to_branch_with_temporaries(
             binary,
@@ -2522,7 +2522,7 @@ fn lower_bool_expression_to_value_with_temporaries(
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
     match expression {
-        Expr::Binary(binary) if short_circuit_bool_expression_contains_call(binary) => {
+        Expr::Binary(binary) if short_circuit_bool_expression_needs_branch(binary, context) => {
             lower_short_circuit_bool_expression_to_value_with_temporaries(
                 binary,
                 context,
