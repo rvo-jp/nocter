@@ -1071,6 +1071,84 @@ func main(): i32 {
     assert_success(&output);
 }
 
+#[test]
+fn distributed_std_process_args_is_check_only_for_build() {
+    let project = TempProject::new("distributed-home-process-args-check-only-build");
+    let source = project.write_source(
+        "process_args_check_only.nct",
+        r#"use std/process.args
+
+func main(): i32! {
+    let values = args()?
+    return 0
+}
+"#,
+    );
+    let executable = project.root().join("process_args_check_only");
+
+    let output = nocter_build(&project, &source, &executable);
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("check-only `std/process.args` calls"),
+        "expected args check-only diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("4 |     let values = args()?"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
+fn distributed_std_process_env_is_check_only_for_build() {
+    let project = TempProject::new("distributed-home-process-env-check-only-build");
+    let source = project.write_source(
+        "process_env_check_only.nct",
+        r#"use std/process.env as lookup
+
+func main(): i32! {
+    let value = lookup("HOME")?
+    return 0
+}
+"#,
+    );
+    let executable = project.root().join("process_env_check_only");
+
+    let output = nocter_build(&project, &source, &executable);
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("check-only `std/process.env` calls"),
+        "expected env check-only diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("4 |     let value = lookup(\"HOME\")?"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("nested fallible or optional return types"),
+        "std internal return-shape diagnostic should not leak for check-only calls, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn distributed_std_process_cwd_reports_unsupported() {

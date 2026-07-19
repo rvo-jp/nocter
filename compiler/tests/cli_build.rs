@@ -3300,6 +3300,94 @@ func value(): (i32?)! {
 }
 
 #[test]
+fn build_command_reports_std_process_args_check_only_before_ir_lowering() {
+    let project = TempProject::new("cli-build-process-args-check-only-boundary");
+    write_process_contract_std(&project);
+    let source = project.write_source(
+        "process_args_check_only_boundary.nct",
+        r#"use std/process.args
+
+func main(): i32! {
+    let values = args()?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("check-only `std/process.args` calls"),
+        "expected args check-only diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("4 |     let values = args()?"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
+fn build_command_reports_std_process_env_check_only_before_ir_lowering() {
+    let project = TempProject::new("cli-build-process-env-check-only-boundary");
+    write_process_contract_std(&project);
+    let source = project.write_source(
+        "process_env_check_only_boundary.nct",
+        r#"use std/process.env as lookup
+
+func main(): i32! {
+    let value = lookup("HOME")?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("check-only `std/process.env` calls"),
+        "expected env check-only diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("4 |     let value = lookup(\"HOME\")?"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("nested fallible or optional return types"),
+        "std internal return-shape diagnostic should not leak for check-only calls, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_reachable_generic_impl_method_before_ir_lowering() {
     let project = TempProject::new("cli-build-generic-impl-method-boundary");
     let source = project.write_source(
@@ -4310,6 +4398,42 @@ fn text(bytes: &[u8]) -> String {
 
 struct TempProject {
     root: PathBuf,
+}
+
+fn write_process_contract_std(project: &TempProject) {
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/vec.nct",
+        r#"pub struct Vec<T> {
+    len: usize
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/process.nct",
+        r#"use std/error.Error
+use std/vec.Vec
+
+pub func args(): Vec<&str>! {
+    return Error.new("std.process.unsupported", "process arguments are not implemented")
+}
+
+pub func env(name: &str): &str?! {
+    return Error.new("std.process.unsupported", "process environment is not implemented")
+}
+"#,
+    );
 }
 
 impl TempProject {

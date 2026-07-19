@@ -10,6 +10,7 @@ use crate::resolve::{FunctionSignature, ResolveOutput, SymbolKind, drop_function
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::TypecheckFacts;
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::path::Path;
 
 pub(super) fn v0_buildability_diagnostics(
     sources: &SourceMap,
@@ -1031,6 +1032,11 @@ fn collect_expression_diagnostics(
             diagnostics,
         ),
         Expr::Call(expression) => {
+            let check_only_std_call =
+                unsupported_check_only_std_call_diagnostic(sources, expression, resolved);
+            if let Some(diagnostic) = &check_only_std_call {
+                diagnostics.push(diagnostic.clone());
+            }
             if let Some(diagnostic) =
                 unsupported_unloaded_imported_call_diagnostic(sources, expression, resolved)
             {
@@ -1064,8 +1070,9 @@ fn collect_expression_diagnostics(
                 queue,
                 diagnostics,
             );
-            if let Some(target) =
-                call_target_for_call(expression, resolved, typecheck_facts, root_source, names)
+            if check_only_std_call.is_none()
+                && let Some(target) =
+                    call_target_for_call(expression, resolved, typecheck_facts, root_source, names)
             {
                 queue.push_back(target);
             }
@@ -1213,6 +1220,50 @@ fn unsupported_str_equality_diagnostic(
         "`&str` equality and inequality comparisons",
         "compare lengths and bytes explicitly until string comparison lowering is promoted",
     ))
+}
+
+fn unsupported_check_only_std_call_diagnostic(
+    sources: &SourceMap,
+    call: &CallExpr,
+    resolved: &ResolveOutput,
+) -> Option<Diagnostic> {
+    let symbol = resolved.symbol_for_call(call)?;
+    if !matches!(
+        symbol.kind,
+        SymbolKind::Function(_) | SymbolKind::Primitive(_)
+    ) {
+        return None;
+    }
+    if !source_is_std_process(sources, symbol.declaration_span.source) {
+        return None;
+    }
+
+    let declaration_name = sources
+        .get(symbol.declaration_span.source)?
+        .text()
+        .get(symbol.declaration_span.start..symbol.declaration_span.end)?;
+    match declaration_name {
+        "args" => Some(unsupported_v0_build_diagnostic(
+            sources,
+            call.span,
+            "check-only `std/process.args` calls",
+            "`std/process.args` reserves the future `Vec<&str>!` API shape; keep this code on `check` or pass arguments through project code until `Vec` and process context runtime are promoted",
+        )),
+        "env" => Some(unsupported_v0_build_diagnostic(
+            sources,
+            call.span,
+            "check-only `std/process.env` calls",
+            "`std/process.env` reserves the future `&str?!` API shape; keep this code on `check` until nested fallible/optional returns and process context runtime are promoted",
+        )),
+        _ => None,
+    }
+}
+
+fn source_is_std_process(sources: &SourceMap, source: SourceId) -> bool {
+    sources
+        .get(source)
+        .and_then(|file| file.absolute_path())
+        .is_some_and(|path| path.ends_with(Path::new("std/process.nct")))
 }
 
 fn unsupported_unloaded_imported_call_diagnostic(
