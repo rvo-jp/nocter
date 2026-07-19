@@ -22,6 +22,7 @@ pub(super) fn v0_buildability_diagnostics(
     };
 
     let root_source = root.ast.span.source;
+    let nocter_home = analysis.nocter_home.as_deref();
     let index = CallableIndex::new(analysis, root_source);
     let mut queue = VecDeque::from([CallTarget::same_file(entry_name)]);
     let mut seen = HashSet::new();
@@ -39,6 +40,7 @@ pub(super) fn v0_buildability_diagnostics(
             sources,
             root_source,
             &index.names,
+            nocter_home,
             &mut queue,
             &mut diagnostics,
         );
@@ -171,6 +173,7 @@ fn collect_callable_diagnostics(
     sources: &SourceMap,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
+    nocter_home: Option<&Path>,
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -190,6 +193,7 @@ fn collect_callable_diagnostics(
         callable.typecheck_facts,
         root_source,
         names,
+        nocter_home,
         queue,
         diagnostics,
     );
@@ -202,6 +206,7 @@ fn collect_block_diagnostics(
     typecheck_facts: &TypecheckFacts,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
+    nocter_home: Option<&Path>,
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -213,6 +218,7 @@ fn collect_block_diagnostics(
             typecheck_facts,
             root_source,
             names,
+            nocter_home,
             queue,
             diagnostics,
         );
@@ -226,6 +232,7 @@ fn collect_statement_diagnostics(
     typecheck_facts: &TypecheckFacts,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
+    nocter_home: Option<&Path>,
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -239,6 +246,7 @@ fn collect_statement_diagnostics(
                     typecheck_facts,
                     root_source,
                     names,
+                    nocter_home,
                     queue,
                     diagnostics,
                 );
@@ -252,6 +260,7 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -263,6 +272,7 @@ fn collect_statement_diagnostics(
                     typecheck_facts,
                     root_source,
                     names,
+                    nocter_home,
                     queue,
                     diagnostics,
                 );
@@ -284,6 +294,7 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -294,6 +305,7 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -307,6 +319,7 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -317,6 +330,7 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -328,6 +342,7 @@ fn collect_statement_diagnostics(
                     typecheck_facts,
                     root_source,
                     names,
+                    nocter_home,
                     queue,
                     diagnostics,
                 );
@@ -347,6 +362,7 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -357,6 +373,7 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -368,6 +385,7 @@ fn collect_statement_diagnostics(
                     typecheck_facts,
                     root_source,
                     names,
+                    nocter_home,
                     queue,
                     diagnostics,
                 );
@@ -387,6 +405,7 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -397,6 +416,7 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -408,6 +428,7 @@ fn collect_statement_diagnostics(
                     typecheck_facts,
                     root_source,
                     names,
+                    nocter_home,
                     queue,
                     diagnostics,
                 );
@@ -427,6 +448,7 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -438,6 +460,7 @@ fn collect_statement_diagnostics(
                     typecheck_facts,
                     root_source,
                     names,
+                    nocter_home,
                     queue,
                     diagnostics,
                 );
@@ -450,6 +473,7 @@ fn collect_statement_diagnostics(
                     typecheck_facts,
                     root_source,
                     names,
+                    nocter_home,
                     queue,
                     diagnostics,
                 );
@@ -471,6 +495,7 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -481,6 +506,7 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -491,6 +517,7 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -504,6 +531,7 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -514,6 +542,7 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -532,6 +561,7 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -542,6 +572,7 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -554,6 +585,7 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -573,6 +605,7 @@ fn collect_statement_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -867,6 +900,7 @@ fn collect_expression_diagnostics(
     typecheck_facts: &TypecheckFacts,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
+    nocter_home: Option<&Path>,
     queue: &mut VecDeque<CallTarget>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -892,6 +926,7 @@ fn collect_expression_diagnostics(
                         typecheck_facts,
                         root_source,
                         names,
+                        nocter_home,
                         queue,
                         diagnostics,
                     );
@@ -913,6 +948,7 @@ fn collect_expression_diagnostics(
                     typecheck_facts,
                     root_source,
                     names,
+                    nocter_home,
                     queue,
                     diagnostics,
                 );
@@ -927,6 +963,7 @@ fn collect_expression_diagnostics(
                     typecheck_facts,
                     root_source,
                     names,
+                    nocter_home,
                     queue,
                     diagnostics,
                 );
@@ -939,6 +976,7 @@ fn collect_expression_diagnostics(
             typecheck_facts,
             root_source,
             names,
+            nocter_home,
             queue,
             diagnostics,
         ),
@@ -949,6 +987,7 @@ fn collect_expression_diagnostics(
             typecheck_facts,
             root_source,
             names,
+            nocter_home,
             queue,
             diagnostics,
         ),
@@ -960,6 +999,7 @@ fn collect_expression_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -970,6 +1010,7 @@ fn collect_expression_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -981,6 +1022,7 @@ fn collect_expression_diagnostics(
             typecheck_facts,
             root_source,
             names,
+            nocter_home,
             queue,
             diagnostics,
         ),
@@ -991,6 +1033,7 @@ fn collect_expression_diagnostics(
             typecheck_facts,
             root_source,
             names,
+            nocter_home,
             queue,
             diagnostics,
         ),
@@ -1007,6 +1050,7 @@ fn collect_expression_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -1017,6 +1061,7 @@ fn collect_expression_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -1028,12 +1073,17 @@ fn collect_expression_diagnostics(
             typecheck_facts,
             root_source,
             names,
+            nocter_home,
             queue,
             diagnostics,
         ),
         Expr::Call(expression) => {
-            let check_only_std_call =
-                unsupported_check_only_std_call_diagnostic(sources, expression, resolved);
+            let check_only_std_call = unsupported_check_only_std_call_diagnostic(
+                sources,
+                expression,
+                resolved,
+                nocter_home,
+            );
             if let Some(diagnostic) = &check_only_std_call {
                 diagnostics.push(diagnostic.clone());
             }
@@ -1067,6 +1117,7 @@ fn collect_expression_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -1084,6 +1135,7 @@ fn collect_expression_diagnostics(
                     typecheck_facts,
                     root_source,
                     names,
+                    nocter_home,
                     queue,
                     diagnostics,
                 );
@@ -1096,6 +1148,7 @@ fn collect_expression_diagnostics(
             typecheck_facts,
             root_source,
             names,
+            nocter_home,
             queue,
             diagnostics,
         ),
@@ -1107,6 +1160,7 @@ fn collect_expression_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -1117,6 +1171,7 @@ fn collect_expression_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -1128,6 +1183,7 @@ fn collect_expression_diagnostics(
             typecheck_facts,
             root_source,
             names,
+            nocter_home,
             queue,
             diagnostics,
         ),
@@ -1139,6 +1195,7 @@ fn collect_expression_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -1149,6 +1206,7 @@ fn collect_expression_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -1167,6 +1225,7 @@ fn collect_expression_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -1178,6 +1237,7 @@ fn collect_expression_diagnostics(
                     typecheck_facts,
                     root_source,
                     names,
+                    nocter_home,
                     queue,
                     diagnostics,
                 );
@@ -1189,6 +1249,7 @@ fn collect_expression_diagnostics(
                 typecheck_facts,
                 root_source,
                 names,
+                nocter_home,
                 queue,
                 diagnostics,
             );
@@ -1226,6 +1287,7 @@ fn unsupported_check_only_std_call_diagnostic(
     sources: &SourceMap,
     call: &CallExpr,
     resolved: &ResolveOutput,
+    nocter_home: Option<&Path>,
 ) -> Option<Diagnostic> {
     let symbol = resolved.symbol_for_call(call)?;
     if !matches!(
@@ -1234,7 +1296,7 @@ fn unsupported_check_only_std_call_diagnostic(
     ) {
         return None;
     }
-    if !source_is_std_process(sources, symbol.declaration_span.source) {
+    if !source_is_std_process(sources, symbol.declaration_span.source, nocter_home) {
         return None;
     }
 
@@ -1259,11 +1321,20 @@ fn unsupported_check_only_std_call_diagnostic(
     }
 }
 
-fn source_is_std_process(sources: &SourceMap, source: SourceId) -> bool {
+fn source_is_std_process(
+    sources: &SourceMap,
+    source: SourceId,
+    nocter_home: Option<&Path>,
+) -> bool {
+    let Some(nocter_home) = nocter_home else {
+        return false;
+    };
+
     sources
         .get(source)
         .and_then(|file| file.absolute_path())
-        .is_some_and(|path| path.ends_with(Path::new("std/process.nct")))
+        .and_then(|path| path.strip_prefix(nocter_home).ok())
+        .is_some_and(|relative| relative == Path::new("std/process.nct"))
 }
 
 fn unsupported_unloaded_imported_call_diagnostic(
@@ -1770,7 +1841,7 @@ func unused(): bool {
             parsed.diagnostics
         );
         let ast = parsed.ast.expect("expected ast");
-        let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new());
+        let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new(), None);
         let analysis = analyze_compile_unit_with_entry(&sources, &unit, DEFAULT_ENTRY_NAME);
         let diagnostics = analysis.diagnostics();
         assert!(

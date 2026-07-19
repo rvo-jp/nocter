@@ -154,7 +154,17 @@ pub(crate) fn load_compile_unit(
         )]);
     };
 
-    Ok(CompileUnit::new(root_ast, files, import_sources))
+    let nocter_home = resolved_nocter_home
+        .as_ref()
+        .and_then(|home| home.as_ref().ok())
+        .map(|home| canonicalize_existing(home));
+
+    Ok(CompileUnit::new(
+        root_ast,
+        files,
+        import_sources,
+        nocter_home,
+    ))
 }
 
 fn filter_target_items(ast: &mut AstFile, target: &str) {

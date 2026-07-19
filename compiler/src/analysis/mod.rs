@@ -13,12 +13,14 @@ use crate::resolve::{ImportSourceMap, ResolveOutput, resolve_compile_unit};
 use crate::source::SourceMap;
 use crate::typecheck::{TypecheckFacts, check, check_module, collect_typecheck_facts};
 use std::cmp::Ordering;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub(crate) struct CompileUnit {
     root_ast: AstFile,
     files: Vec<AstFile>,
     import_sources: ImportSourceMap,
+    nocter_home: Option<PathBuf>,
 }
 
 impl CompileUnit {
@@ -26,11 +28,13 @@ impl CompileUnit {
         root_ast: AstFile,
         files: Vec<AstFile>,
         import_sources: ImportSourceMap,
+        nocter_home: Option<PathBuf>,
     ) -> Self {
         Self {
             root_ast,
             files,
             import_sources,
+            nocter_home,
         }
     }
 }
@@ -39,6 +43,7 @@ impl CompileUnit {
 pub(crate) struct CompileUnitAnalysis {
     pub(crate) files: Vec<FileAnalysis>,
     pub(crate) import_sources: ImportSourceMap,
+    pub(crate) nocter_home: Option<PathBuf>,
 }
 
 impl CompileUnitAnalysis {
@@ -121,6 +126,7 @@ pub(crate) fn analyze_compile_unit_with_entry(
     CompileUnitAnalysis {
         files,
         import_sources: unit.import_sources.clone(),
+        nocter_home: unit.nocter_home.clone(),
     }
 }
 
@@ -152,6 +158,7 @@ pub(crate) fn analyze_compile_unit_as_modules(
     CompileUnitAnalysis {
         files,
         import_sources: unit.import_sources.clone(),
+        nocter_home: unit.nocter_home.clone(),
     }
 }
 

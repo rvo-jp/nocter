@@ -252,7 +252,7 @@ mod tests {
         let ast = parse(&sources, source, &lex_output.tokens)
             .ast
             .expect("expected ast");
-        let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new());
+        let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new(), None);
         let analysis = analyze_compile_unit_as_modules(&sources, &unit);
 
         (sources, analysis)

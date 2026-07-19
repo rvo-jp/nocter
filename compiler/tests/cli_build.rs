@@ -3388,6 +3388,36 @@ func main(): i32! {
 }
 
 #[test]
+fn build_command_does_not_treat_relative_std_process_as_std_contract() {
+    let project = TempProject::new("cli-build-relative-std-process-not-contract");
+    let local_std = project.root().join("std");
+    fs::create_dir_all(&local_std).unwrap();
+    fs::write(
+        local_std.join("process.nct"),
+        r#"pub func args(): i32! {
+    return 9
+}
+"#,
+    )
+    .unwrap();
+    let source = project.write_source(
+        "relative_process_args.nct",
+        r#"use ./std/process.args
+
+func main(): i32! {
+    return args()?
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_reports_reachable_generic_impl_method_before_ir_lowering() {
     let project = TempProject::new("cli-build-generic-impl-method-boundary");
     let source = project.write_source(
