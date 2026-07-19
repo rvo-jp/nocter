@@ -57,6 +57,108 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_interface_parameter_value_type() {
+    let diagnostics = check_text(
+        r#"interface Printable {
+    pub method (value: &Self).print(): i32
+}
+
+func main(): i32 {
+    return 0
+}
+
+func render(value: Printable): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0380");
+    assert!(diagnostics[0].message.contains("parameter `value`"));
+    assert!(diagnostics[0].message.contains("Printable"));
+    assert!(diagnostics[0].help.as_ref().unwrap().contains("concrete"));
+}
+
+#[test]
+fn diagnoses_interface_borrow_parameter_type() {
+    let diagnostics = check_text(
+        r#"interface Printable {
+    pub method (value: &Self).print(): i32
+}
+
+func main(): i32 {
+    return 0
+}
+
+func render(value: &Printable): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0380");
+    assert!(diagnostics[0].message.contains("parameter `value`"));
+    assert!(diagnostics[0].message.contains("&Printable"));
+    assert!(diagnostics[0].help.as_ref().unwrap().contains("dispatch"));
+}
+
+#[test]
+fn diagnoses_interface_alias_parameter_value_type() {
+    let diagnostics = check_text(
+        r#"interface Printable {
+    pub method (value: &Self).print(): i32
+}
+
+type PrintableContract = Printable
+
+func main(): i32 {
+    return 0
+}
+
+func render(value: PrintableContract): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0380");
+    assert!(diagnostics[0].message.contains("parameter `value`"));
+    assert!(diagnostics[0].message.contains("PrintableContract"));
+    assert!(diagnostics[0].help.as_ref().unwrap().contains("concrete"));
+}
+
+#[test]
+fn diagnoses_interface_generic_argument_value_type() {
+    let diagnostics = check_text(
+        r#"interface Printable {
+    pub method (value: &Self).print(): i32
+}
+
+struct Box<T> {
+    value: T
+}
+
+func main(): i32 {
+    return 0
+}
+
+func render(value: Box<Printable>): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0380");
+    assert!(diagnostics[0].message.contains("parameter `value`"));
+    assert!(diagnostics[0].message.contains("Box<Printable>"));
+    assert!(diagnostics[0].help.as_ref().unwrap().contains("dispatch"));
+}
+
+#[test]
 fn diagnoses_missing_interface_method() {
     let diagnostics = check_text(
         r#"interface Printable {
