@@ -280,6 +280,58 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_method_call_aggregate_field_receiver_as_implicit_readwrite_borrow() {
+    let ir = lower_text(
+        r#"copy struct File {
+    fd: i32
+}
+
+copy struct Holder {
+    tag: i32
+    file: File
+}
+
+impl File {
+    method (file: &+Self).touch(): void {
+        return
+    }
+}
+
+func main(): i32 {
+    var holder = Holder{ tag: 1, file: File{ fd: 42 } }
+    holder.file.touch()
+    return holder.file.fd
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+
+    assert!(
+        main.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                Instruction::CallVoid {
+                    target,
+                    arguments,
+                } if target == &CallTarget::same_file("File.touch")
+                    && arguments == &vec![ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateSlotField {
+                            slot_index: 0,
+                            offset: 4,
+                        },
+                    })]
+            )
+        }),
+        "{main:?}"
+    );
+}
+
+#[test]
 fn lowers_entry_i32_let_initializer_normal_call() {
     let ir = lower_text(
         r#"func main(): i32 {

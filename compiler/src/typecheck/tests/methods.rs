@@ -258,6 +258,33 @@ func main(): i32 {
 }
 
 #[test]
+fn accepts_readwrite_method_call_on_var_aggregate_field() {
+    let diagnostics = check_text(
+        r#"struct File {
+    fd: i32
+}
+
+struct Holder {
+    file: File
+}
+
+impl File {
+    method (file: &+Self).write(): i32 {
+        return 0
+    }
+}
+
+func main(): i32 {
+    var holder = Holder{ file: File{ fd: 1 } }
+    return holder.file.write()
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_readwrite_method_call_on_let_binding() {
     let diagnostics = check_text(
         r#"struct File {

@@ -378,11 +378,34 @@ fn type_expr_is_self_reference(ty: &TypeExpr) -> bool {
 }
 
 fn receiver_is_mutable_binding(member: &MemberExpr, environment: &TypeEnvironment) -> bool {
-    let Expr::Identifier(identifier) = member.object.as_ref() else {
-        return false;
-    };
+    match unwrap_group(&member.object) {
+        Expr::Identifier(identifier) => environment.is_mutable_binding(&identifier.name),
+        Expr::Member(_) => aggregate_member_root_name(&member.object)
+            .is_some_and(|name| aggregate_member_root_is_writable_place(name, environment)),
+        _ => false,
+    }
+}
 
-    environment.is_mutable_binding(&identifier.name)
+fn aggregate_member_root_name(expression: &Expr) -> Option<&str> {
+    match unwrap_group(expression) {
+        Expr::Identifier(identifier) => Some(&identifier.name),
+        Expr::Member(member) => aggregate_member_root_name(&member.object),
+        _ => None,
+    }
+}
+
+fn aggregate_member_root_is_writable_place(name: &str, environment: &TypeEnvironment) -> bool {
+    environment.is_mutable_binding(name)
+        || environment
+            .get(name)
+            .is_some_and(|ty| matches!(ty, Type::Named(name) if name.starts_with("&+")))
+}
+
+fn unwrap_group(expression: &Expr) -> &Expr {
+    match expression {
+        Expr::Group(group) => unwrap_group(&group.expression),
+        _ => expression,
+    }
 }
 
 fn inherent_method_owner_for_type<'a>(

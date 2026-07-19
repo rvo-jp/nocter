@@ -978,9 +978,7 @@ fn direct_borrow_source(expression: &Expr) -> Option<DirectBorrowSource> {
     let Expr::Borrow(borrow) = unwrap_group(expression) else {
         return None;
     };
-    let Expr::Identifier(identifier) = unwrap_group(&borrow.expression) else {
-        return None;
-    };
+    let identifier = expression_root_identifier(&borrow.expression)?;
     Some(DirectBorrowSource {
         source_name: identifier.name.clone(),
         source_span: identifier.span,
@@ -998,14 +996,20 @@ fn method_borrow_receiver_source(
     let TypeExpr::Borrow(receiver) = &signature.receiver.ty else {
         return None;
     };
-    let Expr::Identifier(identifier) = unwrap_group(&method.object) else {
-        return None;
-    };
+    let identifier = expression_root_identifier(&method.object)?;
     Some(DirectBorrowSource {
         source_name: identifier.name.clone(),
         source_span: identifier.span,
         is_readwrite: receiver.is_readwrite,
     })
+}
+
+fn expression_root_identifier(expression: &Expr) -> Option<&IdentifierExpr> {
+    match unwrap_group(expression) {
+        Expr::Identifier(identifier) => Some(identifier),
+        Expr::Member(member) => expression_root_identifier(&member.object),
+        _ => None,
+    }
 }
 
 fn statement_uses_identifier(statement: &Stmt, name: &str) -> bool {

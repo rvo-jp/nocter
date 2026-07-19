@@ -96,6 +96,47 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_readwrite_aggregate_field_method_receiver_exit_code() {
+    let project = TempProject::new("cli-run-readwrite-aggregate-field-method-receiver");
+    let source = project.write_source(
+        "readwrite_aggregate_field_method_receiver.nct",
+        r#"copy struct File {
+    fd: i32
+}
+
+copy struct Holder {
+    tag: i32
+    file: File
+}
+
+impl File {
+    method (file: &+Self).bump(): void {
+        file.fd += 1
+        return
+    }
+}
+
+func main(): i32 {
+    var holder = Holder{ tag: 1, file: File{ fd: 40 } }
+    holder.file.bump()
+    return holder.file.fd + holder.tag
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_imported_function_call_exit_code() {
     let project = TempProject::new("cli-run-imported-function-call");
     project.write_nocter_home_file(

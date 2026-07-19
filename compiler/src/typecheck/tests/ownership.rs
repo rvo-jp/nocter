@@ -469,6 +469,44 @@ func inspect(file: &File): void {
 }
 
 #[test]
+fn diagnoses_readwrite_field_method_receiver_while_readonly_field_borrow_used_later() {
+    let diagnostics = check_text(
+        r#"struct File {
+    fd: i32
+}
+
+struct Holder {
+    file: File
+}
+
+impl File {
+    method (file: &+Self).write(): void {
+        return
+    }
+}
+
+func main(): i32 {
+    var holder = Holder{ file: File{ fd: 1 } }
+    let read = &holder.file
+    holder.file.write()
+    inspect(read)
+    return 0
+}
+
+func inspect(file: &File): void {
+    return
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0434");
+    assert!(diagnostics[0].message.contains("readwrite borrow"));
+    assert!(diagnostics[0].message.contains("holder"));
+    assert!(diagnostics[0].message.contains("read"));
+}
+
+#[test]
 fn diagnoses_readonly_method_receiver_while_readwrite_borrow_used_later() {
     let diagnostics = check_text(
         r#"struct File {
