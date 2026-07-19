@@ -237,6 +237,269 @@ fn lsp_command_fallback_semantic_tokens_classify_builtin_types() {
     }
 }
 
+#[test]
+fn lsp_command_serves_v0_editor_features() {
+    let project = TempProject::new("cli-lsp-editor-features");
+    let source_text = "/// Returns the answer.\nfunc answer(): i32 {\n    return 42\n}\n\nstruct Config {\n    path: &str\n}\n\nfunc main(): i32 {\n    let value = answer()\n    return value\n}\n";
+    let source = project.write_source("app.nct", source_text);
+    let uri = file_uri(&source);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone(),
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": source_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/documentSymbol",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone()
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone()
+                    },
+                    "position": {
+                        "line": 1,
+                        "character": 6
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "textDocument/definition",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone()
+                    },
+                    "position": {
+                        "line": 10,
+                        "character": 18
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "textDocument/completion",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone()
+                    },
+                    "position": {
+                        "line": 11,
+                        "character": 4
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "textDocument/semanticTokens/full",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone()
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+
+    let messages = read_frames(&output.stdout);
+    let symbols = response_with_id(&messages, 2)["result"]
+        .as_array()
+        .expect("expected document symbols");
+    for name in ["answer", "Config", "main"] {
+        assert!(
+            symbols
+                .iter()
+                .any(|symbol| symbol["name"].as_str() == Some(name)),
+            "expected document symbol `{name}`, got {symbols:#?}"
+        );
+    }
+
+    let hover = response_with_id(&messages, 3)["result"]["contents"]["value"]
+        .as_str()
+        .expect("expected hover contents");
+    assert!(hover.contains("answer"), "hover:\n{hover}");
+    assert!(hover.contains("Returns the answer."), "hover:\n{hover}");
+
+    let definition = &response_with_id(&messages, 4)["result"];
+    assert_eq!(definition["uri"], json!(uri));
+    assert_eq!(definition["range"]["start"]["line"], json!(1));
+    assert_eq!(definition["range"]["start"]["character"], json!(5));
+
+    let completion_items = response_with_id(&messages, 5)["result"]["items"]
+        .as_array()
+        .expect("expected completion items");
+    for label in ["return", "answer", "Config"] {
+        assert!(
+            completion_items
+                .iter()
+                .any(|item| item["label"].as_str() == Some(label)),
+            "expected completion `{label}`, got {completion_items:#?}"
+        );
+    }
+
+    let semantic_data = response_with_id(&messages, 6)["result"]["data"]
+        .as_array()
+        .expect("expected semantic token data");
+    assert!(!semantic_data.is_empty(), "messages:\n{messages:#?}");
+}
+
+#[test]
+fn lsp_command_exits_with_failure_without_shutdown() {
+    let project = TempProject::new("cli-lsp-exit-without-shutdown");
+
+    let output = nocter_lsp(
+        &project,
+        &[json!({
+            "jsonrpc": "2.0",
+            "method": "exit",
+            "params": null
+        })],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(
+        output.stdout.is_empty(),
+        "stdout:\n{}",
+        text(&output.stdout)
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+}
+
+#[test]
+fn lsp_command_rejects_requests_after_shutdown_and_ignores_notifications() {
+    let project = TempProject::new("cli-lsp-shutdown-state");
+    let bad_text = "func main(: i32 {\n";
+    let source = project.write_source("bad.nct", bad_text);
+    let uri = file_uri(&source);
+
+    let output = nocter_lsp(
+        &project,
+        &[
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {}
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "shutdown",
+                "params": null
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone()
+                    },
+                    "position": {
+                        "line": 0,
+                        "character": 0
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "nocter",
+                        "version": 1,
+                        "text": bad_text
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            }),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        text(&output.stderr)
+    );
+
+    let messages = read_frames(&output.stdout);
+    let response = response_with_id(&messages, 3);
+    assert_eq!(response["error"]["code"], json!(-32600));
+    assert_eq!(
+        response["error"]["message"],
+        json!("server is shutting down")
+    );
+    assert!(
+        messages
+            .iter()
+            .all(|message| message["method"] != "textDocument/publishDiagnostics"),
+        "shutdown should suppress later diagnostics, got {messages:#?}"
+    );
+}
+
 fn nocter_lsp(project: &TempProject, messages: &[Value]) -> Output {
     let mut child = Command::new(NOCTER)
         .arg("lsp")
@@ -257,6 +520,13 @@ fn nocter_lsp(project: &TempProject, messages: &[Value]) -> Output {
     drop(child.stdin.take());
 
     child.wait_with_output().unwrap()
+}
+
+fn response_with_id(messages: &[Value], id: u64) -> &Value {
+    messages
+        .iter()
+        .find(|message| message["id"] == json!(id))
+        .unwrap_or_else(|| panic!("expected response id {id}, got:\n{messages:#?}"))
 }
 
 fn write_frame<W: Write>(writer: &mut W, message: &Value) {

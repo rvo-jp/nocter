@@ -62,7 +62,7 @@ pub(super) fn run_lsp() -> ExitCode {
     let stdin = io::stdin();
     let stdout = io::stdout();
     match run_lsp_stream(stdin.lock(), stdout.lock()) {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(exit) => exit,
         Err(error) => {
             eprintln!("lsp error: {error}");
             ExitCode::from(3)
@@ -70,16 +70,16 @@ pub(super) fn run_lsp() -> ExitCode {
     }
 }
 
-fn run_lsp_stream<R: BufRead, W: Write>(mut reader: R, mut writer: W) -> io::Result<()> {
+fn run_lsp_stream<R: BufRead, W: Write>(mut reader: R, mut writer: W) -> io::Result<ExitCode> {
     let mut server = LspServer::new();
 
     while let Some(message) = read_message(&mut reader)? {
-        if server.handle_message(message, &mut writer)? {
-            break;
+        if let Some(exit) = server.handle_message(message, &mut writer)? {
+            return Ok(exit);
         }
     }
 
-    Ok(())
+    Ok(ExitCode::SUCCESS)
 }
 
 struct LspServer {
@@ -99,7 +99,11 @@ impl LspServer {
         }
     }
 
-    fn handle_message<W: Write>(&mut self, message: Value, writer: &mut W) -> io::Result<bool> {
+    fn handle_message<W: Write>(
+        &mut self,
+        message: Value,
+        writer: &mut W,
+    ) -> io::Result<Option<ExitCode>> {
         let method = message
             .get("method")
             .and_then(Value::as_str)
@@ -119,37 +123,52 @@ impl LspServer {
         method: &str,
         params: Option<&Value>,
         writer: &mut W,
-    ) -> io::Result<bool> {
+    ) -> io::Result<Option<ExitCode>> {
+        if self.shutdown_requested && method != "shutdown" {
+            write_message(
+                writer,
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "error": {
+                        "code": -32600,
+                        "message": "server is shutting down"
+                    }
+                }),
+            )?;
+            return Ok(None);
+        }
+
         match method {
             "initialize" => {
                 self.workspace_roots = workspace_roots_from_initialize_params(params);
                 write_message(writer, initialize_response(id))?;
-                Ok(false)
+                Ok(None)
             }
             "textDocument/semanticTokens/full" => {
                 write_message(writer, self.semantic_tokens_response(id, params))?;
-                Ok(false)
+                Ok(None)
             }
             "textDocument/hover" => {
                 write_message(writer, self.hover_response(id, params))?;
-                Ok(false)
+                Ok(None)
             }
             "textDocument/definition" => {
                 write_message(writer, self.definition_response(id, params))?;
-                Ok(false)
+                Ok(None)
             }
             "textDocument/documentSymbol" => {
                 write_message(writer, self.document_symbol_response(id, params))?;
-                Ok(false)
+                Ok(None)
             }
             "textDocument/completion" => {
                 write_message(writer, self.completion_response(id, params))?;
-                Ok(false)
+                Ok(None)
             }
             "shutdown" => {
                 self.shutdown_requested = true;
                 write_message(writer, response(id, Value::Null))?;
-                Ok(false)
+                Ok(None)
             }
             _ => {
                 write_message(
@@ -163,7 +182,7 @@ impl LspServer {
                         }
                     }),
                 )?;
-                Ok(false)
+                Ok(None)
             }
         }
     }
@@ -173,10 +192,20 @@ impl LspServer {
         method: &str,
         params: Option<&Value>,
         writer: &mut W,
-    ) -> io::Result<bool> {
+    ) -> io::Result<Option<ExitCode>> {
+        if self.shutdown_requested && method != "exit" {
+            return Ok(None);
+        }
+
         match method {
             "initialized" => {}
-            "exit" => return Ok(true),
+            "exit" => {
+                return Ok(Some(if self.shutdown_requested {
+                    ExitCode::SUCCESS
+                } else {
+                    ExitCode::FAILURE
+                }));
+            }
             "textDocument/didOpen" => {
                 if let Some(document) = open_document_from_params(params) {
                     let uri = document.uri.clone();
@@ -190,7 +219,7 @@ impl LspServer {
                 {
                     if document.change_is_stale(version) {
                         self.documents.insert(uri, document);
-                        return Ok(false);
+                        return Ok(None);
                     }
 
                     document.version = version;
@@ -209,7 +238,7 @@ impl LspServer {
             _ => {}
         }
 
-        Ok(false)
+        Ok(None)
     }
 
     fn publish_workspace_diagnostics<W: Write>(
@@ -326,7 +355,13 @@ impl LspServer {
         let workspace = workspace_analysis_for_uri(uri, &self.documents)?;
         let file = workspace.root_file()?;
 
-        definition_for_file_analysis(&workspace.sources, &workspace.analysis, file, root_offset)
+        definition_for_file_analysis(
+            &workspace.sources,
+            &workspace.analysis,
+            file,
+            &self.documents,
+            root_offset,
+        )
     }
 
     fn workspace_completion_for_uri(&self, uri: &str) -> Option<Vec<Value>> {
@@ -1125,10 +1160,7 @@ mod tests {
             })),
         );
 
-        assert_eq!(
-            response["result"]["uri"],
-            json!(file_uri(&config.canonicalize().unwrap()))
-        );
+        assert_eq!(response["result"]["uri"], json!(config_uri));
         assert_eq!(response["result"]["range"]["start"]["line"], json!(0));
         assert_eq!(response["result"]["range"]["start"]["character"], json!(9));
         assert_eq!(response["result"]["range"]["end"]["character"], json!(15));
@@ -1234,10 +1266,7 @@ mod tests {
             })),
         );
 
-        assert_eq!(
-            response["result"]["uri"],
-            json!(file_uri(&config.canonicalize().unwrap()))
-        );
+        assert_eq!(response["result"]["uri"], json!(file_uri(&config)));
         assert_eq!(response["result"]["range"]["start"]["line"], json!(0));
         assert_eq!(response["result"]["range"]["start"]["character"], json!(11));
         assert_eq!(response["result"]["range"]["end"]["character"], json!(17));

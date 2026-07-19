@@ -136,16 +136,23 @@ Rules:
 - The extension may keep TextMate grammar for baseline highlighting while semantic tokens mature.
 - The LSP server is responsible for converting compiler byte spans to the client position encoding.
 
-Feature order:
+LSP v0 feature set:
 
 1. publish diagnostics
 2. document symbols
 3. go to definition
 4. hover type information
 5. completion for imports and visible names
-6. rename
-7. semantic tokens
-8. formatting through `nocter fmt`
+6. semantic tokens
+
+Later editor features:
+
+- rename
+- references
+- formatting through `nocter fmt`
+- context-sensitive member completion
+- workspace-wide indexing
+- incremental parsing
 
 Formatting behavior is specified in [Source Style and Formatting](16-source-style-formatting.md). Editor extensions may call `nocter fmt`, but they must not maintain a separate formatter whose output can diverge from the compiler toolchain.
 
