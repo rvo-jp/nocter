@@ -84,11 +84,11 @@ Rules:
 | `String.empty`, `empty` | runtime ship | Returns an owned empty string. |
 | `String.with_capacity`, `with_capacity` | runtime ship | Explicit allocator argument. |
 | `String.from_str`, `from_str`, `String.copy` | runtime ship | Copies from `&str` into owned storage. |
-| `String.view`, `view` | runtime ship | Returns `&str` view over owned storage. |
-| `String.len`, `len`, `String.capacity`, `capacity`, `String.is_empty`, `is_empty` | runtime ship | Metadata accessors. |
-| `String.reserve`, `reserve`, `String.clear`, `clear` | runtime ship | Mutating owned string operations. |
-| `String.push_str`, `push_str` | runtime ship | Appends a `&str`. |
-| `String.bytes`, `bytes` | runtime ship narrow | Byte views for std I/O and formatting. |
+| `String.view()` method, `view` | runtime ship | Returns `&str` view over owned storage. |
+| `String.len()`, `String.capacity()`, `String.is_empty()` methods plus wrappers | runtime ship | Metadata accessors. |
+| `String.reserve()`, `String.clear()` methods plus wrappers | runtime ship | Mutating owned string operations. |
+| `String.push_str()` method, `push_str` | runtime ship | Appends a `&str`. |
+| `String.bytes()` method, `bytes` | runtime ship narrow | Byte views for std I/O and formatting. |
 | `capacity_overflow` | runtime ship | Returns `std.string.capacity_overflow`. |
 | `bytes_from_str` | std internal | Primitive boundary for byte view construction. |
 
@@ -100,7 +100,7 @@ has an explicit allocator source, the buildability preflight rejects it.
 | API | Status | Notes |
 |---|---|---|
 | `append_str` | runtime ship | Appends `&str` to an existing `String`. |
-| `append_string` | runtime ship | Appends `String.view(value)`. |
+| `append_string` | runtime ship | Appends `view(value)`. |
 | `append_i32` | runtime ship | Decimal formatting for `i32`. |
 | `append_usize` | runtime ship | Decimal formatting for `usize`. |
 | `append_bool` | runtime ship | Appends `true` or `false`. |
@@ -118,8 +118,8 @@ Formatting functions never choose an allocator. Callers create the destination
 | `Allocator` | runtime ship narrow | Public allocator handle with private fields. |
 | `page_allocator` | runtime ship | Initial allocator factory. |
 | `alloc`, `free` | runtime ship narrow | Page-backed allocation and release. |
-| `RawBuffer.bytes`, `RawBuffer.bytes_mut` | runtime ship narrow | Slice views over buffer storage. |
-| `RawBuffer.prefix`, `RawBuffer.prefix_mut` | runtime ship narrow | Checked prefix views. |
+| `RawBuffer.bytes()`, `RawBuffer.bytes_mut()` methods plus wrappers | runtime ship narrow | Slice views over buffer storage. |
+| `RawBuffer.prefix()`, `RawBuffer.prefix_mut()` methods plus wrappers | runtime ship narrow | Checked prefix views. |
 | `out_of_memory`, `invalid_argument` | runtime ship | Standard memory errors. |
 | `alloc_pages`, `free_pages` | std internal | Target-gated implementation helpers. |
 

@@ -11,7 +11,7 @@ Adopted user decisions:
 - Keep runtime safety checks always enabled; remove them only when the compiler can prove they cannot trap.
 - Treat ordinary allocation failure as recoverable failure, not implicit abort.
 - Use an owned `String` direction based on pointer, length, and capacity, implemented as an ordinary standard-library type.
-- `.nocter/std/string.nct` now uses the ordinary `ptr`, `len`, and `capacity` representation with private fields; allocation-backed construction, growth through `String.push_str`, views, drop, and formatting append are covered by distributed std run tests.
+- `.nocter/std/string.nct` now uses the ordinary `ptr`, `len`, and `capacity` representation with private fields; allocation-backed construction, growth through `text.push_str(...)`, views, drop, and formatting append are covered by distributed std run tests.
 - `.nocter/std/fmt.nct` now includes `append_usize`, so the explicit formatting path covers `&str`, `String`, `i32`, `usize`, and `bool`.
 - `std/process.cwd` now takes an explicit `&+Allocator` and returns an owned `String!`; the body still reports `std.process.unsupported` until the target runtime cwd retrieval path is implemented.
 - Do not add a runtime GC.
@@ -71,7 +71,7 @@ Recent committed work:
   - records close as a syscall-like instruction for frame planning, parameter spills, reachability, and control-flow termination checks
   - covers IR lowering, native backend execution by closing stdout before a write, distributed doctor, and raw-helper privacy
 - Current checkpoint: expose `&str` byte views for slice writes
-  - adds `std/string.bytes(value: &str): &[u8]` and `String.bytes(text: &String): &[u8]` backed by the closed `bytes_from_str` primitive
+  - adds `std/string.bytes(value: &str): &[u8]` and `text.bytes(): &[u8]` backed by the closed `bytes_from_str` primitive
   - represents string-backed byte slices in IR as `SliceValue::StrBytes(StrValue)` so lowering and backend reuse the existing two-word string/view ABI without copying
   - handles `.len()` and indexing on string-backed byte slices by reusing the existing string length/index value lowering
   - verifies `stdout().write(bytes("..."))` through the distributed standard library and native backend execution tests
@@ -140,13 +140,13 @@ Recent committed work:
 - Current checkpoint: lower static error helper returns
   - indexes functions whose body is a static `Error.new(...)` return and allows `return helper()` to lower to `ReturnFallibleFailure`
   - lets standard-library helpers such as `std.mem.invalid_argument()` and `std.string.capacity_overflow()` participate in fallible returns without introducing a general `error` value ABI
-  - adds a pre-addition overflow guard in `String.push_str` so capacity overflow uses the public `std.string.capacity_overflow` helper instead of a raw arithmetic trap
-- Current checkpoint: exercise associated `String` runtime path
-  - runs `String.with_capacity`, `String.from_str`, `String.push_str`, and `String.view` through the distributed std CLI path
-  - keeps the associated-function API covered through both check and run tests
-- Current checkpoint: align `std/string` with associated functions
-  - exposes `String.empty`, `String.with_capacity`, `String.from_str`, `String.view`, and `String.push_str`
-  - preserves the existing free-function wrappers for source compatibility while moving std/fmt internals to the associated-function surface
+  - adds a pre-addition overflow guard in `push_str`/`text.push_str(...)` so capacity overflow uses the public `std.string.capacity_overflow` helper instead of a raw arithmetic trap
+- Current checkpoint: exercise `String` constructor and method runtime path
+  - runs `String.with_capacity`, `String.from_str`, `text.push_str(...)`, and `text.view()` through the distributed std CLI path
+  - keeps the constructor/factory API and instance method API covered through both check and run tests
+- Current checkpoint: align `std/string` with methods
+  - keeps `String.empty`, `String.with_capacity`, `String.from_str`, and `String.copy` as constructors/factories
+  - exposes instance operations as methods while preserving free-function wrappers for borrowed-parameter use and source compatibility
 - Current checkpoint: expose parameter-only function ABI metadata
   - adds a parameter-only function ABI helper that returns classified `AbiParameter` values without requiring the return type to be ABI-lowerable
   - reuses that helper for parameter ABI word counts, keeping count/layout/classification on one path

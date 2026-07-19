@@ -411,6 +411,13 @@ pub func String.copy(allocator: &+Allocator, text: &str): String!
 
 impl String {
     pub method (text: &Self).view(): &str
+    pub method (text: &Self).len(): usize
+    pub method (text: &Self).capacity(): usize
+    pub method (text: &Self).is_empty(): bool
+    pub method (text: &Self).bytes(): &[u8]
+    pub method (text: &+Self).reserve(additional: usize): void!
+    pub method (text: &+Self).clear(): void
+    pub method (text: &+Self).push_str(value: &str): void!
 }
 
 impl &str {

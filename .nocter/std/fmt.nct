@@ -5,15 +5,15 @@
 //! not compiler formatting primitives.
 
 use std/error.Error
-use std/string.String
+use std/string.{String, push_str, view}
 
 pub func append_str(out: &+String, value: &str): void! {
-    String.push_str(out, value)?
+    push_str(out, value)?
     return
 }
 
 pub func append_string(out: &+String, value: &String): void! {
-    append_str(out, String.view(value))?
+    append_str(out, view(value))?
     return
 }
 

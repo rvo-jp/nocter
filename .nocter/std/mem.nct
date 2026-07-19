@@ -79,26 +79,44 @@ pub func free(allocator: &+Allocator, buffer: RawBuffer): void {
     return
 }
 
-pub func RawBuffer.bytes(buffer: &RawBuffer): &[u8] {
+pub func bytes(buffer: &RawBuffer): &[u8] {
     return slice_from_raw_parts(buffer.ptr, buffer.len)
 }
 
-pub func RawBuffer.bytes_mut(buffer: &+RawBuffer): &+[u8] {
+pub func bytes_mut(buffer: &+RawBuffer): &+[u8] {
     return slice_from_raw_parts_mut(buffer.ptr, buffer.len)
 }
 
-pub func RawBuffer.prefix(buffer: &RawBuffer, len: usize): &[u8]! {
+pub func prefix(buffer: &RawBuffer, len: usize): &[u8]! {
     if len > buffer.len {
         return invalid_argument()
     }
     return slice_from_raw_parts(buffer.ptr, len)
 }
 
-pub func RawBuffer.prefix_mut(buffer: &+RawBuffer, len: usize): &+[u8]! {
+pub func prefix_mut(buffer: &+RawBuffer, len: usize): &+[u8]! {
     if len > buffer.len {
         return invalid_argument()
     }
     return slice_from_raw_parts_mut(buffer.ptr, len)
+}
+
+impl RawBuffer {
+    pub method (buffer: &Self).bytes(): &[u8] {
+        return bytes(buffer)
+    }
+
+    pub method (buffer: &+Self).bytes_mut(): &+[u8] {
+        return bytes_mut(buffer)
+    }
+
+    pub method (buffer: &Self).prefix(len: usize): &[u8]! {
+        return prefix(buffer, len)?
+    }
+
+    pub method (buffer: &+Self).prefix_mut(len: usize): &+[u8]! {
+        return prefix_mut(buffer, len)?
+    }
 }
 
 pub func out_of_memory(): error {

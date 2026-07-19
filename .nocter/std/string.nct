@@ -80,42 +80,26 @@ pub func String.copy(allocator: &+Allocator, value: &str): String! {
     return String.from_str(allocator, value)?
 }
 
-pub func String.view(text: &String): &str {
+pub func view(text: &String): &str {
     return str_from_raw_parts(text.ptr, text.len)
 }
 
-pub func view(text: &String): &str {
-    return String.view(text)
-}
-
-pub func String.len(text: &String): usize {
+pub func len(text: &String): usize {
     let text_len: usize = text.len
     return text_len
 }
 
-pub func len(text: &String): usize {
-    return String.len(text)
-}
-
-pub func String.capacity(text: &String): usize {
+pub func capacity(text: &String): usize {
     let text_capacity: usize = text.capacity
     return text_capacity
 }
 
-pub func capacity(text: &String): usize {
-    return String.capacity(text)
-}
-
-pub func String.is_empty(text: &String): bool {
+pub func is_empty(text: &String): bool {
     let text_len: usize = text.len
     return text_len == 0
 }
 
-pub func is_empty(text: &String): bool {
-    return String.is_empty(text)
-}
-
-pub func String.reserve(text: &+String, additional: usize): void! {
+pub func reserve(text: &+String, additional: usize): void! {
     let text_len: usize = text.len
     if additional > 18446744073709551615 - text_len {
         return capacity_overflow()
@@ -136,18 +120,8 @@ pub func String.reserve(text: &+String, additional: usize): void! {
     return
 }
 
-pub func reserve(text: &+String, additional: usize): void! {
-    String.reserve(text, additional)?
-    return
-}
-
-pub func String.clear(text: &+String): void {
-    text.len = 0
-    return
-}
-
 pub func clear(text: &+String): void {
-    String.clear(text)
+    text.len = 0
     return
 }
 
@@ -155,21 +129,12 @@ pub func bytes(value: &str): &[u8] {
     return bytes_from_str(value)
 }
 
-pub func String.bytes(text: &String): &[u8] {
-    return bytes_from_str(String.view(text))
-}
-
-pub func String.push_str(text: &+String, value: &str): void! {
+pub func push_str(text: &+String, value: &str): void! {
     let value_len: usize = value.len()
     let old_len: usize = text.len
-    String.reserve(text, value_len)?
+    reserve(text, value_len)?
     copy_str_to_ptr(text.ptr, old_len, value)
     text.len = old_len + value_len
-    return
-}
-
-pub func push_str(text: &+String, value: &str): void! {
-    String.push_str(text, value)?
     return
 }
 
@@ -178,6 +143,41 @@ pub func capacity_overflow(): error {
 }
 
 impl String {
+    pub method (text: &Self).view(): &str {
+        return view(text)
+    }
+
+    pub method (text: &Self).len(): usize {
+        return len(text)
+    }
+
+    pub method (text: &Self).capacity(): usize {
+        return capacity(text)
+    }
+
+    pub method (text: &Self).is_empty(): bool {
+        return is_empty(text)
+    }
+
+    pub method (text: &+Self).reserve(additional: usize): void! {
+        reserve(text, additional)?
+        return
+    }
+
+    pub method (text: &+Self).clear(): void {
+        clear(text)
+        return
+    }
+
+    pub method (text: &Self).bytes(): &[u8] {
+        return bytes_from_str(view(text))
+    }
+
+    pub method (text: &+Self).push_str(value: &str): void! {
+        push_str(text, value)?
+        return
+    }
+
     drop text: &+Self {
         if text.capacity == 0 {
             return

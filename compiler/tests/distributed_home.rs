@@ -165,7 +165,7 @@ fn distributed_std_public_api_passes_check() {
         "std_smoke.nct",
         r#"use std/fmt.{append_bool, append_i32, append_str, append_string, append_usize, unsupported as fmt_unsupported}
 use std/io.{File, print, stderr, stdout, unsupported as io_unsupported, write_text}
-use std/mem.{Allocator, Layout, RawBuffer, alloc, free, invalid_argument, out_of_memory, page_allocator}
+use std/mem.{Allocator, Layout, RawBuffer, alloc, bytes as raw_bytes, bytes_mut as raw_bytes_mut, free, invalid_argument, out_of_memory, page_allocator, prefix as raw_prefix, prefix_mut as raw_prefix_mut}
 use std/process.{abort, args, cwd, env, exit}
 use std/ptr.{addr, from_ref, from_ref_mut}
 use std/string.{bytes, capacity, capacity_overflow, clear, empty, from_str, is_empty, len, push_str, reserve, view, with_capacity}
@@ -176,19 +176,19 @@ func main(): i32 {
 }
 
 func raw_buffer_view(buffer: &RawBuffer): &[u8] {
-    return RawBuffer.bytes(buffer)
+    return raw_bytes(buffer)
 }
 
 func raw_buffer_view_mut(buffer: &+RawBuffer): &+[u8] {
-    return RawBuffer.bytes_mut(buffer)
+    return raw_bytes_mut(buffer)
 }
 
 func raw_buffer_prefix(buffer: &RawBuffer, prefix_len: usize): &[u8]! {
-    return RawBuffer.prefix(buffer, prefix_len)?
+    return raw_prefix(buffer, prefix_len)?
 }
 
 func raw_buffer_prefix_mut(buffer: &+RawBuffer, prefix_len: usize): &+[u8]! {
-    return RawBuffer.prefix_mut(buffer, prefix_len)?
+    return raw_prefix_mut(buffer, prefix_len)?
 }
 
 func string_len(text: &String): usize {
@@ -388,35 +388,35 @@ func main(): i32 {
 }
 
 #[test]
-fn distributed_std_string_associated_api_passes_check() {
-    let project = TempProject::new("distributed-home-string-associated-api");
+fn distributed_std_string_method_api_passes_check() {
+    let project = TempProject::new("distributed-home-string-method-api");
     let source = project.write_source(
-        "string_associated_api.nct",
+        "string_method_api.nct",
         r#"use std/mem.page_allocator
 
 func main(): i32! {
     var allocator = page_allocator()
     var empty = String.empty()
-    if !String.is_empty(&empty) {
+    if !empty.is_empty() {
         return 1
     }
-    String.push_str(&+empty, "Grow")?
-    if String.len(&empty) != 4 {
+    empty.push_str("Grow")?
+    if empty.len() != 4 {
         return 2
     }
-    let empty_view = String.view(&empty)
+    let empty_view = empty.view()
     var text = String.with_capacity(&+allocator, 16)?
-    if String.capacity(&text) != 16 {
+    if text.capacity() != 16 {
         return 3
     }
-    String.push_str(&+text, empty_view)?
-    let copy = String.from_str(&+allocator, String.view(&text))?
-    if String.len(&copy) != 4 {
+    text.push_str(empty_view)?
+    let copy = String.from_str(&+allocator, text.view())?
+    if copy.len() != 4 {
         return 4
     }
-    String.reserve(&+empty, 8)?
-    String.clear(&+empty)
-    if !String.is_empty(&empty) {
+    empty.reserve(8)?
+    empty.clear()
+    if !empty.is_empty() {
         return 5
     }
     drop copy
@@ -569,9 +569,9 @@ func main(): i32! {
     var allocator = page_allocator()
     var buffer = alloc(&+allocator, 4, 1)?
     var input = File.open("input.txt")?
-    let count: usize = input.read(RawBuffer.bytes_mut(&+buffer))?
+    let count: usize = input.read(buffer.bytes_mut())?
     var out = stdout()
-    let bytes: &[u8] = RawBuffer.prefix(&buffer, count)?
+    let bytes: &[u8] = buffer.prefix(count)?
     out.write(bytes)?
     free(&+allocator, move buffer)
     return 0
@@ -1341,7 +1341,7 @@ func main(): i32! {
     var allocator = page_allocator()
     let text = from_str(&+allocator, "Owned bytes")?
     var out = stdout()
-    out.write(String.bytes(&text))?
+    out.write(text.bytes())?
     return 0
 }
 "#,
@@ -1442,20 +1442,20 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn distributed_std_string_associated_api_runs() {
-    let project = TempProject::new("distributed-home-string-associated-api-run");
+fn distributed_std_string_method_api_runs() {
+    let project = TempProject::new("distributed-home-string-method-api-run");
     let source = project.write_source(
-        "string_associated_api_run.nct",
+        "string_method_api_run.nct",
         r#"use std/io.print
 use std/mem.page_allocator
 
 func main(): i32! {
     var allocator = page_allocator()
     var text = String.with_capacity(&+allocator, 32)?
-    String.push_str(&+text, "Hello")?
+    text.push_str("Hello")?
     let suffix = String.from_str(&+allocator, " Associated")?
-    String.push_str(&+text, String.view(&suffix))?
-    print(String.view(&text))?
+    text.push_str(suffix.view())?
+    print(text.view())?
     return 0
 }
 "#,

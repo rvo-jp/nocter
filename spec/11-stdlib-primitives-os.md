@@ -143,12 +143,34 @@ pub struct String {
     ...
 }
 
+pub func String.empty(): String
+pub func String.with_capacity(allocator: &+Allocator, capacity: usize): String!
+pub func String.from_str(allocator: &+Allocator, value: &str): String!
+pub func String.copy(allocator: &+Allocator, value: &str): String!
+
 pub func empty(): String
 pub func with_capacity(allocator: &+Allocator, capacity: usize): String!
 pub func from_str(allocator: &+Allocator, value: &str): String!
 pub func view(text: &String): &str
+pub func len(text: &String): usize
+pub func capacity(text: &String): usize
+pub func is_empty(text: &String): bool
+pub func reserve(text: &+String, additional: usize): void!
+pub func clear(text: &+String): void
+pub func bytes(value: &str): &[u8]
 pub func push_str(text: &+String, value: &str): void!
 pub func capacity_overflow(): error
+
+impl String {
+    pub method (text: &Self).view(): &str
+    pub method (text: &Self).len(): usize
+    pub method (text: &Self).capacity(): usize
+    pub method (text: &Self).is_empty(): bool
+    pub method (text: &Self).bytes(): &[u8]
+    pub method (text: &+Self).reserve(additional: usize): void!
+    pub method (text: &+Self).clear(): void
+    pub method (text: &+Self).push_str(value: &str): void!
+}
 ```
 
 Initial `std/fmt` public surface direction:
@@ -492,7 +514,7 @@ Initial core string primitive set:
 pub(nocter) primitive bytes_from_str(value: &str): &[u8]
 ```
 
-`bytes_from_str` is `pub(nocter)` and is exposed to user code only through ordinary standard-library wrappers such as `std/string.bytes` and `String.bytes`.
+`bytes_from_str` is `pub(nocter)` and is exposed to user code only through ordinary standard-library wrappers such as `std/string.bytes` and `text.bytes()`.
 
 Initial `arm64-darwin` target primitive set v0:
 
