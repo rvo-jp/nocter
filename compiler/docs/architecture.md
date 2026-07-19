@@ -180,7 +180,7 @@ Currently buildable:
 - simple fallible entry success
 - simple fallible entry failure through a loaded static `error` constructor call with string code and message literals, where the message may be single-line or multi-line
 - scalar/view `var` bindings, simple `=` assignment for the lowerable scalar/view value subset, and whole-binding or aggregate scalar field `i32`/`usize` `+=`, `-=`, `*=`, `/=`, and `%=` assignment
-- aggregate struct-literal local slots, aggregate copy bindings from copy aggregate locals, copy aggregate field bindings from non-copy local or call-result owners, explicit aggregate field moves, explicit aggregate move bindings, direct aggregate call-result local slots, narrow indirect aggregate call-result local slots, fallible direct aggregate call-result local slots, and `&T`/`&+T` borrow arguments from those slots or scalar fields
+- aggregate struct-literal local slots, aggregate copy bindings from copy aggregate locals, copy aggregate field bindings from non-copy local or call-result owners, drop-aware non-copy aggregate field replacement assignment, explicit aggregate field moves, explicit aggregate move bindings, direct aggregate call-result local slots, narrow indirect aggregate call-result local slots, fallible direct aggregate call-result local slots, and `&T`/`&+T` borrow arguments from those slots or scalar fields
 - simple aggregate slot reassignment from supported struct literals, direct or indirect normal aggregate calls, propagated fallible direct aggregate calls, propagated fallible indirect aggregate calls, copy struct local aggregate slots, and explicit `move name` aggregate slot sources
 - reserved aggregate slot `return move name` through the same return-storage copy path as return-by-name
 

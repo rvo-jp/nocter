@@ -115,7 +115,7 @@ the CLI gates, and the documentation gates are all complete.
 | Control flow | runtime ship narrow | Terminal `if`, supported non-terminal `if`, `while`, `loop`, `i32`/`usize` range `for`, `break`, `continue`, `return`, void or ignored scalar call expression statements, and `never` cleanup build and run in the documented subset. Other value-producing expression statements, explicit aggregate moves in control-flow conditions, `if let`, `if is`, `while let`, non-`i32`/`usize` range `for`, full `match`, and pattern conditional `?{}` are frontend-only or rejected by build until promoted. |
 | Aggregates and ABI | runtime ship narrow | Non-generic struct layout, direct and indirect aggregate parameters, arguments, returns, call-result slots, supported struct literals, field stores, field reads, aggregate copies, explicit moves, and supported aggregate assignments match Nocter ABI v0 tests. Optional, full enum payload runtime, arrays, and general aggregate expressions remain outside runtime closure unless promoted. |
 | Ownership, borrowing, move, drop | ship | Typechecking rejects use-after-move, double move/drop, invalid explicit drop, escaping local borrows, borrow conflicts, and implicit non-copy aggregate copies for all frontend-shipped forms. Runtime lowering inserts drops for the documented aggregate/control-flow subset and rejects remaining cases before backend emission. |
-| Field-level ownership state | reject until promoted | Non-copy field assignment, field moves, and field reinitialization stay rejected with stable diagnostics. If broader aggregate mutation is promoted, field-level live/drop state and tests are required first. |
+| Field-level ownership state | runtime ship narrow | Drop-aware replacement assignment to initialized non-copy aggregate fields is buildable for supported field layouts from struct literals, explicit `move name` sources, aggregate calls, and `&+` aggregate borrow parameters; the old field is dropped after the replacement is staged and before it is copied into place. Explicit moves out of aggregate fields and general field-level reinitialization after moving or dropping individual fields stay rejected with stable diagnostics until broader field live-state tracking is promoted. |
 | Arrays, raw pointers, and general views | frontend ship narrow, backend reject | Type syntax, borrow/view facts, and primitive pointer boundaries are checked where specified. By-value array literals are rejected by the buildability preflight. General view iteration, pointer dereference, and storage-dependent runtime behavior are deferred or rejected before lowering. |
 | Methods | frontend ship, backend reject narrow | Inherent method declarations, receiver rules, method resolution, drop members, and associated functions are checked. Runtime method calls are required only for std-supported paths; general method lowering may reject before backend emission. |
 | Interfaces | frontend ship | `interface` declarations, `pub` interface methods, and explicit structural `impl Interface for Type` conformance are checked. Interfaces provide no v0 code reuse, dynamic dispatch, generic bounds, or backend dispatch requirement. |
@@ -136,8 +136,9 @@ order:
    typechecker coverage or stable rejection diagnostics.
 2. Backend rejection boundary: replace accidental IR/backend unsupported cases
    with source-backed diagnostics for non-runtime rows.
-3. Aggregate ABI and ownership: close field-level ownership state, enum payload
-   facts, drop glue, direct/indirect ABI edge cases, and aggregate cleanup.
+3. Aggregate ABI and ownership: broaden remaining field-level ownership state,
+   enum payload facts, drop glue, direct/indirect ABI edge cases, and aggregate
+   cleanup.
 4. Standard library runtime: finish allocator behavior, owned `String`, `fmt`,
    `process.cwd`, then only add `Vec`, `args`, and `env` if their public API is
    stable enough to keep.
