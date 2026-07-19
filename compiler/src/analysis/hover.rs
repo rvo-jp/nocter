@@ -94,6 +94,10 @@ pub(crate) fn hover_for_file_analysis(
         });
     }
 
+    if let Some(hover) = type_reference_hover_for_file_analysis(sources, analysis, file, offset) {
+        return Some(hover);
+    }
+
     resolved_reference_at_offset(&file.resolved, offset).map(|(span, reference)| {
         let (label, documentation) =
             resolved_reference_hover_contents(sources, analysis, &reference);
@@ -163,6 +167,12 @@ pub(crate) fn hover_for_ast(
                 .enum_variant_target(span)
                 .and_then(|target| documentation_for_target_span(&documentation, &symbols, target)),
         });
+    }
+
+    if let Some(hover) =
+        type_reference_hover_for_ast(text, &resolved, &facts, &symbols, &documentation, offset)
+    {
+        return Some(hover);
     }
 
     resolved_reference_at_offset(&resolved, offset).map(|(span, reference)| {
@@ -275,6 +285,69 @@ fn target_documentation(
     let documentation =
         documentation_for_hover_symbols(target_file.ast.span.source, text, &symbols);
     documentation_for_target_span(&documentation, &symbols, target_span)
+}
+
+fn type_reference_hover_for_file_analysis(
+    sources: &SourceMap,
+    analysis: &CompileUnitAnalysis,
+    file: &FileAnalysis,
+    offset: usize,
+) -> Option<HoverInfo> {
+    let reference = file.typecheck_facts.type_reference_at_offset(offset)?;
+    let declaration_span = reference.symbol_declaration_span?;
+    let symbol = type_symbol_for_declaration_span(analysis, declaration_span)?;
+    let (label, documentation) = resolved_symbol_hover_contents(sources, analysis, symbol)
+        .unwrap_or_else(|| {
+            (
+                symbol_hover_label_for_sources(sources, symbol),
+                None::<String>,
+            )
+        });
+
+    Some(HoverInfo {
+        span: reference.span,
+        label,
+        documentation,
+    })
+}
+
+fn type_reference_hover_for_ast(
+    text: &str,
+    resolved: &ResolveOutput,
+    facts: &TypecheckFacts,
+    symbols: &[HoverSymbol],
+    documentation: &crate::comments::AttachedDocumentation,
+    offset: usize,
+) -> Option<HoverInfo> {
+    let reference = facts.type_reference_at_offset(offset)?;
+    let declaration_span = reference.symbol_declaration_span?;
+    let symbol = resolved
+        .symbols
+        .symbols()
+        .find(|candidate| is_type_symbol_at_declaration_span(candidate, declaration_span))?;
+    let (label, documentation) =
+        single_file_symbol_hover_contents(text, symbols, documentation, symbol);
+
+    Some(HoverInfo {
+        span: reference.span,
+        label,
+        documentation,
+    })
+}
+
+fn type_symbol_for_declaration_span(
+    analysis: &CompileUnitAnalysis,
+    declaration_span: ByteSpan,
+) -> Option<&Symbol> {
+    let file = analysis.file_by_source(declaration_span.source)?;
+    file.resolved
+        .symbols
+        .symbols()
+        .find(|candidate| is_type_symbol_at_declaration_span(candidate, declaration_span))
+}
+
+fn is_type_symbol_at_declaration_span(symbol: &Symbol, declaration_span: ByteSpan) -> bool {
+    matches!(symbol.kind, SymbolKind::Type(_)) && symbol.declaration_span == declaration_span
 }
 
 fn documentation_for_hover_symbols(
@@ -814,21 +887,30 @@ fn single_file_resolved_reference_hover_contents(
 ) -> (String, Option<String>) {
     match reference {
         ResolvedReference::TopLevel(symbol) => {
-            let referenced = symbols
-                .iter()
-                .find(|candidate| candidate.name_span == symbol.name_span);
-            let label = referenced
-                .map(|symbol| symbol.label.clone())
-                .unwrap_or_else(|| symbol_hover_label(text, symbol));
-            let docs = referenced
-                .and_then(|symbol| documentation.get(symbol.name_span.start))
-                .map(str::to_string);
-            (label, docs)
+            single_file_symbol_hover_contents(text, symbols, documentation, symbol)
         }
         ResolvedReference::Local(symbol) => {
             local_symbol_hover_contents(symbols, documentation, symbol)
         }
     }
+}
+
+fn single_file_symbol_hover_contents(
+    text: &str,
+    symbols: &[HoverSymbol],
+    documentation: &crate::comments::AttachedDocumentation,
+    symbol: &Symbol,
+) -> (String, Option<String>) {
+    let referenced = symbols
+        .iter()
+        .find(|candidate| candidate.name_span == symbol.name_span);
+    let label = referenced
+        .map(|symbol| symbol.label.clone())
+        .unwrap_or_else(|| symbol_hover_label(text, symbol));
+    let docs = referenced
+        .and_then(|symbol| documentation.get(symbol.name_span.start))
+        .map(str::to_string);
+    (label, docs)
 }
 
 fn resolved_reference_hover_contents(
@@ -1178,6 +1260,20 @@ mod tests {
 
         assert_eq!(hover.label, "variant Event.ready");
         assert_eq!(hover.documentation.as_deref(), Some("Ready to run."));
+    }
+
+    #[test]
+    fn workspace_hover_uses_typecheck_facts_for_type_reference() {
+        let text = "/// Request header.\nstruct Header {\n    code: i32\n}\n\nfunc inspect(value: Header): i32 {\n    return value.code\n}\n";
+        let (sources, analysis) = analyze_text(text);
+        let file = analysis.root_file().expect("expected root file");
+        let offset = text.find("value: Header").expect("expected type reference") + "value: ".len();
+
+        let hover = hover_for_file_analysis(&sources, &analysis, file, offset)
+            .expect("expected hover info");
+
+        assert_eq!(hover.label, "struct Header");
+        assert_eq!(hover.documentation.as_deref(), Some("Request header."));
     }
 
     fn analyze_text(text: &str) -> (SourceMap, CompileUnitAnalysis) {

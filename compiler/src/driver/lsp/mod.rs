@@ -932,6 +932,43 @@ func inspect(value: Header, readonly: &Header, readwrite: &+Header): i32 {
     }
 
     #[test]
+    fn returns_documented_hover_for_type_reference() {
+        let uri = "file:///tmp/nocter-hover-type-reference.nct".to_string();
+        let document = open_document(
+            uri.clone(),
+            Some(1),
+            "/// Request header.\nstruct Header {\n    code: i32\n}\n\nfunc inspect(value: Header): i32 {\n    return value.code\n}\n"
+                .to_string(),
+        );
+        let server = LspServer {
+            documents: HashMap::from([(uri.clone(), document)]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.hover_response(
+            json!(5),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "position": {
+                    "line": 5,
+                    "character": 21
+                }
+            })),
+        );
+
+        assert_eq!(
+            response["result"]["contents"]["value"],
+            json!("```nocter\nstruct Header\n```\n\nRequest header.")
+        );
+        assert_eq!(response["result"]["range"]["start"]["line"], json!(5));
+        assert_eq!(response["result"]["range"]["start"]["character"], json!(20));
+    }
+
+    #[test]
     fn returns_markdown_hover_for_import_module_path() {
         let project = TempProject::new("lsp-hover-import-module");
         let home = project.write_nocter_home();
@@ -1298,6 +1335,68 @@ func inspect(value: Header, readonly: &Header, readwrite: &+Header): i32 {
         );
         assert_eq!(response["result"]["range"]["start"]["line"], json!(3));
         assert_eq!(response["result"]["range"]["start"]["character"], json!(11));
+    }
+
+    #[test]
+    fn returns_documented_hover_for_imported_type_reference() {
+        let project = TempProject::new("lsp-hover-imported-type");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        let app = project.write_source(
+            "app.nct",
+            "use ./config.Config\n\nfunc main(): i32 {\n    var config: Config = Config { value: 0 }\n    return 0\n}\n",
+        );
+        let config = project.write_source(
+            "config.nct",
+            "/// Runtime configuration.\npub struct Config {\n    value: i32\n}\n",
+        );
+        let app_uri = file_uri(&app);
+        let config_uri = file_uri(&config);
+        let server = LspServer {
+            documents: HashMap::from([
+                (
+                    app_uri.clone(),
+                    open_document(
+                        app_uri.clone(),
+                        Some(1),
+                        "use ./config.Config\n\nfunc main(): i32 {\n    var config: Config = Config { value: 0 }\n    return 0\n}\n"
+                            .to_string(),
+                    ),
+                ),
+                (
+                    config_uri,
+                    open_document(
+                        file_uri(&config),
+                        Some(1),
+                        "/// Runtime configuration.\npub struct Config {\n    value: i32\n}\n"
+                            .to_string(),
+                    ),
+                ),
+            ]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.hover_response(
+            json!(8),
+            Some(&json!({
+                "textDocument": {
+                    "uri": app_uri
+                },
+                "position": {
+                    "line": 3,
+                    "character": 17
+                }
+            })),
+        );
+
+        assert_eq!(
+            response["result"]["contents"]["value"],
+            json!("```nocter\nstruct Config\n```\n\nRuntime configuration.")
+        );
+        assert_eq!(response["result"]["range"]["start"]["line"], json!(3));
+        assert_eq!(response["result"]["range"]["start"]["character"], json!(16));
     }
 
     #[test]
