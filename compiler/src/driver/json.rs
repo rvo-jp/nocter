@@ -1,5 +1,7 @@
+use super::errors::{exit_for_diagnostics, internal_error_exit};
 use super::pipeline::check_file_with_entry_and_target;
 use crate::ast::AstEnvelope;
+use crate::diagnostics::Diagnostic;
 use crate::diagnostics::DiagnosticsEnvelope;
 use crate::lexer::{TokensEnvelope, lex};
 use crate::parser::parse;
@@ -23,18 +25,19 @@ pub(super) fn run_tokens_json(file: &Path) -> ExitCode {
                 Ok(envelope) => (envelope, status),
                 Err(error) => {
                     eprintln!("internal compiler error: {error}");
-                    return internal_error();
+                    return internal_error_exit();
                 }
             }
         }
         Err(diagnostic) => {
+            let status = exit_for_diagnostics(std::slice::from_ref(&diagnostic), ExitCode::FAILURE);
             let envelope = TokensEnvelope::new(
                 file.to_string_lossy().into_owned(),
                 canonical_absolute_string(file),
                 Vec::new(),
                 vec![diagnostic],
             );
-            (envelope, ExitCode::FAILURE)
+            (envelope, status)
         }
     };
 
@@ -45,7 +48,7 @@ pub(super) fn run_tokens_json(file: &Path) -> ExitCode {
         }
         Err(error) => {
             eprintln!("internal compiler error: failed to serialize token JSON: {error}");
-            internal_error()
+            internal_error_exit()
         }
     }
 }
@@ -86,13 +89,14 @@ pub(super) fn run_ast_json(file: &Path) -> ExitCode {
             }
         }
         Err(diagnostic) => {
+            let status = exit_for_diagnostics(std::slice::from_ref(&diagnostic), ExitCode::FAILURE);
             let envelope = AstEnvelope::new(
                 file.to_string_lossy().into_owned(),
                 canonical_absolute_string(file),
                 None,
                 vec![diagnostic],
             );
-            (envelope, ExitCode::FAILURE)
+            (envelope, status)
         }
     };
 
@@ -103,7 +107,7 @@ pub(super) fn run_ast_json(file: &Path) -> ExitCode {
         }
         Err(error) => {
             eprintln!("internal compiler error: failed to serialize AST JSON: {error}");
-            internal_error()
+            internal_error_exit()
         }
     }
 }
@@ -113,15 +117,28 @@ pub(super) fn run_check_json(file: &Path, entry_name: &str, target: &str) -> Exi
     let status = if output.is_ok() {
         ExitCode::SUCCESS
     } else {
-        ExitCode::FAILURE
+        exit_for_diagnostics(&output.diagnostics, ExitCode::FAILURE)
     };
-    let envelope = DiagnosticsEnvelope::new(
+
+    write_diagnostics_json(
         "check",
         Some(target.to_string()),
         Some(output.root),
         output.root_absolute_path,
         output.diagnostics,
-    );
+        status,
+    )
+}
+
+pub(super) fn write_diagnostics_json(
+    command: impl Into<String>,
+    target: Option<String>,
+    root: Option<String>,
+    root_absolute_path: Option<String>,
+    diagnostics: Vec<Diagnostic>,
+    status: ExitCode,
+) -> ExitCode {
+    let envelope = DiagnosticsEnvelope::new(command, target, root, root_absolute_path, diagnostics);
 
     match serde_json::to_string_pretty(&envelope) {
         Ok(json) => {
@@ -130,7 +147,7 @@ pub(super) fn run_check_json(file: &Path, entry_name: &str, target: &str) -> Exi
         }
         Err(error) => {
             eprintln!("internal compiler error: failed to serialize diagnostics JSON: {error}");
-            internal_error()
+            internal_error_exit()
         }
     }
 }
@@ -139,8 +156,4 @@ fn canonical_absolute_string(path: &Path) -> Option<String> {
     path.canonicalize()
         .ok()
         .map(|path| path.to_string_lossy().into_owned())
-}
-
-fn internal_error() -> ExitCode {
-    ExitCode::from(3)
 }

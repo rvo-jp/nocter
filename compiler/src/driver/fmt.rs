@@ -1,8 +1,10 @@
-use crate::diagnostics::{write_text_diagnostics, write_text_diagnostics_with_sources};
+use super::errors::{
+    exit_for_diagnostics, filesystem_diagnostic, format_difference_diagnostic,
+    write_human_diagnostics,
+};
 use crate::format::format_source;
 use crate::source::SourceMap;
 use std::fs;
-use std::io;
 use std::path::Path;
 use std::process::ExitCode;
 
@@ -33,22 +35,18 @@ pub(super) fn run_fmt(file: &Path, check: bool) -> ExitCode {
     }
 
     if check {
-        eprintln!(
-            "error: `{}` is not formatted; run `nocter fmt {}`",
-            file.display(),
-            file.display()
-        );
-        return ExitCode::FAILURE;
+        let diagnostic = format_difference_diagnostic(file);
+        return write_human_diagnostics(&[diagnostic], None, ExitCode::FAILURE);
     }
 
     match fs::write(file, formatted) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            eprintln!(
-                "error: failed to write formatted source `{}`: {error}",
+            let diagnostic = filesystem_diagnostic(format!(
+                "failed to write formatted source `{}`: {error}",
                 file.display()
-            );
-            ExitCode::FAILURE
+            ));
+            write_human_diagnostics(&[diagnostic], None, ExitCode::from(2))
         }
     }
 }
@@ -57,16 +55,6 @@ fn write_diagnostics_and_fail(
     diagnostics: &[crate::diagnostics::Diagnostic],
     sources: Option<&SourceMap>,
 ) -> ExitCode {
-    let mut stderr = io::stderr().lock();
-    let result = match sources {
-        Some(sources) => write_text_diagnostics_with_sources(&mut stderr, diagnostics, sources),
-        None => write_text_diagnostics(&mut stderr, diagnostics),
-    };
-
-    if let Err(error) = result {
-        eprintln!("internal compiler error: failed to write diagnostics: {error}");
-        return ExitCode::from(3);
-    }
-
-    ExitCode::FAILURE
+    let exit = exit_for_diagnostics(diagnostics, ExitCode::FAILURE);
+    write_human_diagnostics(diagnostics, sources, exit)
 }

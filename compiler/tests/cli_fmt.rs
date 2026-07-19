@@ -80,11 +80,10 @@ fn fmt_check_reports_unformatted_source_without_rewriting() {
         "stdout:\n{}",
         text(&output.stdout)
     );
-    assert!(
-        text(&output.stderr).contains("is not formatted"),
-        "stderr:\n{}",
-        text(&output.stderr)
-    );
+    let stderr = text(&output.stderr);
+    assert!(stderr.contains("error[E0602]"), "stderr:\n{stderr}");
+    assert!(stderr.contains("is not formatted"), "stderr:\n{stderr}");
+    assert!(stderr.contains("run `nocter fmt"), "stderr:\n{stderr}");
     assert_eq!(fs::read_to_string(source).unwrap(), original);
 }
 

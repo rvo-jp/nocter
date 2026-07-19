@@ -48,6 +48,15 @@ Rules:
 - Error codes should not encode compiler phase. The same user-visible mistake should keep the same code even if implementation phases change.
 - Error codes become compatibility-sensitive once published in user-facing documentation.
 
+Initial spanless CLI diagnostic codes:
+
+- `E0602`: formatter check found a source file that would change.
+- `E0700`: command-line syntax or unsupported command.
+- `E0701`: target selection failed.
+- `E0702`: filesystem path or permission failure.
+- `E0703`: Nocter home resolution or validation failed.
+- `E0704`: temporary executable preparation or execution handoff failed before user code started.
+
 ## Source And Span Model
 
 Adopted: compiler source identity and source positions are byte-based internally.

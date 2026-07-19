@@ -181,19 +181,23 @@ impl SourceMap {
         let absolute_path = match display_path.canonicalize() {
             Ok(path) => path,
             Err(error) => {
-                return Err(Diagnostic::error(
-                    "E0100",
+                let mut diagnostic = Diagnostic::error(
+                    "E0702",
                     format!("failed to resolve source file `{display}`: {error}"),
-                ));
+                );
+                diagnostic.help = Some("check the path passed to the command".to_string());
+                return Err(diagnostic);
             }
         };
         let bytes = match fs::read(&absolute_path) {
             Ok(bytes) => bytes,
             Err(error) => {
-                return Err(Diagnostic::error(
-                    "E0100",
+                let mut diagnostic = Diagnostic::error(
+                    "E0702",
                     format!("failed to read source file `{display}`: {error}"),
-                ));
+                );
+                diagnostic.help = Some("check the path and filesystem permissions".to_string());
+                return Err(diagnostic);
             }
         };
         let text = match String::from_utf8(bytes) {

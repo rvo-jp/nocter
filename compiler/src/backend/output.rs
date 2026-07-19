@@ -12,10 +12,10 @@ pub(crate) fn write_executable_image(
     let temporary_path = temporary_output_path(path);
 
     fs::write(&temporary_path, &image.bytes).map_err(|error| {
-        vec![Diagnostic::error(
-            "E9001",
-            format!("failed to write executable `{}`: {error}", path.display()),
-        )]
+        vec![filesystem_diagnostic(format!(
+            "failed to write executable `{}`: {error}",
+            path.display()
+        ))]
     })?;
 
     if let Err(diagnostics) = make_executable(&temporary_path) {
@@ -25,10 +25,10 @@ pub(crate) fn write_executable_image(
 
     if let Err(error) = fs::rename(&temporary_path, path) {
         remove_temporary_output(&temporary_path);
-        return Err(vec![Diagnostic::error(
-            "E9001",
-            format!("failed to replace executable `{}`: {error}", path.display()),
-        )]);
+        return Err(vec![filesystem_diagnostic(format!(
+            "failed to replace executable `{}`: {error}",
+            path.display()
+        ))]);
     }
 
     Ok(())
@@ -66,19 +66,22 @@ fn make_executable(path: &Path) -> Result<(), Vec<Diagnostic>> {
 
     let permissions = fs::Permissions::from_mode(0o755);
     fs::set_permissions(path, permissions).map_err(|error| {
-        vec![Diagnostic::error(
-            "E9001",
-            format!(
-                "failed to mark executable `{}` as executable: {error}",
-                path.display()
-            ),
-        )]
+        vec![filesystem_diagnostic(format!(
+            "failed to mark executable `{}` as executable: {error}",
+            path.display()
+        ))]
     })
 }
 
 #[cfg(not(unix))]
 fn make_executable(_path: &Path) -> Result<(), Vec<Diagnostic>> {
     Ok(())
+}
+
+fn filesystem_diagnostic(message: impl Into<String>) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error("E0702", message);
+    diagnostic.help = Some("check the path and filesystem permissions".to_string());
+    diagnostic
 }
 
 #[cfg(test)]

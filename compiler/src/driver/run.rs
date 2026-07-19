@@ -1,5 +1,7 @@
+use super::errors::{
+    exit_for_diagnostics, temporary_executable_diagnostic, write_human_diagnostics,
+};
 use super::pipeline::build_file_to_path_with_entry_and_target;
-use crate::diagnostics::write_text_diagnostics_with_sources;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -10,8 +12,9 @@ pub(super) fn run_file(file: &Path, entry_name: &str, target: &str) -> ExitCode 
     let artifact = match RunArtifact::new() {
         Ok(artifact) => artifact,
         Err(error) => {
-            eprintln!("error: failed to prepare run artifact: {error}");
-            return ExitCode::FAILURE;
+            let diagnostic =
+                temporary_executable_diagnostic(format!("failed to prepare run artifact: {error}"));
+            return write_human_diagnostics(&[diagnostic], None, ExitCode::from(2));
         }
     };
 
@@ -22,24 +25,18 @@ pub(super) fn run_file(file: &Path, entry_name: &str, target: &str) -> ExitCode 
         target,
     );
     if !output.is_ok() {
-        let mut stderr = io::stderr().lock();
-        if let Err(error) =
-            write_text_diagnostics_with_sources(&mut stderr, &output.diagnostics, &output.sources)
-        {
-            eprintln!("internal compiler error: failed to write diagnostics: {error}");
-            return ExitCode::from(3);
-        }
-        return ExitCode::FAILURE;
+        let exit = exit_for_diagnostics(&output.diagnostics, ExitCode::FAILURE);
+        return write_human_diagnostics(&output.diagnostics, Some(&output.sources), exit);
     }
 
     let status = match Command::new(&output.output_path).status() {
         Ok(status) => status,
         Err(error) => {
-            eprintln!(
-                "error: failed to run `{}`: {error}",
+            let diagnostic = temporary_executable_diagnostic(format!(
+                "failed to run `{}`: {error}",
                 output.output_path.display()
-            );
-            return ExitCode::FAILURE;
+            ));
+            return write_human_diagnostics(&[diagnostic], None, ExitCode::from(2));
         }
     };
 

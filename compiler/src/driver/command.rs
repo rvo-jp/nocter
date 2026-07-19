@@ -4,7 +4,9 @@ use super::compile_options::{
 };
 use super::fmt_options::{FmtCommandOptions, parse_fmt_command};
 use super::json_tool_options::parse_json_tool_command;
+use crate::target::DEFAULT_TARGET;
 use std::ffi::OsString;
+use std::fmt;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,13 +24,84 @@ pub(super) enum Command {
     Lsp,
 }
 
-pub(super) fn parse_command(args: &[OsString]) -> Result<Command, String> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct CommandError {
+    message: String,
+    command: Option<String>,
+    root: Option<String>,
+    target: Option<String>,
+    json: bool,
+    kind: CommandErrorKind,
+}
+
+impl CommandError {
+    pub(super) fn message(&self) -> &str {
+        &self.message
+    }
+
+    pub(super) fn command(&self) -> Option<&str> {
+        self.command.as_deref()
+    }
+
+    pub(super) fn root(&self) -> Option<String> {
+        self.root.clone()
+    }
+
+    pub(super) fn target(&self) -> Option<String> {
+        self.target.clone()
+    }
+
+    pub(super) fn wants_json(&self) -> bool {
+        self.json
+    }
+
+    pub(super) fn kind(&self) -> CommandErrorKind {
+        self.kind
+    }
+
+    fn new(args: &[OsString], message: String) -> Self {
+        Self {
+            kind: command_error_kind(&message),
+            message,
+            command: command_name(args),
+            root: root_argument(args),
+            target: target_argument(args),
+            json: wants_check_json(args),
+        }
+    }
+}
+
+impl PartialEq<&str> for CommandError {
+    fn eq(&self, other: &&str) -> bool {
+        self.message == *other
+    }
+}
+
+impl PartialEq<CommandError> for &str {
+    fn eq(&self, other: &CommandError) -> bool {
+        *self == other.message
+    }
+}
+
+impl fmt::Display for CommandError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.message.fmt(formatter)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum CommandErrorKind {
+    CommandLine,
+    TargetSelection,
+}
+
+pub(super) fn parse_command(args: &[OsString]) -> Result<Command, CommandError> {
     if args.is_empty() {
         return Ok(Command::Help);
     }
 
     let command = args[0].to_string_lossy();
-    match command.as_ref() {
+    let parsed = match command.as_ref() {
         "-h" | "--help" | "help" => Ok(Command::Help),
         "--version" | "version" => expect_no_extra(args, Command::Version),
         "doctor" => expect_no_extra(args, Command::Doctor),
@@ -49,7 +122,9 @@ pub(super) fn parse_command(args: &[OsString]) -> Result<Command, String> {
         "lsp" => expect_no_extra(args, Command::Lsp),
         value if value.ends_with(".nct") => parse_bare_run_command(args).map(Command::Run),
         _ => Err(format!("unknown command `{command}`")),
-    }
+    };
+
+    parsed.map_err(|message| CommandError::new(args, message))
 }
 
 fn check_command_from_options(options: CompileCommandOptions) -> Command {
@@ -76,6 +151,87 @@ fn expect_no_extra(args: &[OsString], command: Command) -> Result<Command, Strin
             args[1].to_string_lossy()
         ))
     }
+}
+
+fn command_error_kind(message: &str) -> CommandErrorKind {
+    if message.starts_with("target `") {
+        CommandErrorKind::TargetSelection
+    } else {
+        CommandErrorKind::CommandLine
+    }
+}
+
+fn command_name(args: &[OsString]) -> Option<String> {
+    let first = args.first()?.to_string_lossy();
+    let command = match first.as_ref() {
+        "-h" | "--help" | "help" => "help",
+        "--version" | "version" => "version",
+        "doctor" => "doctor",
+        "build" => "build",
+        "run" => "run",
+        "check" => "check",
+        "fmt" => "fmt",
+        "tokens" => "tokens",
+        "ast" => "ast",
+        "lsp" => "lsp",
+        value if value.ends_with(".nct") => "run",
+        _ => return None,
+    };
+
+    Some(command.to_string())
+}
+
+fn root_argument(args: &[OsString]) -> Option<String> {
+    let first = args.first()?.to_string_lossy();
+    match first.as_ref() {
+        "build" | "run" | "check" | "tokens" | "ast" => root_after_command(args, 1),
+        "fmt" => {
+            if args
+                .get(1)
+                .is_some_and(|arg| arg.to_string_lossy() == "--check")
+            {
+                root_after_command(args, 2)
+            } else {
+                root_after_command(args, 1)
+            }
+        }
+        value if value.ends_with(".nct") => Some(value.to_string()),
+        _ => None,
+    }
+}
+
+fn root_after_command(args: &[OsString], index: usize) -> Option<String> {
+    let value = args.get(index)?.to_string_lossy();
+    if value.starts_with('-') {
+        None
+    } else {
+        Some(value.into_owned())
+    }
+}
+
+fn target_argument(args: &[OsString]) -> Option<String> {
+    let target = args.windows(2).find_map(|window| {
+        if window[0].to_string_lossy() == "--target" {
+            Some(window[1].to_string_lossy().into_owned())
+        } else {
+            None
+        }
+    });
+
+    target.or_else(|| {
+        command_name(args).and_then(|command| match command.as_str() {
+            "build" | "run" | "check" => Some(DEFAULT_TARGET.to_string()),
+            _ => None,
+        })
+    })
+}
+
+fn wants_check_json(args: &[OsString]) -> bool {
+    args.first()
+        .is_some_and(|arg| arg.to_string_lossy() == "check")
+        && args.windows(2).any(|window| {
+            window[0].to_string_lossy() == "--format" && window[1].to_string_lossy() == "json"
+        })
 }
 
 #[cfg(test)]

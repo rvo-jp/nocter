@@ -4,6 +4,7 @@ mod check;
 mod command;
 mod compile_options;
 mod doctor;
+mod errors;
 mod fmt;
 mod fmt_options;
 mod json;
@@ -15,10 +16,11 @@ mod run;
 use crate::target::{DEFAULT_TARGET, HOST};
 use build::run_build;
 use check::run_check;
-use command::{Command, parse_command};
+use command::{Command, CommandErrorKind, parse_command};
 use doctor::run_doctor;
+use errors::{command_line_diagnostic, target_selection_diagnostic, write_human_diagnostics};
 use fmt::run_fmt;
-use json::{run_ast_json, run_check_json, run_tokens_json};
+use json::{run_ast_json, run_check_json, run_tokens_json, write_diagnostics_json};
 use lsp::run_lsp;
 use run::run_file;
 use std::env;
@@ -71,21 +73,28 @@ where
         Ok(Command::Tokens(file)) => run_tokens_json(&file),
         Ok(Command::Ast(file)) => run_ast_json(&file),
         Ok(Command::Lsp) => run_lsp(),
-        Err(message) => {
-            let mut stderr = io::stderr().lock();
-            if let Err(error) = write_command_error(&mut stderr, &message) {
-                eprintln!("internal compiler error: failed to write command error: {error}");
-                return ExitCode::from(3);
-            }
-            ExitCode::from(2)
-        }
+        Err(error) => run_command_error(error),
     }
 }
 
-fn write_command_error(mut writer: impl Write, message: &str) -> io::Result<()> {
-    writeln!(writer, "error: {message}")?;
-    writeln!(writer)?;
-    write_usage(writer)
+fn run_command_error(error: command::CommandError) -> ExitCode {
+    let diagnostic = match error.kind() {
+        CommandErrorKind::CommandLine => command_line_diagnostic(error.message()),
+        CommandErrorKind::TargetSelection => target_selection_diagnostic(error.message()),
+    };
+
+    if error.wants_json() {
+        return write_diagnostics_json(
+            error.command().unwrap_or("check"),
+            error.target(),
+            error.root(),
+            None,
+            vec![diagnostic],
+            ExitCode::from(2),
+        );
+    }
+
+    write_human_diagnostics(&[diagnostic], None, ExitCode::from(2))
 }
 
 fn write_usage(mut writer: impl Write) -> io::Result<()> {
