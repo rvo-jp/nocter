@@ -53,16 +53,16 @@ Common standard library module:
 std/os
 ```
 
-Initial public surface:
+Initial std-internal surface:
 
 ```nct
-pub enum Platform {
+pub(nocter) enum Platform {
     macos
     linux
     windows
 }
 
-pub enum OSErrorKind {
+pub(nocter) enum OSErrorKind {
     interrupted
     would_block
     not_found
@@ -75,7 +75,7 @@ pub enum OSErrorKind {
     unknown
 }
 
-pub copy struct OSError {
+pub(nocter) copy struct OSError {
     pub platform: Platform
     pub code: i32
     pub kind: OSErrorKind
@@ -90,6 +90,7 @@ Rules:
 - On macOS and Linux, `code` is an errno value.
 - On Windows, `code` will be a Windows raw error code chosen by the Windows target design.
 - `OSError.kind` is the portable classification used by higher-level standard-library modules.
+- `OSError`, `OSErrorKind`, and `Platform` are `pub(nocter)` implementation details. User-facing APIs expose the built-in `error` payload instead.
 - Target-gated `Errno` declarations in `std/os` are not exposed as the common OS error type.
 
 Target-specific std internals convert raw target errors into `OSError`.
@@ -427,7 +428,7 @@ Rules:
 - User project modules must not call `pub(nocter)` primitive declarations.
 - User project modules must not call restricted low-level APIs such as `std/ptr.from_addr`.
 - Trusted modules still go through normal parsing, type checking, ownership checking, borrowing rules, and drop checking.
-- Trusted modules should expose ordinary safe APIs to user code, using types such as `File`, `String`, `Vec<T>`, `Buffer<T>`, `OSError`, `Allocator`, `error`, `&str`, `&[T]`, and `&+[T]`.
+- Trusted modules should expose ordinary safe APIs to user code, using types such as `File`, `String`, `Vec<T>`, `Allocator`, `error`, `&str`, `&[T]`, and `&+[T]`. Std-internal records such as `OSError` must stay behind `pub(nocter)` unless the public API contract is explicitly changed.
 - If trusted standard-library code violates an invariant required by its public safe API, that is a standard-library or compiler bug. It is not an opt-in source-level permission granted to user code.
 
 Initial primitive declaration syntax:
@@ -440,22 +441,28 @@ pub(nocter) primitive name(params): ReturnType
 pub(nocter) primitive target_dependent_name(params): ReturnType
 ```
 
-Initial primitive files:
+Initial primitive declaration modules:
 
 ```text
 ~/.nocter/std/error.nct
 ~/.nocter/std/ptr.nct
+~/.nocter/std/string.nct
 ~/.nocter/std/io.nct
 ~/.nocter/std/os.nct
+~/.nocter/std/process.nct
 ```
 
 `std/error.nct` contains the target-independent built-in error payload construction primitive used by `Error.new`.
 
-`std/ptr.nct` contains target-independent core pointer primitive declarations. These are required for raw pointer address conversion and borrow-to-pointer conversion.
+`std/ptr.nct` contains target-independent core pointer primitive declarations. These are required for raw pointer address conversion, borrow-to-pointer conversion, and std-internal construction of string and byte views from raw storage.
 
-`std/io.nct` contains the initial `arm64-darwin` narrow text-write bootstrap primitive used by `std/io.print`. It is `pub(nocter)` and is not part of the user-facing I/O API.
+`std/string.nct` contains the target-independent `bytes_from_str` primitive used to expose `&str` storage as a byte slice inside the standard library.
+
+`std/io.nct` contains the initial `arm64-darwin` raw file descriptor primitives used by `File.open`, `File.read`, `File.write`, `File.write_text`, and `print`. These declarations are `pub(nocter)` and are not part of the user-facing I/O API.
 
 `std/os.nct` contains common OS declarations plus target-specific declarations for `arm64-darwin` behind `#target("arm64-darwin")`. Future OS targets should add new `#target("...")` declarations inside stable std-internal modules instead of changing import resolution.
+
+`std/process.nct` contains the initial `arm64-darwin` process termination primitive used by `std/process.exit`. It is `pub(nocter)` and is not part of the user-facing process API.
 
 Initial core error primitive set:
 
@@ -470,9 +477,22 @@ pub primitive addr<T>(pointer: *T): usize
 pub primitive from_ref<T>(value: &T): *T
 pub primitive from_ref_mut<T>(value: &+T): *T
 pub(nocter) primitive from_addr<T>(address: usize): *T
+pub(nocter) primitive copy_str_to_ptr(destination: *u8, offset: usize, text: &str): void
+pub(nocter) primitive store_u8_to_ptr(destination: *u8, offset: usize, value: u8): void
+pub(nocter) primitive str_from_raw_parts(pointer: *u8, len: usize): &str
+pub(nocter) primitive slice_from_raw_parts(pointer: *u8, len: usize): &[u8]
+pub(nocter) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
 ```
 
-`from_addr` is `pub(nocter)` and therefore restricted to trusted modules inside the active Nocter home. User project modules must not call it.
+`from_addr` and raw-storage view construction helpers are `pub(nocter)` and therefore restricted to trusted modules inside the active Nocter home. User project modules must not call them.
+
+Initial core string primitive set:
+
+```nct
+pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+```
+
+`bytes_from_str` is `pub(nocter)` and is exposed to user code only through ordinary standard-library wrappers such as `std/string.bytes` and `String.bytes`.
 
 Initial `arm64-darwin` target primitive set v0:
 
@@ -511,7 +531,22 @@ pub(nocter) primitive trap(): never
 pub(nocter) primitive unreachable(): never
 
 #target("arm64-darwin")
+pub(nocter) primitive open_read_raw(path: *u8): i32!
+
+#target("arm64-darwin")
 pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+
+#target("arm64-darwin")
+pub(nocter) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
+
+#target("arm64-darwin")
+pub(nocter) primitive read_bytes_raw(fd: i32, buffer: &+[u8]): usize!
+
+#target("arm64-darwin")
+pub(nocter) primitive close_fd_raw(fd: i32): void
+
+#target("arm64-darwin")
+pub(nocter) primitive exit_raw(code: i32): never
 ```
 
 `SyscallResult.errno == 0` means success. `SyscallResult.errno != 0` means the syscall failed with an OS error value. The meaning of `value` is syscall-specific.
@@ -521,17 +556,18 @@ The compiler recognizes these declarations only at their registered module path 
 ```text
 std/os
 std/io
+std/process
 ```
 
 An ordinary function named `syscall3` elsewhere is not primitive.
 
-`syscall0` through `syscall6` are a bootstrap boundary for the initial macOS standard library. `write_text_raw` is a narrower bootstrap boundary for text output before the compiler can lower the ordinary `SyscallResult`-based wrapper path used by the full I/O API. Longer term, target-gated std internals may replace direct syscall exposure and `write_text_raw` with narrower typed wrappers. Those wrappers are standard-library APIs, not compiler primitives.
+`syscall0` through `syscall6` are a bootstrap boundary for the initial macOS standard library. The `std/io.*_raw` and `std/process.exit_raw` primitives are narrow bootstrap boundaries for shipped v0 I/O and process termination before all wrappers can be expressed through the ordinary `SyscallResult` path. Longer term, target-gated std internals may replace direct syscall exposure and these raw primitives with narrower typed wrappers. Those wrappers are standard-library APIs, not compiler primitives.
 
 ### Typed Primitive Wrappers
 
 Adopted: typed wrappers over low-level target operations are standard-library APIs, not compiler primitives.
 
-The closed compiler primitive set stays small. For the initial `arm64-darwin` target, the OS primitive boundary is `syscall0` through `syscall6`, `trap`, `unreachable`, and the temporary `std/io.write_text_raw`; separately, `std/ptr` owns the target-independent core pointer primitive set.
+The closed compiler primitive set stays small. For the initial `arm64-darwin` target, the target primitive boundary is `std/os.syscall0` through `std/os.syscall6`, `std/os.trap`, `std/os.unreachable`, the raw `std/io` file descriptor primitives, and `std/process.exit_raw`; separately, `std/ptr`, `std/error`, and `std/string` own the target-independent core primitive set.
 
 Std-internal modules may define narrower typed wrappers around those primitives:
 
@@ -552,7 +588,7 @@ pub method (file: &+File).write(bytes: &[u8]): void! {
 Rules:
 
 - Adding a file API, process API, allocator API, string API, buffer API, or OS wrapper must not require adding a compiler primitive.
-- The existing `std/io.write_text_raw` primitive is a v0 bootstrap exception for executable text output, not a precedent for adding one primitive per standard-library API.
+- The existing `std/io.*_raw` and `std/process.exit_raw` primitives are v0 bootstrap exceptions for shipped I/O and process termination, not a precedent for adding one primitive per standard-library API.
 - Target-specific syscall numbers, raw OS handles, errno-like values, and calling conventions belong in target-gated std internals, not in the compiler's general language semantics.
 - The compiler validates the existing primitive declarations by module path, name, and exact signature.
 - An ordinary wrapper name such as `open_file_raw`, `write_fd_raw`, `mmap_raw`, or `exit_process` has no compiler-defined behavior.
