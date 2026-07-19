@@ -56,6 +56,7 @@ Rules:
 - User project modules receive a synthetic `use std/prelude`.
 - Do not write `use std/prelude` in ordinary generated user code unless preserving existing source style.
 - Files inside `.nocter/std/` and target standard-library overlays do not receive the synthetic prelude.
+- `use path` imports all public exported names from a module.
 - `use path.Name` imports selected public names.
 - `use path as name` imports a namespace alias.
 - Paths starting with `./` or `../` are resolved relative to the current file.

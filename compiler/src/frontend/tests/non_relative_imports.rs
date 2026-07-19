@@ -34,6 +34,37 @@ func main(): i32 {
 }
 
 #[test]
+fn check_bare_use_loads_non_relative_public_exports() {
+    let root = make_temp_project("bare-std-use");
+    let home = make_nocter_home(&root);
+    fs::write(
+        root.join("app.nct"),
+        r#"use std/math
+
+func main(): i32 {
+    return answer()
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/math.nct"),
+        r#"pub func answer(): i32 {
+    return 42
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn check_loads_namespace_imports_from_nocter_home() {
     let root = make_temp_project("std-namespace-import");
     let home = make_nocter_home(&root);

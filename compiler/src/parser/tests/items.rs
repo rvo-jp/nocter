@@ -27,6 +27,30 @@ func main(): i32 {
 }
 
 #[test]
+fn parses_bare_use_for_any_module_path() {
+    let output = parse_text(
+        r#"use std/io
+use ./config
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Use(std_use) = &ast.items[0] else {
+        panic!("expected bare std use");
+    };
+    let Item::Use(relative_use) = &ast.items[1] else {
+        panic!("expected bare relative use");
+    };
+    assert_eq!(std_use.path.value, "std/io");
+    assert_eq!(relative_use.path.value, "./config");
+}
+
+#[test]
 fn parses_import_aliases() {
     let output = parse_text(
         r#"use std/io as io

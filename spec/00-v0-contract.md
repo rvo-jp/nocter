@@ -51,6 +51,7 @@ parser. `interface` is a reserved keyword.
 The v0 parser accepts these top-level item forms:
 
 - `use std/prelude`
+- `use path`
 - `use path as name`
 - `use path.name`
 - `use path.{name_a, name_b}`

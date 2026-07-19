@@ -34,6 +34,37 @@ func main(): i32 {
 }
 
 #[test]
+fn check_bare_use_loads_relative_public_exports() {
+    let root = make_temp_project("bare-relative-use");
+    let home = make_nocter_home(&root);
+    fs::write(
+        root.join("app.nct"),
+        r#"use ./config
+
+func main(): i32 {
+    return answer()
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("config.nct"),
+        r#"pub func answer(): i32 {
+    return 1
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn check_uses_relative_imported_function_return_type() {
     let root = make_temp_project("relative-import-return-type");
     let home = make_nocter_home(&root);

@@ -267,13 +267,6 @@ impl Parser<'_> {
             self.error_current("`pub use path` is not valid in v0; re-export explicit names");
             return Err(());
         }
-        if path.value != "std/prelude" {
-            self.error_current(
-                "`use path` is valid only for `std/prelude`; import explicit names with `use path.Name`",
-            );
-            return Err(());
-        }
-
         let end = path.span.end;
 
         Ok(Item::Use(UseItem {

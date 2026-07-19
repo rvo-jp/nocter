@@ -32,7 +32,9 @@ Adopted import forms:
 use std/mem.Allocator
 use std/io.{File, stdout, stderr}
 use std/io.File as StdFile
+use std/io
 use ./config.AppConfig
+use ./config
 use ../shared/path.Path
 pub use std/string.String
 
@@ -41,6 +43,7 @@ use std/io as io
 
 Meaning:
 
+- `use path` imports all public exported names from the module into the current file.
 - `use path.Name` imports one exported name into the current file.
 - `use path.Name as Alias` imports one exported name under an alias.
 - `use path.{Name}` is accepted as the braced single-name spelling.
@@ -89,13 +92,13 @@ use std/io.*
 pub use std/io.*
 import std/io.File
 pub use std/io as io
+pub use std/io
 use /absolute/path.Config
 use ./config.nct.Config
-use ./prelude
 include std/prelude
 ```
 
-Wildcard imports, bare imports without an alias, dotted module paths, namespace alias re-exports, absolute paths, explicit `.nct` extensions in import paths, project-local prelude use, and textual include are not part of the initial language.
+Wildcard imports, bare public re-exports, dotted module paths, namespace alias re-exports, absolute paths, explicit `.nct` extensions in import paths, and textual include are not part of the initial language.
 
 ## Re-exports
 
@@ -149,9 +152,8 @@ Initial rules:
 - An explicit source-level `use std/prelude` does not introduce names twice and does not collide with the synthetic prelude.
 - If a file is ineligible for the synthetic prelude, an explicit `use std/prelude` follows the normal `use` rules.
 - `use std/prelude` is allowed only at top level.
-- In v0, bare `use path` is accepted only for `std/prelude`; ordinary imports must use explicit names or a namespace alias.
+- In v0, bare `use path` is accepted for any module path and imports all public exported names from that module.
 - `use std/prelude as prelude` is invalid.
-- `use ./prelude` is invalid.
 - `include std/prelude` is invalid.
 - Names introduced by the synthetic or explicit prelude participate in the same collision checks as explicit imports.
 - If a prelude name collides with a local declaration, top-level declaration, parameter, local binding, explicit import, or built-in name, the program is invalid.
