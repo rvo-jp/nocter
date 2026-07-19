@@ -3464,6 +3464,48 @@ func header(): [u8; 2] {
 }
 
 #[test]
+fn build_command_reports_str_equality_before_ir_lowering() {
+    let project = TempProject::new("cli-build-str-equality-boundary");
+    let source = project.write_source(
+        "str_equality_boundary.nct",
+        r#"func main(): i32 {
+    if "a" == "b" {
+        return 0
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("`&str` equality and inequality comparisons"),
+        "expected str equality diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("2 |     if \"a\" == \"b\" {"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_dynamic_failure_payload_before_ir_lowering() {
     let project = TempProject::new("cli-build-dynamic-failure-payload-boundary");
     project.write_nocter_home_file(

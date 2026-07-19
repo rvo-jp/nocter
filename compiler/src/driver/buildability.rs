@@ -1,8 +1,8 @@
 use crate::abi::{AbiType, abi_value_from_type_expr};
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    AssignmentOperator, AssignmentStmt, Block, CallExpr, DropDecl, Expr, ForRangeStmt,
-    FunctionDecl, ImplDecl, ImplMember, Item, Stmt, TypeExpr, UnaryOperator,
+    AssignmentOperator, AssignmentStmt, BinaryOperator, Block, CallExpr, DropDecl, Expr,
+    ForRangeStmt, FunctionDecl, ImplDecl, ImplMember, Item, Stmt, TypeExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::CallTarget;
@@ -994,6 +994,11 @@ fn collect_expression_diagnostics(
             diagnostics,
         ),
         Expr::Binary(expression) => {
+            if let Some(diagnostic) =
+                unsupported_str_equality_diagnostic(sources, expression, typecheck_facts)
+            {
+                diagnostics.push(diagnostic);
+            }
             collect_expression_diagnostics(
                 &expression.left,
                 sources,
@@ -1182,6 +1187,32 @@ fn collect_expression_diagnostics(
             );
         }
     }
+}
+
+fn unsupported_str_equality_diagnostic(
+    sources: &SourceMap,
+    expression: &crate::ast::BinaryExpr,
+    typecheck_facts: &TypecheckFacts,
+) -> Option<Diagnostic> {
+    if !matches!(
+        expression.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) {
+        return None;
+    }
+
+    let left = typecheck_facts.expression_type_label(expression.left.span())?;
+    let right = typecheck_facts.expression_type_label(expression.right.span())?;
+    if left != "&str" || right != "&str" {
+        return None;
+    }
+
+    Some(unsupported_v0_build_diagnostic(
+        sources,
+        expression.operator_span,
+        "`&str` equality and inequality comparisons",
+        "compare lengths and bytes explicitly until string comparison lowering is promoted",
+    ))
 }
 
 fn unsupported_unloaded_imported_call_diagnostic(
@@ -1615,6 +1646,54 @@ func main(): i32 {
 func unused(): i32 {
     print("hello")
     return 1
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis, DEFAULT_ENTRY_NAME);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn reports_reachable_str_equality_before_ir_lowering() {
+        let (sources, analysis) = analyze_text(
+            r#"func main(): i32 {
+    if "a" == "b" {
+        return 0
+    } else {
+        return 1
+    }
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis, DEFAULT_ENTRY_NAME);
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "E0435");
+        assert_eq!(
+            diagnostics[0].message,
+            "Nocter v0 build cannot lower `&str` equality and inequality comparisons yet"
+        );
+        assert_eq!(
+            diagnostics[0].help.as_deref(),
+            Some(
+                "compare lengths and bytes explicitly until string comparison lowering is promoted"
+            )
+        );
+        assert!(diagnostics[0].primary_span.is_some());
+    }
+
+    #[test]
+    fn does_not_report_unreachable_str_equality() {
+        let (sources, analysis) = analyze_text(
+            r#"func main(): i32 {
+    return 0
+}
+
+func unused(): bool {
+    return "a" == "b"
 }
 "#,
         );
