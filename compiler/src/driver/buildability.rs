@@ -1006,6 +1006,11 @@ fn collect_expression_diagnostics(
             {
                 diagnostics.push(diagnostic);
             }
+            if let Some(diagnostic) =
+                unsupported_method_borrow_receiver_diagnostic(sources, expression, typecheck_facts)
+            {
+                diagnostics.push(diagnostic);
+            }
             collect_expression_diagnostics(
                 &expression.callee,
                 sources,
@@ -1192,6 +1197,46 @@ fn unsupported_borrow_call_argument_diagnostic(
         "borrow call arguments from unsupported expressions",
         "borrow a local binding, an aggregate field rooted at a binding, or pass an existing borrow parameter until general borrow-place lowering is promoted",
     ))
+}
+
+fn unsupported_method_borrow_receiver_diagnostic(
+    sources: &SourceMap,
+    call: &CallExpr,
+    typecheck_facts: &TypecheckFacts,
+) -> Option<Diagnostic> {
+    let Expr::Member(member) = call.callee.as_ref() else {
+        return None;
+    };
+    typecheck_facts.method_call_target(member.member_span)?;
+    if !method_call_receiver_is_borrow(member.member_span, typecheck_facts) {
+        return None;
+    }
+    if borrow_argument_source_is_binding_or_field(&member.object) {
+        return None;
+    }
+
+    Some(unsupported_v0_build_diagnostic(
+        sources,
+        member.object.span(),
+        "method borrow receivers from unsupported expressions",
+        "call the method on a local binding or an aggregate field rooted at a binding until general receiver-place lowering is promoted",
+    ))
+}
+
+fn method_call_receiver_is_borrow(member_span: ByteSpan, typecheck_facts: &TypecheckFacts) -> bool {
+    let Some((_span, label)) = typecheck_facts.call_hover_at_offset(member_span.start) else {
+        return false;
+    };
+    let Some(receiver) = label
+        .strip_prefix("method (")
+        .and_then(|label| label.split_once(")."))
+        .map(|(receiver, _)| receiver)
+    else {
+        return false;
+    };
+    receiver
+        .split_once(": ")
+        .is_some_and(|(_name, ty)| ty.starts_with('&'))
 }
 
 fn borrow_argument_source_is_binding_or_field(expression: &Expr) -> bool {

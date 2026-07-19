@@ -3220,6 +3220,58 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_reports_temporary_method_borrow_receiver_before_ir_lowering() {
+    let project = TempProject::new("cli-build-temporary-method-borrow-receiver-boundary");
+    let source = project.write_source(
+        "temporary_method_borrow_receiver_boundary.nct",
+        r#"copy struct File {
+    fd: i32
+}
+
+impl File {
+    method (file: &Self).value(): i32 {
+        return file.fd
+    }
+}
+
+func main(): i32 {
+    return make_file().value()
+}
+
+func make_file(): File {
+    return File{ fd: 42 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("method borrow receivers from unsupported expressions"),
+        "expected method receiver diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("12 |     return make_file().value()"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_reachable_array_literal_before_ir_lowering() {
     let project = TempProject::new("cli-build-array-literal-boundary");
     let source = project.write_source(

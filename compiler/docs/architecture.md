@@ -167,6 +167,7 @@ Currently buildable:
 - same-file and loaded imported non-generic normal calls returning `&str` in annotated `&str` `let` initializers and as `&str` call or tail-call arguments, with results staged into two local ABI words
 - `.len()` on `&str`, string literals, `&[u8]`, `&+[u8]`, and supported call results in lowerable `usize` positions; byte indexing into those values in lowerable `u8` positions
 - normal calls across scalar `i32`/`usize`/`bool`, local and readonly parameter scalar borrows, scalar aggregate field borrows, `&str`, slices, and supported aggregate arguments, including ABI words after `x7` passed through the caller stack argument area
+- same-file and loaded imported inherent associated function calls, plus method calls whose implicit borrow receiver is a local binding or aggregate field rooted at a binding, within the current scalar/view/aggregate call subset
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
 - functions returning `usize` literal/local/call/arithmetic/shift values in lowerable positions
 - non-entry functions returning `bool` or direct `&str` literal/parameter/local/tail-call values
@@ -192,7 +193,7 @@ Currently not buildable even when it may be checkable:
 - general `&str`/view member operations beyond `.len()`, and iteration over views or bytes; direct byte indexing remains buildable in lowerable `u8` positions
 - interpolated string construction
 - optional control-flow and storage forms beyond the supported force unwrap, `let ... else`, and `??` binding/return paths
-- source-level aggregate moves beyond the supported explicit `move name` argument/return/binding/assignment/struct-literal-field paths, broad branch/loop/catch scope-end drop insertion, arrays, general views beyond the listed slice ABI paths, raw pointer expressions beyond closed `std/ptr.from_addr` aggregate fields, methods, interfaces, generics, and full ownership lowering
+- source-level aggregate moves beyond the supported explicit `move name` argument/return/binding/assignment/struct-literal-field paths, broad branch/loop/catch scope-end drop insertion, arrays, general views beyond the listed slice ABI paths, raw pointer expressions beyond closed `std/ptr.from_addr` aggregate fields, method receiver places beyond local bindings and aggregate fields, interfaces, generics, and full ownership lowering
 
 ### Backend V0 Register Convention
 

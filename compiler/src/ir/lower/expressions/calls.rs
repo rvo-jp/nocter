@@ -1171,20 +1171,36 @@ fn lower_implicit_receiver_borrow_argument(
         unreachable!("receiver borrow argument lowering requires a borrow parameter type");
     };
 
-    let Expr::Identifier(identifier) = unwrap_group(argument) else {
-        return Err(unsupported_borrow_argument_diagnostic(
-            callee_name,
-            parameter_type,
-        ));
-    };
-
-    let source = lower_borrow_source_from_identifier(
-        &identifier.name,
-        inner,
+    let is_readwrite = matches!(
         parameter_type,
-        callee_name,
-        context,
-    )?;
+        Type::Borrow {
+            is_readwrite: true,
+            ..
+        }
+    );
+    let source = match unwrap_group(argument) {
+        Expr::Identifier(identifier) => lower_borrow_source_from_identifier(
+            &identifier.name,
+            inner,
+            parameter_type,
+            callee_name,
+            context,
+        )?,
+        Expr::Member(member) => lower_borrow_source_from_aggregate_member(
+            member,
+            inner,
+            is_readwrite,
+            parameter_type,
+            callee_name,
+            context,
+        )?,
+        _ => {
+            return Err(unsupported_borrow_argument_diagnostic(
+                callee_name,
+                parameter_type,
+            ));
+        }
+    };
 
     Ok(BorrowArgument { source })
 }
