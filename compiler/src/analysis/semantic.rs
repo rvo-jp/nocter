@@ -1,9 +1,13 @@
 //! Semantic identifier classification shared by editor tooling.
 
 use super::FileAnalysis;
-use crate::lexer::{Keyword, Token, TokenKind, lex};
-use crate::resolve::is_builtin_type_name;
-use crate::source::{ByteSpan, SourceMap};
+use super::single_file::{parse_single_file_text, resolve_single_file_ast};
+use crate::ast::BindingKind;
+use crate::resolve::{
+    FunctionSignature, LocalSymbol, LocalSymbolKind, ResolveOutput, SymbolKind, TypeSymbol,
+};
+use crate::source::{ByteSpan, SourceId};
+use crate::typecheck::{TypecheckFacts, collect_typecheck_facts};
 
 pub(crate) const SEMANTIC_DECLARATION_MODIFIER: u32 = 1 << 0;
 pub(crate) const SEMANTIC_READONLY_MODIFIER: u32 = 1 << 1;
@@ -18,19 +22,6 @@ pub(crate) enum SemanticTokenKind {
     Property,
 }
 
-impl SemanticTokenKind {
-    pub(crate) const fn hover_label(self) -> &'static str {
-        match self {
-            SemanticTokenKind::Function => "function",
-            SemanticTokenKind::Method => "method",
-            SemanticTokenKind::Variable => "variable",
-            SemanticTokenKind::Parameter => "parameter",
-            SemanticTokenKind::Type => "type",
-            SemanticTokenKind::Property => "property",
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ClassifiedIdentifier {
     pub(crate) start_byte: usize,
@@ -40,302 +31,270 @@ pub(crate) struct ClassifiedIdentifier {
 }
 
 pub(crate) fn classified_identifiers_for_file_analysis(
-    text: &str,
+    _text: &str,
     file: &FileAnalysis,
 ) -> Vec<ClassifiedIdentifier> {
-    let mut identifiers = classified_identifiers_for_text(text);
-    apply_typecheck_semantic_facts(&mut identifiers, file);
-    identifiers
+    classified_identifiers_for_analysis(&file.ast, &file.resolved, &file.typecheck_facts)
 }
 
-pub(crate) fn classified_identifiers_for_text(text: &str) -> Vec<ClassifiedIdentifier> {
-    let mut sources = SourceMap::new();
-    let source = sources.add_source("semantic.nct", None, text.to_string());
-    let lex_output = lex(&sources, source);
-    let tokens = lex_output
-        .tokens
-        .iter()
-        .filter(|token| !matches!(token.kind, TokenKind::Newline | TokenKind::Eof))
-        .collect::<Vec<_>>();
+pub(crate) fn classified_identifiers_for_single_file_text(
+    text: &str,
+) -> Option<Vec<ClassifiedIdentifier>> {
+    let parsed = parse_single_file_text("semantic.nct", text)?;
+    let resolved = resolve_single_file_ast("semantic.nct", text, parsed.source, &parsed.ast);
+    let facts = collect_typecheck_facts(&parsed.ast, &resolved);
 
-    let mut identifiers = Vec::new();
-    let mut pending_declaration = None;
+    Some(classified_identifiers_for_analysis(
+        &parsed.ast,
+        &resolved,
+        &facts,
+    ))
+}
 
-    for (index, token) in tokens.iter().enumerate() {
-        let previous = index
-            .checked_sub(1)
-            .and_then(|index| tokens.get(index))
-            .copied();
-        let next = tokens.get(index + 1).copied();
+fn classified_identifiers_for_analysis(
+    ast: &crate::ast::AstFile,
+    resolved: &ResolveOutput,
+    facts: &TypecheckFacts,
+) -> Vec<ClassifiedIdentifier> {
+    let mut collector = SemanticIdentifierCollector {
+        source: ast.span.source,
+        resolved,
+        facts,
+        identifiers: Vec::new(),
+    };
+    collector.collect();
+    collector.finish()
+}
 
-        match token.kind {
-            TokenKind::Keyword(keyword) => {
-                if let Some(kind) = semantic_token_kind_for_keyword(keyword) {
-                    pending_declaration = None;
-                    push_identifier(&mut identifiers, token, kind, 0);
-                } else {
-                    pending_declaration = pending_declaration_for_keyword(keyword);
+struct SemanticIdentifierCollector<'a> {
+    source: SourceId,
+    resolved: &'a ResolveOutput,
+    facts: &'a TypecheckFacts,
+    identifiers: Vec<ClassifiedIdentifier>,
+}
+
+impl SemanticIdentifierCollector<'_> {
+    fn collect(&mut self) {
+        self.collect_symbol_declarations();
+        self.collect_local_symbol_declarations();
+        self.collect_symbol_references();
+        self.collect_local_symbol_references();
+        self.collect_type_references();
+        self.collect_member_references();
+    }
+
+    fn finish(mut self) -> Vec<ClassifiedIdentifier> {
+        self.identifiers.sort_by(|left, right| {
+            left.start_byte
+                .cmp(&right.start_byte)
+                .then(left.end_byte.cmp(&right.end_byte))
+        });
+        self.identifiers
+    }
+
+    fn collect_symbol_declarations(&mut self) {
+        for symbol in self.resolved.symbols.symbols() {
+            match &symbol.kind {
+                SymbolKind::Function(signature) | SymbolKind::Primitive(signature) => {
+                    self.push(symbol.name_span, SemanticTokenKind::Function, true, 0);
+                    self.collect_function_signature_parameters(signature);
                 }
-            }
-            TokenKind::Identifier => {
-                let is_method_declaration_name = is_method_declaration_name(&tokens, index);
-                let is_associated_function_owner =
-                    is_associated_function_owner(&tokens, index, pending_declaration);
-                let is_associated_function_call_name =
-                    is_associated_function_call_name(text, &tokens, index);
-                let modifiers = if (pending_declaration.is_some() && !is_associated_function_owner)
-                    || is_method_declaration_name
-                {
-                    SEMANTIC_DECLARATION_MODIFIER
-                } else {
-                    0
-                };
-                let kind = if is_associated_function_owner {
-                    SemanticTokenKind::Type
-                } else if is_method_declaration_name {
-                    pending_declaration = None;
-                    SemanticTokenKind::Method
-                } else if is_associated_function_call_name {
-                    pending_declaration = None;
-                    SemanticTokenKind::Function
-                } else {
-                    pending_declaration
-                        .take()
-                        .unwrap_or_else(|| classify_identifier(text, token, previous, next))
-                };
-                push_identifier(&mut identifiers, token, kind, modifiers);
-            }
-            _ => {
-                if !matches!(
-                    token.kind,
-                    TokenKind::Punctuation("<")
-                        | TokenKind::Punctuation(">")
-                        | TokenKind::Punctuation(",")
-                        | TokenKind::Punctuation(".")
-                ) {
-                    pending_declaration = None;
+                SymbolKind::Type(type_symbol) => {
+                    self.push(symbol.name_span, SemanticTokenKind::Type, true, 0);
+                    self.collect_type_symbol_declarations(type_symbol);
                 }
+                SymbolKind::Imported(_) => {}
             }
         }
     }
 
-    identifiers.sort_by(|left, right| {
-        left.start_byte
-            .cmp(&right.start_byte)
-            .then(left.end_byte.cmp(&right.end_byte))
-    });
-    identifiers
-}
+    fn collect_type_symbol_declarations(&mut self, symbol: &TypeSymbol) {
+        for field in &symbol.fields {
+            self.push(field.name_span, SemanticTokenKind::Property, true, 0);
+        }
 
-fn push_identifier(
-    identifiers: &mut Vec<ClassifiedIdentifier>,
-    token: &Token,
-    kind: SemanticTokenKind,
-    modifiers: u32,
-) {
-    if token.span.start < token.span.end {
-        identifiers.push(ClassifiedIdentifier {
-            start_byte: token.span.start,
-            end_byte: token.span.end,
+        for variant in &symbol.variants {
+            self.push(variant.name_span, SemanticTokenKind::Property, true, 0);
+            for parameter in &variant.payload {
+                self.push_parameter(parameter.name_span);
+            }
+        }
+
+        for function in &symbol.associated_functions {
+            self.push(function.name_span, SemanticTokenKind::Function, true, 0);
+            self.collect_function_signature_parameters(&function.signature);
+        }
+
+        for method in &symbol.methods {
+            self.push(method.name_span, SemanticTokenKind::Method, true, 0);
+            self.push_parameter(method.receiver.name_span);
+            self.collect_function_signature_parameters(&method.signature);
+        }
+
+        if let Some(drop_) = &symbol.drop_member {
+            self.push_parameter(drop_.binding.name_span);
+        }
+    }
+
+    fn collect_function_signature_parameters(&mut self, signature: &FunctionSignature) {
+        for parameter in &signature.parameters {
+            self.push_parameter(parameter.name_span);
+        }
+    }
+
+    fn collect_local_symbol_declarations(&mut self) {
+        for symbol in self.resolved.local_symbols() {
+            self.push_local_symbol(symbol.name_span, symbol);
+        }
+    }
+
+    fn collect_symbol_references(&mut self) {
+        for (span, symbol) in self.resolved.symbol_identifier_references() {
+            let Some(kind) = semantic_kind_for_symbol_kind(&symbol.kind) else {
+                continue;
+            };
+            self.push(span, kind, false, 0);
+        }
+    }
+
+    fn collect_local_symbol_references(&mut self) {
+        for (span, symbol) in self.resolved.local_symbol_identifier_references() {
+            self.push_local_symbol(span, symbol);
+        }
+    }
+
+    fn collect_type_references(&mut self) {
+        let spans = self.facts.type_reference_spans().collect::<Vec<_>>();
+        for span in spans {
+            self.push(span, SemanticTokenKind::Type, false, 0);
+        }
+    }
+
+    fn collect_member_references(&mut self) {
+        let method_spans = self.facts.method_call_spans().collect::<Vec<_>>();
+        for span in method_spans {
+            self.push(span, SemanticTokenKind::Method, false, 0);
+        }
+
+        let function_spans = self
+            .facts
+            .associated_function_target_spans()
+            .collect::<Vec<_>>();
+        for span in function_spans {
+            self.push(span, SemanticTokenKind::Function, false, 0);
+        }
+
+        let field_spans = self.facts.field_target_spans().collect::<Vec<_>>();
+        for span in field_spans {
+            self.push(span, SemanticTokenKind::Property, false, 0);
+        }
+
+        let variant_spans = self.facts.enum_variant_target_spans().collect::<Vec<_>>();
+        for span in variant_spans {
+            self.push(span, SemanticTokenKind::Property, false, 0);
+        }
+    }
+
+    fn push_parameter(&mut self, span: ByteSpan) {
+        self.push(
+            span,
+            SemanticTokenKind::Parameter,
+            false,
+            SEMANTIC_READONLY_MODIFIER,
+        );
+    }
+
+    fn push_local_symbol(&mut self, span: ByteSpan, symbol: &LocalSymbol) {
+        self.push(
+            span,
+            semantic_kind_for_local_symbol_kind(symbol.kind),
+            false,
+            local_symbol_modifiers(symbol, span, self.facts),
+        );
+    }
+
+    fn push(&mut self, span: ByteSpan, kind: SemanticTokenKind, declaration: bool, modifiers: u32) {
+        if span.source != self.source || span.is_empty() {
+            return;
+        }
+
+        let mut modifiers = modifiers;
+        if declaration {
+            modifiers |= SEMANTIC_DECLARATION_MODIFIER;
+        }
+
+        if let Some(identifier) = self.identifiers.iter_mut().find(|identifier| {
+            identifier.start_byte == span.start && identifier.end_byte == span.end
+        }) {
+            identifier.kind = merge_semantic_kind(identifier.kind, kind);
+            identifier.modifiers |= modifiers;
+            return;
+        }
+
+        self.identifiers.push(ClassifiedIdentifier {
+            start_byte: span.start,
+            end_byte: span.end,
             kind,
             modifiers,
         });
     }
 }
 
-fn apply_typecheck_semantic_facts(identifiers: &mut [ClassifiedIdentifier], file: &FileAnalysis) {
-    for identifier in identifiers {
-        let span = ByteSpan::new(
-            file.ast.span.source,
-            identifier.start_byte,
-            identifier.end_byte,
-        );
-        if file.typecheck_facts.method_call_target(span).is_some() {
-            identifier.kind = SemanticTokenKind::Method;
-            continue;
+fn semantic_kind_for_symbol_kind(kind: &SymbolKind) -> Option<SemanticTokenKind> {
+    match kind {
+        SymbolKind::Function(_) | SymbolKind::Primitive(_) => Some(SemanticTokenKind::Function),
+        SymbolKind::Type(_) => Some(SemanticTokenKind::Type),
+        SymbolKind::Imported(_) => None,
+    }
+}
+
+fn semantic_kind_for_local_symbol_kind(kind: LocalSymbolKind) -> SemanticTokenKind {
+    match kind {
+        LocalSymbolKind::Parameter => SemanticTokenKind::Parameter,
+        LocalSymbolKind::Binding(_)
+        | LocalSymbolKind::PatternPayload
+        | LocalSymbolKind::CatchError
+        | LocalSymbolKind::ForRange => SemanticTokenKind::Variable,
+    }
+}
+
+fn local_symbol_modifiers(symbol: &LocalSymbol, span: ByteSpan, facts: &TypecheckFacts) -> u32 {
+    match symbol.kind {
+        LocalSymbolKind::Parameter | LocalSymbolKind::Binding(BindingKind::Let) => {
+            SEMANTIC_READONLY_MODIFIER
         }
-        if file
-            .typecheck_facts
-            .associated_function_target(span)
-            .is_some()
-        {
-            identifier.kind = SemanticTokenKind::Function;
-            continue;
-        }
-        if file
-            .typecheck_facts
-            .field_target_at_offset(identifier.start_byte)
-            .is_some_and(|(field_span, _)| field_span == span)
-            || file.typecheck_facts.enum_variant_target(span).is_some()
-        {
-            identifier.kind = SemanticTokenKind::Property;
-            continue;
-        }
-        if file
-            .typecheck_facts
-            .type_reference_spans()
-            .any(|reference_span| reference_span == span)
-        {
-            identifier.kind = SemanticTokenKind::Type;
-        }
-        if matches!(
-            identifier.kind,
-            SemanticTokenKind::Variable | SemanticTokenKind::Parameter
-        ) && file.typecheck_facts.binding_is_readonly(span) == Some(true)
-        {
-            identifier.modifiers |= SEMANTIC_READONLY_MODIFIER;
-        }
-    }
-}
-
-fn semantic_token_kind_for_keyword(keyword: Keyword) -> Option<SemanticTokenKind> {
-    match keyword {
-        Keyword::Void | Keyword::Never => Some(SemanticTokenKind::Type),
-        _ => None,
-    }
-}
-
-fn pending_declaration_for_keyword(keyword: Keyword) -> Option<SemanticTokenKind> {
-    match keyword {
-        Keyword::Func | Keyword::Primitive => Some(SemanticTokenKind::Function),
-        Keyword::Method => None,
-        Keyword::Type | Keyword::Struct | Keyword::Enum => Some(SemanticTokenKind::Type),
-        Keyword::Let | Keyword::Var => Some(SemanticTokenKind::Variable),
-        _ => None,
-    }
-}
-
-fn classify_identifier(
-    text: &str,
-    token: &Token,
-    previous: Option<&Token>,
-    next: Option<&Token>,
-) -> SemanticTokenKind {
-    if matches!(
-        previous.map(|token| token.kind),
-        Some(TokenKind::Punctuation("."))
-    ) {
-        if matches!(
-            next.map(|token| token.kind),
-            Some(TokenKind::Punctuation("("))
-        ) {
-            return SemanticTokenKind::Method;
-        }
-        return SemanticTokenKind::Property;
-    }
-
-    if matches!(
-        next.map(|token| token.kind),
-        Some(TokenKind::Punctuation("("))
-    ) {
-        return SemanticTokenKind::Function;
-    }
-
-    if matches!(
-        next.map(|token| token.kind),
-        Some(TokenKind::Punctuation(":"))
-    ) {
-        return SemanticTokenKind::Parameter;
-    }
-
-    let lexeme = text
-        .get(token.span.start..token.span.end)
-        .unwrap_or_default();
-    if is_fallback_type_name(lexeme) {
-        return SemanticTokenKind::Type;
-    }
-
-    if lexeme
-        .chars()
-        .next()
-        .is_some_and(|first| first.is_ascii_uppercase())
-    {
-        return SemanticTokenKind::Type;
-    }
-
-    SemanticTokenKind::Variable
-}
-
-fn is_fallback_type_name(lexeme: &str) -> bool {
-    is_builtin_type_name(lexeme) || matches!(lexeme, "error" | "void" | "never")
-}
-
-fn is_associated_function_owner(
-    tokens: &[&Token],
-    index: usize,
-    pending_declaration: Option<SemanticTokenKind>,
-) -> bool {
-    pending_declaration == Some(SemanticTokenKind::Function)
-        && matches!(
-            tokens.get(index + 1),
-            Some(token) if matches!(token.kind, TokenKind::Punctuation("."))
-        )
-}
-
-fn is_associated_function_call_name(text: &str, tokens: &[&Token], index: usize) -> bool {
-    if !matches!(
-        index.checked_sub(1).and_then(|index| tokens.get(index)),
-        Some(token) if matches!(token.kind, TokenKind::Punctuation("."))
-    ) || !matches!(
-        tokens.get(index + 1),
-        Some(token) if matches!(token.kind, TokenKind::Punctuation("("))
-    ) {
-        return false;
-    }
-
-    let Some(object) = index.checked_sub(2).and_then(|index| tokens.get(index)) else {
-        return false;
-    };
-    if !matches!(object.kind, TokenKind::Identifier) {
-        return false;
-    }
-
-    text.get(object.span.start..object.span.end)
-        .and_then(|lexeme| lexeme.chars().next())
-        .is_some_and(|first| first.is_ascii_uppercase())
-}
-
-fn is_method_declaration_name(tokens: &[&Token], index: usize) -> bool {
-    if !matches!(
-        index.checked_sub(1).and_then(|index| tokens.get(index)),
-        Some(token) if matches!(token.kind, TokenKind::Punctuation("."))
-    ) || !matches!(
-        tokens.get(index + 1),
-        Some(token) if matches!(token.kind, TokenKind::Punctuation("("))
-    ) {
-        return false;
-    }
-
-    let Some(close_receiver) = index.checked_sub(2).and_then(|index| tokens.get(index)) else {
-        return false;
-    };
-    if !matches!(close_receiver.kind, TokenKind::Punctuation(")")) {
-        return false;
-    }
-
-    let mut depth = 0usize;
-    let mut cursor = index - 2;
-    loop {
-        match tokens[cursor].kind {
-            TokenKind::Punctuation(")") => depth += 1,
-            TokenKind::Punctuation("(") => {
-                depth = depth.saturating_sub(1);
-                if depth == 0 {
-                    return cursor
-                        .checked_sub(1)
-                        .and_then(|index| tokens.get(index))
-                        .is_some_and(|token| {
-                            matches!(token.kind, TokenKind::Keyword(Keyword::Method))
-                        });
-                }
+        LocalSymbolKind::Binding(BindingKind::Var) => 0,
+        LocalSymbolKind::PatternPayload
+        | LocalSymbolKind::CatchError
+        | LocalSymbolKind::ForRange => {
+            if facts.binding_is_readonly(span) == Some(true) {
+                SEMANTIC_READONLY_MODIFIER
+            } else {
+                0
             }
-            _ => {}
         }
+    }
+}
 
-        let Some(next_cursor) = cursor.checked_sub(1) else {
-            return false;
-        };
-        cursor = next_cursor;
+fn merge_semantic_kind(
+    existing: SemanticTokenKind,
+    incoming: SemanticTokenKind,
+) -> SemanticTokenKind {
+    if semantic_kind_priority(incoming) > semantic_kind_priority(existing) {
+        incoming
+    } else {
+        existing
+    }
+}
+
+const fn semantic_kind_priority(kind: SemanticTokenKind) -> u8 {
+    match kind {
+        SemanticTokenKind::Property => 5,
+        SemanticTokenKind::Method => 4,
+        SemanticTokenKind::Function => 3,
+        SemanticTokenKind::Type => 2,
+        SemanticTokenKind::Parameter => 1,
+        SemanticTokenKind::Variable => 0,
     }
 }
 
@@ -345,12 +304,14 @@ mod tests {
     use crate::analysis::{CompileUnit, analyze_compile_unit_as_modules};
     use crate::lexer::lex;
     use crate::parser::parse;
+    use crate::source::SourceMap;
     use std::collections::HashMap;
 
     #[test]
-    fn fallback_classifies_builtin_types() {
+    fn single_file_analysis_classifies_builtin_types() {
         let text = "func main(path: &str): void! {\n    let byte: u8 = 0 as u8\n    return\n}\n";
-        let identifiers = classified_identifiers_for_text(text);
+        let identifiers =
+            classified_identifiers_for_single_file_text(text).expect("expected semantic analysis");
 
         for name in ["str", "void", "u8"] {
             assert!(
@@ -363,10 +324,11 @@ mod tests {
     }
 
     #[test]
-    fn fallback_classifies_associated_function_owner_as_type() {
+    fn single_file_analysis_classifies_associated_function_members() {
         let text =
             "struct Point {\n}\n\nfunc Point.origin(): Point {\n    return Point.origin()\n}\n";
-        let identifiers = classified_identifiers_for_text(text);
+        let identifiers =
+            classified_identifiers_for_single_file_text(text).expect("expected semantic analysis");
 
         assert!(
             identifiers_for_lexeme(text, &identifiers, "Point")

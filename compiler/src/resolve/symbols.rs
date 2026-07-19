@@ -53,6 +53,20 @@ impl ResolveOutput {
         self.local_symbols.iter()
     }
 
+    pub fn symbol_identifier_references(&self) -> impl Iterator<Item = (ByteSpan, &Symbol)> + '_ {
+        self.identifier_targets
+            .iter()
+            .filter_map(|(span, id)| self.symbols.get(*id).map(|symbol| (*span, symbol)))
+    }
+
+    pub fn local_symbol_identifier_references(
+        &self,
+    ) -> impl Iterator<Item = (ByteSpan, &LocalSymbol)> + '_ {
+        self.local_identifier_targets
+            .iter()
+            .filter_map(|(span, id)| self.local_symbol(*id).map(|symbol| (*span, symbol)))
+    }
+
     pub fn symbol_reference_at_offset(&self, offset: usize) -> Option<(ByteSpan, &Symbol)> {
         self.identifier_targets
             .iter()

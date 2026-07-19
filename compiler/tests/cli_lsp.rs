@@ -161,8 +161,8 @@ fn lsp_command_publishes_typecheck_diagnostic_context() {
 }
 
 #[test]
-fn lsp_command_fallback_semantic_tokens_classify_builtin_types() {
-    let project = TempProject::new("cli-lsp-fallback-semantic-types");
+fn lsp_command_single_file_semantic_tokens_classify_builtin_types() {
+    let project = TempProject::new("cli-lsp-single-file-semantic-types");
     let source_text = "use ./missing.nope\n\nfunc main(path: &str): void! {\n    let byte: u8 = 0 as u8\n    return\n}\n";
     let source = project.write_source("app.nct", source_text);
     let uri = file_uri(&source);
@@ -232,7 +232,7 @@ fn lsp_command_fallback_semantic_tokens_classify_builtin_types() {
             tokens.iter().any(|token| {
                 token.lexeme(source_text) == Some(lexeme) && token.kind == SEMANTIC_TOKEN_TYPE
             }),
-            "expected fallback semantic tokens to classify `{lexeme}` as a type, got {tokens:#?}"
+            "expected semantic tokens to classify `{lexeme}` as a type, got {tokens:#?}"
         );
     }
 }

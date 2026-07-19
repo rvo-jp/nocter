@@ -101,6 +101,18 @@ impl TypecheckFacts {
         self.method_call_targets.keys().copied()
     }
 
+    pub(crate) fn field_target_spans(&self) -> impl Iterator<Item = ByteSpan> + '_ {
+        self.field_targets.keys().copied()
+    }
+
+    pub(crate) fn associated_function_target_spans(&self) -> impl Iterator<Item = ByteSpan> + '_ {
+        self.associated_function_targets.keys().copied()
+    }
+
+    pub(crate) fn enum_variant_target_spans(&self) -> impl Iterator<Item = ByteSpan> + '_ {
+        self.enum_variant_targets.keys().copied()
+    }
+
     pub(crate) fn method_call_target(&self, member_span: ByteSpan) -> Option<ByteSpan> {
         self.method_call_targets.get(&member_span).copied()
     }

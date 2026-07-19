@@ -4,10 +4,10 @@ use crate::analysis::FileAnalysis;
 use crate::analysis::semantic as analysis_semantic;
 
 #[cfg(test)]
+pub(super) use analysis_semantic::SEMANTIC_DECLARATION_MODIFIER;
+#[cfg(test)]
 pub(super) use analysis_semantic::SEMANTIC_READONLY_MODIFIER;
-pub(super) use analysis_semantic::{
-    ClassifiedIdentifier, SEMANTIC_DECLARATION_MODIFIER, SemanticTokenKind,
-};
+pub(super) use analysis_semantic::{ClassifiedIdentifier, SemanticTokenKind};
 
 pub(super) const SEMANTIC_TOKEN_TYPES: [&str; 6] = [
     "function",
@@ -49,7 +49,8 @@ pub(super) fn classified_identifiers_for_file_analysis(
 }
 
 pub(super) fn classified_identifiers(document: &OpenDocument) -> Vec<ClassifiedIdentifier> {
-    analysis_semantic::classified_identifiers_for_text(&document.text)
+    analysis_semantic::classified_identifiers_for_single_file_text(&document.text)
+        .unwrap_or_default()
 }
 
 pub(super) const fn semantic_token_kind_index(kind: SemanticTokenKind) -> u32 {

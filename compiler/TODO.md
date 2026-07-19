@@ -320,7 +320,7 @@ Recent committed work:
   - keeps bare interpolation lowering disabled until the source language exposes an explicit allocator source for interpolation
 - Current checkpoint: show local reference documentation in LSP hover
   - makes `///` attached to local `let`/`var` declarations appear when hovering later references to that binding
-  - reuses the existing hover symbol/documentation attachment path for both open-document fallback and workspace analysis hover
+  - reuses the existing hover symbol/documentation attachment path for both single-file open-document analysis and workspace analysis hover
   - keeps richer type hovers, references, rename, and other editor-only features deferred while backend core work remains the main priority
 - Current checkpoint: parse and lower narrow move returns
   - parses `move name` as a unary expression and formats it with keyword spacing

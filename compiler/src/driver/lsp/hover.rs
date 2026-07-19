@@ -1,9 +1,5 @@
 use super::documents::OpenDocument;
-use super::protocol::{
-    LspRange, byte_offset_to_lsp_position, lsp_position_to_byte_offset, position_from_params,
-    range_for_byte_span,
-};
-use super::semantic::{SEMANTIC_DECLARATION_MODIFIER, classified_identifiers};
+use super::protocol::{lsp_position_to_byte_offset, position_from_params, range_for_byte_span};
 use crate::analysis::hover::{
     HoverInfo, hover_for_file_analysis as analysis_hover_for_file_analysis, hover_for_text,
 };
@@ -14,33 +10,7 @@ use serde_json::{Value, json};
 pub(super) fn hover_for_document(document: &OpenDocument, params: Option<&Value>) -> Option<Value> {
     let position = position_from_params(params)?;
     let offset = lsp_position_to_byte_offset(&document.text, position.line, position.character);
-    if let Some(hover) = documented_hover_for_document(document, offset) {
-        return Some(hover);
-    }
-
-    let identifier = classified_identifiers(document)
-        .into_iter()
-        .find(|identifier| identifier.start_byte <= offset && offset < identifier.end_byte)?;
-    let lexeme = document
-        .text
-        .get(identifier.start_byte..identifier.end_byte)?;
-    let range = LspRange {
-        start: byte_offset_to_lsp_position(&document.text, identifier.start_byte),
-        end: byte_offset_to_lsp_position(&document.text, identifier.end_byte),
-    };
-    let declaration = if identifier.modifiers & SEMANTIC_DECLARATION_MODIFIER != 0 {
-        " declaration"
-    } else {
-        ""
-    };
-
-    Some(json!({
-        "contents": {
-            "kind": "markdown",
-            "value": format!("```nocter\n{}{} {}\n```", identifier.kind.hover_label(), declaration, lexeme)
-        },
-        "range": range
-    }))
+    documented_hover_for_document(document, offset)
 }
 
 pub(super) fn hover_for_file_analysis(

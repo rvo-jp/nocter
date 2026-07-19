@@ -532,10 +532,10 @@ mod tests {
     }
 
     #[test]
-    fn fallback_semantic_tokens_classify_builtin_types() {
+    fn single_file_semantic_tokens_classify_builtin_types() {
         let text = "func main(path: &str): void! {\n    let byte: u8 = 0 as u8\n    let count: usize = 0 as usize\n    return\n}\n\nfunc fail(error_value: error): never {\n    return\n}\n";
         let document = open_document(
-            "file:///tmp/nocter-semantic-fallback-types.nct".to_string(),
+            "file:///tmp/nocter-semantic-single-file-types.nct".to_string(),
             Some(1),
             text.to_string(),
         );
@@ -546,7 +546,52 @@ mod tests {
                 classified_identifier_with_lexeme(text, &identifiers, name)
                     .iter()
                     .any(|identifier| identifier.kind == SemanticTokenKind::Type),
-                "expected fallback semantic tokens to classify `{name}` as a type"
+                "expected semantic tokens to classify `{name}` as a type"
+            );
+        }
+    }
+
+    #[test]
+    fn semantic_tokens_are_empty_when_document_cannot_be_analyzed() {
+        let uri = "file:///tmp/nocter-bad-semantic.nct".to_string();
+        let document = open_document(
+            uri.clone(),
+            Some(1),
+            "func main(: i32 {\n    value\n".to_string(),
+        );
+        let server = LspServer {
+            documents: HashMap::from([(uri.clone(), document)]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.semantic_tokens_response(
+            json!(2),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                }
+            })),
+        );
+
+        assert_eq!(response["result"]["data"], json!([]));
+    }
+
+    #[test]
+    fn semantic_tokens_do_not_classify_unresolved_identifiers_or_module_paths() {
+        let text = "use ./missing.nope\n\nfunc main(): i32 {\n    return value\n}\n";
+        let document = open_document(
+            "file:///tmp/nocter-semantic-unresolved.nct".to_string(),
+            Some(1),
+            text.to_string(),
+        );
+        let identifiers = classified_identifiers(&document);
+
+        for lexeme in ["missing", "nope", "value"] {
+            assert!(
+                classified_identifier_with_lexeme(text, &identifiers, lexeme).is_empty(),
+                "expected `{lexeme}` to remain uncolored, got {identifiers:#?}"
             );
         }
     }
@@ -597,7 +642,7 @@ mod tests {
         let project = TempProject::new("lsp-semantic-readonly-bindings");
         let home = project.write_nocter_home();
         let _home = NocterHomeEnv::set(&home);
-        let text = "func main(path: &str): i32 {\n    let alpha = 1\n    var beta = 2\n    return alpha + beta\n}\n";
+        let text = "func main(value: i32, path: &str): i32 {\n    let alpha = value\n    var beta = 2\n    return alpha + beta\n}\n";
         let app = project.write_source("app.nct", text);
         let uri = file_uri(&app);
         let document = open_document(uri.clone(), Some(1), text.to_string());
@@ -608,7 +653,7 @@ mod tests {
         let identifiers =
             classified_identifiers_for_file_analysis(documents.get(&uri).unwrap(), file);
 
-        for name in ["path", "alpha"] {
+        for name in ["value", "path", "alpha"] {
             let identifiers = classified_identifier_with_lexeme(text, &identifiers, name);
             assert!(
                 !identifiers.is_empty(),
@@ -633,6 +678,68 @@ mod tests {
                 .all(|identifier| identifier.modifiers & SEMANTIC_READONLY_MODIFIER == 0),
             "expected `beta` to remain mutable"
         );
+    }
+
+    #[test]
+    fn returns_null_hover_when_document_cannot_be_analyzed() {
+        let uri = "file:///tmp/nocter-bad-hover.nct".to_string();
+        let document = open_document(
+            uri.clone(),
+            Some(1),
+            "func main(: i32 {\n    value\n".to_string(),
+        );
+        let server = LspServer {
+            documents: HashMap::from([(uri.clone(), document)]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.hover_response(
+            json!(3),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "position": {
+                    "line": 1,
+                    "character": 5
+                }
+            })),
+        );
+
+        assert_eq!(response["result"], Value::Null);
+    }
+
+    #[test]
+    fn returns_null_hover_for_unresolved_identifier() {
+        let uri = "file:///tmp/nocter-unresolved-hover.nct".to_string();
+        let document = open_document(
+            uri.clone(),
+            Some(1),
+            "func main(): i32 {\n    return value\n}\n".to_string(),
+        );
+        let server = LspServer {
+            documents: HashMap::from([(uri.clone(), document)]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.hover_response(
+            json!(3),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "position": {
+                    "line": 1,
+                    "character": 12
+                }
+            })),
+        );
+
+        assert_eq!(response["result"], Value::Null);
     }
 
     #[test]
