@@ -4347,7 +4347,7 @@ impl TempProject {
     fn write_nocter_home(&self) {
         let home = self.nocter_home();
         fs::create_dir_all(home.join("std")).unwrap();
-        fs::write(home.join("std/prelude.nct"), "pub type Int = i32\n").unwrap();
+        fs::write(home.join("std/prelude.nct"), "").unwrap();
     }
 }
 

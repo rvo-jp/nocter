@@ -169,6 +169,7 @@ use std/mem.{Allocator, Layout, RawBuffer, alloc, free, invalid_argument, out_of
 use std/process.{abort, args, cwd, env, exit}
 use std/ptr.{addr, from_ref, from_ref_mut}
 use std/string.{bytes, capacity, capacity_overflow, clear, empty, from_str, is_empty, len, push_str, reserve, view, with_capacity}
+use std/vec.Vec
 
 func main(): i32 {
     return 0
@@ -214,6 +215,89 @@ func string_clear(text: &+String): void {
 
 func process_cwd(allocator: &+Allocator): String! {
     return cwd(allocator)?
+}
+
+func process_args_shape(): Vec<&str>! {
+    return args()?
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+    assert_success(&output);
+}
+
+#[test]
+fn distributed_std_prelude_exports_v0_core_names() {
+    let project = TempProject::new("distributed-home-prelude-core");
+    let source = project.write_source(
+        "prelude_core.nct",
+        r#"func code(): ErrorCode {
+    return "app.ok"
+}
+
+func make(): String {
+    return String.empty()
+}
+
+func main(): i32 {
+    let text = make()
+    let label = code()
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+    assert_success(&output);
+}
+
+#[test]
+fn distributed_std_prelude_does_not_export_int() {
+    let project = TempProject::new("distributed-home-prelude-no-int");
+    let source = project.write_source(
+        "prelude_no_int.nct",
+        r#"func main(): i32 {
+    let count: Int = 1
+    return count
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(
+        output.stdout.is_empty(),
+        "expected empty stdout, got:\n{}",
+        text(&output.stdout)
+    );
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("Int") && stderr.contains("not declared"),
+        "expected unresolved Int diagnostic, got:\n{stderr}"
+    );
+}
+
+#[test]
+fn distributed_std_vec_requires_explicit_import() {
+    let project = TempProject::new("distributed-home-vec-explicit-import");
+    let source = project.write_source(
+        "vec_explicit_import.nct",
+        r#"use std/vec.Vec
+
+func len_placeholder(values: &Vec<&str>): i32 {
+    return 0
+}
+
+func main(): i32 {
+    return 0
 }
 "#,
     );
@@ -967,6 +1051,63 @@ func main(): i32 {
 }
 
 #[test]
+fn distributed_std_process_env_shape_passes_check() {
+    let project = TempProject::new("distributed-home-process-env-check");
+    let source = project.write_source(
+        "process_env_shape.nct",
+        r#"use std/process.env
+
+func lookup(): &str?! {
+    return env("HOME")?
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+    assert_success(&output);
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_process_cwd_reports_unsupported() {
+    let project = TempProject::new("distributed-home-process-cwd-unsupported-run");
+    let source = project.write_source(
+        "process_cwd_unsupported.nct",
+        r#"use std/mem.page_allocator
+use std/process.cwd
+
+func main(): i32! {
+    var allocator = page_allocator()
+    let value = cwd(&+allocator)?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("std.process.unsupported")
+            && stderr.contains("current working directory is not implemented"),
+        "stderr:\n{}",
+        stderr
+    );
+}
+
+#[test]
 fn distributed_std_explicit_string_construction_builds_to_macho() {
     let project = TempProject::new("distributed-home-explicit-string-build");
     let source = project.write_source(
@@ -1686,7 +1827,7 @@ fn write_minimal_nocter_home(home: &Path) {
         fs::read_to_string(distributed_home().join("MANIFEST.json")).unwrap(),
     )
     .unwrap();
-    fs::write(home.join("std/prelude.nct"), "pub type Int = i32\n").unwrap();
+    fs::write(home.join("std/prelude.nct"), "").unwrap();
 }
 
 fn assert_success(output: &Output) {

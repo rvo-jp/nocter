@@ -233,7 +233,7 @@ Nocter には `module` 宣言を置きません。1つの `.nct` ファイルが
 ```text
 examples/word_count.nct                                  => examples/word_count
 ~/.nocter/std/io.nct                                     => std/io
-~/.nocter/std/os/macos.nct                               => std/os/macos
+~/.nocter/std/os.nct                                     => std/os
 ```
 
 ファイルパスを唯一の情報源にすることで、ファイル位置とモジュール宣言の不一致を防ぎます。
@@ -241,22 +241,20 @@ examples/word_count.nct                                  => examples/word_count
 import は明示的な名前指定を基本にします。`./` または `../` で始まる path は現在ファイルから見た `.nct` を探し、それ以外の path は active Nocter home、通常は `~/.nocter/` 内から探します。
 
 ```nct
-from std/mem import Allocator
-from std/io import File, stdout, stderr
-from std/io import File as StdFile
-from ./config import AppConfig
-pub from std/string import String
-
-import std/io as io
+use std/mem.Allocator
+use std/io.{File, stdout, stderr}
+use std/io.File as StdFile
+use ./config.AppConfig
+pub use std/string.String
 ```
 
-`pub from` は、import した公開名を現在 module の公開 API として再公開します。prelude や façade module で使います。`pub(nocter)` の名前は通常公開 API として `pub from` できません。
+`pub use` は、use した公開名を現在 module の公開 API として再公開します。prelude や façade module で使います。`pub(nocter)` の名前は通常公開 API として `pub use` できません。
 
-ワイルドカード import、bare import、namespace alias re-export、absolute path、import path 内の `.nct` 拡張子は初期仕様では採用しません。
+ワイルドカード use、namespace alias re-export、absolute path、import path 内の `.nct` 拡張子は初期仕様では採用しません。
 
 user project module は、compiler が内部的にファイル先頭へ synthetic `use std/prelude` を持つものとして扱います。source text は書き換えず、diagnostic や formatter は元の source を基準にします。synthetic prelude は user project module ごとに独立して適用され、`.nocter/std/` には適用しません。明示的な `use std/prelude` は書いてもよいですが、user project module では冗長です。
 
-prelude は小さく保ちます。`Int` のような基本 alias、`Error` / `ErrorCode`、所有文字列 `String` のような ubiquitous な標準ライブラリ型だけを置きます。`str`、`error`、`[T]`、`[+T]` は compiler built-in の型構文です。`File`、`Allocator`、`print`、`stdout`、`stderr`、`args`、`env`、`cwd`、`exit`、`abort` は domain module から明示 import します。project-wide prelude 設定は初期仕様では採用しません。
+prelude は小さく保ちます。v0 では `Error` / `ErrorCode`、所有文字列 `String` のような ubiquitous な標準ライブラリ型だけを置きます。`Int` は廃止し、整数型は `i32` などを直接書くか project-local alias を定義します。`str`、`error`、`[T]`、`[+T]` は compiler built-in の型構文です。`Vec`、`File`、`Allocator`、`print`、`stdout`、`stderr`、`args`、`env`、`cwd`、`exit`、`abort` は domain module から明示 import します。project-wide prelude 設定は初期仕様では採用しません。
 
 v0 では package manifest と project root discovery を採用しません。compiler に渡した `.nct` が root file です。executable の entry point は compiler の entry setting で選ばれ、v0 の既定値は root file の top-level `func main()` です。`--entry start` を指定した場合は root file の top-level `func start()` を選びます。`main` や `start` は予約語や built-in ではなく、通常の関数名です。compiler は root file から import graph を辿り、到達した `.nct` ファイル全体を1つの compile unit として name resolution、type checking、ownership checking、code generation します。separate compilation、incremental build、package registry、lockfile、workspace は v0 では扱いません。
 
@@ -274,8 +272,8 @@ nocter build app.nct -o app
 
 ```nct
 // app.nct
-from std/io import print
-from ./src/config import Config
+use std/io.print
+use ./src/config.Config
 
 func main(): i32! {
     let config = Config.default()
@@ -495,7 +493,7 @@ return error ?{
 ユーザーが書くコードは高級言語であり、ARM64 命令や Mach-O の詳細を意識しない形にします。
 
 ```nct
-from std/io import print
+use std/io.print
 
 func main(): i32! {
     print("Hello")?
@@ -508,7 +506,7 @@ func main(): i32! {
 標準の entry function は `func main(): i32!` です。`--entry name` を指定した場合は `func name(): i32!` が同じ役割を持ちます。成功時は返した `i32` が process exit status になり、失敗時は compiler-generated entry wrapper が built-in `error` を stderr へ出力して status `1` で終了します。stderr 出力自体が失敗した場合、その失敗は無視して status `1` で終了します。simple infallible entry point 用に `func main(): void` と `func main(): i32` も v0 では受け付けます。entry function parameters は採用しません。command-line arguments、environment、current working directory、process termination は `std/process` の通常 API で扱います。
 
 ```nct
-from std/process import args
+use std/process.args
 
 func main(): i32! {
     let argv = args()?
@@ -688,14 +686,12 @@ C 連携が必要になった場合は、将来 `extern "c"` のような別 ABI
         process.nct
         ptr.nct
         string.nct
-        os/
-            macos.nct
 ```
 
 利用者は必要な機能を import して使います。
 
 ```nct
-from std/io import print
+use std/io.print
 ```
 
 標準ライブラリは原則として Nocter で記述します。初期 `arm64-darwin` では、OS syscall、trap、unreachable のように Nocter だけでは表現できない箇所だけ `primitive` 宣言によってコンパイラ内蔵の低レベル実装へ接続します。allocator は primitive ではなく、標準ライブラリの通常 API として扱います。
@@ -707,7 +703,7 @@ OS error は target 固有の raw error を common std の公開 record へ変�
 採用する層構造:
 
 ```text
-std/os/macos
+std/os #target("arm64-darwin") internals
     SyscallResult
     Errno
     syscall number
@@ -740,7 +736,7 @@ std/io / std/process
 `SyscallResult` と `Errno` は target 依存 std 内部の低レベル型です。通常のユーザー向け API はこれらを返さず、`std/os` の `OSError` を経由して built-in `error` へ変換します。
 
 ```text
-std/os/macos.syscall3
+std/os.syscall3 #target("arm64-darwin")
     -> SyscallResult
     -> Errno
     -> std/os.OSError
@@ -782,13 +778,13 @@ pub func print(text: str): void!
 
 `std/io` は共通の user-facing module です。raw file descriptor や syscall との接続は `std/io` 内の `pub(nocter)` helper に置き、target 依存の helper には `#target("...")` を付けます。利用者は raw helper を import せず、`File`、`stdout`、`stderr`、`print`、`File.open/read/write/write_text` を通じて I/O を扱います。
 
-`std/process` の `args(): [str]!`、`env(name): str?!`、`cwd(): str!`、`exit(code): never`、`abort(): never` は標準ライブラリ API です。compiler primitive ではありません。`args` / `env` / `cwd` / `exit` / `abort` という名前を compiler は特別扱いしません。
+`std/process` の `args(): Vec<&str>!`、`env(name): &str?!`、`cwd(allocator): String!`、`exit(code): never`、`abort(): never` は標準ライブラリ API です。compiler primitive ではありません。`args` / `env` / `cwd` / `exit` / `abort` という名前を compiler は特別扱いしません。
 
-`str?!` は、処理そのものは `error` で失敗しえますが、成功した場合の値は optional であることを表します。`args()`、`env(name)`、`cwd()` が返す `str` は process context storage を指す readonly view であり、呼び出し側は所有しません。owned `String` が必要な場合は明示的に copy します。target 実装は OS 由来の `argv` / `envp` / cwd を UTF-8 として検証し、`str` にできない場合は `"std.process.invalid_encoding"` で失敗します。
+`&str?!` は、処理そのものは `error` で失敗しえますが、成功した場合の値は optional であることを表します。v0 配布 std では `exit` と `abort` は runtime ship、`cwd` は `"std.process.unsupported"` で失敗します。`args` と `env` は将来の API 形を予約する check-only API で、実用 runtime は `Vec`、nested fallible/optional return lowering、process context の実装後に昇格します。将来 `args()` と `env(name)` が返す文字列 view は process context storage を指し、呼び出し側は所有しません。owned `String` が必要な場合は明示的に copy します。target 実装は OS 由来の `argv` / `envp` / cwd を UTF-8 として検証し、`str` にできない場合は `"std.process.invalid_encoding"` で失敗します。
 
 `exit` / `abort` は `#target` 付き std 内部の syscall や process termination boundary を使って実装し、万一 OS の終了操作から戻った場合は `trap()` します。`exit` / `abort` は caller scope の Nocter cleanup を実行しません。cleanup が必要な場合は、呼び出し前に明示します。
 
-`std/process` はユーザー向け module path ですが、process context や process termination は process ABI に依存するため、target 依存の低レベル呼び出しは `#target` 付き std 内部実装に閉じます。利用者は配置を意識せず `from std/process import args`、`from std/process import env`、`from std/process import exit` のように使います。
+`std/process` はユーザー向け module path ですが、process context や process termination は process ABI に依存するため、target 依存の低レベル呼び出しは `#target` 付き std 内部実装に閉じます。利用者は配置を意識せず `use std/process.args`、`use std/process.env`、`use std/process.exit` のように使います。
 
 ## ランタイム
 
@@ -1103,11 +1099,10 @@ let p2 = p1
 所有値の破棄はスコープ終了時に自動で行います。破棄処理の定義には、trait ではなく inherent `impl` 内の専用 `drop name: &+Self { ... }` member を使います。`drop` は予約語ではなく、lexer は identifier token として扱います。`drop` member は戻り値型を書かず、`pub` も付けません。明示的に早く破棄したい場合は `drop name` 文を使います。
 
 ```nct
-import std/os as os
-
 impl File {
     drop file: &+Self {
-        os.close(file.fd).ignore()
+        close_fd(file.fd)
+        return
     }
 }
 
@@ -1147,13 +1142,11 @@ region scratch using allocator {
 `Allocator`、`Layout`、`RawBuffer` は `std/mem` の普通の公開 API として定義します。コンパイラは `Allocator` という名前を特別扱いしません。特別なのは `region ... using ...` 構文と、region 由来 allocator の provenance tracking だけです。
 
 ```nct
-from std/mem import Allocator, Layout, RawBuffer
+use std/mem.{Allocator, Layout, RawBuffer, alloc, free, page_allocator}
 
-import std/mem as mem
-
-var allocator = mem.page_allocator()
-let buffer = mem.alloc(&+allocator, 4096, 16)?
-mem.free(&+allocator, move buffer)
+var allocator = page_allocator()
+let buffer = alloc(&+allocator, 4096, 16)?
+free(&+allocator, move buffer)
 ```
 
 確保失敗は `"std.mem.out_of_memory"` などを持つ `error` として扱います。OOM を暗黙に `panic` / `abort` しません。`RawBuffer` は低レベル API であり、通常のコードでは `String` や `Buffer<T>` のような所有型を使います。
@@ -1186,19 +1179,19 @@ pub(nocter) primitive from_addr<T>(address: usize): *T
 `[T]`、`[+T]`、`str` は `ptr()` と `len()` を持ちます。標準ライブラリ内の trusted module が syscall に buffer を渡す場合は、`ptr()` で raw pointer を取り、`std/ptr` の `addr(...)` で `usize` へ変換します。一般ユーザーコードは syscall primitive を直接呼べません。
 
 ```nct
-import std/ptr as ptr
-import std/os/macos as os
+use std/ptr.addr
+use std/os.syscall3
 
 let bytes = text.bytes()
-let result = os.syscall3(
+let result = syscall3(
     SYS_write,
     fd as usize,
-    ptr.addr(bytes.ptr()),
+    addr(bytes.ptr()),
     bytes.len(),
 )
 ```
 
-`std/ptr` の関数は target 非依存の core pointer primitive です。OS 境界の `std/os/macos` の `syscall0..6` とは別扱いです。これは raw pointer 型そのものに必要な最小操作であり、`print`、`exit`、`abort`、file 操作、allocator、`String`、`Buffer` を compiler primitive にするものではありません。
+`std/ptr` の関数は target 非依存の core pointer primitive です。OS 境界の `std/os` 内 `#target("arm64-darwin")` 付き `syscall0..6` とは別扱いです。これは raw pointer 型そのものに必要な最小操作であり、`print`、`exit`、`abort`、file 操作、allocator、`String`、`Buffer` を compiler primitive にするものではありません。
 
 trusted module が public API の不変条件を破った場合、それは標準ライブラリまたは compiler のバグとして扱います。一般ユーザーコードが `unsafe` に opt-in した結果とは扱いません。`unsafe` と `trusted` は v0 では予約語にしません。
 
@@ -1381,16 +1374,10 @@ let count = 10      // i32
 let size: u64 = 10  // u64
 ```
 
-`Int` は compiler built-in ではありません。`std/prelude` が提供する通常の alias です。user project module では synthetic prelude により利用できます。標準ライブラリ内部では `from std/prelude import Int` のように明示 import します。
-
-```nct
-let count: Int = 10 // Int is an alias of i32
-```
-
 型 alias は `type` で宣言します。alias は完全に同じ型の別名であり、新しい別型を作りません。
 
 ```nct
-pub type Int = i32
+pub type Count = i32
 pub type Bytes = [u8]
 pub type Map<K, V> = HashMap<K, V>
 ```
@@ -1398,14 +1385,14 @@ pub type Map<K, V> = HashMap<K, V>
 `type` は top-level 宣言です。通常の定義と同じく private が既定で、公開する場合は `pub type`、Nocter 配布物内部だけに公開する場合は `pub(nocter) type` と書きます。generic alias は許可します。
 
 ```nct
-let x: Int = 10
-let y: i32 = x // OK: Int は i32
+let x: Count = 10
+let y: i32 = x // OK: Count は i32
 ```
 
 alias は ABI、layout、所有権、copy/drop 判定を変えません。alias に対する `impl` は禁止します。
 
 ```nct
-impl Int {
+impl Count {
     ...
 }
 // error: alias には impl できない
@@ -1739,14 +1726,14 @@ while let byte = iter.next() {
 `panic` は v0 の言語機能ではなく、標準ライブラリ API としても採用しません。予約語でもありません。ユーザーが `panic` という通常関数を定義しても、言語仕様上の特別な動作はありません。stack unwinding も v0 では採用しません。
 
 ```nct
-import std/process as process
+use std/process.abort
 
-func require_path(path: str?): str {
+func require_path(path: &str?): &str {
     if let value = path {
         return value
     }
 
-    process.abort()
+    abort()
 }
 ```
 

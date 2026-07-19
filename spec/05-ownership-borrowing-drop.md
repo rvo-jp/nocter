@@ -349,7 +349,7 @@ Rules:
 - A `copy struct` must not own resources that require destruction.
 - Primitive numeric types, `bool`, and raw pointers are copyable.
 - Payloadless enum values are copyable.
-- Type aliases to copy types are copyable. For example, a standard-library `Int` alias to `i32` is copyable.
+- Type aliases to copy types are copyable. For example, a project-local alias to `i32` is copyable.
 - `&T` is copyable.
 - `&+T` is not copyable.
 - Non-copy values are not implicitly moved by assignment, argument passing, or return.

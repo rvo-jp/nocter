@@ -6,6 +6,7 @@ typechecker, lowering, backend, runtime, and standard-library work continue.
 
 `../../spec/00-v0-contract.md` is the source-language contract.
 `implementation-status.md` records the current implementation state.
+`std-v0-contract.md` fixes the distributable standard-library public surface.
 This file defines the completion gates. A change that broadens accepted source
 syntax, observable typechecking, Nocter ABI, or public `.nocter/std` API must
 update this file in the same commit.
@@ -92,8 +93,9 @@ Backend v0 is complete when every `runtime ship` row builds and runs on
 stable rejection boundary before machine-code emission.
 
 Standard library v0 is complete when `.nocter/std` exposes only v0 APIs, target
-dependencies use `#target(...)`, and every public API either has a working body
-or returns a documented recoverable error by design.
+dependencies use `#target(...)`, and every public API is classified in
+`std-v0-contract.md` as working, recoverably unsupported, check-only, internal,
+or deferred.
 
 Full Nocter v0 is complete when frontend v0, backend v0, standard library v0,
 the CLI gates, and the documentation gates are all complete.
@@ -121,8 +123,8 @@ the CLI gates, and the documentation gates are all complete.
 | Interfaces | frontend ship | `interface` declarations, `pub` interface methods, and explicit structural `impl Interface for Type` conformance are checked. Interface types in value and borrow-like value positions are rejected by type checking. Interfaces provide no v0 code reuse, dynamic dispatch, generic bounds, or backend dispatch requirement. |
 | Generics | frontend ship narrow, backend reject | Type arity, direct generic inference, generic aggregate substitution, and generic enum checks are frontend responsibilities. Reachable generic functions and generic impl members are rejected by the buildability preflight. Monomorphization is the intended future backend direction but is not required for v0 runtime closure unless promoted. |
 | Standard library primitives | runtime ship narrow | Trusted primitives used by distributed std have explicit target gates, privacy boundaries, typechecked declarations, and native lowering or documented recoverable failure. Placeholder public APIs must not silently succeed. |
-| `std/process` | runtime ship narrow | Process exit/status behavior works. `cwd`, `args`, and `env` must either return owned std values through explicit allocator-aware APIs or return documented recoverable unsupported errors until their runtime path is implemented. |
-| `Vec` and collections | defer | `Vec` may be specified as the owned variable-length array direction, but a general collection implementation is not required for v0 runtime closure unless needed by a promoted std/process API. |
+| `std/process` | runtime ship narrow | Process exit/status behavior works. `cwd` returns a documented recoverable unsupported error until its runtime path is implemented. `args` and `env` keep their future API shapes as check-only until `Vec`, nested fallible/optional returns, and process context runtime are promoted. |
+| `Vec` and collections | defer | `Vec<T>` may be specified as the owned variable-length array direction and may appear in check-only std API shapes, but a general collection implementation is not required for v0 runtime closure unless needed by a promoted std/process API. |
 | CLI diagnostics | ship | `check`, `build`, and `run` render source-backed diagnostics in text and JSON where supported. Internal compiler errors are not acceptable for user source covered by this document. |
 | LSP | ship basic | LSP initializes, syncs documents, publishes compiler diagnostics, semantic tokens, hover, references, definition, document symbols, and basic completions from compiler facts. Richer editor behavior is not a v0 closure blocker. |
 | Documentation | ship | `spec`, `implementation-status.md`, `backend-v0.md`, `roadmap.md`, and this document agree on public syntax, ABI decisions, runtime boundaries, and deferred features. |
@@ -139,9 +141,10 @@ order:
 3. Aggregate ABI and ownership: broaden remaining field-level ownership state,
    enum payload facts, drop glue, direct/indirect ABI edge cases, and aggregate
    cleanup.
-4. Standard library runtime: finish allocator behavior, owned `String`, `fmt`,
-   `process.cwd`, then only add `Vec`, `args`, and `env` if their public API is
-   stable enough to keep.
+4. Standard library runtime: keep `std-v0-contract.md` and `.nocter/std`
+   aligned, finish allocator behavior, owned `String`, `fmt`, and
+   recoverable unsupported process APIs, then only promote `Vec`, `args`, and
+   `env` when their ABI and runtime API are stable enough to keep.
 5. Runtime promotion decisions: promote optionals, full control flow, arrays,
    methods, or generics only by changing the relevant matrix row and adding
    tests in the same commit.

@@ -382,7 +382,6 @@ impl TempProject {
         fs::write(
             home.join("std/prelude.nct"),
             concat!(
-                "pub type Int = i32\n",
                 "pub use std/error.{Error, ErrorCode}\n",
                 "pub use std/string.String\n",
             ),
@@ -418,8 +417,10 @@ impl TempProject {
         fs::write(
             home.join("std/process.nct"),
             concat!(
-                "pub func env(name: &str): (&str?)! {\n",
-                "    return none\n",
+                "use std/error.Error\n",
+                "\n",
+                "pub func env(name: &str): &str?! {\n",
+                "    return Error.new(\"std.process.unsupported\", \"process environment is not implemented\")\n",
                 "}\n",
             ),
         )

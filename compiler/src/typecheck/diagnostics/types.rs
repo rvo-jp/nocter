@@ -76,3 +76,18 @@ pub(in crate::typecheck) fn generic_type_argument_count_diagnostic(
     });
     diagnostic
 }
+
+pub(in crate::typecheck) fn unresolved_type_reference_diagnostic(
+    sources: &SourceMap,
+    name: &str,
+    name_span: ByteSpan,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0436",
+        format!("type `{name}` is not declared in this scope"),
+    );
+    diagnostic.primary_span = sources.span_to_json(name_span).ok().map(Box::new);
+    diagnostic.help =
+        Some("import or define the type, or use a built-in type such as `i32`".to_string());
+    diagnostic
+}

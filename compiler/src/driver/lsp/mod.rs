@@ -1878,7 +1878,7 @@ mod tests {
         fn write_nocter_home(&self) -> PathBuf {
             let home = self.root.join(".nocter");
             std::fs::create_dir_all(home.join("std")).unwrap();
-            std::fs::write(home.join("std/prelude.nct"), "pub type Int = i32\n").unwrap();
+            std::fs::write(home.join("std/prelude.nct"), "").unwrap();
             home
         }
     }

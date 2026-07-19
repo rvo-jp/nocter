@@ -4,8 +4,5 @@
 //! at the beginning of the file. This module must remain small: core aliases
 //! and ubiquitous standard-library types only.
 
-pub type Int = i32
-
 pub use std/error.{Error, ErrorCode}
 pub use std/string.String
-pub use std/vec.Vec

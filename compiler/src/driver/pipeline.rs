@@ -1548,7 +1548,7 @@ func main(): void! {
     fn make_nocter_home(root: &Path) -> PathBuf {
         let home = root.join(".nocter");
         fs::create_dir_all(home.join("std")).unwrap();
-        fs::write(home.join("std/prelude.nct"), "pub type Int = i32\n").unwrap();
+        fs::write(home.join("std/prelude.nct"), "").unwrap();
         home
     }
 

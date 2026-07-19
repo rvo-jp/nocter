@@ -1,4 +1,6 @@
-use super::diagnostics::generic_type_argument_count_diagnostic;
+use super::diagnostics::{
+    generic_type_argument_count_diagnostic, unresolved_type_reference_diagnostic,
+};
 use crate::ast::{
     AstFile, Block, Expr, GenericParamList, ImplMember, InterpolatedStringPart, Item, MethodDecl,
     Parameter, Stmt, TypeExpr,
@@ -172,18 +174,28 @@ fn check_type_expr(
             if reference.name == "Self" || scope.contains(&reference.name) {
                 return;
             }
-            if let Some((symbol, type_symbol)) =
-                resolved.type_symbol_definition_by_reference_name(&reference.name)
-                && type_symbol.generic_arity > 0
-            {
-                diagnostics.push(generic_type_argument_count_diagnostic(
-                    sources,
-                    &reference.name,
-                    reference.span,
-                    Some(symbol.declaration_span),
-                    type_symbol.generic_arity,
-                    0,
-                ));
+            if builtin_type_argument_arity(&reference.name).is_some() {
+                return;
+            }
+            match resolved.type_symbol_definition_by_reference_name(&reference.name) {
+                Some((symbol, type_symbol)) if type_symbol.generic_arity > 0 => {
+                    diagnostics.push(generic_type_argument_count_diagnostic(
+                        sources,
+                        &reference.name,
+                        reference.span,
+                        Some(symbol.declaration_span),
+                        type_symbol.generic_arity,
+                        0,
+                    ));
+                }
+                Some(_) => {}
+                None => {
+                    diagnostics.push(unresolved_type_reference_diagnostic(
+                        sources,
+                        &reference.name,
+                        reference.span,
+                    ));
+                }
             }
         }
         TypeExpr::Generic(generic) => {
@@ -205,18 +217,29 @@ fn check_type_expr(
                     0,
                     generic.arguments.len(),
                 ));
-            } else if let Some((symbol, type_symbol)) =
-                resolved.type_symbol_definition_by_reference_name(&generic.name)
-                && type_symbol.generic_arity != generic.arguments.len()
-            {
-                diagnostics.push(generic_type_argument_count_diagnostic(
-                    sources,
-                    &generic.name,
-                    generic.name_span,
-                    Some(symbol.declaration_span),
-                    type_symbol.generic_arity,
-                    generic.arguments.len(),
-                ));
+            } else {
+                match resolved.type_symbol_definition_by_reference_name(&generic.name) {
+                    Some((symbol, type_symbol))
+                        if type_symbol.generic_arity != generic.arguments.len() =>
+                    {
+                        diagnostics.push(generic_type_argument_count_diagnostic(
+                            sources,
+                            &generic.name,
+                            generic.name_span,
+                            Some(symbol.declaration_span),
+                            type_symbol.generic_arity,
+                            generic.arguments.len(),
+                        ));
+                    }
+                    Some(_) => {}
+                    None => {
+                        diagnostics.push(unresolved_type_reference_diagnostic(
+                            sources,
+                            &generic.name,
+                            generic.name_span,
+                        ));
+                    }
+                }
             }
             for argument in &generic.arguments {
                 check_type_expr(sources, argument, resolved, scope, diagnostics);

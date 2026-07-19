@@ -249,6 +249,8 @@ Required v0 diagnostic families:
 - Import path not found.
 - Import cycle detected, including the cycle path.
 - Imported name not found.
+- Type reference not declared in the current scope, such as `Int` when no alias
+  or import defines it.
 - Name collision in imports or declarations.
 - Attribute syntax or reserved `@` used in v0 source.
 - `pub(nocter)` item imported from a user project module.

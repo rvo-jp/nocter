@@ -252,6 +252,44 @@ func main(): i32 {
 }
 
 #[test]
+fn diagnoses_unknown_binding_annotation_type() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    let count: Int = 1
+    return count
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0436");
+    assert!(diagnostics[0].message.contains("Int"));
+    assert!(diagnostics[0].message.contains("not declared"));
+}
+
+#[test]
+fn diagnoses_unknown_generic_argument_type() {
+    let diagnostics = check_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+struct Holder {
+    value: Box<Missing>
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0436");
+    assert!(diagnostics[0].message.contains("Missing"));
+}
+
+#[test]
 fn diagnoses_alias_to_unsized_str_in_value_position() {
     let diagnostics = check_text(
         r#"type Text = str
@@ -274,7 +312,11 @@ func main(): i32 {
 #[test]
 fn diagnoses_unsized_generic_argument_under_borrow() {
     let diagnostics = check_text(
-        r#"struct Config {
+        r#"struct Vec<T> {
+    len: usize
+}
+
+struct Config {
     values: &Vec<str>
 }
 
@@ -298,7 +340,11 @@ func main(): i32 {
 #[test]
 fn diagnoses_unsized_generic_argument_under_slice() {
     let diagnostics = check_text(
-        r#"struct Config {
+        r#"struct Vec<T> {
+    len: usize
+}
+
+struct Config {
     values: &[Vec<str>]
 }
 

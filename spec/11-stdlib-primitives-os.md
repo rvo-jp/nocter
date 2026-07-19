@@ -262,6 +262,13 @@ pub func exit(code: i32): never
 pub func abort(): never
 ```
 
+V0 distribution status:
+
+- `exit(code)` and `abort()` are runtime-shipped.
+- `cwd(allocator)` is public but returns `std.process.unsupported` until the process context implementation is promoted.
+- `env(name)` reserves the future `&str?!` API shape, but useful runtime behavior is check-only until nested fallible/optional return lowering and process context runtime are promoted. It must not silently succeed with `none` before environment access is implemented.
+- `args()` reserves the future `Vec<&str>!` API shape, but useful runtime behavior is check-only until `Vec` storage and process context runtime are promoted.
+
 Rules:
 
 - Entry function parameters, such as `func main(args: Vec<&str>): i32!`, are not part of v0.

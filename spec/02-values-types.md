@@ -326,32 +326,16 @@ Built-in core type forms include `str`, `error`, `[T]`, `&str`, `&[T]`, `&+[T]`,
 
 `str` is unsized UTF-8 string data. `[T]` is unsized contiguous array data. These unsized data forms cannot be used by value as parameters, return values, fields, local annotations, optional payloads, fallible success payloads, or generic arguments unless they are behind an indirection. Use `&str` for a string slice, `&[T]` for a readonly array slice, `&+[T]` for a readwrite array slice, `String` for owned variable-length text, and `Vec<T>` for owned variable-length arrays.
 
-Names such as `String`, `Error`, `ErrorCode`, `ViewIter`, `Allocator`, `File`, `IOError`, `OSError`, `print`, `args`, `env`, `cwd`, `exit`, and `abort` are not compiler built-ins.
+Names such as `String`, `Error`, `ErrorCode`, `Vec`, `ViewIter`, `Allocator`, `File`, `IOError`, `OSError`, `print`, `args`, `env`, `cwd`, `exit`, and `abort` are not compiler built-ins.
 
-`Int` is not a compiler built-in name.
-
-The standard library prelude may define and export `Int` as a normal type alias:
-
-```nct
-pub type Int = i32
-```
-
-Using `Int` in a user project module requires only the synthetic standard prelude. In files that do not receive the synthetic prelude, such as standard-library implementation files, `Int` must be explicitly imported from `std/prelude`.
-
-```nct
-let count: Int = 10
-```
-
-The compiler must not treat the identifier `Int` specially. `Int` is a normal alias introduced by the prelude import model specified in [Modules and Imports](01-modules-imports.md#synthetic-standard-prelude).
-
-When imported, `Int` is an alias of `i32`, not a distinct type. Fixed-width integer types such as `i32` and `u64` remain available for ABI, binary format, pointer arithmetic, and low-level standard-library code.
+`Int` is not part of v0. The compiler must not treat the identifier `Int` specially, and the standard-library prelude does not export it. User code should write `i32` or define a project-local alias when a domain-specific name is useful.
 
 ### Type Aliases
 
 Adopted: `type` declares a pure type alias. A type alias introduces another name for the exact same type. It does not create a distinct nominal type.
 
 ```nct
-pub type Int = i32
+pub type Count = i32
 pub type Bytes = [u8]
 pub type Map<K, V> = HashMap<K, V>
 ```
@@ -373,8 +357,8 @@ Rules:
 Examples:
 
 ```nct
-let x: Int = 10
-let y: i32 = x  // OK: Int is i32
+let x: Count = 10
+let y: i32 = x  // OK: Count is i32
 ```
 
 ```nct
@@ -392,7 +376,7 @@ pub copy struct UserId {
 ```
 
 ```nct
-impl Int {
+impl Count {
     ...
 }
 // error: impl target must be a nominal type, not a type alias

@@ -97,12 +97,12 @@ The target of an `impl` block must be a nominal type declaration, such as a
 do not create distinct types.
 
 ```nct
-type Int = i32
+type Count = i32
 
-impl Int {
+impl Count {
     ...
 }
-// error: Int is a type alias, not a nominal type
+// error: Count is a type alias, not a nominal type
 ```
 
 `impl Interface for Type` declares explicit conformance to an interface. It is

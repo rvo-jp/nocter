@@ -138,7 +138,7 @@ use std/prelude
 
 The compiler does not rewrite source text. The synthetic prelude exists in the module/import model only. Diagnostics, formatting, AST source spans, and editor views should continue to refer to the user's original source.
 
-The purpose is to avoid requiring this boilerplate in every file while keeping prelude behavior defined as an import rule rather than as special compiler treatment for names such as `Int`. Built-in forms such as `str`, `&str`, `[T]`, `&[T]`, and `&+[T]` are not provided by the prelude.
+The purpose is to avoid requiring this boilerplate in every file while keeping prelude behavior defined as an import rule rather than as special compiler treatment for ordinary standard-library names. Built-in forms such as `str`, `&str`, `[T]`, `&[T]`, and `&+[T]` are not provided by the prelude.
 
 Initial rules:
 
@@ -163,13 +163,11 @@ Initial rules:
 Initial prelude surface direction:
 
 ```nct
-pub type Int = i32
-
 pub use std/error.{Error, ErrorCode}
 pub use std/string.String
 ```
 
-The prelude must remain small. It should contain only core type aliases and ubiquitous value-free standard-library types needed to write ordinary signatures. Names such as `File`, `Allocator`, `Layout`, `RawBuffer`, `print`, `stdout`, `stderr`, `args`, `env`, `cwd`, `exit`, and `abort` should be imported explicitly from their domain modules.
+The prelude must remain small. `Int` is not part of v0; write `i32` or define a project-local alias. `Vec` is not re-exported by the prelude in v0 because general collections are not runtime-shipped. Names such as `Vec`, `File`, `Allocator`, `Layout`, `RawBuffer`, `print`, `stdout`, `stderr`, `args`, `env`, `cwd`, `exit`, and `abort` should be imported explicitly from their domain modules.
 
 ## Package Layout
 

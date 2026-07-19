@@ -1,4 +1,4 @@
-//! macOS implementation of the user-facing `std/process` API.
+//! User-facing `std/process` API.
 //!
 //! exit is a standard-library API, not a compiler primitive. The target-specific
 //! implementation calls the active target boundary.
@@ -16,8 +16,8 @@ pub func args(): Vec<&str>! {
     return Error.new("std.process.unsupported", "process arguments are not implemented")
 }
 
-pub func env(name: &str): (&str?)! {
-    return none
+pub func env(name: &str): &str?! {
+    return Error.new("std.process.unsupported", "process environment is not implemented")
 }
 
 pub func cwd(allocator: &+Allocator): String! {
