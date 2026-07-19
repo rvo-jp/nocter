@@ -149,13 +149,15 @@ pub(in crate::typecheck) fn readwrite_borrow_requires_writable_place_diagnostic(
 ) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(
         "E0383",
-        "`&+` requires a writable place, such as a `var` binding",
+        "`&+` requires a writable place, such as a `var` binding or writable aggregate field",
     );
     diagnostic.primary_span = sources
         .span_to_json(expression.expression.span())
         .ok()
         .map(Box::new);
-    diagnostic.help =
-        Some("use `&` for a readonly borrow or borrow from a `var` binding".to_string());
+    diagnostic.help = Some(
+        "use `&` for a readonly borrow or borrow from a `var` binding or `&+` aggregate parameter"
+            .to_string(),
+    );
     diagnostic
 }

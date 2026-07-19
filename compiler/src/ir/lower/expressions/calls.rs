@@ -1105,7 +1105,7 @@ fn lower_borrow_argument(
         unreachable!("borrow argument lowering requires a borrow parameter type");
     };
 
-    let identifier_name = match unwrap_group(argument) {
+    let source = match unwrap_group(argument) {
         Expr::Borrow(borrow) => {
             if borrow.is_readwrite != *is_readwrite {
                 return Err(unsupported_borrow_argument_diagnostic(
@@ -1113,20 +1113,42 @@ fn lower_borrow_argument(
                     parameter_type,
                 ));
             }
-            let Expr::Identifier(identifier) = unwrap_group(&borrow.expression) else {
-                return Err(unsupported_borrow_argument_diagnostic(
-                    callee_name,
+            match unwrap_group(&borrow.expression) {
+                Expr::Identifier(identifier) => lower_borrow_source_from_identifier(
+                    &identifier.name,
+                    inner,
                     parameter_type,
-                ));
-            };
-            &identifier.name
+                    callee_name,
+                    context,
+                )?,
+                Expr::Member(member) => lower_borrow_source_from_aggregate_member(
+                    member,
+                    inner,
+                    *is_readwrite,
+                    parameter_type,
+                    callee_name,
+                    context,
+                )?,
+                _ => {
+                    return Err(unsupported_borrow_argument_diagnostic(
+                        callee_name,
+                        parameter_type,
+                    ));
+                }
+            }
         }
         Expr::Identifier(identifier)
             if context
                 .aggregate_borrow_parameter(&identifier.name)
                 .is_some() =>
         {
-            &identifier.name
+            lower_borrow_source_from_identifier(
+                &identifier.name,
+                inner,
+                parameter_type,
+                callee_name,
+                context,
+            )?
         }
         _ => {
             return Err(unsupported_borrow_argument_diagnostic(
@@ -1135,14 +1157,6 @@ fn lower_borrow_argument(
             ));
         }
     };
-
-    let source = lower_borrow_source_from_identifier(
-        identifier_name,
-        inner,
-        parameter_type,
-        callee_name,
-        context,
-    )?;
 
     Ok(BorrowArgument { source })
 }
@@ -1261,6 +1275,90 @@ fn lower_borrow_source_from_identifier(
             callee_name,
             parameter_type,
         )),
+    }
+}
+
+fn lower_borrow_source_from_aggregate_member(
+    member: &crate::ast::MemberExpr,
+    inner: &Type,
+    is_readwrite: bool,
+    parameter_type: &Type,
+    callee_name: &str,
+    context: &LoweringContext,
+) -> Result<BorrowSource, Vec<Diagnostic>> {
+    let Some((aggregate_name, mut fields)) = aggregate_member_root_and_path(&member.object) else {
+        return Err(unsupported_borrow_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    };
+    fields.push(member.member.as_str());
+    let field_name = fields.join(".");
+    let Some(field) = context.aggregate_field(aggregate_name, &field_name) else {
+        return Err(unsupported_borrow_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    };
+    if is_readwrite && !field.is_readwrite {
+        return Err(unsupported_borrow_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    }
+    if !aggregate_field_matches_borrow_inner(&field.kind, inner) {
+        return Err(unsupported_borrow_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        ));
+    }
+
+    match field.source {
+        AggregateLocation::Slot(slot_index) => Ok(BorrowSource::AggregateSlotField {
+            slot_index,
+            offset: field.offset,
+        }),
+        AggregateLocation::Parameter(parameter_index) => {
+            Ok(BorrowSource::AggregateParameterField {
+                parameter_index,
+                offset: field.offset,
+            })
+        }
+        AggregateLocation::Return
+        | AggregateLocation::DirectReturn
+        | AggregateLocation::DirectParameter { .. } => Err(unsupported_borrow_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        )),
+    }
+}
+
+fn aggregate_member_root_and_path(expression: &Expr) -> Option<(&str, Vec<&str>)> {
+    match unwrap_group(expression) {
+        Expr::Identifier(identifier) => Some((&identifier.name, Vec::new())),
+        Expr::Member(member) => {
+            let (root, mut fields) = aggregate_member_root_and_path(&member.object)?;
+            fields.push(member.member.as_str());
+            Some((root, fields))
+        }
+        _ => None,
+    }
+}
+
+fn aggregate_field_matches_borrow_inner(kind: &AggregateFieldKind, inner: &Type) -> bool {
+    match (kind, inner) {
+        (AggregateFieldKind::I32, Type::I32)
+        | (AggregateFieldKind::U8, Type::U8)
+        | (AggregateFieldKind::Usize, Type::Usize)
+        | (AggregateFieldKind::Bool, Type::Bool) => true,
+        (AggregateFieldKind::Aggregate { layout, .. }, Type::Aggregate { layout: expected })
+        | (
+            AggregateFieldKind::Aggregate { layout, .. },
+            Type::DirectAggregate {
+                layout: expected, ..
+            },
+        ) => layout == expected,
+        _ => false,
     }
 }
 

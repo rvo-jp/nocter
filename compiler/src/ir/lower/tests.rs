@@ -14289,6 +14289,198 @@ func choose(value: &+i32, code: i32): i32 {
 }
 
 #[test]
+fn lowers_aggregate_scalar_field_borrow_call_argument() {
+    let ir = lower_text(
+        r#"copy struct Pair {
+    value: i32
+}
+
+func main(): i32 {
+    let pair = Pair{ value: 1 }
+    return choose(&pair.value, 42)
+}
+
+func choose(value: &i32, code: i32): i32 {
+    return code
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: I32Value::Const(1),
+            },
+            Instruction::CallI32 {
+                destination: I32Location::Return,
+                target: CallTarget::same_file("choose"),
+                arguments: vec![
+                    ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateSlotField {
+                            slot_index: 0,
+                            offset: 0,
+                        },
+                    }),
+                    ScalarArgument::I32(I32Value::Const(42)),
+                ],
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
+fn lowers_borrowed_aggregate_scalar_field_borrow_call_argument() {
+    let ir = lower_text(
+        r#"copy struct Pair {
+    value: i32
+}
+
+func main(): i32 {
+    let pair = Pair{ value: 1 }
+    return caller(&pair)
+}
+
+func caller(pair: &Pair): i32 {
+    return choose(&pair.value, 42)
+}
+
+func choose(value: &i32, code: i32): i32 {
+    return code
+}
+"#,
+    );
+    let function = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "caller")
+        .unwrap();
+
+    assert_eq!(
+        function.instructions,
+        vec![
+            Instruction::CallI32 {
+                destination: I32Location::Return,
+                target: CallTarget::same_file("choose"),
+                arguments: vec![
+                    ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateParameterField {
+                            parameter_index: 0,
+                            offset: 0,
+                        },
+                    }),
+                    ScalarArgument::I32(I32Value::Const(42)),
+                ],
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
+fn lowers_readwrite_aggregate_scalar_field_borrow_call_argument() {
+    let ir = lower_text(
+        r#"copy struct Pair {
+    value: i32
+}
+
+func main(): i32 {
+    var pair = Pair{ value: 1 }
+    return choose(&+pair.value, 42)
+}
+
+func choose(value: &+i32, code: i32): i32 {
+    return code
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: I32Value::Const(1),
+            },
+            Instruction::CallI32 {
+                destination: I32Location::Return,
+                target: CallTarget::same_file("choose"),
+                arguments: vec![
+                    ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateSlotField {
+                            slot_index: 0,
+                            offset: 0,
+                        },
+                    }),
+                    ScalarArgument::I32(I32Value::Const(42)),
+                ],
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
+fn lowers_readwrite_borrowed_aggregate_scalar_field_borrow_call_argument() {
+    let ir = lower_text(
+        r#"copy struct Pair {
+    value: i32
+}
+
+func main(): i32 {
+    var pair = Pair{ value: 1 }
+    return caller(&+pair)
+}
+
+func caller(pair: &+Pair): i32 {
+    return choose(&+pair.value, 42)
+}
+
+func choose(value: &+i32, code: i32): i32 {
+    return code
+}
+"#,
+    );
+    let function = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "caller")
+        .unwrap();
+
+    assert_eq!(
+        function.instructions,
+        vec![
+            Instruction::CallI32 {
+                destination: I32Location::Return,
+                target: CallTarget::same_file("choose"),
+                arguments: vec![
+                    ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateParameterField {
+                            parameter_index: 0,
+                            offset: 0,
+                        },
+                    }),
+                    ScalarArgument::I32(I32Value::Const(42)),
+                ],
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_return_call_with_borrow_argument_as_normal_call() {
     let function = lower_named_function_with_signatures(
         r#"func main(): i32 {

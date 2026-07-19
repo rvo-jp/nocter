@@ -5898,6 +5898,112 @@ func set_code(header: &+Header): void {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_passes_aggregate_field_borrow_argument() {
+    let project = TempProject::new("cli-run-aggregate-field-borrow-argument");
+    let source = project.write_source(
+        "aggregate_field_borrow_argument.nct",
+        r#"type IntRef = &i32
+
+copy struct Pair {
+    value: i32
+}
+
+func main(): i32 {
+    let pair = Pair{ value: 1 }
+    return choose(&pair.value, 42)
+}
+
+func choose(value: IntRef, code: i32): i32 {
+    return code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_passes_borrowed_aggregate_field_borrow_argument() {
+    let project = TempProject::new("cli-run-borrowed-aggregate-field-borrow-argument");
+    let source = project.write_source(
+        "borrowed_aggregate_field_borrow_argument.nct",
+        r#"copy struct Pair {
+    value: i32
+}
+
+func main(): i32 {
+    let pair = Pair{ value: 1 }
+    return caller(&pair)
+}
+
+func caller(pair: &Pair): i32 {
+    return choose(&pair.value, 42)
+}
+
+func choose(value: &i32, code: i32): i32 {
+    return code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_passes_readwrite_borrowed_aggregate_field_borrow_argument() {
+    let project = TempProject::new("cli-run-readwrite-borrowed-aggregate-field-borrow-argument");
+    let source = project.write_source(
+        "readwrite_borrowed_aggregate_field_borrow_argument.nct",
+        r#"copy struct Pair {
+    value: i32
+}
+
+func main(): i32 {
+    var pair = Pair{ value: 1 }
+    return caller(&+pair)
+}
+
+func caller(pair: &+Pair): i32 {
+    return choose(&+pair.value, 42)
+}
+
+func choose(value: &+i32, code: i32): i32 {
+    return code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_passes_scalar_parameter_borrow_argument() {
     let project = TempProject::new("cli-run-scalar-parameter-borrow-argument");
     let source = project.write_source(

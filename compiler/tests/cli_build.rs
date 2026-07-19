@@ -1872,10 +1872,10 @@ func touch(value: &+Text): void! {
 }
 
 #[test]
-fn build_command_reports_non_binding_borrow_argument_before_ir_lowering() {
-    let project = TempProject::new("cli-build-non-binding-borrow-argument-boundary");
+fn build_command_lowers_aggregate_field_borrow_argument() {
+    let project = TempProject::new("cli-build-aggregate-field-borrow-argument");
     let source = project.write_source(
-        "non_binding_borrow_argument_boundary.nct",
+        "aggregate_field_borrow_argument.nct",
         r#"type IntRef = &i32
 
 copy struct Pair {
@@ -1896,6 +1896,36 @@ func choose(value: IntRef, fallback: i32): i32 {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_reports_non_binding_root_borrow_argument_before_ir_lowering() {
+    let project = TempProject::new("cli-build-non-binding-root-borrow-argument-boundary");
+    let source = project.write_source(
+        "non_binding_root_borrow_argument_boundary.nct",
+        r#"copy struct Pair {
+    value: i32
+}
+
+func main(): i32 {
+    return choose(&make().value, 0)
+}
+
+func make(): Pair {
+    return Pair{ value: 1 }
+}
+
+func choose(value: &i32, fallback: i32): i32 {
+    return fallback
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
     assert_eq!(output.status.code(), Some(1));
     let stderr = text(&output.stderr);
     assert!(
@@ -1903,11 +1933,11 @@ func choose(value: IntRef, fallback: i32): i32 {
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("borrow call arguments from non-binding expressions"),
+        stderr.contains("borrow call arguments from unsupported expressions"),
         "expected borrow argument diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("9 |     return choose(&pair.value, 0)"),
+        stderr.contains("6 |     return choose(&make().value, 0)"),
         "expected source line, got:\n{stderr}"
     );
     assert!(

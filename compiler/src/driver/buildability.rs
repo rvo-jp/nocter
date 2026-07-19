@@ -1152,7 +1152,7 @@ fn unsupported_borrow_call_argument_diagnostic(
             }
             match unwrap_group_expr(argument) {
                 Expr::Borrow(borrow)
-                    if !matches!(unwrap_group_expr(&borrow.expression), Expr::Identifier(_)) =>
+                    if !borrow_argument_source_is_binding_or_field(&borrow.expression) =>
                 {
                     Some(argument)
                 }
@@ -1163,9 +1163,25 @@ fn unsupported_borrow_call_argument_diagnostic(
     Some(unsupported_v0_build_diagnostic(
         sources,
         argument.span(),
-        "borrow call arguments from non-binding expressions",
-        "borrow a local binding or pass an existing borrow parameter until general borrow-place lowering is promoted",
+        "borrow call arguments from unsupported expressions",
+        "borrow a local binding, an aggregate field rooted at a binding, or pass an existing borrow parameter until general borrow-place lowering is promoted",
     ))
+}
+
+fn borrow_argument_source_is_binding_or_field(expression: &Expr) -> bool {
+    match unwrap_group_expr(expression) {
+        Expr::Identifier(_) => true,
+        Expr::Member(member) => aggregate_member_root_is_identifier(&member.object),
+        _ => false,
+    }
+}
+
+fn aggregate_member_root_is_identifier(expression: &Expr) -> bool {
+    match unwrap_group_expr(expression) {
+        Expr::Identifier(_) => true,
+        Expr::Member(member) => aggregate_member_root_is_identifier(&member.object),
+        _ => false,
+    }
 }
 
 fn type_expr_resolves_to_borrow(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {

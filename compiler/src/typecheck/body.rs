@@ -928,7 +928,25 @@ fn check_expression_tree(
 fn borrow_operand_is_writable_place(expression: &Expr, environment: &TypeEnvironment) -> bool {
     match expression {
         Expr::Identifier(identifier) => environment.is_mutable_binding(&identifier.name),
+        Expr::Member(member) => aggregate_member_root_name(&member.object)
+            .is_some_and(|name| aggregate_member_root_is_writable_place(name, environment)),
         Expr::Group(group) => borrow_operand_is_writable_place(&group.expression, environment),
         _ => false,
     }
+}
+
+fn aggregate_member_root_name(expression: &Expr) -> Option<&str> {
+    match expression {
+        Expr::Identifier(identifier) => Some(&identifier.name),
+        Expr::Member(member) => aggregate_member_root_name(&member.object),
+        Expr::Group(group) => aggregate_member_root_name(&group.expression),
+        _ => None,
+    }
+}
+
+fn aggregate_member_root_is_writable_place(name: &str, environment: &TypeEnvironment) -> bool {
+    environment.is_mutable_binding(name)
+        || environment
+            .get(name)
+            .is_some_and(|ty| matches!(ty, Type::Named(name) if name.starts_with("&+")))
 }

@@ -53,7 +53,7 @@ The first implementation should keep the user-visible subset small:
 - direct `&str` return values from static string literals, `&str` parameters, `&str` locals, and tail calls
 - `&str` return values in annotated `&str` `let` initializers and as `&str` call arguments
 - normal-call ABI argument words after `w7`/`x7` are copied to a 16-byte-aligned caller stack argument area; tail calls remain register-only
-- selected aggregate by-value arguments and returns are supported through the ABI helper classification: direct structs up to 16 bytes use consecutive `x` registers, indirect structs use a slot pointer or `x8` return storage, and aggregate slot borrows pass a slot address
+- selected aggregate by-value arguments and returns are supported through the ABI helper classification: direct structs up to 16 bytes use consecutive `x` registers, indirect structs use a slot pointer or `x8` return storage, aggregate slot borrows pass a slot address, and scalar field borrows pass the slot or aggregate borrow parameter address plus the field offset
 - general aggregate value expressions, owned strings, optionals, ownership/drop lowering, stack-argument tail calls, and calls in broader control-flow remain outside this backend phase
 
 ### Frame Shape
@@ -264,7 +264,7 @@ The backend currently supports the normal-call register and stack-argument porti
 - indirect aggregate parameters, arguments, and returns larger than 16 bytes by pointer ABI word or caller-provided return storage
 - direct aggregate return range copies can target either direct return ABI word when the range stays within `x0,x1`; out-of-range direct return copies are rejected before emission
 - aggregate call-result slots for normal, propagated fallible, forced fallible, and caught fallible calls in the narrow expression positions lowered by IR
-- aggregate slot-to-slot copies, aggregate struct-literal slots including explicit aggregate field moves, aggregate copy bindings and copy aggregate field bindings from non-copy local or call-result owners, explicit aggregate move bindings, and aggregate slot borrow arguments for the current supported field and assignment paths
+- aggregate slot-to-slot copies, aggregate struct-literal slots including explicit aggregate field moves, aggregate copy bindings and copy aggregate field bindings from non-copy local or call-result owners, explicit aggregate move bindings, and aggregate slot or scalar field borrow arguments for the current supported field and assignment paths
 - branch/body-local assignments, outer whole-binding scalar/view local assignments, aggregate slots, scope-end drops, supported returns, and supported `while`/`loop`/range-`for` `break`/`continue` cleanup for the narrow non-terminal `if`/`while`/`loop`/`i32`/`usize` range-`for` subsets
 
 Stack-passed normal-call arguments are buildable for the current scalar/view and supported aggregate subset. Tail calls with stack-passed arguments are lowered through the normal-call-plus-return path rather than emitted as stack-argument tail calls.
