@@ -28,7 +28,7 @@ Rules:
 - The initial implementation does not support cross compilation beyond `arm64-darwin`, but the compiler still models host and target separately.
 - The default active target is the host target.
 - The language grammar, type system, ownership model, borrow rules, regions, and high-level standard-library APIs should not depend on macOS-specific names.
-- Target-specific logic belongs in target backends, primitive lowering, executable writers, and OS-specific standard-library modules.
+- Target-specific logic belongs in target backends, primitive lowering, executable writers, and target-gated standard-library declarations.
 - The compiler must not depend on external assemblers, linkers, C toolchains, or external runtimes for any target.
 - Future targets should be added by introducing new target backends and target-specific standard-library primitive boundaries.
 - Future targets must not require ordinary user code to mention CPU instructions, object formats, or OS syscall details.
@@ -38,17 +38,18 @@ Rules:
 Current target-specific standard-library boundary:
 
 ```text
-~/.nocter/std/os/macos.nct
+~/.nocter/std/os.nct
 ```
 
-Future target-specific boundaries may use ordinary modules under `std/` with `#target("...")` on target-dependent helper and primitive declarations, such as:
+Future target-specific boundaries should keep stable ordinary modules under `std/` and use `#target("...")` on target-dependent type, helper, and primitive declarations, such as:
 
 ```text
-~/.nocter/std/os/linux.nct
-~/.nocter/std/os/windows.nct
+~/.nocter/std/os.nct
+~/.nocter/std/io.nct
+~/.nocter/std/process.nct
 ```
 
-These future files are not part of the initial implementation goal.
+Future target declarations beyond `arm64-darwin` are not part of the initial implementation goal.
 
 Recognized targets:
 
@@ -100,15 +101,13 @@ The installed layout is:
         process.nct
         ptr.nct
         string.nct
-        os/
-            macos.nct
 ```
 
 The `host` part in the archive name identifies the environment that runs the `nocter` compiler binary. The first host is `arm64-darwin`. Future downloaded archives may use names such as `nocter-v<version>-x64-linux.tar.gz` or `nocter-v<version>-arm64-linux.tar.gz`, but each archive still extracts a `.nocter/` root.
 
-The installed Nocter home contains standard-library source files under `std/`. Target-dependent primitive declarations in those files use `#target("...")`; ordinary public wrapper functions remain normal functions.
+The installed Nocter home contains standard-library source files under `std/`. Target-dependent type, helper, and primitive declarations in those files use `#target("...")`; ordinary public wrapper functions remain normal functions.
 
-Because cross compilation beyond `arm64-darwin` is not part of the initial implementation, the default active target is the host target. For example, the `arm64-darwin` archive contains the compiler that runs on ARM64 macOS, and `std/os/macos.nct` contains the `#target("arm64-darwin")` primitive boundary for that target.
+Because cross compilation beyond `arm64-darwin` is not part of the initial implementation, the default active target is the host target. For example, the `arm64-darwin` archive contains the compiler that runs on ARM64 macOS, and `std/os.nct` contains the `#target("arm64-darwin")` primitive boundary for that target.
 
 ## Release Metadata
 
@@ -199,10 +198,9 @@ Future cross compilation adds target-gated standard-library primitive declaratio
     VERSION
     MANIFEST.json
     std/
-        os/
-            macos.nct
-            linux.nct
-            windows.nct
+        os.nct
+        io.nct
+        process.nct
 ```
 
 Initial command-line direction:

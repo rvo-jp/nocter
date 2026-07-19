@@ -132,6 +132,56 @@ func main(): i32 {
 }
 
 #[test]
+fn target_gated_type_imports_follow_active_target() {
+    let root = make_temp_project("target-gated-type-imports");
+    let home = make_nocter_home(&root);
+    fs::write(
+        root.join("app.nct"),
+        r#"use std/os.PlatformWord
+
+func main(): i32 {
+    return 0
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/os.nct"),
+        r#"#target("arm64-darwin")
+pub copy struct PlatformWord {
+    pub value: usize
+}
+"#,
+    )
+    .unwrap();
+
+    let diagnostics_for_target = |target: &str| {
+        let mut sources = SourceMap::new();
+        let source = sources.load_file(root.join("app.nct")).unwrap();
+        let options = FrontendOptions {
+            nocter_home: Some(home.to_path_buf()),
+            target: target.to_string(),
+        };
+        let unit = load_compile_unit(&mut sources, source, &options).unwrap();
+        analyze_compile_unit_with_entry(&sources, &unit, DEFAULT_ENTRY_NAME).diagnostics()
+    };
+
+    let matching_diagnostics = diagnostics_for_target(DEFAULT_TARGET);
+    let mismatched_diagnostics = diagnostics_for_target("x64-linux");
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(matching_diagnostics.is_empty(), "{matching_diagnostics:?}");
+    assert_eq!(mismatched_diagnostics.len(), 1);
+    assert_eq!(mismatched_diagnostics[0].code, "E0411");
+    assert!(
+        mismatched_diagnostics[0]
+            .message
+            .contains("does not export `PlatformWord`"),
+        "{mismatched_diagnostics:?}"
+    );
+}
+
+#[test]
 fn check_orders_diagnostics_by_source_position() {
     let root = make_temp_project("diagnostic-order");
     let home = make_nocter_home(&root);

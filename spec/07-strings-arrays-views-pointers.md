@@ -118,7 +118,7 @@ Trusted standard-library implementation example:
 
 ```nct
 use std/ptr as ptr
-use std/os/macos as os
+use std/os as os
 
 let bytes = text.bytes()
 let result = os.syscall3(
@@ -133,7 +133,7 @@ User project modules must not call syscall primitives directly.
 
 ### Pointer Intrinsics
 
-The `std/ptr` functions above are target-independent core primitive declarations. They are separate from the active target's OS primitive set such as `std/os/macos`'s `syscall0`.
+The `std/ptr` functions above are target-independent core primitive declarations. They are separate from target-gated OS primitives such as `std/os.syscall0` under `#target("arm64-darwin")`.
 
 The compiler validates them by module path, name, and exact signature:
 

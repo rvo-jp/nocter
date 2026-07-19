@@ -10,8 +10,7 @@ Adopted: Nocter uses a layered OS error model. Target-specific raw errors are co
 Layering:
 
 ```text
-std/os/macos        target-gated std internals: syscall, SyscallResult, Errno, errno mapping
-std/os              common std: Platform, OSErrorKind, OSError
+std/os              common std plus target-gated internals: Platform, OSErrorKind, OSError, syscall, SyscallResult, Errno, errno mapping
 std/error           Error, ErrorCode, and constructors for the built-in error payload
 std/io              user-facing I/O APIs
 std/process         user-facing process APIs
@@ -21,14 +20,16 @@ The compiler must not special-case names such as `Error`, `ErrorCode`, `OSError`
 
 ### Target Raw Errors
 
-`std/os/macos` owns the raw macOS syscall result and errno wrapper.
+`std/os` owns the raw macOS syscall result and errno wrapper behind `#target("arm64-darwin")`.
 
 ```nct
+#target("arm64-darwin")
 pub(nocter) copy struct SyscallResult {
     pub value: usize
     pub errno: i32
 }
 
+#target("arm64-darwin")
 pub(nocter) copy struct Errno {
     pub code: i32
 }
@@ -89,7 +90,7 @@ Rules:
 - On macOS and Linux, `code` is an errno value.
 - On Windows, `code` will be a Windows raw error code chosen by the Windows target design.
 - `OSError.kind` is the portable classification used by higher-level standard-library modules.
-- Common `std/os` does not define `Errno`.
+- Target-gated `Errno` declarations in `std/os` are not exposed as the common OS error type.
 
 Target-specific std internals convert raw target errors into `OSError`.
 
@@ -228,7 +229,7 @@ Physical placement:
 Conversion flow:
 
 ```text
-std/os/macos.syscall3
+std/os.syscall3
     -> SyscallResult
     -> Errno
     -> std/os.OSError
@@ -331,7 +332,7 @@ Rules:
 
 ### Not Adopted
 
-`std/posix` is not part of the initial design. macOS and Linux can share POSIX-like ideas, but Windows does not fit that layer cleanly. Shared concepts should use stable module paths such as `std/os`, `std/io`, and `std/process`. Their target-dependent boundaries should remain in std-internal modules with `#target` on helper and primitive declarations.
+`std/posix` is not part of the initial design. macOS and Linux can share POSIX-like ideas, but Windows does not fit that layer cleanly. Shared concepts should use stable module paths such as `std/os`, `std/io`, and `std/process`. Their target-dependent boundaries should remain in std-internal modules with `#target` on type, helper, and primitive declarations.
 
 ## Standard Library and Low-Level Code
 
@@ -352,6 +353,7 @@ func main(): i32! {
 The standard library may use typed `primitive` declarations to connect Nocter code to compiler-provided low-level implementations. Arbitrary inline ARM64 `asm` is not part of the initial language.
 
 ```nct
+#target("arm64-darwin")
 pub(nocter) copy struct SyscallResult {
     pub value: usize
     pub errno: i32
@@ -382,8 +384,8 @@ Initial policy:
 - A primitive declaration has no function body.
 - A primitive declaration uses normal Nocter parameter and return types.
 - Target-independent declarations do not use `#target`.
-- Target-dependent helper functions and primitive declarations must be preceded by `#target("target-name")`.
-- `#target` applies only to top-level `func` and `primitive` declarations in v0.
+- Target-dependent type declarations, helper functions, and primitive declarations must be preceded by `#target("target-name")`.
+- `#target` applies only to top-level function, primitive, struct, enum, interface, and type-alias declarations in v0.
 - `target` is not a reserved keyword; it is treated as the directive name only after `#`.
 - Primitive calls follow normal visibility rules. A `pub` primitive may be called by any module that can import it. A `pub(nocter)` primitive may be called only inside the active Nocter home.
 - Primitive calls follow the Nocter ABI after visibility and trusted-boundary restrictions pass.
@@ -437,7 +439,7 @@ Initial primitive files:
 ~/.nocter/std/error.nct
 ~/.nocter/std/ptr.nct
 ~/.nocter/std/io.nct
-~/.nocter/std/os/macos.nct
+~/.nocter/std/os.nct
 ```
 
 `std/error.nct` contains the target-independent built-in error payload construction primitive used by `Error.new`.
@@ -446,7 +448,7 @@ Initial primitive files:
 
 `std/io.nct` contains the initial `arm64-darwin` narrow text-write bootstrap primitive used by `std/io.print`. It is `pub(nocter)` and is not part of the user-facing I/O API.
 
-`std/os/macos.nct` contains target-specific declarations for `arm64-darwin`. Future OS targets should add std-internal modules and place `#target("...")` on their target-dependent helper and primitive declarations instead of changing import resolution.
+`std/os.nct` contains common OS declarations plus target-specific declarations for `arm64-darwin` behind `#target("arm64-darwin")`. Future OS targets should add new `#target("...")` declarations inside stable std-internal modules instead of changing import resolution.
 
 Initial core error primitive set:
 
@@ -468,6 +470,7 @@ pub(nocter) primitive from_addr<T>(address: usize): *T
 Initial `arm64-darwin` target primitive set v0:
 
 ```nct
+#target("arm64-darwin")
 pub(nocter) copy struct SyscallResult {
     pub value: usize
     pub errno: i32
@@ -509,7 +512,7 @@ pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
 The compiler recognizes these declarations only at their registered module path and target:
 
 ```text
-std/os/macos
+std/os
 std/io
 ```
 

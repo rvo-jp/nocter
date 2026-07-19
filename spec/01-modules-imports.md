@@ -14,7 +14,7 @@ Import paths use `/` as the path separator:
 ```text
 examples/word_count.nct                                  => examples/word_count
 ~/.nocter/std/io.nct                                     => std/io
-~/.nocter/std/os/macos.nct                               => std/os/macos
+~/.nocter/std/os.nct                                     => std/os
 ```
 
 The file path is the source of truth. There is no separate module name inside the file.
@@ -43,11 +43,10 @@ Meaning:
 
 - `use path.Name` imports one exported name into the current file.
 - `use path.Name as Alias` imports one exported name under an alias.
-- `use path.Name` is accepted as the braced single-name spelling.
+- `use path.{Name}` is accepted as the braced single-name spelling.
 - `use path.{NameA, NameB}` imports multiple exported names from one file.
-- `use path.Name as Alias` imports one exported name under an alias.
 - Each imported item in a braced `use` list may independently use `as Alias`.
-- `pub use path.Name` or `pub use path.Name` imports and re-exports one public name.
+- `pub use path.Name` or `pub use path.{Name}` imports and re-exports one public name.
 - `use path as alias` imports the module namespace under an alias.
 
 Examples:
@@ -107,7 +106,7 @@ pub use std/string.String
 pub use std/io.File as StdFile
 ```
 
-`pub use path.Name` and `pub use path.Name` mean:
+`pub use path.Name` and `pub use path.{Name}` mean:
 
 - load the module at `path`
 - import the public name `Name` into the current module
@@ -292,14 +291,6 @@ display:      std/io.nct
 absolute:     /Users/me/.nocter/std/io.nct
 ```
 
-```text
-Nocter home:  /Users/me/.nocter
-target:       arm64-darwin
-source file:  /Users/me/.nocter/std/os/macos.nct
-display:      std/os/macos.nct
-absolute:     /Users/me/.nocter/std/os/macos.nct
-```
-
 ## Import Path Resolution
 
 Import paths are source paths, not package names. The `.nct` extension is omitted.
@@ -470,7 +461,7 @@ Initial rules:
 - Initial design does not support `mod.nct` directory modules.
 - Standard library modules live under `std`.
 - `~/.nocter/std/io.nct` resolves from import path `std/io` when the active Nocter home is `~/.nocter`.
-- `~/.nocter/std/os/macos.nct` resolves from import path `std/os/macos`.
+- Target-dependent standard-library declarations are selected by `#target("...")` inside stable module files such as `~/.nocter/std/os.nct`; target names are not required in import paths.
 
 Import roots:
 

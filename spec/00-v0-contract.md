@@ -53,9 +53,9 @@ The v0 parser accepts these top-level item forms:
 - `use std/prelude`
 - `use path as name`
 - `use path.name`
-- `use path.name`
+- `use path.{name_a, name_b}`
 - `pub use path.name`
-- `pub use path.name`
+- `pub use path.{name_a, name_b}`
 - `primitive name<T>(...): Type`
 - `func name<T>(...): Type { ... }`
 - `func Type.name<T>(...): Type { ... }`

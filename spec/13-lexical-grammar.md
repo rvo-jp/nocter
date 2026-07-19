@@ -90,7 +90,7 @@ Module file and directory names use snake_case identifiers:
 ```text
 file_name
 std/io
-os/macos
+std/process
 ```
 
 Rules:
