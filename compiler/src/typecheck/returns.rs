@@ -1,4 +1,5 @@
 use super::bindings::{check_optional_let_else_statement, continuing_binding_type};
+use super::calls::{method_member_for_call, resolved_call_signature, resolved_method_for_call};
 use super::copyability::implicit_non_copy_struct_value_source;
 use super::diagnostics::{
     borrow_return_escapes_diagnostic, fallible_success_error_diagnostic, missing_return_diagnostic,
@@ -1129,8 +1130,93 @@ fn borrow_return_provenance_for_expression(
             }
             None
         }
+        Expr::Call(call) => {
+            borrow_return_provenance_for_call(call, resolved, environment, borrow_provenance)
+        }
         _ => None,
     }
+}
+
+fn borrow_return_provenance_for_call(
+    call: &crate::ast::CallExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrow_provenance: &BorrowReturnEnvironment,
+) -> Option<BorrowReturnProvenance> {
+    if let Some((_, method)) = resolved_method_for_call(resolved, call, environment)
+        && method_receiver_is_borrow(method)
+        && let Some(member) = method_member_for_call(call)
+        && let Some(provenance) = borrow_return_provenance_for_borrowed_input(
+            &member.object,
+            resolved,
+            environment,
+            borrow_provenance,
+        )
+    {
+        return Some(provenance);
+    }
+
+    let signature = resolved_call_signature(resolved, call, environment)?;
+    for (argument, parameter) in call.arguments.iter().zip(&signature.signature.parameters) {
+        let argument_type = expression_type(argument, resolved, environment);
+        if !type_contains_borrow_like(&argument_type, resolved)
+            && !type_expr_contains_borrow_like(
+                &parameter.ty,
+                resolved,
+                &HashMap::new(),
+                &mut HashSet::new(),
+            )
+        {
+            continue;
+        }
+
+        if let Some(provenance) = borrow_return_provenance_for_borrowed_input(
+            argument,
+            resolved,
+            environment,
+            borrow_provenance,
+        ) {
+            return Some(provenance);
+        }
+    }
+
+    None
+}
+
+fn method_receiver_is_borrow(method: &crate::resolve::MethodSignature) -> bool {
+    matches!(&method.receiver.ty, TypeExpr::Borrow(_))
+}
+
+fn borrow_return_provenance_for_borrowed_input(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    borrow_provenance: &BorrowReturnEnvironment,
+) -> Option<BorrowReturnProvenance> {
+    let ty = expression_type(expression, resolved, environment);
+    if type_contains_borrow_like(&ty, resolved) {
+        return borrow_return_provenance_for_expression(
+            expression,
+            &ty,
+            resolved,
+            environment,
+            borrow_provenance,
+        );
+    }
+
+    let Some(identifier) = expression_root_identifier(expression) else {
+        return Some(BorrowReturnProvenance {
+            source: "temporary expression".to_string(),
+        });
+    };
+    if environment
+        .get(&identifier.name)
+        .is_some_and(|ty| type_contains_borrow_like(ty, resolved))
+    {
+        return borrow_provenance.get(&identifier.name).cloned();
+    }
+
+    borrow_return_provenance_for_local_storage(identifier, resolved)
 }
 
 fn borrow_return_provenance_for_direct_borrow(
@@ -1142,17 +1228,25 @@ fn borrow_return_provenance_for_direct_borrow(
     };
 
     let source = match unwrap_group(&borrow.expression) {
-        Expr::Identifier(identifier) => match resolved.local_symbol_for_identifier(identifier) {
-            Some(symbol) => match symbol.kind {
-                LocalSymbolKind::Parameter => format!("parameter `{}`", identifier.name),
-                LocalSymbolKind::Binding(_) => format!("local binding `{}`", identifier.name),
-                LocalSymbolKind::PatternPayload => format!("payload binding `{}`", identifier.name),
-                LocalSymbolKind::CatchError => format!("catch binding `{}`", identifier.name),
-                LocalSymbolKind::ForRange => format!("for-range binding `{}`", identifier.name),
-            },
-            None => return None,
-        },
+        Expr::Identifier(identifier) => {
+            borrow_return_provenance_for_local_storage(identifier, resolved)?.source
+        }
         _ => "temporary expression".to_string(),
+    };
+
+    Some(BorrowReturnProvenance { source })
+}
+
+fn borrow_return_provenance_for_local_storage(
+    identifier: &crate::ast::IdentifierExpr,
+    resolved: &ResolveOutput,
+) -> Option<BorrowReturnProvenance> {
+    let source = match resolved.local_symbol_for_identifier(identifier)?.kind {
+        LocalSymbolKind::Parameter => format!("parameter `{}`", identifier.name),
+        LocalSymbolKind::Binding(_) => format!("local binding `{}`", identifier.name),
+        LocalSymbolKind::PatternPayload => format!("payload binding `{}`", identifier.name),
+        LocalSymbolKind::CatchError => format!("catch binding `{}`", identifier.name),
+        LocalSymbolKind::ForRange => format!("for-range binding `{}`", identifier.name),
     };
 
     Some(BorrowReturnProvenance { source })
@@ -1330,6 +1424,15 @@ fn whole_identifier(expression: &Expr) -> Option<&crate::ast::IdentifierExpr> {
     match expression {
         Expr::Identifier(identifier) => Some(identifier),
         Expr::Group(group) => whole_identifier(&group.expression),
+        _ => None,
+    }
+}
+
+fn expression_root_identifier(expression: &Expr) -> Option<&crate::ast::IdentifierExpr> {
+    match unwrap_group(expression) {
+        Expr::Identifier(identifier) => Some(identifier),
+        Expr::Member(member) => expression_root_identifier(&member.object),
+        Expr::Index(index) => expression_root_identifier(&index.object),
         _ => None,
     }
 }

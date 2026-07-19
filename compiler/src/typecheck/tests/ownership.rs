@@ -507,6 +507,170 @@ func inspect(file: &File): void {
 }
 
 #[test]
+fn accepts_assignment_to_disjoint_field_while_field_borrow_used_later() {
+    let diagnostics = check_text(
+        r#"struct Name {
+    len: i32
+}
+
+struct User {
+    name: Name
+    count: i32
+}
+
+func main(): i32 {
+    var user = User{ name: Name{ len: 5 }, count: 0 }
+    let name = &user.name
+    user.count = 1
+    inspect(name)
+    return user.count
+}
+
+func inspect(name: &Name): void {
+    return
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_assignment_to_borrowed_field_used_later() {
+    let diagnostics = check_text(
+        r#"struct Name {
+    len: i32
+}
+
+struct User {
+    name: Name
+    count: i32
+}
+
+func main(): i32 {
+    var user = User{ name: Name{ len: 5 }, count: 0 }
+    let name = &user.name
+    user.name = Name{ len: 7 }
+    inspect(name)
+    return user.count
+}
+
+func inspect(name: &Name): void {
+    return
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0434");
+    assert!(diagnostics[0].message.contains("assign"));
+    assert!(diagnostics[0].message.contains("user.name"));
+    assert!(diagnostics[0].message.contains("name"));
+}
+
+#[test]
+fn diagnoses_whole_assignment_while_field_borrow_used_later() {
+    let diagnostics = check_text(
+        r#"struct Name {
+    len: i32
+}
+
+struct User {
+    name: Name
+    count: i32
+}
+
+func main(): i32 {
+    var user = User{ name: Name{ len: 5 }, count: 0 }
+    let name = &user.name
+    user = User{ name: Name{ len: 7 }, count: 1 }
+    inspect(name)
+    return user.count
+}
+
+func inspect(name: &Name): void {
+    return
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0434");
+    assert!(diagnostics[0].message.contains("assign"));
+    assert!(diagnostics[0].message.contains("user"));
+    assert!(diagnostics[0].message.contains("name"));
+}
+
+#[test]
+fn accepts_read_of_disjoint_field_while_readwrite_field_borrow_used_later() {
+    let diagnostics = check_text(
+        r#"struct Name {
+    len: i32
+}
+
+struct User {
+    name: Name
+    count: i32
+}
+
+func main(): i32 {
+    var user = User{ name: Name{ len: 5 }, count: 0 }
+    let name = &+user.name
+    let count = user.count
+    touch(name)
+    return count
+}
+
+func touch(name: &+Name): void {
+    return
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_readwrite_method_receiver_on_disjoint_field_while_field_borrow_used_later() {
+    let diagnostics = check_text(
+        r#"struct Name {
+    len: i32
+}
+
+struct Counter {
+    value: i32
+}
+
+struct User {
+    name: Name
+    counter: Counter
+}
+
+impl Counter {
+    method (counter: &+Self).increment(): void {
+        counter.value = counter.value + 1
+        return
+    }
+}
+
+func main(): i32 {
+    var user = User{ name: Name{ len: 5 }, counter: Counter{ value: 0 } }
+    let name = &user.name
+    user.counter.increment()
+    inspect(name)
+    return user.counter.value
+}
+
+func inspect(name: &Name): void {
+    return
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_readonly_method_receiver_while_readwrite_borrow_used_later() {
     let diagnostics = check_text(
         r#"struct File {

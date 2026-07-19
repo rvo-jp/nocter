@@ -370,6 +370,105 @@ func same(value: &i32, condition: bool): &i32 {
 }
 
 #[test]
+fn diagnoses_return_borrow_like_call_from_local_borrow() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func identity(value: &i32): &i32 {
+    return value
+}
+
+func leak(): &i32 {
+    let local = 1
+    return identity(&local)
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("local"));
+}
+
+#[test]
+fn accepts_return_borrow_like_call_from_parameter_borrow() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func identity(value: &i32): &i32 {
+    return value
+}
+
+func same(value: &i32): &i32 {
+    return identity(value)
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_return_borrow_like_call_alias_from_local_borrow() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func identity(value: &i32): &i32 {
+    return value
+}
+
+func leak(): &i32 {
+    let local = 1
+    let view = identity(&local)
+    return view
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("local"));
+}
+
+#[test]
+fn diagnoses_return_borrow_like_method_receiver_from_local_binding() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+struct Text {
+    len: i32
+}
+
+impl Text {
+    method (text: &Self).self_ref(): &Self {
+        return text
+    }
+}
+
+func leak(): &Text {
+    let text = Text{ len: 42 }
+    return text.self_ref()
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0433");
+    assert!(diagnostics[0].message.contains("local binding"));
+    assert!(diagnostics[0].message.contains("text"));
+}
+
+#[test]
 fn accepts_str_literal_alias_return() {
     let diagnostics = check_text(
         r#"func main(): i32 {

@@ -179,11 +179,12 @@ fn check_statement_borrow_conflicts(
 
     for borrow in active_borrows {
         if let Some(action) =
-            statement_conflicting_action(statement, &borrow.source_name, resolved, environment)
+            statement_conflicting_action(statement, &borrow.source, resolved, environment)
         {
+            let action_name = action.place.display();
             diagnostics.push(active_borrow_conflict_diagnostic(
                 sources,
-                &borrow.source_name,
+                &action_name,
                 action.description,
                 action.span,
                 &borrow.borrow_name,
@@ -195,7 +196,7 @@ fn check_statement_borrow_conflicts(
 
         if let Some(new_borrow) = new_borrows
             .iter()
-            .find(|new_borrow| new_borrow.source_name == borrow.source_name)
+            .find(|new_borrow| new_borrow.source.conflicts_with(&borrow.source))
             && (new_borrow.is_readwrite || borrow.is_readwrite)
         {
             let action = if new_borrow.is_readwrite {
@@ -203,9 +204,10 @@ fn check_statement_borrow_conflicts(
             } else {
                 "create readonly borrow of"
             };
+            let action_name = new_borrow.source.display();
             diagnostics.push(active_borrow_conflict_diagnostic(
                 sources,
-                &borrow.source_name,
+                &action_name,
                 action,
                 new_borrow.source_span,
                 &borrow.borrow_name,
@@ -217,11 +219,12 @@ fn check_statement_borrow_conflicts(
 
         if borrow.is_readwrite
             && let Some(action) =
-                statement_read_action(statement, &borrow.source_name, resolved, environment)
+                statement_read_action(statement, &borrow.source, resolved, environment)
         {
+            let action_name = action.place.display();
             diagnostics.push(active_borrow_conflict_diagnostic(
                 sources,
-                &borrow.source_name,
+                &action_name,
                 action.description,
                 action.span,
                 &borrow.borrow_name,
@@ -249,7 +252,7 @@ fn record_statement_borrow(
     }
 
     active_borrows.push(ActiveBorrow {
-        source_name: source.source_name,
+        source: source.source,
         borrow_name: binding.name.clone(),
         borrow_span: binding.name_span,
         is_readwrite: source.is_readwrite,
@@ -258,98 +261,101 @@ fn record_statement_borrow(
 
 fn statement_conflicting_action(
     statement: &Stmt,
-    source_name: &str,
+    source: &BorrowPlace,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> Option<BorrowAction> {
     match statement {
-        Stmt::Drop(statement) if statement.name == source_name => Some(BorrowAction {
-            span: statement.name_span,
-            description: "drop",
-        }),
-        Stmt::Assignment(statement)
-            if assignment_target_root_name(&statement.target) == Some(source_name) =>
+        Stmt::Drop(statement)
+            if BorrowPlace::whole(statement.name.clone()).conflicts_with(source) =>
         {
             Some(BorrowAction {
+                place: BorrowPlace::whole(statement.name.clone()),
+                span: statement.name_span,
+                description: "drop",
+            })
+        }
+        Stmt::Assignment(statement)
+            if assignment_target_place(&statement.target)
+                .as_ref()
+                .is_some_and(|target| target.conflicts_with(source)) =>
+        {
+            Some(BorrowAction {
+                place: assignment_target_place(&statement.target)?,
                 span: statement.target.span(),
                 description: "assign to",
             })
         }
         Stmt::Return(statement) => statement.expression.as_ref().and_then(|expression| {
-            expression_move_action(expression, source_name, resolved, environment)
+            expression_move_action(expression, source, resolved, environment)
         }),
         Stmt::Binding(statement) => {
-            expression_move_action(&statement.initializer, source_name, resolved, environment)
+            expression_move_action(&statement.initializer, source, resolved, environment)
         }
         Stmt::Assignment(statement) => {
-            expression_move_action(&statement.value, source_name, resolved, environment)
+            expression_move_action(&statement.value, source, resolved, environment)
         }
         Stmt::If(statement) => {
-            expression_move_action(&statement.condition, source_name, resolved, environment)
+            expression_move_action(&statement.condition, source, resolved, environment)
+                .or_else(|| block_move_action(&statement.then_block, source, resolved, environment))
                 .or_else(|| {
-                    block_move_action(&statement.then_block, source_name, resolved, environment)
-                })
-                .or_else(|| {
-                    statement.else_block.as_ref().and_then(|block| {
-                        block_move_action(block, source_name, resolved, environment)
-                    })
+                    statement
+                        .else_block
+                        .as_ref()
+                        .and_then(|block| block_move_action(block, source, resolved, environment))
                 })
         }
         Stmt::IfIs(statement) => {
-            expression_move_action(&statement.expression, source_name, resolved, environment)
+            expression_move_action(&statement.expression, source, resolved, environment)
+                .or_else(|| block_move_action(&statement.then_block, source, resolved, environment))
                 .or_else(|| {
-                    block_move_action(&statement.then_block, source_name, resolved, environment)
-                })
-                .or_else(|| {
-                    statement.else_block.as_ref().and_then(|block| {
-                        block_move_action(block, source_name, resolved, environment)
-                    })
+                    statement
+                        .else_block
+                        .as_ref()
+                        .and_then(|block| block_move_action(block, source, resolved, environment))
                 })
         }
         Stmt::IfLet(statement) => {
-            expression_move_action(&statement.initializer, source_name, resolved, environment)
+            expression_move_action(&statement.initializer, source, resolved, environment)
+                .or_else(|| block_move_action(&statement.then_block, source, resolved, environment))
                 .or_else(|| {
-                    block_move_action(&statement.then_block, source_name, resolved, environment)
-                })
-                .or_else(|| {
-                    statement.else_block.as_ref().and_then(|block| {
-                        block_move_action(block, source_name, resolved, environment)
-                    })
+                    statement
+                        .else_block
+                        .as_ref()
+                        .and_then(|block| block_move_action(block, source, resolved, environment))
                 })
         }
         Stmt::Switch(statement) => {
-            expression_move_action(&statement.expression, source_name, resolved, environment)
+            expression_move_action(&statement.expression, source, resolved, environment)
                 .or_else(|| {
-                    statement.arms.iter().find_map(|arm| {
-                        block_move_action(&arm.body, source_name, resolved, environment)
-                    })
+                    statement
+                        .arms
+                        .iter()
+                        .find_map(|arm| block_move_action(&arm.body, source, resolved, environment))
                 })
                 .or_else(|| {
-                    statement.else_arm.as_ref().and_then(|arm| {
-                        block_move_action(&arm.body, source_name, resolved, environment)
-                    })
+                    statement
+                        .else_arm
+                        .as_ref()
+                        .and_then(|arm| block_move_action(&arm.body, source, resolved, environment))
                 })
         }
         Stmt::ForRange(statement) => {
-            expression_move_action(&statement.start, source_name, resolved, environment)
-                .or_else(|| {
-                    expression_move_action(&statement.end, source_name, resolved, environment)
-                })
-                .or_else(|| block_move_action(&statement.body, source_name, resolved, environment))
+            expression_move_action(&statement.start, source, resolved, environment)
+                .or_else(|| expression_move_action(&statement.end, source, resolved, environment))
+                .or_else(|| block_move_action(&statement.body, source, resolved, environment))
         }
         Stmt::While(statement) => {
-            expression_move_action(&statement.condition, source_name, resolved, environment)
-                .or_else(|| block_move_action(&statement.body, source_name, resolved, environment))
+            expression_move_action(&statement.condition, source, resolved, environment)
+                .or_else(|| block_move_action(&statement.body, source, resolved, environment))
         }
         Stmt::WhileLet(statement) => {
-            expression_move_action(&statement.initializer, source_name, resolved, environment)
-                .or_else(|| block_move_action(&statement.body, source_name, resolved, environment))
+            expression_move_action(&statement.initializer, source, resolved, environment)
+                .or_else(|| block_move_action(&statement.body, source, resolved, environment))
         }
-        Stmt::Loop(statement) => {
-            block_move_action(&statement.body, source_name, resolved, environment)
-        }
+        Stmt::Loop(statement) => block_move_action(&statement.body, source, resolved, environment),
         Stmt::Expression(statement) => {
-            expression_move_action(&statement.expression, source_name, resolved, environment)
+            expression_move_action(&statement.expression, source, resolved, environment)
         }
         Stmt::Drop(_) | Stmt::Break(_) | Stmt::Continue(_) => None,
     }
@@ -357,104 +363,100 @@ fn statement_conflicting_action(
 
 fn block_move_action(
     block: &Block,
-    source_name: &str,
+    source: &BorrowPlace,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> Option<BorrowAction> {
     block.statements.iter().find_map(|statement| {
-        statement_conflicting_action(statement, source_name, resolved, environment)
+        statement_conflicting_action(statement, source, resolved, environment)
     })
 }
 
 fn statement_read_action(
     statement: &Stmt,
-    source_name: &str,
+    source: &BorrowPlace,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> Option<BorrowAction> {
     match statement {
         Stmt::Return(statement) => statement.expression.as_ref().and_then(|expression| {
-            expression_read_action(expression, source_name, resolved, environment)
+            expression_read_action(expression, source, resolved, environment)
         }),
         Stmt::Binding(statement) => {
-            expression_read_action(&statement.initializer, source_name, resolved, environment)
-                .or_else(|| {
-                    statement.else_block.as_ref().and_then(|block| {
-                        block_read_action(block, source_name, resolved, environment)
-                    })
-                })
-        }
-        Stmt::Assignment(statement) => {
-            expression_read_action(&statement.target, source_name, resolved, environment).or_else(
-                || expression_read_action(&statement.value, source_name, resolved, environment),
+            expression_read_action(&statement.initializer, source, resolved, environment).or_else(
+                || {
+                    statement
+                        .else_block
+                        .as_ref()
+                        .and_then(|block| block_read_action(block, source, resolved, environment))
+                },
             )
         }
+        Stmt::Assignment(statement) => {
+            expression_read_action(&statement.target, source, resolved, environment)
+                .or_else(|| expression_read_action(&statement.value, source, resolved, environment))
+        }
         Stmt::If(statement) => {
-            expression_read_action(&statement.condition, source_name, resolved, environment)
+            expression_read_action(&statement.condition, source, resolved, environment)
+                .or_else(|| block_read_action(&statement.then_block, source, resolved, environment))
                 .or_else(|| {
-                    block_read_action(&statement.then_block, source_name, resolved, environment)
-                })
-                .or_else(|| {
-                    statement.else_block.as_ref().and_then(|block| {
-                        block_read_action(block, source_name, resolved, environment)
-                    })
+                    statement
+                        .else_block
+                        .as_ref()
+                        .and_then(|block| block_read_action(block, source, resolved, environment))
                 })
         }
         Stmt::IfIs(statement) => {
-            expression_read_action(&statement.expression, source_name, resolved, environment)
+            expression_read_action(&statement.expression, source, resolved, environment)
+                .or_else(|| block_read_action(&statement.then_block, source, resolved, environment))
                 .or_else(|| {
-                    block_read_action(&statement.then_block, source_name, resolved, environment)
-                })
-                .or_else(|| {
-                    statement.else_block.as_ref().and_then(|block| {
-                        block_read_action(block, source_name, resolved, environment)
-                    })
+                    statement
+                        .else_block
+                        .as_ref()
+                        .and_then(|block| block_read_action(block, source, resolved, environment))
                 })
         }
         Stmt::IfLet(statement) => {
-            expression_read_action(&statement.initializer, source_name, resolved, environment)
+            expression_read_action(&statement.initializer, source, resolved, environment)
+                .or_else(|| block_read_action(&statement.then_block, source, resolved, environment))
                 .or_else(|| {
-                    block_read_action(&statement.then_block, source_name, resolved, environment)
-                })
-                .or_else(|| {
-                    statement.else_block.as_ref().and_then(|block| {
-                        block_read_action(block, source_name, resolved, environment)
-                    })
+                    statement
+                        .else_block
+                        .as_ref()
+                        .and_then(|block| block_read_action(block, source, resolved, environment))
                 })
         }
         Stmt::Switch(statement) => {
-            expression_read_action(&statement.expression, source_name, resolved, environment)
+            expression_read_action(&statement.expression, source, resolved, environment)
                 .or_else(|| {
-                    statement.arms.iter().find_map(|arm| {
-                        block_read_action(&arm.body, source_name, resolved, environment)
-                    })
+                    statement
+                        .arms
+                        .iter()
+                        .find_map(|arm| block_read_action(&arm.body, source, resolved, environment))
                 })
                 .or_else(|| {
-                    statement.else_arm.as_ref().and_then(|arm| {
-                        block_read_action(&arm.body, source_name, resolved, environment)
-                    })
+                    statement
+                        .else_arm
+                        .as_ref()
+                        .and_then(|arm| block_read_action(&arm.body, source, resolved, environment))
                 })
         }
         Stmt::ForRange(statement) => {
-            expression_read_action(&statement.start, source_name, resolved, environment)
-                .or_else(|| {
-                    expression_read_action(&statement.end, source_name, resolved, environment)
-                })
-                .or_else(|| block_read_action(&statement.body, source_name, resolved, environment))
+            expression_read_action(&statement.start, source, resolved, environment)
+                .or_else(|| expression_read_action(&statement.end, source, resolved, environment))
+                .or_else(|| block_read_action(&statement.body, source, resolved, environment))
         }
         Stmt::While(statement) => {
-            expression_read_action(&statement.condition, source_name, resolved, environment)
-                .or_else(|| block_read_action(&statement.body, source_name, resolved, environment))
+            expression_read_action(&statement.condition, source, resolved, environment)
+                .or_else(|| block_read_action(&statement.body, source, resolved, environment))
         }
         Stmt::WhileLet(statement) => {
-            expression_read_action(&statement.initializer, source_name, resolved, environment)
-                .or_else(|| block_read_action(&statement.body, source_name, resolved, environment))
+            expression_read_action(&statement.initializer, source, resolved, environment)
+                .or_else(|| block_read_action(&statement.body, source, resolved, environment))
         }
-        Stmt::Loop(statement) => {
-            block_read_action(&statement.body, source_name, resolved, environment)
-        }
+        Stmt::Loop(statement) => block_read_action(&statement.body, source, resolved, environment),
         Stmt::Expression(statement) => {
-            expression_read_action(&statement.expression, source_name, resolved, environment)
+            expression_read_action(&statement.expression, source, resolved, environment)
         }
         Stmt::Drop(_) | Stmt::Break(_) | Stmt::Continue(_) => None,
     }
@@ -462,27 +464,30 @@ fn statement_read_action(
 
 fn block_read_action(
     block: &Block,
-    source_name: &str,
+    source: &BorrowPlace,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> Option<BorrowAction> {
     block
         .statements
         .iter()
-        .find_map(|statement| statement_read_action(statement, source_name, resolved, environment))
+        .find_map(|statement| statement_read_action(statement, source, resolved, environment))
 }
 
 fn expression_move_action(
     expression: &Expr,
-    source_name: &str,
+    source: &BorrowPlace,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> Option<BorrowAction> {
     match expression {
         Expr::Unary(expression) if expression.operator == UnaryOperator::Move => {
             match expression.operand.as_ref() {
-                Expr::Identifier(identifier) if identifier.name == source_name => {
+                Expr::Identifier(identifier)
+                    if BorrowPlace::whole(identifier.name.clone()).conflicts_with(source) =>
+                {
                     Some(BorrowAction {
+                        place: BorrowPlace::whole(identifier.name.clone()),
                         span: identifier.span,
                         description: "move",
                     })
@@ -491,88 +496,90 @@ fn expression_move_action(
             }
         }
         Expr::Propagate(expression) => {
-            expression_move_action(&expression.expression, source_name, resolved, environment)
+            expression_move_action(&expression.expression, source, resolved, environment)
         }
         Expr::Force(expression) => {
-            expression_move_action(&expression.expression, source_name, resolved, environment)
+            expression_move_action(&expression.expression, source, resolved, environment)
         }
         Expr::Catch(expression) => {
-            expression_move_action(&expression.expression, source_name, resolved, environment)
-                .or_else(|| {
-                    block_move_action(&expression.catch_block, source_name, resolved, environment)
-                })
-        }
-        Expr::Borrow(expression) => {
-            expression_move_action(&expression.expression, source_name, resolved, environment)
-        }
-        Expr::Binary(expression) => {
-            expression_move_action(&expression.left, source_name, resolved, environment).or_else(
-                || expression_move_action(&expression.right, source_name, resolved, environment),
+            expression_move_action(&expression.expression, source, resolved, environment).or_else(
+                || block_move_action(&expression.catch_block, source, resolved, environment),
             )
         }
+        Expr::Borrow(expression) => {
+            expression_move_action(&expression.expression, source, resolved, environment)
+        }
+        Expr::Binary(expression) => {
+            expression_move_action(&expression.left, source, resolved, environment).or_else(|| {
+                expression_move_action(&expression.right, source, resolved, environment)
+            })
+        }
         Expr::Unary(expression) => {
-            expression_move_action(&expression.operand, source_name, resolved, environment)
+            expression_move_action(&expression.operand, source, resolved, environment)
         }
         Expr::TypeConversion(expression) => {
-            expression_move_action(&expression.expression, source_name, resolved, environment)
+            expression_move_action(&expression.expression, source, resolved, environment)
         }
         Expr::Call(expression) => {
             if let Some(identifier) =
                 owned_method_receiver_identifier(expression, resolved, environment)
-                && identifier.name == source_name
+                && BorrowPlace::whole(identifier.name.clone()).conflicts_with(source)
             {
                 return Some(BorrowAction {
+                    place: BorrowPlace::whole(identifier.name.clone()),
                     span: identifier.span,
                     description: "move",
                 });
             }
-            expression_move_action(&expression.callee, source_name, resolved, environment).or_else(
+            expression_move_action(&expression.callee, source, resolved, environment).or_else(
                 || {
                     expression.arguments.iter().find_map(|argument| {
-                        expression_move_action(argument, source_name, resolved, environment)
+                        expression_move_action(argument, source, resolved, environment)
                     })
                 },
             )
         }
         Expr::Member(expression) => {
-            expression_move_action(&expression.object, source_name, resolved, environment)
+            expression_move_action(&expression.object, source, resolved, environment)
         }
         Expr::Index(expression) => {
-            expression_move_action(&expression.object, source_name, resolved, environment).or_else(
-                || expression_move_action(&expression.index, source_name, resolved, environment),
+            expression_move_action(&expression.object, source, resolved, environment).or_else(
+                || expression_move_action(&expression.index, source, resolved, environment),
             )
         }
-        Expr::ArrayLiteral(expression) => expression.elements.iter().find_map(|element| {
-            expression_move_action(element, source_name, resolved, environment)
-        }),
-        Expr::StructLiteral(expression) => expression.fields.iter().find_map(|field| {
-            expression_move_action(&field.value, source_name, resolved, environment)
-        }),
+        Expr::ArrayLiteral(expression) => expression
+            .elements
+            .iter()
+            .find_map(|element| expression_move_action(element, source, resolved, environment)),
+        Expr::StructLiteral(expression) => expression
+            .fields
+            .iter()
+            .find_map(|field| expression_move_action(&field.value, source, resolved, environment)),
         Expr::Group(expression) => {
-            expression_move_action(&expression.expression, source_name, resolved, environment)
+            expression_move_action(&expression.expression, source, resolved, environment)
         }
         Expr::InterpolatedString(expression) => {
             expression.parts.iter().find_map(|part| match part {
                 crate::ast::InterpolatedStringPart::Expression(part) => {
-                    expression_move_action(&part.expression, source_name, resolved, environment)
+                    expression_move_action(&part.expression, source, resolved, environment)
                 }
                 crate::ast::InterpolatedStringPart::Text(_) => None,
             })
         }
         Expr::OptionalDefault(expression) => {
-            expression_move_action(&expression.value, source_name, resolved, environment).or_else(
-                || expression_move_action(&expression.default, source_name, resolved, environment),
-            )
+            expression_move_action(&expression.value, source, resolved, environment).or_else(|| {
+                expression_move_action(&expression.default, source, resolved, environment)
+            })
         }
         Expr::PatternConditional(expression) => {
-            expression_move_action(&expression.target, source_name, resolved, environment)
+            expression_move_action(&expression.target, source, resolved, environment)
                 .or_else(|| {
                     expression.arms.iter().find_map(|arm| {
-                        expression_move_action(&arm.expression, source_name, resolved, environment)
+                        expression_move_action(&arm.expression, source, resolved, environment)
                     })
                 })
                 .or_else(|| {
-                    expression_move_action(&expression.fallback, source_name, resolved, environment)
+                    expression_move_action(&expression.fallback, source, resolved, environment)
                 })
         }
         Expr::Identifier(_)
@@ -585,94 +592,125 @@ fn expression_move_action(
 
 fn expression_read_action(
     expression: &Expr,
-    source_name: &str,
+    source: &BorrowPlace,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> Option<BorrowAction> {
     match expression {
-        Expr::Identifier(identifier) if identifier.name == source_name => Some(BorrowAction {
-            span: identifier.span,
-            description: "use",
-        }),
+        Expr::Identifier(identifier) => {
+            let place = BorrowPlace::whole(identifier.name.clone());
+            place.conflicts_with(source).then_some(BorrowAction {
+                place,
+                span: identifier.span,
+                description: "use",
+            })
+        }
         Expr::Unary(expression) if expression.operator == UnaryOperator::Move => None,
         Expr::Propagate(expression) => {
-            expression_read_action(&expression.expression, source_name, resolved, environment)
+            expression_read_action(&expression.expression, source, resolved, environment)
         }
         Expr::Force(expression) => {
-            expression_read_action(&expression.expression, source_name, resolved, environment)
+            expression_read_action(&expression.expression, source, resolved, environment)
         }
         Expr::Catch(expression) => {
-            expression_read_action(&expression.expression, source_name, resolved, environment)
-                .or_else(|| {
-                    block_read_action(&expression.catch_block, source_name, resolved, environment)
-                })
-        }
-        Expr::Borrow(expression) => {
-            expression_read_action(&expression.expression, source_name, resolved, environment)
-        }
-        Expr::Binary(expression) => {
-            expression_read_action(&expression.left, source_name, resolved, environment).or_else(
-                || expression_read_action(&expression.right, source_name, resolved, environment),
+            expression_read_action(&expression.expression, source, resolved, environment).or_else(
+                || block_read_action(&expression.catch_block, source, resolved, environment),
             )
         }
+        Expr::Borrow(expression) => {
+            expression_read_action(&expression.expression, source, resolved, environment)
+        }
+        Expr::Binary(expression) => {
+            expression_read_action(&expression.left, source, resolved, environment).or_else(|| {
+                expression_read_action(&expression.right, source, resolved, environment)
+            })
+        }
         Expr::Unary(expression) => {
-            expression_read_action(&expression.operand, source_name, resolved, environment)
+            expression_read_action(&expression.operand, source, resolved, environment)
         }
         Expr::TypeConversion(expression) => {
-            expression_read_action(&expression.expression, source_name, resolved, environment)
+            expression_read_action(&expression.expression, source, resolved, environment)
         }
         Expr::Call(expression) => {
-            expression_read_action(&expression.callee, source_name, resolved, environment).or_else(
+            expression_read_action(&expression.callee, source, resolved, environment).or_else(
                 || {
                     expression.arguments.iter().find_map(|argument| {
-                        expression_read_action(argument, source_name, resolved, environment)
+                        expression_read_action(argument, source, resolved, environment)
                     })
                 },
             )
         }
         Expr::Member(expression) => {
-            expression_read_action(&expression.object, source_name, resolved, environment)
+            if let Some(place) = member_expression_place(expression)
+                && place.conflicts_with(source)
+            {
+                return Some(BorrowAction {
+                    place,
+                    span: expression.span,
+                    description: "use",
+                });
+            }
+            if expression_place_has_only_named_fields(&expression.object) {
+                None
+            } else {
+                expression_read_action(&expression.object, source, resolved, environment)
+            }
         }
         Expr::Index(expression) => {
-            expression_read_action(&expression.object, source_name, resolved, environment).or_else(
-                || expression_read_action(&expression.index, source_name, resolved, environment),
-            )
+            if let Some(place) = index_expression_place(expression)
+                && place.conflicts_with(source)
+            {
+                return Some(BorrowAction {
+                    place,
+                    span: expression.span,
+                    description: "use",
+                });
+            }
+            let object_action = if expression_place_has_only_named_fields(&expression.object) {
+                None
+            } else {
+                expression_read_action(&expression.object, source, resolved, environment)
+            };
+            object_action.or_else(|| {
+                expression_read_action(&expression.index, source, resolved, environment)
+            })
         }
-        Expr::ArrayLiteral(expression) => expression.elements.iter().find_map(|element| {
-            expression_read_action(element, source_name, resolved, environment)
-        }),
-        Expr::StructLiteral(expression) => expression.fields.iter().find_map(|field| {
-            expression_read_action(&field.value, source_name, resolved, environment)
-        }),
+        Expr::ArrayLiteral(expression) => expression
+            .elements
+            .iter()
+            .find_map(|element| expression_read_action(element, source, resolved, environment)),
+        Expr::StructLiteral(expression) => expression
+            .fields
+            .iter()
+            .find_map(|field| expression_read_action(&field.value, source, resolved, environment)),
         Expr::Group(expression) => {
-            expression_read_action(&expression.expression, source_name, resolved, environment)
+            expression_read_action(&expression.expression, source, resolved, environment)
         }
         Expr::InterpolatedString(expression) => {
             expression.parts.iter().find_map(|part| match part {
                 crate::ast::InterpolatedStringPart::Expression(part) => {
-                    expression_read_action(&part.expression, source_name, resolved, environment)
+                    expression_read_action(&part.expression, source, resolved, environment)
                 }
                 crate::ast::InterpolatedStringPart::Text(_) => None,
             })
         }
         Expr::OptionalDefault(expression) => {
-            expression_read_action(&expression.value, source_name, resolved, environment).or_else(
-                || expression_read_action(&expression.default, source_name, resolved, environment),
-            )
+            expression_read_action(&expression.value, source, resolved, environment).or_else(|| {
+                expression_read_action(&expression.default, source, resolved, environment)
+            })
         }
         Expr::PatternConditional(expression) => {
-            expression_read_action(&expression.target, source_name, resolved, environment)
+            expression_read_action(&expression.target, source, resolved, environment)
                 .or_else(|| {
                     expression.arms.iter().find_map(|arm| {
-                        expression_read_action(&arm.expression, source_name, resolved, environment)
+                        expression_read_action(&arm.expression, source, resolved, environment)
                     })
                 })
                 .or_else(|| {
-                    expression_read_action(&expression.fallback, source_name, resolved, environment)
+                    expression_read_action(&expression.fallback, source, resolved, environment)
                 })
         }
-        Expr::Identifier(_)
-        | Expr::IntegerLiteral(_)
+        Expr::IntegerLiteral(_)
         | Expr::StringLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => None,
@@ -978,10 +1016,10 @@ fn direct_borrow_source(expression: &Expr) -> Option<DirectBorrowSource> {
     let Expr::Borrow(borrow) = unwrap_group(expression) else {
         return None;
     };
-    let identifier = expression_root_identifier(&borrow.expression)?;
+    let source = expression_place(&borrow.expression)?;
     Some(DirectBorrowSource {
-        source_name: identifier.name.clone(),
-        source_span: identifier.span,
+        source,
+        source_span: borrow.expression.span(),
         is_readwrite: borrow.is_readwrite,
     })
 }
@@ -996,20 +1034,12 @@ fn method_borrow_receiver_source(
     let TypeExpr::Borrow(receiver) = &signature.receiver.ty else {
         return None;
     };
-    let identifier = expression_root_identifier(&method.object)?;
+    let source = expression_place(&method.object)?;
     Some(DirectBorrowSource {
-        source_name: identifier.name.clone(),
-        source_span: identifier.span,
+        source,
+        source_span: method.object.span(),
         is_readwrite: receiver.is_readwrite,
     })
-}
-
-fn expression_root_identifier(expression: &Expr) -> Option<&IdentifierExpr> {
-    match unwrap_group(expression) {
-        Expr::Identifier(identifier) => Some(identifier),
-        Expr::Member(member) => expression_root_identifier(&member.object),
-        _ => None,
-    }
 }
 
 fn statement_uses_identifier(statement: &Stmt, name: &str) -> bool {
@@ -2037,20 +2067,40 @@ fn whole_identifier(expression: &Expr) -> Option<&IdentifierExpr> {
     }
 }
 
-fn assignment_target_root_name(expression: &Expr) -> Option<&str> {
-    match expression {
-        Expr::Identifier(identifier) => Some(identifier.name.as_str()),
-        Expr::Member(member) => assignment_target_root_name(&member.object),
-        Expr::Group(group) => assignment_target_root_name(&group.expression),
-        _ => None,
-    }
-}
-
 fn unwrap_group(expression: &Expr) -> &Expr {
     match expression {
         Expr::Group(group) => unwrap_group(&group.expression),
         _ => expression,
     }
+}
+
+fn assignment_target_place(expression: &Expr) -> Option<BorrowPlace> {
+    expression_place(expression)
+}
+
+fn expression_place(expression: &Expr) -> Option<BorrowPlace> {
+    match unwrap_group(expression) {
+        Expr::Identifier(identifier) => Some(BorrowPlace::whole(identifier.name.clone())),
+        Expr::Member(member) => member_expression_place(member),
+        Expr::Index(index) => index_expression_place(index),
+        _ => None,
+    }
+}
+
+fn member_expression_place(member: &crate::ast::MemberExpr) -> Option<BorrowPlace> {
+    let mut place = expression_place(&member.object)?;
+    place.push_field(member.member.clone());
+    Some(place)
+}
+
+fn index_expression_place(index: &crate::ast::IndexExpr) -> Option<BorrowPlace> {
+    let mut place = expression_place(&index.object)?;
+    place.mark_unknown();
+    Some(place)
+}
+
+fn expression_place_has_only_named_fields(expression: &Expr) -> bool {
+    expression_place(expression).is_some_and(|place| place.fields.is_some())
 }
 
 fn owned_method_receiver_identifier<'a>(
@@ -2083,7 +2133,7 @@ fn non_copy_struct_type_name<'a>(ty: &Type, resolved: &'a ResolveOutput) -> Opti
 
 #[derive(Debug, Clone)]
 struct ActiveBorrow {
-    source_name: String,
+    source: BorrowPlace,
     borrow_name: String,
     borrow_span: ByteSpan,
     is_readwrite: bool,
@@ -2091,15 +2141,62 @@ struct ActiveBorrow {
 
 #[derive(Debug, Clone)]
 struct DirectBorrowSource {
-    source_name: String,
+    source: BorrowPlace,
     source_span: ByteSpan,
     is_readwrite: bool,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct BorrowAction {
+    place: BorrowPlace,
     span: ByteSpan,
     description: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct BorrowPlace {
+    root: String,
+    fields: Option<Vec<String>>,
+}
+
+impl BorrowPlace {
+    fn whole(root: String) -> Self {
+        Self {
+            root,
+            fields: Some(Vec::new()),
+        }
+    }
+
+    fn push_field(&mut self, field: String) {
+        if let Some(fields) = &mut self.fields {
+            fields.push(field);
+        }
+    }
+
+    fn mark_unknown(&mut self) {
+        self.fields = None;
+    }
+
+    fn conflicts_with(&self, other: &Self) -> bool {
+        if self.root != other.root {
+            return false;
+        }
+        let (Some(left), Some(right)) = (&self.fields, &other.fields) else {
+            return true;
+        };
+        left.starts_with(right) || right.starts_with(left)
+    }
+
+    fn display(&self) -> String {
+        let Some(fields) = &self.fields else {
+            return self.root.clone();
+        };
+        if fields.is_empty() {
+            self.root.clone()
+        } else {
+            format!("{}.{}", self.root, fields.join("."))
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
