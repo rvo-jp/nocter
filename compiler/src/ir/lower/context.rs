@@ -5,11 +5,11 @@ use crate::ir::{
     AggregateLocation, BoolLocation, CallTarget, I32Location, SliceLocation, StrLocation, Type,
     U8Location, UsizeLocation,
 };
-use crate::resolve::{ResolveOutput, SymbolKind};
+use crate::resolve::{ResolveOutput, SymbolKind, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceId};
 use crate::typecheck::TypecheckFacts;
 use std::cell::Cell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use super::errors::ErrorPayload;
@@ -1160,12 +1160,31 @@ pub(super) fn drop_glue_for_type_expr(
     root_source: SourceId,
     resolved: &ResolveOutput,
 ) -> Option<DropGlue> {
+    drop_glue_for_type_expr_inner(ty, root_source, resolved, &mut HashSet::new())
+}
+
+fn drop_glue_for_type_expr_inner(
+    ty: &TypeExpr,
+    root_source: SourceId,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> Option<DropGlue> {
     match ty {
         TypeExpr::Fallible(fallible) => {
-            return drop_glue_for_type_expr(&fallible.success, root_source, resolved);
+            return drop_glue_for_type_expr_inner(
+                &fallible.success,
+                root_source,
+                resolved,
+                resolving_names,
+            );
         }
         TypeExpr::Optional(optional) => {
-            return drop_glue_for_type_expr(&optional.inner, root_source, resolved);
+            return drop_glue_for_type_expr_inner(
+                &optional.inner,
+                root_source,
+                resolved,
+                resolving_names,
+            );
         }
         _ => {}
     }
@@ -1176,6 +1195,17 @@ pub(super) fn drop_glue_for_type_expr(
     };
     let (symbol, type_symbol) =
         resolved.type_symbol_definition_by_reference_name(&reference.name)?;
+    if type_symbol.kind == TypeSymbolKind::Alias {
+        let target = type_symbol.alias_target.as_ref()?;
+        if !resolving_names.insert(type_symbol.canonical_name.clone()) {
+            return None;
+        }
+        let drop_glue =
+            drop_glue_for_type_expr_inner(target, root_source, resolved, resolving_names);
+        resolving_names.remove(&type_symbol.canonical_name);
+        return drop_glue;
+    }
+
     let drop_member = type_symbol.drop_member.as_ref()?;
     let target = if symbol.declaration_span.source == root_source {
         CallTarget::same_file(drop_member.target_name.clone())

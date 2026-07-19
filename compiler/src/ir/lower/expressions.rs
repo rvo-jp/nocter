@@ -4,7 +4,7 @@ use super::aggregates::{
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
 };
 use super::bindings::{lower_assignment, lower_local_binding};
-use super::context::{AggregateFieldKind, LoweringContext};
+use super::context::{AggregateFieldKind, DropGlue, LoweringContext};
 use super::errors::{ErrorPayload, lower_error_payload};
 use super::functions::{
     append_scope_end_drops_before_exit, lower_never_expression_with_scope_drops,
@@ -19,16 +19,17 @@ mod calls;
 mod predicates;
 mod temporaries;
 
+use crate::abi::ValueLayout;
 use crate::ast::{
     BinaryExpr, BinaryOperator, Block, CallExpr, CatchExpr, Expr, IndexExpr, Stmt,
-    TypeConversionExpr, UnaryExpr, UnaryOperator,
+    TypeConversionExpr, TypeExpr, UnaryExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateLocation, BoolComparisonOperator, BoolLocation, BoolLogicalOperator, BoolValue,
-    FallibleFailureMode, I32ComparisonOperator, I32Location, I32Value, Instruction, ScalarArgument,
-    SliceLocation, SliceValue, StrLocation, StrValue, Type, U8Location, U8Value, UsizeLocation,
-    UsizeValue,
+    BorrowArgument, BorrowSource, FallibleFailureMode, I32ComparisonOperator, I32Location,
+    I32Value, Instruction, ScalarArgument, SliceLocation, SliceValue, StrLocation, StrValue, Type,
+    U8Location, U8Value, UsizeLocation, UsizeValue,
 };
 pub(super) use calls::lower_macos_syscall_primitive_call_to_location;
 pub(super) use calls::lower_pointer_address_expression_to_word;
@@ -446,6 +447,9 @@ pub(super) fn lower_void_expression_statement(
                     let destination = temporaries.next_slice()?;
                     lower_slice_normal_call(call, destination, context, &mut temporaries)
                 }
+                Some(Type::Aggregate { .. } | Type::DirectAggregate { .. }) => {
+                    lower_aggregate_normal_call_statement(call, context, &mut temporaries)
+                }
                 _ => return Ok(None),
             }
             .map(Some)
@@ -568,6 +572,15 @@ fn lower_fallible_void_expression_statement(
                         failure_mode,
                     )
                 }
+                Type::Aggregate { .. } | Type::DirectAggregate { .. } => {
+                    lower_aggregate_fallible_call_statement(
+                        call,
+                        success_type.as_ref(),
+                        context,
+                        &mut temporaries,
+                        failure_mode,
+                    )
+                }
                 _ => return Ok(None),
             }
             .map(Some)
@@ -577,6 +590,162 @@ fn lower_fallible_void_expression_statement(
         }
         _ => Ok(None),
     }
+}
+
+fn lower_aggregate_normal_call_statement(
+    call: &CallExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some(return_type_expr) = call_return_type_expr(call, context) else {
+        return Err(unsupported_aggregate_call_statement_diagnostic());
+    };
+    let drop_glue = context.drop_glue_for_type_expr(return_type_expr);
+    let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
+        return Err(unsupported_aggregate_call_statement_diagnostic());
+    };
+    let Some(return_type) = context.call_return_type(&target).cloned() else {
+        return Err(unsupported_aggregate_call_statement_diagnostic());
+    };
+    let Some(layout) = aggregate_type_layout(&return_type) else {
+        return Err(unsupported_aggregate_call_statement_diagnostic());
+    };
+    if !supported_aggregate_copy_layout(layout) {
+        return Err(unsupported_aggregate_call_statement_diagnostic());
+    }
+
+    let slot_index = temporaries.next_aggregate_slot();
+    let mut instructions = vec![Instruction::ReserveAggregateSlot { slot_index, layout }];
+    if macos_syscall_primitive_call(call, context) {
+        let Some(mut syscall_instructions) = lower_macos_syscall_primitive_call_to_location(
+            call,
+            AggregateLocation::Slot(slot_index),
+            layout,
+            context,
+            temporaries,
+        )?
+        else {
+            return Err(unsupported_aggregate_call_statement_diagnostic());
+        };
+        instructions.append(&mut syscall_instructions);
+    } else {
+        let (mut argument_instructions, arguments) =
+            lower_call_arguments(call, &target, &call_name, context, temporaries)?;
+        instructions.append(&mut argument_instructions);
+        push_aggregate_call_instruction(
+            &mut instructions,
+            &return_type,
+            AggregateLocation::Slot(slot_index),
+            target,
+            arguments,
+            layout,
+        );
+    }
+    append_discarded_aggregate_drop(&mut instructions, drop_glue, layout, slot_index, context)?;
+    Ok(instructions)
+}
+
+fn lower_aggregate_fallible_call_statement(
+    call: &CallExpr,
+    success_type: &Type,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+    failure_mode: FallibleFailureMode,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some(return_type_expr) = call_return_type_expr(call, context) else {
+        return Err(unsupported_aggregate_call_statement_diagnostic());
+    };
+    let drop_glue = context.drop_glue_for_type_expr(return_type_expr);
+    let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
+        return Err(unsupported_aggregate_call_statement_diagnostic());
+    };
+    let Some(layout) = aggregate_type_layout(success_type) else {
+        return Err(unsupported_aggregate_call_statement_diagnostic());
+    };
+    if !supported_aggregate_copy_layout(layout) {
+        return Err(unsupported_aggregate_call_statement_diagnostic());
+    }
+
+    let slot_index = temporaries.next_aggregate_slot();
+    let mut instructions = vec![Instruction::ReserveAggregateSlot { slot_index, layout }];
+    let (mut argument_instructions, arguments) =
+        lower_call_arguments(call, &target, &call_name, context, temporaries)?;
+    instructions.append(&mut argument_instructions);
+    push_fallible_aggregate_call_instruction(
+        &mut instructions,
+        success_type,
+        AggregateLocation::Slot(slot_index),
+        target,
+        arguments,
+        layout,
+        failure_mode,
+    );
+    append_discarded_aggregate_drop(&mut instructions, drop_glue, layout, slot_index, context)?;
+    Ok(instructions)
+}
+
+fn call_return_type_expr<'a>(
+    call: &CallExpr,
+    context: &'a LoweringContext,
+) -> Option<&'a TypeExpr> {
+    let (_root_source, resolved) = context.resolved_calls()?;
+    Some(&resolved.call_signature_for_call(call)?.return_type)
+}
+
+fn append_discarded_aggregate_drop(
+    instructions: &mut Vec<Instruction>,
+    drop_glue: Option<DropGlue>,
+    layout: ValueLayout,
+    slot_index: usize,
+    context: &LoweringContext,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(drop_glue) = drop_glue else {
+        return Ok(());
+    };
+    let Some(parameter_types) = context.call_parameter_types(&drop_glue.target) else {
+        return Err(unsupported_aggregate_call_statement_diagnostic());
+    };
+    if parameter_types.len() != 1
+        || !drop_parameter_matches_aggregate_slot(&parameter_types[0], layout)
+    {
+        return Err(unsupported_aggregate_call_statement_diagnostic());
+    }
+
+    instructions.push(Instruction::CallVoid {
+        target: drop_glue.target,
+        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+            source: BorrowSource::AggregateSlot(slot_index),
+        })],
+    });
+    Ok(())
+}
+
+fn drop_parameter_matches_aggregate_slot(parameter_type: &Type, layout: ValueLayout) -> bool {
+    let Type::Borrow {
+        is_readwrite: true,
+        inner,
+    } = parameter_type
+    else {
+        return false;
+    };
+
+    match inner.as_ref() {
+        Type::Aggregate {
+            layout: parameter_layout,
+        }
+        | Type::DirectAggregate {
+            layout: parameter_layout,
+            ..
+        } => *parameter_layout == layout,
+        _ => false,
+    }
+}
+
+fn unsupported_aggregate_call_statement_diagnostic() -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8007",
+        "IR v0 cannot lower discarded aggregate call statement",
+    )]
 }
 
 fn discarded_fallible_statement_reserved_abi_words(

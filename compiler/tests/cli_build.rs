@@ -2784,10 +2784,10 @@ func main(): void! {
 }
 
 #[test]
-fn build_command_reports_ignored_aggregate_call_statement_before_ir_lowering() {
-    let project = TempProject::new("cli-build-ignored-aggregate-call-boundary");
+fn build_command_lowers_ignored_aggregate_call_expression_statement() {
+    let project = TempProject::new("cli-build-ignored-aggregate-call-statement");
     let source = project.write_source(
-        "ignored_aggregate_call_boundary.nct",
+        "ignored_aggregate_call_statement.nct",
         r#"struct Value {
     code: i32
 }
@@ -2798,6 +2798,28 @@ func value(): Value {
 
 func main(): void {
     value()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_reports_aggregate_literal_expression_statement_before_ir_lowering() {
+    let project = TempProject::new("cli-build-aggregate-literal-statement-boundary");
+    let source = project.write_source(
+        "aggregate_literal_statement_boundary.nct",
+        r#"struct Value {
+    code: i32
+}
+
+func main(): void {
+    Value{ code: 1 }
 }
 "#,
     );
@@ -2816,7 +2838,7 @@ func main(): void {
         "expected value expression statement diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("10 |     value()"),
+        stderr.contains("6 |     Value{ code: 1 }"),
         "expected source line, got:\n{stderr}"
     );
     assert!(
@@ -2830,10 +2852,10 @@ func main(): void {
 }
 
 #[test]
-fn build_command_reports_ignored_fallible_aggregate_call_statement_before_ir_lowering() {
-    let project = TempProject::new("cli-build-ignored-fallible-aggregate-call-boundary");
+fn build_command_lowers_ignored_fallible_aggregate_call_expression_statement() {
+    let project = TempProject::new("cli-build-ignored-fallible-aggregate-call-statement");
     let source = project.write_source(
-        "ignored_fallible_aggregate_call_boundary.nct",
+        "ignored_fallible_aggregate_call_statement.nct",
         r#"struct Value {
     code: i32
 }
@@ -2852,28 +2874,8 @@ func main(): void! {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("value-producing expression statements"),
-        "expected value expression statement diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("10 |     value()?"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E8002]"),
-        "buildability preflight should reject before IR entry body lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]

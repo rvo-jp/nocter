@@ -986,6 +986,72 @@ func data(): &[u8]! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_ignores_aggregate_call_expression_statement() {
+    let project = TempProject::new("cli-run-ignored-aggregate-call-statement");
+    let source = project.write_source(
+        "ignored_aggregate_call_statement.nct",
+        r#"struct Value {
+    code: i32
+}
+
+func main(): i32 {
+    value()
+    return 42
+}
+
+func value(): Value {
+    return Value{ code: 1 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_ignores_fallible_aggregate_call_expression_statement() {
+    let project = TempProject::new("cli-run-ignored-fallible-aggregate-call-statement");
+    let source = project.write_source(
+        "ignored_fallible_aggregate_call_statement.nct",
+        r#"copy struct Big {
+    a: usize
+    b: usize
+    c: usize
+}
+
+func main(): i32! {
+    value()?
+    return 42
+}
+
+func value(): Big! {
+    return Big{ a: 1, b: 2, c: 3 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_writes_reassigned_str_local() {
     let project = TempProject::new("cli-run-str-var-assignment");
     project.write_nocter_home_file(

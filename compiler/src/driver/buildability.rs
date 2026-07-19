@@ -1,3 +1,4 @@
+use crate::abi::{AbiType, abi_value_from_type_expr};
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, Block, CallExpr, DropDecl, Expr, ForRangeStmt,
@@ -592,7 +593,7 @@ fn unsupported_expression_statement_diagnostic(
         sources,
         expression.span(),
         "value-producing expression statements",
-        "call a void, never, or discardable scalar/view function, handle a discardable scalar/view fallible call with `?`, `!`, or `catch`, or bind/return the value explicitly",
+        "call a void, never, or discardable scalar/view/aggregate function, handle a discardable scalar/view/aggregate fallible call with `?`, `!`, or `catch`, or bind/return the value explicitly",
     ))
 }
 
@@ -603,7 +604,8 @@ fn expression_statement_is_supported(expression: &Expr, resolved: &ResolveOutput
                 ReturnShape::Void
                 | ReturnShape::Never
                 | ReturnShape::DiscardableScalar
-                | ReturnShape::DiscardableView,
+                | ReturnShape::DiscardableView
+                | ReturnShape::DiscardableAggregate,
             )
             | None => true,
             Some(ReturnShape::FallibleDiscardable | ReturnShape::Other) => false,
@@ -630,6 +632,7 @@ fn fallible_void_statement_inner_is_supported(expression: &Expr, resolved: &Reso
                 | ReturnShape::Never
                 | ReturnShape::DiscardableScalar
                 | ReturnShape::DiscardableView
+                | ReturnShape::DiscardableAggregate
                 | ReturnShape::Other,
             ) => false,
         },
@@ -699,6 +702,7 @@ enum ReturnShape {
     Never,
     DiscardableScalar,
     DiscardableView,
+    DiscardableAggregate,
     FallibleDiscardable,
     Other,
 }
@@ -743,6 +747,9 @@ fn return_shape_from_type_expr_inner(
         {
             ReturnShape::DiscardableView
         }
+        _ if type_expr_is_supported_aggregate_return(ty, resolved) => {
+            ReturnShape::DiscardableAggregate
+        }
         TypeExpr::Reference(reference) => {
             let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
                 return ReturnShape::Other;
@@ -761,7 +768,8 @@ fn return_shape_from_type_expr_inner(
             match return_shape_from_type_expr_inner(&fallible.success, resolved, resolving_names) {
                 ReturnShape::Void
                 | ReturnShape::DiscardableScalar
-                | ReturnShape::DiscardableView => ReturnShape::FallibleDiscardable,
+                | ReturnShape::DiscardableView
+                | ReturnShape::DiscardableAggregate => ReturnShape::FallibleDiscardable,
                 ReturnShape::Never | ReturnShape::FallibleDiscardable | ReturnShape::Other => {
                     ReturnShape::Other
                 }
@@ -769,6 +777,13 @@ fn return_shape_from_type_expr_inner(
         }
         _ => ReturnShape::Other,
     }
+}
+
+fn type_expr_is_supported_aggregate_return(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    let Ok(value) = abi_value_from_type_expr(ty, resolved) else {
+        return false;
+    };
+    matches!(value.ty, AbiType::Struct(_)) && value.layout.size > 0
 }
 
 fn push_explicit_move_condition_diagnostic(
