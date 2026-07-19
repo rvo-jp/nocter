@@ -272,7 +272,7 @@ fn collect_statement_diagnostics(
                     sources,
                     statement.operator_span,
                     "compound assignment statements",
-                    "use `i32` or `usize` whole-binding compound assignment, or use `target = target op value` until broader compound assignment lowering is promoted",
+                    "use `i32` or `usize` whole-binding or aggregate-field compound assignment, or use `target = target op value` until broader compound assignment lowering is promoted",
                 ));
             }
             collect_expression_diagnostics(
@@ -649,16 +649,42 @@ fn assignment_operator_is_buildable(
     if statement.operator == AssignmentOperator::Assign {
         return true;
     }
-    let Expr::Identifier(identifier) = unwrap_group_expr(&statement.target) else {
+    match unwrap_group_expr(&statement.target) {
+        Expr::Identifier(identifier) => {
+            let Some(symbol) = resolved.local_symbol_for_identifier(identifier) else {
+                return false;
+            };
+            matches!(
+                typecheck_facts.binding_type_label(symbol.name_span),
+                Some("i32" | "usize")
+            )
+        }
+        Expr::Member(member) => {
+            aggregate_field_compound_assignment_is_buildable(member.member_span, typecheck_facts)
+        }
+        _ => false,
+    }
+}
+
+fn aggregate_field_compound_assignment_is_buildable(
+    member_span: ByteSpan,
+    typecheck_facts: &TypecheckFacts,
+) -> bool {
+    let Some((span, target)) = typecheck_facts.field_target_at_offset(member_span.start) else {
         return false;
     };
-    let Some(symbol) = resolved.local_symbol_for_identifier(identifier) else {
+    if span != member_span {
+        return false;
+    }
+    let Some(label) = typecheck_facts.declaration_hover_label(target) else {
         return false;
     };
-    matches!(
-        typecheck_facts.binding_type_label(symbol.name_span),
-        Some("i32" | "usize")
-    )
+    matches!(field_declaration_type_label(label), Some("i32" | "usize"))
+}
+
+fn field_declaration_type_label(label: &str) -> Option<&str> {
+    let (_, ty) = label.rsplit_once(": ")?;
+    Some(ty)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

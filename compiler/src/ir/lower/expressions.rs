@@ -970,7 +970,15 @@ pub(super) fn lower_i32_expression_to_word(
     context: &LoweringContext,
 ) -> Result<(Vec<Instruction>, I32Value), Vec<Diagnostic>> {
     let mut temporaries = TemporaryAllocator::new(context)?;
-    let lowered = lower_i32_expression_to_value(expression, context, &mut temporaries)?;
+    lower_i32_expression_to_word_with_temporaries(expression, context, &mut temporaries)
+}
+
+pub(super) fn lower_i32_expression_to_word_with_temporaries(
+    expression: &Expr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, I32Value), Vec<Diagnostic>> {
+    let lowered = lower_i32_expression_to_value(expression, context, temporaries)?;
     Ok((lowered.instructions, lowered.value))
 }
 
@@ -2987,7 +2995,15 @@ pub(super) fn lower_usize_expression_to_word(
     context: &LoweringContext,
 ) -> Result<(Vec<Instruction>, UsizeValue), Vec<Diagnostic>> {
     let mut temporaries = TemporaryAllocator::new(context)?;
-    let lowered = lower_usize_expression_to_value(expression, context, &mut temporaries)?;
+    lower_usize_expression_to_word_with_temporaries(expression, context, &mut temporaries)
+}
+
+pub(super) fn lower_usize_expression_to_word_with_temporaries(
+    expression: &Expr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, UsizeValue), Vec<Diagnostic>> {
+    let lowered = lower_usize_expression_to_value(expression, context, temporaries)?;
     Ok((lowered.instructions, lowered.value))
 }
 

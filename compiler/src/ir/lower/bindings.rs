@@ -16,11 +16,11 @@ use super::expressions::{
     lower_fallible_slice_normal_call, lower_fallible_str_normal_call,
     lower_fallible_u8_normal_call, lower_fallible_usize_normal_call,
     lower_i32_expression_to_location, lower_i32_expression_to_word,
-    lower_macos_syscall_primitive_call_to_location, lower_pointer_address_expression_to_word,
-    lower_slice_expression_to_location, lower_str_expression_to_location,
-    lower_u8_expression_to_location, lower_u8_expression_to_word,
+    lower_i32_expression_to_word_with_temporaries, lower_macos_syscall_primitive_call_to_location,
+    lower_pointer_address_expression_to_word, lower_slice_expression_to_location,
+    lower_str_expression_to_location, lower_u8_expression_to_location, lower_u8_expression_to_word,
     lower_usize_expression_to_location, lower_usize_expression_to_word,
-    lower_void_expression_statement,
+    lower_usize_expression_to_word_with_temporaries, lower_void_expression_statement,
 };
 use super::functions::{
     lower_drop_statement, lower_never_expression_with_scope_drops,
@@ -1168,7 +1168,7 @@ pub(super) fn lower_assignment(
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if statement.operator != AssignmentOperator::Assign {
-        return lower_compound_identifier_assignment(statement, context);
+        return lower_compound_assignment(statement, context);
     }
 
     match unwrap_group(&statement.target) {
@@ -1180,14 +1180,26 @@ pub(super) fn lower_assignment(
     }
 }
 
-fn lower_compound_identifier_assignment(
+fn lower_compound_assignment(
     statement: &AssignmentStmt,
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let Expr::Identifier(identifier) = unwrap_group(&statement.target) else {
-        return Err(unsupported_assignment_diagnostic());
-    };
+    match unwrap_group(&statement.target) {
+        Expr::Identifier(identifier) => {
+            lower_compound_identifier_assignment(statement, identifier, context)
+        }
+        Expr::Member(member) => {
+            lower_compound_aggregate_field_assignment(statement, member, context)
+        }
+        _ => Err(unsupported_assignment_diagnostic()),
+    }
+}
 
+fn lower_compound_identifier_assignment(
+    statement: &AssignmentStmt,
+    identifier: &crate::ast::IdentifierExpr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if let Some(destination) = context.i32_location(&identifier.name) {
         let I32Location::Local(_) = destination else {
             return Err(unsupported_assignment_diagnostic());
@@ -1215,6 +1227,75 @@ fn lower_compound_identifier_assignment(
     }
 
     Err(unsupported_assignment_diagnostic())
+}
+
+fn lower_compound_aggregate_field_assignment(
+    statement: &AssignmentStmt,
+    target: &MemberExpr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some((identifier_name, field_path)) = aggregate_assignment_target_path(target) else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let Some(field) = context.aggregate_field(identifier_name, &field_path) else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    if !field.is_readwrite {
+        return Err(unsupported_assignment_diagnostic());
+    }
+    match field.kind {
+        AggregateFieldKind::I32 => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let (mut instructions, right) = lower_i32_expression_to_word_with_temporaries(
+                &statement.value,
+                context,
+                &mut temporaries,
+            )?;
+            let current = temporaries.next_i32()?;
+            instructions.push(Instruction::LoadAggregateI32 {
+                destination: current,
+                source: field.source,
+                offset: field.offset,
+            });
+            instructions.push(i32_compound_assignment_instruction(
+                statement.operator,
+                current,
+                right,
+            )?);
+            instructions.push(Instruction::StoreAggregateI32 {
+                destination: field.source,
+                offset: field.offset,
+                value: I32Value::Location(current),
+            });
+            Ok(instructions)
+        }
+        AggregateFieldKind::Usize => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let (mut instructions, right) = lower_usize_expression_to_word_with_temporaries(
+                &statement.value,
+                context,
+                &mut temporaries,
+            )?;
+            let current = temporaries.next_usize()?;
+            instructions.push(Instruction::LoadAggregateUsize {
+                destination: current,
+                source: field.source,
+                offset: field.offset,
+            });
+            instructions.push(usize_compound_assignment_instruction(
+                statement.operator,
+                current,
+                right,
+            )?);
+            instructions.push(Instruction::StoreAggregateUsize {
+                destination: field.source,
+                offset: field.offset,
+                value: UsizeValue::Location(current),
+            });
+            Ok(instructions)
+        }
+        _ => Err(unsupported_assignment_diagnostic()),
+    }
 }
 
 fn i32_compound_assignment_instruction(

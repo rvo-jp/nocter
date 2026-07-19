@@ -16518,6 +16518,127 @@ fn lowers_usize_compound_remainder_assignment() {
 }
 
 #[test]
+fn lowers_i32_aggregate_field_compound_assignment_with_call_rhs() {
+    let ir = lower_text(
+        r#"struct Counter {
+    pad: i32
+    value: i32
+}
+
+func main(): i32 {
+    var counter = Counter{ pad: 0, value: 40 }
+    counter.value += answer()
+    return counter.value
+}
+
+func answer(): i32 {
+    return 2
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(8, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(0),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 4,
+                value: i32_const(40),
+            },
+            call_i32(I32Location::Local(0), "answer", vec![]),
+            Instruction::LoadAggregateI32 {
+                destination: I32Location::Local(1),
+                source: AggregateLocation::Slot(0),
+                offset: 4,
+            },
+            Instruction::AddI32 {
+                destination: I32Location::Local(1),
+                left: i32_local(1),
+                right: i32_local(0),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 4,
+                value: i32_local(1),
+            },
+            Instruction::LoadAggregateI32 {
+                destination: I32Location::Return,
+                source: AggregateLocation::Slot(0),
+                offset: 4,
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
+fn lowers_usize_aggregate_field_compound_remainder_assignment() {
+    let ir = lower_text(
+        r#"struct Counter {
+    pad: i32
+    size: usize
+}
+
+func main(): usize {
+    var counter = Counter{ pad: 0, size: 47 }
+    counter.size %= 5
+    return counter.size
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(16, 8),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(0),
+            },
+            Instruction::StoreAggregateUsize {
+                destination: AggregateLocation::Slot(0),
+                offset: 8,
+                value: usize_const(47),
+            },
+            Instruction::LoadAggregateUsize {
+                destination: UsizeLocation::Local(0),
+                source: AggregateLocation::Slot(0),
+                offset: 8,
+            },
+            Instruction::RemainderUsize {
+                destination: UsizeLocation::Local(0),
+                left: usize_local(0),
+                right: usize_const(5),
+            },
+            Instruction::StoreAggregateUsize {
+                destination: AggregateLocation::Slot(0),
+                offset: 8,
+                value: usize_local(0),
+            },
+            Instruction::LoadAggregateUsize {
+                destination: UsizeLocation::Return,
+                source: AggregateLocation::Slot(0),
+                offset: 8,
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_entry_i32_subtract_and_multiply_with_normal_calls() {
     let ir = lower_text(
         r#"func main(): i32 {

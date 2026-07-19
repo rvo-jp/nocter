@@ -1576,10 +1576,10 @@ fn build_command_reports_bool_compound_assignment_before_ir_lowering() {
 }
 
 #[test]
-fn build_command_reports_field_compound_assignment_before_ir_lowering() {
-    let project = TempProject::new("cli-build-field-compound-assignment-boundary");
+fn build_command_lowers_field_compound_assignment() {
+    let project = TempProject::new("cli-build-field-compound-assignment");
     let source = project.write_source(
-        "field_compound_assignment_boundary.nct",
+        "field_compound_assignment.nct",
         r#"struct Counter {
     value: i32
 }
@@ -1587,6 +1587,30 @@ fn build_command_reports_field_compound_assignment_before_ir_lowering() {
 func main(): i32 {
     var counter = Counter{ value: 1 }
     counter.value += 1
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_reports_bool_field_compound_assignment_before_ir_lowering() {
+    let project = TempProject::new("cli-build-bool-field-compound-assignment-boundary");
+    let source = project.write_source(
+        "bool_field_compound_assignment_boundary.nct",
+        r#"struct Flag {
+    ready: bool
+}
+
+func main(): i32 {
+    var flag = Flag{ ready: true }
+    flag.ready += false
     return 0
 }
 "#,
@@ -1606,7 +1630,7 @@ func main(): i32 {
         "expected compound assignment diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("7 |     counter.value += 1"),
+        stderr.contains("7 |     flag.ready += false"),
         "expected source line, got:\n{stderr}"
     );
     assert!(

@@ -743,6 +743,52 @@ func one(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_field_compound_assignment_exit_code() {
+    let project = TempProject::new("cli-run-field-compound-assignment");
+    let source = project.write_source(
+        "field_compound_assignment.nct",
+        r#"struct Counter {
+    count: i32
+    size: usize
+}
+
+func main(): i32 {
+    var counter = Counter{ count: 40, size: 47 }
+    counter.count += one()
+    counter.count *= 2
+    counter.count -= 40
+    counter.count /= 2
+    counter.size %= 5
+    return score(counter.count, counter.size)
+}
+
+func score(count: i32, size: usize): i32 {
+    if count == 21 && size == 2 {
+        return 42
+    } else {
+        return 1
+    }
+}
+
+func one(): i32 {
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_ignores_scalar_call_expression_statement() {
     let project = TempProject::new("cli-run-ignored-scalar-call-statement");
     let source = project.write_source(
