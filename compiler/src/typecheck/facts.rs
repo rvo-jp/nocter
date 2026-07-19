@@ -12,13 +12,15 @@ use super::environments::{
 };
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
+use super::places::field_member_is_writable_place;
 use super::structs::{resolved_struct_field_for_literal_field, resolved_struct_field_for_member};
 use super::type_expr::type_expr_to_type_with_self_type;
 use super::variants::resolved_enum_variant_for_member;
 use crate::ast::{
     AstFile, BindingStmt, Block, EnumDecl, EnumVariant, Expr, GenericParamList, ImplDecl,
-    ImplMember, InterpolatedStringPart, Item, MethodDecl, Parameter, Stmt, StructDecl, StructField,
-    StructLiteralExpr, StructLiteralField, SwitchPayloadBinding, TypeAliasDecl, TypeExpr,
+    ImplMember, InterpolatedStringPart, Item, MemberExpr, MethodDecl, Parameter, Stmt, StructDecl,
+    StructField, StructLiteralExpr, StructLiteralField, SwitchPayloadBinding, TypeAliasDecl,
+    TypeExpr,
 };
 use crate::resolve::{
     AssociatedFunctionSignature, FunctionSignature, MethodSignature, ParameterSignature,
@@ -38,6 +40,7 @@ pub(crate) struct TypecheckFacts {
     enum_variant_hover_labels: HashMap<ByteSpan, String>,
     type_references: Vec<TypeReferenceFact>,
     field_targets: HashMap<ByteSpan, ByteSpan>,
+    field_readonly: HashMap<ByteSpan, bool>,
     associated_function_targets: HashMap<ByteSpan, ByteSpan>,
     enum_variant_targets: HashMap<ByteSpan, ByteSpan>,
     method_call_targets: HashMap<ByteSpan, ByteSpan>,
@@ -103,6 +106,10 @@ impl TypecheckFacts {
 
     pub(crate) fn field_target_spans(&self) -> impl Iterator<Item = ByteSpan> + '_ {
         self.field_targets.keys().copied()
+    }
+
+    pub(crate) fn field_is_readonly(&self, span: ByteSpan) -> Option<bool> {
+        self.field_readonly.get(&span).copied()
     }
 
     pub(crate) fn associated_function_target_spans(&self) -> impl Iterator<Item = ByteSpan> + '_ {
@@ -762,7 +769,7 @@ impl TypecheckFactCollector<'_> {
 
     fn record_struct_field_member_reference(
         &mut self,
-        member: &crate::ast::MemberExpr,
+        member: &MemberExpr,
         environment: &TypeEnvironment,
     ) {
         let Some((owner, field)) =
@@ -771,6 +778,10 @@ impl TypecheckFactCollector<'_> {
             return;
         };
 
+        self.facts.field_readonly.insert(
+            member.member_span,
+            !field_member_is_writable_place(member, self.resolved, environment),
+        );
         self.record_struct_field_reference(member.member_span, owner, field, environment);
     }
 

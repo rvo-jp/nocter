@@ -145,6 +145,15 @@ LSP v0 feature set:
 5. completion for imports and visible names
 6. semantic tokens
 
+Semantic token rules:
+
+- The `readonly` semantic token modifier is an editor hint that `=` cannot be used at that token position.
+- `readonly` does not mean that the token was declared with a readonly declaration form.
+- Binding and parameter tokens use `readonly` when the whole binding cannot be assigned with `=`.
+- Field access tokens use `property.readonly` when that specific access path is not a writable place under [Values and Types](02-values-types.md#bindings-and-assignment).
+- Field declarations are not marked `readonly` merely because some accesses to that field are not writable.
+- Struct literal field labels and enum variant names are semantic properties, but they are not writable-place checks.
+
 Later editor features:
 
 - rename

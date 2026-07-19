@@ -681,6 +681,85 @@ mod tests {
     }
 
     #[test]
+    fn marks_readonly_field_accesses_for_semantic_tokens() {
+        let project = TempProject::new("lsp-semantic-readonly-fields");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        let text = r#"struct Header {
+    code: i32
+}
+
+func inspect(value: Header, readonly: &Header, readwrite: &+Header): i32 {
+    let fixed = Header{ code: 1 }
+    var mutable = Header{ code: 2 }
+    let readwrite_alias = readwrite
+    var readonly_alias = readonly
+    return fixed.code + mutable.code + value.code + readonly.code + readwrite.code + readwrite_alias.code + readonly_alias.code
+}
+"#;
+        let app = project.write_source("app.nct", text);
+        let uri = file_uri(&app);
+        let document = open_document(uri.clone(), Some(1), text.to_string());
+        let documents = HashMap::from([(uri.clone(), document)]);
+        let workspace =
+            workspace_analysis_for_uri(&uri, &documents).expect("expected workspace analysis");
+        let file = workspace.root_file().expect("expected analyzed file");
+        let identifiers =
+            classified_identifiers_for_file_analysis(documents.get(&uri).unwrap(), file);
+
+        for access in [
+            "fixed.code",
+            "value.code",
+            "readonly.code",
+            "readonly_alias.code",
+        ] {
+            let identifier = classified_identifier_starting_at(
+                &identifiers,
+                field_name_offset_for_access(text, access),
+            )
+            .unwrap_or_else(|| panic!("expected semantic token for `{access}`"));
+            assert_eq!(
+                identifier.kind,
+                SemanticTokenKind::Property,
+                "expected `{access}` to be classified as a property"
+            );
+            assert!(
+                identifier.modifiers & SEMANTIC_READONLY_MODIFIER != 0,
+                "expected `{access}` to be marked readonly because `=` cannot target it"
+            );
+        }
+
+        for access in ["mutable.code", "readwrite.code", "readwrite_alias.code"] {
+            let identifier = classified_identifier_starting_at(
+                &identifiers,
+                field_name_offset_for_access(text, access),
+            )
+            .unwrap_or_else(|| panic!("expected semantic token for `{access}`"));
+            assert_eq!(
+                identifier.kind,
+                SemanticTokenKind::Property,
+                "expected `{access}` to be classified as a property"
+            );
+            assert!(
+                identifier.modifiers & SEMANTIC_READONLY_MODIFIER == 0,
+                "expected `{access}` to remain writable because `=` can target it"
+            );
+        }
+
+        let first_literal_field = classified_identifier_starting_at(
+            &identifiers,
+            text.find("Header{ code").unwrap() + "Header{ ".len(),
+        )
+        .expect("expected semantic token for struct literal field label");
+        assert_eq!(first_literal_field.kind, SemanticTokenKind::Property);
+        assert_eq!(
+            first_literal_field.modifiers & SEMANTIC_READONLY_MODIFIER,
+            0,
+            "struct literal field labels are not readonly declarations"
+        );
+    }
+
+    #[test]
     fn returns_null_hover_when_document_cannot_be_analyzed() {
         let uri = "file:///tmp/nocter-bad-hover.nct".to_string();
         let document = open_document(
@@ -2023,6 +2102,19 @@ mod tests {
                 text.get(identifier.start_byte..identifier.end_byte) == Some(lexeme)
             })
             .collect()
+    }
+
+    fn classified_identifier_starting_at(
+        identifiers: &[ClassifiedIdentifier],
+        start_byte: usize,
+    ) -> Option<&ClassifiedIdentifier> {
+        identifiers
+            .iter()
+            .find(|identifier| identifier.start_byte == start_byte)
+    }
+
+    fn field_name_offset_for_access(text: &str, access: &str) -> usize {
+        text.find(access).unwrap() + access.find('.').unwrap() + 1
     }
 
     static NOCTER_HOME_ENV_LOCK: Mutex<()> = Mutex::new(());

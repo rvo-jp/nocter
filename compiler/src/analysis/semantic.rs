@@ -186,7 +186,12 @@ impl SemanticIdentifierCollector<'_> {
 
         let field_spans = self.facts.field_target_spans().collect::<Vec<_>>();
         for span in field_spans {
-            self.push(span, SemanticTokenKind::Property, false, 0);
+            let modifiers = if self.facts.field_is_readonly(span) == Some(true) {
+                SEMANTIC_READONLY_MODIFIER
+            } else {
+                0
+            };
+            self.push(span, SemanticTokenKind::Property, false, modifiers);
         }
 
         let variant_spans = self.facts.enum_variant_target_spans().collect::<Vec<_>>();

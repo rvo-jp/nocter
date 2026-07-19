@@ -26,11 +26,12 @@ use super::expressions::{
     check_error_member_expression, collection_len_call_type, expression_type,
 };
 use super::fallible::check_force_unwrap_operand;
-use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
+use super::model::{TypeEnvironment, binding_kind_is_mutable};
 use super::operations::{
     check_binary_expression, check_optional_default_expression, check_type_conversion_expression,
     check_unary_expression, is_expression_assignable,
 };
+use super::places::expression_is_writable_place;
 use super::strings::check_interpolated_string_expression;
 use super::structs::{check_struct_literal_expression, check_struct_member_expression};
 use super::variants::{
@@ -476,8 +477,7 @@ fn check_assignment_statement(
 ) {
     if let Some(name) = assignment_target_root_name(&statement.target)
         && environment.get(name).is_some()
-        && !environment.is_mutable_binding(name)
-        && !assignment_targets_readwrite_borrow_field(&statement.target, resolved, environment)
+        && !expression_is_writable_place(&statement.target, resolved, environment)
     {
         diagnostics.push(immutable_assignment_diagnostic(sources, statement, name));
     }
@@ -559,23 +559,6 @@ fn unwrap_group(expression: &Expr) -> &Expr {
     }
 }
 
-fn assignment_targets_readwrite_borrow_field(
-    expression: &Expr,
-    resolved: &ResolveOutput,
-    environment: &TypeEnvironment,
-) -> bool {
-    match expression {
-        Expr::Member(member) => {
-            let object_type = expression_type(&member.object, resolved, environment);
-            matches!(object_type, Type::Named(name) if name.starts_with("&+"))
-        }
-        Expr::Group(group) => {
-            assignment_targets_readwrite_borrow_field(&group.expression, resolved, environment)
-        }
-        _ => false,
-    }
-}
-
 fn check_expression_tree(
     sources: &SourceMap,
     expression: &Expr,
@@ -647,7 +630,7 @@ fn check_expression_tree(
                 loop_depth,
             );
             if expression.is_readwrite
-                && !borrow_operand_is_writable_place(&expression.expression, environment)
+                && !expression_is_writable_place(&expression.expression, resolved, environment)
             {
                 diagnostics.push(readwrite_borrow_requires_writable_place_diagnostic(
                     sources, expression,
@@ -923,30 +906,4 @@ fn check_expression_tree(
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => {}
     }
-}
-
-fn borrow_operand_is_writable_place(expression: &Expr, environment: &TypeEnvironment) -> bool {
-    match expression {
-        Expr::Identifier(identifier) => environment.is_mutable_binding(&identifier.name),
-        Expr::Member(member) => aggregate_member_root_name(&member.object)
-            .is_some_and(|name| aggregate_member_root_is_writable_place(name, environment)),
-        Expr::Group(group) => borrow_operand_is_writable_place(&group.expression, environment),
-        _ => false,
-    }
-}
-
-fn aggregate_member_root_name(expression: &Expr) -> Option<&str> {
-    match expression {
-        Expr::Identifier(identifier) => Some(&identifier.name),
-        Expr::Member(member) => aggregate_member_root_name(&member.object),
-        Expr::Group(group) => aggregate_member_root_name(&group.expression),
-        _ => None,
-    }
-}
-
-fn aggregate_member_root_is_writable_place(name: &str, environment: &TypeEnvironment) -> bool {
-    environment.is_mutable_binding(name)
-        || environment
-            .get(name)
-            .is_some_and(|ty| matches!(ty, Type::Named(name) if name.starts_with("&+")))
 }

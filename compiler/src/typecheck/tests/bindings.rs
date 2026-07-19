@@ -76,6 +76,30 @@ func update(value: &Header): void {
 }
 
 #[test]
+fn diagnoses_member_assignment_through_readonly_borrow_var_binding() {
+    let diagnostics = check_text(
+        r#"struct Header {
+    code: i32
+}
+
+func main(): i32 {
+    return 0
+}
+
+func update(source: &Header): void {
+    var value = source
+    value.code = 2
+    return
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0381");
+    assert!(diagnostics[0].message.contains("value"));
+}
+
+#[test]
 fn diagnoses_assignment_to_parameter_binding() {
     let diagnostics = check_text(
         r#"func main(): i32 {
@@ -101,6 +125,33 @@ fn diagnoses_readwrite_borrow_of_let_binding() {
     let value = 1
     touch(&+value)
     return 0
+}
+
+func touch(value: &+i32): void {
+    return
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0383");
+}
+
+#[test]
+fn diagnoses_readwrite_borrow_of_readonly_borrow_field_var_binding() {
+    let diagnostics = check_text(
+        r#"struct Header {
+    code: i32
+}
+
+func main(): i32 {
+    return 0
+}
+
+func update(source: &Header): void {
+    var value = source
+    touch(&+value.code)
+    return
 }
 
 func touch(value: &+i32): void {
