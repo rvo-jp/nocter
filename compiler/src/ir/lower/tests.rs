@@ -16657,6 +16657,274 @@ func value(): i32 {
 }
 
 #[test]
+fn lowers_ignored_str_call_expression_statement() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    text()
+    return 0
+}
+
+func text(): &str {
+    return "ignored"
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    call_str(StrLocation::Local(0), "text", vec![]),
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_const(0),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "text".to_string(),
+                target: crate::ir::CallTarget::same_file("text".to_string()),
+                return_type: Type::Str,
+                instructions: vec![
+                    Instruction::SetStr {
+                        destination: StrLocation::Return,
+                        value: str_static_value(b"ignored"),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ])
+    );
+}
+
+#[test]
+fn lowers_ignored_slice_call_expression_statement() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func wrapper(bytes: &[u8]): i32 {
+    identity(bytes)
+    return 0
+}
+
+func identity(bytes: &[u8]): &[u8] {
+    return bytes
+}
+"#,
+        "wrapper",
+        function_signatures(vec![(
+            "identity",
+            readonly_u8_slice_type(),
+            vec![readonly_u8_slice_type()],
+        )]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "wrapper".to_string(),
+            target: crate::ir::CallTarget::same_file("wrapper".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                call_slice(
+                    SliceLocation::Local(0),
+                    "identity",
+                    vec![ScalarArgument::Slice(SliceValue::Location(
+                        SliceLocation::Parameter(0),
+                    ))],
+                ),
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: i32_const(0),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_ignored_fallible_i32_call_expression_statement() {
+    let ir = lower_text(
+        r#"func main(): i32! {
+    value()?
+    return 0
+}
+
+func value(): i32! {
+    return 1
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0],
+        Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![
+                Instruction::CallFallibleI32 {
+                    destination: I32Location::Local(0),
+                    target: CallTarget::same_file("value"),
+                    arguments: vec![],
+                    failure_mode: FallibleFailureMode::Propagate,
+                },
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: i32_const(0),
+                },
+                Instruction::ReturnFallibleSuccess,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_ignored_fallible_str_force_expression_statement() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    text()!
+    return 0
+}
+
+func text(): &str! {
+    return "ignored"
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0],
+        Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::CallFallibleStr {
+                    destination: StrLocation::Local(0),
+                    target: CallTarget::same_file("text"),
+                    arguments: vec![],
+                    failure_mode: FallibleFailureMode::Trap,
+                },
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: i32_const(0),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_ignored_fallible_slice_call_expression_statement() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func wrapper(bytes: &[u8]): i32! {
+    maybe_bytes(bytes)?
+    return 0
+}
+
+func maybe_bytes(bytes: &[u8]): &[u8]! {
+    return bytes
+}
+"#,
+        "wrapper",
+        function_signatures(vec![(
+            "maybe_bytes",
+            Type::Fallible(Box::new(readonly_u8_slice_type())),
+            vec![readonly_u8_slice_type()],
+        )]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "wrapper".to_string(),
+            target: crate::ir::CallTarget::same_file("wrapper".to_string()),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![
+                Instruction::CallFallibleSlice {
+                    destination: SliceLocation::Local(0),
+                    target: CallTarget::same_file("maybe_bytes"),
+                    arguments: vec![ScalarArgument::Slice(SliceValue::Location(
+                        SliceLocation::Parameter(0),
+                    ))],
+                    failure_mode: FallibleFailureMode::Propagate,
+                },
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: i32_const(0),
+                },
+                Instruction::ReturnFallibleSuccess,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_ignored_fallible_str_catch_statement_with_reserved_error_locals() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    text() catch error {
+        return 7
+    }
+    return 0
+}
+
+func text(): &str! {
+    return "ignored"
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0],
+        Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::CallFallibleStr {
+                    destination: StrLocation::Local(0),
+                    target: CallTarget::same_file("text"),
+                    arguments: vec![],
+                    failure_mode: FallibleFailureMode::Catch {
+                        code: StrLocation::Local(2),
+                        message: StrLocation::Local(4),
+                        instructions: vec![
+                            Instruction::SetI32 {
+                                destination: I32Location::Return,
+                                value: i32_const(7),
+                            },
+                            Instruction::Return,
+                        ],
+                    },
+                },
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: i32_const(0),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_usize_compound_remainder_assignment() {
     let ir = lower_text(
         r#"func main(): usize {

@@ -205,7 +205,9 @@ Bool short-circuit value expressions with calls, such as `let ready = enabled() 
 Loaded imported calls use the same narrow call subset as same-file calls. Reachable unloaded imported placeholders are rejected by the buildability preflight before IR lowering.
 Non-terminal `i32` and `usize` range `for` loops lower to `Instruction::While` with start and end stored once in scalar locals, a `<` condition over those locals, and an increment at the end of normal iteration or immediately before a lowered `continue`.
 Whole-binding `i32` and `usize` compound assignments lower to the same scalar arithmetic instructions as explicit `target = target op value`, preserving the existing overflow and divide-by-zero trap checks. Aggregate scalar field `i32` and `usize` compound assignments load the field into a scalar temporary, reuse the same checked arithmetic instruction, then store the result back to the field offset.
-Ignored `i32`, `u8`, `usize`, and `bool` normal-call expression statements lower as ordinary calls into temporary scalar locals; aggregate, fallible, and non-call value statements remain rejected before backend emission.
+Ignored `i32`, `u8`, `usize`, `bool`, `&str`, and u8-slice normal-call expression statements lower as ordinary calls into temporary scalar/view locals.
+Ignored fallible scalar/view/void calls handled with `?`, `!`, or `catch` lower through the matching fallible call instruction and discard the success value in a temporary local.
+Aggregate-return and non-call value statements remain rejected before backend emission.
 
 ### Encoder Work Required First
 

@@ -592,16 +592,21 @@ fn unsupported_expression_statement_diagnostic(
         sources,
         expression.span(),
         "value-producing expression statements",
-        "call a void, never, or discardable scalar function, handle a void! call with `?`, `!`, or `catch`, or bind/return the value explicitly",
+        "call a void, never, or discardable scalar/view function, handle a discardable scalar/view fallible call with `?`, `!`, or `catch`, or bind/return the value explicitly",
     ))
 }
 
 fn expression_statement_is_supported(expression: &Expr, resolved: &ResolveOutput) -> bool {
     match unwrap_group_expr(expression) {
         Expr::Call(call) => match call_return_shape(call, resolved) {
-            Some(ReturnShape::Void | ReturnShape::Never | ReturnShape::DiscardableScalar)
+            Some(
+                ReturnShape::Void
+                | ReturnShape::Never
+                | ReturnShape::DiscardableScalar
+                | ReturnShape::DiscardableView,
+            )
             | None => true,
-            Some(ReturnShape::FallibleVoid | ReturnShape::Other) => false,
+            Some(ReturnShape::FallibleDiscardable | ReturnShape::Other) => false,
         },
         Expr::Propagate(expression) => {
             fallible_void_statement_inner_is_supported(&expression.expression, resolved)
@@ -619,11 +624,12 @@ fn expression_statement_is_supported(expression: &Expr, resolved: &ResolveOutput
 fn fallible_void_statement_inner_is_supported(expression: &Expr, resolved: &ResolveOutput) -> bool {
     match unwrap_group_expr(expression) {
         Expr::Call(call) => match call_return_shape(call, resolved) {
-            Some(ReturnShape::FallibleVoid) | None => true,
+            Some(ReturnShape::FallibleDiscardable) | None => true,
             Some(
                 ReturnShape::Void
                 | ReturnShape::Never
                 | ReturnShape::DiscardableScalar
+                | ReturnShape::DiscardableView
                 | ReturnShape::Other,
             ) => false,
         },
@@ -692,7 +698,8 @@ enum ReturnShape {
     Void,
     Never,
     DiscardableScalar,
-    FallibleVoid,
+    DiscardableView,
+    FallibleDiscardable,
     Other,
 }
 
@@ -721,6 +728,21 @@ fn return_shape_from_type_expr_inner(
         {
             ReturnShape::DiscardableScalar
         }
+        TypeExpr::Borrow(borrow)
+            if !borrow.is_readwrite
+                && matches!(borrow.inner.as_ref(), TypeExpr::Reference(reference) if reference.name == "str") =>
+        {
+            ReturnShape::DiscardableView
+        }
+        TypeExpr::Borrow(borrow)
+            if matches!(
+                borrow.inner.as_ref(),
+                TypeExpr::View(view)
+                    if matches!(view.element.as_ref(), TypeExpr::Reference(reference) if reference.name == "u8")
+            ) =>
+        {
+            ReturnShape::DiscardableView
+        }
         TypeExpr::Reference(reference) => {
             let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
                 return ReturnShape::Other;
@@ -737,11 +759,12 @@ fn return_shape_from_type_expr_inner(
         }
         TypeExpr::Fallible(fallible) => {
             match return_shape_from_type_expr_inner(&fallible.success, resolved, resolving_names) {
-                ReturnShape::Void => ReturnShape::FallibleVoid,
-                ReturnShape::Never
+                ReturnShape::Void
                 | ReturnShape::DiscardableScalar
-                | ReturnShape::FallibleVoid
-                | ReturnShape::Other => ReturnShape::Other,
+                | ReturnShape::DiscardableView => ReturnShape::FallibleDiscardable,
+                ReturnShape::Never | ReturnShape::FallibleDiscardable | ReturnShape::Other => {
+                    ReturnShape::Other
+                }
             }
         }
         _ => ReturnShape::Other,

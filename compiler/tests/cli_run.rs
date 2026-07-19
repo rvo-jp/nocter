@@ -893,6 +893,99 @@ func value(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_ignores_view_call_expression_statement() {
+    let project = TempProject::new("cli-run-ignored-view-call-statement");
+    project.write_nocter_home_file(
+        "std/string.nct",
+        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+
+pub func bytes(value: &str): &[u8] {
+    return bytes_from_str(value)
+}
+"#,
+    );
+    let source = project.write_source(
+        "ignored_view_call_statement.nct",
+        r#"use std/string.bytes
+
+func main(): i32 {
+    text()
+    data()
+    return 42
+}
+
+func text(): &str {
+    return "ignored"
+}
+
+func data(): &[u8] {
+    return bytes("ignored")
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_ignores_fallible_scalar_and_view_call_expression_statement() {
+    let project = TempProject::new("cli-run-ignored-fallible-scalar-view-call-statement");
+    project.write_nocter_home_file(
+        "std/string.nct",
+        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+
+pub func bytes(value: &str): &[u8] {
+    return bytes_from_str(value)
+}
+"#,
+    );
+    let source = project.write_source(
+        "ignored_fallible_scalar_view_call_statement.nct",
+        r#"use std/string.bytes
+
+func main(): i32! {
+    value()?
+    text()?
+    data()?
+    return 42
+}
+
+func value(): i32! {
+    return 1
+}
+
+func text(): &str! {
+    return "ignored"
+}
+
+func data(): &[u8]! {
+    return bytes("ignored")
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_writes_reassigned_str_local() {
     let project = TempProject::new("cli-run-str-var-assignment");
     project.write_nocter_home_file(

@@ -438,6 +438,14 @@ pub(super) fn lower_void_expression_statement(
                     let destination = temporaries.next_bool()?;
                     lower_bool_normal_call(call, destination, context, &mut temporaries)
                 }
+                Some(Type::Str) => {
+                    let destination = temporaries.next_str()?;
+                    lower_str_normal_call(call, destination, context, &mut temporaries)
+                }
+                Some(Type::Slice { .. }) => {
+                    let destination = temporaries.next_slice()?;
+                    lower_slice_normal_call(call, destination, context, &mut temporaries)
+                }
                 _ => return Ok(None),
             }
             .map(Some)
@@ -456,7 +464,12 @@ pub(super) fn lower_void_expression_statement(
         Expr::Catch(catch) => lower_fallible_void_expression_statement(
             &catch.expression,
             context,
-            lower_catch_failure_mode(catch, context, 0)?,
+            lower_catch_failure_mode(
+                catch,
+                context,
+                discarded_fallible_statement_reserved_abi_words(&catch.expression, context)
+                    .unwrap_or(0),
+            )?,
         ),
         _ => Ok(None),
     }
@@ -469,26 +482,130 @@ fn lower_fallible_void_expression_statement(
 ) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
     match expression {
         Expr::Call(call) => {
-            let target = context
-                .direct_call_target_and_name(call)
-                .map(|(target, _call_name)| target);
-            if !primitive_write_text_raw_call(call, context)
-                && !primitive_write_bytes_raw_call(call, context)
-                && !matches!(
-                    target.as_ref().and_then(|target| context.call_return_type(target)),
-                    Some(Type::Fallible(success)) if success.as_ref() == &Type::Void
-                )
+            if primitive_write_text_raw_call(call, context)
+                || primitive_write_bytes_raw_call(call, context)
             {
-                return Ok(None);
+                let mut temporaries = TemporaryAllocator::new(context)?;
+                return lower_fallible_void_normal_call(
+                    call,
+                    context,
+                    &mut temporaries,
+                    failure_mode,
+                )
+                .map(Some);
             }
 
+            let Some((target, _call_name)) = context.direct_call_target_and_name(call) else {
+                return Ok(None);
+            };
+            let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned()
+            else {
+                return Ok(None);
+            };
+
             let mut temporaries = TemporaryAllocator::new(context)?;
-            lower_fallible_void_normal_call(call, context, &mut temporaries, failure_mode).map(Some)
+            match success_type.as_ref() {
+                Type::Void => {
+                    lower_fallible_void_normal_call(call, context, &mut temporaries, failure_mode)
+                }
+                Type::I32 => {
+                    let destination = temporaries.next_i32()?;
+                    lower_fallible_i32_normal_call(
+                        call,
+                        destination,
+                        context,
+                        &mut temporaries,
+                        failure_mode,
+                    )
+                }
+                Type::U8 => {
+                    let destination = temporaries.next_u8()?;
+                    lower_fallible_u8_normal_call(
+                        call,
+                        destination,
+                        context,
+                        &mut temporaries,
+                        failure_mode,
+                    )
+                }
+                Type::Usize => {
+                    let destination = temporaries.next_usize()?;
+                    lower_fallible_usize_normal_call(
+                        call,
+                        destination,
+                        context,
+                        &mut temporaries,
+                        failure_mode,
+                    )
+                }
+                Type::Bool => {
+                    let destination = temporaries.next_bool()?;
+                    lower_fallible_bool_normal_call(
+                        call,
+                        destination,
+                        context,
+                        &mut temporaries,
+                        failure_mode,
+                    )
+                }
+                Type::Str => {
+                    let destination = temporaries.next_str()?;
+                    lower_fallible_str_normal_call(
+                        call,
+                        destination,
+                        context,
+                        &mut temporaries,
+                        failure_mode,
+                    )
+                }
+                Type::Slice { .. } => {
+                    let destination = temporaries.next_slice()?;
+                    lower_fallible_slice_normal_call(
+                        call,
+                        destination,
+                        context,
+                        &mut temporaries,
+                        failure_mode,
+                    )
+                }
+                _ => return Ok(None),
+            }
+            .map(Some)
         }
         Expr::Group(group) => {
             lower_fallible_void_expression_statement(&group.expression, context, failure_mode)
         }
         _ => Ok(None),
+    }
+}
+
+fn discarded_fallible_statement_reserved_abi_words(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Option<usize> {
+    match expression {
+        Expr::Call(call) if primitive_write_text_raw_call(call, context) => Some(0),
+        Expr::Call(call) if primitive_write_bytes_raw_call(call, context) => Some(0),
+        Expr::Call(call) => {
+            let (target, _call_name) = context.direct_call_target_and_name(call)?;
+            let Type::Fallible(success_type) = context.call_return_type(&target)? else {
+                return None;
+            };
+            discarded_fallible_success_reserved_abi_words(success_type.as_ref())
+        }
+        Expr::Group(group) => {
+            discarded_fallible_statement_reserved_abi_words(&group.expression, context)
+        }
+        _ => None,
+    }
+}
+
+fn discarded_fallible_success_reserved_abi_words(success_type: &Type) -> Option<usize> {
+    match success_type {
+        Type::Void => Some(0),
+        Type::I32 | Type::U8 | Type::Usize | Type::Bool => Some(1),
+        Type::Str | Type::Slice { .. } => Some(2),
+        _ => None,
     }
 }
 
