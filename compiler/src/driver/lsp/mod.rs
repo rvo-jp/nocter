@@ -1197,6 +1197,71 @@ func inspect(value: Header, readonly: &Header, readwrite: &+Header): i32 {
     }
 
     #[test]
+    fn shortens_hidden_canonical_type_names_for_hover() {
+        let project = TempProject::new("lsp-hover-hidden-canonical-type-names");
+        let home = project.write_nocter_home();
+        std::fs::write(
+            home.join("std/string.nct"),
+            "pub copy struct String {\n    ptr: usize\n}\n",
+        )
+        .unwrap();
+        let _home = NocterHomeEnv::set(&home);
+        let app = project.write_source(
+            "app.nct",
+            "use ./config.make\n\nfunc main(): i32 {\n    let holder = make()\n    return 0\n}\n",
+        );
+        let config = project.write_source(
+            "config.nct",
+            "use std/string.String\n\npub copy struct Box {\n    value: String\n}\n\npub func make(): Box {\n    return Box{ value: String{ ptr: 0 } }\n}\n",
+        );
+        let app_uri = file_uri(&app);
+        let config_uri = file_uri(&config);
+        let server = LspServer {
+            documents: HashMap::from([
+                (
+                    app_uri.clone(),
+                    open_document(
+                        app_uri.clone(),
+                        Some(1),
+                        "use ./config.make\n\nfunc main(): i32 {\n    let holder = make()\n    return 0\n}\n"
+                            .to_string(),
+                    ),
+                ),
+                (
+                    config_uri,
+                    open_document(
+                        file_uri(&config),
+                        Some(1),
+                        "use std/string.String\n\npub copy struct Box {\n    value: String\n}\n\npub func make(): Box {\n    return Box{ value: String{ ptr: 0 } }\n}\n"
+                            .to_string(),
+                    ),
+                ),
+            ]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let box_binding = server.hover_response(
+            json!(10),
+            Some(&json!({
+                "textDocument": {
+                    "uri": app_uri
+                },
+                "position": {
+                    "line": 3,
+                    "character": 12
+                }
+            })),
+        );
+
+        assert_eq!(
+            box_binding["result"]["contents"]["value"],
+            json!("```nocter\nlet holder: Box\n```")
+        );
+    }
+
+    #[test]
     fn returns_documented_workspace_hover_for_local_binding_reference() {
         let project = TempProject::new("lsp-hover-local-reference-docs");
         let app = project.write_source(

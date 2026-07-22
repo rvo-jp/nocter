@@ -1122,11 +1122,9 @@ fn type_hover_label(ty: &Type, resolved: &ResolveOutput) -> String {
         Type::Pointer(inner) => format!("*{}", type_hover_label(inner, resolved)),
         Type::Optional(inner) => format!("{}?", type_hover_label(inner, resolved)),
         Type::Fallible { success, .. } => format!("{}!", type_hover_label(success, resolved)),
-        Type::Named(name) => visible_type_name(name, resolved)
-            .map(str::to_string)
-            .unwrap_or_else(|| name.clone()),
+        Type::Named(name) => display_type_name(name, resolved).to_string(),
         Type::Generic { name, arguments } => {
-            let name = visible_type_name(name, resolved).unwrap_or(name);
+            let name = display_type_name(name, resolved);
             let arguments = arguments
                 .iter()
                 .map(|argument| type_hover_label(argument, resolved))
@@ -1141,7 +1139,18 @@ fn type_hover_label(ty: &Type, resolved: &ResolveOutput) -> String {
 }
 
 fn type_owner_hover_label<'a>(owner: &'a TypeSymbol, resolved: &'a ResolveOutput) -> &'a str {
-    visible_type_name(&owner.canonical_name, resolved).unwrap_or(&owner.canonical_name)
+    display_type_name(&owner.canonical_name, resolved)
+}
+
+fn display_type_name<'a>(canonical_name: &'a str, resolved: &'a ResolveOutput) -> &'a str {
+    visible_type_name(canonical_name, resolved).unwrap_or_else(|| short_type_name(canonical_name))
+}
+
+fn short_type_name(canonical_name: &str) -> &str {
+    canonical_name
+        .rsplit_once('.')
+        .map(|(_, name)| name)
+        .unwrap_or(canonical_name)
 }
 
 fn visible_type_name<'a>(canonical_name: &str, resolved: &'a ResolveOutput) -> Option<&'a str> {
@@ -1161,4 +1170,52 @@ fn visible_type_name<'a>(canonical_name: &str, resolved: &'a ResolveOutput) -> O
             | SymbolKind::Imported(_) => None,
         })
         .min_by_key(|name| name.len())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::lex;
+    use crate::parser::parse;
+    use crate::resolve::resolve;
+    use crate::source::SourceMap;
+
+    #[test]
+    fn type_hover_label_shortens_hidden_canonical_names() {
+        let resolved = resolve_text("func main(): i32 {\n    return 0\n}\n");
+
+        assert_eq!(
+            type_hover_label(&Type::Named("std/string.String".to_string()), &resolved),
+            "String"
+        );
+        assert_eq!(
+            type_hover_label(
+                &Type::Generic {
+                    name: "std/vec.Vec".to_string(),
+                    arguments: vec![Type::Named("std/string.String".to_string())],
+                },
+                &resolved,
+            ),
+            "Vec<String>"
+        );
+    }
+
+    fn resolve_text(text: &str) -> ResolveOutput {
+        let mut sources = SourceMap::new();
+        let source = sources.add_source("test.nct", None, text.to_string());
+        let lex_output = lex(&sources, source);
+        assert!(
+            lex_output.diagnostics.is_empty(),
+            "unexpected lex diagnostics: {:?}",
+            lex_output.diagnostics
+        );
+        let parse_output = parse(&sources, source, &lex_output.tokens);
+        assert!(
+            parse_output.diagnostics.is_empty(),
+            "unexpected parse diagnostics: {:?}",
+            parse_output.diagnostics
+        );
+        let ast = parse_output.ast.expect("expected ast");
+        resolve(&sources, &ast)
+    }
 }
