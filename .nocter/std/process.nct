@@ -5,12 +5,78 @@
 
 use std/error.Error
 use std/mem.Allocator
+use std/mem.RawBuffer
+use std/mem.alloc
+use std/mem.alloc_pages
+use std/mem.bytes_mut as raw_bytes_mut
+use std/mem.free
+use std/mem.free_pages
+use std/os.darwin_f_getpath
+use std/os.darwin_max_path_len
+use std/os.darwin_sys_close
+use std/os.darwin_sys_fcntl
+use std/os.darwin_sys_open
+use std/os.syscall1
+use std/os.syscall3
 use std/os.trap
+use std/ptr.addr
+use std/ptr.copy_str_to_ptr
+use std/ptr.from_addr
+use std/ptr.store_u8_to_ptr
+use std/ptr.str_from_raw_parts
 use std/string.String
 use std/vec.Vec
 
 #target("arm64-darwin")
 pub(nocter) primitive exit_raw(code: i32): never
+
+#target("arm64-darwin")
+pub(nocter) func open_current_directory(): usize! {
+    let allocation_size: usize = 2
+    let address: usize = alloc_pages(allocation_size)?
+    copy_str_to_ptr(from_addr(address), 0, ".")
+    store_u8_to_ptr(from_addr(address), allocation_size - 1, 0)
+
+    let result = syscall3(darwin_sys_open(), address, 0, 0)
+    free_pages(address, allocation_size)
+    if result.errno != 0 {
+        return cwd_failed()
+    }
+    return result.value
+}
+
+#target("arm64-darwin")
+pub(nocter) func close_fd_word(fd: usize): void {
+    let result = syscall1(darwin_sys_close(), fd)
+    return
+}
+
+#target("arm64-darwin")
+pub(nocter) func cwd_path_len(buffer: &+RawBuffer): usize! {
+    let bytes = raw_bytes_mut(buffer)
+    var index: usize = 0
+    while index < buffer.len {
+        if bytes[index] == 0 {
+            return index
+        }
+        index = index + 1
+    }
+    return cwd_failed()
+}
+
+#target("arm64-darwin")
+pub(nocter) func fill_cwd_path(fd: usize, buffer: &+RawBuffer): usize! {
+    let result = syscall3(
+        darwin_sys_fcntl(),
+        fd,
+        darwin_f_getpath(),
+        addr(buffer.ptr),
+    )
+    if result.errno != 0 {
+        return cwd_failed()
+    }
+    return cwd_path_len(buffer)?
+}
 
 pub func args(): Vec<&str>! {
     return Error.new("std.process.unsupported", "process arguments are not implemented")
@@ -21,7 +87,26 @@ pub func env(name: &str): &str?! {
 }
 
 pub func cwd(allocator: &+Allocator): String! {
-    return Error.new("std.process.unsupported", "current working directory is not implemented")
+    let fd = open_current_directory() catch error {
+        return Error.new(error.code, error.message)
+    }
+    var buffer = alloc(allocator, darwin_max_path_len(), 1) catch error {
+        close_fd_word(fd)
+        return Error.new(error.code, error.message)
+    }
+    let len = fill_cwd_path(fd, &+buffer) catch error {
+        free(allocator, move buffer)
+        close_fd_word(fd)
+        return Error.new(error.code, error.message)
+    }
+    let value = String.from_str(allocator, str_from_raw_parts(buffer.ptr, len)) catch error {
+        free(allocator, move buffer)
+        close_fd_word(fd)
+        return Error.new(error.code, error.message)
+    }
+    free(allocator, move buffer)
+    close_fd_word(fd)
+    return move value
 }
 
 pub func exit(code: i32): never {
@@ -30,4 +115,8 @@ pub func exit(code: i32): never {
 
 pub func abort(): never {
     trap()
+}
+
+pub func cwd_failed(): error {
+    return Error.new("std.process.cwd_failed", "current working directory is not available")
 }

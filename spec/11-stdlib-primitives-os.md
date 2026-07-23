@@ -288,7 +288,7 @@ pub func abort(): never
 V0 distribution status:
 
 - `exit(code)` and `abort()` are runtime-shipped.
-- `cwd(allocator)` is public but returns `std.process.unsupported` until the process context implementation is promoted.
+- `cwd(allocator)` is runtime-shipped on `arm64-darwin` through the standard-library syscall boundary and returns caller-owned `String` storage.
 - `env(name)` reserves the future `&str?!` API shape, but useful runtime behavior is check-only until nested fallible/optional return lowering and process context runtime are promoted. It must not silently succeed with `none` before environment access is implemented.
 - `args()` reserves the future `Vec<&str>!` API shape, but useful runtime behavior is check-only until `Vec` storage and process context runtime are promoted.
 
@@ -306,15 +306,17 @@ Rules:
 - `env(name)` succeeds with `none` when the variable is absent.
 - `env(name)` succeeds with a present `&str` when the variable is present and valid UTF-8.
 - `cwd(allocator)` returns an owned current-working-directory string or fails with `error`.
+- `cwd(allocator)` fails with `"std.process.cwd_failed"` if the target cannot retrieve the current working directory.
 - Process context string storage is valid for the whole program.
 - Argument and environment views returned by `std/process` are not owned by the caller and must be treated as borrowed view data.
 - The caller must not drop process-context storage.
 - The `cwd(allocator)` result is owned by the caller and must be dropped normally.
 - APIs that need owned strings must explicitly copy into an allocator-owned `String`.
-- Target implementations must validate process strings before exposing them as `&str`.
+- Target implementations must validate argument and environment strings before exposing them as `&str`.
+- The v0 `arm64-darwin` `cwd(allocator)` implementation treats the path returned by `F_GETPATH` as platform UTF-8 text; byte-to-UTF-8 validation for targets that expose arbitrary path bytes remains future std work.
 - `args()` fails with `"std.process.invalid_encoding"` if any returned argument cannot be represented as UTF-8.
 - `env(name)` fails with `"std.process.invalid_encoding"` if the matching environment value exists but cannot be represented as UTF-8.
-- `cwd(allocator)` fails with `"std.process.invalid_encoding"` if the current working directory cannot be represented as UTF-8.
+- Future target implementations of `cwd(allocator)` must fail with `"std.process.invalid_encoding"` if their current-working-directory source can contain non-UTF-8 bytes and validation fails.
 
 Example:
 

@@ -1119,16 +1119,15 @@ impl EntryEmitter {
         self.emit_scalar_spills(frame)?;
         self.emit_str_value_to_x_pair(text, XReg::X3, XReg::X4)?;
         self.emit_i32_value_to_w(fd, WReg::W0)?;
-        self.encoder.emit_mov_x(XReg::X1, XReg::X3);
-        self.encoder.emit_mov_x(XReg::X2, XReg::X4);
-        emit_darwin_write_syscall(&mut self.encoder);
+        self.emit_write_all_syscall_loop()?;
         self.emit_scalar_reloads(frame)?;
-        let failure_branch = self.emit_cond_branch_placeholder(BranchCondition::Cs);
-        emit_mov_i32_to_w0(&mut self.encoder, 0);
+        self.encoder.emit_cmp_x_zero(XReg::X0);
+        let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+        self.emit_write_failure_payload_from_errno()?;
         let end_branch = self.emit_branch_placeholder();
 
-        self.patch_branch_placeholder_to_current(failure_branch, "write syscall failure target")?;
-        self.emit_write_failure_payload_from_errno()?;
+        self.patch_branch_placeholder_to_current(success_branch, "write syscall success target")?;
+        emit_mov_i32_to_w0(&mut self.encoder, 0);
 
         self.patch_branch_placeholder_to_current(end_branch, "write syscall end target")?;
         Ok(())
@@ -1150,19 +1149,90 @@ impl EntryEmitter {
         self.emit_scalar_spills(frame)?;
         self.emit_slice_value_to_x_pair(bytes, XReg::X3, XReg::X4)?;
         self.emit_i32_value_to_w(fd, WReg::W0)?;
-        self.encoder.emit_mov_x(XReg::X1, XReg::X3);
-        self.encoder.emit_mov_x(XReg::X2, XReg::X4);
-        emit_darwin_write_syscall(&mut self.encoder);
+        self.emit_write_all_syscall_loop()?;
         self.emit_scalar_reloads(frame)?;
-        let failure_branch = self.emit_cond_branch_placeholder(BranchCondition::Cs);
-        emit_mov_i32_to_w0(&mut self.encoder, 0);
+        self.encoder.emit_cmp_x_zero(XReg::X0);
+        let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+        self.emit_write_failure_payload_from_errno()?;
         let end_branch = self.emit_branch_placeholder();
 
-        self.patch_branch_placeholder_to_current(failure_branch, "write syscall failure target")?;
-        self.emit_write_failure_payload_from_errno()?;
+        self.patch_branch_placeholder_to_current(success_branch, "write syscall success target")?;
+        emit_mov_i32_to_w0(&mut self.encoder, 0);
 
         self.patch_branch_placeholder_to_current(end_branch, "write syscall end target")?;
         Ok(())
+    }
+
+    fn emit_write_all_syscall_loop(&mut self) -> Result<(), Vec<Diagnostic>> {
+        self.encoder.emit_sub_sp_imm(WRITE_LOOP_FRAME_SIZE);
+        self.encoder.emit_sxtw_x_w(XReg::X5, WReg::W0);
+        self.encoder.emit_str_x_sp(XReg::X5, WRITE_LOOP_FD_OFFSET);
+        self.encoder
+            .emit_str_x_sp(XReg::X3, WRITE_LOOP_POINTER_OFFSET);
+        self.encoder
+            .emit_str_x_sp(XReg::X4, WRITE_LOOP_REMAINING_OFFSET);
+
+        let loop_start_offset = self.encoder.position();
+        self.encoder
+            .emit_ldr_x_sp(XReg::X2, WRITE_LOOP_REMAINING_OFFSET);
+        self.encoder.emit_cmp_x_zero(XReg::X2);
+        let success_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+
+        self.encoder.emit_ldr_x_sp(XReg::X0, WRITE_LOOP_FD_OFFSET);
+        self.encoder
+            .emit_ldr_x_sp(XReg::X1, WRITE_LOOP_POINTER_OFFSET);
+        emit_darwin_write_syscall(&mut self.encoder);
+        let syscall_failure_branch = self.emit_cond_branch_placeholder(BranchCondition::Cs);
+
+        self.encoder.emit_cmp_x_zero(XReg::X0);
+        let zero_write_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+        self.encoder
+            .emit_ldr_x_sp(XReg::X2, WRITE_LOOP_REMAINING_OFFSET);
+        self.encoder.emit_cmp_x(XReg::X2, XReg::X0);
+        let count_in_range_branch = self.emit_cond_branch_placeholder(BranchCondition::Cs);
+
+        self.patch_branch_placeholder_to_current(
+            zero_write_branch,
+            "write syscall zero-byte failure target",
+        )?;
+        emit_mov_u64_to_x(&mut self.encoder, XReg::X0, WRITE_UNEXPECTED_RESULT_ERRNO);
+        let unexpected_count_failure_branch = self.emit_branch_placeholder();
+
+        self.patch_branch_placeholder_to_current(
+            count_in_range_branch,
+            "write syscall partial-progress target",
+        )?;
+        self.encoder
+            .emit_ldr_x_sp(XReg::X1, WRITE_LOOP_POINTER_OFFSET);
+        self.encoder.emit_adds_x(XReg::X1, XReg::X1, XReg::X0);
+        self.encoder
+            .emit_str_x_sp(XReg::X1, WRITE_LOOP_POINTER_OFFSET);
+        self.encoder.emit_subs_x(XReg::X2, XReg::X2, XReg::X0);
+        self.encoder
+            .emit_str_x_sp(XReg::X2, WRITE_LOOP_REMAINING_OFFSET);
+        let loop_branch = self.emit_branch_placeholder();
+        self.patch_branch_placeholder_to_offset(
+            loop_branch,
+            loop_start_offset,
+            "write syscall loop target",
+        )?;
+
+        self.patch_branch_placeholder_to_current(success_branch, "write syscall done target")?;
+        self.encoder.emit_add_sp_imm(WRITE_LOOP_FRAME_SIZE);
+        emit_mov_i32_to_w0(&mut self.encoder, 0);
+        let end_branch = self.emit_branch_placeholder();
+
+        self.patch_branch_placeholder_to_current(
+            syscall_failure_branch,
+            "write syscall failure target",
+        )?;
+        self.patch_branch_placeholder_to_current(
+            unexpected_count_failure_branch,
+            "write syscall unexpected-count failure target",
+        )?;
+        self.encoder.emit_add_sp_imm(WRITE_LOOP_FRAME_SIZE);
+
+        self.patch_branch_placeholder_to_current(end_branch, "write syscall result target")
     }
 
     fn emit_read_slice(
@@ -2171,6 +2241,11 @@ fn align_usize(value: usize, alignment: usize) -> usize {
 
 const STDERR_FILENO: u64 = 2;
 const FALLIBLE_REPORT_FRAME_SIZE: u32 = 32;
+const WRITE_LOOP_FRAME_SIZE: u32 = 32;
+const WRITE_LOOP_FD_OFFSET: u32 = 0;
+const WRITE_LOOP_POINTER_OFFSET: u32 = 8;
+const WRITE_LOOP_REMAINING_OFFSET: u32 = 16;
+const WRITE_UNEXPECTED_RESULT_ERRNO: u64 = 0xffff;
 const FALLIBLE_SUCCESS_PAYLOAD_REGISTER_COUNT: usize = 2;
 const DIRECT_AGGREGATE_REGISTER_WORD_COUNT: usize = 2;
 const WRITE_FAILURE_PAYLOAD: StaticErrorPayload = StaticErrorPayload {
@@ -5986,6 +6061,29 @@ mod tests {
         assert!(output.stderr.is_empty());
     }
 
+    #[test]
+    fn write_str_emits_loop_for_partial_writes() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::WriteStr {
+                    fd: I32Value::Const(1),
+                    text: StrValue::StaticBytes(b"hello\n".to_vec()),
+                },
+                set_return_i32(0),
+                Instruction::Return,
+            ],
+        }]);
+        let code = generate_arm64_darwin_entry(&module).unwrap();
+
+        assert!(
+            contains_backward_unconditional_branch(&code.text),
+            "write lowering should loop until the requested byte count is exhausted"
+        );
+    }
+
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     #[test]
     fn generated_close_fd_closes_stdout() {
@@ -6180,6 +6278,15 @@ mod tests {
 
     fn contains_instruction(text: &[u8], instruction: [u8; 4]) -> bool {
         text.windows(4).any(|window| window == instruction)
+    }
+
+    fn contains_backward_unconditional_branch(text: &[u8]) -> bool {
+        text.chunks_exact(4).any(|chunk| {
+            let word = u32::from_le_bytes(chunk.try_into().unwrap());
+            let is_unconditional_branch = (word & 0xfc00_0000) == 0x1400_0000;
+            let offset_is_negative = (word & 0x0200_0000) != 0;
+            is_unconditional_branch && offset_is_negative
+        })
     }
 
     fn contains_bytes(text: &[u8], bytes: &[u8]) -> bool {

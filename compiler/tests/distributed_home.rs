@@ -1151,17 +1151,19 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn distributed_std_process_cwd_reports_unsupported() {
-    let project = TempProject::new("distributed-home-process-cwd-unsupported-run");
+fn distributed_std_process_cwd_returns_current_directory() {
+    let project = TempProject::new("distributed-home-process-cwd-run");
     let source = project.write_source(
-        "process_cwd_unsupported.nct",
-        r#"use std/mem.page_allocator
+        "process_cwd.nct",
+        r#"use std/io.print
+use std/mem.page_allocator
 use std/process.cwd
 
-func main(): i32! {
+func main(): void! {
     var allocator = page_allocator()
     let value = cwd(&+allocator)?
-    return 0
+    print(value.view())?
+    return
 }
 "#,
     );
@@ -1170,19 +1172,14 @@ func main(): i32! {
 
     assert_eq!(
         output.status.code(),
-        Some(1),
+        Some(0),
         "stdout:\n{}\nstderr:\n{}",
         text(&output.stdout),
         text(&output.stderr)
     );
-    assert!(output.stdout.is_empty(), "expected empty stdout");
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("std.process.unsupported")
-            && stderr.contains("current working directory is not implemented"),
-        "stderr:\n{}",
-        stderr
-    );
+    let expected = project.root().canonicalize().unwrap();
+    assert_eq!(text(&output.stdout), expected.display().to_string());
+    assert!(output.stderr.is_empty(), "expected empty stderr");
 }
 
 #[test]

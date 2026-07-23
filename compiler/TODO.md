@@ -13,7 +13,7 @@ Adopted user decisions:
 - Use an owned `String` direction based on pointer, length, and capacity, implemented as an ordinary standard-library type.
 - `.nocter/std/string.nct` now uses the ordinary `ptr`, `len`, and `capacity` representation with private fields; allocation-backed construction, growth through `text.push_str(...)`, views, drop, and formatting append are covered by distributed std run tests.
 - `.nocter/std/fmt.nct` now includes `append_usize`, so the explicit formatting path covers `&str`, `String`, `i32`, `usize`, and `bool`.
-- `std/process.cwd` now takes an explicit `&+Allocator` and returns an owned `String!`; the body still reports `std.process.unsupported` until the target runtime cwd retrieval path is implemented.
+- `std/process.cwd` now takes an explicit `&+Allocator`, returns an owned `String!`, and runs on `arm64-darwin` through `open`, `fcntl(F_GETPATH)`, and `close` over the closed `std/os.syscall*` boundary.
 - Do not add a runtime GC.
 - Lower generics through monomorphization.
 - Traits are deferred after v0. If traits are added later, prefer static
@@ -32,7 +32,8 @@ Recommended next implementation order:
 4. Continue aggregate ABI and ownership work around field-level state, enum
    payload facts, direct/indirect aggregate edge cases, and drop cleanup.
 5. Continue standard-library runtime work around allocator behavior, owned
-   `String`, `fmt`, and `process.cwd`; add `Vec`, `args`, and `env` only after
+   `String`, `fmt`, byte-to-UTF-8 validation boundaries, and `Vec`; add `args`
+   and `env` only after
    their public API can remain stable.
 6. Keep bare interpolation lowering disabled until an explicit allocator source
    is designed. The explicit `std/mem.page_allocator` +

@@ -24,8 +24,8 @@ Recommended next implementation order:
 4. Continue aggregate ABI and ownership work around field-level state, enum
    payload facts, direct/indirect aggregate edge cases, and drop cleanup.
 5. Continue standard-library runtime work around allocator behavior, owned
-   `String`, `fmt`, and `process.cwd`; add `Vec`, `args`, and `env` only after
-   their public API can remain stable.
+   `String`, `fmt`, byte-to-UTF-8 validation boundaries, and `Vec`; add `args`
+   and `env` only after their public API can remain stable.
 6. Keep bare interpolation lowering disabled until an explicit allocator source
    is designed. The explicit `std/mem.page_allocator` +
    `std/string.with_capacity` + `std/fmt.append_str` + `return move out` shape

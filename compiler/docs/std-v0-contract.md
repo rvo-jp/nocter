@@ -150,10 +150,10 @@ directory traversal are deferred.
 |---|---|---|
 | `exit(code: i32): never` | runtime ship | Terminates with status code. |
 | `abort(): never` | runtime ship | Traps immediately. |
-| `cwd(allocator: &+Allocator): String!` | recoverable unsupported | Fails with `std.process.unsupported`. |
+| `cwd(allocator: &+Allocator): String!` | runtime ship narrow | Returns the current working directory as caller-owned `String` on `arm64-darwin`; fails with `std.process.cwd_failed` if the target path cannot be retrieved. |
 | `env(name: &str): &str?!` | check only | Future fallible-optional shape is reserved. Useful runtime requires nested fallible/optional return lowering and process context storage. It must not be implemented as a fake successful `none`. |
 | `args(): Vec<&str>!` | check only | Future API shape is reserved; useful runtime requires real `Vec` and process context. Current body fails with `std.process.unsupported`. |
-| `exit_raw` | std internal | Target-gated termination primitive. |
+| `exit_raw`, cwd syscall helpers | std internal | Target-gated termination primitive and ordinary Nocter wrappers over the closed `std/os` syscall boundary. |
 
 Future `args` and `env` results borrow process-context storage valid for the
 whole program. `cwd` returns caller-owned `String` storage allocated through the
