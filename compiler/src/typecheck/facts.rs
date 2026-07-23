@@ -32,6 +32,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Default)]
 pub(crate) struct TypecheckFacts {
     binding_type_labels: HashMap<ByteSpan, String>,
+    binding_scalar_view_kinds: HashMap<ByteSpan, TypecheckScalarViewKind>,
     expression_type_labels: HashMap<ByteSpan, String>,
     binding_readonly: HashMap<ByteSpan, bool>,
     declaration_hover_labels: HashMap<ByteSpan, String>,
@@ -49,6 +50,13 @@ pub(crate) struct TypecheckFacts {
 impl TypecheckFacts {
     pub(crate) fn binding_type_label(&self, name_span: ByteSpan) -> Option<&str> {
         self.binding_type_labels.get(&name_span).map(String::as_str)
+    }
+
+    pub(crate) fn binding_scalar_view_kind(
+        &self,
+        name_span: ByteSpan,
+    ) -> Option<TypecheckScalarViewKind> {
+        self.binding_scalar_view_kinds.get(&name_span).copied()
     }
 
     pub(crate) fn expression_type_label(&self, span: ByteSpan) -> Option<&str> {
@@ -169,6 +177,16 @@ impl TypecheckFacts {
             .min_by_key(|(span, _)| (span.len(), span.start))
             .map(|(span, target)| (*span, *target))
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TypecheckScalarViewKind {
+    I32,
+    U8,
+    Usize,
+    Bool,
+    Str,
+    U8Slice,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -764,6 +782,9 @@ impl TypecheckFactCollector<'_> {
                 .binding_type_labels
                 .insert(name_span, type_hover_label(ty, self.resolved));
         }
+        if let Some(kind) = scalar_view_kind(ty) {
+            self.facts.binding_scalar_view_kinds.insert(name_span, kind);
+        }
     }
 
     fn record_expression_type(&mut self, expression: &Expr, environment: &TypeEnvironment) {
@@ -847,6 +868,20 @@ impl TypecheckFactCollector<'_> {
             span,
             enum_variant_signature_hover_label(owner, variant, self.resolved),
         );
+    }
+}
+
+fn scalar_view_kind(ty: &Type) -> Option<TypecheckScalarViewKind> {
+    match ty {
+        Type::I32 => Some(TypecheckScalarViewKind::I32),
+        Type::Primitive(name) if name == "u8" => Some(TypecheckScalarViewKind::U8),
+        Type::Primitive(name) if name == "usize" => Some(TypecheckScalarViewKind::Usize),
+        Type::Primitive(name) if name == "bool" => Some(TypecheckScalarViewKind::Bool),
+        Type::Str => Some(TypecheckScalarViewKind::Str),
+        Type::View { element, .. } if matches!(element.as_ref(), Type::Primitive(name) if name == "u8") => {
+            Some(TypecheckScalarViewKind::U8Slice)
+        }
+        _ => None,
     }
 }
 

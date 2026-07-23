@@ -40,6 +40,7 @@ use crate::ir::{
     I32Location, I32Value, Instruction, ScalarArgument, SliceLocation, StrLocation, Type,
     U8Location, UsizeLocation, UsizeValue,
 };
+use crate::typecheck::TypecheckScalarViewKind;
 
 pub(super) fn lower_local_binding(
     statement: &BindingStmt,
@@ -2264,16 +2265,30 @@ fn scalar_binding_kind(
                 )),
             }
         }
-        None if expression_is_lowerable_bool_binding(&statement.initializer, context) => {
-            Ok(ScalarBindingKind::Bool)
-        }
-        None if expression_is_bool_returning_call(&statement.initializer, context) => {
-            Ok(ScalarBindingKind::Bool)
-        }
-        None => Ok(
-            expression_scalar_binding_kind(&statement.initializer, context)
-                .unwrap_or(ScalarBindingKind::I32),
-        ),
+        None => Ok(context
+            .binding_scalar_view_kind(statement.name_span)
+            .map(scalar_binding_kind_from_typecheck_kind)
+            .or_else(|| {
+                expression_is_lowerable_bool_binding(&statement.initializer, context)
+                    .then_some(ScalarBindingKind::Bool)
+            })
+            .or_else(|| {
+                expression_is_bool_returning_call(&statement.initializer, context)
+                    .then_some(ScalarBindingKind::Bool)
+            })
+            .or_else(|| expression_scalar_binding_kind(&statement.initializer, context))
+            .unwrap_or(ScalarBindingKind::I32)),
+    }
+}
+
+fn scalar_binding_kind_from_typecheck_kind(kind: TypecheckScalarViewKind) -> ScalarBindingKind {
+    match kind {
+        TypecheckScalarViewKind::I32 => ScalarBindingKind::I32,
+        TypecheckScalarViewKind::U8 => ScalarBindingKind::U8,
+        TypecheckScalarViewKind::Usize => ScalarBindingKind::Usize,
+        TypecheckScalarViewKind::Bool => ScalarBindingKind::Bool,
+        TypecheckScalarViewKind::Str => ScalarBindingKind::Str,
+        TypecheckScalarViewKind::U8Slice => ScalarBindingKind::Slice,
     }
 }
 
@@ -2333,7 +2348,9 @@ fn primitive_call_scalar_binding_kind(
 ) -> Option<ScalarBindingKind> {
     match context.primitive_name_for_call(call)? {
         "addr" => Some(ScalarBindingKind::Usize),
+        "str_from_raw_parts" => Some(ScalarBindingKind::Str),
         "bytes_from_str" => Some(ScalarBindingKind::Slice),
+        "slice_from_raw_parts" | "slice_from_raw_parts_mut" => Some(ScalarBindingKind::Slice),
         _ => None,
     }
 }

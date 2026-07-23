@@ -7,7 +7,7 @@ use crate::ir::{
 };
 use crate::resolve::{ResolveOutput, SymbolKind, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceId};
-use crate::typecheck::TypecheckFacts;
+use crate::typecheck::{TypecheckFacts, TypecheckScalarViewKind};
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
@@ -404,6 +404,16 @@ impl<'a> LoweringContext<'a> {
             .as_ref()?
             .typecheck_facts
             .binding_type_label(name_span)
+    }
+
+    pub(super) fn binding_scalar_view_kind(
+        &self,
+        name_span: ByteSpan,
+    ) -> Option<TypecheckScalarViewKind> {
+        self.call_resolution
+            .as_ref()?
+            .typecheck_facts
+            .binding_scalar_view_kind(name_span)
     }
 
     pub(super) fn method_call_receiver<'b>(&self, call: &'b CallExpr) -> Option<&'b Expr> {

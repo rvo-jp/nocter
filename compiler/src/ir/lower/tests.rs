@@ -15112,6 +15112,43 @@ func title(): &str {
 }
 
 #[test]
+fn lowers_inferred_str_let_initializer_normal_call() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func wrapper(): &str {
+    let text = title()
+    return text
+}
+
+func title(): &str {
+    return "Nocter"
+}
+"#,
+        "wrapper",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "wrapper".to_string(),
+            target: crate::ir::CallTarget::same_file("wrapper".to_string()),
+            return_type: Type::Str,
+            instructions: vec![
+                call_str(StrLocation::Local(0), "title", vec![]),
+                Instruction::SetStr {
+                    destination: StrLocation::Return,
+                    value: StrValue::Location(StrLocation::Local(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_u8_slice_parameter_forwarding_call_argument() {
     let function = lower_named_function_with_signatures(
         r#"func main(): i32 {
@@ -15227,6 +15264,78 @@ func main(): i32 {
 
 func echo(bytes: &+Bytes): &+Bytes {
     let view: &+Bytes = bytes
+    return view
+}
+"#,
+        "echo",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "echo".to_string(),
+            target: crate::ir::CallTarget::same_file("echo".to_string()),
+            return_type: readwrite_u8_slice_type(),
+            instructions: vec![
+                Instruction::SetSlice {
+                    destination: SliceLocation::Local(0),
+                    value: SliceValue::Location(SliceLocation::Parameter(0)),
+                },
+                Instruction::SetSlice {
+                    destination: SliceLocation::Return,
+                    value: SliceValue::Location(SliceLocation::Local(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_inferred_u8_slice_local_binding() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func echo(bytes: &[u8]): &[u8] {
+    let view = bytes
+    return view
+}
+"#,
+        "echo",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "echo".to_string(),
+            target: crate::ir::CallTarget::same_file("echo".to_string()),
+            return_type: readonly_u8_slice_type(),
+            instructions: vec![
+                Instruction::SetSlice {
+                    destination: SliceLocation::Local(0),
+                    value: SliceValue::Location(SliceLocation::Parameter(0)),
+                },
+                Instruction::SetSlice {
+                    destination: SliceLocation::Return,
+                    value: SliceValue::Location(SliceLocation::Local(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_inferred_readwrite_u8_slice_local_binding() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func echo(bytes: &+[u8]): &+[u8] {
+    let view = bytes
     return view
 }
 "#,
@@ -21224,6 +21333,102 @@ pub func view_mut(address: usize, len: usize): &+[u8] {
                 destination: SliceLocation::Return,
                 pointer: UsizeValue::Location(UsizeLocation::Parameter(0)),
                 len: UsizeValue::Location(UsizeLocation::Parameter(1)),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
+fn lowers_inferred_str_from_raw_parts_local_binding() {
+    let view = lower_imported_named_function_with_nocter_home_files(
+        r#"use std/ptr_str.view
+
+func main(): void {
+    return
+}
+"#,
+        "view",
+        &[
+            (
+                "std/ptr.nct",
+                r#"pub(nocter) primitive from_addr<T>(address: usize): *T
+pub(nocter) primitive str_from_raw_parts(pointer: *u8, len: usize): &str
+"#,
+            ),
+            (
+                "std/ptr_str.nct",
+                r#"use std/ptr.from_addr
+use std/ptr.str_from_raw_parts
+
+pub func view(address: usize, len: usize): &str {
+    let text = str_from_raw_parts(from_addr(address), len)
+    return text
+}
+"#,
+            ),
+        ],
+    );
+
+    assert_eq!(
+        view.instructions,
+        vec![
+            Instruction::SetStrRawParts {
+                destination: StrLocation::Local(0),
+                pointer: UsizeValue::Location(UsizeLocation::Parameter(0)),
+                len: UsizeValue::Location(UsizeLocation::Parameter(1)),
+            },
+            Instruction::SetStr {
+                destination: StrLocation::Return,
+                value: StrValue::Location(StrLocation::Local(0)),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
+fn lowers_inferred_slice_from_raw_parts_local_binding() {
+    let view = lower_imported_named_function_with_nocter_home_files(
+        r#"use std/ptr_slice.view_mut
+
+func main(): void {
+    return
+}
+"#,
+        "view_mut",
+        &[
+            (
+                "std/ptr.nct",
+                r#"pub(nocter) primitive from_addr<T>(address: usize): *T
+pub(nocter) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
+"#,
+            ),
+            (
+                "std/ptr_slice.nct",
+                r#"use std/ptr.from_addr
+use std/ptr.slice_from_raw_parts_mut
+
+pub func view_mut(address: usize, len: usize): &+[u8] {
+    let view = slice_from_raw_parts_mut(from_addr(address), len)
+    return view
+}
+"#,
+            ),
+        ],
+    );
+
+    assert_eq!(
+        view.instructions,
+        vec![
+            Instruction::SetSliceRawParts {
+                destination: SliceLocation::Local(0),
+                pointer: UsizeValue::Location(UsizeLocation::Parameter(0)),
+                len: UsizeValue::Location(UsizeLocation::Parameter(1)),
+            },
+            Instruction::SetSlice {
+                destination: SliceLocation::Return,
+                value: SliceValue::Location(SliceLocation::Local(0)),
             },
             Instruction::Return,
         ]
