@@ -21,7 +21,7 @@ The specification entry point is [README.md](README.md).
 
 Nocter is a statically typed, value-centered, module-oriented, low-dependency systems language.
 
-The language avoids giving intrinsic language semantics to ordinary identifier names. Names such as `self`, `this`, and `init` are not magic. The executable entry point is selected by the compiler's entry setting; in v0 that setting defaults to the ordinary top-level function name `main`.
+The language avoids giving intrinsic language semantics to most ordinary identifier names. Names such as `self`, `this`, and `init` are not magic. The executable entry point is the root-file top-level function named `main`; v0 fixes this name to remove command-line ambiguity.
 
 Nocter prioritizes:
 
@@ -41,7 +41,7 @@ AI support must not fragment the language surface. Nocter should prefer `nocter 
 
 Adopted: Nocter uses a normal top-level function as the executable entry point.
 
-In v0, the compiler's default entry setting is `main`. The CLI can override it with `--entry <name>` for build, run, and check commands.
+In v0, the executable entry name is fixed to `main`. The CLI does not provide `--entry`.
 
 ```nct
 func main(): i32! {
@@ -50,7 +50,7 @@ func main(): i32! {
 }
 ```
 
-`main` is not a keyword, reserved word, built-in function, or implicitly imported symbol. It can be called like any other function. Its entry behavior comes from the compiler's default entry setting, not from the identifier having intrinsic language meaning.
+`main` is not a keyword, reserved word, built-in function, or implicitly imported symbol. It can be called like any other function. Its entry behavior is fixed by the v0 executable entry rule.
 
 The compiler generates the real Mach-O entry code and connects it to the selected entry function. The generated low-level entry code is an implementation detail.
 
@@ -78,10 +78,8 @@ func main(): i32 {
 
 Rules:
 
-- An executable root file must define exactly one top-level function named by the active entry setting.
-- v0 defaults the active entry setting to `main`.
-- `nocter build app.nct --entry start`, `nocter run app.nct --entry start`, `nocter app.nct --entry start`, and `nocter check app.nct --entry start` select `func start()` instead.
-- The `--entry` value must be a valid Nocter identifier and must not be a keyword.
+- An executable root file must define exactly one top-level function named `main`.
+- `--entry` is not part of v0.
 - Entry lookup considers only the root file's top-level functions.
 - Imported modules may define ordinary functions named `main`; they are not selected as the executable entry point.
 - Duplicate declarations for the selected entry name in one visible scope are normal duplicate function-name errors.
@@ -97,7 +95,7 @@ Rules:
 - Entry function parameters are not part of v0.
 - Entry functions with parameters, such as `func main(args: Vec<&str>): i32!`, are not part of v0.
 - Command-line arguments and environment variables are accessed through `std/process`, not through special entry function parameters.
-- Future manifest configuration may allow setting the entry point without repeating `--entry` on every command.
+- Future manifest configuration may add explicit project-level entry selection, but v0 does not.
 
 Process entry context:
 

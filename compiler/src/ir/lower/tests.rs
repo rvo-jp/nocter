@@ -17985,27 +17985,6 @@ fn lowers_entry_terminal_if_with_i32_less_condition() {
 }
 
 #[test]
-fn lowers_configured_entry_name() {
-    let ir = lower_text_with_entry(
-        r#"func start(): i32 {
-    return 9
-}
-
-func main(): i32 {
-    return 0
-}
-"#,
-        "start",
-    );
-
-    assert_eq!(ir.functions[0].name, "start");
-    assert_eq!(
-        ir.functions[0].instructions,
-        vec![set_return_i32(9), Instruction::Return]
-    );
-}
-
-#[test]
 fn lowers_entry_returning_negative_i32_literal() {
     let ir = lower_text(
         r#"func main(): i32 {
@@ -23921,6 +23900,7 @@ fn analyze_text_fixture_with_entry_and_nocter_home_files(
         source,
         &FrontendOptions {
             nocter_home: Some(nocter_home),
+            source_root: None,
             target: DEFAULT_TARGET.to_string(),
         },
     )

@@ -7,6 +7,29 @@ const NOCTER: &str = env!("CARGO_BIN_EXE_nocter");
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_uses_main_nct_when_source_is_omitted() {
+    let project = TempProject::new("cli-run-default-source");
+    project.write_source(
+        "main.nct",
+        r#"func main(): i32 {
+    return 13
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run"]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(13),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_entry_exit_code() {
     let project = TempProject::new("cli-run-command");
     let source = project.write_source(
@@ -9132,20 +9155,17 @@ fn run_command_reports_compile_diagnostics_without_running() {
 }
 
 #[test]
-fn check_command_accepts_entry_option() {
-    let project = TempProject::new("cli-check-entry");
-    let source = project.write_source(
-        "custom.nct",
-        r#"func start(): i32 {
+fn check_command_uses_main_nct_when_source_is_omitted() {
+    let project = TempProject::new("cli-check-default-source");
+    project.write_source(
+        "main.nct",
+        r#"func main(): i32 {
     return 0
 }
 "#,
     );
 
-    let output = nocter(
-        &project,
-        ["check", source.to_str().unwrap(), "--entry", "start"],
-    );
+    let output = nocter(&project, ["check"]);
 
     assert_eq!(output.status.code(), Some(0));
     assert!(
@@ -9157,6 +9177,35 @@ fn check_command_accepts_entry_option() {
         output.stderr.is_empty(),
         "expected empty stderr, got:\n{}",
         text(&output.stderr)
+    );
+}
+
+#[test]
+fn check_command_rejects_entry_option() {
+    let project = TempProject::new("cli-check-reject-entry");
+    let source = project.write_source(
+        "app.nct",
+        r#"func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(
+        &project,
+        ["check", source.to_str().unwrap(), "--entry", "start"],
+    );
+
+    assert_eq!(output.status.code(), Some(2));
+    assert!(
+        output.stdout.is_empty(),
+        "expected empty stdout, got:\n{}",
+        text(&output.stdout)
+    );
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("`--entry` has been removed"),
+        "stderr:\n{stderr}"
     );
 }
 

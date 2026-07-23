@@ -19,7 +19,7 @@ const VALID_EXAMPLES: &[ValidExample] = &[
     ValidExample::new("spec/examples/valid/optional-propagation.nct"),
     ValidExample::new("spec/examples/valid/range-for.nct"),
     ValidExample::new("spec/examples/valid/match-enum.nct"),
-    ValidExample::with_entry("spec/examples/valid/custom-entry.nct", "start"),
+    ValidExample::new("spec/examples/valid/default-entry.nct"),
 ];
 
 const INVALID_EXAMPLES: &[InvalidExample] = &[
@@ -41,19 +41,11 @@ const INVALID_EXAMPLES: &[InvalidExample] = &[
 
 struct ValidExample {
     path: &'static str,
-    entry: Option<&'static str>,
 }
 
 impl ValidExample {
     const fn new(path: &'static str) -> Self {
-        Self { path, entry: None }
-    }
-
-    const fn with_entry(path: &'static str, entry: &'static str) -> Self {
-        Self {
-            path,
-            entry: Some(entry),
-        }
+        Self { path }
     }
 }
 
@@ -74,7 +66,7 @@ fn valid_example_corpus_passes_check() {
 
     for example in VALID_EXAMPLES {
         let source = repo_root().join(example.path);
-        let output = check(&project, &source, example.entry);
+        let output = check(&project, &source);
 
         assert_eq!(
             output.status.code(),
@@ -105,7 +97,7 @@ fn invalid_example_corpus_fails_check() {
 
     for example in INVALID_EXAMPLES {
         let source = repo_root().join(example.path);
-        let output = check(&project, &source, None);
+        let output = check(&project, &source);
 
         assert_ne!(
             output.status.code(),
@@ -139,7 +131,7 @@ fn valid_example_corpus_passes_check_json() {
 
     for example in VALID_EXAMPLES {
         let source = repo_root().join(example.path);
-        let output = check_json(&project, &source, example.entry);
+        let output = check_json(&project, &source);
 
         assert_eq!(
             output.status.code(),
@@ -174,7 +166,7 @@ fn invalid_example_corpus_reports_check_json_diagnostics() {
 
     for example in INVALID_EXAMPLES {
         let source = repo_root().join(example.path);
-        let output = check_json(&project, &source, None);
+        let output = check_json(&project, &source);
 
         assert_ne!(
             output.status.code(),
@@ -238,30 +230,18 @@ fn doc_comment_example_emits_ast_documentation() {
     ));
 }
 
-fn check(project: &TempProject, source: &Path, entry: Option<&str>) -> Output {
-    let mut command = Command::new(NOCTER);
-    command.args(["check", source.to_str().unwrap()]);
-
-    if let Some(entry) = entry {
-        command.args(["--entry", entry]);
-    }
-
-    command
+fn check(project: &TempProject, source: &Path) -> Output {
+    Command::new(NOCTER)
+        .args(["check", source.to_str().unwrap()])
         .current_dir(project.root())
         .env("NOCTER_HOME", project.nocter_home())
         .output()
         .unwrap()
 }
 
-fn check_json(project: &TempProject, source: &Path, entry: Option<&str>) -> Output {
-    let mut command = Command::new(NOCTER);
-    command.args(["check", source.to_str().unwrap(), "--format", "json"]);
-
-    if let Some(entry) = entry {
-        command.args(["--entry", entry]);
-    }
-
-    command
+fn check_json(project: &TempProject, source: &Path) -> Output {
+    Command::new(NOCTER)
+        .args(["check", source.to_str().unwrap(), "--format", "json"])
         .current_dir(project.root())
         .env("NOCTER_HOME", project.nocter_home())
         .output()

@@ -39,6 +39,7 @@ pub(super) fn check_with_nocter_home(
         source,
         &FrontendOptions {
             nocter_home: Some(home.to_path_buf()),
+            source_root: None,
             target: DEFAULT_TARGET.to_string(),
         },
     ) {

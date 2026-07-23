@@ -14,16 +14,15 @@ Initial commands:
 ```sh
 nocter --version
 nocter doctor
+nocter build
 nocter build app.nct
-nocter build app.nct --entry start
+nocter run
 nocter run app.nct
-nocter run app.nct --entry start
 nocter app.nct
-nocter app.nct --entry start
+nocter check
 nocter check app.nct
-nocter check app.nct --entry start
+nocter check --format json
 nocter check app.nct --format json
-nocter check app.nct --entry start --format json
 nocter fmt app.nct
 nocter fmt --check app.nct
 nocter tokens app.nct --format json
@@ -82,12 +81,14 @@ Rules:
 
 ## Root File
 
-`build`, `run`, and `check` each take exactly one root `.nct` file.
+`build`, `run`, and `check` take zero or one entry `.nct` file.
 
 Rules:
 
-- The root file is the source file named on the command line.
+- If a file is named on the command line, that file is the entry file.
+- If no file is named, `main.nct` in the current working directory is the entry file.
 - The root file must have the `.nct` extension.
+- The source root is the canonical parent directory of the entry file.
 - The compiler follows imports from the root file to form the compile unit.
 - The compile unit rules are specified in [Modules and Imports](01-modules-imports.md#compile-unit).
 - Package manifests, project-root discovery, workspaces, lockfiles, package registries, separate compilation, and incremental artifacts are not part of v0.
@@ -96,41 +97,34 @@ Rules:
 
 ## Entry Selection
 
-`build`, `run`, shorthand run, and `check` select an executable entry function.
+`build`, `run`, shorthand run, and `check` select the executable entry function.
 
 Default:
 
 ```sh
+nocter run
 nocter run app.nct
 ```
 
 This selects root-file `func main()`.
 
-Explicit entry selection:
-
-```sh
-nocter run app.nct --entry start
-nocter check app.nct --entry start --format json
-```
-
 Rules:
 
-- `--entry <name>` is accepted by `build`, `run`, shorthand run, `check`, and `check --format json`.
-- If `--entry` is omitted, the active entry name is `main`.
-- `<name>` must be a valid Nocter identifier and must not be a keyword.
+- The v0 entry function name is fixed to `main`.
+- `--entry` is not part of v0.
 - Entry lookup considers only top-level functions in the root file.
 - Imported functions with the same name are ordinary functions and are not selected as the executable entry.
 - The selected function must have no parameters and must return `i32!`, `i32`, `usize!`, `usize`, `void!`, or `void`.
-- `--entry` is a compiler setting, not a language keyword, attribute, import, or built-in function.
-- `fmt`, `tokens`, and `ast` do not accept `--entry` because they do not perform executable entry validation.
+- `main` is an ordinary function name except for v0 executable entry selection.
+- `fmt`, `tokens`, and `ast` do not perform executable entry validation.
 
 ## Build
 
 `build` generates a persistent executable.
 
 ```sh
+nocter build
 nocter build app.nct
-nocter build app.nct --entry start
 ```
 
 Rules:
@@ -148,8 +142,8 @@ Rules:
 `run` is the lightweight trial execution command.
 
 ```sh
+nocter run
 nocter run app.nct
-nocter run app.nct --entry start
 ```
 
 Adopted: `run` uses a temporary Mach-O executable, not RAM-only execution.
@@ -190,14 +184,12 @@ The command:
 
 ```sh
 nocter app.nct
-nocter app.nct --entry start
 ```
 
 is equivalent to:
 
 ```sh
 nocter run app.nct
-nocter run app.nct --entry start
 ```
 
 Rules:
@@ -214,10 +206,10 @@ Rules:
 `check` validates a program without emitting or executing an executable.
 
 ```sh
+nocter check
 nocter check app.nct
-nocter check app.nct --entry start
+nocter check --format json
 nocter check app.nct --format json
-nocter check app.nct --entry start --format json
 ```
 
 Rules:

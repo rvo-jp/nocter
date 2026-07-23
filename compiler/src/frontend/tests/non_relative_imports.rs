@@ -1,6 +1,8 @@
 use super::support::{check_with_nocter_home, make_nocter_home, make_temp_project};
 use crate::source::SourceMap;
 use std::fs;
+use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
 fn check_loads_non_relative_std_imports_from_nocter_home() {
@@ -60,6 +62,241 @@ func main(): i32 {
     let source = sources.load_file(root.join("app.nct")).unwrap();
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn check_loads_non_relative_imports_from_source_root_before_nocter_home() {
+    let root = make_temp_project("source-root-import");
+    let home = make_nocter_home(&root);
+    fs::create_dir_all(root.join("lib")).unwrap();
+    fs::write(
+        root.join("app.nct"),
+        r#"use lib/math.answer
+
+func main(): i32 {
+    return answer()
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("lib/math.nct"),
+        r#"pub func answer(): i32 {
+    return 7
+}
+"#,
+    )
+    .unwrap();
+    fs::create_dir_all(home.join("lib")).unwrap();
+    fs::write(
+        home.join("lib/math.nct"),
+        r#"pub func answer(): &str {
+    return "wrong root"
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn check_source_root_std_shadows_nocter_home_std() {
+    let root = make_temp_project("source-root-std-shadow");
+    let home = make_nocter_home(&root);
+    fs::create_dir_all(root.join("std")).unwrap();
+    fs::write(
+        root.join("app.nct"),
+        r#"use std/io.answer
+
+func main(): i32 {
+    return answer()
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("std/io.nct"),
+        r#"pub func answer(): i32 {
+    return 1
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/io.nct"),
+        r#"pub func answer(): &str {
+    return "home"
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn check_loads_directory_index_module() {
+    let root = make_temp_project("directory-index-import");
+    let home = make_nocter_home(&root);
+    fs::create_dir_all(root.join("lib/math")).unwrap();
+    fs::write(
+        root.join("app.nct"),
+        r#"use lib/math.answer
+
+func main(): i32 {
+    return answer()
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("lib/math/index.nct"),
+        r#"pub func answer(): i32 {
+    return 3
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn check_reports_ambiguous_file_and_directory_index_module() {
+    let root = make_temp_project("ambiguous-index-import");
+    let home = make_nocter_home(&root);
+    fs::create_dir_all(root.join("lib/math")).unwrap();
+    fs::write(
+        root.join("app.nct"),
+        r#"use lib/math.answer
+
+func main(): i32 {
+    return answer()
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("lib/math.nct"),
+        r#"pub func answer(): i32 {
+    return 1
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("lib/math/index.nct"),
+        r#"pub func answer(): i32 {
+    return 2
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].code, "E0410");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("ambiguous import `lib/math`"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn check_reports_ambiguous_file_and_directory_module_without_index() {
+    let root = make_temp_project("ambiguous-directory-import");
+    let home = make_nocter_home(&root);
+    fs::create_dir_all(root.join("lib/math")).unwrap();
+    fs::write(
+        root.join("app.nct"),
+        r#"use lib/math.answer
+
+func main(): i32 {
+    return answer()
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("lib/math.nct"),
+        r#"pub func answer(): i32 {
+    return 1
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].code, "E0410");
+    assert!(
+        diagnostics[0].message.contains("module directory"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn check_loads_absolute_imports() {
+    let root = make_temp_project("absolute-import-project");
+    let home = make_nocter_home(&root);
+    let absolute_root = absolute_import_root();
+    fs::create_dir_all(absolute_root.join("shared")).unwrap();
+    let import_path = absolute_root.join("shared/answer");
+    let import_path_text = import_path.to_string_lossy().into_owned();
+    fs::write(
+        root.join("app.nct"),
+        format!(
+            r#"use {import_path_text}.answer
+
+func main(): i32 {{
+    return answer()
+}}
+"#
+        ),
+    )
+    .unwrap();
+    fs::write(
+        absolute_root.join("shared/answer.nct"),
+        r#"pub func answer(): i32 {
+    return 9
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+    fs::remove_dir_all(&absolute_root).unwrap();
 
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -455,4 +692,16 @@ func main(): i32 {
 
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].code, "E0200");
+}
+
+fn absolute_import_root() -> PathBuf {
+    let unique = format!(
+        "nocter_absolute_import_{}_{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    );
+    PathBuf::from("/tmp").join(unique)
 }

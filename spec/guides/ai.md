@@ -28,7 +28,7 @@ Rules for generated code:
 - Use 4 spaces for indentation.
 - Do not write semicolons.
 - Prefer `func main(): i32!` for executable roots.
-- Treat `main` as an ordinary function name selected by the compiler's default entry setting, not as a keyword or built-in.
+- Treat `main` as an ordinary function name that v0 fixes as the executable entry point, not as a keyword or built-in.
 - Write fallible types as `T!`.
 - Write fallible optional success values as `T?!`.
 - Use `let` for immutable bindings and `var` for mutable bindings.

@@ -265,34 +265,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn build_file_accepts_configured_entry_name() {
-        let root = make_temp_project("build-custom-entry");
-        let nocter_home = make_nocter_home(&root);
-        let source = root.join("app.nct");
-        fs::write(
-            &source,
-            r#"func start(): i32 {
-    return 0
-}
-"#,
-        )
-        .unwrap();
-
-        let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            "start",
-        );
-
-        assert_diagnostics_empty(&output.diagnostics);
-        assert_eq!(output.output_path, executable);
-        let bytes = fs::read(&executable).unwrap();
-        assert_eq!(read_u32(&bytes, 0), 0xfeed_facf);
-    }
-
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     #[test]
     fn build_file_output_runs_with_entry_return_code() {
@@ -1571,6 +1543,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
     fn frontend_options(nocter_home: PathBuf) -> FrontendOptions {
         FrontendOptions {
             nocter_home: Some(nocter_home),
+            source_root: None,
             target: DEFAULT_TARGET.to_string(),
         }
     }

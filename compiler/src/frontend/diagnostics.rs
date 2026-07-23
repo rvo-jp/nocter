@@ -36,11 +36,15 @@ pub(super) fn import_load_diagnostic(
     diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
     diagnostic.help = Some(match kind {
         ImportPathKind::Relative => {
-            "relative imports are resolved from the importing file directory and automatically add `.nct`"
+            "relative imports are resolved from the importing file directory; module paths try `.nct` and then `index.nct`"
+                .to_string()
+        }
+        ImportPathKind::Absolute => {
+            "absolute imports are resolved from the filesystem root; module paths try `.nct` and then `index.nct`"
                 .to_string()
         }
         ImportPathKind::NonRelative => {
-            "non-relative imports are resolved inside the active Nocter home; `std/...` searches common `std/`"
+            "non-relative imports are resolved from the source root first and the active Nocter home second; module paths try `.nct` and then `index.nct`"
                 .to_string()
         }
     });
@@ -50,7 +54,31 @@ pub(super) fn import_load_diagnostic(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ImportPathKind {
     Relative,
+    Absolute,
     NonRelative,
+}
+
+pub(super) fn ambiguous_import_diagnostic(
+    sources: &SourceMap,
+    span: ByteSpan,
+    import_path: &str,
+    file: &std::path::Path,
+    directory: &std::path::Path,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0410",
+        format!(
+            "ambiguous import `{import_path}`; both module file `{}` and module directory `{}` exist",
+            file.display(),
+            directory.display()
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(span).ok().map(Box::new);
+    diagnostic.help = Some(
+        "remove either the module file or the directory so the import has exactly one target"
+            .to_string(),
+    );
+    diagnostic
 }
 
 pub(super) fn nocter_home_import_diagnostic(

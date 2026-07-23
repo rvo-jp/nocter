@@ -93,12 +93,11 @@ pub use std/io.*
 import std/io.File
 pub use std/io as io
 pub use std/io
-use /absolute/path.Config
 use ./config.nct.Config
 include std/prelude
 ```
 
-Wildcard imports, bare public re-exports, dotted module paths, namespace alias re-exports, absolute paths, explicit `.nct` extensions in import paths, and textual include are not part of the initial language.
+Wildcard imports, bare public re-exports, dotted module paths, namespace alias re-exports, explicit `.nct` extensions in import paths, and textual include are not part of the initial language.
 
 ## Re-exports
 
@@ -185,8 +184,11 @@ project/
 
 ```sh
 nocter build app.nct -o app
+nocter build
 nocter run app.nct
+nocter run
 nocter check app.nct
+nocter check
 ```
 
 Rules:
@@ -194,10 +196,12 @@ Rules:
 - A package manifest such as `nocter.toml` is not part of v0.
 - The compiler does not search upward for a project root.
 - The compiler does not infer a package name from a directory name.
-- The root file is the `.nct` file named on the command line.
-- Project-local imports must be explicit relative imports starting with `./` or `../`.
+- If a file is named on the command line, that file is the entry file.
+- If no file is named, `main.nct` is the entry file.
+- The source root is the canonical parent directory of the entry file.
 - Relative imports are resolved from the directory containing the importing file, not from the root file directory.
-- Non-relative imports are resolved inside the active Nocter home as specified in [Import Path Resolution](#import-path-resolution).
+- Absolute imports are resolved from the filesystem root.
+- Non-relative imports are resolved from the source root first, then the active Nocter home, as specified in [Import Path Resolution](#import-path-resolution).
 - Package registries, dependency version solving, lockfiles, workspaces, and package-level configuration are not part of v0.
 
 Example:
@@ -239,9 +243,7 @@ Rules:
 - Import, re-export, and explicit `use` declarations are allowed only at top level.
 - Synthetic `use std/prelude` is compiler-internal and behaves as if it appears before source-level imports for eligible user project modules.
 - Top-level executable statements are not allowed.
-- A root executable must define the active entry function in the root file.
-- v0 uses `main` as the default active entry function.
-- CLI `--entry <name>` overrides the active entry function for that command.
+- A root executable must define top-level `main` in the root file.
 - Entry lookup does not select imported functions.
 - Imported files may define ordinary functions named `main`, subject to normal name visibility and duplicate-name rules.
 - The same canonical file path is loaded at most once, even if reached through different relative paths.
@@ -315,34 +317,42 @@ Non-relative import paths start with a directory or file name.
 ```nct
 use std/io.print
 use std/fs.File
+use app/config.Config
 ```
 
-Non-relative paths are resolved inside the active Nocter home, normally `~/.nocter/` after user installation.
+Absolute import paths start with `/` and are resolved from the filesystem root.
 
-Release archive names include the host, such as `nocter-v0.1.0-arm64-darwin.tar.gz`, but the archive root is `.nocter/`. Import resolution depends on the active Nocter home path, not on the release archive filename.
+```nct
+use /opt/nocter/shared.Config
+```
 
-For `std/...` paths, the common standard-library directory is searched:
+Non-relative paths are resolved from the source root first and the active Nocter home second. This means a user project can intentionally shadow standard-library paths such as `std/io`.
+
+For an entry file at `/work/app/main.nct` and active Nocter home `/opt/nocter`, import path `std/io` searches:
 
 ```text
-~/.nocter/std/io.nct
+/work/app/std/io.nct
+/work/app/std/io/index.nct
+/opt/nocter/std/io.nct
+/opt/nocter/std/io/index.nct
 ```
 
-For other non-relative paths, the path is resolved directly inside Nocter home:
+Each module path first tries `path.nct`, then `path/index.nct`. If both exist in the same import root, the import is ambiguous and must be reported as an error.
 
 ```text
 use vendor/json.Parser
-
-~/.nocter/vendor/json.nct
+/work/app/vendor/json.nct
+/work/app/vendor/json/index.nct
 ```
 
 Rules:
 
-- Local project imports must start with `./` or `../`.
-- `use config.Config` does not search next to the current file; it searches Nocter home for `config.nct`.
-- `/absolute/path` imports are errors.
+- Local project imports may use `./` or `../` from the importing file, or a non-relative path from the source root.
+- `use config.Config` does not search next to the current file; it searches the source root first and the active Nocter home second.
+- `/absolute/path` imports are resolved from the filesystem root.
 - `.` is not a module separator in import paths.
 - `.nct` is not written in import declarations.
-- Directory modules such as `std/io/mod.nct` or `std/io/index.nct` are not part of the initial design.
+- Directory modules use `index.nct`; `mod.nct` directory modules are not part of v0.
 - The compiler locates Nocter home from `NOCTER_HOME` if set, otherwise from the resolved real path of the running `nocter` executable and its parent directory.
 - The compiler does not automatically search `cwd/.nocter` or `~/.nocter`.
 - The repository development output directory `.nocter/` may act as Nocter home during local development. This is a development detail, not the user-facing installation convention.
@@ -458,16 +468,16 @@ Initial rules:
 - The `.nct` extension is removed.
 - File and directory names used for modules must be snake_case identifiers as defined by [Lexical Grammar](13-lexical-grammar.md#identifiers).
 - `module` is not a keyword.
-- Initial design does not support `mod.nct` directory modules.
+- Directory modules use `index.nct`.
 - Standard library modules live under `std`.
-- `~/.nocter/std/io.nct` resolves from import path `std/io` when the active Nocter home is `~/.nocter`.
+- `/work/app/std/io.nct` resolves from import path `std/io` before `/opt/nocter/std/io.nct` when the entry file is under `/work/app`.
 - Target-dependent standard-library declarations are selected by `#target("...")` inside stable module files such as `~/.nocter/std/os.nct`; target names are not required in import paths.
 
 Import roots:
 
 1. The current file directory for `./` and `../` paths.
-2. The common standard library directory for `std/...` paths.
-3. The active Nocter home root for other non-relative paths.
+2. The filesystem root for `/...` paths.
+3. The source root, then the active Nocter home, for non-relative paths.
 
 The compiler locates Nocter home in this order:
 

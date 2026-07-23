@@ -1,4 +1,4 @@
-use super::{check_text, check_text_with_entry};
+use super::check_text;
 
 #[test]
 fn accepts_default_main_i32() {
@@ -172,31 +172,4 @@ fn diagnoses_default_main_with_parameters() {
 
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].code, "E0303");
-}
-
-#[test]
-fn accepts_configured_entry_name() {
-    let diagnostics = check_text_with_entry(
-        r#"func start(): i32 {
-    return 0
-}
-"#,
-        "start",
-    );
-
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
-}
-
-#[test]
-fn configured_entry_name_does_not_fall_back_to_main() {
-    let diagnostics = check_text_with_entry(
-        r#"func main(): i32 {
-    return 0
-}
-"#,
-        "start",
-    );
-
-    assert_eq!(diagnostics.len(), 1);
-    assert_eq!(diagnostics[0].code, "E0300");
 }

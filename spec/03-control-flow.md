@@ -13,7 +13,7 @@ func scan_words(text: &str): WordStats {
 }
 ```
 
-Names do not define intrinsic language behavior. A function named `init`, `new`, or `drop` is ordinary. A root-file function named `main` is selected as the executable entry point only because the v0 compiler entry setting defaults to `main`; `--entry <name>` can select another root-file function. `drop` is not reserved; inherent destructor declarations and explicit drop statements are contextual source forms.
+Names usually do not define intrinsic language behavior. A function named `init`, `new`, or `drop` is ordinary. A root-file function named `main` is selected as the executable entry point because v0 fixes that entry name. `drop` is not reserved; inherent destructor declarations and explicit drop statements are contextual source forms.
 
 Parameters are written as `name: Type`. `var name: Type` parameters are not part of v0. Parameter binding and ownership rules are specified in [Ownership, Borrowing, and Drop](05-ownership-borrowing-drop.md#function-parameters).
 

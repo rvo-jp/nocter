@@ -115,7 +115,7 @@ compiler/
 export PATH="$HOME/.nocter:$PATH"
 ```
 
-標準ライブラリは `NOCTER_HOME` が指定されていればそこから探し、指定がなければ実行中の `nocter` コマンドの実体パスを解決し、その親ディレクトリを Nocter home として使います。`cwd/.nocter` や `~/.nocter` は自動探索しません。`std/...` は active Nocter home の `std/` から解決します。
+標準ライブラリは `NOCTER_HOME` が指定されていればそこから探し、指定がなければ実行中の `nocter` コマンドの実体パスを解決し、その親ディレクトリを Nocter home として使います。`cwd/.nocter` や `~/.nocter` は自動探索しません。非相対 import は source root を先に見て、見つからなければ active Nocter home を見ます。`std/...` も同じ規則に従うため、ユーザー側の `std/` は標準ライブラリを shadow できます。
 
 ## 対象環境
 
@@ -152,15 +152,13 @@ export PATH="$HOME/.nocter:$PATH"
 ```sh
 nocter build app.nct
 nocter build app.nct -o app
-nocter build app.nct --entry start
+nocter build
 nocter run app.nct
-nocter run app.nct --entry start
+nocter run
 nocter app.nct
-nocter app.nct --entry start
 nocter check app.nct
-nocter check app.nct --entry start
 nocter check app.nct --format json
-nocter check app.nct --entry start --format json
+nocter check --format json
 nocter fmt app.nct
 nocter fmt --check app.nct
 nocter tokens app.nct --format json
@@ -172,7 +170,7 @@ nocter build app.nct --target arm64-darwin
 nocter build app.nct --target x64-linux
 ```
 
-`build` は1つの root `.nct` file を受け取り、`-o path` で出力 executable path を指定します。`run` は一時 Mach-O executable を生成して実行し、終了後に削除します。`nocter app.nct` は quick trial 用の短縮形で、明示形は `nocter run app.nct` です。`--entry name` は root file の top-level `func name()` を executable entry として選びます。省略時は `main` です。`fmt` は指定された1つの `.nct` source file だけを整形し、import graph は辿りません。
+`build`、`run`、`check` は entry file を省略できます。省略時は `main.nct` を指定したものとして扱います。entry function 名は v0 では `main` 固定で、`--entry` はありません。source root は entry file のある directory です。`build` は `-o path` で出力 executable path を指定できます。`run` は一時 Mach-O executable を生成して実行し、終了後に削除します。`nocter app.nct` は quick trial 用の短縮形で、明示形は `nocter run app.nct` です。`fmt` は指定された1つの `.nct` source file だけを整形し、import graph は辿りません。
 
 RAM-only 実行や JIT 実行は v0 では採用しません。`run` も `build` と同じ parser、type checker、ownership checker、ARM64 code generator、Mach-O writer を通ります。違いは、成果物を project に残すか、一時 executable として実行後に削除するかだけです。
 
@@ -238,7 +236,7 @@ examples/word_count.nct                                  => examples/word_count
 
 ファイルパスを唯一の情報源にすることで、ファイル位置とモジュール宣言の不一致を防ぎます。
 
-import は明示的な名前指定を基本にします。`./` または `../` で始まる path は現在ファイルから見た `.nct` を探し、それ以外の path は active Nocter home、通常は `~/.nocter/` 内から探します。
+import は明示的な名前指定を基本にします。`./` または `../` で始まる path は現在ファイルから見た module を探します。`/` で始まる path は filesystem root から探します。それ以外の path は source root から探し、見つからなければ active Nocter home、通常は `~/.nocter/` 内から探します。各 module path は `path.nct` と `path/index.nct` を候補にし、同じ import root に両方ある場合は曖昧エラーです。
 
 ```nct
 use std/mem.Allocator
@@ -250,13 +248,13 @@ pub use std/string.String
 
 `pub use` は、use した公開名を現在 module の公開 API として再公開します。prelude や façade module で使います。`pub(nocter)` の名前は通常公開 API として `pub use` できません。
 
-ワイルドカード use、namespace alias re-export、absolute path、import path 内の `.nct` 拡張子は初期仕様では採用しません。
+ワイルドカード use、namespace alias re-export、import path 内の `.nct` 拡張子は初期仕様では採用しません。
 
 user project module は、compiler が内部的にファイル先頭へ synthetic `use std/prelude` を持つものとして扱います。source text は書き換えず、diagnostic や formatter は元の source を基準にします。synthetic prelude は user project module ごとに独立して適用され、`.nocter/std/` には適用しません。明示的な `use std/prelude` は書いてもよいですが、user project module では冗長です。
 
 prelude は小さく保ちます。v0 では `Error` / `ErrorCode`、所有文字列 `String` のような ubiquitous な標準ライブラリ型だけを置きます。`Int` は廃止し、整数型は `i32` などを直接書くか project-local alias を定義します。`str`、`error`、`[T]`、`[+T]` は compiler built-in の型構文です。`Vec`、`File`、`Allocator`、`print`、`stdout`、`stderr`、`args`、`env`、`cwd`、`exit`、`abort` は domain module から明示 import します。project-wide prelude 設定は初期仕様では採用しません。
 
-v0 では package manifest と project root discovery を採用しません。compiler に渡した `.nct` が root file です。executable の entry point は compiler の entry setting で選ばれ、v0 の既定値は root file の top-level `func main()` です。`--entry start` を指定した場合は root file の top-level `func start()` を選びます。`main` や `start` は予約語や built-in ではなく、通常の関数名です。compiler は root file から import graph を辿り、到達した `.nct` ファイル全体を1つの compile unit として name resolution、type checking、ownership checking、code generation します。separate compilation、incremental build、package registry、lockfile、workspace は v0 では扱いません。
+v0 では package manifest と project root discovery を採用しません。compiler に渡した `.nct` が entry file です。ファイル未指定時は `main.nct` が entry file です。executable の entry point は root file の top-level `func main()` 固定です。`main` は予約語や built-in ではなく、通常の関数名ですが、v0 executable entry としてだけ固定名です。compiler は root file から import graph を辿り、到達した `.nct` ファイル全体を1つの compile unit として name resolution、type checking、ownership checking、code generation します。separate compilation、incremental build、package registry、lockfile、workspace は v0 では扱いません。
 
 ```text
 project/
@@ -503,7 +501,7 @@ func main(): i32! {
 
 低レベルの処理はコンパイラと標準ライブラリが引き受けます。
 
-標準の entry function は `func main(): i32!` です。`--entry name` を指定した場合は `func name(): i32!` が同じ役割を持ちます。成功時は返した `i32` が process exit status になり、失敗時は compiler-generated entry wrapper が built-in `error` を stderr へ出力して status `1` で終了します。stderr 出力自体が失敗した場合、その失敗は無視して status `1` で終了します。simple infallible entry point 用に `func main(): void` と `func main(): i32` も v0 では受け付けます。entry function parameters は採用しません。command-line arguments、environment、current working directory、process termination は `std/process` の通常 API で扱います。
+標準の entry function は `func main(): i32!` です。成功時は返した `i32` が process exit status になり、失敗時は compiler-generated entry wrapper が built-in `error` を stderr へ出力して status `1` で終了します。stderr 出力自体が失敗した場合、その失敗は無視して status `1` で終了します。simple infallible entry point 用に `func main(): void` と `func main(): i32` も v0 では受け付けます。entry function parameters は採用しません。command-line arguments、environment、current working directory、process termination は `std/process` の通常 API で扱います。
 
 ```nct
 use std/process.args

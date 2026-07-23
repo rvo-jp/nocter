@@ -1,5 +1,0 @@
-// The default compiler entry setting is `main`, but --entry can select another
-// root-file function without making that function name special.
-func start(): i32 {
-    return 0
-}

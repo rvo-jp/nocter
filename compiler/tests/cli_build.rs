@@ -45,20 +45,17 @@ fn build_command_writes_default_macho_executable() {
 }
 
 #[test]
-fn build_command_accepts_entry_option() {
-    let project = TempProject::new("cli-build-entry");
+fn build_command_uses_main_nct_when_source_is_omitted() {
+    let project = TempProject::new("cli-build-default-source");
     let source = project.write_source(
-        "custom.nct",
-        r#"func start(): i32 {
+        "main.nct",
+        r#"func main(): i32 {
     return 0
 }
 "#,
     );
 
-    let output = nocter(
-        &project,
-        ["build", source.to_str().unwrap(), "--entry", "start"],
-    );
+    let output = nocter(&project, ["build"]);
     let executable = source.with_extension("");
 
     assert_success(&output);

@@ -101,22 +101,13 @@ fn write_usage(mut writer: impl Write) -> io::Result<()> {
     writeln!(writer, "usage: nocter <command> [args]")?;
     writeln!(writer)?;
     writeln!(writer, "commands:")?;
+    writeln!(writer, "  build [file.nct] [-o <path>] [--target <target>]")?;
+    writeln!(writer, "  run [file.nct] [--target <target>]")?;
+    writeln!(writer, "  <file.nct> [--target <target>]")?;
+    writeln!(writer, "  check [file.nct] [--target <target>]")?;
     writeln!(
         writer,
-        "  build <file.nct> [-o <path>] [--entry <name>] [--target <target>]"
-    )?;
-    writeln!(
-        writer,
-        "  run <file.nct> [--entry <name>] [--target <target>]"
-    )?;
-    writeln!(writer, "  <file.nct> [--entry <name>] [--target <target>]")?;
-    writeln!(
-        writer,
-        "  check <file.nct> [--entry <name>] [--target <target>]"
-    )?;
-    writeln!(
-        writer,
-        "  check <file.nct> [--entry <name>] [--target <target>] --format json"
+        "  check [file.nct] [--target <target>] --format json"
     )?;
     writeln!(writer, "  fmt [--check] <file.nct>")?;
     writeln!(writer, "  tokens <file.nct> --format json")?;

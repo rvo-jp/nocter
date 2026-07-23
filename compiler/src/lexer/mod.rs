@@ -889,6 +889,7 @@ fn keyword(text: &str) -> Option<Keyword> {
     })
 }
 
+#[cfg(test)]
 pub(crate) fn is_valid_identifier_name(text: &str) -> bool {
     let Some(first) = text.as_bytes().first().copied() else {
         return false;

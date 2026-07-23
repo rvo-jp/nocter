@@ -25,10 +25,6 @@ use crate::resolve::resolve;
 use crate::source::SourceMap;
 
 fn check_text(text: &str) -> Vec<Diagnostic> {
-    check_text_with_entry(text, DEFAULT_ENTRY_NAME)
-}
-
-fn check_text_with_entry(text: &str, entry_name: &str) -> Vec<Diagnostic> {
     let mut sources = SourceMap::new();
     let source = sources.add_source("app.nct", None, text);
     let lexed = lex(&sources, source);
@@ -38,6 +34,6 @@ fn check_text_with_entry(text: &str, entry_name: &str) -> Vec<Diagnostic> {
     let ast = parsed.ast.unwrap();
     let resolved = resolve(&sources, &ast);
     let mut diagnostics = resolved.diagnostics.clone();
-    diagnostics.extend(check(&sources, &ast, &resolved, entry_name));
+    diagnostics.extend(check(&sources, &ast, &resolved, DEFAULT_ENTRY_NAME));
     diagnostics
 }

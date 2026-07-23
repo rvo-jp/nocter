@@ -31,6 +31,7 @@ fn parses_bare_use_for_any_module_path() {
     let output = parse_text(
         r#"use std/io
 use ./config
+use /shared/config
 
 func main(): i32 {
     return 0
@@ -46,8 +47,12 @@ func main(): i32 {
     let Item::Use(relative_use) = &ast.items[1] else {
         panic!("expected bare relative use");
     };
+    let Item::Use(absolute_use) = &ast.items[2] else {
+        panic!("expected bare absolute use");
+    };
     assert_eq!(std_use.path.value, "std/io");
     assert_eq!(relative_use.path.value, "./config");
+    assert_eq!(absolute_use.path.value, "/shared/config");
 }
 
 #[test]

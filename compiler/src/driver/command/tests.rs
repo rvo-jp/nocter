@@ -1,7 +1,6 @@
 use super::{Command, parse_command};
 use crate::driver::compile_options::{BuildCommand, SourceCommand};
-use crate::entry::DEFAULT_ENTRY_NAME;
-use crate::target::DEFAULT_TARGET;
+use crate::entry::{DEFAULT_ENTRY_FILE, DEFAULT_ENTRY_NAME};
 use std::ffi::OsString;
 use std::path::PathBuf;
 
@@ -11,40 +10,6 @@ fn parses_bare_source_as_run() {
     assert_eq!(
         command,
         Command::Run(SourceCommand::new(PathBuf::from("app.nct")))
-    );
-}
-
-#[test]
-fn parses_bare_source_entry_option_as_run() {
-    let command = parse_command(&[
-        OsString::from("app.nct"),
-        OsString::from("--entry"),
-        OsString::from("start"),
-    ])
-    .unwrap();
-
-    assert_eq!(
-        command,
-        Command::Run(source_command("app.nct", "start", DEFAULT_TARGET))
-    );
-}
-
-#[test]
-fn parses_build_entry_option() {
-    let command = parse_command(&[
-        OsString::from("build"),
-        OsString::from("app.nct"),
-        OsString::from("--entry"),
-        OsString::from("start"),
-    ])
-    .unwrap();
-
-    assert_eq!(
-        command,
-        Command::Build(build_command(
-            source_command("app.nct", "start", DEFAULT_TARGET),
-            None
-        ))
     );
 }
 
@@ -64,6 +29,25 @@ fn parses_build_output_path() {
             SourceCommand::new(PathBuf::from("app.nct")),
             Some(PathBuf::from("bin/app"))
         ))
+    );
+}
+
+#[test]
+fn parses_build_run_and_check_without_file_as_main_source() {
+    assert_eq!(
+        parse_command(&[OsString::from("build")]).unwrap(),
+        Command::Build(build_command(
+            SourceCommand::new(PathBuf::from(DEFAULT_ENTRY_FILE)),
+            None,
+        ))
+    );
+    assert_eq!(
+        parse_command(&[OsString::from("run")]).unwrap(),
+        Command::Run(SourceCommand::new(PathBuf::from(DEFAULT_ENTRY_FILE)))
+    );
+    assert_eq!(
+        parse_command(&[OsString::from("check")]).unwrap(),
+        Command::Check(SourceCommand::new(PathBuf::from(DEFAULT_ENTRY_FILE)))
     );
 }
 
@@ -88,12 +72,9 @@ fn parses_compile_target_option() {
 }
 
 #[test]
-fn parses_check_json_entry_option_in_either_order() {
+fn parses_check_json_with_default_source() {
     let command = parse_command(&[
         OsString::from("check"),
-        OsString::from("app.nct"),
-        OsString::from("--entry"),
-        OsString::from("start"),
         OsString::from("--format"),
         OsString::from("json"),
     ])
@@ -101,22 +82,7 @@ fn parses_check_json_entry_option_in_either_order() {
 
     assert_eq!(
         command,
-        Command::CheckJson(source_command("app.nct", "start", DEFAULT_TARGET))
-    );
-
-    let command = parse_command(&[
-        OsString::from("check"),
-        OsString::from("app.nct"),
-        OsString::from("--format"),
-        OsString::from("json"),
-        OsString::from("--entry"),
-        OsString::from("start"),
-    ])
-    .unwrap();
-
-    assert_eq!(
-        command,
-        Command::CheckJson(source_command("app.nct", "start", DEFAULT_TARGET))
+        Command::CheckJson(SourceCommand::new(PathBuf::from(DEFAULT_ENTRY_FILE)))
     );
 }
 
@@ -150,18 +116,18 @@ fn rejects_output_path_for_non_build_commands() {
 }
 
 #[test]
-fn rejects_invalid_entry_name() {
+fn rejects_entry_option() {
     let error = parse_command(&[
         OsString::from("run"),
         OsString::from("app.nct"),
         OsString::from("--entry"),
-        OsString::from("not-valid"),
+        OsString::from("start"),
     ])
     .unwrap_err();
 
     assert_eq!(
         error,
-        "entry name `not-valid` is not a valid Nocter identifier"
+        "`--entry` has been removed; Nocter v0 uses `main` as the fixed entry function"
     );
 }
 

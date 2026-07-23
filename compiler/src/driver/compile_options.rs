@@ -1,4 +1,4 @@
-use crate::entry::{DEFAULT_ENTRY_NAME, validate_entry_name};
+use crate::entry::{DEFAULT_ENTRY_FILE, DEFAULT_ENTRY_NAME};
 use crate::target::{DEFAULT_TARGET, validate_requested_target};
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -44,14 +44,22 @@ pub(super) fn parse_compile_command(
     args: &[OsString],
     kind: CompileCommandKind,
 ) -> Result<CompileCommandOptions, String> {
-    if args.len() == 1 {
-        return Err("missing source file".to_string());
-    }
-
-    let mut source = SourceCommand::new(PathBuf::from(args[1].clone()));
+    let (mut source, option_start) = match args.get(1) {
+        Some(value) if is_source_argument(value) => {
+            (SourceCommand::new(PathBuf::from(value.clone())), 2)
+        }
+        _ => (SourceCommand::new(PathBuf::from(DEFAULT_ENTRY_FILE)), 1),
+    };
     let mut json = false;
     let mut output = None;
-    parse_compile_options(args, 2, kind, &mut source, &mut json, &mut output)?;
+    parse_compile_options(
+        args,
+        option_start,
+        kind,
+        &mut source,
+        &mut json,
+        &mut output,
+    )?;
 
     Ok(CompileCommandOptions {
         source,
@@ -87,13 +95,10 @@ fn parse_compile_options(
         let flag = args[index].to_string_lossy();
         match flag.as_ref() {
             "--entry" => {
-                let Some(value) = args.get(index + 1) else {
-                    return Err("expected entry name after `--entry`".to_string());
-                };
-                let entry = value.to_string_lossy();
-                validate_entry_name(&entry)?;
-                source.entry = entry.into_owned();
-                index += 2;
+                return Err(
+                    "`--entry` has been removed; Nocter v0 uses `main` as the fixed entry function"
+                        .to_string(),
+                );
             }
             "--format" if kind == CompileCommandKind::Check => {
                 let Some(value) = args.get(index + 1) else {
@@ -140,4 +145,8 @@ fn parse_compile_options(
 
 fn is_arg(arg: &OsString, expected: &str) -> bool {
     arg.to_string_lossy() == expected
+}
+
+fn is_source_argument(arg: &OsString) -> bool {
+    !arg.to_string_lossy().starts_with('-')
 }

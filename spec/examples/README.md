@@ -25,7 +25,6 @@ Rules:
 - Examples represent user project modules and normally omit redundant `use std/prelude`.
 - Compiler integration tests check that `valid/` examples pass `nocter check` and `invalid/` examples fail it.
 - The same examples are checked through `nocter check --format json` to keep the diagnostics envelope stable for future editor and LSP tooling.
-- Valid examples may opt into a non-default entry function in the compiler integration test. This is used only to show `--entry`; the source name itself remains ordinary.
 - Companion files under a valid example subdirectory are imported by the checked root example and are not necessarily checked as standalone executable roots.
 - Do not use examples to introduce syntax that is not specified in `spec/README.md`.
 
@@ -36,7 +35,6 @@ The corpus is the external stability suite for Nocter v0 front-end behavior. It 
 Current valid coverage:
 
 - default `main` entry
-- explicit `--entry`
 - doc comments for future editor tooling
 - non-relative standard-library import
 - relative source import

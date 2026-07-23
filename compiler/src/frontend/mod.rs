@@ -32,6 +32,7 @@ use prelude::{should_synthesize_prelude, synthesize_prelude_use};
 #[derive(Debug, Clone)]
 pub(crate) struct FrontendOptions {
     pub(crate) nocter_home: Option<PathBuf>,
+    pub(crate) source_root: Option<PathBuf>,
     pub(crate) target: String,
 }
 
@@ -39,6 +40,7 @@ impl Default for FrontendOptions {
     fn default() -> Self {
         Self {
             nocter_home: None,
+            source_root: None,
             target: DEFAULT_TARGET.to_string(),
         }
     }
@@ -54,6 +56,7 @@ pub(crate) fn load_compile_unit(
     let mut loaded_sources_by_path = std::collections::HashMap::new();
     let mut import_sources = ImportSourceMap::new();
     let mut resolved_nocter_home = None;
+    let source_root = active_source_root(sources, root, options);
     let mut diagnostics = Vec::new();
     let mut root_ast = None;
     let mut files = Vec::new();
@@ -96,6 +99,7 @@ pub(crate) fn load_compile_unit(
                 source,
                 path,
                 options,
+                source_root.as_deref(),
                 &mut resolved_nocter_home,
             ) {
                 Ok(path) => path,
@@ -165,6 +169,20 @@ pub(crate) fn load_compile_unit(
         import_sources,
         nocter_home,
     ))
+}
+
+fn active_source_root(
+    sources: &SourceMap,
+    root: SourceId,
+    options: &FrontendOptions,
+) -> Option<PathBuf> {
+    options.source_root.clone().or_else(|| {
+        sources
+            .get(root)
+            .and_then(|file| file.absolute_path())
+            .and_then(|path| path.parent())
+            .map(canonicalize_existing)
+    })
 }
 
 fn filter_target_items(ast: &mut AstFile, target: &str) {

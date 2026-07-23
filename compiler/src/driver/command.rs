@@ -4,6 +4,7 @@ use super::compile_options::{
 };
 use super::fmt_options::{FmtCommandOptions, parse_fmt_command};
 use super::json_tool_options::parse_json_tool_command;
+use crate::entry::DEFAULT_ENTRY_FILE;
 use crate::target::DEFAULT_TARGET;
 use std::ffi::OsString;
 use std::fmt;
@@ -184,7 +185,10 @@ fn command_name(args: &[OsString]) -> Option<String> {
 fn root_argument(args: &[OsString]) -> Option<String> {
     let first = args.first()?.to_string_lossy();
     match first.as_ref() {
-        "build" | "run" | "check" | "tokens" | "ast" => root_after_command(args, 1),
+        "build" | "run" | "check" => {
+            root_after_command(args, 1).or_else(|| Some(DEFAULT_ENTRY_FILE.to_string()))
+        }
+        "tokens" | "ast" => root_after_command(args, 1),
         "fmt" => {
             if args
                 .get(1)

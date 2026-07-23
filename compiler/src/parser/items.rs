@@ -803,6 +803,11 @@ impl Parser<'_> {
         let mut segments = Vec::new();
         let mut start = self.current().span.start;
 
+        if let Some(slash) = self.match_punctuation("/") {
+            start = slash.span.start;
+            value.push('/');
+        }
+
         while self.at_punctuation(".") {
             let dot = self.bump();
             start = dot.span.start;
