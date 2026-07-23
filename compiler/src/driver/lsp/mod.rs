@@ -13,7 +13,7 @@ mod protocol;
 mod semantic;
 mod symbols;
 
-use analysis::{diagnostics_for_workspace, workspace_analysis_for_uri};
+use analysis::{LspWorkspaceAnalysis, diagnostics_for_workspace, workspace_analysis_for_uri};
 #[cfg(test)]
 use completion::{LSP_COMPLETION_ITEM_KIND_FUNCTION, LSP_COMPLETION_ITEM_KIND_STRUCT};
 use completion::{
@@ -57,6 +57,8 @@ use symbols::{
     LSP_SYMBOL_KIND_ENUM_MEMBER, LSP_SYMBOL_KIND_FIELD, LSP_SYMBOL_KIND_FUNCTION,
     LSP_SYMBOL_KIND_STRUCT,
 };
+
+use crate::analysis::FileAnalysis;
 
 pub(super) fn run_lsp() -> ExitCode {
     let stdin = io::stdin();
@@ -330,45 +332,50 @@ impl LspServer {
 
     fn workspace_hover_for_uri(&self, uri: &str, params: Option<&Value>) -> Option<Value> {
         let position = position_from_params(params)?;
-        let document = self.documents.get(uri)?;
-        let root_offset =
-            lsp_position_to_byte_offset(&document.text, position.line, position.character);
-        let workspace = workspace_analysis_for_uri(uri, &self.documents)?;
-        let file = workspace.root_file()?;
-
-        hover_for_file_analysis(&workspace.sources, &workspace.analysis, file, root_offset)
+        self.with_workspace_file_for_uri(uri, |document, workspace, file| {
+            let root_offset =
+                lsp_position_to_byte_offset(&document.text, position.line, position.character);
+            hover_for_file_analysis(&workspace.sources, &workspace.analysis, file, root_offset)
+        })
     }
 
     fn workspace_semantic_tokens_for_uri(&self, uri: &str) -> Option<Vec<usize>> {
-        let document = self.documents.get(uri)?;
-        let workspace = workspace_analysis_for_uri(uri, &self.documents)?;
-        let file = workspace.root_file()?;
-
-        Some(semantic_tokens_for_file_analysis(document, file))
+        self.with_workspace_file_for_uri(uri, |document, _workspace, file| {
+            Some(semantic_tokens_for_file_analysis(document, file))
+        })
     }
 
     fn workspace_definition_for_uri(&self, uri: &str, params: Option<&Value>) -> Option<Value> {
         let position = position_from_params(params)?;
-        let document = self.documents.get(uri)?;
-        let root_offset =
-            lsp_position_to_byte_offset(&document.text, position.line, position.character);
-        let workspace = workspace_analysis_for_uri(uri, &self.documents)?;
-        let file = workspace.root_file()?;
-
-        definition_for_file_analysis(
-            &workspace.sources,
-            &workspace.analysis,
-            file,
-            &self.documents,
-            root_offset,
-        )
+        self.with_workspace_file_for_uri(uri, |document, workspace, file| {
+            let root_offset =
+                lsp_position_to_byte_offset(&document.text, position.line, position.character);
+            definition_for_file_analysis(
+                &workspace.sources,
+                &workspace.analysis,
+                file,
+                &self.documents,
+                root_offset,
+            )
+        })
     }
 
     fn workspace_completion_for_uri(&self, uri: &str) -> Option<Vec<Value>> {
+        self.with_workspace_file_for_uri(uri, |_document, _workspace, file| {
+            Some(completion_items_for_file_analysis(file))
+        })
+    }
+
+    fn with_workspace_file_for_uri<T>(
+        &self,
+        uri: &str,
+        f: impl FnOnce(&OpenDocument, &LspWorkspaceAnalysis, &FileAnalysis) -> Option<T>,
+    ) -> Option<T> {
+        let document = self.documents.get(uri)?;
         let workspace = workspace_analysis_for_uri(uri, &self.documents)?;
         let file = workspace.root_file()?;
 
-        Some(completion_items_for_file_analysis(file))
+        f(document, &workspace, file)
     }
 }
 
