@@ -2,7 +2,8 @@ use crate::abi::{AbiType, abi_value_from_type_expr};
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, BinaryOperator, Block, CallExpr, DropDecl, Expr,
-    ForRangeStmt, FunctionDecl, ImplDecl, ImplMember, Item, Stmt, TypeExpr, UnaryOperator,
+    ForRangeStmt, FunctionDecl, ImplDecl, ImplMember, Item, MethodDecl, Stmt, TypeExpr,
+    UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
@@ -90,7 +91,7 @@ impl<'a> CallableIndex<'a> {
                                     names.insert(method.name_span, name.clone());
                                     definitions.insert(
                                         target,
-                                        IndexedCallable::new_method(impl_, body, file),
+                                        IndexedCallable::new_method(impl_, method, body, file),
                                     );
                                 }
                                 ImplMember::Drop(drop_) => {
@@ -139,6 +140,11 @@ impl<'a> IndexedCallable<'a> {
     fn new_function(function: &'a FunctionDecl, file: &'a FileAnalysis) -> Self {
         let mut issues = Vec::new();
         issues.extend(generic_function_issue(function));
+        issues.extend(generic_instantiation_signature_issues(
+            function.parameters.parameters.iter(),
+            &function.return_type,
+            &file.resolved,
+        ));
         issues.extend(nested_fallible_return_issue(function, &file.resolved));
 
         Self {
@@ -149,12 +155,25 @@ impl<'a> IndexedCallable<'a> {
         }
     }
 
-    fn new_method(impl_: &'a ImplDecl, body: &'a Block, file: &'a FileAnalysis) -> Self {
+    fn new_method(
+        impl_: &'a ImplDecl,
+        method: &'a MethodDecl,
+        body: &'a Block,
+        file: &'a FileAnalysis,
+    ) -> Self {
+        let mut issues = Vec::new();
+        issues.extend(generic_impl_issue(impl_, &file.resolved));
+        issues.extend(generic_instantiation_signature_issues(
+            method.parameters.parameters.iter(),
+            &method.return_type,
+            &file.resolved,
+        ));
+
         Self {
             body,
             resolved: &file.resolved,
             typecheck_facts: &file.typecheck_facts,
-            issues: generic_impl_issue(impl_).into_iter().collect(),
+            issues,
         }
     }
 
@@ -163,7 +182,9 @@ impl<'a> IndexedCallable<'a> {
             body: &drop_.body,
             resolved: &file.resolved,
             typecheck_facts: &file.typecheck_facts,
-            issues: generic_impl_issue(impl_).into_iter().collect(),
+            issues: generic_impl_issue(impl_, &file.resolved)
+                .into_iter()
+                .collect(),
         }
     }
 }
@@ -955,6 +976,14 @@ fn collect_expression_diagnostics(
             }
         }
         Expr::StructLiteral(expression) => {
+            if type_expr_contains_generic_instantiation(&expression.ty, resolved) {
+                diagnostics.push(unsupported_v0_build_diagnostic(
+                    sources,
+                    expression.ty.span(),
+                    "generic struct literals",
+                    "use a non-generic aggregate type until v0 monomorphization is promoted",
+                ));
+            }
             for field in &expression.fields {
                 collect_expression_diagnostics(
                     &field.value,
@@ -1630,6 +1659,34 @@ fn generic_function_issue(function: &FunctionDecl) -> Option<BuildabilityIssue> 
     })
 }
 
+fn generic_instantiation_signature_issues<'a>(
+    parameters: impl Iterator<Item = &'a crate::ast::Parameter>,
+    return_type: &TypeExpr,
+    resolved: &ResolveOutput,
+) -> Vec<BuildabilityIssue> {
+    let mut issues = Vec::new();
+
+    for parameter in parameters {
+        if type_expr_contains_generic_instantiation(&parameter.ty, resolved) {
+            issues.push(BuildabilityIssue {
+                span: parameter.ty.span(),
+                construct: "generic type instantiations in reachable function signatures",
+                help: "use concrete non-generic parameter and return types until v0 monomorphization is promoted",
+            });
+        }
+    }
+
+    if type_expr_contains_generic_instantiation(return_type, resolved) {
+        issues.push(BuildabilityIssue {
+            span: return_type.span(),
+            construct: "generic type instantiations in reachable function signatures",
+            help: "use concrete non-generic parameter and return types until v0 monomorphization is promoted",
+        });
+    }
+
+    issues
+}
+
 fn nested_fallible_return_issue(
     function: &FunctionDecl,
     resolved: &ResolveOutput,
@@ -1679,8 +1736,9 @@ fn type_expr_fallible_depth_inner(
     }
 }
 
-fn generic_impl_issue(impl_: &ImplDecl) -> Option<BuildabilityIssue> {
-    if impl_.generics.parameters.is_empty() && !type_expr_is_generic_instantiation(&impl_.target_ty)
+fn generic_impl_issue(impl_: &ImplDecl, resolved: &ResolveOutput) -> Option<BuildabilityIssue> {
+    if impl_.generics.parameters.is_empty()
+        && !type_expr_contains_generic_instantiation(&impl_.target_ty, resolved)
     {
         return None;
     }
@@ -1695,8 +1753,74 @@ fn generic_impl_issue(impl_: &ImplDecl) -> Option<BuildabilityIssue> {
     })
 }
 
-fn type_expr_is_generic_instantiation(ty: &TypeExpr) -> bool {
-    matches!(ty, TypeExpr::Generic(generic) if !generic.arguments.is_empty())
+fn type_expr_contains_generic_instantiation(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    type_expr_contains_generic_instantiation_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn type_expr_contains_generic_instantiation_inner(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> bool {
+    match ty {
+        TypeExpr::Reference(reference) => {
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+                return false;
+            };
+            let Some(target) = &symbol.alias_target else {
+                return false;
+            };
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return false;
+            }
+            let contains =
+                type_expr_contains_generic_instantiation_inner(target, resolved, resolving_names);
+            resolving_names.remove(&symbol.canonical_name);
+            contains
+        }
+        TypeExpr::Generic(generic) => {
+            !generic.arguments.is_empty()
+                || generic.arguments.iter().any(|argument| {
+                    type_expr_contains_generic_instantiation_inner(
+                        argument,
+                        resolved,
+                        resolving_names,
+                    )
+                })
+        }
+        TypeExpr::Pointer(pointer) => type_expr_contains_generic_instantiation_inner(
+            &pointer.inner,
+            resolved,
+            resolving_names,
+        ),
+        TypeExpr::Borrow(borrow) => {
+            type_expr_contains_generic_instantiation_inner(&borrow.inner, resolved, resolving_names)
+        }
+        TypeExpr::View(view) => {
+            type_expr_contains_generic_instantiation_inner(&view.element, resolved, resolving_names)
+        }
+        TypeExpr::Array(array) => type_expr_contains_generic_instantiation_inner(
+            &array.element,
+            resolved,
+            resolving_names,
+        ),
+        TypeExpr::Optional(optional) => type_expr_contains_generic_instantiation_inner(
+            &optional.inner,
+            resolved,
+            resolving_names,
+        ),
+        TypeExpr::Fallible(fallible) => {
+            type_expr_contains_generic_instantiation_inner(
+                &fallible.success,
+                resolved,
+                resolving_names,
+            ) || type_expr_contains_generic_instantiation_inner(
+                &fallible.error,
+                resolved,
+                resolving_names,
+            )
+        }
+    }
 }
 
 fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {
@@ -1808,6 +1932,96 @@ func unused(): i32 {
 
 func unused(): bool {
     return "a" == "b"
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn reports_reachable_generic_struct_literal_before_ir_lowering() {
+        let (sources, analysis) = analyze_text(
+            r#"struct Box<T> {
+    value: T
+}
+
+func main(): i32 {
+    let box = Box<i32>{
+        value: 42,
+    }
+    return box.value
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "E0435");
+        assert_eq!(
+            diagnostics[0].message,
+            "Nocter v0 build cannot lower generic struct literals yet"
+        );
+        assert_eq!(
+            diagnostics[0].help.as_deref(),
+            Some("use a non-generic aggregate type until v0 monomorphization is promoted")
+        );
+        assert!(diagnostics[0].primary_span.is_some());
+    }
+
+    #[test]
+    fn reports_reachable_generic_instantiation_signature_before_ir_lowering() {
+        let (sources, analysis) = analyze_text(
+            r#"struct Box<T> {
+    value: T
+}
+
+func main(): i32 {
+    return make().value
+}
+
+func make(): Box<i32> {
+    return Box<i32>{
+        value: 42,
+    }
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic.message
+                == "Nocter v0 build cannot lower generic type instantiations in reachable function signatures yet"),
+            "expected generic signature diagnostic, got {diagnostics:?}"
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code == "E0435"),
+            "expected v0 buildability diagnostics, got {diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn does_not_report_unreachable_generic_struct_literal() {
+        let (sources, analysis) = analyze_text(
+            r#"struct Box<T> {
+    value: T
+}
+
+func main(): i32 {
+    return 0
+}
+
+func unused(): i32 {
+    let box = Box<i32>{
+        value: 42,
+    }
+    return box.value
 }
 "#,
         );
