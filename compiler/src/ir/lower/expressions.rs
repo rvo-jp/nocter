@@ -3263,15 +3263,52 @@ fn byte_collection_expression_kind(
                 None
             }
         }
-        Expr::Call(call) => {
-            let (target, _call_name) = context.direct_call_target_and_name(call)?;
-            match context.call_return_type(&target) {
-                Some(Type::Str) => Some(ByteCollectionKind::Str),
-                Some(Type::Slice { .. }) => Some(ByteCollectionKind::Slice),
-                _ => None,
-            }
+        Expr::Call(call) => byte_collection_call_kind(call, context),
+        Expr::Propagate(propagation) => {
+            fallible_byte_collection_expression_kind(&propagation.expression, context)
         }
+        Expr::Force(force) => fallible_byte_collection_expression_kind(&force.expression, context),
+        Expr::Catch(catch) => fallible_byte_collection_expression_kind(&catch.expression, context),
         Expr::Group(group) => byte_collection_expression_kind(&group.expression, context),
+        _ => None,
+    }
+}
+
+fn byte_collection_call_kind(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> Option<ByteCollectionKind> {
+    if primitive_str_from_raw_parts_call(call, context) {
+        return Some(ByteCollectionKind::Str);
+    }
+    if primitive_bytes_from_str_call(call, context)
+        || primitive_slice_from_raw_parts_call(call, context)
+    {
+        return Some(ByteCollectionKind::Slice);
+    }
+
+    let (target, _call_name) = context.direct_call_target_and_name(call)?;
+    byte_collection_kind_from_type(context.call_return_type(&target)?)
+}
+
+fn fallible_byte_collection_expression_kind(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> Option<ByteCollectionKind> {
+    let Expr::Call(call) = unwrap_group(expression) else {
+        return None;
+    };
+    let (target, _call_name) = context.direct_call_target_and_name(call)?;
+    let Type::Fallible(success) = context.call_return_type(&target)? else {
+        return None;
+    };
+    byte_collection_kind_from_type(success)
+}
+
+fn byte_collection_kind_from_type(ty: &Type) -> Option<ByteCollectionKind> {
+    match ty {
+        Type::Str => Some(ByteCollectionKind::Str),
+        Type::Slice { .. } => Some(ByteCollectionKind::Slice),
         _ => None,
     }
 }

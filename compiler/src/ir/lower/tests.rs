@@ -19675,6 +19675,105 @@ func maybe_bytes(bytes: &[u8]): &[u8]! {
 }
 
 #[test]
+fn lowers_fallible_str_call_result_len_return() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func size(): usize! {
+    return make_text()?.len()
+}
+
+func make_text(): &str! {
+    return "abc"
+}
+"#,
+        "size",
+        function_signatures(vec![(
+            "make_text",
+            Type::Fallible(Box::new(Type::Str)),
+            vec![],
+        )]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "size".to_string(),
+            target: crate::ir::CallTarget::same_file("size".to_string()),
+            return_type: Type::Fallible(Box::new(Type::Usize)),
+            instructions: vec![
+                Instruction::CallFallibleStr {
+                    destination: StrLocation::Local(0),
+                    target: CallTarget::same_file("make_text"),
+                    arguments: vec![],
+                    failure_mode: FallibleFailureMode::Propagate,
+                },
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: UsizeValue::StrLen(StrLocation::Local(0)),
+                },
+                Instruction::ReturnFallibleSuccess,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_fallible_slice_call_result_index_return() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func first(bytes: &[u8]): u8! {
+    return maybe_bytes(bytes)?[0]
+}
+
+func maybe_bytes(bytes: &[u8]): &[u8]! {
+    return bytes
+}
+"#,
+        "first",
+        function_signatures(vec![(
+            "maybe_bytes",
+            Type::Fallible(Box::new(readonly_u8_slice_type())),
+            vec![readonly_u8_slice_type()],
+        )]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "first".to_string(),
+            target: crate::ir::CallTarget::same_file("first".to_string()),
+            return_type: Type::Fallible(Box::new(Type::U8)),
+            instructions: vec![
+                Instruction::CallFallibleSlice {
+                    destination: SliceLocation::Local(0),
+                    target: CallTarget::same_file("maybe_bytes"),
+                    arguments: vec![ScalarArgument::Slice(SliceValue::Location(
+                        SliceLocation::Parameter(0),
+                    ))],
+                    failure_mode: FallibleFailureMode::Propagate,
+                },
+                Instruction::SetU8 {
+                    destination: U8Location::Return,
+                    value: U8Value::SliceIndex {
+                        source: SliceLocation::Local(0),
+                        index: usize_const(0),
+                    },
+                },
+                Instruction::ReturnFallibleSuccess,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_fallible_force_unwrap_call_as_trapping_fallible_call() {
     let ir = lower_text(
         r#"func main(): i32 {
@@ -21436,6 +21535,103 @@ pub func view_mut(address: usize, len: usize): &+[u8] {
 }
 
 #[test]
+fn lowers_str_from_raw_parts_call_len_return() {
+    let size = lower_imported_named_function_with_nocter_home_files(
+        r#"use std/ptr_str.size
+
+func main(): void {
+    return
+}
+"#,
+        "size",
+        &[
+            (
+                "std/ptr.nct",
+                r#"pub(nocter) primitive from_addr<T>(address: usize): *T
+pub(nocter) primitive str_from_raw_parts(pointer: *u8, len: usize): &str
+"#,
+            ),
+            (
+                "std/ptr_str.nct",
+                r#"use std/ptr.from_addr
+use std/ptr.str_from_raw_parts
+
+pub func size(address: usize, len: usize): usize {
+    return str_from_raw_parts(from_addr(address), len).len()
+}
+"#,
+            ),
+        ],
+    );
+
+    assert_eq!(
+        size.instructions,
+        vec![
+            Instruction::SetStrRawParts {
+                destination: StrLocation::Local(0),
+                pointer: UsizeValue::Location(UsizeLocation::Parameter(0)),
+                len: UsizeValue::Location(UsizeLocation::Parameter(1)),
+            },
+            Instruction::SetUsize {
+                destination: UsizeLocation::Return,
+                value: UsizeValue::StrLen(StrLocation::Local(0)),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
+fn lowers_slice_from_raw_parts_call_index_return() {
+    let first = lower_imported_named_function_with_nocter_home_files(
+        r#"use std/ptr_slice.first
+
+func main(): void {
+    return
+}
+"#,
+        "first",
+        &[
+            (
+                "std/ptr.nct",
+                r#"pub(nocter) primitive from_addr<T>(address: usize): *T
+pub(nocter) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
+"#,
+            ),
+            (
+                "std/ptr_slice.nct",
+                r#"use std/ptr.from_addr
+use std/ptr.slice_from_raw_parts_mut
+
+pub func first(address: usize, len: usize): u8 {
+    return slice_from_raw_parts_mut(from_addr(address), len)[0]
+}
+"#,
+            ),
+        ],
+    );
+
+    assert_eq!(
+        first.instructions,
+        vec![
+            Instruction::SetSliceRawParts {
+                destination: SliceLocation::Local(0),
+                pointer: UsizeValue::Location(UsizeLocation::Parameter(0)),
+                len: UsizeValue::Location(UsizeLocation::Parameter(1)),
+            },
+            Instruction::SetU8 {
+                destination: U8Location::Return,
+                value: U8Value::SliceIndex {
+                    source: SliceLocation::Local(0),
+                    index: usize_const(0),
+                },
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_string_bytes_to_slice_view() {
     let bytes = lower_imported_named_function_with_nocter_home_files(
         r#"use std/string.bytes
@@ -21454,6 +21650,75 @@ func main(): void {
             Instruction::SetSlice {
                 destination: SliceLocation::Return,
                 value: SliceValue::StrBytes(StrValue::Location(StrLocation::Parameter(0))),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
+fn lowers_bytes_from_str_call_len_return() {
+    let size = lower_imported_named_function_with_nocter_home_files(
+        r#"use std/string.size
+
+func main(): void {
+    return
+}
+"#,
+        "size",
+        &[(
+            "std/string.nct",
+            r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+
+pub func size(value: &str): usize {
+    return bytes_from_str(value).len()
+}
+"#,
+        )],
+    );
+
+    assert_eq!(
+        size.instructions,
+        vec![
+            Instruction::SetUsize {
+                destination: UsizeLocation::Return,
+                value: UsizeValue::StrLen(StrLocation::Parameter(0)),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
+fn lowers_bytes_from_str_call_index_return() {
+    let first = lower_imported_named_function_with_nocter_home_files(
+        r#"use std/string.first
+
+func main(): void {
+    return
+}
+"#,
+        "first",
+        &[(
+            "std/string.nct",
+            r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+
+pub func first(value: &str): u8 {
+    return bytes_from_str(value)[1]
+}
+"#,
+        )],
+    );
+
+    assert_eq!(
+        first.instructions,
+        vec![
+            Instruction::SetU8 {
+                destination: U8Location::Return,
+                value: U8Value::StrIndex {
+                    source: StrLocation::Parameter(0),
+                    index: usize_const(1),
+                },
             },
             Instruction::Return,
         ]
