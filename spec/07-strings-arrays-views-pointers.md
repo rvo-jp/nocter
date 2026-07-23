@@ -97,18 +97,18 @@ func address_of(value: &u8): usize {
 
 ```nct
 impl &[T] {
-    pub method (view: Self).ptr(): *T
-    pub method (view: Self).len(): usize
+    pub method self.ptr(): *T
+    pub method self.len(): usize
 }
 
 impl &+[T] {
-    pub method (view: Self).ptr(): *T
-    pub method (view: Self).len(): usize
+    pub method self.ptr(): *T
+    pub method self.len(): usize
 }
 
 impl &str {
-    pub method (text: Self).ptr(): *u8
-    pub method (text: Self).len(): usize
+    pub method self.ptr(): *u8
+    pub method self.len(): usize
 }
 ```
 
@@ -321,11 +321,11 @@ pub struct ViewIter<T> {
 }
 
 impl &[T] {
-    pub method (view: Self).iter(): ViewIter<T>
+    pub method self.iter(): ViewIter<T>
 }
 
 impl ViewIter<T> {
-    pub method (iter: &+Self).next(): (&T)?
+    pub method &+self.next(): (&T)?
 }
 ```
 
@@ -410,20 +410,20 @@ Adopted method surface direction:
 pub func String.copy(allocator: &+Allocator, text: &str): String!
 
 impl String {
-    pub method (text: &Self).view(): &str
-    pub method (text: &Self).len(): usize
-    pub method (text: &Self).capacity(): usize
-    pub method (text: &Self).is_empty(): bool
-    pub method (text: &Self).bytes(): &[u8]
-    pub method (text: &+Self).reserve(additional: usize): void!
-    pub method (text: &+Self).clear(): void
-    pub method (text: &+Self).push_str(value: &str): void!
+    pub method &self.view(): &str
+    pub method &self.len(): usize
+    pub method &self.capacity(): usize
+    pub method &self.is_empty(): bool
+    pub method &self.bytes(): &[u8]
+    pub method &+self.reserve(additional: usize): void!
+    pub method &+self.clear(): void
+    pub method &+self.push_str(value: &str): void!
 }
 
 impl &str {
-    pub method (text: Self).ptr(): *u8
-    pub method (text: Self).len(): usize
-    pub method (text: Self).bytes(): &[u8]
+    pub method self.ptr(): *u8
+    pub method self.len(): usize
+    pub method self.bytes(): &[u8]
 }
 ```
 

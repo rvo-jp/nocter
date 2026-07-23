@@ -398,8 +398,8 @@ pub func File.open(path: &str): File! {
 }
 
 impl File {
-    method (file: &Self).raw_fd(): i32 {
-        return file.fd
+    method &self.raw_fd(): i32 {
+        return self.fd
     }
 }
 

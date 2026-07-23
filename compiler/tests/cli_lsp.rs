@@ -306,6 +306,23 @@ fn lsp_command_serves_v0_editor_features() {
             json!({
                 "jsonrpc": "2.0",
                 "id": 5,
+                "method": "textDocument/references",
+                "params": {
+                    "textDocument": {
+                        "uri": uri.clone()
+                    },
+                    "position": {
+                        "line": 10,
+                        "character": 18
+                    },
+                    "context": {
+                        "includeDeclaration": true
+                    }
+                }
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 6,
                 "method": "textDocument/completion",
                 "params": {
                     "textDocument": {
@@ -319,7 +336,7 @@ fn lsp_command_serves_v0_editor_features() {
             }),
             json!({
                 "jsonrpc": "2.0",
-                "id": 6,
+                "id": 7,
                 "method": "textDocument/semanticTokens/full",
                 "params": {
                     "textDocument": {
@@ -329,7 +346,7 @@ fn lsp_command_serves_v0_editor_features() {
             }),
             json!({
                 "jsonrpc": "2.0",
-                "id": 7,
+                "id": 8,
                 "method": "shutdown",
                 "params": null
             }),
@@ -372,7 +389,18 @@ fn lsp_command_serves_v0_editor_features() {
     assert_eq!(definition["range"]["start"]["line"], json!(1));
     assert_eq!(definition["range"]["start"]["character"], json!(5));
 
-    let completion_items = response_with_id(&messages, 5)["result"]["items"]
+    let references = response_with_id(&messages, 5)["result"]
+        .as_array()
+        .expect("expected references");
+    assert_eq!(references.len(), 2);
+    assert_eq!(references[0]["uri"], json!(uri));
+    assert_eq!(references[0]["range"]["start"]["line"], json!(1));
+    assert_eq!(references[0]["range"]["start"]["character"], json!(5));
+    assert_eq!(references[1]["uri"], json!(uri));
+    assert_eq!(references[1]["range"]["start"]["line"], json!(10));
+    assert_eq!(references[1]["range"]["start"]["character"], json!(16));
+
+    let completion_items = response_with_id(&messages, 6)["result"]["items"]
         .as_array()
         .expect("expected completion items");
     for label in ["return", "answer", "Config"] {
@@ -384,7 +412,7 @@ fn lsp_command_serves_v0_editor_features() {
         );
     }
 
-    let semantic_data = response_with_id(&messages, 6)["result"]["data"]
+    let semantic_data = response_with_id(&messages, 7)["result"]["data"]
         .as_array()
         .expect("expected semantic token data");
     assert!(!semantic_data.is_empty(), "messages:\n{messages:#?}");

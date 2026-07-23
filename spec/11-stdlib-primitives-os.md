@@ -162,14 +162,14 @@ pub func push_str(text: &+String, value: &str): void!
 pub func capacity_overflow(): error
 
 impl String {
-    pub method (text: &Self).view(): &str
-    pub method (text: &Self).len(): usize
-    pub method (text: &Self).capacity(): usize
-    pub method (text: &Self).is_empty(): bool
-    pub method (text: &Self).bytes(): &[u8]
-    pub method (text: &+Self).reserve(additional: usize): void!
-    pub method (text: &+Self).clear(): void
-    pub method (text: &+Self).push_str(value: &str): void!
+    pub method &self.view(): &str
+    pub method &self.len(): usize
+    pub method &self.capacity(): usize
+    pub method &self.is_empty(): bool
+    pub method &self.bytes(): &[u8]
+    pub method &+self.reserve(additional: usize): void!
+    pub method &+self.clear(): void
+    pub method &+self.push_str(value: &str): void!
 }
 ```
 
@@ -207,11 +207,11 @@ pub struct File {
 pub func File.open(path: &str): File!
 
 impl File {
-    pub method (file: &+Self).read(buffer: &+[u8]): usize!
-    pub method (file: &+Self).write(bytes: &[u8]): void!
-    pub method (file: &+Self).write_text(text: &str): void!
+    pub method &+self.read(buffer: &+[u8]): usize!
+    pub method &+self.write(bytes: &[u8]): void!
+    pub method &+self.write_text(text: &str): void!
 
-    drop file: &+Self {
+    drop &+self {
         ...
     }
 }
@@ -602,7 +602,7 @@ pub(nocter) func write_fd(fd: FileDescriptor, bytes: &[u8]): void! {
 User-facing modules then expose safe ordinary APIs:
 
 ```nct
-pub method (file: &+File).write(bytes: &[u8]): void! {
+pub method &+self.write(bytes: &[u8]): void! {
     ...
 }
 ```

@@ -9,7 +9,9 @@ mod definition;
 mod diagnostics;
 mod documents;
 mod hover;
+mod locations;
 mod protocol;
+mod references;
 mod semantic;
 mod symbols;
 
@@ -35,6 +37,7 @@ use protocol::byte_offset_to_lsp_position;
 use protocol::{
     lsp_position_to_byte_offset, position_from_params, read_message, response, write_message,
 };
+use references::{references_for_document, references_for_file_analysis};
 #[cfg(test)]
 use semantic::ClassifiedIdentifier;
 #[cfg(test)]
@@ -157,6 +160,10 @@ impl LspServer {
             }
             "textDocument/definition" => {
                 write_message(writer, self.definition_response(id, params))?;
+                Ok(None)
+            }
+            "textDocument/references" => {
+                write_message(writer, self.references_response(id, params))?;
                 Ok(None)
             }
             "textDocument/documentSymbol" => {
@@ -303,6 +310,19 @@ impl LspServer {
         response(id, definition.unwrap_or(Value::Null))
     }
 
+    fn references_response(&self, id: Value, params: Option<&Value>) -> Value {
+        let references = document_uri_from_params(params)
+            .and_then(|uri| {
+                self.workspace_references_for_uri(&uri, params).or_else(|| {
+                    self.documents
+                        .get(&uri)
+                        .map(|document| references_for_document(document, params))
+                })
+            })
+            .unwrap_or_default();
+        response(id, Value::Array(references))
+    }
+
     fn document_symbol_response(&self, id: Value, params: Option<&Value>) -> Value {
         let symbols = document_uri_from_params(params)
             .and_then(|uri| self.documents.get(&uri))
@@ -360,6 +380,26 @@ impl LspServer {
         })
     }
 
+    fn workspace_references_for_uri(
+        &self,
+        uri: &str,
+        params: Option<&Value>,
+    ) -> Option<Vec<Value>> {
+        let position = position_from_params(params)?;
+        self.with_workspace_file_for_uri(uri, |document, workspace, file| {
+            let root_offset =
+                lsp_position_to_byte_offset(&document.text, position.line, position.character);
+            Some(references_for_file_analysis(
+                &workspace.sources,
+                &workspace.analysis,
+                file,
+                &self.documents,
+                params,
+                root_offset,
+            ))
+        })
+    }
+
     fn workspace_completion_for_uri(&self, uri: &str) -> Option<Vec<Value>> {
         self.with_workspace_file_for_uri(uri, |_document, _workspace, file| {
             Some(completion_items_for_file_analysis(file))
@@ -398,6 +438,7 @@ fn initialize_response(id: Value) -> Value {
                 },
                 "hoverProvider": true,
                 "definitionProvider": true,
+                "referencesProvider": true,
                 "documentSymbolProvider": true,
                 "completionProvider": {
                     "resolveProvider": false,
@@ -467,6 +508,7 @@ mod tests {
         assert!(text.contains("\"semanticTokensProvider\""));
         assert!(text.contains("\"hoverProvider\""));
         assert!(text.contains("\"definitionProvider\""));
+        assert!(text.contains("\"referencesProvider\""));
         assert!(text.contains("\"documentSymbolProvider\""));
         assert!(text.contains("\"completionProvider\""));
     }
@@ -1539,6 +1581,47 @@ func inspect(value: Header, readonly: &Header, readwrite: &+Header): i32 {
     }
 
     #[test]
+    fn returns_references_for_local_binding() {
+        let uri = "file:///tmp/nocter-references-local.nct".to_string();
+        let document = open_document(
+            uri.clone(),
+            Some(1),
+            "func main(): i32 {\n    let code = 0\n    return code + code\n}\n".to_string(),
+        );
+        let server = LspServer {
+            documents: HashMap::from([(uri.clone(), document)]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.references_response(
+            json!(10),
+            Some(&json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "position": {
+                    "line": 1,
+                    "character": 9
+                },
+                "context": {
+                    "includeDeclaration": true
+                }
+            })),
+        );
+        let references = response["result"].as_array().expect("expected references");
+
+        assert_eq!(references.len(), 3);
+        assert_eq!(references[0]["range"]["start"]["line"], json!(1));
+        assert_eq!(references[0]["range"]["start"]["character"], json!(8));
+        assert_eq!(references[1]["range"]["start"]["line"], json!(2));
+        assert_eq!(references[1]["range"]["start"]["character"], json!(11));
+        assert_eq!(references[2]["range"]["start"]["line"], json!(2));
+        assert_eq!(references[2]["range"]["start"]["character"], json!(18));
+    }
+
+    #[test]
     fn returns_definition_for_imported_function_reference() {
         let project = TempProject::new("lsp-definition-import");
         let home = project.write_nocter_home();
@@ -1593,6 +1676,73 @@ func inspect(value: Header, readonly: &Header, readwrite: &+Header): i32 {
         assert_eq!(response["result"]["range"]["start"]["line"], json!(0));
         assert_eq!(response["result"]["range"]["start"]["character"], json!(9));
         assert_eq!(response["result"]["range"]["end"]["character"], json!(15));
+    }
+
+    #[test]
+    fn returns_references_for_imported_function_reference() {
+        let project = TempProject::new("lsp-references-import");
+        let home = project.write_nocter_home();
+        let _home = NocterHomeEnv::set(&home);
+        let app = project.write_source(
+            "app.nct",
+            "use ./config.answer\n\nfunc main(): i32 {\n    return answer()\n}\n",
+        );
+        let config =
+            project.write_source("config.nct", "pub func answer(): i32 {\n    return 42\n}\n");
+        let app_uri = file_uri(&app);
+        let config_uri = file_uri(&config);
+        let server = LspServer {
+            documents: HashMap::from([
+                (
+                    app_uri.clone(),
+                    open_document(
+                        app_uri.clone(),
+                        Some(1),
+                        "use ./config.answer\n\nfunc main(): i32 {\n    return answer()\n}\n"
+                            .to_string(),
+                    ),
+                ),
+                (
+                    config_uri.clone(),
+                    open_document(
+                        config_uri.clone(),
+                        Some(1),
+                        "pub func answer(): i32 {\n    return 42\n}\n".to_string(),
+                    ),
+                ),
+            ]),
+            published_diagnostic_uris: HashSet::new(),
+            workspace_roots: Vec::new(),
+            shutdown_requested: false,
+        };
+
+        let response = server.references_response(
+            json!(10),
+            Some(&json!({
+                "textDocument": {
+                    "uri": app_uri
+                },
+                "position": {
+                    "line": 3,
+                    "character": 12
+                },
+                "context": {
+                    "includeDeclaration": true
+                }
+            })),
+        );
+        let references = response["result"].as_array().expect("expected references");
+
+        assert_eq!(references.len(), 3);
+        assert_eq!(references[0]["uri"], json!(app_uri));
+        assert_eq!(references[0]["range"]["start"]["line"], json!(0));
+        assert_eq!(references[0]["range"]["start"]["character"], json!(13));
+        assert_eq!(references[1]["uri"], json!(app_uri));
+        assert_eq!(references[1]["range"]["start"]["line"], json!(3));
+        assert_eq!(references[1]["range"]["start"]["character"], json!(11));
+        assert_eq!(references[2]["uri"], json!(config_uri));
+        assert_eq!(references[2]["range"]["start"]["line"], json!(0));
+        assert_eq!(references[2]["range"]["start"]["character"], json!(9));
     }
 
     #[test]

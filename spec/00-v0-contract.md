@@ -19,7 +19,7 @@ code.
 
 ```nct
 pub interface Printable {
-    pub method (value: &Self).print(): i32
+    pub method &self.print(): i32
 }
 
 impl Printable for User

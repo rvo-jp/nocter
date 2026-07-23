@@ -10,7 +10,7 @@ commit.
 
 The first LSP maintainability pass is complete enough to stop here, and compiler core work has moved back to backend v0.
 
-Do not add rename, references, formatting integration, richer type hovers, or more editor-only behavior before returning to compiler core work.
+Do not add rename, formatting integration, richer type hovers, or more editor-only behavior before returning to compiler core work. References are now part of the v0 basic LSP surface and should remain backed by compiler analysis facts.
 The current LSP feature modules should present compiler analysis results, not grow their own language semantics.
 
 Recommended next implementation order:

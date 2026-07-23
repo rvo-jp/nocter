@@ -67,7 +67,7 @@ if path.len() == 0 {
 
 ```nct
 impl File {
-    pub method (file: &+Self).write_text(text: &str): void! {
+    pub method &+self.write_text(text: &str): void! {
         ...
     }
 }

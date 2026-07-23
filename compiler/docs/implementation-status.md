@@ -43,7 +43,7 @@ The distributable standard-library public surface lives in `std-v0-contract.md`.
 | `check --format json` | yes | n/a | yes | n/a | yes | JSON diagnostics are used by corpus tests. Early `check --format json` command-line, target-selection, and root-file filesystem failures also return one diagnostics envelope on stdout. |
 | `tokens --format json` and `ast --format json` | yes | yes | n/a | n/a | yes | Tooling aids, not stable language compatibility promises. |
 | `fmt` | yes | yes | n/a | n/a | partial | v0 rejects files with comments instead of rewriting them. |
-| `lsp` | yes | n/a | yes | n/a | yes | v0 JSON-RPC server supports initialize, workspace root recording, shutdown, exit status semantics, full document sync, stale version rejection, open-document import reuse, stale diagnostic clearing, UTF-16 positions, publishDiagnostics, semantic tokens, Markdown hover, definition, document symbols, and basic completions for keywords and visible resolved symbols. Rename, references, formatting requests, workspace-wide indexing, context-sensitive member completion, and incremental parsing are deferred beyond v0. |
+| `lsp` | yes | n/a | yes | n/a | yes | v0 JSON-RPC server supports initialize, workspace root recording, shutdown, exit status semantics, full document sync, stale version rejection, open-document import reuse, stale diagnostic clearing, UTF-16 positions, publishDiagnostics, semantic tokens, Markdown hover, definition, references, document symbols, and basic completions for keywords and visible resolved symbols. Rename, formatting requests, workspace-wide indexing, context-sensitive member completion, and incremental parsing are deferred beyond v0. |
 
 ## Buildable Subset
 

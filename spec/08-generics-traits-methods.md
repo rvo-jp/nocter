@@ -56,12 +56,12 @@ and appears before the method name.
 
 ```nct
 impl WordStats {
-    pub method (stats: &+Self).add_byte(byte: u8): void {
-        stats.bytes += 1
+    pub method &+self.add_byte(byte: u8): void {
+        self.bytes += 1
     }
 
-    pub method (stats: &+Self).add_word(): void {
-        stats.words += 1
+    pub method &+self.add_word(): void {
+        self.words += 1
     }
 }
 ```
@@ -72,8 +72,8 @@ members, and member bodies.
 
 ```nct
 impl<T> Box<T> {
-    pub method (box: Self).value(): T {
-        return box.value
+    pub method self.value(): T {
+        return self.value
     }
 }
 ```
@@ -87,10 +87,9 @@ qualified associated function declaration such as `func WordStats.empty`.
 It is not an ordinary identifier and is not resolved through normal name lookup.
 In `impl WordStats` or `func WordStats.empty`, `Self` means `WordStats`.
 
-Nocter does not reserve `self` or `this`. The receiver name is chosen by the
-author. `self` may be used as an ordinary receiver name, but it has no special
-meaning. The restrictions on `Self` are specified in
-[Values and Types](02-values-types.md#self-type-syntax).
+`self` is the fixed receiver name in method and drop member declarations.
+`Self` remains type-position syntax. The restrictions on `Self` are specified
+in [Values and Types](02-values-types.md#self-type-syntax).
 
 The target of an `impl` block must be a nominal type declaration, such as a
 `struct` or `enum`. An `impl` block cannot target a type alias because aliases
@@ -124,7 +123,7 @@ type.
 
 ```nct
 impl User {
-    pub method (user: &Self).print(): i32 {
+    pub method &self.print(): i32 {
         return 0
     }
 }
@@ -133,9 +132,9 @@ impl User {
 Initial receiver forms:
 
 ```nct
-method (value: &Self).name(...): Return
-method (value: &+Self).name(...): Return
-method (value: Self).name(...): Return
+method &self.name(...): Return
+method &+self.name(...): Return
+method self.name(...): Return
 ```
 
 Meaning:
@@ -217,7 +216,7 @@ an interface must be explicitly marked `pub`.
 
 ```nct
 pub interface Printable {
-    pub method (value: &Self).print(): i32
+    pub method &self.print(): i32
 }
 ```
 
@@ -245,7 +244,7 @@ Example:
 
 ```nct
 interface Reader {
-    pub method (reader: &+Self).read_byte(): i32!
+    pub method &+self.read_byte(): i32!
 }
 
 struct File {
@@ -253,7 +252,7 @@ struct File {
 }
 
 impl File {
-    pub method (file: &+Self).read_byte(): i32! {
+    pub method &+self.read_byte(): i32! {
         ...
     }
 }

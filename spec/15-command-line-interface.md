@@ -403,20 +403,21 @@ Rules:
 - LSP protocol messages are the only data written to stdout while the server is running.
 - Human-readable server logs, if any, must go to stderr or a configured log file.
 - `lsp` reuses the compiler lexer, parser, resolver, type checker, ownership checker, and diagnostics.
-- LSP v0 supports `initialize`, `shutdown`, `exit`, full-document `didOpen` / `didChange` / `didClose`, `textDocument/publishDiagnostics`, `textDocument/documentSymbol`, `textDocument/definition`, `textDocument/hover`, `textDocument/completion`, and `textDocument/semanticTokens/full`.
+- LSP v0 supports `initialize`, `shutdown`, `exit`, full-document `didOpen` / `didChange` / `didClose`, `textDocument/publishDiagnostics`, `textDocument/documentSymbol`, `textDocument/definition`, `textDocument/references`, `textDocument/hover`, `textDocument/completion`, and `textDocument/semanticTokens/full`.
 - During `initialize`, LSP v0 records `workspaceFolders` when present and falls back to `rootUri` when no workspace folders are provided.
 - LSP v0 advertises UTF-16 positions and converts compiler-owned UTF-8 byte spans before publishing diagnostics, hover ranges, definition locations, document symbol ranges, and semantic tokens.
 - LSP v0 treats `didChange` as full-document sync. If both the stored document and incoming change have versions, an incoming version older than the stored version is ignored.
-- LSP v0 uses the current text of open documents when resolving imports in a compile unit, so diagnostics, hover, definition, completion, and semantic tokens can reflect unsaved imported files that are part of the opened compile unit.
+- LSP v0 uses the current text of open documents when resolving imports in a compile unit, so diagnostics, hover, definition, references, completion, and semantic tokens can reflect unsaved imported files that are part of the opened compile unit.
 - LSP v0 clears diagnostics for documents that were previously published but are no longer part of the latest diagnostic publish set.
 - LSP v0 records workspace roots for later project-level behavior, but compile-unit analysis is still driven by the opened root document being diagnosed.
 - LSP v0 returns Markdown hover contents from compiler-owned semantic data and documentation comments.
 - LSP v0 returns go-to-definition locations for local references, top-level declarations, loaded imported declarations, loaded import module paths, fields, enum variants, associated functions, and method calls covered by compiler analysis.
+- LSP v0 returns references for local symbols, top-level declarations, loaded imported declarations, type references, fields, enum variants, associated functions, and method calls covered by compiler analysis.
 - LSP v0 returns document symbols for top-level declarations and nested struct fields or enum variants represented by the parser.
 - LSP v0 returns basic completion items for keywords and visible resolved symbols. Import-path segment completion and context-sensitive member completion are deferred.
 - LSP v0 returns full semantic tokens for compiler-classified functions, methods, variables, parameters, types, and properties.
 - After `shutdown`, LSP v0 ignores notifications other than `exit` and returns a JSON-RPC invalid-request error for ordinary requests. `exit` after `shutdown` exits successfully; `exit` before `shutdown` exits with status `1`.
-- LSP v0 does not provide rename, references, formatting requests, workspace-wide indexing, context-sensitive member completion, or incremental parsing.
+- LSP v0 does not provide rename, formatting requests, workspace-wide indexing, context-sensitive member completion, or incremental parsing.
 
 The editor integration direction is specified in [Tooling and Editor Integration](14-tooling-editor-integration.md).
 

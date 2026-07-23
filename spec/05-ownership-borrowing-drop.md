@@ -73,7 +73,7 @@ Method receiver borrows are automatic:
 
 ```nct
 impl File {
-    pub method (file: &+Self).write_text(text: &str): void! {
+    pub method &+self.write_text(text: &str): void! {
         ...
     }
 }
@@ -237,22 +237,22 @@ Adopted: resource destruction uses a dedicated `drop` member inside an inherent 
 use std/os as os
 
 impl File {
-    drop file: &+Self {
-        os.close(file.fd).ignore()
+    drop &+self {
+        os.close(self.fd).ignore()
     }
 }
 ```
 
-The destructor member is the contextual `drop name: &+Self { ... }` member form. `drop` is not a reserved keyword. The lexer emits `drop` as an identifier token, and the parser recognizes the two exact source forms for destruction: a destructor member inside an inherent `impl` block, and an explicit `drop name` statement. Outside those forms, `drop` is an ordinary identifier.
+The destructor member is the contextual `drop &+self { ... }` member form. `drop` is not a reserved keyword. The lexer emits `drop` as an identifier token, and the parser recognizes the two exact source forms for destruction: a destructor member inside an inherent `impl` block, and an explicit `drop name` statement. Outside those forms, `drop` is an ordinary identifier.
 
-A declaration such as `func drop(...)` or `method (value: &Self).drop(...)` declares an ordinary function or method named `drop`. It does not define destruction behavior.
+A declaration such as `func drop(...)` or `method &self.drop(...)` declares an ordinary function or method named `drop`. It does not define destruction behavior.
 
 Rules:
 
 - A type may define at most one `drop` member.
-- A `drop` member has the source form `drop name: &+Self { ... }`.
-- The binding name after `drop` is ordinary and scoped to the drop body.
-- The drop binding type must be exactly `&+Self`.
+- A `drop` member has the source form `drop &+self { ... }`.
+- `self` is the fixed drop receiver name and is scoped to the drop body.
+- The drop receiver type is always exactly `&+Self`.
 - A `drop` member can appear only in an inherent `impl Type` block. Interface
   conformance declarations cannot contain `drop` members or method bodies.
 - A `drop` member has no return type annotation.

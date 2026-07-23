@@ -100,6 +100,10 @@ impl TypecheckFacts {
         self.type_references.iter().map(|reference| reference.span)
     }
 
+    pub(crate) fn type_references(&self) -> impl Iterator<Item = &TypeReferenceFact> + '_ {
+        self.type_references.iter()
+    }
+
     pub(crate) fn method_call_spans(&self) -> impl Iterator<Item = ByteSpan> + '_ {
         self.method_call_targets.keys().copied()
     }
@@ -110,6 +114,10 @@ impl TypecheckFacts {
 
     pub(crate) fn field_is_readonly(&self, span: ByteSpan) -> Option<bool> {
         self.field_readonly.get(&span).copied()
+    }
+
+    pub(crate) fn field_target(&self, member_span: ByteSpan) -> Option<ByteSpan> {
+        self.field_targets.get(&member_span).copied()
     }
 
     pub(crate) fn associated_function_target_spans(&self) -> impl Iterator<Item = ByteSpan> + '_ {

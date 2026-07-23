@@ -143,7 +143,8 @@ LSP v0 feature set:
 3. go to definition
 4. hover type information
 5. completion for imports and visible names
-6. semantic tokens
+6. references
+7. semantic tokens
 
 Semantic token rules:
 
@@ -157,7 +158,6 @@ Semantic token rules:
 Later editor features:
 
 - rename
-- references
 - formatting through `nocter fmt`
 - context-sensitive member completion
 - workspace-wide indexing
