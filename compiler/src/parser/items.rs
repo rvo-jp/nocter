@@ -1,9 +1,9 @@
 use super::{ParseResult, Parser};
 use crate::ast::{
-    AstFile, DropDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl, FunctionOwner,
-    ImplDecl, ImplMember, ImportAlias, ImportItem, ImportedName, InterfaceDecl, Item, MethodDecl,
-    ModulePath, Parameter, ParameterList, PrimitiveDecl, StructDecl, StructField, TargetDirective,
-    TypeAliasDecl, UseItem, Visibility,
+    AstFile, BorrowType, DropDecl, EnumDecl, EnumVariant, FromImportItem, FunctionDecl,
+    FunctionOwner, ImplDecl, ImplMember, ImportAlias, ImportItem, ImportedName, InterfaceDecl,
+    Item, MethodDecl, ModulePath, Parameter, ParameterList, PrimitiveDecl, StructDecl, StructField,
+    TargetDirective, TypeAliasDecl, TypeExpr, TypeReference, UseItem, Visibility,
 };
 use crate::lexer::Keyword;
 use crate::literals::decode_string_literal_bytes;
@@ -675,15 +675,7 @@ impl Parser<'_> {
 
     pub(super) fn parse_drop_decl(&mut self) -> ParseResult<DropDecl> {
         let start = self.bump();
-        let name = self.expect_identifier("expected drop binding name")?;
-        self.expect_punctuation(":", "`:`")?;
-        let ty = self.parse_type()?;
-        let binding = Parameter {
-            span: self.span(name.span.start, ty.span().end),
-            name: name.value,
-            name_span: name.span,
-            ty,
-        };
+        let binding = self.parse_drop_receiver()?;
         let body = self.parse_block()?;
 
         Ok(DropDecl {
@@ -730,18 +722,54 @@ impl Parser<'_> {
     }
 
     pub(super) fn parse_method_receiver(&mut self) -> ParseResult<Parameter> {
-        let open = self.expect_punctuation("(", "`(`")?;
-        let name = self.expect_identifier("expected receiver name")?;
-        self.expect_punctuation(":", "`:`")?;
-        let ty = self.parse_type()?;
-        let close = self.expect_punctuation(")", "`)`")?;
+        self.parse_self_receiver("expected `self`, `&self`, or `&+self` receiver after `method`")
+    }
+
+    fn parse_drop_receiver(&mut self) -> ParseResult<Parameter> {
+        let borrow = self.expect_punctuation("&+", "`&+self`")?;
+        let self_span = self.expect_self_identifier("expected `self` after `&+` in drop member")?;
+        let ty = readwrite_self_borrow_type(self.span(borrow.span.start, self_span.end));
 
         Ok(Parameter {
-            span: self.span(open.span.start, close.span.end),
-            name: name.value,
-            name_span: name.span,
+            span: ty.span(),
+            name: "self".to_string(),
+            name_span: self_span,
             ty,
         })
+    }
+
+    fn parse_self_receiver(&mut self, message: &'static str) -> ParseResult<Parameter> {
+        let borrow = self
+            .match_punctuation("&+")
+            .map(|token| (token, true))
+            .or_else(|| self.match_punctuation("&").map(|token| (token, false)));
+        let self_span = self.expect_self_identifier(message)?;
+        let ty = if let Some((borrow, is_readwrite)) = borrow {
+            TypeExpr::Borrow(BorrowType {
+                span: self.span(borrow.span.start, self_span.end),
+                is_readwrite,
+                inner: Box::new(self_type(self_span)),
+            })
+        } else {
+            self_type(self_span)
+        };
+
+        Ok(Parameter {
+            span: ty.span(),
+            name: "self".to_string(),
+            name_span: self_span,
+            ty,
+        })
+    }
+
+    fn expect_self_identifier(&mut self, message: impl Into<String>) -> ParseResult<ByteSpan> {
+        let message = message.into();
+        let identifier = self.expect_identifier(&message)?;
+        if identifier.value != "self" {
+            self.error_at(identifier.span, "receiver name must be `self`");
+            return Err(());
+        }
+        Ok(identifier.span)
     }
 
     pub(super) fn parse_parameter_list(&mut self) -> ParseResult<ParameterList> {
@@ -852,4 +880,23 @@ impl Parser<'_> {
             segments,
         })
     }
+}
+
+fn self_type(span: ByteSpan) -> TypeExpr {
+    TypeExpr::Reference(TypeReference {
+        span,
+        name: "Self".to_string(),
+    })
+}
+
+fn readwrite_self_borrow_type(span: ByteSpan) -> TypeExpr {
+    TypeExpr::Borrow(BorrowType {
+        span,
+        is_readwrite: true,
+        inner: Box::new(self_type(ByteSpan::new(
+            span.source,
+            span.end - "self".len(),
+            span.end,
+        ))),
+    })
 }

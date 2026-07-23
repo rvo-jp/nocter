@@ -1418,16 +1418,9 @@ fn method_call_receiver_is_borrow(member_span: ByteSpan, typecheck_facts: &Typec
     let Some((_span, label)) = typecheck_facts.call_hover_at_offset(member_span.start) else {
         return false;
     };
-    let Some(receiver) = label
-        .strip_prefix("method (")
-        .and_then(|label| label.split_once(")."))
-        .map(|(receiver, _)| receiver)
-    else {
-        return false;
-    };
-    receiver
-        .split_once(": ")
-        .is_some_and(|(_name, ty)| ty.starts_with('&'))
+    label
+        .strip_prefix("method ")
+        .is_some_and(|label| label.starts_with('&'))
 }
 
 fn borrow_argument_source_is_binding_or_field(expression: &Expr) -> bool {

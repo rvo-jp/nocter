@@ -214,7 +214,7 @@ impl Formatter {
 
     fn format_drop_decl(&mut self, item: &DropDecl) {
         self.write("drop ");
-        self.format_parameter(&item.binding);
+        self.format_self_receiver(&item.binding);
         self.write(" ");
         self.format_block(&item.body);
     }
@@ -292,15 +292,36 @@ impl Formatter {
     }
 
     fn format_method_receiver(&mut self, receiver: &Parameter) {
-        self.write("(");
+        self.format_self_receiver(receiver);
+    }
+
+    fn format_self_receiver(&mut self, receiver: &Parameter) {
+        if let Some(prefix) = self_receiver_prefix(receiver) {
+            self.write(prefix);
+            self.write(&receiver.name);
+            return;
+        }
+
         self.format_parameter(receiver);
-        self.write(")");
     }
 
     fn format_parameter(&mut self, parameter: &Parameter) {
         self.write(&parameter.name);
         self.write(": ");
         self.format_type(&parameter.ty);
+    }
+}
+
+fn self_receiver_prefix(receiver: &Parameter) -> Option<&'static str> {
+    match &receiver.ty {
+        crate::ast::TypeExpr::Reference(reference) if reference.name == "Self" => Some(""),
+        crate::ast::TypeExpr::Borrow(borrow) => match borrow.inner.as_ref() {
+            crate::ast::TypeExpr::Reference(reference) if reference.name == "Self" => {
+                Some(if borrow.is_readwrite { "&+" } else { "&" })
+            }
+            _ => None,
+        },
+        _ => None,
     }
 }
 

@@ -8,8 +8,8 @@ fn accepts_method_body_receiver_self_type() {
 }
 
 impl Point {
-    method (point: Self).x_value(): i32 {
-        return point.x
+    method self.x_value(): i32 {
+        return self.x
     }
 }
 
@@ -30,8 +30,8 @@ fn accepts_method_call_return_type() {
 }
 
 impl Point {
-    method (point: Self).x_value(): i32 {
-        return point.x
+    method self.x_value(): i32 {
+        return self.x
     }
 }
 
@@ -53,8 +53,8 @@ fn accepts_method_call_self_return_type() {
 }
 
 impl Point {
-    method (point: Self).same(): Self {
-        return Self{ x: point.x }
+    method self.same(): Self {
+        return Self{ x: self.x }
     }
 }
 
@@ -76,8 +76,8 @@ fn accepts_generic_impl_method_body_and_call_return_type() {
 }
 
 impl<U> Box<U> {
-    method (box: Self).value(): U {
-        return box.value
+    method self.value(): U {
+        return self.value
     }
 }
 
@@ -101,8 +101,8 @@ fn diagnoses_generic_impl_method_return_type_mismatch() {
 }
 
 impl<U> Box<U> {
-    method (box: Self).bad(): i32 {
-        return box.value
+    method self.bad(): i32 {
+        return self.value
     }
 }
 
@@ -126,8 +126,8 @@ fn diagnoses_method_call_from_non_matching_generic_impl_target() {
 }
 
 impl Box<i32> {
-    method (box: Self).value_i32(): i32 {
-        return box.value
+    method self.value_i32(): i32 {
+        return self.value
     }
 }
 
@@ -193,7 +193,7 @@ fn diagnoses_method_call_argument_count_mismatch() {
 }
 
 impl Parser {
-    method (parser: Self).parse(value: i32): i32 {
+    method self.parse(value: i32): i32 {
         return value
     }
 }
@@ -218,7 +218,7 @@ fn diagnoses_method_call_argument_type_mismatch() {
 }
 
 impl Parser {
-    method (parser: Self).parse(value: i32): i32 {
+    method self.parse(value: i32): i32 {
         return value
     }
 }
@@ -242,7 +242,7 @@ fn accepts_readwrite_method_call_on_var_binding() {
 }
 
 impl File {
-    method (file: &+Self).write(): i32 {
+    method &+self.write(): i32 {
         return 0
     }
 }
@@ -269,7 +269,7 @@ struct Holder {
 }
 
 impl File {
-    method (file: &+Self).write(): i32 {
+    method &+self.write(): i32 {
         return 0
     }
 }
@@ -292,7 +292,7 @@ fn diagnoses_readwrite_method_call_on_let_binding() {
 }
 
 impl File {
-    method (file: &+Self).write(): i32 {
+    method &+self.write(): i32 {
         return 0
     }
 }
@@ -316,7 +316,7 @@ fn diagnoses_readwrite_method_call_on_temporary() {
 }
 
 impl File {
-    method (file: &+Self).write(): i32 {
+    method &+self.write(): i32 {
         return 0
     }
 }
@@ -339,7 +339,7 @@ fn accepts_readonly_method_call_on_let_binding_and_temporary() {
 }
 
 impl File {
-    method (file: &Self).fd_value(): i32 {
+    method &self.fd_value(): i32 {
         return 0
     }
 }
@@ -358,30 +358,6 @@ func main(): i32 {
 }
 
 #[test]
-fn diagnoses_unsupported_method_receiver_type() {
-    let diagnostics = check_text(
-        r#"struct File {
-    fd: i32
-}
-
-impl File {
-    method (file: i32).bad(): i32 {
-        return 0
-    }
-}
-
-func main(): i32 {
-    let file = File{ fd: 1 }
-    return file.bad()
-}
-"#,
-    );
-
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E0377");
-}
-
-#[test]
 fn diagnoses_method_body_return_type_mismatch() {
     let diagnostics = check_text(
         r#"struct Point {
@@ -389,7 +365,7 @@ fn diagnoses_method_body_return_type_mismatch() {
 }
 
 impl Point {
-    method (point: Self).x_value(): i32 {
+    method self.x_value(): i32 {
         return "bad"
     }
 }

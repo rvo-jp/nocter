@@ -122,11 +122,11 @@ pub func Counter.zero(): i32 {
 }
 
 impl Counter {
-    pub method (counter: &+Self).add(value: i32): void {
+    pub method &+self.add(value: i32): void {
         return
     }
 
-    drop counter: &+Self {
+    drop &+self {
         return
     }
 }
@@ -165,11 +165,12 @@ func main(): i32 {
     };
     assert_eq!(method.name, "add");
     assert!(method.body.is_some());
+    assert_eq!(method.receiver.name, "self");
     assert!(matches!(&method.receiver.ty, TypeExpr::Borrow(_)));
     let ImplMember::Drop(drop_) = &inherent_impl.members[1] else {
         panic!("expected drop member");
     };
-    assert_eq!(drop_.binding.name, "counter");
+    assert_eq!(drop_.binding.name, "self");
     assert!(matches!(
         &drop_.binding.ty,
         TypeExpr::Borrow(borrow) if borrow.is_readwrite
@@ -276,8 +277,8 @@ fn parses_generic_impl_parameters() {
 }
 
 impl<U> Box<U> {
-    method (box: Self).value(): U {
-        return box.value
+    method self.value(): U {
+        return self.value
     }
 }
 
@@ -305,7 +306,7 @@ func main(): i32 {
 fn parses_interface_declarations() {
     let output = parse_text(
         r#"pub interface Writer {
-    pub method (writer: &+Self).write(text: &str): void!
+    pub method &+self.write(text: &str): void!
 }
 "#,
     );
@@ -324,10 +325,74 @@ fn parses_interface_declarations() {
 }
 
 #[test]
+fn rejects_non_self_method_receiver_name() {
+    let output = parse_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    method file.bad(): i32 {
+        return 0
+    }
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(
+        output.diagnostics[0]
+            .message
+            .contains("receiver name must be `self`")
+    );
+}
+
+#[test]
+fn rejects_legacy_drop_member_binding_syntax() {
+    let output = parse_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop file: Self {
+        return
+    }
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(output.diagnostics[0].message.contains("expected `&+self`"));
+}
+
+#[test]
+fn rejects_readonly_drop_member_receiver() {
+    let output = parse_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &self {
+        return
+    }
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(output.diagnostics[0].message.contains("expected `&+self`"));
+}
+
+#[test]
 fn rejects_trait_declarations() {
     let output = parse_text(
         r#"pub trait Writer {
-    pub method (writer: &+Self).write(text: &str): void!
+    pub method &+self.write(text: &str): void!
 }
 "#,
     );
@@ -340,7 +405,7 @@ fn rejects_trait_declarations() {
 fn rejects_private_interface_methods() {
     let output = parse_text(
         r#"interface Writer {
-    method (writer: &+Self).write(text: &str): void!
+    method &+self.write(text: &str): void!
 }
 "#,
     );
@@ -357,7 +422,7 @@ fn rejects_private_interface_methods() {
 fn rejects_interface_method_bodies() {
     let output = parse_text(
         r#"interface Writer {
-    pub method (writer: &+Self).write(text: &str): void! {
+    pub method &+self.write(text: &str): void! {
         return
     }
 }
@@ -372,7 +437,7 @@ fn rejects_interface_method_bodies() {
 fn parses_interface_conformance_impls() {
     let output = parse_text(
         r#"interface Writer {
-    pub method (writer: &+Self).write(text: &str): void!
+    pub method &+self.write(text: &str): void!
 }
 
 struct Counter {
@@ -402,7 +467,7 @@ impl Writer for Counter
 fn rejects_members_in_interface_conformance_impls() {
     let output = parse_text(
         r#"interface Writer {
-    pub method (writer: &+Self).write(text: &str): void!
+    pub method &+self.write(text: &str): void!
 }
 
 struct Counter {
@@ -410,7 +475,7 @@ struct Counter {
 }
 
 impl Writer for Counter {
-    pub method (counter: &+Self).write(text: &str): void! {
+    pub method &+self.write(text: &str): void! {
         return
     }
 }
@@ -677,7 +742,7 @@ pub(nocter) enum PlatformError {
 
 #target("arm64-darwin")
 pub(nocter) interface PlatformContract {
-    pub method (value: &Self).code(): i32
+    pub method &self.code(): i32
 }
 "#,
     );

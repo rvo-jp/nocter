@@ -236,7 +236,7 @@ Recent committed work:
   - keeps full ownership-fact export from type checking into IR lowering and broad control-flow drop lowering disabled
 - Current checkpoint: lower explicit aggregate drop glue
   - records one drop member per type in resolver metadata while keeping ordinary `func drop`/`.drop()` names separate from the destructor slot
-  - type-checks drop member bindings as exactly `&+Self`
+  - type-checks drop members as fixed `drop &+self` declarations
   - indexes reachable drop bodies as internal `Type.drop` functions and lowers explicit `drop name` on aggregate locals to `CallVoid` with an aggregate `&+T` borrow argument
   - at that checkpoint, automatic scope-end drop insertion, replacement drop lowering, moved-value drop suppression in lowering, and broad aggregate storage were still disabled
 - Current checkpoint: lower straight-line scope-end aggregate drop glue

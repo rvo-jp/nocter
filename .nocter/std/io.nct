@@ -140,23 +140,23 @@ pub func File.open(path: &str): File! {
 }
 
 impl File {
-    pub method (file: &+Self).read(buffer: &+[u8]): usize! {
-        return read_fd(file.fd, buffer)?
+    pub method &+self.read(buffer: &+[u8]): usize! {
+        return read_fd(self.fd, buffer)?
     }
 
-    pub method (file: &+Self).write(bytes: &[u8]): void! {
-        write_fd(file.fd, bytes)?
+    pub method &+self.write(bytes: &[u8]): void! {
+        write_fd(self.fd, bytes)?
         return
     }
 
-    pub method (file: &+Self).write_text(text: &str): void! {
-        write_text_fd(file.fd, text)?
+    pub method &+self.write_text(text: &str): void! {
+        write_text_fd(self.fd, text)?
         return
     }
 
-    drop file: &+Self {
-        if file.close_on_drop {
-            close_fd(file.fd)
+    drop &+self {
+        if self.close_on_drop {
+            close_fd(self.fd)
         }
         return
     }

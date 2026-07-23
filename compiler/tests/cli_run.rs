@@ -94,8 +94,8 @@ copy struct Holder {
 }
 
 impl File {
-    method (file: &Self).value(): i32 {
-        return file.fd
+    method &self.value(): i32 {
+        return self.fd
     }
 }
 
@@ -133,8 +133,8 @@ copy struct Holder {
 }
 
 impl File {
-    method (file: &+Self).bump(): void {
-        file.fd += 1
+    method &+self.bump(): void {
+        self.fd += 1
         return
     }
 }
@@ -3164,7 +3164,7 @@ struct File {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         write("drop\n")!
         return
     }
@@ -4443,8 +4443,8 @@ struct File {
 }
 
 impl File {
-    drop file: &+Self {
-        touch2(file.fd, 99)
+    drop &+self {
+        touch2(self.fd, 99)
         return
     }
 }
@@ -4513,7 +4513,7 @@ struct File {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         write("drop\n")!
         return
     }
@@ -4575,7 +4575,7 @@ struct File {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         write("drop\n")!
         return
     }
@@ -4631,7 +4631,7 @@ struct File {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         write("drop\n")!
         return
     }
@@ -4688,7 +4688,7 @@ struct File {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         write("drop\n")!
         return
     }
@@ -4777,7 +4777,7 @@ struct File {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         write("drop\n")!
         return
     }
@@ -6947,7 +6947,7 @@ fn run_command_returns_non_copy_aggregate_field_replacement_assignment_exit_code
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -6987,7 +6987,7 @@ fn run_command_returns_borrowed_non_copy_aggregate_field_replacement_assignment_
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -7032,7 +7032,7 @@ fn run_command_returns_non_copy_aggregate_field_call_replacement_assignment_exit
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -7076,7 +7076,7 @@ fn run_command_returns_outer_aggregate_replacement_inside_while_exit_code() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -7714,7 +7714,7 @@ struct File {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         write("drop\n")!
         return
     }
@@ -8117,7 +8117,7 @@ struct File {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         write("drop\n")!
         return
     }
@@ -8656,7 +8656,7 @@ struct File {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         write("drop\n")!
         return
     }
@@ -8821,7 +8821,7 @@ struct File {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         write("drop\n")!
         return
     }

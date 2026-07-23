@@ -193,7 +193,7 @@ fn lowers_method_call_receiver_as_implicit_readwrite_borrow() {
 }
 
 impl File {
-    method (file: &+Self).touch(): void! {
+    method &+self.touch(): void! {
         return
     }
 }
@@ -240,8 +240,8 @@ copy struct Holder {
 }
 
 impl File {
-    method (file: &Self).value(): i32 {
-        return file.fd
+    method &self.value(): i32 {
+        return self.fd
     }
 }
 
@@ -292,7 +292,7 @@ copy struct Holder {
 }
 
 impl File {
-    method (file: &+Self).touch(): void {
+    method &+self.touch(): void {
         return
     }
 }
@@ -2989,7 +2989,7 @@ fn lowers_explicit_drop_to_drop_member_call() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -3057,7 +3057,7 @@ func main(): i32 {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -3126,7 +3126,7 @@ fn lowers_scope_end_drop_to_drop_member_call() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -3190,7 +3190,7 @@ fn suppresses_scope_end_drop_for_moved_aggregate_return() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -3315,7 +3315,7 @@ fn suppresses_scope_end_drop_for_moved_aggregate_binding() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -3382,7 +3382,7 @@ fn lowers_scope_end_drop_inside_nonterminal_if_branches() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -3462,7 +3462,7 @@ fn lowers_nonterminal_if_branch_aggregate_slots_with_distinct_layouts() {
 }
 
 impl Small {
-    drop small: &+Self {
+    drop &+self {
         return
     }
 }
@@ -3473,7 +3473,7 @@ struct Wide {
 }
 
 impl Wide {
-    drop wide: &+Self {
+    drop &+self {
         return
     }
 }
@@ -3558,7 +3558,7 @@ fn lowers_explicit_drop_inside_nonterminal_if_branch_without_scope_end_duplicate
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -3620,7 +3620,7 @@ fn lowers_outer_explicit_drop_inside_nonterminal_if_branch_before_return() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -3693,7 +3693,7 @@ fn lowers_outer_explicit_drop_inside_nonterminal_if_branch_before_nested_return_
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -3782,7 +3782,7 @@ fn lowers_outer_explicit_drop_inside_nonterminal_if_branch_before_return_suffix(
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -3864,7 +3864,7 @@ fn lowers_outer_aggregate_move_binding_inside_nonterminal_if_branch_before_retur
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -3957,7 +3957,7 @@ fn lowers_outer_aggregate_move_binding_inside_nonterminal_if_branch_before_retur
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -4059,7 +4059,7 @@ fn lowers_outer_aggregate_assignment_inside_nonterminal_if_branch_before_return_
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -4161,7 +4161,7 @@ fn lowers_outer_aggregate_move_assignment_inside_nonterminal_if_branch_before_re
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -4280,7 +4280,7 @@ fn lowers_outer_aggregate_move_assignment_inside_nonterminal_if_branch_before_ne
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -4416,7 +4416,7 @@ fn lowers_outer_explicit_drop_inside_nonterminal_if_branch_before_never_suffix()
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -4492,7 +4492,7 @@ fn lowers_outer_aggregate_move_assignment_inside_nonterminal_if_branch_before_ne
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -4600,7 +4600,7 @@ fn lowers_return_never_expression_with_scope_cleanup() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -4660,7 +4660,7 @@ fn lowers_terminal_if_never_branch_with_scope_cleanup() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -4734,7 +4734,7 @@ fn lowers_aggregate_terminal_if_never_branch_with_scope_cleanup() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -4826,7 +4826,7 @@ fn lowers_branch_local_aggregate_move_assignment_from_outer_before_return_suffix
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -4989,7 +4989,7 @@ fn lowers_local_aggregate_move_inside_nonterminal_if_branch() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -5059,7 +5059,7 @@ fn lowers_return_inside_nonterminal_if_branch_with_outer_scope_cleanup() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -5140,7 +5140,7 @@ fn lowers_scope_end_drop_inside_nonterminal_while_body() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -5371,7 +5371,7 @@ fn lowers_scope_end_drop_inside_nonterminal_loop_body() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -5465,7 +5465,7 @@ fn skips_unreachable_scope_drop_after_terminal_nested_if_in_nonterminal_loop_bod
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -5550,7 +5550,7 @@ fn lowers_explicit_drop_inside_nonterminal_while_body_without_scope_end_duplicat
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -5664,7 +5664,7 @@ fn lowers_assignment_to_nonterminal_while_body_local_aggregate_with_replacement_
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -5799,7 +5799,7 @@ fn lowers_return_inside_nonterminal_while_body_with_body_scope_cleanup() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -5874,7 +5874,7 @@ fn rejects_outer_explicit_drop_inside_nonterminal_while_body() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -5901,7 +5901,7 @@ fn rejects_outer_explicit_drop_before_loop_control_even_with_later_return() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -5930,7 +5930,7 @@ fn rejects_outer_explicit_drop_before_nested_loop_control_even_with_later_return
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -6045,7 +6045,7 @@ fn lowers_outer_aggregate_assignment_inside_nonterminal_while_body() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -6126,7 +6126,7 @@ fn lowers_outer_aggregate_assignment_inside_nonterminal_if_branch() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -6194,7 +6194,7 @@ fn lowers_outer_aggregate_assignment_before_loop_control() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -6257,7 +6257,7 @@ fn rejects_outer_aggregate_move_assignment_before_loop_control_even_with_later_r
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -6287,7 +6287,7 @@ fn rejects_branch_local_aggregate_move_assignment_from_outer_before_loop_control
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -6317,7 +6317,7 @@ fn rejects_outer_aggregate_move_binding_inside_nonterminal_if_branch() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -6344,7 +6344,7 @@ fn lowers_break_inside_nonterminal_while_body_with_scope_cleanup() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -6410,7 +6410,7 @@ fn lowers_continue_inside_nonterminal_while_body_with_scope_cleanup() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -6476,7 +6476,7 @@ fn skips_unreachable_scope_drop_after_terminal_nested_if_in_nonterminal_while_bo
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -6565,7 +6565,7 @@ fn rejects_explicit_aggregate_move_in_terminal_if_condition() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -6597,7 +6597,7 @@ fn rejects_explicit_aggregate_move_in_nonterminal_while_condition() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -6628,7 +6628,7 @@ fn transfers_scope_end_drop_to_by_value_aggregate_parameter() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -6711,7 +6711,7 @@ fn suppresses_scope_end_drop_for_moved_aggregate_tail_return_argument() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -6800,7 +6800,7 @@ fn lowers_scope_end_drop_before_tail_call() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -6861,7 +6861,7 @@ fn lowers_scope_end_drop_inside_terminal_if_branches() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -6939,7 +6939,7 @@ fn lowers_branch_explicit_drop_before_terminal_if_return() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -7007,7 +7007,7 @@ fn lowers_branch_void_call_before_terminal_if_return() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -7097,7 +7097,7 @@ fn lowers_scope_end_drop_inside_usize_terminal_if_branches() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -7217,7 +7217,7 @@ fn lowers_scope_end_drop_inside_void_terminal_if_branches() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -7296,7 +7296,7 @@ fn lowers_scope_end_drop_inside_nested_terminal_if_branches() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -7393,7 +7393,7 @@ fn lowers_branch_explicit_drop_before_nested_terminal_if() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -7505,7 +7505,7 @@ struct File {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -7567,7 +7567,7 @@ fn lowers_replacement_drop_for_aggregate_struct_literal_assignment() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -7640,7 +7640,7 @@ fn lowers_aggregate_reinitialization_after_explicit_drop_without_replacement_dro
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -7706,7 +7706,7 @@ fn lowers_replacement_drop_for_moved_aggregate_assignment() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -7789,7 +7789,7 @@ fn lowers_replacement_drop_for_moved_aggregate_struct_literal_field_assignment()
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -7799,7 +7799,7 @@ struct Holder {
 }
 
 impl Holder {
-    drop holder: &+Self {
+    drop &+self {
         return
     }
 }
@@ -7887,7 +7887,7 @@ struct File {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -7962,7 +7962,7 @@ fn lowers_scope_end_drop_after_staged_aggregate_field_return() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -8294,7 +8294,7 @@ fn lowers_direct_aggregate_struct_literal_return_after_scope_drop() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -8381,7 +8381,7 @@ fn lowers_direct_aggregate_fallible_struct_literal_return_after_scope_drop() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -8464,7 +8464,7 @@ fn lowers_direct_aggregate_terminal_if_struct_literal_return_after_scope_drop() 
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -8583,7 +8583,7 @@ fn lowers_direct_aggregate_terminal_if_call_return_after_scope_drop() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -8704,7 +8704,7 @@ fn lowers_direct_aggregate_terminal_if_moved_local_return_after_scope_drop() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -8843,7 +8843,7 @@ fn lowers_direct_aggregate_terminal_if_leading_drop_and_void_call_before_return(
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -8966,7 +8966,7 @@ fn lowers_direct_aggregate_terminal_if_branch_local_binding_drop_before_return()
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -9099,7 +9099,7 @@ fn lowers_direct_aggregate_terminal_if_branch_assignment_before_moved_return() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -9507,7 +9507,7 @@ fn lowers_moved_aggregate_struct_literal_field_return() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -9517,7 +9517,7 @@ struct Holder {
 }
 
 impl Holder {
-    drop holder: &+Self {
+    drop &+self {
         return
     }
 }
@@ -11010,7 +11010,7 @@ fn lowers_non_copy_aggregate_field_replacement_assignment() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -11080,7 +11080,7 @@ fn lowers_non_copy_borrowed_aggregate_field_replacement_assignment() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -11155,7 +11155,7 @@ fn lowers_non_copy_aggregate_field_replacement_assignment_from_move() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -11226,7 +11226,7 @@ fn lowers_non_copy_aggregate_field_replacement_assignment_from_call() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -11952,7 +11952,7 @@ fn lowers_moved_aggregate_struct_literal_field() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -11962,7 +11962,7 @@ struct Holder {
 }
 
 impl Holder {
-    drop holder: &+Self {
+    drop &+self {
         return
     }
 }
@@ -16899,7 +16899,7 @@ fn lowers_ignored_direct_aggregate_call_expression_statement_with_drop() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -16953,7 +16953,7 @@ fn lowers_ignored_alias_aggregate_call_expression_statement_with_drop() {
 type Handle = File
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -17046,7 +17046,7 @@ fn lowers_ignored_fallible_direct_aggregate_call_expression_statement_with_drop(
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -18297,7 +18297,7 @@ fn lowers_optional_i32_let_else_never_call_binding_with_scope_cleanup() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -18414,7 +18414,7 @@ fn lowers_optional_i32_default_return_with_scope_cleanup() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -18794,7 +18794,7 @@ fn lowers_optional_direct_aggregate_default_return_with_scope_cleanup() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -18920,7 +18920,7 @@ fn lowers_optional_direct_aggregate_default_fallible_return_with_scope_cleanup()
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -19015,7 +19015,7 @@ fn lowers_optional_indirect_aggregate_default_return_with_scope_cleanup() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -20801,7 +20801,7 @@ struct File {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }

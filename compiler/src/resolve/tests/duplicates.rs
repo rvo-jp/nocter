@@ -107,13 +107,13 @@ fn diagnoses_duplicate_inherent_method_names_across_impls() {
 }
 
 impl File {
-    method (file: Self).name(): i32 {
-        return file.fd
+    method self.name(): i32 {
+        return self.fd
     }
 }
 
 impl File {
-    method (file: Self).name(value: i32): i32 {
+    method self.name(value: i32): i32 {
         return value
     }
 }
@@ -140,8 +140,8 @@ func File.open(): i32 {
 }
 
 impl File {
-    method (file: Self).open(): i32 {
-        return file.fd
+    method self.open(): i32 {
+        return self.fd
     }
 }
 
@@ -184,7 +184,7 @@ fn diagnoses_method_name_that_reuses_enum_variant() {
 }
 
 impl AppError {
-    method (error: Self).missing_path(): i32 {
+    method self.missing_path(): i32 {
         return 0
     }
 }
@@ -207,13 +207,13 @@ fn diagnoses_duplicate_inherent_drop_members_across_impls() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -368,8 +368,8 @@ fn diagnoses_duplicate_impl_generic_parameter_names() {
 }
 
 impl<T, T> Box<T> {
-    method (box: Self).value(): T {
-        return box.value
+    method self.value(): T {
+        return self.value
     }
 }
 
@@ -387,8 +387,8 @@ func main(): i32 {
 fn diagnoses_duplicate_interface_method_names() {
     let output = resolve_text(
         r#"interface Writer {
-    pub method (writer: &Self).write(text: &str): void
-    pub method (writer: &Self).write(bytes: &[u8]): void
+    pub method &self.write(text: &str): void
+    pub method &self.write(bytes: &[u8]): void
 }
 
 func main(): i32 {
@@ -411,7 +411,7 @@ func main(): i32 {
 fn diagnoses_duplicate_interface_method_parameter_names() {
     let output = resolve_text(
         r#"interface Writer {
-    pub method (writer: &Self).write(text: &str, text: &str): void
+    pub method &self.write(text: &str, text: &str): void
 }
 
 func main(): i32 {
@@ -433,7 +433,7 @@ func main(): i32 {
 fn diagnoses_interface_method_parameter_reusing_receiver_name() {
     let output = resolve_text(
         r#"interface Writer {
-    pub method (writer: &Self).write(writer: &str): void
+    pub method &self.write(self: &str): void
 }
 
 func main(): i32 {
@@ -447,7 +447,7 @@ func main(): i32 {
     assert!(
         output.diagnostics[0]
             .message
-            .contains("parameter named `writer`")
+            .contains("parameter named `self`")
     );
 }
 
@@ -459,8 +459,8 @@ fn diagnoses_inherent_method_parameter_reusing_receiver_name_once() {
 }
 
 impl Counter {
-    method (counter: &Self).add(counter: i32): i32 {
-        return counter
+    method &self.add(self: i32): i32 {
+        return self
     }
 }
 

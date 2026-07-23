@@ -4,7 +4,7 @@ use super::check_text;
 fn accepts_explicit_interface_conformance() {
     let diagnostics = check_text(
         r#"interface Printable {
-    pub method (value: &Self).print(): i32
+    pub method &self.print(): i32
 }
 
 struct User {
@@ -12,7 +12,7 @@ struct User {
 }
 
 impl User {
-    pub method (value: &Self).print(): i32 {
+    pub method &self.print(): i32 {
         return 1
     }
 }
@@ -32,7 +32,7 @@ func main(): i32 {
 fn accepts_generic_interface_conformance() {
     let diagnostics = check_text(
         r#"interface Source<T> {
-    pub method (source: Self).get(): T
+    pub method self.get(): T
 }
 
 struct Box<T> {
@@ -40,8 +40,8 @@ struct Box<T> {
 }
 
 impl<U> Box<U> {
-    pub method (box: Self).get(): U {
-        return box.value
+    pub method self.get(): U {
+        return self.value
     }
 }
 
@@ -60,7 +60,7 @@ func main(): i32 {
 fn diagnoses_interface_parameter_value_type() {
     let diagnostics = check_text(
         r#"interface Printable {
-    pub method (value: &Self).print(): i32
+    pub method &self.print(): i32
 }
 
 func main(): i32 {
@@ -84,7 +84,7 @@ func render(value: Printable): i32 {
 fn diagnoses_interface_borrow_parameter_type() {
     let diagnostics = check_text(
         r#"interface Printable {
-    pub method (value: &Self).print(): i32
+    pub method &self.print(): i32
 }
 
 func main(): i32 {
@@ -108,7 +108,7 @@ func render(value: &Printable): i32 {
 fn diagnoses_interface_alias_parameter_value_type() {
     let diagnostics = check_text(
         r#"interface Printable {
-    pub method (value: &Self).print(): i32
+    pub method &self.print(): i32
 }
 
 type PrintableContract = Printable
@@ -134,7 +134,7 @@ func render(value: PrintableContract): i32 {
 fn diagnoses_interface_generic_argument_value_type() {
     let diagnostics = check_text(
         r#"interface Printable {
-    pub method (value: &Self).print(): i32
+    pub method &self.print(): i32
 }
 
 struct Box<T> {
@@ -162,7 +162,7 @@ func render(value: Box<Printable>): i32 {
 fn diagnoses_missing_interface_method() {
     let diagnostics = check_text(
         r#"interface Printable {
-    pub method (value: &Self).print(): i32
+    pub method &self.print(): i32
 }
 
 struct User {
@@ -186,7 +186,7 @@ func main(): i32 {
 fn diagnoses_private_interface_method_implementation() {
     let diagnostics = check_text(
         r#"interface Printable {
-    pub method (value: &Self).print(): i32
+    pub method &self.print(): i32
 }
 
 struct User {
@@ -194,7 +194,7 @@ struct User {
 }
 
 impl User {
-    method (value: &Self).print(): i32 {
+    method &self.print(): i32 {
         return 1
     }
 }
@@ -216,7 +216,7 @@ func main(): i32 {
 fn diagnoses_interface_method_signature_mismatch() {
     let diagnostics = check_text(
         r#"interface Printable {
-    pub method (value: &Self).print(): i32
+    pub method &self.print(): i32
 }
 
 struct User {
@@ -224,7 +224,7 @@ struct User {
 }
 
 impl User {
-    pub method (value: &Self).print(): bool {
+    pub method &self.print(): bool {
         return true
     }
 }
@@ -246,7 +246,7 @@ func main(): i32 {
 fn diagnoses_generic_interface_method_signature_mismatch() {
     let diagnostics = check_text(
         r#"interface Source<T> {
-    pub method (source: Self).get(): T
+    pub method self.get(): T
 }
 
 struct Box<T> {
@@ -254,7 +254,7 @@ struct Box<T> {
 }
 
 impl<U> Box<U> {
-    pub method (box: Self).get(): i32 {
+    pub method self.get(): i32 {
         return 0
     }
 }
@@ -276,7 +276,7 @@ func main(): i32 {
 fn diagnoses_duplicate_interface_conformance() {
     let diagnostics = check_text(
         r#"interface Printable {
-    pub method (value: &Self).print(): i32
+    pub method &self.print(): i32
 }
 
 struct User {
@@ -284,7 +284,7 @@ struct User {
 }
 
 impl User {
-    pub method (value: &Self).print(): i32 {
+    pub method &self.print(): i32 {
         return 1
     }
 }
@@ -306,7 +306,7 @@ func main(): i32 {
 fn diagnoses_duplicate_generic_interface_conformance_with_renamed_parameters() {
     let diagnostics = check_text(
         r#"interface Source<T> {
-    pub method (source: Self).get(): T
+    pub method self.get(): T
 }
 
 struct Box<T> {
@@ -314,8 +314,8 @@ struct Box<T> {
 }
 
 impl<U> Box<U> {
-    pub method (box: Self).get(): U {
-        return box.value
+    pub method self.get(): U {
+        return self.value
     }
 }
 
@@ -355,7 +355,7 @@ func main(): i32 {
 fn diagnoses_non_nominal_interface_conformance_target() {
     let diagnostics = check_text(
         r#"interface Printable {
-    pub method (value: &Self).print(): i32
+    pub method &self.print(): i32
 }
 
 type Id = i32

@@ -950,9 +950,8 @@ fn method_declaration_hover_label(
     self_type: Option<&Type>,
 ) -> String {
     format!(
-        "method ({}: {}).{}({}): {}",
-        method.receiver.name,
-        type_label(&method.receiver.ty, resolved, self_type),
+        "method {}.{}({}): {}",
+        method_receiver_label(&method.receiver, resolved, self_type),
         method.name,
         parameters_label(&method.parameters.parameters, resolved, self_type),
         type_label(&method.return_type, resolved, self_type)
@@ -965,9 +964,8 @@ fn drop_declaration_hover_label(
     self_type: &Type,
 ) -> String {
     format!(
-        "drop {}: {}",
-        drop_.binding.name,
-        type_label(&drop_.binding.ty, resolved, Some(self_type))
+        "drop {}",
+        method_receiver_label(&drop_.binding, resolved, Some(self_type))
     )
 }
 
@@ -998,13 +996,55 @@ fn method_signature_hover_label(
 ) -> String {
     let self_type = Type::Named(owner.canonical_name.clone());
     format!(
-        "method ({}: {}).{}({}): {}",
-        method.receiver.name,
-        parameter_signature_type_label(&method.receiver, resolved, Some(&self_type)),
+        "method {}.{}({}): {}",
+        method_signature_receiver_label(&method.receiver, resolved, Some(&self_type)),
         method.name,
         parameter_signatures_label(&method.signature.parameters, resolved, Some(&self_type)),
         type_label(&method.signature.return_type, resolved, Some(&self_type))
     )
+}
+
+fn method_receiver_label(
+    receiver: &Parameter,
+    resolved: &ResolveOutput,
+    self_type: Option<&Type>,
+) -> String {
+    match self_receiver_prefix(&receiver.ty) {
+        Some(prefix) => format!("{prefix}{}", receiver.name),
+        None => format!(
+            "{}: {}",
+            receiver.name,
+            type_label(&receiver.ty, resolved, self_type)
+        ),
+    }
+}
+
+fn method_signature_receiver_label(
+    receiver: &ParameterSignature,
+    resolved: &ResolveOutput,
+    self_type: Option<&Type>,
+) -> String {
+    if let Some(prefix) = self_receiver_prefix(&receiver.ty) {
+        return format!("{prefix}{}", receiver.name);
+    }
+    format!(
+        "{}: {}",
+        receiver.name,
+        parameter_signature_type_label(receiver, resolved, self_type)
+    )
+}
+
+fn self_receiver_prefix(ty: &TypeExpr) -> Option<&'static str> {
+    match ty {
+        TypeExpr::Reference(reference) if reference.name == "Self" => Some(""),
+        TypeExpr::Borrow(borrow) => match borrow.inner.as_ref() {
+            TypeExpr::Reference(reference) if reference.name == "Self" => {
+                Some(if borrow.is_readwrite { "&+" } else { "&" })
+            }
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 fn function_signature_hover_label(

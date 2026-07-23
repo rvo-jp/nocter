@@ -103,7 +103,7 @@ pub(in crate::typecheck) fn interface_method_missing_diagnostic(
         });
     }
     diagnostic.help = Some(format!(
-        "define `pub method (...).{}(...)` in an inherent `impl {}` block",
+        "define `pub method self.{}(...)` in an inherent `impl {}` block",
         required.name, target_symbol.canonical_name
     ));
     diagnostic

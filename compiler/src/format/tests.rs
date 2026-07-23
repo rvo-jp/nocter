@@ -100,7 +100,7 @@ pub(nocter) copy struct SyscallResult{pub value:usize,errno:i32}
 #target("arm64-darwin")
 pub(nocter) enum PlatformError{interrupted}
 #target("arm64-darwin")
-pub(nocter) interface PlatformContract{pub method (value:&Self).code():i32}
+pub(nocter) interface PlatformContract{pub method &self.code():i32}
 "#,
         concat!(
             "#target(\"arm64-darwin\")\n",
@@ -119,7 +119,7 @@ pub(nocter) interface PlatformContract{pub method (value:&Self).code():i32}
             "\n",
             "#target(\"arm64-darwin\")\n",
             "pub(nocter) interface PlatformContract {\n",
-            "    pub method (value: &Self).code(): i32\n",
+            "    pub method &self.code(): i32\n",
             "}\n",
         ),
     );
@@ -206,11 +206,11 @@ fn formats_imports_impls_and_literals_stably() {
         r#"use std/io
 use std/io.{print as write,File}
 use std/process as process
-impl File{pub method(file:&+Self).write(text:&str):void!{let bytes=[1,2,3]
+impl File{pub method &+self.write(text:&str):void!{let bytes=[1,2,3]
 var point=Point{x:1,y:2}
 while var item=next(){print(item)}
 }}
-impl File{drop file:&+Self{drop file}}
+impl File{drop &+self{drop self}}
 "#,
         concat!(
             "use std/io\n",
@@ -220,7 +220,7 @@ impl File{drop file:&+Self{drop file}}
             "use std/process as process\n",
             "\n",
             "impl File {\n",
-            "    pub method (file: &+Self).write(text: &str): void! {\n",
+            "    pub method &+self.write(text: &str): void! {\n",
             "        let bytes = [1, 2, 3]\n",
             "        var point = Point { x: 1, y: 2 }\n",
             "        while var item = next() {\n",
@@ -230,8 +230,8 @@ impl File{drop file:&+Self{drop file}}
             "}\n",
             "\n",
             "impl File {\n",
-            "    drop file: &+Self {\n",
-            "        drop file\n",
+            "    drop &+self {\n",
+            "        drop self\n",
             "    }\n",
             "}\n",
         ),

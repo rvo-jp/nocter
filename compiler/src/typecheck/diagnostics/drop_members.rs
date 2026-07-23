@@ -16,6 +16,6 @@ pub(in crate::typecheck) fn drop_binding_type_unsupported_diagnostic(
         .span_to_json(drop_.binding.ty.span())
         .ok()
         .map(Box::new);
-    diagnostic.help = Some("write the drop member as `drop name: &+Self { ... }`".to_string());
+    diagnostic.help = Some("write the drop member as `drop &+self { ... }`".to_string());
     diagnostic
 }

@@ -408,8 +408,8 @@ fn diagnoses_owned_method_receiver_move_while_readonly_borrow_used_later() {
 }
 
 impl Holder {
-    method (holder: Self).take(): i32 {
-        return holder.value
+    method self.take(): i32 {
+        return self.value
     }
 }
 
@@ -442,7 +442,7 @@ fn diagnoses_readwrite_method_receiver_while_readonly_borrow_used_later() {
 }
 
 impl File {
-    method (file: &+Self).write(): void {
+    method &+self.write(): void {
         return
     }
 }
@@ -480,7 +480,7 @@ struct Holder {
 }
 
 impl File {
-    method (file: &+Self).write(): void {
+    method &+self.write(): void {
         return
     }
 }
@@ -647,8 +647,8 @@ struct User {
 }
 
 impl Counter {
-    method (counter: &+Self).increment(): void {
-        counter.value = counter.value + 1
+    method &+self.increment(): void {
+        self.value = self.value + 1
         return
     }
 }
@@ -678,8 +678,8 @@ fn diagnoses_readonly_method_receiver_while_readwrite_borrow_used_later() {
 }
 
 impl File {
-    method (file: &Self).fd_value(): i32 {
-        return file.fd
+    method &self.fd_value(): i32 {
+        return self.fd
     }
 }
 
@@ -763,8 +763,8 @@ fn diagnoses_use_after_owned_method_receiver_move() {
 }
 
 impl Holder {
-    method (holder: Self).take(): i32 {
-        return holder.value
+    method self.take(): i32 {
+        return self.value
     }
 }
 

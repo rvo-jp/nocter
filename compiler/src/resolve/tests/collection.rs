@@ -92,8 +92,8 @@ pub func Point.origin(): Point {
 }
 
 impl Point {
-    method (point: Self).x_value(): i32 {
-        return point.x
+    method self.x_value(): i32 {
+        return self.x
     }
 }
 
@@ -120,7 +120,7 @@ func main(): i32 {
     assert_eq!(associated_functions[0].signature.parameters.len(), 0);
     assert_eq!(methods.len(), 1);
     assert_eq!(methods[0].name, "x_value");
-    assert_eq!(methods[0].receiver.name, "point");
+    assert_eq!(methods[0].receiver.name, "self");
     assert_eq!(methods[0].signature.parameters.len(), 0);
 }
 
@@ -132,7 +132,7 @@ fn collects_drop_member_signature() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -150,5 +150,5 @@ func main(): i32 {
     };
     let drop_member = drop_member.as_ref().expect("expected drop member");
     assert_eq!(drop_member.target_name, "File.drop");
-    assert_eq!(drop_member.binding.name, "file");
+    assert_eq!(drop_member.binding.name, "self");
 }

@@ -330,12 +330,23 @@ fn method_shape_label(
         .collect::<Vec<_>>()
         .join(", ");
     format!(
-        "method (self: {}).{}({}): {}",
-        shape.receiver.display(),
+        "method {}.{}({}): {}",
+        method_receiver_shape_label(&shape.receiver),
         method.name,
         parameters,
         shape.return_type.display()
     )
+}
+
+fn method_receiver_shape_label(receiver: &Type) -> &'static str {
+    let display = receiver.display();
+    if display.starts_with("&+") {
+        return "&+self";
+    }
+    if display.starts_with('&') {
+        return "&self";
+    }
+    "self"
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

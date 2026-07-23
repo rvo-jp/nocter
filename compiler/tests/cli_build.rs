@@ -773,7 +773,7 @@ fn build_command_lowers_terminal_if_branch_drop() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -807,7 +807,7 @@ fn build_command_lowers_nonterminal_if_branch_scope_drop() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -840,7 +840,7 @@ fn build_command_lowers_nonterminal_if_distinct_branch_aggregate_layouts() {
 }
 
 impl Small {
-    drop small: &+Self {
+    drop &+self {
         return
     }
 }
@@ -851,7 +851,7 @@ struct Wide {
 }
 
 impl Wide {
-    drop wide: &+Self {
+    drop &+self {
         return
     }
 }
@@ -909,7 +909,7 @@ fn build_command_lowers_nonterminal_while_body_scope_drop() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -940,7 +940,7 @@ fn build_command_lowers_nonterminal_while_body_explicit_drop() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -972,7 +972,7 @@ fn build_command_lowers_nonterminal_while_body_local_aggregate_replacement() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -1004,7 +1004,7 @@ fn build_command_lowers_nonterminal_while_break_cleanup() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -1036,7 +1036,7 @@ fn build_command_lowers_nonterminal_while_continue_cleanup() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -1068,7 +1068,7 @@ fn build_command_lowers_terminal_nested_if_in_nonterminal_while_body() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -1104,7 +1104,7 @@ fn build_command_lowers_nonterminal_loop_break_cleanup() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -1136,7 +1136,7 @@ fn build_command_lowers_terminal_nested_if_in_nonterminal_loop_body() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -1172,7 +1172,7 @@ fn build_command_lowers_terminal_loop_body_return_cleanup() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -1203,7 +1203,7 @@ fn build_command_lowers_return_in_nonterminal_while_body() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -1235,7 +1235,7 @@ fn build_command_lowers_terminal_if_branch_void_call() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -1273,7 +1273,7 @@ fn build_command_lowers_direct_aggregate_terminal_if_return() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -1316,7 +1316,7 @@ fn build_command_lowers_direct_aggregate_terminal_if_call_return() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -1364,7 +1364,7 @@ fn build_command_lowers_direct_aggregate_terminal_if_branch_leading_statements()
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -1413,7 +1413,7 @@ fn build_command_lowers_direct_aggregate_terminal_if_branch_local_binding() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -1457,7 +1457,7 @@ fn build_command_lowers_direct_aggregate_terminal_if_branch_assignment() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -2310,7 +2310,7 @@ fn build_command_lowers_moved_aggregate_slot_assignment() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -2341,7 +2341,7 @@ fn build_command_lowers_moved_aggregate_binding() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -2462,7 +2462,7 @@ fn build_command_lowers_moved_aggregate_struct_literal_field() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -2472,7 +2472,7 @@ struct Holder {
 }
 
 impl Holder {
-    drop holder: &+Self {
+    drop &+self {
         return
     }
 }
@@ -3136,7 +3136,7 @@ fn build_command_reports_explicit_move_in_condition_before_ir_lowering() {
 }
 
 impl File {
-    drop file: &+Self {
+    drop &+self {
         return
     }
 }
@@ -3635,8 +3635,8 @@ fn build_command_reports_reachable_generic_impl_method_before_ir_lowering() {
 }
 
 impl<U> Box<U> {
-    method (box: Self).value(): U {
-        return box.value
+    method self.value(): U {
+        return self.value
     }
 }
 
@@ -3686,8 +3686,8 @@ fn build_command_reports_temporary_method_borrow_receiver_before_ir_lowering() {
 }
 
 impl File {
-    method (file: &Self).value(): i32 {
-        return file.fd
+    method &self.value(): i32 {
+        return self.fd
     }
 }
 

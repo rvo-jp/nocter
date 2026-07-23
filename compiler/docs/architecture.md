@@ -391,7 +391,7 @@ Initial grammar coverage:
 - fixed root-file `func main(): i32! { ... }` and `func main(): usize! { ... }`, plus infallible `func main(): i32 { ... }`, `func main(): usize { ... }`, and `func main(): void { ... }`
 - `func name(...): Type { ... }`
 - `func Type.name(...): Type { ... }`
-- `impl Type { method ... drop ... }`
+- `impl Type { method self.name(...) ... method &self.name(...) ... method &+self.name(...) ... drop &+self ... }`
 - parameter lists
 - unbounded generic parameter lists such as `<T>`
 - `str`, `&str`, `error`, `[T]`, `&[T]`, `&+[T]`, `[T; N]`, `T?`, and `T!` type syntax
@@ -474,9 +474,9 @@ Current semantic coverage:
 - same-file and imported inherent method calls such as `value.method(args...)` use the concrete nominal receiver type for argument checking and return type resolution
 - same-file inherent associated functions and methods are duplicate-checked per target type; v0 does not support overloads or an associated function and method with the same name
 - each loaded file in the reachable compile unit is resolved and checked in its own file scope; executable entry validation runs only for the root file
-- inherent method calls support `Self`, `&Self`, and `&+Self` receiver declarations in v0; `&+Self` calls require the receiver expression to be a mutable `var` binding
+- inherent method declarations use the fixed receiver names `self`, `&self`, and `&+self` in v0; `&+self` calls require the receiver expression to be a mutable `var` binding
 - inherent `impl` function bodies and method bodies are resolved and checked for calls, returns, fallible propagation, control-flow termination, and local binding types
-- inside an inherent `impl`, `Self` in return types, parameter types, receiver types, struct literals, and type conversions resolves to the impl target type
+- inside an inherent `impl`, `Self` in return types, parameter types, struct literals, and type conversions resolves to the impl target type
 - primitive return type checking for built-in primitive types, nominal struct types, `str`, `&str`, `error`, `[T]`, `&[T]`, `&+[T]`, `[T; N]`, array literals, struct literals, `void`, `never`, `T?`, and the success side of `T!`
 - local binding types are tracked inside a callable when they come from literals, struct literals, annotations, parameters, known direct calls, postfix `?`, `catch`, `??`, optional `let ... else`, optional `if let` / `if var`, or optional `while let` / `while var`
 - integer literals have type `i32` in v0 checking

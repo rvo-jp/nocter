@@ -608,7 +608,7 @@ mod tests {
         let project = TempProject::new("lsp-semantic-methods");
         let home = project.write_nocter_home();
         let _home = NocterHomeEnv::set(&home);
-        let text = "struct File {\n    fd: i32\n    byte: u8\n}\n\nimpl File {\n    method (file: Self).read(): i32 {\n        return 0\n    }\n}\n\nfunc main(path: &str): i32 {\n    var file = File{ fd: 0, byte: 0 as u8 }\n    return file.read()\n}\n";
+        let text = "struct File {\n    fd: i32\n    byte: u8\n}\n\nimpl File {\n    method self.read(): i32 {\n        return 0\n    }\n}\n\nfunc main(path: &str): i32 {\n    var file = File{ fd: 0, byte: 0 as u8 }\n    return file.read()\n}\n";
         let app = project.write_source("app.nct", text);
         let uri = file_uri(&app);
         let document = open_document(uri.clone(), Some(1), text.to_string());
@@ -619,7 +619,7 @@ mod tests {
         let identifiers =
             classified_identifiers_for_file_analysis(documents.get(&uri).unwrap(), file);
 
-        for name in ["i32", "Self", "u8", "str"] {
+        for name in ["i32", "u8", "str"] {
             assert!(
                 classified_identifier_with_lexeme(text, &identifiers, name)
                     .iter()
@@ -1706,7 +1706,7 @@ func inspect(value: Header, readonly: &Header, readwrite: &+Header): i32 {
         let project = TempProject::new("lsp-definition-method-call");
         let home = project.write_nocter_home();
         let _home = NocterHomeEnv::set(&home);
-        let text = "struct File {\n    fd: i32\n}\n\nimpl File {\n    method (file: Self).read(): i32 {\n        return 0\n    }\n}\n\nfunc main(): i32 {\n    let file = File{ fd: 1 }\n    return file.read()\n}\n";
+        let text = "struct File {\n    fd: i32\n}\n\nimpl File {\n    method self.read(): i32 {\n        return 0\n    }\n}\n\nfunc main(): i32 {\n    let file = File{ fd: 1 }\n    return file.read()\n}\n";
         let app = project.write_source("app.nct", text);
         let app_uri = file_uri(&app);
         let server = LspServer {
@@ -1733,8 +1733,8 @@ func inspect(value: Header, readonly: &Header, readwrite: &+Header): i32 {
         );
 
         assert_eq!(response["result"]["range"]["start"]["line"], json!(5));
-        assert_eq!(response["result"]["range"]["start"]["character"], json!(24));
-        assert_eq!(response["result"]["range"]["end"]["character"], json!(28));
+        assert_eq!(response["result"]["range"]["start"]["character"], json!(16));
+        assert_eq!(response["result"]["range"]["end"]["character"], json!(20));
     }
 
     #[test]

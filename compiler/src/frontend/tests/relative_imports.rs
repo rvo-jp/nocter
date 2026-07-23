@@ -190,8 +190,8 @@ pub func Point.origin(): Point {
 }
 
 impl Point {
-    pub method (point: Self).x_value(): i32 {
-        return point.x
+    pub method self.x_value(): i32 {
+        return self.x
     }
 }
 "#,
@@ -265,8 +265,8 @@ pub func Point.origin(): Point {
 }
 
 impl Point {
-    pub method (point: Self).origin(): i32 {
-        return point.x
+    pub method self.origin(): i32 {
+        return self.x
     }
 }
 "#,

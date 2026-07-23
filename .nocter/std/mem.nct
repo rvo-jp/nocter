@@ -102,20 +102,20 @@ pub func prefix_mut(buffer: &+RawBuffer, len: usize): &+[u8]! {
 }
 
 impl RawBuffer {
-    pub method (buffer: &Self).bytes(): &[u8] {
-        return bytes(buffer)
+    pub method &self.bytes(): &[u8] {
+        return bytes(self)
     }
 
-    pub method (buffer: &+Self).bytes_mut(): &+[u8] {
-        return bytes_mut(buffer)
+    pub method &+self.bytes_mut(): &+[u8] {
+        return bytes_mut(self)
     }
 
-    pub method (buffer: &Self).prefix(len: usize): &[u8]! {
-        return prefix(buffer, len)?
+    pub method &self.prefix(len: usize): &[u8]! {
+        return prefix(self, len)?
     }
 
-    pub method (buffer: &+Self).prefix_mut(len: usize): &+[u8]! {
-        return prefix_mut(buffer, len)?
+    pub method &+self.prefix_mut(len: usize): &+[u8]! {
+        return prefix_mut(self, len)?
     }
 }
 

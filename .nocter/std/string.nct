@@ -143,46 +143,46 @@ pub func capacity_overflow(): error {
 }
 
 impl String {
-    pub method (text: &Self).view(): &str {
-        return view(text)
+    pub method &self.view(): &str {
+        return view(self)
     }
 
-    pub method (text: &Self).len(): usize {
-        return len(text)
+    pub method &self.len(): usize {
+        return len(self)
     }
 
-    pub method (text: &Self).capacity(): usize {
-        return capacity(text)
+    pub method &self.capacity(): usize {
+        return capacity(self)
     }
 
-    pub method (text: &Self).is_empty(): bool {
-        return is_empty(text)
+    pub method &self.is_empty(): bool {
+        return is_empty(self)
     }
 
-    pub method (text: &+Self).reserve(additional: usize): void! {
-        reserve(text, additional)?
+    pub method &+self.reserve(additional: usize): void! {
+        reserve(self, additional)?
         return
     }
 
-    pub method (text: &+Self).clear(): void {
-        clear(text)
+    pub method &+self.clear(): void {
+        clear(self)
         return
     }
 
-    pub method (text: &Self).bytes(): &[u8] {
-        return bytes_from_str(view(text))
+    pub method &self.bytes(): &[u8] {
+        return bytes_from_str(view(self))
     }
 
-    pub method (text: &+Self).push_str(value: &str): void! {
-        push_str(text, value)?
+    pub method &+self.push_str(value: &str): void! {
+        push_str(self, value)?
         return
     }
 
-    drop text: &+Self {
-        if text.capacity == 0 {
+    drop &+self {
+        if self.capacity == 0 {
             return
         }
-        free_pages_impl(addr(text.ptr), text.capacity)
+        free_pages_impl(addr(self.ptr), self.capacity)
         return
     }
 }

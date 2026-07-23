@@ -450,8 +450,8 @@ struct Text {
 }
 
 impl Text {
-    method (text: &Self).self_ref(): &Self {
-        return text
+    method &self.self_ref(): &Self {
+        return self
     }
 }
 
