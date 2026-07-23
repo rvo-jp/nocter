@@ -1,5 +1,5 @@
 use super::buildability::v0_buildability_diagnostics;
-use crate::analysis::analyze_compile_unit;
+use crate::analysis::analyze_executable_compile_unit;
 use crate::backend::{BuildRequest, build_executable};
 use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
@@ -169,7 +169,7 @@ fn analyze_source(
         Err(diagnostics) => return (None, diagnostics),
     };
 
-    let analysis = analyze_compile_unit(sources, &unit);
+    let analysis = analyze_executable_compile_unit(sources, &unit);
     let diagnostics = analysis.diagnostics();
 
     (Some(analysis), diagnostics)

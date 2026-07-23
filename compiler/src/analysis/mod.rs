@@ -93,42 +93,30 @@ pub(crate) struct FileAnalysis {
     pub(crate) is_root: bool,
 }
 
-pub(crate) fn analyze_compile_unit(sources: &SourceMap, unit: &CompileUnit) -> CompileUnitAnalysis {
-    let root_source = unit.root_ast.span.source;
-    let files = unit
-        .files
-        .iter()
-        .map(|file| {
-            let is_root = file.span.source == root_source;
-            let resolved = resolve_compile_unit(sources, file, &unit.files, &unit.import_sources);
-            let mut diagnostics = resolved.diagnostics.clone();
-            if is_root {
-                diagnostics.extend(check(sources, file, &resolved));
-            } else {
-                diagnostics.extend(check_module(sources, file, &resolved));
-            }
-            let typecheck_facts = collect_typecheck_facts(file, &resolved);
-
-            FileAnalysis {
-                ast: file.clone(),
-                resolved,
-                typecheck_facts,
-                diagnostics,
-                is_root,
-            }
-        })
-        .collect();
-
-    CompileUnitAnalysis {
-        files,
-        import_sources: unit.import_sources.clone(),
-        nocter_home: unit.nocter_home.clone(),
-    }
-}
-
-pub(crate) fn analyze_compile_unit_as_modules(
+pub(crate) fn analyze_executable_compile_unit(
     sources: &SourceMap,
     unit: &CompileUnit,
+) -> CompileUnitAnalysis {
+    analyze_compile_unit_with_root_policy(sources, unit, RootPolicy::ExecutableEntry)
+}
+
+pub(crate) fn analyze_module_compile_unit(
+    sources: &SourceMap,
+    unit: &CompileUnit,
+) -> CompileUnitAnalysis {
+    analyze_compile_unit_with_root_policy(sources, unit, RootPolicy::ModuleOnly)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RootPolicy {
+    ExecutableEntry,
+    ModuleOnly,
+}
+
+fn analyze_compile_unit_with_root_policy(
+    sources: &SourceMap,
+    unit: &CompileUnit,
+    root_policy: RootPolicy,
 ) -> CompileUnitAnalysis {
     let root_source = unit.root_ast.span.source;
     let files = unit
@@ -138,7 +126,11 @@ pub(crate) fn analyze_compile_unit_as_modules(
             let is_root = file.span.source == root_source;
             let resolved = resolve_compile_unit(sources, file, &unit.files, &unit.import_sources);
             let mut diagnostics = resolved.diagnostics.clone();
-            diagnostics.extend(check_module(sources, file, &resolved));
+            if is_root && root_policy == RootPolicy::ExecutableEntry {
+                diagnostics.extend(check(sources, file, &resolved));
+            } else {
+                diagnostics.extend(check_module(sources, file, &resolved));
+            }
             let typecheck_facts = collect_typecheck_facts(file, &resolved);
 
             FileAnalysis {

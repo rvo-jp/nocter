@@ -1,5 +1,5 @@
 use super::super::{FrontendOptions, load_compile_unit};
-use crate::analysis::analyze_compile_unit;
+use crate::analysis::analyze_executable_compile_unit;
 use crate::diagnostics::Diagnostic;
 use crate::source::{SourceId, SourceMap};
 use crate::target::DEFAULT_TARGET;
@@ -46,5 +46,5 @@ pub(super) fn check_with_nocter_home(
         Err(diagnostics) => return diagnostics,
     };
 
-    analyze_compile_unit(sources, &unit).diagnostics()
+    analyze_executable_compile_unit(sources, &unit).diagnostics()
 }

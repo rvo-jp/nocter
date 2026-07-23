@@ -306,7 +306,7 @@ const fn semantic_kind_priority(kind: SemanticTokenKind) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::analysis::{CompileUnit, analyze_compile_unit_as_modules};
+    use crate::analysis::{CompileUnit, analyze_module_compile_unit};
     use crate::lexer::lex;
     use crate::parser::parse;
     use crate::source::SourceMap;
@@ -444,7 +444,7 @@ mod tests {
             .ast
             .expect("expected ast");
         let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new(), None);
-        let analysis = analyze_compile_unit_as_modules(&sources, &unit);
+        let analysis = analyze_module_compile_unit(&sources, &unit);
 
         (sources, analysis)
     }

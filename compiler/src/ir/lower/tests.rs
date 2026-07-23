@@ -1,6 +1,6 @@
 use super::*;
 use crate::abi::{ReturnPassing, ValueLayout};
-use crate::analysis::{CompileUnit, CompileUnitAnalysis, analyze_compile_unit};
+use crate::analysis::{CompileUnit, CompileUnitAnalysis, analyze_executable_compile_unit};
 use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::ir::{
@@ -23834,7 +23834,7 @@ fn analyze_text_fixture_with_nocter_home_files(
         },
     )
     .unwrap();
-    let analysis = analyze_compile_unit(&sources, &unit);
+    let analysis = analyze_executable_compile_unit(&sources, &unit);
     let diagnostics = analysis.diagnostics();
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     LoweringFixture { sources, analysis }

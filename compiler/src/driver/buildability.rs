@@ -1721,7 +1721,7 @@ fn drop_name_span(span: ByteSpan) -> ByteSpan {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::analysis::{CompileUnit, analyze_compile_unit};
+    use crate::analysis::{CompileUnit, analyze_executable_compile_unit};
     use crate::lexer::lex;
     use crate::parser::parse;
     use std::collections::HashMap;
@@ -1841,7 +1841,7 @@ func unused(): bool {
         );
         let ast = parsed.ast.expect("expected ast");
         let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new(), None);
-        let analysis = analyze_compile_unit(&sources, &unit);
+        let analysis = analyze_executable_compile_unit(&sources, &unit);
         let diagnostics = analysis.diagnostics();
         assert!(
             diagnostics.is_empty(),
