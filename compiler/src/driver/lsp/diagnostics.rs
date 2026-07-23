@@ -49,10 +49,10 @@ pub(super) fn diagnostics_for_lsp(
     document: &OpenDocument,
     open_documents: &[&OpenDocument],
     sources: &SourceMap,
-    diagnostics: Vec<Diagnostic>,
+    diagnostics: &[Diagnostic],
 ) -> Vec<LspDiagnostic> {
     diagnostics
-        .into_iter()
+        .iter()
         .filter_map(|diagnostic| diagnostic_for_lsp(document, open_documents, sources, diagnostic))
         .collect()
 }
@@ -61,7 +61,7 @@ fn diagnostic_for_lsp(
     document: &OpenDocument,
     open_documents: &[&OpenDocument],
     sources: &SourceMap,
-    diagnostic: Diagnostic,
+    diagnostic: &Diagnostic,
 ) -> Option<LspDiagnostic> {
     let span = diagnostic.primary_span.as_deref();
     if let Some(span) = span
@@ -84,13 +84,17 @@ fn diagnostic_for_lsp(
         });
 
     let (related_information, appended_notes) =
-        related_information_for_notes(document, open_documents, sources, diagnostic.notes);
-    let message = message_with_notes_and_help(diagnostic.message, appended_notes, diagnostic.help);
+        related_information_for_notes(document, open_documents, sources, &diagnostic.notes);
+    let message = message_with_notes_and_help(
+        diagnostic.message.clone(),
+        appended_notes,
+        diagnostic.help.clone(),
+    );
 
     Some(LspDiagnostic {
         range,
         severity: lsp_severity(diagnostic.severity),
-        code: diagnostic.code,
+        code: diagnostic.code.clone(),
         source: "nocter",
         message,
         related_information,
@@ -116,23 +120,23 @@ fn related_information_for_notes(
     document: &OpenDocument,
     open_documents: &[&OpenDocument],
     sources: &SourceMap,
-    notes: Vec<DiagnosticNote>,
+    notes: &[DiagnosticNote],
 ) -> (Vec<LspDiagnosticRelatedInformation>, Vec<String>) {
     let mut related_information = Vec::new();
     let mut appended_notes = Vec::new();
 
     for note in notes {
-        let Some(span) = note.span else {
-            appended_notes.push(note.message);
+        let Some(span) = &note.span else {
+            appended_notes.push(note.message.clone());
             continue;
         };
 
-        match location_for_span(document, open_documents, sources, &span) {
+        match location_for_span(document, open_documents, sources, span) {
             Some(location) => related_information.push(LspDiagnosticRelatedInformation {
                 location,
-                message: note.message,
+                message: note.message.clone(),
             }),
-            None => appended_notes.push(note.message),
+            None => appended_notes.push(note.message.clone()),
         }
     }
 

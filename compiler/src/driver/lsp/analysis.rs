@@ -60,7 +60,7 @@ pub(super) fn diagnostics_for_workspace(
                     document,
                     &workspace.open_documents,
                     &workspace.sources,
-                    diagnostics.clone(),
+                    &diagnostics,
                 ),
             )
         })
