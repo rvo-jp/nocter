@@ -1,6 +1,7 @@
 use crate::abi::ReturnPassing;
 use crate::backend::frame::{FrameLayout, FunctionFrame, plan_function_frame};
 use crate::diagnostics::Diagnostic;
+use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::ir::{
     CallTarget, DirectAggregateArgument, FallibleFailureMode, Function, I32Location, I32Value,
     Instruction, IrModule, ScalarArgument, SliceValue, StrValue, Type, UsizeLocation, UsizeValue,
@@ -21,10 +22,9 @@ pub(crate) struct MachineCode {
 
 pub(crate) fn generate_arm64_darwin_entry(
     module: &IrModule,
-    entry_name: &str,
 ) -> Result<MachineCode, Vec<Diagnostic>> {
     let mut emitter = EntryEmitter::new();
-    emitter.emit_module(module, entry_name)?;
+    emitter.emit_module(module)?;
     emitter.finish()
 }
 
@@ -74,15 +74,18 @@ impl EntryEmitter {
         }
     }
 
-    fn emit_module(&mut self, module: &IrModule, entry_name: &str) -> Result<(), Vec<Diagnostic>> {
+    fn emit_module(&mut self, module: &IrModule) -> Result<(), Vec<Diagnostic>> {
         let Some(entry) = module
             .functions
             .iter()
-            .find(|function| function.name == entry_name)
+            .find(|function| function.name == DEFAULT_ENTRY_NAME)
         else {
             return Err(vec![Diagnostic::error(
                 "E9002",
-                format!("codegen requires a lowered entry function `{entry_name}`"),
+                format!(
+                    "codegen requires a lowered entry function `{}`",
+                    DEFAULT_ENTRY_NAME
+                ),
             )]);
         };
         validate_module_call_return_shapes(module)?;
@@ -2380,7 +2383,7 @@ mod tests {
             instructions: vec![set_return_i32(0), Instruction::Return],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert_eq!(
             code.text,
@@ -2404,7 +2407,7 @@ mod tests {
             instructions: vec![set_return_i32(0x1234_5678), Instruction::Return],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert_eq!(
             code.text,
@@ -2429,7 +2432,7 @@ mod tests {
             instructions: vec![set_return_i32(-1), Instruction::Return],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert_eq!(
             code.text,
@@ -2454,7 +2457,7 @@ mod tests {
             instructions: vec![set_return_i32(7), Instruction::ReturnFallibleSuccess],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert_eq!(code.read_only_data, b": \n");
         assert_eq!(
@@ -2477,7 +2480,7 @@ mod tests {
             instructions: vec![set_return_usize(7), Instruction::ReturnFallibleSuccess],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -2509,7 +2512,7 @@ mod tests {
             },
         ]);
 
-        let diagnostics = generate_arm64_darwin_entry(&module, "main").unwrap_err();
+        let diagnostics = generate_arm64_darwin_entry(&module).unwrap_err();
 
         assert_eq!(diagnostics[0].code, "E9002");
         assert!(
@@ -2543,7 +2546,7 @@ mod tests {
             },
         ]);
 
-        let diagnostics = generate_arm64_darwin_entry(&module, "main").unwrap_err();
+        let diagnostics = generate_arm64_darwin_entry(&module).unwrap_err();
 
         assert_eq!(diagnostics[0].code, "E9002");
         assert!(
@@ -2577,7 +2580,7 @@ mod tests {
             },
         ]);
 
-        let diagnostics = generate_arm64_darwin_entry(&module, "main").unwrap_err();
+        let diagnostics = generate_arm64_darwin_entry(&module).unwrap_err();
 
         assert_eq!(diagnostics[0].code, "E9002");
         assert!(diagnostics[0].message.contains("expected i32"));
@@ -2616,7 +2619,7 @@ mod tests {
             },
         ]);
 
-        let diagnostics = generate_arm64_darwin_entry(&module, "main").unwrap_err();
+        let diagnostics = generate_arm64_darwin_entry(&module).unwrap_err();
 
         assert_eq!(diagnostics[0].code, "E9002");
         assert!(
@@ -2716,7 +2719,7 @@ mod tests {
             },
         ]);
 
-        let diagnostics = generate_arm64_darwin_entry(&module, "main").unwrap_err();
+        let diagnostics = generate_arm64_darwin_entry(&module).unwrap_err();
 
         assert_eq!(diagnostics[0].code, "E9003");
         assert!(diagnostics[0].message.contains("borrow arguments"));
@@ -2765,7 +2768,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert_eq!(code.read_only_data, b"Nocter");
     }
@@ -2790,7 +2793,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert_eq!(
             code.text,
@@ -2832,7 +2835,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert_eq!(
             code.text,
@@ -2891,7 +2894,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(!code.text.is_empty());
     }
@@ -2919,7 +2922,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0xe0, 0x03, 0x01, 0xaa])); // mov x0, x1
     }
@@ -2947,7 +2950,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0xe0, 0x03, 0x01, 0xaa])); // mov x0, x1
     }
@@ -2978,7 +2981,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
         assert!(contains_instruction(&code.text, [0x20, 0x6a, 0x70, 0x38])); // ldrb w0, [x17, x16]
@@ -3010,7 +3013,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
         assert!(contains_instruction(&code.text, [0xf1, 0x07, 0x40, 0xf9])); // ldr x17, [sp, #8]
@@ -3044,7 +3047,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
         assert!(contains_instruction(&code.text, [0x20, 0x6a, 0x70, 0x38])); // ldrb w0, [x17, x16]
@@ -3077,7 +3080,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0x20, 0x6a, 0x70, 0x38])); // ldrb w0, [x17, x16]
     }
@@ -3112,7 +3115,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0x30, 0x6a, 0x70, 0x38])); // ldrb w16, [x17, x16]
         assert!(contains_instruction(&code.text, [0x20, 0x00, 0x80, 0x52])); // mov w0, #1
@@ -3154,7 +3157,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert_eq!(
             code.text,
@@ -3231,7 +3234,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(!code.text.is_empty());
     }
@@ -3271,7 +3274,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(!code.text.is_empty());
     }
@@ -3314,7 +3317,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0xe8, 0x03, 0x00, 0x91])); // add x8, sp, #0
         assert!(contains_instruction(&code.text, [0x10, 0x09, 0x00, 0xf9])); // str x16, [x8, #16]
@@ -3361,7 +3364,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(!contains_instruction(&code.text, [0xe8, 0x03, 0x00, 0x91])); // add x8, sp, #0
         assert!(contains_instruction(
@@ -3426,7 +3429,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -3471,7 +3474,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -3495,7 +3498,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_bytes(
             &code.text,
@@ -3536,7 +3539,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -3588,7 +3591,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -3632,7 +3635,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -3674,7 +3677,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -3714,7 +3717,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -3750,7 +3753,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -3790,7 +3793,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -3834,7 +3837,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -3878,7 +3881,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -3909,7 +3912,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -3970,7 +3973,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -4049,7 +4052,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -4119,7 +4122,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -4175,7 +4178,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -4212,7 +4215,7 @@ mod tests {
             ],
         }]);
 
-        let diagnostics = generate_arm64_darwin_entry(&module, "main").unwrap_err();
+        let diagnostics = generate_arm64_darwin_entry(&module).unwrap_err();
 
         assert!(
             diagnostics[0]
@@ -4263,7 +4266,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -4321,7 +4324,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0xf0, 0x23, 0x00, 0x91])); // add x16, sp, #8
         assert!(contains_instruction(&code.text, [0xf0, 0x03, 0x00, 0xf9])); // str x16, [sp, #0]
@@ -4370,7 +4373,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -4441,7 +4444,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -4490,7 +4493,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -4530,7 +4533,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -4562,7 +4565,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -4604,7 +4607,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -4678,7 +4681,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(
             &code.text,
@@ -4740,7 +4743,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0xe8, 0x23, 0x00, 0x91])); // add x8, sp, #8
         assert!(contains_instruction(
@@ -4804,7 +4807,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0x1f, 0x00, 0x1f, 0xeb])); // cmp x0, xzr
         assert!(contains_instruction(&code.text, [0xe1, 0x03, 0x00, 0xf9])); // str x1, [sp, #0]
@@ -4871,7 +4874,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0x1f, 0x00, 0x1f, 0xeb])); // cmp x0, xzr
         assert!(contains_instruction(
@@ -4939,7 +4942,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0x1f, 0x00, 0x1f, 0xeb])); // cmp x0, xzr
         assert!(contains_instruction(
@@ -4992,7 +4995,7 @@ mod tests {
                 ],
             },
         ]);
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
         let image = crate::target::macho::write_arm64_macos_executable_with_data(
             &code.text,
             &code.read_only_data,
@@ -5034,7 +5037,7 @@ mod tests {
                 ],
             },
         ]);
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
         assert_eq!(code.read_only_data, b"Nocter");
         let image = crate::target::macho::write_arm64_macos_executable_with_data(
             &code.text,
@@ -5072,7 +5075,7 @@ mod tests {
                 instructions: vec![set_return_bool(true), Instruction::Return],
             },
         ]);
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
         let image = crate::target::macho::write_arm64_macos_executable_with_data(
             &code.text,
             &code.read_only_data,
@@ -5100,7 +5103,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert_eq!(
             code.text,
@@ -5132,7 +5135,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert_eq!(
             code.text,
@@ -5172,7 +5175,7 @@ mod tests {
             },
         ]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert_eq!(
             code.text,
@@ -5221,7 +5224,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert_eq!(
             code.text,
@@ -5261,7 +5264,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert_eq!(
             code.text,
@@ -5298,7 +5301,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0x00, 0x02, 0x00, 0x2b])); // adds w0, w16, w0
         assert!(contains_instruction(&code.text, [0x47, 0x00, 0x00, 0x54])); // b.vc +8
@@ -5321,7 +5324,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0x00, 0x02, 0x00, 0x6b])); // subs w0, w16, w0
         assert!(contains_instruction(&code.text, [0x47, 0x00, 0x00, 0x54])); // b.vc +8
@@ -5344,7 +5347,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0x11, 0x7e, 0x20, 0x9b])); // smull x17, w16, w0
         assert!(contains_instruction(&code.text, [0x30, 0x7e, 0x40, 0x93])); // sxtw x16, w17
@@ -5369,7 +5372,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0x4a, 0x00, 0x00, 0x54])); // b.ge +8
         assert!(contains_instruction(&code.text, [0x4b, 0x00, 0x00, 0x54])); // b.lt +8
@@ -5393,7 +5396,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0x4a, 0x00, 0x00, 0x54])); // b.ge +8
         assert!(contains_instruction(&code.text, [0x4b, 0x00, 0x00, 0x54])); // b.lt +8
@@ -5417,7 +5420,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
         assert!(contains_instruction(&code.text, [0x00, 0x0e, 0xc0, 0x1a])); // sdiv w0, w16, w0
@@ -5439,7 +5442,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
         assert!(contains_instruction(&code.text, [0x11, 0x0e, 0xc0, 0x1a])); // sdiv w17, w16, w0
@@ -5462,7 +5465,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0x00, 0x02, 0x00, 0xab])); // adds x0, x16, x0
         assert!(contains_instruction(&code.text, [0x43, 0x00, 0x00, 0x54])); // b.cc +8
@@ -5485,7 +5488,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0x00, 0x02, 0x00, 0xeb])); // subs x0, x16, x0
         assert!(contains_instruction(&code.text, [0x42, 0x00, 0x00, 0x54])); // b.cs +8
@@ -5508,7 +5511,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0x11, 0x7e, 0xc0, 0x9b])); // umulh x17, x16, x0
         assert!(contains_instruction(&code.text, [0x3f, 0x02, 0x1f, 0xeb])); // cmp x17, xzr
@@ -5533,7 +5536,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0x1f, 0x00, 0x1f, 0xeb])); // cmp x0, xzr
         assert!(contains_instruction(&code.text, [0x41, 0x00, 0x00, 0x54])); // b.ne +8
@@ -5557,7 +5560,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0x1f, 0x00, 0x1f, 0xeb])); // cmp x0, xzr
         assert!(contains_instruction(&code.text, [0x41, 0x00, 0x00, 0x54])); // b.ne +8
@@ -5582,7 +5585,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0x1f, 0x00, 0x11, 0xeb])); // cmp x0, x17
         assert!(contains_instruction(&code.text, [0x43, 0x00, 0x00, 0x54])); // b.cc +8
@@ -5606,7 +5609,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert!(contains_instruction(&code.text, [0x1f, 0x00, 0x11, 0xeb])); // cmp x0, x17
         assert!(contains_instruction(&code.text, [0x43, 0x00, 0x00, 0x54])); // b.cc +8
@@ -5627,7 +5630,7 @@ mod tests {
             }],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert_eq!(
             code.text,
@@ -5662,7 +5665,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert_eq!(
             code.text,
@@ -5697,7 +5700,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert_eq!(
             code.text,
@@ -5730,7 +5733,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert_eq!(
             code.text,
@@ -5765,7 +5768,7 @@ mod tests {
             ],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert_eq!(
             code.text,
@@ -5799,7 +5802,7 @@ mod tests {
             }],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert_eq!(
             code.text,
@@ -5834,7 +5837,7 @@ mod tests {
             }],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert_eq!(
             code.text,
@@ -5872,7 +5875,7 @@ mod tests {
             }],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert_eq!(
             code.text,
@@ -5937,7 +5940,7 @@ mod tests {
                 Instruction::Return,
             ],
         }]);
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
         let image = crate::target::macho::write_arm64_macos_executable_with_data(
             &code.text,
             &code.read_only_data,
@@ -5968,7 +5971,7 @@ mod tests {
                 Instruction::Return,
             ],
         }]);
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
         let image = crate::target::macho::write_arm64_macos_executable_with_data(
             &code.text,
             &code.read_only_data,
@@ -6002,7 +6005,7 @@ mod tests {
                 Instruction::Return,
             ],
         }]);
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
         let image = crate::target::macho::write_arm64_macos_executable_with_data(
             &code.text,
             &code.read_only_data,
@@ -6035,7 +6038,7 @@ mod tests {
                 Instruction::Return,
             ],
         }]);
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
         let image = crate::target::macho::write_arm64_macos_executable_with_data(
             &code.text,
             &code.read_only_data,
@@ -6059,7 +6062,7 @@ mod tests {
             instructions: vec![Instruction::Return],
         }]);
 
-        let code = generate_arm64_darwin_entry(&module, "main").unwrap();
+        let code = generate_arm64_darwin_entry(&module).unwrap();
 
         assert_eq!(
             code.text,

@@ -1,5 +1,5 @@
 use super::buildability::v0_buildability_diagnostics;
-use crate::analysis::analyze_compile_unit_with_entry;
+use crate::analysis::analyze_compile_unit;
 use crate::backend::{BuildRequest, build_executable};
 use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
@@ -39,13 +39,9 @@ impl BuildOutput {
     }
 }
 
-pub(super) fn check_file_with_entry_and_target(
-    file: &Path,
-    entry_name: &str,
-    target: &str,
-) -> CheckOutput {
+pub(super) fn check_file_with_target(file: &Path, target: &str) -> CheckOutput {
     let options = frontend_options_for_target(target);
-    let output = analyze_file(file, &options, entry_name);
+    let output = analyze_file(file, &options);
 
     CheckOutput {
         root: output.root,
@@ -55,32 +51,26 @@ pub(super) fn check_file_with_entry_and_target(
     }
 }
 
-pub(super) fn build_file_with_entry_and_target(
-    file: &Path,
-    entry_name: &str,
-    target: &str,
-) -> BuildOutput {
+pub(super) fn build_file_with_target(file: &Path, target: &str) -> BuildOutput {
     let output_path = default_executable_path(file);
-    build_file_to_path_with_entry_and_target(file, &output_path, entry_name, target)
+    build_file_to_path_with_target(file, &output_path, target)
 }
 
-pub(super) fn build_file_to_path_with_entry_and_target(
+pub(super) fn build_file_to_path_with_target(
     file: &Path,
     output_path: &Path,
-    entry_name: &str,
     target: &str,
 ) -> BuildOutput {
     let options = frontend_options_for_target(target);
-    build_file_to_path_with_options(file, output_path, &options, entry_name)
+    build_file_to_path_with_options(file, output_path, &options)
 }
 
 fn build_file_to_path_with_options(
     file: &Path,
     output_path: &Path,
     options: &FrontendOptions,
-    entry_name: &str,
 ) -> BuildOutput {
-    let output = analyze_file(file, options, entry_name);
+    let output = analyze_file(file, options);
 
     if !output.diagnostics.is_empty() {
         return BuildOutput {
@@ -101,7 +91,7 @@ fn build_file_to_path_with_options(
         };
     };
 
-    let diagnostics = v0_buildability_diagnostics(&output.sources, analysis, entry_name);
+    let diagnostics = v0_buildability_diagnostics(&output.sources, analysis);
     if !diagnostics.is_empty() {
         return BuildOutput {
             output_path: output_path.to_path_buf(),
@@ -115,7 +105,6 @@ fn build_file_to_path_with_options(
         sources: &output.sources,
         output_path,
         target: options.target.as_str(),
-        entry_name,
     }) {
         Ok(()) => Vec::new(),
         Err(diagnostics) => diagnostics,
@@ -135,7 +124,7 @@ fn frontend_options_for_target(target: &str) -> FrontendOptions {
     }
 }
 
-fn analyze_file(file: &Path, options: &FrontendOptions, entry_name: &str) -> FrontendOutput {
+fn analyze_file(file: &Path, options: &FrontendOptions) -> FrontendOutput {
     let mut sources = SourceMap::new();
 
     match sources.load_file(file) {
@@ -147,7 +136,7 @@ fn analyze_file(file: &Path, options: &FrontendOptions, entry_name: &str) -> Fro
             let root_absolute_path = source_file
                 .absolute_path()
                 .map(|path| path.to_string_lossy().into_owned());
-            let (analysis, diagnostics) = analyze_source(&mut sources, source, options, entry_name);
+            let (analysis, diagnostics) = analyze_source(&mut sources, source, options);
 
             FrontendOutput {
                 root,
@@ -171,7 +160,6 @@ fn analyze_source(
     sources: &mut SourceMap,
     source: SourceId,
     options: &FrontendOptions,
-    entry_name: &str,
 ) -> (
     Option<crate::analysis::CompileUnitAnalysis>,
     Vec<Diagnostic>,
@@ -181,7 +169,7 @@ fn analyze_source(
         Err(diagnostics) => return (None, diagnostics),
     };
 
-    let analysis = analyze_compile_unit_with_entry(sources, &unit, entry_name);
+    let analysis = analyze_compile_unit(sources, &unit);
     let diagnostics = analysis.diagnostics();
 
     (Some(analysis), diagnostics)
@@ -203,7 +191,6 @@ fn canonical_absolute_string(path: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::entry::DEFAULT_ENTRY_NAME;
     use crate::target::DEFAULT_TARGET;
     use std::fs;
     use std::path::PathBuf;
@@ -240,12 +227,8 @@ mod tests {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -267,7 +250,7 @@ mod tests {
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     #[test]
-    fn build_file_output_runs_with_entry_return_code() {
+    fn build_file_output_runs_main_return_code() {
         let root = make_temp_project("build-run");
         let nocter_home = make_nocter_home(&root);
         let source = root.join("exit42.nct");
@@ -281,12 +264,8 @@ mod tests {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -314,12 +293,8 @@ func answer(): i32 {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -347,12 +322,8 @@ func add(a: i32, b: i32): i32 {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -380,12 +351,8 @@ func effect(): void {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -418,12 +385,8 @@ func choose(code: i32, value: usize): usize {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -460,12 +423,8 @@ func identity(value: usize): usize {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -497,12 +456,8 @@ func choose(code: i32, flag: bool, size: usize): bool {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -530,12 +485,8 @@ func choose(name: &str, code: i32): i32 {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -567,12 +518,8 @@ func consume(name: &str, code: i32): i32 {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -606,12 +553,8 @@ func identity(text: &str): &str {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -635,12 +578,8 @@ func identity(text: &str): &str {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -679,12 +618,8 @@ func main(): i32! {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -729,12 +664,8 @@ func fail(): void! {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -766,12 +697,8 @@ func answer(): i32! {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -804,12 +731,8 @@ func fail(): i32! {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -841,12 +764,8 @@ func answer(): i32! {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -882,12 +801,8 @@ func answer(): i32! {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -932,12 +847,8 @@ func main(): void! {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -993,12 +904,8 @@ func main(): void! {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -1055,12 +962,8 @@ func main(): void! {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -1164,12 +1067,8 @@ func effect(): void! {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -1276,12 +1175,8 @@ func fail_effect(): void! {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -1326,12 +1221,8 @@ func make_flag(): bool! {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -1377,12 +1268,8 @@ func message(): &str! {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -1413,12 +1300,8 @@ func answer(): i32! {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -1443,12 +1326,8 @@ func answer(): i32! {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);
@@ -1488,12 +1367,8 @@ func main(): void! {
         .unwrap();
 
         let executable = default_executable_path(&source);
-        let output = build_file_to_path_with_options(
-            &source,
-            &executable,
-            &frontend_options(nocter_home),
-            DEFAULT_ENTRY_NAME,
-        );
+        let output =
+            build_file_to_path_with_options(&source, &executable, &frontend_options(nocter_home));
 
         assert_diagnostics_empty(&output.diagnostics);
         assert_eq!(output.output_path, executable);

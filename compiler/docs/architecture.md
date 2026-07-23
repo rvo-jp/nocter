@@ -146,7 +146,7 @@ The front end can parse and type-check more Nocter syntax than the backend can l
 
 Currently buildable:
 
-- root-file `main` or `--entry <name>`
+- root-file `main`
 - entry return types `i32`, `usize`, `i32!`, `usize!`, `void`, and `void!`
 - literal `i32` returns
 - immutable local `let` bindings whose initializer is lowerable as `i32`, annotated `usize`, `bool`, or annotated `&str`
@@ -388,7 +388,7 @@ Initial grammar coverage:
 - `pub use std/string.String`
 - `use std/io.File as StdFile`
 - `use std/io as io`
-- `func main(): i32! { ... }` and `func main(): usize! { ... }`, plus infallible `func main(): i32 { ... }`, `func main(): usize { ... }`, `func main(): void { ... }`, and custom `--entry <name>` functions
+- fixed root-file `func main(): i32! { ... }` and `func main(): usize! { ... }`, plus infallible `func main(): i32 { ... }`, `func main(): usize { ... }`, and `func main(): void { ... }`
 - `func name(...): Type { ... }`
 - `func Type.name(...): Type { ... }`
 - `impl Type { method ... drop ... }`
@@ -451,9 +451,8 @@ SourceMap::load_file
 
 Current semantic coverage:
 
-- executable root has the active entry function, defaulting to `main`
-- entry selection through `--entry <name>` validates the selected top-level function
-- executable root has exactly one active entry function
+- executable root has a top-level `main` function
+- executable root has exactly one active `main` function
 - entry return type is `i32!`, `i32`, `usize!`, `usize`, `void!`, or `void`
 - relative imports starting with `./` or `../` are loaded recursively and lexed/parsed before semantic checks run
 - `use ./path.name` resolves imported top-level `func`, `primitive`, `type`, `struct`, and `enum` declarations
@@ -685,7 +684,7 @@ Nocter should prefer language and standard-library mechanisms over compiler magi
 
 Exceptions are syntax and core type forms adopted by the language, such as:
 
-- active executable entry selection
+- fixed root-file `main` executable entry
 - `T?`
 - `T!`
 - `error`

@@ -43,15 +43,10 @@ use sized::*;
 
 pub(crate) use facts::{TypecheckFacts, collect_typecheck_facts};
 
-pub fn check(
-    sources: &SourceMap,
-    ast: &AstFile,
-    resolved: &ResolveOutput,
-    entry_name: &str,
-) -> Vec<Diagnostic> {
+pub fn check(sources: &SourceMap, ast: &AstFile, resolved: &ResolveOutput) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
 
-    check_default_entry_function(sources, ast, resolved, entry_name, &mut diagnostics);
+    check_default_entry_function(sources, ast, resolved, &mut diagnostics);
     diagnostics.extend(check_module(sources, ast, resolved));
 
     diagnostics

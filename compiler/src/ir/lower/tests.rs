@@ -1,6 +1,6 @@
 use super::*;
 use crate::abi::{ReturnPassing, ValueLayout};
-use crate::analysis::{CompileUnit, CompileUnitAnalysis, analyze_compile_unit_with_entry};
+use crate::analysis::{CompileUnit, CompileUnitAnalysis, analyze_compile_unit};
 use crate::diagnostics::Diagnostic;
 use crate::frontend::{FrontendOptions, load_compile_unit};
 use crate::ir::{
@@ -930,7 +930,7 @@ func choose(code: i32, flag: bool, size: usize): bool {
 
 #[test]
 fn lowers_imported_i32_normal_call() {
-    let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
+    let fixture = analyze_text_fixture_with_nocter_home_files(
         r#"use std/math.answer
 
 func main(): i32 {
@@ -938,7 +938,6 @@ func main(): i32 {
     return value
 }
 "#,
-        crate::entry::DEFAULT_ENTRY_NAME,
         &[(
             "std/math.nct",
             r#"pub func answer(): i32 {
@@ -961,9 +960,7 @@ func main(): i32 {
         .map(|file| file.ast.span.source)
         .unwrap();
 
-    let ir =
-        lower_executable_with_entry(analysis, &fixture.sources, crate::entry::DEFAULT_ENTRY_NAME)
-            .unwrap();
+    let ir = lower_executable(analysis, &fixture.sources).unwrap();
 
     assert_eq!(
         ir,
@@ -998,7 +995,7 @@ func main(): i32 {
 
 #[test]
 fn lowers_imported_function_returning_hidden_nested_aggregate_type() {
-    let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
+    let fixture = analyze_text_fixture_with_nocter_home_files(
         r#"use std/pack.make
 
 func main(): i32 {
@@ -1006,7 +1003,6 @@ func main(): i32 {
     return outer.value
 }
 "#,
-        crate::entry::DEFAULT_ENTRY_NAME,
         &[(
             "std/pack.nct",
             r#"pub copy struct Inner {
@@ -1040,9 +1036,7 @@ pub func make(): Outer {
         .map(|file| file.ast.span.source)
         .unwrap();
 
-    let ir =
-        lower_executable_with_entry(analysis, &fixture.sources, crate::entry::DEFAULT_ENTRY_NAME)
-            .unwrap();
+    let ir = lower_executable(analysis, &fixture.sources).unwrap();
     let main = ir
         .functions
         .iter()
@@ -1076,7 +1070,7 @@ pub func make(): Outer {
 
 #[test]
 fn lowers_imported_i32_associated_function_normal_call() {
-    let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
+    let fixture = analyze_text_fixture_with_nocter_home_files(
         r#"use std/point.Point
 
 func main(): i32 {
@@ -1084,7 +1078,6 @@ func main(): i32 {
     return value
 }
 "#,
-        crate::entry::DEFAULT_ENTRY_NAME,
         &[(
             "std/point.nct",
             r#"pub struct Point {
@@ -1111,9 +1104,7 @@ pub func Point.origin(): i32 {
         .map(|file| file.ast.span.source)
         .unwrap();
 
-    let ir =
-        lower_executable_with_entry(analysis, &fixture.sources, crate::entry::DEFAULT_ENTRY_NAME)
-            .unwrap();
+    let ir = lower_executable(analysis, &fixture.sources).unwrap();
 
     assert_eq!(
         ir,
@@ -1148,7 +1139,7 @@ pub func Point.origin(): i32 {
 
 #[test]
 fn lowers_imported_bool_normal_call_in_terminal_if_condition() {
-    let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
+    let fixture = analyze_text_fixture_with_nocter_home_files(
         r#"use std/flags.ready
 
 func main(): i32 {
@@ -1159,7 +1150,6 @@ func main(): i32 {
     }
 }
 "#,
-        crate::entry::DEFAULT_ENTRY_NAME,
         &[(
             "std/flags.nct",
             r#"pub func ready(): bool {
@@ -1181,9 +1171,7 @@ func main(): i32 {
         .map(|file| file.ast.span.source)
         .unwrap();
 
-    let ir =
-        lower_executable_with_entry(analysis, &fixture.sources, crate::entry::DEFAULT_ENTRY_NAME)
-            .unwrap();
+    let ir = lower_executable(analysis, &fixture.sources).unwrap();
 
     assert_eq!(
         ir,
@@ -1223,14 +1211,13 @@ func main(): i32 {
 
 #[test]
 fn imported_alias_call_uses_imported_declaration_name_as_target() {
-    let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
+    let fixture = analyze_text_fixture_with_nocter_home_files(
         r#"use std/math.answer as imported_answer
 
 func main(): i32 {
     return imported_answer()
 }
 "#,
-        crate::entry::DEFAULT_ENTRY_NAME,
         &[(
             "std/math.nct",
             r#"pub func answer(): i32 {
@@ -1252,9 +1239,7 @@ func main(): i32 {
         .map(|file| file.ast.span.source)
         .unwrap();
 
-    let ir =
-        lower_executable_with_entry(analysis, &fixture.sources, crate::entry::DEFAULT_ENTRY_NAME)
-            .unwrap();
+    let ir = lower_executable(analysis, &fixture.sources).unwrap();
 
     assert_eq!(
         ir.functions
@@ -1277,14 +1262,13 @@ func main(): i32 {
 
 #[test]
 fn lowers_never_function_returning_target_trap_primitive() {
-    let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
+    let fixture = analyze_text_fixture_with_nocter_home_files(
         r#"use std/process.abort
 
 func main(): i32 {
     return abort()
 }
 "#,
-        crate::entry::DEFAULT_ENTRY_NAME,
         &[std_process_file(), std_os_file()],
     );
     let analysis = &fixture.analysis;
@@ -1300,9 +1284,7 @@ func main(): i32 {
         .map(|file| file.ast.span.source)
         .unwrap();
 
-    let ir =
-        lower_executable_with_entry(analysis, &fixture.sources, crate::entry::DEFAULT_ENTRY_NAME)
-            .unwrap();
+    let ir = lower_executable(analysis, &fixture.sources).unwrap();
 
     assert_eq!(
         ir,
@@ -1328,14 +1310,13 @@ func main(): i32 {
 
 #[test]
 fn lowers_process_exit_to_target_exit_primitive() {
-    let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
+    let fixture = analyze_text_fixture_with_nocter_home_files(
         r#"use std/process.exit
 
 func main(): i32 {
     return exit(7)
 }
 "#,
-        crate::entry::DEFAULT_ENTRY_NAME,
         &[std_process_file(), std_os_file()],
     );
     let analysis = &fixture.analysis;
@@ -1351,9 +1332,7 @@ func main(): i32 {
         .map(|file| file.ast.span.source)
         .unwrap();
 
-    let ir =
-        lower_executable_with_entry(analysis, &fixture.sources, crate::entry::DEFAULT_ENTRY_NAME)
-            .unwrap();
+    let ir = lower_executable(analysis, &fixture.sources).unwrap();
 
     assert_eq!(
         ir,
@@ -1381,7 +1360,7 @@ func main(): i32 {
 
 #[test]
 fn collects_loaded_imported_call_targets() {
-    let analysis = analyze_text_with_entry_and_nocter_home_files(
+    let analysis = analyze_text_with_nocter_home_files(
         r#"use std/math.answer
 
 func main(): i32 {
@@ -1389,7 +1368,6 @@ func main(): i32 {
     return value
 }
 "#,
-        crate::entry::DEFAULT_ENTRY_NAME,
         &[(
             "std/math.nct",
             r#"pub func answer(): i32 {
@@ -1428,7 +1406,7 @@ func main(): i32 {
 
 #[test]
 fn indexes_imported_function_signatures_by_call_target() {
-    let analysis = analyze_text_with_entry_and_nocter_home_files(
+    let analysis = analyze_text_with_nocter_home_files(
         r#"use std/math.answer
 
 func main(): i32 {
@@ -1436,7 +1414,6 @@ func main(): i32 {
     return value
 }
 "#,
-        crate::entry::DEFAULT_ENTRY_NAME,
         &[(
             "std/math.nct",
             r#"pub func answer(): i32 {
@@ -1469,7 +1446,7 @@ func main(): i32 {
 
 #[test]
 fn indexes_slice_function_signature_parameter_types() {
-    let analysis = analyze_text_with_entry(
+    let analysis = analyze_text(
         r#"func main(): i32 {
     return 0
 }
@@ -1478,7 +1455,6 @@ func consume(bytes: &[u8], scratch: &+[u8]): i32 {
     return 0
 }
 "#,
-        crate::entry::DEFAULT_ENTRY_NAME,
     );
     let root = analysis.root_file().unwrap();
     let index = FunctionIndex::new(&analysis, root.ast.span.source);
@@ -1496,7 +1472,7 @@ func consume(bytes: &[u8], scratch: &+[u8]): i32 {
 
 #[test]
 fn indexes_fallible_function_signature_parameter_abi_word_count() {
-    let analysis = analyze_text_with_entry(
+    let analysis = analyze_text(
         r#"func main(): i32 {
     return 0
 }
@@ -1505,7 +1481,6 @@ func load(text: &str, count: usize): i32! {
     return 1
 }
 "#,
-        crate::entry::DEFAULT_ENTRY_NAME,
     );
     let root = analysis.root_file().unwrap();
     let index = FunctionIndex::new(&analysis, root.ast.span.source);
@@ -1523,7 +1498,7 @@ func load(text: &str, count: usize): i32! {
 
 #[test]
 fn indexes_indirect_aggregate_function_signature_return_type() {
-    let analysis = analyze_text_with_entry(
+    let analysis = analyze_text(
         r#"struct Text {
     start: usize
     len: usize
@@ -1538,7 +1513,6 @@ func make(): Text {
     return Text{ start: 0, len: 0, capacity: 0 }
 }
 "#,
-        crate::entry::DEFAULT_ENTRY_NAME,
     );
     let root = analysis.root_file().unwrap();
     let index = FunctionIndex::new(&analysis, root.ast.span.source);
@@ -1558,7 +1532,7 @@ func make(): Text {
 
 #[test]
 fn indexes_direct_aggregate_function_signature_return_type() {
-    let analysis = analyze_text_with_entry(
+    let analysis = analyze_text(
         r#"struct Allocator {
     state: usize
     kind: u64
@@ -1572,7 +1546,6 @@ func page_allocator(): Allocator {
     return Allocator{ state: 0, kind: 0 }
 }
 "#,
-        crate::entry::DEFAULT_ENTRY_NAME,
     );
     let root = analysis.root_file().unwrap();
     let index = FunctionIndex::new(&analysis, root.ast.span.source);
@@ -1593,7 +1566,7 @@ func page_allocator(): Allocator {
 
 #[test]
 fn indexes_aggregate_function_signature_parameter_types() {
-    let analysis = analyze_text_with_entry(
+    let analysis = analyze_text(
         r#"struct Text {
     start: usize
     len: usize
@@ -1615,7 +1588,6 @@ func consume(text: Text, header: Header): i32 {
     return 0
 }
 "#,
-        crate::entry::DEFAULT_ENTRY_NAME,
     );
     let root = analysis.root_file().unwrap();
     let index = FunctionIndex::new(&analysis, root.ast.span.source);
@@ -3069,7 +3041,7 @@ func main(): i32 {
 
 #[test]
 fn lowers_imported_explicit_drop_to_imported_drop_member_call() {
-    let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
+    let fixture = analyze_text_fixture_with_nocter_home_files(
         r#"use std/file.File
 
 func main(): i32 {
@@ -3078,7 +3050,6 @@ func main(): i32 {
     return 0
 }
 "#,
-        crate::entry::DEFAULT_ENTRY_NAME,
         &[(
             "std/file.nct",
             r#"pub struct File {
@@ -3107,9 +3078,7 @@ impl File {
         .map(|file| file.ast.span.source)
         .unwrap();
 
-    let ir =
-        lower_executable_with_entry(analysis, &fixture.sources, crate::entry::DEFAULT_ENTRY_NAME)
-            .unwrap();
+    let ir = lower_executable(analysis, &fixture.sources).unwrap();
 
     assert_eq!(
         ir,
@@ -4625,7 +4594,7 @@ func abort(): never {
 
 #[test]
 fn lowers_return_never_expression_with_scope_cleanup() {
-    let ir = lower_text_with_entry(
+    let ir = lower_text(
         r#"struct File {
     fd: i32
 }
@@ -4636,7 +4605,7 @@ impl File {
     }
 }
 
-func stop(): i32 {
+func main(): i32 {
     var file = File{ fd: 1 }
     return abort()
 }
@@ -4645,19 +4614,18 @@ func abort(): never {
     abort()
 }
 "#,
-        "stop",
     );
 
     let function = ir
         .functions
         .iter()
-        .find(|function| function.name == "stop")
+        .find(|function| function.name == "main")
         .unwrap();
     assert_eq!(
         function,
         &Function {
-            name: "stop".to_string(),
-            target: CallTarget::same_file("stop"),
+            name: "main".to_string(),
+            target: CallTarget::same_file("main"),
             return_type: Type::I32,
             instructions: vec![
                 Instruction::ReserveAggregateSlot {
@@ -14095,7 +14063,7 @@ func consume(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, pair: Pair)
 
 #[test]
 fn lowers_imported_i32_call_target_when_boundary_is_bypassed() {
-    let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
+    let fixture = analyze_text_fixture_with_nocter_home_files(
         r#"use std/math.answer
 
 func main(): i32 {
@@ -14103,7 +14071,6 @@ func main(): i32 {
     return value
 }
 "#,
-        crate::entry::DEFAULT_ENTRY_NAME,
         &[(
             "std/math.nct",
             r#"pub func answer(): i32 {
@@ -23482,23 +23449,6 @@ func main(): void {
 }
 
 #[test]
-fn reports_missing_entry_function_with_primary_span() {
-    let fixture = analyze_text_fixture_with_entry(
-        r#"func main(): i32 {
-    return 0
-}
-"#,
-        crate::entry::DEFAULT_ENTRY_NAME,
-    );
-
-    let diagnostics =
-        lower_executable_with_entry(&fixture.analysis, &fixture.sources, "start").unwrap_err();
-
-    assert_eq!(diagnostics[0].code, "E8000");
-    assert!(diagnostics[0].primary_span.is_some());
-}
-
-#[test]
 fn rejects_nested_negative_integer_literal() {
     let diagnostics = lower_text_diagnostics(
         r#"func main(): i32 {
@@ -23511,15 +23461,11 @@ fn rejects_nested_negative_integer_literal() {
 }
 
 fn lower_text(text: &str) -> IrModule {
-    lower_text_with_entry(text, crate::entry::DEFAULT_ENTRY_NAME)
-}
-
-fn lower_text_with_entry(text: &str, entry_name: &str) -> IrModule {
-    let diagnostics = lower_text_diagnostics_with_entry(text, entry_name);
+    let diagnostics = lower_text_diagnostics(text);
     match diagnostics.as_slice() {
         [] => {
-            let fixture = analyze_text_fixture_with_entry(text, entry_name);
-            lower_executable_with_entry(&fixture.analysis, &fixture.sources, entry_name).unwrap()
+            let fixture = analyze_text_fixture(text);
+            lower_executable(&fixture.analysis, &fixture.sources).unwrap()
         }
         diagnostics => panic!("unexpected diagnostics: {diagnostics:?}"),
     }
@@ -23530,10 +23476,8 @@ fn lower_text_with_std_error(text: &str) -> IrModule {
 }
 
 fn lower_text_with_nocter_home_files(text: &str, home_files: &[(&str, &str)]) -> IrModule {
-    let entry_name = crate::entry::DEFAULT_ENTRY_NAME;
-    let fixture =
-        analyze_text_fixture_with_entry_and_nocter_home_files(text, entry_name, home_files);
-    lower_executable_with_entry(&fixture.analysis, &fixture.sources, entry_name).unwrap()
+    let fixture = analyze_text_fixture_with_nocter_home_files(text, home_files);
+    lower_executable(&fixture.analysis, &fixture.sources).unwrap()
 }
 
 fn lower_named_function(text: &str, function_name: &str) -> Function {
@@ -23550,7 +23494,7 @@ fn lower_named_function_with_signatures(
     function_name: &str,
     function_signatures: context::FunctionSignatures,
 ) -> Result<Function, Vec<Diagnostic>> {
-    let fixture = analyze_text_fixture_with_entry(text, crate::entry::DEFAULT_ENTRY_NAME);
+    let fixture = analyze_text_fixture(text);
     let analysis = &fixture.analysis;
     let root = analysis.root_file().unwrap();
     let Some(crate::ast::Item::Function(function)) = root.ast.items.iter().find(|item| {
@@ -23577,11 +23521,7 @@ fn lower_imported_named_function_with_nocter_home_files(
     function_name: &str,
     home_files: &[(&str, &str)],
 ) -> Function {
-    let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
-        text,
-        crate::entry::DEFAULT_ENTRY_NAME,
-        home_files,
-    );
+    let fixture = analyze_text_fixture_with_nocter_home_files(text, home_files);
     let analysis = &fixture.analysis;
     let root = analysis.root_file().unwrap();
     let imported_source = analysis
@@ -23840,25 +23780,16 @@ fn bool_param(index: usize) -> BoolValue {
 }
 
 fn lower_text_diagnostics(text: &str) -> Vec<Diagnostic> {
-    lower_text_diagnostics_with_entry(text, crate::entry::DEFAULT_ENTRY_NAME)
-}
-
-fn lower_text_diagnostics_with_std_error(text: &str) -> Vec<Diagnostic> {
-    let entry_name = crate::entry::DEFAULT_ENTRY_NAME;
-    let fixture = analyze_text_fixture_with_entry_and_nocter_home_files(
-        text,
-        entry_name,
-        &[std_error_file()],
-    );
-    match lower_executable_with_entry(&fixture.analysis, &fixture.sources, entry_name) {
+    let fixture = analyze_text_fixture(text);
+    match lower_executable(&fixture.analysis, &fixture.sources) {
         Ok(_) => Vec::new(),
         Err(diagnostics) => diagnostics,
     }
 }
 
-fn lower_text_diagnostics_with_entry(text: &str, entry_name: &str) -> Vec<Diagnostic> {
-    let fixture = analyze_text_fixture_with_entry(text, entry_name);
-    match lower_executable_with_entry(&fixture.analysis, &fixture.sources, entry_name) {
+fn lower_text_diagnostics_with_std_error(text: &str) -> Vec<Diagnostic> {
+    let fixture = analyze_text_fixture_with_nocter_home_files(text, &[std_error_file()]);
+    match lower_executable(&fixture.analysis, &fixture.sources) {
         Ok(_) => Vec::new(),
         Err(diagnostics) => diagnostics,
     }
@@ -23869,25 +23800,23 @@ struct LoweringFixture {
     analysis: CompileUnitAnalysis,
 }
 
-fn analyze_text_with_entry(text: &str, entry_name: &str) -> CompileUnitAnalysis {
-    analyze_text_with_entry_and_nocter_home_files(text, entry_name, &[])
+fn analyze_text(text: &str) -> CompileUnitAnalysis {
+    analyze_text_with_nocter_home_files(text, &[])
 }
 
-fn analyze_text_with_entry_and_nocter_home_files(
+fn analyze_text_with_nocter_home_files(
     text: &str,
-    entry_name: &str,
     home_files: &[(&str, &str)],
 ) -> CompileUnitAnalysis {
-    analyze_text_fixture_with_entry_and_nocter_home_files(text, entry_name, home_files).analysis
+    analyze_text_fixture_with_nocter_home_files(text, home_files).analysis
 }
 
-fn analyze_text_fixture_with_entry(text: &str, entry_name: &str) -> LoweringFixture {
-    analyze_text_fixture_with_entry_and_nocter_home_files(text, entry_name, &[])
+fn analyze_text_fixture(text: &str) -> LoweringFixture {
+    analyze_text_fixture_with_nocter_home_files(text, &[])
 }
 
-fn analyze_text_fixture_with_entry_and_nocter_home_files(
+fn analyze_text_fixture_with_nocter_home_files(
     text: &str,
-    entry_name: &str,
     home_files: &[(&str, &str)],
 ) -> LoweringFixture {
     let mut sources = SourceMap::new();
@@ -23905,7 +23834,7 @@ fn analyze_text_fixture_with_entry_and_nocter_home_files(
         },
     )
     .unwrap();
-    let analysis = analyze_compile_unit_with_entry(&sources, &unit, entry_name);
+    let analysis = analyze_compile_unit(&sources, &unit);
     let diagnostics = analysis.diagnostics();
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     LoweringFixture { sources, analysis }

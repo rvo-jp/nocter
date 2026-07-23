@@ -60,15 +60,12 @@ where
         Ok(Command::Doctor) => run_doctor(),
         Ok(Command::Build(command)) => run_build(
             &command.source.file,
-            &command.source.entry,
             &command.source.target,
             command.output.as_deref(),
         ),
-        Ok(Command::Run(command)) => run_file(&command.file, &command.entry, &command.target),
-        Ok(Command::Check(command)) => run_check(&command.file, &command.entry, &command.target),
-        Ok(Command::CheckJson(command)) => {
-            run_check_json(&command.file, &command.entry, &command.target)
-        }
+        Ok(Command::Run(command)) => run_file(&command.file, &command.target),
+        Ok(Command::Check(command)) => run_check(&command.file, &command.target),
+        Ok(Command::CheckJson(command)) => run_check_json(&command.file, &command.target),
         Ok(Command::Fmt { check, file }) => run_fmt(&file, check),
         Ok(Command::Tokens(file)) => run_tokens_json(&file),
         Ok(Command::Ast(file)) => run_ast_json(&file),

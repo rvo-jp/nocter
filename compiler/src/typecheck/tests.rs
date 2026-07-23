@@ -18,7 +18,6 @@ mod variants;
 
 use super::check;
 use crate::diagnostics::Diagnostic;
-use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::lexer::lex;
 use crate::parser::parse;
 use crate::resolve::resolve;
@@ -34,6 +33,6 @@ fn check_text(text: &str) -> Vec<Diagnostic> {
     let ast = parsed.ast.unwrap();
     let resolved = resolve(&sources, &ast);
     let mut diagnostics = resolved.diagnostics.clone();
-    diagnostics.extend(check(&sources, &ast, &resolved, DEFAULT_ENTRY_NAME));
+    diagnostics.extend(check(&sources, &ast, &resolved));
     diagnostics
 }

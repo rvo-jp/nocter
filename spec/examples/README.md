@@ -30,7 +30,7 @@ Rules:
 
 ## v0 Front-End Coverage
 
-The corpus is the external stability suite for Nocter v0 front-end behavior. It should cover lexer, parser, compile-unit loading, import resolution, type checking, entry selection, human diagnostics, and JSON diagnostics through the real `nocter` command.
+The corpus is the external stability suite for Nocter v0 front-end behavior. It should cover lexer, parser, compile-unit loading, import resolution, type checking, the fixed root `main` entry rule, human diagnostics, and JSON diagnostics through the real `nocter` command.
 
 Current valid coverage:
 

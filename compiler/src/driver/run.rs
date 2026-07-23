@@ -1,14 +1,14 @@
 use super::errors::{
     exit_for_diagnostics, temporary_executable_diagnostic, write_human_diagnostics,
 };
-use super::pipeline::build_file_to_path_with_entry_and_target;
+use super::pipeline::build_file_to_path_with_target;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, ExitStatus};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub(super) fn run_file(file: &Path, entry_name: &str, target: &str) -> ExitCode {
+pub(super) fn run_file(file: &Path, target: &str) -> ExitCode {
     let artifact = match RunArtifact::new() {
         Ok(artifact) => artifact,
         Err(error) => {
@@ -18,12 +18,7 @@ pub(super) fn run_file(file: &Path, entry_name: &str, target: &str) -> ExitCode 
         }
     };
 
-    let output = build_file_to_path_with_entry_and_target(
-        file,
-        artifact.executable_path(),
-        entry_name,
-        target,
-    );
+    let output = build_file_to_path_with_target(file, artifact.executable_path(), target);
     if !output.is_ok() {
         let exit = exit_for_diagnostics(&output.diagnostics, ExitCode::FAILURE);
         return write_human_diagnostics(&output.diagnostics, Some(&output.sources), exit);

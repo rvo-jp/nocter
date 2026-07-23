@@ -1,5 +1,5 @@
 use super::errors::{exit_for_diagnostics, internal_error_exit};
-use super::pipeline::check_file_with_entry_and_target;
+use super::pipeline::check_file_with_target;
 use crate::ast::AstEnvelope;
 use crate::diagnostics::Diagnostic;
 use crate::diagnostics::DiagnosticsEnvelope;
@@ -112,8 +112,8 @@ pub(super) fn run_ast_json(file: &Path) -> ExitCode {
     }
 }
 
-pub(super) fn run_check_json(file: &Path, entry_name: &str, target: &str) -> ExitCode {
-    let output = check_file_with_entry_and_target(file, entry_name, target);
+pub(super) fn run_check_json(file: &Path, target: &str) -> ExitCode {
+    let output = check_file_with_target(file, target);
     let status = if output.is_ok() {
         ExitCode::SUCCESS
     } else {

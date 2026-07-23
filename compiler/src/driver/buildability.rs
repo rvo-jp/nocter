@@ -5,6 +5,7 @@ use crate::ast::{
     ForRangeStmt, FunctionDecl, ImplDecl, ImplMember, Item, Stmt, TypeExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
+use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::ir::CallTarget;
 use crate::resolve::{FunctionSignature, ResolveOutput, SymbolKind, drop_function_name};
 use crate::source::{ByteSpan, SourceId, SourceMap};
@@ -15,7 +16,6 @@ use std::path::Path;
 pub(super) fn v0_buildability_diagnostics(
     sources: &SourceMap,
     analysis: &CompileUnitAnalysis,
-    entry_name: &str,
 ) -> Vec<Diagnostic> {
     let Some(root) = analysis.root_file() else {
         return Vec::new();
@@ -24,7 +24,7 @@ pub(super) fn v0_buildability_diagnostics(
     let root_source = root.ast.span.source;
     let nocter_home = analysis.nocter_home.as_deref();
     let index = CallableIndex::new(analysis, root_source);
-    let mut queue = VecDeque::from([CallTarget::same_file(entry_name)]);
+    let mut queue = VecDeque::from([CallTarget::same_file(DEFAULT_ENTRY_NAME)]);
     let mut seen = HashSet::new();
     let mut diagnostics = Vec::new();
 
@@ -1721,8 +1721,7 @@ fn drop_name_span(span: ByteSpan) -> ByteSpan {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::analysis::{CompileUnit, analyze_compile_unit_with_entry};
-    use crate::entry::DEFAULT_ENTRY_NAME;
+    use crate::analysis::{CompileUnit, analyze_compile_unit};
     use crate::lexer::lex;
     use crate::parser::parse;
     use std::collections::HashMap;
@@ -1739,7 +1738,7 @@ func main(): i32 {
 "#,
         );
 
-        let diagnostics = v0_buildability_diagnostics(&sources, &analysis, DEFAULT_ENTRY_NAME);
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0].code, "E0435");
@@ -1772,7 +1771,7 @@ func unused(): i32 {
 "#,
         );
 
-        let diagnostics = v0_buildability_diagnostics(&sources, &analysis, DEFAULT_ENTRY_NAME);
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
@@ -1790,7 +1789,7 @@ func unused(): i32 {
 "#,
         );
 
-        let diagnostics = v0_buildability_diagnostics(&sources, &analysis, DEFAULT_ENTRY_NAME);
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0].code, "E0435");
@@ -1820,7 +1819,7 @@ func unused(): bool {
 "#,
         );
 
-        let diagnostics = v0_buildability_diagnostics(&sources, &analysis, DEFAULT_ENTRY_NAME);
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
@@ -1842,7 +1841,7 @@ func unused(): bool {
         );
         let ast = parsed.ast.expect("expected ast");
         let unit = CompileUnit::new(ast.clone(), vec![ast], HashMap::new(), None);
-        let analysis = analyze_compile_unit_with_entry(&sources, &unit, DEFAULT_ENTRY_NAME);
+        let analysis = analyze_compile_unit(&sources, &unit);
         let diagnostics = analysis.diagnostics();
         assert!(
             diagnostics.is_empty(),

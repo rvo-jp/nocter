@@ -1,4 +1,4 @@
-use crate::entry::{DEFAULT_ENTRY_FILE, DEFAULT_ENTRY_NAME};
+use crate::entry::DEFAULT_ENTRY_FILE;
 use crate::target::{DEFAULT_TARGET, validate_requested_target};
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -6,7 +6,6 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct SourceCommand {
     pub(super) file: PathBuf,
-    pub(super) entry: String,
     pub(super) target: String,
 }
 
@@ -14,7 +13,6 @@ impl SourceCommand {
     pub(super) fn new(file: PathBuf) -> Self {
         Self {
             file,
-            entry: DEFAULT_ENTRY_NAME.to_string(),
             target: DEFAULT_TARGET.to_string(),
         }
     }
@@ -94,12 +92,6 @@ fn parse_compile_options(
     while index < args.len() {
         let flag = args[index].to_string_lossy();
         match flag.as_ref() {
-            "--entry" => {
-                return Err(
-                    "`--entry` has been removed; Nocter v0 uses `main` as the fixed entry function"
-                        .to_string(),
-                );
-            }
             "--format" if kind == CompileCommandKind::Check => {
                 let Some(value) = args.get(index + 1) else {
                     return Err("expected `--format json`".to_string());

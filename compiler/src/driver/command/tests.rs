@@ -1,6 +1,6 @@
 use super::{Command, parse_command};
 use crate::driver::compile_options::{BuildCommand, SourceCommand};
-use crate::entry::{DEFAULT_ENTRY_FILE, DEFAULT_ENTRY_NAME};
+use crate::entry::DEFAULT_ENTRY_FILE;
 use std::ffi::OsString;
 use std::path::PathBuf;
 
@@ -63,11 +63,7 @@ fn parses_compile_target_option() {
 
     assert_eq!(
         command,
-        Command::Check(source_command(
-            "app.nct",
-            DEFAULT_ENTRY_NAME,
-            "arm64-darwin"
-        ))
+        Command::Check(source_command("app.nct", "arm64-darwin"))
     );
 }
 
@@ -125,10 +121,7 @@ fn rejects_entry_option() {
     ])
     .unwrap_err();
 
-    assert_eq!(
-        error,
-        "`--entry` has been removed; Nocter v0 uses `main` as the fixed entry function"
-    );
+    assert_eq!(error, "unexpected argument `--entry`");
 }
 
 #[test]
@@ -228,10 +221,9 @@ fn rejects_tokens_without_json_format() {
     assert_eq!(error, "missing `--format json`");
 }
 
-fn source_command(file: &str, entry: &str, target: &str) -> SourceCommand {
+fn source_command(file: &str, target: &str) -> SourceCommand {
     SourceCommand {
         file: PathBuf::from(file),
-        entry: entry.to_string(),
         target: target.to_string(),
     }
 }

@@ -6,7 +6,7 @@ mod output;
 
 use crate::analysis::CompileUnitAnalysis;
 use crate::diagnostics::Diagnostic;
-use crate::ir::lower_executable_with_entry;
+use crate::ir::lower_executable;
 use crate::source::SourceMap;
 use crate::target::DEFAULT_TARGET;
 use crate::target::macho::{ExecutableImage, write_arm64_macos_executable_with_data};
@@ -19,7 +19,6 @@ pub(crate) struct BuildRequest<'a> {
     pub(crate) sources: &'a SourceMap,
     pub(crate) output_path: &'a Path,
     pub(crate) target: &'a str,
-    pub(crate) entry_name: &'a str,
 }
 
 pub(crate) fn build_executable(request: BuildRequest<'_>) -> Result<(), Vec<Diagnostic>> {
@@ -28,7 +27,6 @@ pub(crate) fn build_executable(request: BuildRequest<'_>) -> Result<(), Vec<Diag
         sources,
         output_path,
         target,
-        entry_name,
     } = request;
 
     if target != DEFAULT_TARGET {
@@ -38,8 +36,8 @@ pub(crate) fn build_executable(request: BuildRequest<'_>) -> Result<(), Vec<Diag
         )]);
     }
 
-    let ir = lower_executable_with_entry(analysis, sources, entry_name)?;
-    let machine_code = generate_arm64_darwin_entry(&ir, entry_name)?;
+    let ir = lower_executable(analysis, sources)?;
+    let machine_code = generate_arm64_darwin_entry(&ir)?;
     let executable_image: ExecutableImage =
         write_arm64_macos_executable_with_data(&machine_code.text, &machine_code.read_only_data);
     write_executable_image(output_path, &executable_image)

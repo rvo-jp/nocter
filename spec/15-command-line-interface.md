@@ -115,7 +115,7 @@ Rules:
 - Entry lookup considers only top-level functions in the root file.
 - Imported functions with the same name are ordinary functions and are not selected as the executable entry.
 - The selected function must have no parameters and must return `i32!`, `i32`, `usize!`, `usize`, `void!`, or `void`.
-- `main` is an ordinary function name except for v0 executable entry selection.
+- `main` is an ordinary function name except that root-file `main` is the v0 executable entry.
 - `fmt`, `tokens`, and `ast` do not perform executable entry validation.
 
 ## Build

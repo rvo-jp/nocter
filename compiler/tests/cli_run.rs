@@ -9204,7 +9204,7 @@ fn check_command_rejects_entry_option() {
     );
     let stderr = text(&output.stderr);
     assert!(
-        stderr.contains("`--entry` has been removed"),
+        stderr.contains("unexpected argument `--entry`"),
         "stderr:\n{stderr}"
     );
 }

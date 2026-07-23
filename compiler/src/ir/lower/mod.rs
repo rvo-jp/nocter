@@ -24,6 +24,7 @@ use crate::ast::{
     DropDecl, FunctionDecl, ImplMember, Item, MethodDecl, Parameter, Stmt, TypeExpr, TypeReference,
 };
 use crate::diagnostics::Diagnostic;
+use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::ir::Type;
 use crate::resolve::{
     FunctionSignature as ResolvedFunctionSignature, ParameterSignature, ResolveOutput,
@@ -36,10 +37,9 @@ use reachability::reachable_call_targets;
 use std::collections::{HashMap, HashSet};
 use types::{parameter_type_from_type_expr, return_type_from_type_expr};
 
-pub(crate) fn lower_executable_with_entry(
+pub(crate) fn lower_executable(
     analysis: &CompileUnitAnalysis,
     sources: &SourceMap,
-    entry_name: &str,
 ) -> Result<IrModule, Vec<Diagnostic>> {
     let Some(root) = analysis.root_file() else {
         return Err(vec![Diagnostic::error(
@@ -49,13 +49,13 @@ pub(crate) fn lower_executable_with_entry(
     };
 
     let Some(entry) = root.ast.items.iter().find_map(|item| match item {
-        Item::Function(function) if function.name == entry_name => Some(function),
+        Item::Function(function) if function.name == DEFAULT_ENTRY_NAME => Some(function),
         _ => None,
     }) else {
         return Err(vec![
             Diagnostic::error(
                 "E8000",
-                format!("IR lowering requires entry function `{entry_name}`"),
+                format!("IR lowering requires entry function `{DEFAULT_ENTRY_NAME}`"),
             )
             .with_primary_span_if_absent(sources, root.ast.span),
         ]);
@@ -90,7 +90,6 @@ pub(crate) fn lower_executable_with_entry(
         &function_signatures,
         &function_names,
         &error_payloads,
-        entry_name,
         root.ast.span.source,
         sources,
     )?;
@@ -112,11 +111,10 @@ fn lower_reachable_functions(
     function_signatures: &FunctionSignatures,
     function_names: &FunctionNames,
     error_payloads: &ErrorPayloads,
-    entry_name: &str,
     root_source: SourceId,
     sources: &SourceMap,
 ) -> Result<(), Vec<Diagnostic>> {
-    let mut seen = HashSet::from([CallTarget::same_file(entry_name)]);
+    let mut seen = HashSet::from([CallTarget::same_file(DEFAULT_ENTRY_NAME)]);
     let mut queue = reachable_call_targets(&lowered[0]);
 
     while let Some(target) = queue.pop_front() {

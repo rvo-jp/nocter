@@ -18,7 +18,7 @@ The distributable standard-library public surface lives in `std-v0-contract.md`.
 
 | Feature | Specified | Parsed | Checked | Buildable | Runtime | Notes |
 |---|---:|---:|---:|---:|---:|---|
-| Root `main` / `--entry` selection | yes | yes | yes | yes | yes | Entry function must be in the root file. |
+| Fixed root `main` entry | yes | yes | yes | yes | yes | Entry function must be named `main` and defined in the root file. |
 | `i32` return values | yes | yes | yes | yes | yes | Literal returns and lowerable expressions are supported. |
 | `usize` scalar values | yes | yes | yes | partial | partial | Build supports annotated `usize` locals, entry `usize`/`usize!` success returns, `usize` literal/local/call/arithmetic/shift returns, same-file and loaded imported scalar calls with `usize` parameters/arguments, `usize` arithmetic and shifts in lowerable expressions, and `usize` comparisons in lowerable bool positions, including scalar aggregate field operands. |
 | `void` entry | yes | yes | yes | yes | yes | Empty body and bare `return` are buildable. |
@@ -52,7 +52,7 @@ The front end can parse and type-check more Nocter syntax than the backend can l
 
 Currently buildable:
 
-- root-file `main` or `--entry <name>`
+- root-file `main`
 - custom executable output paths through `build -o <path>`
 - explicit `--target arm64-darwin` selection for `build`, `run`, and `check`; reserved future targets are recognized but rejected as unimplemented
 - entry return types `i32`, `usize`, `i32!`, `usize!`, `void`, and `void!`

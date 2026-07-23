@@ -95,7 +95,7 @@ Rules:
 - Entry function parameters are not part of v0.
 - Entry functions with parameters, such as `func main(args: Vec<&str>): i32!`, are not part of v0.
 - Command-line arguments and environment variables are accessed through `std/process`, not through special entry function parameters.
-- Future manifest configuration may add explicit project-level entry selection, but v0 does not.
+- Future manifest configuration may add project-level executable metadata, but v0 does not.
 
 Process entry context:
 
@@ -109,7 +109,7 @@ Rationale:
 
 - keeps the entry point familiar without reserving a new source construct
 - avoids requiring a general attribute system before the language needs one
-- lets `main` remain an ordinary function name outside root-file entry selection
+- lets `main` remain an ordinary function name outside the root-file `main` entry rule
 - leaves room for future explicit entry configuration
 - keeps process arguments in the standard library instead of expanding entry syntax
 

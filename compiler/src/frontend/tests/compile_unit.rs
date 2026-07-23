@@ -1,7 +1,6 @@
 use super::super::{FrontendOptions, load_compile_unit};
 use super::support::{check_with_nocter_home, make_nocter_home, make_temp_project};
-use crate::analysis::analyze_compile_unit_with_entry;
-use crate::entry::DEFAULT_ENTRY_NAME;
+use crate::analysis::analyze_compile_unit;
 use crate::source::SourceMap;
 use crate::target::DEFAULT_TARGET;
 use std::fs;
@@ -37,7 +36,7 @@ func main(): i32 {
         target: DEFAULT_TARGET.to_string(),
     };
     let unit = load_compile_unit(&mut sources, source, &options).unwrap();
-    let analysis = analyze_compile_unit_with_entry(&sources, &unit, DEFAULT_ENTRY_NAME);
+    let analysis = analyze_compile_unit(&sources, &unit);
     fs::remove_dir_all(&root).unwrap();
 
     assert_eq!(analysis.files.iter().filter(|file| file.is_root).count(), 1);
@@ -117,7 +116,7 @@ func main(): i32 {
         target: DEFAULT_TARGET.to_string(),
     };
     let unit = load_compile_unit(&mut sources, root_source, &options).unwrap();
-    let analysis = analyze_compile_unit_with_entry(&sources, &unit, DEFAULT_ENTRY_NAME);
+    let analysis = analyze_compile_unit(&sources, &unit);
     fs::remove_dir_all(&root).unwrap();
 
     let config = analysis
@@ -166,7 +165,7 @@ pub copy struct PlatformWord {
             target: target.to_string(),
         };
         let unit = load_compile_unit(&mut sources, source, &options).unwrap();
-        analyze_compile_unit_with_entry(&sources, &unit, DEFAULT_ENTRY_NAME).diagnostics()
+        analyze_compile_unit(&sources, &unit).diagnostics()
     };
 
     let matching_diagnostics = diagnostics_for_target(DEFAULT_TARGET);
