@@ -17,7 +17,7 @@ use super::numeric::{
     is_signed_integer_type, negative_integer_literal_fits_type,
 };
 use super::type_expr::type_expr_to_type_in_environment;
-use super::variants::enum_variant_expression_is_assignable;
+use super::variants::{enum_variant_expression_is_assignable, types_are_same_payloadless_enum};
 use crate::ast::{
     BinaryExpr, BinaryOperator, Expr, OptionalDefaultExpr, TypeConversionExpr, UnaryExpr,
     UnaryOperator,
@@ -319,6 +319,10 @@ fn equality_operands_match(
 
     if is_str_type(left_type) || is_str_type(right_type) {
         return is_str_type(left_type) && is_str_type(right_type);
+    }
+
+    if types_are_same_payloadless_enum(left_type, right_type, resolved) {
+        return true;
     }
 
     integer_operands_match(left_type, left, right_type, right, resolved, environment)

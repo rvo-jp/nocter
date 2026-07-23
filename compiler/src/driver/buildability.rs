@@ -8,7 +8,9 @@ use crate::ast::{
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::ir::CallTarget;
-use crate::resolve::{FunctionSignature, ResolveOutput, SymbolKind, drop_function_name};
+use crate::resolve::{
+    FunctionSignature, ResolveOutput, SymbolKind, TypeSymbolKind, drop_function_name,
+};
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::TypecheckFacts;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -1072,6 +1074,14 @@ fn collect_expression_diagnostics(
             {
                 diagnostics.push(diagnostic);
             }
+            if let Some(diagnostic) = unsupported_payloadless_enum_equality_diagnostic(
+                sources,
+                expression,
+                resolved,
+                typecheck_facts,
+            ) {
+                diagnostics.push(diagnostic);
+            }
             collect_expression_diagnostics(
                 &expression.left,
                 sources,
@@ -1310,6 +1320,48 @@ fn unsupported_str_equality_diagnostic(
         "`&str` equality and inequality comparisons",
         "compare lengths and bytes explicitly until string comparison lowering is promoted",
     ))
+}
+
+fn unsupported_payloadless_enum_equality_diagnostic(
+    sources: &SourceMap,
+    expression: &crate::ast::BinaryExpr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+) -> Option<Diagnostic> {
+    if !matches!(
+        expression.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) {
+        return None;
+    }
+
+    let left = typecheck_facts.expression_type_label(expression.left.span())?;
+    let right = typecheck_facts.expression_type_label(expression.right.span())?;
+    if left != right {
+        return None;
+    }
+
+    let type_name = type_label_nominal_head(left);
+    let symbol = resolved.type_symbol_by_reference_name(type_name)?;
+    if symbol.kind != TypeSymbolKind::Enum
+        || symbol
+            .variants
+            .iter()
+            .any(|variant| !variant.payload.is_empty())
+    {
+        return None;
+    }
+
+    Some(unsupported_v0_build_diagnostic(
+        sources,
+        expression.operator_span,
+        "payloadless enum equality and inequality comparisons",
+        "use `match` or `if value is Enum.variant` until enum tag comparison lowering is promoted",
+    ))
+}
+
+fn type_label_nominal_head(label: &str) -> &str {
+    label.split_once('<').map_or(label, |(head, _)| head)
 }
 
 fn unsupported_check_only_std_call_diagnostic(
@@ -1932,6 +1984,64 @@ func unused(): i32 {
 
 func unused(): bool {
     return "a" == "b"
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn reports_reachable_payloadless_enum_equality_before_ir_lowering() {
+        let (sources, analysis) = analyze_text(
+            r#"enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    if Choice.yes == Choice.no {
+        return 0
+    } else {
+        return 1
+    }
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "E0435");
+        assert_eq!(
+            diagnostics[0].message,
+            "Nocter v0 build cannot lower payloadless enum equality and inequality comparisons yet"
+        );
+        assert_eq!(
+            diagnostics[0].help.as_deref(),
+            Some(
+                "use `match` or `if value is Enum.variant` until enum tag comparison lowering is promoted"
+            )
+        );
+        assert!(diagnostics[0].primary_span.is_some());
+    }
+
+    #[test]
+    fn does_not_report_unreachable_payloadless_enum_equality() {
+        let (sources, analysis) = analyze_text(
+            r#"enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    return 0
+}
+
+func unused(): bool {
+    return Choice.yes == Choice.no
 }
 "#,
         );

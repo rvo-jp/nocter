@@ -17,6 +17,49 @@ func same(): bool {
 }
 
 #[test]
+fn accepts_payloadless_enum_equality_return() {
+    let diagnostics = check_text(
+        r#"enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    return 0
+}
+
+func same(): bool {
+    return Choice.yes != Choice.no
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_payload_enum_equality_return() {
+    let diagnostics = check_text(
+        r#"enum Choice {
+    yes
+    number(value: i32)
+}
+
+func main(): i32 {
+    return 0
+}
+
+func same(): bool {
+    return Choice.yes == Choice.yes
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0347");
+}
+
+#[test]
 fn accepts_contextual_integer_literal_comparison() {
     let diagnostics = check_text(
         r#"func main(): i32 {

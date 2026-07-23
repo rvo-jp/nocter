@@ -540,6 +540,25 @@ pub(super) fn enum_variant_member_type(
         .map(|symbol| Type::Named(symbol.canonical_name.clone()))
 }
 
+pub(super) fn types_are_same_payloadless_enum(
+    left: &Type,
+    right: &Type,
+    resolved: &ResolveOutput,
+) -> bool {
+    if left != right {
+        return false;
+    }
+
+    let Some(symbol) = enum_type_symbol_for_type(left, resolved) else {
+        return false;
+    };
+
+    symbol
+        .variants
+        .iter()
+        .all(|variant| variant.payload.is_empty())
+}
+
 pub(super) fn resolved_enum_variant_for_member<'a>(
     member: &MemberExpr,
     resolved: &'a ResolveOutput,

@@ -3877,6 +3877,53 @@ fn build_command_reports_str_equality_before_ir_lowering() {
 }
 
 #[test]
+fn build_command_reports_payloadless_enum_equality_before_ir_lowering() {
+    let project = TempProject::new("cli-build-payloadless-enum-equality-boundary");
+    let source = project.write_source(
+        "payloadless_enum_equality_boundary.nct",
+        r#"enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    if Choice.yes == Choice.no {
+        return 0
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("payloadless enum equality and inequality comparisons"),
+        "expected payloadless enum equality diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("7 |     if Choice.yes == Choice.no {"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_reports_dynamic_failure_payload_before_ir_lowering() {
     let project = TempProject::new("cli-build-dynamic-failure-payload-boundary");
     project.write_nocter_home_file(
