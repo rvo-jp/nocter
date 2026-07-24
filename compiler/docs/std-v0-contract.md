@@ -21,6 +21,8 @@ part of the v0 public surface.
   buildable subset may still be rejected before backend emission.
 - `std internal`: visible only to the active Nocter home through `pub(nocter)`.
   User project modules must not import or call it.
+- `private helper`: ordinary module-private implementation detail. It is not
+  importable from user code or from other standard-library modules.
 - `defer`: not part of the v0 public contract.
 
 ## Distribution Rules
@@ -104,7 +106,7 @@ has an explicit allocator source, the buildability preflight rejects it.
 | `append_i32` | runtime ship | Decimal formatting for `i32`. |
 | `append_usize` | runtime ship | Decimal formatting for `usize`. |
 | `append_bool` | runtime ship | Appends `true` or `false`. |
-| `unsupported` | runtime ship | Returns `std.fmt.unsupported`. |
+| `unsupported` | private helper | Module-local helper for future formatting failures. |
 
 Formatting functions never choose an allocator. Callers create the destination
 `String` explicitly.
@@ -139,7 +141,7 @@ collection storage policies are deferred.
 | `stdout`, `stderr` | runtime ship | Borrowed process standard streams. |
 | `print(text: &str): void!` | runtime ship | Writes to stdout without newline. |
 | `write_text(file: &+File, text: &str): void!` | runtime ship | Free-function wrapper. |
-| `unsupported` | runtime ship | Returns `std.io.unsupported`. |
+| `unsupported` | private helper | Module-local helper for future I/O failures. |
 | raw fd helpers, `IOError`, `from_os_error` | std internal | Not user-facing v0 API. |
 
 File creation, append, truncate, seek, paths, buffering, async I/O, and
