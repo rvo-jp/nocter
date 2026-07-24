@@ -191,6 +191,13 @@ func raw_buffer_prefix_mut(buffer: &+RawBuffer, prefix_len: usize): &+[u8]! {
     return raw_prefix_mut(buffer, prefix_len)?
 }
 
+func allocator_methods(): void! {
+    var allocator = page_allocator()
+    var buffer = allocator.alloc(1, 1)?
+    allocator.free(move buffer)
+    return
+}
+
 func string_len(text: &String): usize {
     return len(text)
 }
@@ -1043,6 +1050,50 @@ func main(): i32! {
         text(&output.stderr)
     );
     assert_eq!(output.stdout, b"Hi");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_allocator_methods_run() {
+    let project = TempProject::new("distributed-home-allocator-methods-run");
+    fs::write(project.root().join("input.txt"), b"OK").unwrap();
+    let source = project.write_source(
+        "allocator_methods.nct",
+        r#"use std/io.File
+use std/mem.page_allocator
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var buffer = allocator.alloc(2, 1)?
+    var input = File.open("input.txt")?
+    let count = input.read(buffer.bytes_mut())?
+    if count != 2 {
+        return 1
+    }
+    if buffer.bytes()[0] != 79 {
+        return 2
+    }
+    let bytes = buffer.prefix(2)?
+    if bytes[1] != 75 {
+        return 3
+    }
+    allocator.free(move buffer)
+    return 42
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
     assert!(output.stderr.is_empty(), "expected empty stderr");
 }
 

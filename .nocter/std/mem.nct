@@ -101,6 +101,17 @@ pub func prefix_mut(buffer: &+RawBuffer, len: usize): &+[u8]! {
     return slice_from_raw_parts_mut(buffer.ptr, len)
 }
 
+impl Allocator {
+    pub method &+self.alloc(size: usize, align: usize): RawBuffer! {
+        return alloc(self, size, align)?
+    }
+
+    pub method &+self.free(buffer: RawBuffer): void {
+        free(self, move buffer)
+        return
+    }
+}
+
 impl RawBuffer {
     pub method &self.bytes(): &[u8] {
         return bytes(self)
