@@ -164,7 +164,7 @@ fn distributed_std_public_api_passes_check() {
     let source = project.write_source(
         "std_smoke.nct",
         r#"use std/fmt.{append_bool, append_i32, append_str, append_string, append_usize}
-use std/io.{File, print, stderr, stdout, write_text}
+use std/io.{File, print, read, stderr, stdout, write, write_text}
 use std/mem.{Allocator, Layout, RawBuffer, alloc, bytes as raw_bytes, bytes_mut as raw_bytes_mut, free, invalid_argument, out_of_memory, page_allocator, prefix as raw_prefix, prefix_mut as raw_prefix_mut}
 use std/process.{abort, args, cwd, env, exit}
 use std/ptr.{addr, from_ref, from_ref_mut}
@@ -210,6 +210,20 @@ func string_reserve(text: &+String, additional: usize): void! {
 
 func string_clear(text: &+String): void {
     clear(text)
+    return
+}
+
+func file_read(file: &+File, buffer: &+[u8]): usize! {
+    return read(file, buffer)?
+}
+
+func file_write(file: &+File, buffer: &[u8]): void! {
+    write(file, buffer)?
+    return
+}
+
+func file_write_text(file: &+File, text: &str): void! {
+    write_text(file, text)?
     return
 }
 
@@ -696,6 +710,43 @@ func main(): i32! {
         text(&output.stderr)
     );
     assert_eq!(output.stdout, b"Hi");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_io_top_level_read_write_runs() {
+    let project = TempProject::new("distributed-home-io-top-level-read-write-run");
+    fs::write(project.root().join("input.txt"), b"IO").unwrap();
+    let source = project.write_source(
+        "io_top_level_read_write.nct",
+        r#"use std/io.{File, stdout, read, write}
+use std/mem.{alloc, free, page_allocator}
+
+func main(): i32! {
+    var allocator = page_allocator()
+    var buffer = alloc(&+allocator, 4, 1)?
+    var input = File.open("input.txt")?
+    let count: usize = read(&+input, buffer.bytes_mut())?
+    var out = stdout()
+    let bytes: &[u8] = buffer.prefix(count)?
+    write(&+out, bytes)?
+    free(&+allocator, move buffer)
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"IO");
     assert!(output.stderr.is_empty(), "expected empty stderr");
 }
 
