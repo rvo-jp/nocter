@@ -33,7 +33,6 @@ use std::collections::HashMap;
 pub(crate) struct TypecheckFacts {
     binding_type_labels: HashMap<ByteSpan, String>,
     binding_scalar_view_kinds: HashMap<ByteSpan, TypecheckScalarViewKind>,
-    expression_type_labels: HashMap<ByteSpan, String>,
     binding_readonly: HashMap<ByteSpan, bool>,
     declaration_hover_labels: HashMap<ByteSpan, String>,
     call_hover_labels: HashMap<ByteSpan, String>,
@@ -57,10 +56,6 @@ impl TypecheckFacts {
         name_span: ByteSpan,
     ) -> Option<TypecheckScalarViewKind> {
         self.binding_scalar_view_kinds.get(&name_span).copied()
-    }
-
-    pub(crate) fn expression_type_label(&self, span: ByteSpan) -> Option<&str> {
-        self.expression_type_labels.get(&span).map(String::as_str)
     }
 
     pub(crate) fn binding_is_readonly(&self, name_span: ByteSpan) -> Option<bool> {
@@ -517,8 +512,6 @@ impl TypecheckFactCollector<'_> {
     }
 
     fn collect_expression_facts(&mut self, expression: &Expr, environment: &mut TypeEnvironment) {
-        self.record_expression_type(expression, environment);
-
         match expression {
             Expr::Propagate(expression) => {
                 self.collect_expression_facts(&expression.expression, environment);
@@ -784,15 +777,6 @@ impl TypecheckFactCollector<'_> {
         }
         if let Some(kind) = scalar_view_kind(ty) {
             self.facts.binding_scalar_view_kinds.insert(name_span, kind);
-        }
-    }
-
-    fn record_expression_type(&mut self, expression: &Expr, environment: &TypeEnvironment) {
-        let ty = expression_type(expression, self.resolved, environment);
-        if !ty.is_unknown_or_unresolved() {
-            self.facts
-                .expression_type_labels
-                .insert(expression.span(), type_hover_label(&ty, self.resolved));
         }
     }
 

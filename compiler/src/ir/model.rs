@@ -604,6 +604,11 @@ pub(crate) enum BoolValue {
         left: UsizeValue,
         right: UsizeValue,
     },
+    StrComparison {
+        operator: BoolComparisonOperator,
+        left: StrValue,
+        right: StrValue,
+    },
     BoolComparison {
         operator: BoolComparisonOperator,
         left: Box<BoolValue>,

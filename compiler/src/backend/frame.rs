@@ -346,10 +346,12 @@ pub(super) fn plan_function_frame(function: &Function) -> Result<FunctionFrame, 
         &function.instructions,
         function_clobbers_parameter_registers(&function.instructions),
     );
+    let scalar_spill_count = scalar_spill_slot_count(&function.instructions);
     let requires_frame = function_requires_frame(&function.instructions);
     let has_frame = requires_frame
         || !aggregate_slot_requests.is_empty()
-        || !parameter_spill_requests.is_empty();
+        || !parameter_spill_requests.is_empty()
+        || scalar_spill_count > REGISTER_LOCAL_ABI_WORDS;
     let spill_indirect_return_pointer = has_frame
         && function.return_type.success_return_passing() == Some(ReturnPassing::IndirectPointer);
 
@@ -357,7 +359,6 @@ pub(super) fn plan_function_frame(function: &Function) -> Result<FunctionFrame, 
         return Ok(FunctionFrame::Frameless);
     }
 
-    let scalar_spill_count = scalar_spill_slot_count(&function.instructions);
     let argument_staging_count = max_call_argument_count(&function.instructions);
 
     if !spill_indirect_return_pointer
@@ -1546,6 +1547,10 @@ fn record_bool_value_parameter_spill_requests(value: &BoolValue, requests: &mut 
             record_usize_value_parameter_spill_requests(left, requests);
             record_usize_value_parameter_spill_requests(right, requests);
         }
+        BoolValue::StrComparison { left, right, .. } => {
+            record_str_value_parameter_spill_requests(left, requests);
+            record_str_value_parameter_spill_requests(right, requests);
+        }
     }
 }
 
@@ -2224,6 +2229,10 @@ fn record_bool_value(value: &BoolValue, highest_local_index: &mut Option<usize>)
             record_usize_value(left, highest_local_index);
             record_usize_value(right, highest_local_index);
         }
+        BoolValue::StrComparison { left, right, .. } => {
+            record_str_value(left, highest_local_index);
+            record_str_value(right, highest_local_index);
+        }
         BoolValue::BoolComparison { left, right, .. } => {
             record_bool_value(left, highest_local_index);
             record_bool_value(right, highest_local_index);
@@ -2335,6 +2344,7 @@ fn frame_too_large_diagnostic(reason: &str) -> Vec<Diagnostic> {
 const STACK_ALIGNMENT: usize = 16;
 const SCALAR_SLOT_SIZE: usize = 8;
 const SAVED_X30_SLOT_SIZE: usize = 8;
+const REGISTER_LOCAL_ABI_WORDS: usize = 7;
 const ADD_SUB_SP_IMM_MAX: u32 = 0x00ff_f000;
 const LDR_STR_W_SP_MAX_BYTE_OFFSET: u32 = 0x0fff * 4;
 const LDR_STR_X_SP_MAX_BYTE_OFFSET: u32 = 0x0fff * 8;
@@ -2363,6 +2373,29 @@ mod tests {
         assert_eq!(
             plan_function_frame(&function).unwrap(),
             FunctionFrame::Frameless
+        );
+    }
+
+    #[test]
+    fn stack_backed_scalar_local_requires_frame_without_calls() {
+        let function = Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![Instruction::SetI32 {
+                destination: I32Location::Local(7),
+                value: I32Value::Const(42),
+            }],
+        };
+
+        let frame = plan_function_frame(&function).unwrap();
+
+        let FunctionFrame::Framed(layout) = frame else {
+            panic!("expected stack-backed local to require a frame");
+        };
+        assert_eq!(
+            layout.scalar_spill_slot(7).map(|slot| slot.offset()),
+            Some(56)
         );
     }
 

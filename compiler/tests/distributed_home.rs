@@ -1477,6 +1477,37 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn distributed_std_string_view_equality_runs() {
+    let project = TempProject::new("distributed-home-string-view-equality-run");
+    let source = project.write_source(
+        "string_view_equality.nct",
+        r#"use std/mem.page_allocator
+
+func main(): i32! {
+    var allocator = page_allocator()
+    let text = String.from_str(&+allocator, "Nocter")?
+    if text.view() == "Nocter" && text.view() != "Other" {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn distributed_std_string_push_str_runs() {
     let project = TempProject::new("distributed-home-string-push-str-run");
     let source = project.write_source(

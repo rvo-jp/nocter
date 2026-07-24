@@ -624,6 +624,7 @@ Rules:
 - Variants may carry zero or more payload values.
 - Payloadless variants are constructed as `EnumName.variant_name`.
 - Payload variants are constructed as `EnumName.variant_name(args...)`.
+- In the v0 backend, payloadless enum tags use `u8` ABI representation, so a payloadless enum may have at most 256 variants.
 - Variant construction requires the payload arity and types to match the variant declaration.
 - Variant payload arguments are evaluated left to right.
 - Variant constructors are qualified with the enum name, such as `AppError.open_failed(path)`.
@@ -663,8 +664,10 @@ Rules:
 - `else { ... }` is the fallback arm.
 - A `match` may have at most one `else` arm.
 - `else` must be the last arm.
-- Exhaustiveness checking is deferred in v0, so `match` without `else` is not treated as a terminating statement yet.
+- `match` without `else` is treated as a terminating statement when every enum variant is covered by an explicit arm and every arm terminates.
 - `match ... else` is treated as a terminating statement when every explicit arm and the `else` arm terminate.
+- In the v0 backend, payloadless enum `match` statements lower through the enum tag ABI.
+- Payload-carrying enum `match` is typechecked in v0, but build/run lowering is deferred until payload enum ABI is promoted.
 - Payload names in a pattern are bound only inside that arm block.
 - `match` expressions that return values are deferred.
 - `_` wildcard patterns are not part of the initial design.
@@ -689,6 +692,8 @@ Rules:
 - The fallback arm must be the last arm.
 - Payload names in a pattern are bound only in that arm expression.
 - Every explicit arm expression must produce a value assignable to the fallback arm type.
+- In the v0 backend, payloadless enum `?{}` expressions lower when the arm and fallback expressions produce scalar/view values.
+- Payload-carrying enum `?{}` is typechecked in v0, but build/run lowering is deferred until payload enum ABI is promoted.
 - `?{}` does not apply to fallible values `T!`.
 - `?{}` does not apply to optional values `T?`.
 - `_` wildcard patterns are not part of the initial design.

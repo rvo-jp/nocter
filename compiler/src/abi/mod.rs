@@ -451,10 +451,12 @@ fn abi_type_kind_from_type_expr(
                 abi_type_kind_from_symbol(symbol, resolved, resolving_names)
             }
         },
-        TypeExpr::Generic(generic) => Err(AbiTypeError::UnsupportedType(format!(
-            "{}<...>",
-            generic.name
-        ))),
+        TypeExpr::Generic(generic) => {
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&generic.name) else {
+                return Err(AbiTypeError::UnresolvedType(generic.name.clone()));
+            };
+            abi_type_kind_from_symbol(symbol, resolved, resolving_names)
+        }
         TypeExpr::Pointer(_) => Ok(AbiTypeKind::Value(AbiType::Pointer)),
         TypeExpr::Borrow(borrow) => {
             match abi_type_kind_from_type_expr(&borrow.inner, resolved, resolving_names)? {
@@ -515,13 +517,27 @@ fn abi_type_kind_from_symbol(
             }
             Ok(AbiTypeKind::Value(AbiType::Struct(fields)))
         }
-        TypeSymbolKind::Enum | TypeSymbolKind::Interface => {
+        TypeSymbolKind::Enum => payloadless_enum_tag_type(symbol),
+        TypeSymbolKind::Interface => {
             Err(AbiTypeError::UnsupportedType(symbol.canonical_name.clone()))
         }
     })();
 
     resolving_names.remove(&symbol.canonical_name);
     result
+}
+
+fn payloadless_enum_tag_type(symbol: &TypeSymbol) -> Result<AbiTypeKind, AbiTypeError> {
+    if symbol
+        .variants
+        .iter()
+        .any(|variant| !variant.payload.is_empty())
+        || symbol.variants.len() > u8::MAX as usize + 1
+    {
+        return Err(AbiTypeError::UnsupportedType(symbol.canonical_name.clone()));
+    }
+
+    Ok(AbiTypeKind::Value(AbiType::U8))
 }
 
 fn type_expr_display_lossy(ty: &TypeExpr) -> String {
@@ -654,6 +670,65 @@ func make(): Text {
 
         assert_eq!(layout_of(&ty).unwrap(), ValueLayout::new(24, 8));
         assert_eq!(classify_value(&ty).unwrap(), ValueClassification::Indirect);
+    }
+
+    #[test]
+    fn maps_payloadless_enum_type_expr_to_u8_tag_layout() {
+        let (ast, resolved) = parse_and_resolve(
+            r#"enum Choice {
+    yes
+    no
+}
+
+func choose(): Choice {
+}
+"#,
+        );
+        let return_type = ast
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(function) if function.name == "choose" => {
+                    Some(&function.return_type)
+                }
+                _ => None,
+            })
+            .expect("expected choose function");
+
+        let ty = abi_type_from_type_expr(return_type, &resolved).unwrap();
+
+        assert_eq!(ty, AbiType::U8);
+        assert_eq!(layout_of(&ty).unwrap(), ValueLayout::new(1, 1));
+        assert_eq!(
+            classify_value(&ty).unwrap(),
+            ValueClassification::Direct { words: 1 }
+        );
+    }
+
+    #[test]
+    fn rejects_payload_enum_type_expr_as_abi_value() {
+        let (ast, resolved) = parse_and_resolve(
+            r#"enum Status {
+    missing
+    found(code: i32)
+}
+
+func status(): Status {
+}
+"#,
+        );
+        let return_type = ast
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(function) if function.name == "status" => {
+                    Some(&function.return_type)
+                }
+                _ => None,
+            })
+            .expect("expected status function");
+
+        assert!(abi_type_from_type_expr(return_type, &resolved).is_err());
     }
 
     #[test]

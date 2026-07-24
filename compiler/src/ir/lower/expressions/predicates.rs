@@ -1,6 +1,8 @@
 use super::super::aggregates::{aggregate_type_layout, supported_aggregate_copy_layout};
 use super::super::context::{AggregateFieldKind, LoweringContext};
-use super::super::literals::{lower_i32_literal, lower_u8_literal, lower_usize_literal};
+use super::super::literals::{
+    lower_i32_literal, lower_str_literal, lower_u8_literal, lower_usize_literal,
+};
 use super::super::types::scalar_or_view_type_from_type_expr;
 use super::aggregate_call_field;
 use crate::ast::{
@@ -34,6 +36,7 @@ fn bool_expression_needs_temporaries(expression: &Expr, context: &LoweringContex
             short_circuit_bool_expression_needs_branch(binary, context)
                 || bool_comparison_contains_call(binary, context)
                 || bool_comparison_needs_temporaries(binary, context)
+                || str_comparison_needs_temporaries(binary, context)
                 || u8_comparison_needs_temporaries(binary, context)
                 || i32_comparison_needs_temporaries(binary, context)
                 || usize_comparison_needs_temporaries(binary, context)
@@ -189,6 +192,23 @@ pub(super) fn u8_comparison_is_lowerable(binary: &BinaryExpr, context: &Lowering
             || expression_is_known_u8_expression(&binary.right, context))
 }
 
+pub(super) fn str_comparison_is_lowerable(binary: &BinaryExpr, context: &LoweringContext) -> bool {
+    matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) && expressions_are_lowerable_str_expressions(&binary.left, &binary.right, context)
+}
+
+pub(super) fn str_comparison_needs_temporaries(
+    binary: &BinaryExpr,
+    context: &LoweringContext,
+) -> bool {
+    str_comparison_is_lowerable(binary, context)
+        && (expression_contains_call(&binary.left)
+            || expression_contains_call(&binary.right)
+            || !expressions_are_lowerable_str_values(&binary.left, &binary.right, context))
+}
+
 fn u8_comparison_needs_temporaries(binary: &BinaryExpr, context: &LoweringContext) -> bool {
     u8_comparison_is_lowerable(binary, context)
         && !expressions_are_lowerable_u8_values(&binary.left, &binary.right, context)
@@ -301,6 +321,10 @@ fn expression_is_lowerable_comparison_binding(
         return true;
     }
 
+    if str_comparison_is_lowerable(binary, context) {
+        return true;
+    }
+
     matches!(
         binary.operator,
         BinaryOperator::Equal | BinaryOperator::NotEqual
@@ -391,6 +415,7 @@ fn expression_is_lowerable_bool_binary(binary: &BinaryExpr, context: &LoweringCo
                 || expressions_are_lowerable_i32_expressions(&binary.left, &binary.right, context)
                 || expressions_are_lowerable_usize_values(&binary.left, &binary.right, context)
                 || expressions_are_lowerable_usize_expressions(&binary.left, &binary.right, context)
+                || str_comparison_is_lowerable(binary, context)
                 || expressions_are_lowerable_bool_expressions(&binary.left, &binary.right, context)
         }
         _ if is_i32_comparison_operator(binary.operator) => {
@@ -416,6 +441,7 @@ fn expression_is_lowerable_u8_expression(expression: &Expr, context: &LoweringCo
         {
             expression_is_lowerable_u8_expression(&conversion.expression, context)
         }
+        Expr::Member(member) if context.payloadless_enum_variant_tag(member).is_some() => true,
         Expr::Member(_) => {
             expression_is_aggregate_field_kind(expression, AggregateFieldKind::U8, context)
         }
@@ -434,6 +460,7 @@ fn expression_is_known_u8_expression(expression: &Expr, context: &LoweringContex
         {
             true
         }
+        Expr::Member(member) if context.payloadless_enum_variant_tag(member).is_some() => true,
         Expr::Member(_) => {
             expression_is_aggregate_field_kind(expression, AggregateFieldKind::U8, context)
         }
@@ -445,8 +472,65 @@ fn expression_is_known_u8_expression(expression: &Expr, context: &LoweringContex
 fn expression_is_lowerable_u8_value(expression: &Expr, context: &LoweringContext) -> bool {
     match expression {
         Expr::Identifier(identifier) => context.u8_location(&identifier.name).is_some(),
+        Expr::Member(member) => context.payloadless_enum_variant_tag(member).is_some(),
         Expr::Group(group) => expression_is_lowerable_u8_value(&group.expression, context),
         _ => lower_u8_literal(expression).is_ok(),
+    }
+}
+
+fn expressions_are_lowerable_str_expressions(
+    left: &Expr,
+    right: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    expression_is_lowerable_str_expression(left, context)
+        && expression_is_lowerable_str_expression(right, context)
+}
+
+fn expressions_are_lowerable_str_values(
+    left: &Expr,
+    right: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    expression_is_lowerable_str_value(left, context)
+        && expression_is_lowerable_str_value(right, context)
+}
+
+fn expression_is_lowerable_str_expression(expression: &Expr, context: &LoweringContext) -> bool {
+    match expression {
+        Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::Str),
+        Expr::Propagate(propagation) => {
+            expression_is_lowerable_fallible_str_expression(&propagation.expression, context)
+        }
+        Expr::Force(force) => {
+            expression_is_lowerable_fallible_str_expression(&force.expression, context)
+        }
+        Expr::Catch(catch) => {
+            expression_is_lowerable_fallible_str_expression(&catch.expression, context)
+        }
+        Expr::Group(group) => expression_is_lowerable_str_expression(&group.expression, context),
+        _ => expression_is_lowerable_str_value(expression, context),
+    }
+}
+
+fn expression_is_lowerable_fallible_str_expression(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    let Expr::Call(call) = unwrap_group(expression) else {
+        return false;
+    };
+    matches!(
+        direct_call_return_type(call, context),
+        Some(Type::Fallible(success)) if success.as_ref() == &Type::Str
+    )
+}
+
+fn expression_is_lowerable_str_value(expression: &Expr, context: &LoweringContext) -> bool {
+    match expression {
+        Expr::Identifier(identifier) => context.str_location(&identifier.name).is_some(),
+        Expr::Group(group) => expression_is_lowerable_str_value(&group.expression, context),
+        _ => lower_str_literal(expression).is_ok(),
     }
 }
 

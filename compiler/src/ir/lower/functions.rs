@@ -43,9 +43,10 @@ use crate::abi::{
     function_parameter_abi_word_count_from_signature,
 };
 use crate::ast::{
-    ArrayType, Block, BorrowType, CallExpr, DropDecl, DropStmt, Expr, FallibleType, FunctionDecl,
-    GenericType, IfStmt, MethodDecl, OptionalType, Parameter, PointerType, ReturnStmt, Stmt,
-    StructLiteralExpr, TypeExpr, TypeReference, UnaryOperator, ViewType,
+    ArrayType, BinaryExpr, BinaryOperator, Block, BorrowType, CallExpr, DropDecl, DropStmt, Expr,
+    FallibleType, FunctionDecl, GenericType, IdentifierExpr, IfIsStmt, IfStmt, MemberExpr,
+    MethodDecl, OptionalType, Parameter, PointerType, ReturnStmt, Stmt, StructLiteralExpr,
+    SwitchArm, SwitchStmt, TypeExpr, TypeReference, UnaryOperator, ViewType,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -657,153 +658,78 @@ fn lower_callable_body(
             instructions.extend(return_instructions);
             Ok(instructions)
         }
-        Stmt::If(statement) if success_type == &Type::I32 => {
-            let branch_instructions = lower_terminal_i32_if_statement(
+        Stmt::If(statement) => {
+            let Some(branch_instructions) = lower_terminal_if_statement_for_success_type(
                 statement,
                 context,
-                return_type,
-                "E8007",
-                "functions",
-                sources,
-            )
-            .map_err(|diagnostics| {
-                attach_primary_span_if_absent(diagnostics, sources, statement.span)
-            })?;
-            instructions.extend(mark_fallible_success_returns(
-                return_type,
-                branch_instructions,
-            ));
-            Ok(instructions)
-        }
-        Stmt::If(statement) if success_type == &Type::Bool => {
-            let branch_instructions = lower_terminal_bool_if_statement(
-                statement,
-                context,
-                return_type,
-                "E8007",
-                "functions",
-                sources,
-            )
-            .map_err(|diagnostics| {
-                attach_primary_span_if_absent(diagnostics, sources, statement.span)
-            })?;
-            instructions.extend(mark_fallible_success_returns(
-                return_type,
-                branch_instructions,
-            ));
-            Ok(instructions)
-        }
-        Stmt::If(statement) if success_type == &Type::U8 => {
-            let branch_instructions = lower_terminal_u8_if_statement(
-                statement,
-                context,
-                return_type,
-                "E8007",
-                "functions",
-                sources,
-            )
-            .map_err(|diagnostics| {
-                attach_primary_span_if_absent(diagnostics, sources, statement.span)
-            })?;
-            instructions.extend(mark_fallible_success_returns(
-                return_type,
-                branch_instructions,
-            ));
-            Ok(instructions)
-        }
-        Stmt::If(statement) if success_type == &Type::Usize => {
-            let branch_instructions = lower_terminal_usize_if_statement(
-                statement,
-                context,
-                return_type,
-                "E8007",
-                "functions",
-                sources,
-            )
-            .map_err(|diagnostics| {
-                attach_primary_span_if_absent(diagnostics, sources, statement.span)
-            })?;
-            instructions.extend(mark_fallible_success_returns(
-                return_type,
-                branch_instructions,
-            ));
-            Ok(instructions)
-        }
-        Stmt::If(statement) if success_type == &Type::Str => {
-            let branch_instructions = lower_terminal_str_if_statement(
-                statement,
-                context,
-                return_type,
-                "E8007",
-                "functions",
-                sources,
-            )
-            .map_err(|diagnostics| {
-                attach_primary_span_if_absent(diagnostics, sources, statement.span)
-            })?;
-            instructions.extend(mark_fallible_success_returns(
-                return_type,
-                branch_instructions,
-            ));
-            Ok(instructions)
-        }
-        Stmt::If(statement) if matches!(success_type, Type::Slice { .. }) => {
-            let branch_instructions = lower_terminal_slice_if_statement(
-                statement,
-                context,
-                return_type,
-                "E8007",
-                "functions",
-                sources,
-            )
-            .map_err(|diagnostics| {
-                attach_primary_span_if_absent(diagnostics, sources, statement.span)
-            })?;
-            instructions.extend(mark_fallible_success_returns(
-                return_type,
-                branch_instructions,
-            ));
-            Ok(instructions)
-        }
-        Stmt::If(statement) if success_type == &Type::Void => {
-            let branch_instructions = lower_terminal_void_if_statement(
-                statement,
-                context,
-                return_type,
-                "E8007",
-                "functions",
-                sources,
-            )
-            .map_err(|diagnostics| {
-                attach_primary_span_if_absent(diagnostics, sources, statement.span)
-            })?;
-            instructions.extend(mark_fallible_success_returns(
-                return_type,
-                branch_instructions,
-            ));
-            Ok(instructions)
-        }
-        Stmt::If(statement)
-            if matches!(
-                success_type,
-                Type::Aggregate { .. } | Type::DirectAggregate { .. }
-            ) =>
-        {
-            let branch_instructions = lower_terminal_aggregate_if_statement(
-                statement,
-                context,
-                success_type,
                 function_name,
+                return_type,
                 resolved,
                 sources,
             )
             .map_err(|diagnostics| {
                 attach_primary_span_if_absent(diagnostics, sources, statement.span)
-            })?;
-            instructions.extend(mark_fallible_success_returns(
+            })?
+            else {
+                return Err(attach_primary_span_if_absent(
+                    unsupported_function_body_diagnostic(function_name),
+                    sources,
+                    statement.span,
+                ));
+            };
+            instructions.extend(branch_instructions);
+            Ok(instructions)
+        }
+        Stmt::IfIs(statement) => {
+            let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8007")
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.pattern_span)
+                })?;
+            let Some(branch_instructions) = lower_terminal_if_statement_for_success_type(
+                &if_statement,
+                context,
+                function_name,
                 return_type,
-                branch_instructions,
-            ));
+                resolved,
+                sources,
+            )
+            .map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, statement.span)
+            })?
+            else {
+                return Err(attach_primary_span_if_absent(
+                    unsupported_function_body_diagnostic(function_name),
+                    sources,
+                    statement.span,
+                ));
+            };
+            instructions.extend(branch_instructions);
+            Ok(instructions)
+        }
+        Stmt::Switch(statement) => {
+            let switch = payloadless_switch_as_if_statement(statement, context, "E8007").map_err(
+                |diagnostics| attach_primary_span_if_absent(diagnostics, sources, statement.span),
+            )?;
+            instructions.extend(switch.leading_instructions);
+            let Some(branch_instructions) = lower_terminal_if_statement_for_success_type(
+                &switch.if_statement,
+                context,
+                function_name,
+                return_type,
+                resolved,
+                sources,
+            )
+            .map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, statement.span)
+            })?
+            else {
+                return Err(attach_primary_span_if_absent(
+                    unsupported_function_body_diagnostic(function_name),
+                    sources,
+                    statement.span,
+                ));
+            };
+            instructions.extend(branch_instructions);
             Ok(instructions)
         }
         Stmt::Expression(statement) => {
@@ -860,6 +786,328 @@ fn lower_callable_body(
             last.span(),
         )),
     }
+}
+
+fn lower_terminal_if_statement_for_success_type(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    function_name: &str,
+    return_type: &Type,
+    resolved: &ResolveOutput,
+    sources: &SourceMap,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let success_type = return_type.success_type();
+    let branch_instructions = match success_type {
+        Type::I32 => lower_terminal_i32_if_statement(
+            statement,
+            context,
+            return_type,
+            "E8007",
+            "functions",
+            sources,
+        )?,
+        Type::Bool => lower_terminal_bool_if_statement(
+            statement,
+            context,
+            return_type,
+            "E8007",
+            "functions",
+            sources,
+        )?,
+        Type::U8 => lower_terminal_u8_if_statement(
+            statement,
+            context,
+            return_type,
+            "E8007",
+            "functions",
+            sources,
+        )?,
+        Type::Usize => lower_terminal_usize_if_statement(
+            statement,
+            context,
+            return_type,
+            "E8007",
+            "functions",
+            sources,
+        )?,
+        Type::Str => lower_terminal_str_if_statement(
+            statement,
+            context,
+            return_type,
+            "E8007",
+            "functions",
+            sources,
+        )?,
+        Type::Slice { .. } => lower_terminal_slice_if_statement(
+            statement,
+            context,
+            return_type,
+            "E8007",
+            "functions",
+            sources,
+        )?,
+        Type::Void => lower_terminal_void_if_statement(
+            statement,
+            context,
+            return_type,
+            "E8007",
+            "functions",
+            sources,
+        )?,
+        Type::Aggregate { .. } | Type::DirectAggregate { .. } => {
+            lower_terminal_aggregate_if_statement(
+                statement,
+                context,
+                success_type,
+                function_name,
+                resolved,
+                sources,
+            )?
+        }
+        Type::Never | Type::Fallible(_) | Type::Borrow { .. } => return Ok(None),
+    };
+
+    Ok(Some(mark_fallible_success_returns(
+        return_type,
+        branch_instructions,
+    )))
+}
+
+pub(super) fn payloadless_if_is_as_if_statement(
+    statement: &IfIsStmt,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<IfStmt, Vec<Diagnostic>> {
+    if statement.payload.is_some() {
+        return Err(unsupported_if_is_diagnostic(diagnostic_code));
+    }
+
+    let variant = payloadless_if_is_variant_expression(statement);
+    let Expr::Member(member) = &variant else {
+        unreachable!("payloadless if-is variant expression must be a member expression");
+    };
+    if context.payloadless_enum_variant_tag(member).is_none() {
+        return Err(unsupported_if_is_diagnostic(diagnostic_code));
+    }
+
+    Ok(IfStmt {
+        span: statement.span,
+        condition: Expr::Binary(BinaryExpr {
+            span: statement.pattern_span,
+            left: Box::new(statement.expression.clone()),
+            operator: BinaryOperator::Equal,
+            operator_span: statement.pattern_span,
+            right: Box::new(variant),
+        }),
+        then_block: statement.then_block.clone(),
+        else_block: statement.else_block.clone(),
+    })
+}
+
+pub(super) struct LoweredPayloadlessSwitch {
+    pub(super) leading_instructions: Vec<Instruction>,
+    pub(super) if_statement: IfStmt,
+}
+
+pub(super) fn payloadless_switch_as_if_statement(
+    statement: &SwitchStmt,
+    context: &mut LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<LoweredPayloadlessSwitch, Vec<Diagnostic>> {
+    let Some(variant_names) = payloadless_switch_variant_names(statement, context) else {
+        return Err(unsupported_switch_diagnostic(diagnostic_code));
+    };
+
+    let target_name = payloadless_switch_target_name(statement);
+    let target = context.next_u8_local_location()?;
+    context.define_u8_local(target_name.clone());
+    let leading_instructions =
+        lower_u8_expression_to_location(&statement.expression, target, context)?;
+    let target_expression = Expr::Identifier(IdentifierExpr {
+        span: statement.expression.span(),
+        name: target_name,
+    });
+    let if_statement = payloadless_switch_if_chain(
+        statement,
+        target_expression,
+        &variant_names,
+        diagnostic_code,
+    )?;
+
+    Ok(LoweredPayloadlessSwitch {
+        leading_instructions,
+        if_statement,
+    })
+}
+
+fn payloadless_if_is_variant_expression(statement: &IfIsStmt) -> Expr {
+    Expr::Member(MemberExpr {
+        span: statement.pattern_span,
+        object: Box::new(Expr::Identifier(IdentifierExpr {
+            span: statement.enum_name_span,
+            name: statement.enum_name.clone(),
+        })),
+        member: statement.variant_name.clone(),
+        member_span: statement.variant_name_span,
+    })
+}
+
+fn payloadless_switch_variant_names(
+    statement: &SwitchStmt,
+    context: &LoweringContext,
+) -> Option<Vec<String>> {
+    let Some(first_arm) = statement.arms.first() else {
+        return None;
+    };
+    let Some((_, resolved)) = context.resolved_calls() else {
+        return None;
+    };
+    let Some(target_symbol) = resolved.type_symbol_by_name(&first_arm.enum_name) else {
+        return None;
+    };
+    if target_symbol.kind != crate::resolve::TypeSymbolKind::Enum
+        || target_symbol.variants.len() > 256
+        || target_symbol
+            .variants
+            .iter()
+            .any(|variant| !variant.payload.is_empty())
+    {
+        return None;
+    }
+
+    let arms_are_supported = statement.arms.iter().all(|arm| {
+        if arm.payload.is_some() {
+            return false;
+        }
+        let Some(arm_symbol) = resolved.type_symbol_by_name(&arm.enum_name) else {
+            return false;
+        };
+        if arm_symbol.canonical_name != target_symbol.canonical_name {
+            return false;
+        }
+        let variant = payloadless_switch_variant_expression(arm);
+        let Expr::Member(member) = &variant else {
+            unreachable!("payloadless switch variant expression must be a member expression");
+        };
+        context.payloadless_enum_variant_tag(member).is_some()
+    });
+    arms_are_supported.then(|| {
+        target_symbol
+            .variants
+            .iter()
+            .map(|variant| variant.name.clone())
+            .collect()
+    })
+}
+
+fn payloadless_switch_if_chain(
+    statement: &SwitchStmt,
+    target: Expr,
+    variant_names: &[String],
+    diagnostic_code: &'static str,
+) -> Result<IfStmt, Vec<Diagnostic>> {
+    let Some((condition_arms, fallback)) =
+        payloadless_switch_condition_arms_and_fallback(statement, variant_names)
+    else {
+        return Err(unsupported_switch_diagnostic(diagnostic_code));
+    };
+
+    let mut next_else = Some(fallback);
+    let mut current = None;
+    for arm in condition_arms.iter().rev() {
+        let if_statement = IfStmt {
+            span: arm.span,
+            condition: Expr::Binary(BinaryExpr {
+                span: arm.span,
+                left: Box::new(target.clone()),
+                operator: BinaryOperator::Equal,
+                operator_span: arm.span,
+                right: Box::new(payloadless_switch_variant_expression(arm)),
+            }),
+            then_block: arm.body.clone(),
+            else_block: next_else,
+        };
+        next_else = Some(Block {
+            span: if_statement.span,
+            statements: vec![Stmt::If(if_statement.clone())],
+        });
+        current = Some(if_statement);
+    }
+
+    current.ok_or_else(|| unsupported_switch_diagnostic(diagnostic_code))
+}
+
+fn payloadless_switch_condition_arms_and_fallback<'a>(
+    statement: &'a SwitchStmt,
+    variant_names: &[String],
+) -> Option<(&'a [SwitchArm], Block)> {
+    if let Some(else_arm) = &statement.else_arm {
+        return Some((&statement.arms, else_arm.body.clone()));
+    }
+
+    if !payloadless_switch_covers_all_variants(statement, variant_names) {
+        return Some((
+            &statement.arms,
+            Block {
+                span: statement.span,
+                statements: Vec::new(),
+            },
+        ));
+    }
+
+    if statement.arms.len() == 1 {
+        return Some((&statement.arms, statement.arms[0].body.clone()));
+    }
+
+    let (last, condition_arms) = statement.arms.split_last()?;
+    Some((condition_arms, last.body.clone()))
+}
+
+fn payloadless_switch_covers_all_variants(
+    statement: &SwitchStmt,
+    variant_names: &[String],
+) -> bool {
+    variant_names.iter().all(|variant_name| {
+        statement
+            .arms
+            .iter()
+            .any(|arm| arm.variant_name == *variant_name)
+    })
+}
+
+fn payloadless_switch_variant_expression(arm: &SwitchArm) -> Expr {
+    Expr::Member(MemberExpr {
+        span: arm.span,
+        object: Box::new(Expr::Identifier(IdentifierExpr {
+            span: arm.enum_name_span,
+            name: arm.enum_name.clone(),
+        })),
+        member: arm.variant_name.clone(),
+        member_span: arm.variant_name_span,
+    })
+}
+
+fn payloadless_switch_target_name(statement: &SwitchStmt) -> String {
+    format!(
+        "<match:{}:{}:{}>",
+        statement.span.source.raw(),
+        statement.span.start,
+        statement.span.end
+    )
+}
+
+fn unsupported_if_is_diagnostic(diagnostic_code: &'static str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        diagnostic_code,
+        "IR v0 can only lower payloadless `if is` enum pattern branches",
+    )]
+}
+
+fn unsupported_switch_diagnostic(diagnostic_code: &'static str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        diagnostic_code,
+        "IR v0 can only lower payloadless enum `match` statements",
+    )]
 }
 
 pub(super) fn lower_return_statement_with_scope_drops(
@@ -1160,6 +1408,33 @@ fn lower_terminal_aggregate_return_block(
         Stmt::If(statement) => {
             instructions.extend(lower_terminal_aggregate_if_statement(
                 statement,
+                &branch_context,
+                success_type,
+                function_name,
+                resolved,
+                sources,
+            )?);
+            Ok(instructions)
+        }
+        Stmt::IfIs(statement) => {
+            let if_statement =
+                payloadless_if_is_as_if_statement(statement, &branch_context, "E8007")?;
+            instructions.extend(lower_terminal_aggregate_if_statement(
+                &if_statement,
+                &branch_context,
+                success_type,
+                function_name,
+                resolved,
+                sources,
+            )?);
+            Ok(instructions)
+        }
+        Stmt::Switch(statement) => {
+            let switch =
+                payloadless_switch_as_if_statement(statement, &mut branch_context, "E8007")?;
+            instructions.extend(switch.leading_instructions);
+            instructions.extend(lower_terminal_aggregate_if_statement(
+                &switch.if_statement,
                 &branch_context,
                 success_type,
                 function_name,
@@ -1518,6 +1793,47 @@ fn lower_leading_bindings(
                 instructions.extend(
                     lower_nonterminal_if_statement(
                         statement,
+                        context,
+                        None,
+                        &[],
+                        "E8007",
+                        "functions",
+                        sources,
+                    )
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    })?,
+                );
+            }
+            Stmt::IfIs(statement) => {
+                let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8007")
+                    .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.pattern_span)
+                })?;
+                instructions.extend(
+                    lower_nonterminal_if_statement(
+                        &if_statement,
+                        context,
+                        None,
+                        &[],
+                        "E8007",
+                        "functions",
+                        sources,
+                    )
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    })?,
+                );
+            }
+            Stmt::Switch(statement) => {
+                let switch = payloadless_switch_as_if_statement(statement, context, "E8007")
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    })?;
+                instructions.extend(switch.leading_instructions);
+                instructions.extend(
+                    lower_nonterminal_if_statement(
+                        &switch.if_statement,
                         context,
                         None,
                         &[],

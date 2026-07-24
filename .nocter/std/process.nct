@@ -99,7 +99,8 @@ pub func cwd(allocator: &+Allocator): String! {
         close_fd_word(fd)
         return Error.new(error.code, error.message)
     }
-    let value = String.from_str(allocator, str_from_raw_parts(buffer.ptr, len)) catch error {
+    let view = str_from_raw_parts(buffer.ptr, len)
+    let value = String.from_str(allocator, view) catch error {
         free(allocator, move buffer)
         close_fd_word(fd)
         return Error.new(error.code, error.message)

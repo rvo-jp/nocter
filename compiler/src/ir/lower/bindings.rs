@@ -2308,6 +2308,9 @@ fn expression_scalar_binding_kind(
         Expr::Catch(catch) => {
             fallible_call_success_scalar_binding_kind(unwrap_group(&catch.expression), context)
         }
+        Expr::Member(member) if context.payloadless_enum_variant_tag(member).is_some() => {
+            Some(ScalarBindingKind::U8)
+        }
         _ => None,
     }
 }

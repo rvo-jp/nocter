@@ -13,9 +13,10 @@ use super::functions::{
     append_scope_end_drops_before_exit, lower_drop_statement,
     lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
     mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
+    payloadless_if_is_as_if_statement, payloadless_switch_as_if_statement,
 };
 use super::types::{return_type_expr_is_top_level_optional, return_type_from_type_expr};
-use crate::ast::{FunctionDecl, Stmt, TypeExpr};
+use crate::ast::{FunctionDecl, IfStmt, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{CallTarget, Function, Instruction, Type};
 use crate::resolve::ResolveOutput;
@@ -152,58 +153,73 @@ fn lower_entry_body(
             instructions.extend(return_instructions);
             Ok(instructions)
         }
-        Stmt::If(statement) if success_type == &Type::I32 => {
-            let branch_instructions = lower_terminal_i32_if_statement(
+        Stmt::If(statement) => {
+            let Some(branch_instructions) = lower_terminal_entry_if_statement_for_success_type(
                 statement,
                 &context,
                 return_type,
-                "E8002",
-                "entry functions",
                 sources,
             )
             .map_err(|diagnostics| {
                 attach_primary_span_if_absent(diagnostics, sources, statement.span)
-            })?;
-            instructions.extend(mark_fallible_success_returns(
-                return_type,
-                branch_instructions,
-            ));
+            })?
+            else {
+                return Err(attach_primary_span_if_absent(
+                    unsupported_entry_body_diagnostic(),
+                    sources,
+                    statement.span,
+                ));
+            };
+            instructions.extend(branch_instructions);
             Ok(instructions)
         }
-        Stmt::If(statement) if success_type == &Type::Usize => {
-            let branch_instructions = lower_terminal_usize_if_statement(
-                statement,
+        Stmt::IfIs(statement) => {
+            let if_statement = payloadless_if_is_as_if_statement(statement, &context, "E8002")
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.pattern_span)
+                })?;
+            let Some(branch_instructions) = lower_terminal_entry_if_statement_for_success_type(
+                &if_statement,
                 &context,
                 return_type,
-                "E8002",
-                "entry functions",
                 sources,
             )
             .map_err(|diagnostics| {
                 attach_primary_span_if_absent(diagnostics, sources, statement.span)
-            })?;
-            instructions.extend(mark_fallible_success_returns(
-                return_type,
-                branch_instructions,
-            ));
+            })?
+            else {
+                return Err(attach_primary_span_if_absent(
+                    unsupported_entry_body_diagnostic(),
+                    sources,
+                    statement.span,
+                ));
+            };
+            instructions.extend(branch_instructions);
             Ok(instructions)
         }
-        Stmt::If(statement) if success_type == &Type::Void => {
-            let branch_instructions = lower_terminal_void_if_statement(
-                statement,
+        Stmt::Switch(statement) => {
+            let switch = payloadless_switch_as_if_statement(statement, &mut context, "E8002")
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                })?;
+            instructions.extend(switch.leading_instructions);
+            let Some(branch_instructions) = lower_terminal_entry_if_statement_for_success_type(
+                &switch.if_statement,
                 &context,
                 return_type,
-                "E8002",
-                "entry functions",
                 sources,
             )
             .map_err(|diagnostics| {
                 attach_primary_span_if_absent(diagnostics, sources, statement.span)
-            })?;
-            instructions.extend(mark_fallible_success_returns(
-                return_type,
-                branch_instructions,
-            ));
+            })?
+            else {
+                return Err(attach_primary_span_if_absent(
+                    unsupported_entry_body_diagnostic(),
+                    sources,
+                    statement.span,
+                ));
+            };
+            instructions.extend(branch_instructions);
             Ok(instructions)
         }
         Stmt::Expression(statement) => {
@@ -270,6 +286,46 @@ fn lower_entry_body(
     }
 }
 
+fn lower_terminal_entry_if_statement_for_success_type(
+    statement: &IfStmt,
+    context: &LoweringContext,
+    return_type: &Type,
+    sources: &SourceMap,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let branch_instructions = match return_type.success_type() {
+        Type::I32 => lower_terminal_i32_if_statement(
+            statement,
+            context,
+            return_type,
+            "E8002",
+            "entry functions",
+            sources,
+        )?,
+        Type::Usize => lower_terminal_usize_if_statement(
+            statement,
+            context,
+            return_type,
+            "E8002",
+            "entry functions",
+            sources,
+        )?,
+        Type::Void => lower_terminal_void_if_statement(
+            statement,
+            context,
+            return_type,
+            "E8002",
+            "entry functions",
+            sources,
+        )?,
+        _ => return Ok(None),
+    };
+
+    Ok(Some(mark_fallible_success_returns(
+        return_type,
+        branch_instructions,
+    )))
+}
+
 fn attach_primary_span_if_absent(
     diagnostics: Vec<Diagnostic>,
     sources: &SourceMap,
@@ -332,6 +388,47 @@ fn lower_leading_bindings(
                 instructions.extend(
                     lower_nonterminal_if_statement(
                         statement,
+                        context,
+                        None,
+                        &[],
+                        "E8002",
+                        "entry functions",
+                        sources,
+                    )
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    })?,
+                );
+            }
+            Stmt::IfIs(statement) => {
+                let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8002")
+                    .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.pattern_span)
+                })?;
+                instructions.extend(
+                    lower_nonterminal_if_statement(
+                        &if_statement,
+                        context,
+                        None,
+                        &[],
+                        "E8002",
+                        "entry functions",
+                        sources,
+                    )
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    })?,
+                );
+            }
+            Stmt::Switch(statement) => {
+                let switch = payloadless_switch_as_if_statement(statement, context, "E8002")
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    })?;
+                instructions.extend(switch.leading_instructions);
+                instructions.extend(
+                    lower_nonterminal_if_statement(
+                        &switch.if_statement,
                         context,
                         None,
                         &[],

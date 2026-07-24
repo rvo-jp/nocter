@@ -115,7 +115,7 @@ compiler/
 export PATH="$HOME/.nocter:$PATH"
 ```
 
-標準ライブラリは `NOCTER_HOME` が指定されていればそこから探し、指定がなければ実行中の `nocter` コマンドの実体パスを解決し、その親ディレクトリを Nocter home として使います。`cwd/.nocter` や `~/.nocter` は自動探索しません。非相対 import は source root を先に見て、見つからなければ active Nocter home を見ます。`std/...` も同じ規則に従うため、ユーザー側の `std/` は標準ライブラリを shadow できます。
+標準ライブラリは `NOCTER_HOME` が指定されていればそこから探し、指定がなければ実行中の `nocter` コマンドの実体パスを解決し、その親ディレクトリを Nocter home として使います。`cwd/.nocter` や `~/.nocter` は自動探索しません。非相対 `use` path は source root を先に見て、見つからなければ active Nocter home を見ます。`std/...` も同じ規則に従うため、ユーザー側の `std/` は標準ライブラリを shadow できます。
 
 ## 対象環境
 
@@ -170,7 +170,7 @@ nocter build app.nct --target arm64-darwin
 nocter build app.nct --target x64-linux
 ```
 
-`build`、`run`、`check` は entry file を省略できます。省略時は `main.nct` を指定したものとして扱います。entry function 名は v0 では `main` 固定で、`--entry` はありません。source root は entry file のある directory です。`build` は `-o path` で出力 executable path を指定できます。`run` は一時 Mach-O executable を生成して実行し、終了後に削除します。`nocter app.nct` は quick trial 用の短縮形で、明示形は `nocter run app.nct` です。`fmt` は指定された1つの `.nct` source file だけを整形し、import graph は辿りません。
+`build`、`run`、`check` は entry file を省略できます。省略時は `main.nct` を指定したものとして扱います。entry function 名は v0 では `main` 固定で、`--entry` はありません。source root は entry file のある directory です。`build` は `-o path` で出力 executable path を指定できます。`run` は一時 Mach-O executable を生成して実行し、終了後に削除します。`nocter app.nct` は quick trial 用の短縮形で、明示形は `nocter run app.nct` です。`fmt` は指定された1つの `.nct` source file だけを整形し、use graph は辿りません。
 
 RAM-only 実行や JIT 実行は v0 では採用しません。`run` も `build` と同じ parser、type checker、ownership checker、ARM64 code generator、Mach-O writer を通ります。違いは、成果物を project に残すか、一時 executable として実行後に削除するかだけです。
 
@@ -236,7 +236,7 @@ examples/word_count.nct                                  => examples/word_count
 
 ファイルパスを唯一の情報源にすることで、ファイル位置とモジュール宣言の不一致を防ぎます。
 
-import は明示的な名前指定を基本にします。`./` または `../` で始まる path は現在ファイルから見た module を探します。`/` で始まる path は filesystem root から探します。それ以外の path は source root から探し、見つからなければ active Nocter home、通常は `~/.nocter/` 内から探します。各 module path は `path.nct` と `path/index.nct` を候補にし、同じ import root に両方ある場合は曖昧エラーです。
+`use` は明示的な名前指定を基本にします。`./` または `../` で始まる path は現在ファイルから見た module を探します。`/` で始まる path は filesystem root から探します。それ以外の path は source root から探し、見つからなければ active Nocter home、通常は `~/.nocter/` 内から探します。各 module path は `path.nct` と `path/index.nct` を候補にし、同じ探索 root に両方ある場合は曖昧エラーです。
 
 ```nct
 use std/mem.Allocator
@@ -248,13 +248,13 @@ pub use std/string.String
 
 `pub use` は、use した公開名を現在 module の公開 API として再公開します。prelude や façade module で使います。`pub(nocter)` の名前は通常公開 API として `pub use` できません。
 
-ワイルドカード use、namespace alias re-export、import path 内の `.nct` 拡張子は初期仕様では採用しません。
+ワイルドカード use、namespace alias re-export、use path 内の `.nct` 拡張子は初期仕様では採用しません。
 
 user project module は、compiler が内部的にファイル先頭へ synthetic `use std/prelude` を持つものとして扱います。source text は書き換えず、diagnostic や formatter は元の source を基準にします。synthetic prelude は user project module ごとに独立して適用され、`.nocter/std/` には適用しません。明示的な `use std/prelude` は書いてもよいですが、user project module では冗長です。
 
-prelude は小さく保ちます。v0 では `Error` / `ErrorCode`、所有文字列 `String` のような ubiquitous な標準ライブラリ型だけを置きます。`Int` は廃止し、整数型は `i32` などを直接書くか project-local alias を定義します。`str`、`error`、`[T]`、`[+T]` は compiler built-in の型構文です。`Vec`、`File`、`Allocator`、`print`、`stdout`、`stderr`、`args`、`env`、`cwd`、`exit`、`abort` は domain module から明示 import します。project-wide prelude 設定は初期仕様では採用しません。
+prelude は小さく保ちます。v0 では `Error` / `ErrorCode`、所有文字列 `String` のような ubiquitous な標準ライブラリ型だけを置きます。`Int` は廃止し、整数型は `i32` などを直接書くか project-local alias を定義します。`str`、`error`、`[T]`、`[+T]` は compiler built-in の型構文です。`Vec`、`File`、`Allocator`、`print`、`stdout`、`stderr`、`args`、`env`、`cwd`、`exit`、`abort` は domain module から明示的に `use` します。project-wide prelude 設定は初期仕様では採用しません。
 
-v0 では package manifest と project root discovery を採用しません。compiler に渡した `.nct` が entry file です。ファイル未指定時は `main.nct` が entry file です。executable の entry point は root file の top-level `func main()` 固定です。`main` は予約語や built-in ではなく、通常の関数名ですが、v0 executable entry としてだけ固定名です。compiler は root file から import graph を辿り、到達した `.nct` ファイル全体を1つの compile unit として name resolution、type checking、ownership checking、code generation します。separate compilation、incremental build、package registry、lockfile、workspace は v0 では扱いません。
+v0 では package manifest と project root discovery を採用しません。compiler に渡した `.nct` が entry file です。ファイル未指定時は `main.nct` が entry file です。executable の entry point は root file の top-level `func main()` 固定です。`main` は予約語や built-in ではなく、通常の関数名ですが、v0 executable entry としてだけ固定名です。compiler は root file から use graph を辿り、到達した `.nct` ファイル全体を1つの compile unit として name resolution、type checking、ownership checking、code generation します。separate compilation、incremental build、package registry、lockfile、workspace は v0 では扱いません。
 
 ```text
 project/
@@ -293,7 +293,7 @@ pub func Config.default(): Config {
 }
 ```
 
-モジュール内の定義はデフォルトで private です。他モジュールから import できる API には `pub` を付けます。Nocter 配布物内部だけに公開する API には `pub(nocter)` を付けます。`struct` のフィールド、associated function、`impl` 内の method もデフォルト private です。
+モジュール内の定義はデフォルトで private です。他モジュールから use できる API には `pub` を付けます。Nocter 配布物内部だけに公開する API には `pub(nocter)` を付けます。`struct` のフィールド、associated function、`impl` 内の method もデフォルト private です。
 
 ```nct
 pub struct File {
@@ -309,7 +309,7 @@ pub func File.open(path: str): File! {
 pub(nocter) primitive from_addr<T>(address: usize): *T
 ```
 
-`pub(nocter)` は active Nocter home の `std/` 内の module だけで書けます。公開先も active Nocter home 内だけです。user project からは import できません。`nocter` は `pub(nocter)` の中だけで意味を持つ contextual な scope 名で、通常の予約語ではありません。
+`pub(nocter)` は active Nocter home の `std/` 内の module だけで書けます。公開先も active Nocter home 内だけです。user project からは use できません。`nocter` は `pub(nocter)` の中だけで意味を持つ contextual な scope 名で、通常の予約語ではありません。
 
 v0 では attribute 構文を採用しません。`@inline`、`@repr(...)`、`@target(...)`、`@test`、`@deprecated` のような構文はありません。layout は Nocter ABI v0、target 分岐は `#target("...")`、低レベル境界は active Nocter home 内の typed `primitive`、visibility は `pub` / `pub(nocter)` で表します。`@` は将来の attribute-like syntax 用に予約しますが、v0 の source では string literal、byte literal、comment の外に書けません。
 
@@ -453,9 +453,11 @@ pub func copy(
 
 継承階層は採用しません。v0 では抽象化のための trait も導入せず、concrete nominal type の inherent method と associated function だけを解決します。`trait` 宣言、`impl Trait for Type`、`T: Trait` bound は v0 後の機能として延期します。`trait` は予約語ではなく、lexer は identifier token として扱います。
 
-`enum` は有限個の variant を持つ型です。statement として variant を分岐する場合は `match` を使い、各 arm は `Pattern { ... }` で書きます。fallback には最後の arm として `else { ... }` を使います。v0 では網羅性チェックを延期するため、`else` がない `match` は終端文として扱いません。値を返す enum pattern 分岐には `?{}` を使います。
+`enum` は有限個の variant を持つ型です。statement として variant を分岐する場合は `match` を使い、各 arm は `Pattern { ... }` で書きます。fallback には最後の arm として `else { ... }` を使います。`else` がない `match` は、全 variant が arm で覆われている場合に終端文として扱います。値を返す enum pattern 分岐には `?{}` を使います。
 
 payload を持たない variant は `Enum.variant`、payload を持つ variant は `Enum.variant(args...)` で作ります。variant constructor は enum 宣言から生まれる構文上の値生成手段であり、通常の関数名や特別な識別子ではありません。unqualified variant constructor は v0 では採用しません。
+
+v0 backend では payloadless enum の tag を `u8` ABI として渡します。そのため payloadless enum は最大 256 variants までです。payloadless enum の equality、`if expr is Enum.variant`、`match` statement、scalar/view を返す `?{}` は build/run できます。payload を持つ enum の ABI lowering は v0 では未完成で、pattern 分岐の型検査対象に留めます。
 
 ```nct
 let state = ScanState.inside_word
@@ -666,7 +668,7 @@ C 連携が必要になった場合は、将来 `extern "c"` のような別 ABI
 
 標準ライブラリは、ユーザー環境では `~/.nocter/std/` に配置します。配布アーカイブの host は archive 名で表し、payload root は常に `.nocter/` です。現在の開発環境でも `.nocter/std/` を使います。
 
-`std/` は target 非依存の API と target 依存の std 内部実装を同じ module tree に置く場所です。syscall、process ABI、trap、低レベル allocator 境界など、target に依存する宣言には `#target("...")` を付けます。ユーザーが import する path は常に `std/...` です。
+`std/` は target 非依存の API と target 依存の std 内部実装を同じ module tree に置く場所です。syscall、process ABI、trap、低レベル allocator 境界など、target に依存する宣言には `#target("...")` を付けます。ユーザーが use する path は常に `std/...` です。
 
 構成例:
 
@@ -686,7 +688,7 @@ C 連携が必要になった場合は、将来 `extern "c"` のような別 ABI
         string.nct
 ```
 
-利用者は必要な機能を import して使います。
+利用者は必要な機能を use して使います。
 
 ```nct
 use std/io.print
@@ -774,11 +776,11 @@ pub func print(text: str): void!
 
 `File` は内部的に owned handle と borrowed process standard stream を区別します。`File.open(path)` で得た `File` の drop は handle を閉じますが、`stdout()` / `stderr()` で得た `File` の drop は process の標準出力 / 標準エラーを閉じません。`File` の drop member は失敗できないため、close error は v0 では無視します。将来必要なら明示的な `close` API を追加します。
 
-`std/io` は共通の user-facing module です。raw file descriptor や syscall との接続は `std/io` 内の `pub(nocter)` helper に置き、target 依存の helper には `#target("...")` を付けます。利用者は raw helper を import せず、`File`、`stdout`、`stderr`、`print`、`File.open/read/write/write_text` を通じて I/O を扱います。
+`std/io` は共通の user-facing module です。raw file descriptor や syscall との接続は `std/io` 内の `pub(nocter)` helper に置き、target 依存の helper には `#target("...")` を付けます。利用者は raw helper を use せず、`File`、`stdout`、`stderr`、`print`、`File.open/read/write/write_text` を通じて I/O を扱います。
 
 `std/process` の `args(): Vec<&str>!`、`env(name): &str?!`、`cwd(allocator): String!`、`exit(code): never`、`abort(): never` は標準ライブラリ API です。compiler primitive ではありません。`args` / `env` / `cwd` / `exit` / `abort` という名前を compiler は特別扱いしません。
 
-`&str?!` は、処理そのものは `error` で失敗しえますが、成功した場合の値は optional であることを表します。v0 配布 std では `exit` と `abort` は runtime ship、`cwd` は `"std.process.unsupported"` で失敗します。`args` と `env` は将来の API 形を予約する check-only API で、実用 runtime は `Vec`、nested fallible/optional return lowering、process context の実装後に昇格します。将来 `args()` と `env(name)` が返す文字列 view は process context storage を指し、呼び出し側は所有しません。owned `String` が必要な場合は明示的に copy します。target 実装は OS 由来の `argv` / `envp` / cwd を UTF-8 として検証し、`str` にできない場合は `"std.process.invalid_encoding"` で失敗します。
+`&str?!` は、処理そのものは `error` で失敗しえますが、成功した場合の値は optional であることを表します。v0 配布 std では `exit`、`abort`、`cwd` は arm64-darwin runtime API として実行できます。`args` と `env` は将来の API 形を予約する check-only API で、実用 runtime は `Vec`、nested fallible/optional return lowering、process context の実装後に昇格します。将来 `args()` と `env(name)` が返す文字列 view は process context storage を指し、呼び出し側は所有しません。owned `String` が必要な場合は明示的に copy します。target 実装は OS 由来の `argv` / `envp` / cwd を UTF-8 として検証し、`str` にできない場合は `"std.process.invalid_encoding"` で失敗します。
 
 `exit` / `abort` は `#target` 付き std 内部の syscall や process termination boundary を使って実装し、万一 OS の終了操作から戻った場合は `trap()` します。`exit` / `abort` は caller scope の Nocter cleanup を実行しません。cleanup が必要な場合は、呼び出し前に明示します。
 
@@ -1201,7 +1203,7 @@ trusted module が public API の不変条件を破った場合、それは標�
 let name = "Nocter" // str
 ```
 
-`str` は import なしで使える built-in 型です。UTF-8 として妥当な文字列を指す非所有 view で、実体は Mach-O 内の静的データ、または別の所有オブジェクトが持つバッファです。`str` 自身は所有権を持たず、drop も発生しません。
+`str` は use なしで使える built-in 型です。UTF-8 として妥当な文字列を指す非所有 view で、実体は Mach-O 内の静的データ、または別の所有オブジェクトが持つバッファです。`str` 自身は所有権を持たず、drop も発生しません。
 
 `String` は所有する文字列型です。標準ライブラリ側では `Buffer<u8>` などを使って実装し、スコープ終了時に内部バッファを破棄します。`String` は move-only とし、暗黙 copy は行いません。
 
@@ -1466,7 +1468,7 @@ func log(msg: str): void
 
 `T!` は成功時に `T`、失敗時に built-in `error` を返す型です。fallible 関数内では `return value` が成功を表します。ただし `return error_value` のように返す値が `error` 型の場合は失敗を表します。曖昧さを避けるため、`error!` は関数 return type として使えません。
 
-`error` は型位置で意味を持つ compiler built-in 構文です。import で解決される通常名ではなく、ユーザー定義の型名として再定義できません。一方で、値の束縛名としての `error` は通常のローカル名です。`catch error { ... }` の `error` は慣習的な束縛名であり、`catch err { ... }` のような別名も有効です。
+`error` は型位置で意味を持つ compiler built-in 構文です。use で解決される通常名ではなく、ユーザー定義の型名として再定義できません。一方で、値の束縛名としての `error` は通常のローカル名です。`catch error { ... }` の `error` は慣習的な束縛名であり、`catch err { ... }` のような別名も有効です。
 
 postfix `?` は fallible value または optional value を現在の関数へ伝播する構文です。`T!` に使うと成功値 `T` を取り出し、失敗時は現在の fallible 関数から同じ `error` で失敗します。`T?` に使うと present 値 `T` を取り出し、`none` 時は現在の optional return layer から `none` を返します。例外やスタック巻き戻しではありません。
 
@@ -1769,7 +1771,7 @@ if error is AppError.open_failed(path) {
 
 ## 診断方針
 
-Nocter compiler は、型、所有権、borrow、初期化状態、visibility、import、fallible value、primitive 境界のエラーで、原因、対象、修正方向を説明します。
+Nocter compiler は、型、所有権、borrow、初期化状態、visibility、use、fallible value、primitive 境界のエラーで、原因、対象、修正方向を説明します。
 
 基本形:
 
@@ -1794,7 +1796,7 @@ v0 では、source-level compiler error に `E0000` 形式の error code を付�
 
 ## エディタ連携
 
-VS Code 拡張機能は初期段階では TextMate grammar による構文ハイライト、comment toggle、bracket matching、auto closing などの薄い表示層として扱います。言語仕様の正は `spec/13-lexical-grammar.md` と各仕様章に置き、拡張機能側で独自の名前解決、型推論、borrow check、import 解決を実装しません。hover などの semantic editor feature は、compiler / LSP が `///`、`/** ... */`、`//!`、`/*! ... */` の doc comment を解析して提供します。
+VS Code 拡張機能は初期段階では TextMate grammar による構文ハイライト、comment toggle、bracket matching、auto closing などの薄い表示層として扱います。言語仕様の正は `spec/13-lexical-grammar.md` と各仕様章に置き、拡張機能側で独自の名前解決、型推論、borrow check、use 解決を実装しません。hover などの semantic editor feature は、compiler / LSP が `///`、`/** ... */`、`//!`、`/*! ... */` の doc comment を解析して提供します。
 
 VS Code 拡張機能は別リポジトリ `vscode-nocter` で開発します。想定する拡張機能側の構成は次の通りです。
 
@@ -1830,7 +1832,7 @@ compiler 内部の source span は UTF-8 byte offset を正とし、CLI 用 JSON
 10. `exit`
 11. `primitive`
 12. `print`
-13. `import`
+13. `use`
 14. `struct`
 15. `if` / `match` / `?{}`
 16. `while` / `loop` / range `for` / `break` / `continue`

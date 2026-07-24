@@ -75,20 +75,24 @@ impl TemporaryAllocator {
         slot_index
     }
 
+    pub(in crate::ir::lower) fn reserved_local_abi_words(
+        &self,
+        context: &LoweringContext,
+    ) -> Result<usize, Vec<Diagnostic>> {
+        let start = context.first_temporary_local_index()?;
+        Ok(self.next_index - start)
+    }
+
     fn next_local_index(&mut self, word_count: usize) -> Result<usize, Vec<Diagnostic>> {
-        if self.next_index + word_count > MAX_TEMPORARY_LOCAL_ABI_WORDS {
-            return Err(vec![Diagnostic::error(
+        let next_index = self.next_index.checked_add(word_count).ok_or_else(|| {
+            vec![Diagnostic::error(
                 "E8008",
-                format!(
-                    "IR v0 can only lower up to {MAX_TEMPORARY_LOCAL_ABI_WORDS} local ABI words"
-                ),
-            )]);
-        }
+                "temporary local ABI word count overflows host usize",
+            )]
+        })?;
 
         let index = self.next_index;
-        self.next_index += word_count;
+        self.next_index = next_index;
         Ok(index)
     }
 }
-
-const MAX_TEMPORARY_LOCAL_ABI_WORDS: usize = 7;

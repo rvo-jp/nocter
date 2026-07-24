@@ -5471,6 +5471,261 @@ func ninth(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, i: i3
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_stack_backed_i32_local_arithmetic_exit_code() {
+    let project = TempProject::new("cli-run-stack-backed-i32-local-arithmetic");
+    let source = project.write_source(
+        "stack_backed_i32_local_arithmetic.nct",
+        r#"func main(): i32 {
+    let a0 = 1
+    let a1 = 2
+    let a2 = 3
+    let a3 = 4
+    let a4 = 5
+    let a5 = 6
+    let a6 = 7
+    let value = 29
+    let divisor = 5
+    let remainder = value % divisor
+    return remainder + 38
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_stack_backed_usize_local_arithmetic_exit_code() {
+    let project = TempProject::new("cli-run-stack-backed-usize-local-arithmetic");
+    let source = project.write_source(
+        "stack_backed_usize_local_arithmetic.nct",
+        r#"func main(): i32 {
+    let a0 = 1
+    let a1 = 2
+    let a2 = 3
+    let a3 = 4
+    let a4 = 5
+    let a5 = 6
+    let a6 = 7
+    let left: usize = 100
+    let right: usize = 58
+    let value = left - right
+    if value == 42 {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_preserves_stack_backed_local_across_call_exit_code() {
+    let project = TempProject::new("cli-run-stack-backed-local-across-call");
+    let source = project.write_source(
+        "stack_backed_local_across_call.nct",
+        r#"func main(): i32 {
+    let a0 = 1
+    let a1 = 2
+    let a2 = 3
+    let a3 = 4
+    let a4 = 5
+    let a5 = 6
+    let a6 = 7
+    let kept = 41
+    let increment = add_one(0)
+    return kept + increment
+}
+
+func add_one(value: i32): i32 {
+    return value + 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_split_stack_backed_str_local_first_byte_exit_code() {
+    let project = TempProject::new("cli-run-split-stack-backed-str-local");
+    let source = project.write_source(
+        "split_stack_backed_str_local.nct",
+        r#"func main(): i32 {
+    let a0 = 1
+    let a1 = 2
+    let a2 = 3
+    let a3 = 4
+    let a4 = 5
+    let a5 = 6
+    let text = "Nocter"
+    return text[0] as i32
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(78),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_fully_stack_backed_str_local_first_byte_exit_code() {
+    let project = TempProject::new("cli-run-fully-stack-backed-str-local");
+    let source = project.write_source(
+        "fully_stack_backed_str_local.nct",
+        r#"func main(): i32 {
+    let a0 = 1
+    let a1 = 2
+    let a2 = 3
+    let a3 = 4
+    let a4 = 5
+    let a5 = 6
+    let a6 = 7
+    let text = "Nocter"
+    return text[0] as i32
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(78),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_writes_str_parameter_when_len_register_aliases_destination() {
+    let project = TempProject::new("cli-run-str-parameter-len-register-alias");
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+
+pub func write_after_two_words(first: usize, second: usize, text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    let source = project.write_source(
+        "str_parameter_len_register_alias.nct",
+        r#"use std/io.write_after_two_words
+
+func main(): i32! {
+    write_after_two_words(1, 2, "OK")?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"OK");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_writes_slice_parameter_when_len_register_aliases_destination() {
+    let project = TempProject::new("cli-run-slice-parameter-len-register-alias");
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_bytes_raw(fd: i32, bytes: &[u8]): void!
+
+pub func write_after_two_words(first: usize, second: usize, bytes: &[u8]): void! {
+    write_bytes_raw(1, bytes)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/string.nct",
+        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+
+pub func bytes(value: &str): &[u8] {
+    return bytes_from_str(value)
+}
+"#,
+    );
+    let source = project.write_source(
+        "slice_parameter_len_register_alias.nct",
+        r#"use std/io.write_after_two_words
+use std/string.bytes
+
+func main(): i32! {
+    write_after_two_words(1, 2, bytes("OK"))?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"OK");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_stack_passed_str_argument_len_exit_code() {
     let project = TempProject::new("cli-run-stack-passed-str-arg-len");
     let source = project.write_source(
@@ -7431,6 +7686,312 @@ fn run_command_returns_bool_inequality_exit_code() {
     assert_eq!(
         output.status.code(),
         Some(31),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_str_equality_exit_code() {
+    let project = TempProject::new("cli-run-str-equality");
+    let source = project.write_source(
+        "str_equality.nct",
+        r#"func main(): i32 {
+    let same = "Nocter" == "Nocter"
+    let different = "Nocter" != "Noxter"
+    let empty = "" == ""
+    if same && different && empty {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_stack_passed_str_equality_exit_code() {
+    let project = TempProject::new("cli-run-stack-passed-str-equality");
+    let source = project.write_source(
+        "stack_passed_str_equality.nct",
+        r#"func main(): i32 {
+    return compare(1, 2, 3, 4, 5, 6, 7, 8, "Nocter")
+}
+
+func compare(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, text: &str): i32 {
+    if text == "Nocter" && text != "Other" {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_payloadless_enum_equality_exit_code() {
+    let project = TempProject::new("cli-run-payloadless-enum-equality");
+    let source = project.write_source(
+        "payloadless_enum_equality.nct",
+        r#"enum Choice {
+    yes
+    no
+    maybe
+}
+
+func main(): i32 {
+    let inferred = Choice.yes
+    let annotated: Choice = Choice.yes
+    if inferred == annotated && Choice.yes != Choice.no && choose() == Choice.maybe && stack_passed(1, 2, 3, 4, 5, 6, 7, 8, Choice.no) {
+        return 42
+    } else {
+        return 1
+    }
+}
+
+func choose(): Choice {
+    return Choice.maybe
+}
+
+func stack_passed(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, choice: Choice): bool {
+    return choice == Choice.no
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_payloadless_if_is_exit_code() {
+    let project = TempProject::new("cli-run-payloadless-if-is");
+    let source = project.write_source(
+        "payloadless_if_is.nct",
+        r#"enum Choice {
+    yes
+    no
+    maybe
+}
+
+func main(): i32 {
+    let choice = Choice.yes
+    var code = 1
+    if choice is Choice.yes {
+        code = 21
+    }
+    if choose() is Choice.no {
+        code = code + 21
+    }
+    if Choice.maybe is Choice.maybe {
+        return code
+    } else {
+        return 1
+    }
+}
+
+func choose(): Choice {
+    return Choice.no
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_payloadless_match_exit_code() {
+    let project = TempProject::new("cli-run-payloadless-match");
+    let source = project.write_source(
+        "payloadless_match.nct",
+        r#"enum Choice {
+    yes
+    no
+    maybe
+}
+
+func main(): i32 {
+    let a = describe(Choice.yes)
+    let b = describe_exhaustive(choose())
+    let c = describe_no_else_then_continue(Choice.maybe)
+    let d = describe_nested_branch(Choice.maybe)
+    return a + b + c + d
+}
+
+func describe(choice: Choice): i32 {
+    match choice {
+        Choice.yes {
+            return 10
+        }
+
+        Choice.no {
+            return 20
+        }
+
+        else {
+            return 30
+        }
+    }
+}
+
+func describe_exhaustive(choice: Choice): i32 {
+    match choice {
+        Choice.yes {
+            return 1
+        }
+
+        Choice.no {
+            return 2
+        }
+
+        Choice.maybe {
+            return 3
+        }
+    }
+}
+
+func describe_no_else_then_continue(choice: Choice): i32 {
+    var code = 4
+    match choice {
+        Choice.yes {
+            code = 5
+        }
+    }
+    return code
+}
+
+func describe_nested_branch(choice: Choice): i32 {
+    if true {
+        match choice {
+            Choice.yes {
+                return 6
+            }
+
+            else {
+                return 7
+            }
+        }
+    } else {
+        return 8
+    }
+}
+
+func choose(): Choice {
+    return Choice.no
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(23),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_payloadless_pattern_conditional_exit_code() {
+    let project = TempProject::new("cli-run-payloadless-pattern-conditional");
+    let source = project.write_source(
+        "payloadless_pattern_conditional.nct",
+        r#"enum Choice {
+    yes
+    no
+    maybe
+}
+
+func main(): i32 {
+    let choice = Choice.no
+    let a = choice ?{
+        Choice.yes : 1
+        Choice.no : 2
+        : 3
+    }
+    let b = choose() ?{
+        Choice.yes : 10
+        : 20
+    }
+    let c = (choice ?{
+        Choice.yes : 4
+        : 5
+    }) + 1
+    let d = choice ?{
+        Choice.no : same(7)
+        : 8
+    }
+    if choice ?{
+        Choice.no : true
+        : false
+    } {
+        return a + b + c + d
+    } else {
+        return 1
+    }
+}
+
+func choose(): Choice {
+    return Choice.maybe
+}
+
+func same(value: i32): i32 {
+    return value
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(35),
         "stdout:\n{}\nstderr:\n{}",
         text(&output.stdout),
         text(&output.stderr)

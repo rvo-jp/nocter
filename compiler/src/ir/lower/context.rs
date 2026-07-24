@@ -1,5 +1,5 @@
 use crate::abi::{ReturnPassing, ValueLayout};
-use crate::ast::{CallExpr, Expr, TypeExpr};
+use crate::ast::{CallExpr, Expr, MemberExpr, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateLocation, BoolLocation, CallTarget, I32Location, SliceLocation, StrLocation, Type,
@@ -397,6 +397,29 @@ impl<'a> LoweringContext<'a> {
         self.call_resolution
             .as_ref()
             .map(|resolution| (resolution.root_source, resolution.resolved))
+    }
+
+    pub(super) fn payloadless_enum_variant_tag(&self, member: &MemberExpr) -> Option<u8> {
+        let resolution = self.call_resolution.as_ref()?;
+        let Expr::Identifier(enum_name) = member.object.as_ref() else {
+            return None;
+        };
+        let symbol = resolution
+            .resolved
+            .type_symbol_by_name(&enum_name.name)
+            .filter(|symbol| symbol.kind == TypeSymbolKind::Enum)?;
+        if symbol
+            .variants
+            .iter()
+            .any(|variant| !variant.payload.is_empty())
+        {
+            return None;
+        }
+        let index = symbol
+            .variants
+            .iter()
+            .position(|variant| variant.name == member.member)?;
+        u8::try_from(index).ok()
     }
 
     pub(super) fn binding_type_label(&self, name_span: ByteSpan) -> Option<&str> {
@@ -902,12 +925,12 @@ impl<'a> LoweringContext<'a> {
 
     fn next_local_index(&self, required_words: usize) -> Result<usize, Vec<Diagnostic>> {
         let index = self.used_local_abi_words();
-        if index + required_words > MAX_LOCAL_ABI_WORDS {
-            return Err(vec![Diagnostic::error(
+        index.checked_add(required_words).ok_or_else(|| {
+            vec![Diagnostic::error(
                 "E8008",
-                format!("IR v0 can only lower up to {MAX_LOCAL_ABI_WORDS} local ABI words"),
-            )]);
-        }
+                "local ABI word count overflows host usize",
+            )]
+        })?;
 
         Ok(index)
     }
@@ -1227,5 +1250,3 @@ fn drop_glue_for_type_expr_inner(
     };
     Some(DropGlue { target })
 }
-
-const MAX_LOCAL_ABI_WORDS: usize = 7;

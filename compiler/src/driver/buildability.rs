@@ -1,9 +1,8 @@
 use crate::abi::{AbiType, abi_value_from_type_expr};
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
-    AssignmentOperator, AssignmentStmt, BinaryOperator, Block, CallExpr, DropDecl, Expr,
-    ForRangeStmt, FunctionDecl, ImplDecl, ImplMember, Item, MethodDecl, Stmt, TypeExpr,
-    UnaryOperator,
+    AssignmentOperator, AssignmentStmt, Block, CallExpr, DropDecl, Expr, ForRangeStmt,
+    FunctionDecl, ImplDecl, ImplMember, Item, MethodDecl, Stmt, TypeExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
@@ -248,6 +247,197 @@ fn collect_block_diagnostics(
     }
 }
 
+fn if_is_statement_is_buildable(
+    statement: &crate::ast::IfIsStmt,
+    resolved: &ResolveOutput,
+) -> bool {
+    if statement.payload.is_some() {
+        return false;
+    }
+
+    let Some(symbol) = resolved.type_symbol_by_name(&statement.enum_name) else {
+        return false;
+    };
+    if symbol.kind != TypeSymbolKind::Enum
+        || symbol
+            .variants
+            .iter()
+            .any(|variant| !variant.payload.is_empty())
+    {
+        return false;
+    }
+
+    let Some(index) = symbol
+        .variants
+        .iter()
+        .position(|variant| variant.name == statement.variant_name)
+    else {
+        return false;
+    };
+    u8::try_from(index).is_ok()
+}
+
+fn switch_statement_is_buildable(
+    statement: &crate::ast::SwitchStmt,
+    resolved: &ResolveOutput,
+) -> bool {
+    let Some(first_arm) = statement.arms.first() else {
+        return false;
+    };
+    if statement.arms.iter().any(|arm| arm.payload.is_some()) {
+        return false;
+    }
+
+    let Some(target_symbol) = resolved.type_symbol_by_name(&first_arm.enum_name) else {
+        return false;
+    };
+    if target_symbol.kind != TypeSymbolKind::Enum
+        || target_symbol.variants.len() > 256
+        || target_symbol
+            .variants
+            .iter()
+            .any(|variant| !variant.payload.is_empty())
+    {
+        return false;
+    }
+
+    statement.arms.iter().all(|arm| {
+        resolved
+            .type_symbol_by_name(&arm.enum_name)
+            .is_some_and(|symbol| symbol.canonical_name == target_symbol.canonical_name)
+            && target_symbol
+                .variants
+                .iter()
+                .any(|variant| variant.name == arm.variant_name)
+    })
+}
+
+fn pattern_conditional_expression_is_buildable(
+    expression: &crate::ast::PatternConditionalExpr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+) -> bool {
+    let Some(first_arm) = expression.arms.first() else {
+        return false;
+    };
+    if expression.arms.iter().any(|arm| arm.payload.is_some()) {
+        return false;
+    }
+
+    let Some(target_symbol) = resolved.type_symbol_by_name(&first_arm.enum_name) else {
+        return false;
+    };
+    if target_symbol.kind != TypeSymbolKind::Enum
+        || target_symbol.variants.len() > 256
+        || target_symbol
+            .variants
+            .iter()
+            .any(|variant| !variant.payload.is_empty())
+    {
+        return false;
+    }
+
+    expression.arms.iter().all(|arm| {
+        resolved
+            .type_symbol_by_name(&arm.enum_name)
+            .is_some_and(|symbol| symbol.canonical_name == target_symbol.canonical_name)
+            && target_symbol
+                .variants
+                .iter()
+                .any(|variant| variant.name == arm.variant_name)
+            && pattern_conditional_value_expression_is_buildable(
+                &arm.expression,
+                resolved,
+                typecheck_facts,
+            )
+    }) && pattern_conditional_value_expression_is_buildable(
+        &expression.fallback,
+        resolved,
+        typecheck_facts,
+    )
+}
+
+fn pattern_conditional_value_expression_is_buildable(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+) -> bool {
+    match unwrap_group_expr(expression) {
+        Expr::IntegerLiteral(_) | Expr::StringLiteral(_) | Expr::BoolLiteral(_) => true,
+        Expr::Identifier(identifier) => resolved
+            .local_symbol_for_identifier(identifier)
+            .and_then(|symbol| typecheck_facts.binding_type_label(symbol.name_span))
+            .is_some_and(type_label_is_scalar_or_view),
+        Expr::Member(_) | Expr::Index(_) => true,
+        Expr::Call(call) => matches!(
+            call_return_shape(call, resolved),
+            Some(ReturnShape::DiscardableScalar | ReturnShape::DiscardableView)
+        ),
+        Expr::Propagate(propagation) => matches!(
+            unwrap_group_expr(&propagation.expression),
+            Expr::Call(call) if call_fallible_success_shape_is_scalar_or_view(call, resolved)
+        ),
+        Expr::Force(force) => matches!(
+            unwrap_group_expr(&force.expression),
+            Expr::Call(call) if call_fallible_success_shape_is_scalar_or_view(call, resolved)
+        ),
+        Expr::Catch(catch) => matches!(
+            unwrap_group_expr(&catch.expression),
+            Expr::Call(call) if call_fallible_success_shape_is_scalar_or_view(call, resolved)
+        ),
+        Expr::Binary(binary) => {
+            pattern_conditional_value_expression_is_buildable(
+                &binary.left,
+                resolved,
+                typecheck_facts,
+            ) && pattern_conditional_value_expression_is_buildable(
+                &binary.right,
+                resolved,
+                typecheck_facts,
+            )
+        }
+        Expr::TypeConversion(conversion) => pattern_conditional_value_expression_is_buildable(
+            &conversion.expression,
+            resolved,
+            typecheck_facts,
+        ),
+        Expr::PatternConditional(conditional) => {
+            pattern_conditional_expression_is_buildable(conditional, resolved, typecheck_facts)
+        }
+        Expr::Group(_) => unreachable!("unwrap_group_expr removes groups"),
+        Expr::InterpolatedString(_)
+        | Expr::NoneLiteral(_)
+        | Expr::ArrayLiteral(_)
+        | Expr::StructLiteral(_)
+        | Expr::Borrow(_)
+        | Expr::Unary(_)
+        | Expr::OptionalDefault(_) => false,
+    }
+}
+
+fn call_fallible_success_shape_is_scalar_or_view(
+    call: &CallExpr,
+    resolved: &ResolveOutput,
+) -> bool {
+    let Some(signature) = resolved.call_signature_for_call(call) else {
+        return false;
+    };
+    let TypeExpr::Fallible(fallible) = &signature.return_type else {
+        return false;
+    };
+    matches!(
+        return_shape_from_type_expr(&fallible.success, resolved),
+        ReturnShape::DiscardableScalar | ReturnShape::DiscardableView
+    )
+}
+
+fn type_label_is_scalar_or_view(label: &str) -> bool {
+    matches!(
+        label,
+        "i32" | "u8" | "usize" | "bool" | "&str" | "&[u8]" | "&+[u8]"
+    )
+}
+
 fn collect_statement_diagnostics(
     statement: &Stmt,
     sources: &SourceMap,
@@ -372,12 +562,14 @@ fn collect_statement_diagnostics(
             }
         }
         Stmt::IfIs(statement) => {
-            diagnostics.push(unsupported_v0_build_diagnostic(
-                sources,
-                statement.pattern_span,
-                "`if is` pattern branches",
-                "use the current scalar `if` subset, or keep this pattern code on the `check` path",
-            ));
+            if !if_is_statement_is_buildable(statement, resolved) {
+                diagnostics.push(unsupported_v0_build_diagnostic(
+                    sources,
+                    statement.pattern_span,
+                    "`if is` pattern branches",
+                    "use payloadless enum patterns, or keep payload pattern code on the `check` path",
+                ));
+            }
             collect_expression_diagnostics(
                 &statement.expression,
                 sources,
@@ -458,12 +650,14 @@ fn collect_statement_diagnostics(
             }
         }
         Stmt::Switch(statement) => {
-            diagnostics.push(unsupported_v0_build_diagnostic(
-                sources,
-                statement.span,
-                "`match` statements",
-                "use supported scalar control flow until enum match lowering is promoted",
-            ));
+            if !switch_statement_is_buildable(statement, resolved) {
+                diagnostics.push(unsupported_v0_build_diagnostic(
+                    sources,
+                    statement.span,
+                    "`match` statements",
+                    "use payloadless enum `match` arms, or keep payload pattern code on the `check` path",
+                ));
+            }
             collect_expression_diagnostics(
                 &statement.expression,
                 sources,
@@ -1069,19 +1263,6 @@ fn collect_expression_diagnostics(
             diagnostics,
         ),
         Expr::Binary(expression) => {
-            if let Some(diagnostic) =
-                unsupported_str_equality_diagnostic(sources, expression, typecheck_facts)
-            {
-                diagnostics.push(diagnostic);
-            }
-            if let Some(diagnostic) = unsupported_payloadless_enum_equality_diagnostic(
-                sources,
-                expression,
-                resolved,
-                typecheck_facts,
-            ) {
-                diagnostics.push(diagnostic);
-            }
             collect_expression_diagnostics(
                 &expression.left,
                 sources,
@@ -1251,12 +1432,14 @@ fn collect_expression_diagnostics(
             );
         }
         Expr::PatternConditional(expression) => {
-            diagnostics.push(unsupported_v0_build_diagnostic(
-                sources,
-                expression.question_span,
-                "pattern conditional `?{}` expressions",
-                "use supported scalar control flow until pattern conditional lowering is promoted",
-            ));
+            if !pattern_conditional_expression_is_buildable(expression, resolved, typecheck_facts) {
+                diagnostics.push(unsupported_v0_build_diagnostic(
+                    sources,
+                    expression.question_span,
+                    "pattern conditional `?{}` expressions",
+                    "use payloadless enum `?{}` arms that produce scalar/view values, or keep payload pattern code on the `check` path",
+                ));
+            }
             collect_expression_diagnostics(
                 &expression.target,
                 sources,
@@ -1294,74 +1477,6 @@ fn collect_expression_diagnostics(
             );
         }
     }
-}
-
-fn unsupported_str_equality_diagnostic(
-    sources: &SourceMap,
-    expression: &crate::ast::BinaryExpr,
-    typecheck_facts: &TypecheckFacts,
-) -> Option<Diagnostic> {
-    if !matches!(
-        expression.operator,
-        BinaryOperator::Equal | BinaryOperator::NotEqual
-    ) {
-        return None;
-    }
-
-    let left = typecheck_facts.expression_type_label(expression.left.span())?;
-    let right = typecheck_facts.expression_type_label(expression.right.span())?;
-    if left != "&str" || right != "&str" {
-        return None;
-    }
-
-    Some(unsupported_v0_build_diagnostic(
-        sources,
-        expression.operator_span,
-        "`&str` equality and inequality comparisons",
-        "compare lengths and bytes explicitly until string comparison lowering is promoted",
-    ))
-}
-
-fn unsupported_payloadless_enum_equality_diagnostic(
-    sources: &SourceMap,
-    expression: &crate::ast::BinaryExpr,
-    resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
-) -> Option<Diagnostic> {
-    if !matches!(
-        expression.operator,
-        BinaryOperator::Equal | BinaryOperator::NotEqual
-    ) {
-        return None;
-    }
-
-    let left = typecheck_facts.expression_type_label(expression.left.span())?;
-    let right = typecheck_facts.expression_type_label(expression.right.span())?;
-    if left != right {
-        return None;
-    }
-
-    let type_name = type_label_nominal_head(left);
-    let symbol = resolved.type_symbol_by_reference_name(type_name)?;
-    if symbol.kind != TypeSymbolKind::Enum
-        || symbol
-            .variants
-            .iter()
-            .any(|variant| !variant.payload.is_empty())
-    {
-        return None;
-    }
-
-    Some(unsupported_v0_build_diagnostic(
-        sources,
-        expression.operator_span,
-        "payloadless enum equality and inequality comparisons",
-        "use `match` or `if value is Enum.variant` until enum tag comparison lowering is promoted",
-    ))
-}
-
-fn type_label_nominal_head(label: &str) -> &str {
-    label.split_once('<').map_or(label, |(head, _)| head)
 }
 
 fn unsupported_check_only_std_call_diagnostic(
@@ -1946,7 +2061,7 @@ func unused(): i32 {
     }
 
     #[test]
-    fn reports_reachable_str_equality_before_ir_lowering() {
+    fn does_not_report_reachable_str_equality() {
         let (sources, analysis) = analyze_text(
             r#"func main(): i32 {
     if "a" == "b" {
@@ -1960,19 +2075,7 @@ func unused(): i32 {
 
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-        assert_eq!(diagnostics.len(), 1);
-        assert_eq!(diagnostics[0].code, "E0435");
-        assert_eq!(
-            diagnostics[0].message,
-            "Nocter v0 build cannot lower `&str` equality and inequality comparisons yet"
-        );
-        assert_eq!(
-            diagnostics[0].help.as_deref(),
-            Some(
-                "compare lengths and bytes explicitly until string comparison lowering is promoted"
-            )
-        );
-        assert!(diagnostics[0].primary_span.is_some());
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
 
     #[test]
@@ -1994,7 +2097,7 @@ func unused(): bool {
     }
 
     #[test]
-    fn reports_reachable_payloadless_enum_equality_before_ir_lowering() {
+    fn does_not_report_reachable_payloadless_enum_equality() {
         let (sources, analysis) = analyze_text(
             r#"enum Choice {
     yes
@@ -2013,19 +2116,82 @@ func main(): i32 {
 
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-        assert_eq!(diagnostics.len(), 1);
-        assert_eq!(diagnostics[0].code, "E0435");
-        assert_eq!(
-            diagnostics[0].message,
-            "Nocter v0 build cannot lower payloadless enum equality and inequality comparisons yet"
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn does_not_report_reachable_payloadless_if_is() {
+        let (sources, analysis) = analyze_text(
+            r#"enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    let choice = Choice.yes
+    if choice is Choice.yes {
+        return 0
+    } else {
+        return 1
+    }
+}
+"#,
         );
-        assert_eq!(
-            diagnostics[0].help.as_deref(),
-            Some(
-                "use `match` or `if value is Enum.variant` until enum tag comparison lowering is promoted"
-            )
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn does_not_report_reachable_payloadless_match() {
+        let (sources, analysis) = analyze_text(
+            r#"enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    let choice = Choice.yes
+    match choice {
+        Choice.yes {
+            return 0
+        }
+
+        else {
+            return 1
+        }
+    }
+}
+"#,
         );
-        assert!(diagnostics[0].primary_span.is_some());
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn does_not_report_reachable_payloadless_pattern_conditional() {
+        let (sources, analysis) = analyze_text(
+            r#"enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    let choice = Choice.yes
+    return choice ?{
+        Choice.yes : 0
+        : 1
+    }
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
 
     #[test]

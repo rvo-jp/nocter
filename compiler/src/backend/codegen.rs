@@ -39,6 +39,7 @@ struct EntryEmitter {
     loop_contexts: Vec<LoopContext>,
     current_frame_size: Option<u32>,
     current_parameter_spill_offsets: HashMap<usize, u32>,
+    current_scalar_spill_offsets: HashMap<usize, u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -71,6 +72,7 @@ impl EntryEmitter {
             loop_contexts: Vec::new(),
             current_frame_size: None,
             current_parameter_spill_offsets: HashMap::new(),
+            current_scalar_spill_offsets: HashMap::new(),
         }
     }
 
@@ -131,6 +133,7 @@ impl EntryEmitter {
         let previous_frame_size = self.current_frame_size;
         let previous_parameter_spill_offsets =
             std::mem::take(&mut self.current_parameter_spill_offsets);
+        let previous_scalar_spill_offsets = std::mem::take(&mut self.current_scalar_spill_offsets);
         let frame = match frame {
             FunctionFrame::Frameless => {
                 self.current_frame_size = Some(0);
@@ -142,6 +145,11 @@ impl EntryEmitter {
                     .parameter_spill_slots()
                     .iter()
                     .map(|slot| (slot.parameter_index(), slot.offset()))
+                    .collect();
+                self.current_scalar_spill_offsets = layout
+                    .scalar_spill_slots()
+                    .iter()
+                    .map(|slot| (slot.local_index(), slot.offset()))
                     .collect();
                 self.emit_prologue(layout)?;
                 Some(layout)
@@ -156,6 +164,7 @@ impl EntryEmitter {
         })();
         self.current_frame_size = previous_frame_size;
         self.current_parameter_spill_offsets = previous_parameter_spill_offsets;
+        self.current_scalar_spill_offsets = previous_scalar_spill_offsets;
         result
     }
 

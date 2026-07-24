@@ -21,8 +21,8 @@ mod temporaries;
 
 use crate::abi::ValueLayout;
 use crate::ast::{
-    BinaryExpr, BinaryOperator, Block, CallExpr, CatchExpr, Expr, IndexExpr, Stmt,
-    TypeConversionExpr, TypeExpr, UnaryExpr, UnaryOperator,
+    BinaryExpr, BinaryOperator, Block, CallExpr, CatchExpr, Expr, IndexExpr, PatternConditionalArm,
+    PatternConditionalExpr, Stmt, TypeConversionExpr, TypeExpr, UnaryExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -58,8 +58,8 @@ use predicates::{
     bool_comparison_contains_call, bool_comparison_needs_temporaries,
     expressions_are_lowerable_bool_comparison_operands, expressions_are_lowerable_bool_values,
     expressions_are_lowerable_usize_values, i32_comparison_needs_temporaries,
-    is_i32_binary_operator, is_usize_binary_operator, u8_comparison_is_lowerable,
-    usize_comparison_needs_temporaries,
+    is_i32_binary_operator, is_usize_binary_operator, str_comparison_is_lowerable,
+    u8_comparison_is_lowerable, usize_comparison_needs_temporaries,
 };
 pub(super) use predicates::{
     expression_contains_interpolated_string, expression_is_lowerable_bool_binding,
@@ -83,6 +83,16 @@ pub(super) fn lower_i32_expression_to_location(
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
+        Expr::PatternConditional(conditional) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            lower_pattern_conditional_to_destination(
+                conditional,
+                PatternConditionalDestination::I32(destination),
+                context,
+                "E8006",
+                &mut temporaries,
+            )
+        }
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             lower_i32_normal_call(call, destination, context, &mut temporaries)
@@ -148,6 +158,16 @@ pub(super) fn lower_u8_expression_to_location(
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
+        Expr::PatternConditional(conditional) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            lower_pattern_conditional_to_destination(
+                conditional,
+                PatternConditionalDestination::U8(destination),
+                context,
+                "E8006",
+                &mut temporaries,
+            )
+        }
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             lower_u8_normal_call(call, destination, context, &mut temporaries)
@@ -197,7 +217,13 @@ pub(super) fn lower_u8_expression_to_location(
             });
             Ok(instructions)
         }
-        Expr::Member(_) => {
+        Expr::Member(member) => {
+            if let Some(tag) = context.payloadless_enum_variant_tag(member) {
+                return Ok(vec![Instruction::SetU8 {
+                    destination,
+                    value: U8Value::Const(tag),
+                }]);
+            }
             let mut temporaries = TemporaryAllocator::new(context)?;
             lower_aggregate_u8_field_to_location(expression, destination, context, &mut temporaries)
         }
@@ -215,6 +241,16 @@ pub(super) fn lower_usize_expression_to_location(
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
+        Expr::PatternConditional(conditional) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            lower_pattern_conditional_to_destination(
+                conditional,
+                PatternConditionalDestination::Usize(destination),
+                context,
+                "E8006",
+                &mut temporaries,
+            )
+        }
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             if let Some(value) = lower_builtin_len_call_to_value(call, context, &mut temporaries) {
@@ -296,6 +332,16 @@ pub(super) fn lower_str_expression_to_location(
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
+        Expr::PatternConditional(conditional) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            lower_pattern_conditional_to_destination(
+                conditional,
+                PatternConditionalDestination::Str(destination),
+                context,
+                "E8006",
+                &mut temporaries,
+            )
+        }
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             if primitive_str_from_raw_parts_call(call, context) {
@@ -344,6 +390,16 @@ pub(super) fn lower_slice_expression_to_location(
     context: &LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
+        Expr::PatternConditional(conditional) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            lower_pattern_conditional_to_destination(
+                conditional,
+                PatternConditionalDestination::Slice(destination),
+                context,
+                "E8006",
+                &mut temporaries,
+            )
+        }
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             if primitive_slice_from_raw_parts_call(call, context) {
@@ -392,6 +448,143 @@ pub(super) fn lower_slice_expression_to_location(
         _ => lower_slice_value(expression, context)
             .map(|value| vec![Instruction::SetSlice { destination, value }]),
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum PatternConditionalDestination {
+    I32(I32Location),
+    U8(U8Location),
+    Usize(UsizeLocation),
+    Bool(BoolLocation),
+    Str(StrLocation),
+    Slice(SliceLocation),
+}
+
+fn lower_pattern_conditional_to_destination(
+    conditional: &PatternConditionalExpr,
+    destination: PatternConditionalDestination,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if conditional.arms.is_empty()
+        || conditional
+            .arms
+            .iter()
+            .any(|arm| arm.payload.is_some() || payloadless_pattern_arm_tag(arm, context).is_none())
+    {
+        return Err(unsupported_pattern_conditional_diagnostic(diagnostic_code));
+    }
+
+    let target = temporaries.next_u8()?;
+    let target_value = lower_u8_expression_to_value(&conditional.target, context, temporaries)?;
+    let mut instructions = target_value.instructions;
+    instructions.push(Instruction::SetU8 {
+        destination: target,
+        value: target_value.value,
+    });
+
+    let branch_context =
+        context.with_reserved_local_abi_words(temporaries.reserved_local_abi_words(context)?);
+    instructions.extend(lower_pattern_conditional_branch_chain(
+        conditional,
+        target,
+        destination,
+        &branch_context,
+        diagnostic_code,
+    )?);
+    Ok(instructions)
+}
+
+fn lower_pattern_conditional_branch_chain(
+    conditional: &PatternConditionalExpr,
+    target: U8Location,
+    destination: PatternConditionalDestination,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut else_instructions = lower_pattern_conditional_branch_expression(
+        &conditional.fallback,
+        destination,
+        context,
+        diagnostic_code,
+    )?;
+
+    for arm in conditional.arms.iter().rev() {
+        let tag = payloadless_pattern_arm_tag(arm, context)
+            .ok_or_else(|| unsupported_pattern_conditional_diagnostic(diagnostic_code))?;
+        let then_instructions = lower_pattern_conditional_branch_expression(
+            &arm.expression,
+            destination,
+            context,
+            diagnostic_code,
+        )?;
+        else_instructions = vec![Instruction::If {
+            condition: BoolValue::I32Comparison {
+                operator: I32ComparisonOperator::Equal,
+                left: I32Value::U8ZeroExtend(Box::new(U8Value::Location(target))),
+                right: I32Value::U8ZeroExtend(Box::new(U8Value::Const(tag))),
+            },
+            then_instructions,
+            else_instructions,
+        }];
+    }
+
+    Ok(else_instructions)
+}
+
+fn lower_pattern_conditional_branch_expression(
+    expression: &Expr,
+    destination: PatternConditionalDestination,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match destination {
+        PatternConditionalDestination::I32(destination) => {
+            lower_i32_expression_to_location(expression, destination, context)
+        }
+        PatternConditionalDestination::U8(destination) => {
+            lower_u8_expression_to_location(expression, destination, context)
+        }
+        PatternConditionalDestination::Usize(destination) => {
+            lower_usize_expression_to_location(expression, destination, context)
+        }
+        PatternConditionalDestination::Bool(destination) => {
+            lower_bool_expression_to_location(expression, destination, context, diagnostic_code)
+        }
+        PatternConditionalDestination::Str(destination) => {
+            lower_str_expression_to_location(expression, destination, context)
+        }
+        PatternConditionalDestination::Slice(destination) => {
+            lower_slice_expression_to_location(expression, destination, context)
+        }
+    }
+}
+
+fn payloadless_pattern_arm_tag(
+    arm: &PatternConditionalArm,
+    context: &LoweringContext,
+) -> Option<u8> {
+    if arm.payload.is_some() {
+        return None;
+    }
+    let member = crate::ast::MemberExpr {
+        span: arm.span,
+        object: Box::new(Expr::Identifier(crate::ast::IdentifierExpr {
+            span: arm.enum_name_span,
+            name: arm.enum_name.clone(),
+        })),
+        member: arm.variant_name.clone(),
+        member_span: arm.variant_name_span,
+    };
+    context.payloadless_enum_variant_tag(&member)
+}
+
+fn unsupported_pattern_conditional_diagnostic(diagnostic_code: &'static str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        diagnostic_code,
+        "IR v0 can only lower payloadless enum pattern conditional `?{}` expressions",
+    )]
 }
 
 pub(super) fn lower_void_expression_statement(
@@ -1165,6 +1358,19 @@ fn lower_i32_expression_to_value(
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredI32Value, Vec<Diagnostic>> {
     match expression {
+        Expr::PatternConditional(conditional) => {
+            let temporary = temporaries.next_i32()?;
+            Ok(LoweredI32Value {
+                instructions: lower_pattern_conditional_to_destination(
+                    conditional,
+                    PatternConditionalDestination::I32(temporary),
+                    context,
+                    "E8006",
+                    temporaries,
+                )?,
+                value: I32Value::Location(temporary),
+            })
+        }
         Expr::Call(call) => {
             let temporary = temporaries.next_i32()?;
             Ok(LoweredI32Value {
@@ -1274,6 +1480,19 @@ fn lower_u8_expression_to_value(
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredU8Value, Vec<Diagnostic>> {
     match expression {
+        Expr::PatternConditional(conditional) => {
+            let temporary = temporaries.next_u8()?;
+            Ok(LoweredU8Value {
+                instructions: lower_pattern_conditional_to_destination(
+                    conditional,
+                    PatternConditionalDestination::U8(temporary),
+                    context,
+                    "E8006",
+                    temporaries,
+                )?,
+                value: U8Value::Location(temporary),
+            })
+        }
         Expr::Call(call) => {
             let temporary = temporaries.next_u8()?;
             Ok(LoweredU8Value {
@@ -1327,7 +1546,13 @@ fn lower_u8_expression_to_value(
         {
             lower_u8_expression_to_value(&conversion.expression, context, temporaries)
         }
-        Expr::Member(_) => {
+        Expr::Member(member) => {
+            if let Some(tag) = context.payloadless_enum_variant_tag(member) {
+                return Ok(LoweredU8Value {
+                    instructions: Vec::new(),
+                    value: U8Value::Const(tag),
+                });
+            }
             let temporary = temporaries.next_u8()?;
             Ok(LoweredU8Value {
                 instructions: lower_aggregate_u8_field_to_location(
@@ -1444,6 +1669,19 @@ fn lower_usize_expression_to_value(
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredUsizeValue, Vec<Diagnostic>> {
     match expression {
+        Expr::PatternConditional(conditional) => {
+            let temporary = temporaries.next_usize()?;
+            Ok(LoweredUsizeValue {
+                instructions: lower_pattern_conditional_to_destination(
+                    conditional,
+                    PatternConditionalDestination::Usize(temporary),
+                    context,
+                    "E8006",
+                    temporaries,
+                )?,
+                value: UsizeValue::Location(temporary),
+            })
+        }
         Expr::Call(call) => {
             if let Some(value) = lower_builtin_len_call_to_value(call, context, temporaries) {
                 return value;
@@ -1548,6 +1786,19 @@ fn lower_str_expression_to_value(
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredStrValue, Vec<Diagnostic>> {
     match expression {
+        Expr::PatternConditional(conditional) => {
+            let temporary = temporaries.next_str()?;
+            Ok(LoweredStrValue {
+                instructions: lower_pattern_conditional_to_destination(
+                    conditional,
+                    PatternConditionalDestination::Str(temporary),
+                    context,
+                    "E8006",
+                    temporaries,
+                )?,
+                value: StrValue::Location(temporary),
+            })
+        }
         Expr::Call(call) => {
             let temporary = temporaries.next_str()?;
             if primitive_str_from_raw_parts_call(call, context) {
@@ -1622,6 +1873,19 @@ fn lower_slice_expression_to_value(
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredSliceValue, Vec<Diagnostic>> {
     match expression {
+        Expr::PatternConditional(conditional) => {
+            let temporary = temporaries.next_slice()?;
+            Ok(LoweredSliceValue {
+                instructions: lower_pattern_conditional_to_destination(
+                    conditional,
+                    PatternConditionalDestination::Slice(temporary),
+                    context,
+                    "E8006",
+                    temporaries,
+                )?,
+                value: SliceValue::Location(temporary),
+            })
+        }
         Expr::Call(call) => {
             if primitive_slice_from_raw_parts_call(call, context) {
                 let temporary = temporaries.next_slice()?;
@@ -2040,6 +2304,16 @@ pub(super) fn lower_bool_expression_to_location(
     diagnostic_code: &'static str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
+        Expr::PatternConditional(conditional) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            lower_pattern_conditional_to_destination(
+                conditional,
+                PatternConditionalDestination::Bool(destination),
+                context,
+                diagnostic_code,
+                &mut temporaries,
+            )
+        }
         Expr::Binary(binary) if short_circuit_bool_expression_needs_branch(binary, context) => {
             lower_short_circuit_bool_expression_to_location(
                 binary,
@@ -2047,6 +2321,21 @@ pub(super) fn lower_bool_expression_to_location(
                 context,
                 diagnostic_code,
             )
+        }
+        Expr::Binary(binary) if str_comparison_is_lowerable(binary, context) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let comparison = lower_str_comparison_to_value_with_temporaries(
+                binary,
+                context,
+                diagnostic_code,
+                &mut temporaries,
+            )?;
+            let mut instructions = comparison.instructions;
+            instructions.push(Instruction::SetBool {
+                destination,
+                value: comparison.value,
+            });
+            Ok(instructions)
         }
         Expr::Binary(binary) if bool_comparison_contains_call(binary, context) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
@@ -2808,8 +3097,29 @@ fn lower_bool_expression_to_value_with_temporaries(
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
     match expression {
+        Expr::PatternConditional(conditional) => {
+            let temporary = temporaries.next_bool()?;
+            Ok(LoweredBoolValue {
+                instructions: lower_pattern_conditional_to_destination(
+                    conditional,
+                    PatternConditionalDestination::Bool(temporary),
+                    context,
+                    diagnostic_code,
+                    temporaries,
+                )?,
+                value: BoolValue::Location(temporary),
+            })
+        }
         Expr::Binary(binary) if short_circuit_bool_expression_needs_branch(binary, context) => {
             lower_short_circuit_bool_expression_to_value_with_temporaries(
+                binary,
+                context,
+                diagnostic_code,
+                temporaries,
+            )
+        }
+        Expr::Binary(binary) if str_comparison_is_lowerable(binary, context) => {
+            lower_str_comparison_to_value_with_temporaries(
                 binary,
                 context,
                 diagnostic_code,
@@ -2995,6 +3305,28 @@ fn lower_bool_comparison_operand_to_value_with_temporaries(
     )
 }
 
+fn lower_str_comparison_to_value_with_temporaries(
+    binary: &BinaryExpr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
+    let operator = str_comparison_operator(binary.operator, diagnostic_code)?;
+    let left = lower_str_expression_to_value(&binary.left, context, temporaries)?;
+    let right = lower_str_expression_to_value(&binary.right, context, temporaries)?;
+
+    let mut instructions = left.instructions;
+    instructions.extend(right.instructions);
+    Ok(LoweredBoolValue {
+        instructions,
+        value: BoolValue::StrComparison {
+            operator,
+            left: left.value,
+            right: right.value,
+        },
+    })
+}
+
 fn lower_i32_comparison_to_value_with_temporaries(
     binary: &BinaryExpr,
     context: &LoweringContext,
@@ -3147,6 +3479,10 @@ pub(super) fn lower_u8_value(
         Expr::Identifier(identifier) => context
             .u8_location(&identifier.name)
             .map(U8Value::Location)
+            .ok_or_else(unsupported_u8_expression_diagnostic),
+        Expr::Member(member) => context
+            .payloadless_enum_variant_tag(member)
+            .map(U8Value::Const)
             .ok_or_else(unsupported_u8_expression_diagnostic),
         Expr::Group(group) => lower_u8_value(&group.expression, context),
         _ => lower_u8_literal(expression).map(U8Value::Const),
@@ -3456,6 +3792,11 @@ fn lower_bool_binary_value(
         {
             lower_bool_comparison_condition(binary, context, diagnostic_code)
         }
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+            if str_comparison_is_lowerable(binary, context) =>
+        {
+            lower_str_comparison_condition(binary, context, diagnostic_code)
+        }
         _ if u8_comparison_is_lowerable(binary, context) => {
             lower_u8_comparison_condition(binary, context, diagnostic_code)
         }
@@ -3518,6 +3859,19 @@ fn lower_bool_comparison_operand(
     lower_bool_value(expression, context, diagnostic_code)
 }
 
+fn lower_str_comparison_condition(
+    binary: &BinaryExpr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<BoolValue, Vec<Diagnostic>> {
+    let operator = str_comparison_operator(binary.operator, diagnostic_code)?;
+    Ok(BoolValue::StrComparison {
+        operator,
+        left: lower_str_value(&binary.left, context)?,
+        right: lower_str_value(&binary.right, context)?,
+    })
+}
+
 fn lower_i32_comparison_condition(
     binary: &BinaryExpr,
     context: &LoweringContext,
@@ -3557,6 +3911,17 @@ fn i32_comparison_operator(
         BinaryOperator::LessEqual => Ok(I32ComparisonOperator::LessEqual),
         BinaryOperator::Greater => Ok(I32ComparisonOperator::Greater),
         BinaryOperator::GreaterEqual => Ok(I32ComparisonOperator::GreaterEqual),
+        _ => Err(unsupported_bool_expression_diagnostic(diagnostic_code)),
+    }
+}
+
+fn str_comparison_operator(
+    operator: BinaryOperator,
+    diagnostic_code: &'static str,
+) -> Result<BoolComparisonOperator, Vec<Diagnostic>> {
+    match operator {
+        BinaryOperator::Equal => Ok(BoolComparisonOperator::Equal),
+        BinaryOperator::NotEqual => Ok(BoolComparisonOperator::NotEqual),
         _ => Err(unsupported_bool_expression_diagnostic(diagnostic_code)),
     }
 }

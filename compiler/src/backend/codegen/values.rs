@@ -6,8 +6,9 @@ use crate::abi::ValueLayout;
 use crate::backend::frame::{AggregateSlot, FrameLayout};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    AggregateLocation, BoolLocation, BoolValue, I32Location, I32Value, SliceLocation, SliceValue,
-    StrLocation, StrValue, U8Location, U8Value, UsizeLocation, UsizeValue,
+    AggregateLocation, BoolComparisonOperator, BoolLocation, BoolValue, I32Location, I32Value,
+    SliceLocation, SliceValue, StrLocation, StrValue, U8Location, U8Value, UsizeLocation,
+    UsizeValue,
 };
 use crate::target::arm64::{BranchCondition, MoveWideShift, WReg, XReg};
 
@@ -19,14 +20,274 @@ enum AggregateCopySource {
     DirectParameter { start_index: usize },
 }
 
+#[derive(Clone, Copy)]
+pub(super) enum LocalScalarWidth {
+    I32,
+    Byte,
+}
+
 impl EntryEmitter {
+    fn scalar_local_offset(&self, local_index: usize) -> Result<u32, Vec<Diagnostic>> {
+        self.current_scalar_spill_offsets
+            .get(&local_index)
+            .copied()
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "E9005",
+                    format!("local ABI word {local_index} has no stack slot"),
+                )]
+            })
+    }
+
+    fn emit_local_word_to_x(
+        &mut self,
+        local_index: usize,
+        destination: XReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if let Some(source) = XReg::local(local_index) {
+            if source != destination {
+                self.encoder.emit_mov_x(destination, source);
+            }
+            return Ok(());
+        }
+
+        let offset = self.scalar_local_offset(local_index)?;
+        self.encoder.emit_ldr_x_sp(destination, offset);
+        Ok(())
+    }
+
+    fn emit_local_word_to_w(
+        &mut self,
+        local_index: usize,
+        destination: WReg,
+        width: LocalScalarWidth,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if let Some(source) = WReg::local(local_index) {
+            if source != destination {
+                self.encoder.emit_mov_w(destination, source);
+            }
+            return Ok(());
+        }
+
+        let offset = self.scalar_local_offset(local_index)?;
+        match width {
+            LocalScalarWidth::I32 => self.encoder.emit_ldr_w_sp(destination, offset),
+            LocalScalarWidth::Byte => self.encoder.emit_ldrb_w_sp(destination, offset),
+        }
+        Ok(())
+    }
+
+    pub(super) fn emit_x_to_local_word(
+        &mut self,
+        source: XReg,
+        local_index: usize,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if let Some(destination) = XReg::local(local_index) {
+            if destination != source {
+                self.encoder.emit_mov_x(destination, source);
+            }
+            return Ok(());
+        }
+
+        let offset = self.scalar_local_offset(local_index)?;
+        self.encoder.emit_str_x_sp(source, offset);
+        Ok(())
+    }
+
+    pub(super) fn emit_w_to_local_word(
+        &mut self,
+        source: WReg,
+        local_index: usize,
+        width: LocalScalarWidth,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if let Some(destination) = WReg::local(local_index) {
+            if destination != source {
+                self.encoder.emit_mov_w(destination, source);
+            }
+            return Ok(());
+        }
+
+        let offset = self.scalar_local_offset(local_index)?;
+        match width {
+            LocalScalarWidth::I32 => self.encoder.emit_str_w_sp(source, offset),
+            LocalScalarWidth::Byte => self.encoder.emit_strb_w_sp(source, offset),
+        }
+        Ok(())
+    }
+
+    fn emit_local_word_pair_to_x_pair(
+        &mut self,
+        first_index: usize,
+        ptr_destination: XReg,
+        len_destination: XReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let len_index = pair_len_index(first_index, "local view")?;
+        if XReg::local(len_index) == Some(ptr_destination) {
+            let ptr_source = XReg::local(first_index);
+            let scratch =
+                pair_scratch_register(&[ptr_destination, ptr_source.unwrap_or(ptr_destination)])?;
+            self.emit_local_word_to_x(len_index, scratch)?;
+            self.emit_local_word_to_x(first_index, ptr_destination)?;
+            if len_destination != scratch {
+                self.encoder.emit_mov_x(len_destination, scratch);
+            }
+            return Ok(());
+        }
+
+        self.emit_local_word_to_x(first_index, ptr_destination)?;
+        self.emit_local_word_to_x(len_index, len_destination)
+    }
+
+    fn emit_parameter_word_pair_to_x_pair(
+        &mut self,
+        first_index: usize,
+        ptr_destination: XReg,
+        len_destination: XReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let len_index = pair_len_index(first_index, "parameter view")?;
+        if XReg::argument(len_index) == Some(ptr_destination) {
+            let ptr_source = XReg::argument(first_index);
+            let scratch =
+                pair_scratch_register(&[ptr_destination, ptr_source.unwrap_or(ptr_destination)])?;
+            self.emit_parameter_word_to_x(len_index, scratch)?;
+            self.emit_parameter_word_to_x(first_index, ptr_destination)?;
+            if len_destination != scratch {
+                self.encoder.emit_mov_x(len_destination, scratch);
+            }
+            return Ok(());
+        }
+
+        self.emit_parameter_word_to_x(first_index, ptr_destination)?;
+        self.emit_parameter_word_to_x(len_index, len_destination)
+    }
+
+    pub(super) fn emit_x_pair_to_local_words(
+        &mut self,
+        ptr_source: XReg,
+        len_source: XReg,
+        first_index: usize,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let len_index = pair_len_index(first_index, "local view destination")?;
+        let len_source = if XReg::local(first_index) == Some(len_source) {
+            let scratch = pair_scratch_register(&[ptr_source, len_source])?;
+            self.encoder.emit_mov_x(scratch, len_source);
+            scratch
+        } else {
+            len_source
+        };
+
+        self.emit_x_to_local_word(ptr_source, first_index)?;
+        self.emit_x_to_local_word(len_source, len_index)
+    }
+
+    pub(super) fn emit_x_pair_to_x_pair(
+        &mut self,
+        ptr_source: XReg,
+        len_source: XReg,
+        ptr_destination: XReg,
+        len_destination: XReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let len_source = if ptr_destination == len_source {
+            let scratch = pair_scratch_register(&[ptr_source, ptr_destination])?;
+            self.encoder.emit_mov_x(scratch, len_source);
+            scratch
+        } else {
+            len_source
+        };
+
+        if ptr_destination != ptr_source {
+            self.encoder.emit_mov_x(ptr_destination, ptr_source);
+        }
+        if len_destination != len_source {
+            self.encoder.emit_mov_x(len_destination, len_source);
+        }
+        Ok(())
+    }
+
+    fn i32_register_destination(
+        &self,
+        destination: I32Location,
+    ) -> Result<Option<WReg>, Vec<Diagnostic>> {
+        match destination {
+            I32Location::Local(index) => Ok(WReg::local(index)),
+            _ => self.i32_location_register(destination).map(Some),
+        }
+    }
+
+    fn usize_register_destination(
+        &self,
+        destination: UsizeLocation,
+    ) -> Result<Option<XReg>, Vec<Diagnostic>> {
+        match destination {
+            UsizeLocation::Local(index) => Ok(XReg::local(index)),
+            _ => self.usize_location_register(destination).map(Some),
+        }
+    }
+
+    fn u8_register_destination(
+        &self,
+        destination: U8Location,
+    ) -> Result<Option<WReg>, Vec<Diagnostic>> {
+        match destination {
+            U8Location::Local(index) => Ok(WReg::local(index)),
+            _ => self.u8_location_register(destination).map(Some),
+        }
+    }
+
+    fn bool_register_destination(
+        &self,
+        destination: BoolLocation,
+    ) -> Result<Option<WReg>, Vec<Diagnostic>> {
+        match destination {
+            BoolLocation::Local(index) => Ok(WReg::local(index)),
+            _ => self.bool_location_register(destination).map(Some),
+        }
+    }
+
+    fn i32_register_destination_or_scratch(
+        &self,
+        destination: I32Location,
+    ) -> Result<WReg, Vec<Diagnostic>> {
+        Ok(self
+            .i32_register_destination(destination)?
+            .unwrap_or(WReg::W16))
+    }
+
+    fn usize_register_destination_or_scratch(
+        &self,
+        destination: UsizeLocation,
+    ) -> Result<XReg, Vec<Diagnostic>> {
+        Ok(self
+            .usize_register_destination(destination)?
+            .unwrap_or(XReg::X16))
+    }
+
+    fn u8_register_destination_or_scratch(
+        &self,
+        destination: U8Location,
+    ) -> Result<WReg, Vec<Diagnostic>> {
+        Ok(self
+            .u8_register_destination(destination)?
+            .unwrap_or(WReg::W16))
+    }
+
+    fn bool_register_destination_or_scratch(
+        &self,
+        destination: BoolLocation,
+    ) -> Result<WReg, Vec<Diagnostic>> {
+        Ok(self
+            .bool_register_destination(destination)?
+            .unwrap_or(WReg::W16))
+    }
+
     pub(super) fn emit_set_i32(
         &mut self,
         destination: I32Location,
         value: &I32Value,
     ) -> Result<(), Vec<Diagnostic>> {
-        let destination = self.i32_location_register(destination)?;
-        self.emit_i32_value_to_w(value, destination)
+        let destination_register = self.i32_register_destination_or_scratch(destination)?;
+        self.emit_i32_value_to_w(value, destination_register)?;
+        self.emit_w_to_i32_location(destination_register, destination)
     }
 
     pub(super) fn emit_set_usize(
@@ -34,8 +295,9 @@ impl EntryEmitter {
         destination: UsizeLocation,
         value: &UsizeValue,
     ) -> Result<(), Vec<Diagnostic>> {
-        let destination = self.usize_location_register(destination)?;
-        self.emit_usize_value_to_x(value, destination)
+        let destination_register = self.usize_register_destination_or_scratch(destination)?;
+        self.emit_usize_value_to_x(value, destination_register)?;
+        self.emit_x_to_usize_location(destination_register, destination)
     }
 
     pub(super) fn emit_store_aggregate_usize(
@@ -262,7 +524,7 @@ impl EntryEmitter {
         frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
         validate_aggregate_usize_field_offset(offset)?;
-        let destination = self.usize_location_register(destination)?;
+        let destination_register = self.usize_register_destination_or_scratch(destination)?;
         match source {
             AggregateLocation::Slot(_) => {
                 let source_offset = self.aggregate_slot_load_offset(
@@ -271,16 +533,18 @@ impl EntryEmitter {
                     AGGREGATE_USIZE_STORE_BYTES,
                     frame,
                 )?;
-                self.encoder.emit_ldr_x_sp(destination, source_offset);
+                self.encoder
+                    .emit_ldr_x_sp(destination_register, source_offset);
             }
             AggregateLocation::Parameter(index) => {
                 let base = self.aggregate_parameter_base_register(index)?;
-                self.encoder.emit_ldr_x_imm(destination, base, offset);
+                self.encoder
+                    .emit_ldr_x_imm(destination_register, base, offset);
             }
             AggregateLocation::DirectParameter { start_index } => {
                 let word_index =
                     direct_aggregate_parameter_word_index(start_index, offset, "usize field")?;
-                self.emit_parameter_word_to_x(word_index, destination)?;
+                self.emit_parameter_word_to_x(word_index, destination_register)?;
             }
             AggregateLocation::Return | AggregateLocation::DirectReturn => {
                 return Err(aggregate_load_diagnostic(
@@ -288,7 +552,7 @@ impl EntryEmitter {
                 ));
             }
         }
-        Ok(())
+        self.emit_x_to_usize_location(destination_register, destination)
     }
 
     pub(super) fn emit_load_aggregate_i32(
@@ -299,7 +563,7 @@ impl EntryEmitter {
         frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
         validate_aggregate_i32_field_offset(offset)?;
-        let destination = self.i32_location_register(destination)?;
+        let destination_register = self.i32_register_destination_or_scratch(destination)?;
         match source {
             AggregateLocation::Slot(_) => {
                 let source_offset = self.aggregate_slot_load_offset(
@@ -308,11 +572,13 @@ impl EntryEmitter {
                     AGGREGATE_I32_STORE_BYTES,
                     frame,
                 )?;
-                self.encoder.emit_ldr_w_sp(destination, source_offset);
+                self.encoder
+                    .emit_ldr_w_sp(destination_register, source_offset);
             }
             AggregateLocation::Parameter(index) => {
                 let base = self.aggregate_parameter_base_register(index)?;
-                self.encoder.emit_ldr_w_imm(destination, base, offset);
+                self.encoder
+                    .emit_ldr_w_imm(destination_register, base, offset);
             }
             AggregateLocation::DirectParameter { start_index } => {
                 let (word_index, byte_offset) = direct_aggregate_parameter_chunk_source(
@@ -325,7 +591,7 @@ impl EntryEmitter {
                     word_index,
                     byte_offset,
                     AGGREGATE_I32_STORE_BYTES,
-                    destination,
+                    destination_register,
                 )?;
             }
             AggregateLocation::Return | AggregateLocation::DirectReturn => {
@@ -334,7 +600,7 @@ impl EntryEmitter {
                 ));
             }
         }
-        Ok(())
+        self.emit_w_to_i32_location(destination_register, destination)
     }
 
     pub(super) fn emit_load_aggregate_u8(
@@ -344,7 +610,7 @@ impl EntryEmitter {
         offset: u32,
         frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
-        let destination = self.u8_location_register(destination)?;
+        let destination_register = self.u8_register_destination_or_scratch(destination)?;
         match source {
             AggregateLocation::Slot(_) => {
                 let source_offset = self.aggregate_slot_load_offset(
@@ -353,11 +619,13 @@ impl EntryEmitter {
                     AGGREGATE_U8_STORE_BYTES,
                     frame,
                 )?;
-                self.encoder.emit_ldrb_w_sp(destination, source_offset);
+                self.encoder
+                    .emit_ldrb_w_sp(destination_register, source_offset);
             }
             AggregateLocation::Parameter(index) => {
                 let base = self.aggregate_parameter_base_register(index)?;
-                self.encoder.emit_ldrb_w_imm(destination, base, offset);
+                self.encoder
+                    .emit_ldrb_w_imm(destination_register, base, offset);
             }
             AggregateLocation::DirectParameter { start_index } => {
                 let (word_index, byte_offset) = direct_aggregate_parameter_chunk_source(
@@ -370,7 +638,7 @@ impl EntryEmitter {
                     word_index,
                     byte_offset,
                     AGGREGATE_U8_STORE_BYTES,
-                    destination,
+                    destination_register,
                 )?;
             }
             AggregateLocation::Return | AggregateLocation::DirectReturn => {
@@ -379,7 +647,7 @@ impl EntryEmitter {
                 ));
             }
         }
-        Ok(())
+        self.emit_w_to_u8_location(destination_register, destination)
     }
 
     pub(super) fn emit_load_aggregate_bool(
@@ -389,7 +657,7 @@ impl EntryEmitter {
         offset: u32,
         frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
-        let destination = self.bool_location_register(destination)?;
+        let destination_register = self.bool_register_destination_or_scratch(destination)?;
         match source {
             AggregateLocation::Slot(_) => {
                 let source_offset = self.aggregate_slot_load_offset(
@@ -398,11 +666,13 @@ impl EntryEmitter {
                     AGGREGATE_U8_STORE_BYTES,
                     frame,
                 )?;
-                self.encoder.emit_ldrb_w_sp(destination, source_offset);
+                self.encoder
+                    .emit_ldrb_w_sp(destination_register, source_offset);
             }
             AggregateLocation::Parameter(index) => {
                 let base = self.aggregate_parameter_base_register(index)?;
-                self.encoder.emit_ldrb_w_imm(destination, base, offset);
+                self.encoder
+                    .emit_ldrb_w_imm(destination_register, base, offset);
             }
             AggregateLocation::DirectParameter { start_index } => {
                 let (word_index, byte_offset) = direct_aggregate_parameter_chunk_source(
@@ -415,7 +685,7 @@ impl EntryEmitter {
                     word_index,
                     byte_offset,
                     AGGREGATE_U8_STORE_BYTES,
-                    destination,
+                    destination_register,
                 )?;
             }
             AggregateLocation::Return | AggregateLocation::DirectReturn => {
@@ -424,7 +694,7 @@ impl EntryEmitter {
                 ));
             }
         }
-        Ok(())
+        self.emit_w_to_bool_location(destination_register, destination)
     }
 
     fn aggregate_slot_load_offset(
@@ -1012,8 +1282,9 @@ impl EntryEmitter {
         destination: U8Location,
         value: &U8Value,
     ) -> Result<(), Vec<Diagnostic>> {
-        let destination = self.u8_location_register(destination)?;
-        self.emit_u8_value_to_w(value, destination)
+        let destination_register = self.u8_register_destination_or_scratch(destination)?;
+        self.emit_u8_value_to_w(value, destination_register)?;
+        self.emit_w_to_u8_location(destination_register, destination)
     }
 
     pub(super) fn emit_set_bool(
@@ -1021,8 +1292,9 @@ impl EntryEmitter {
         destination: BoolLocation,
         value: &BoolValue,
     ) -> Result<(), Vec<Diagnostic>> {
-        let destination = self.bool_location_register(destination)?;
-        self.emit_bool_value_to_w(value, destination)
+        let destination_register = self.bool_register_destination_or_scratch(destination)?;
+        self.emit_bool_value_to_w(value, destination_register)?;
+        self.emit_w_to_bool_location(destination_register, destination)
     }
 
     pub(super) fn emit_set_str(
@@ -1030,8 +1302,8 @@ impl EntryEmitter {
         destination: StrLocation,
         value: &StrValue,
     ) -> Result<(), Vec<Diagnostic>> {
-        let (ptr_destination, len_destination) = self.str_location_registers(destination)?;
-        self.emit_str_value_to_x_pair(value, ptr_destination, len_destination)
+        self.emit_str_value_to_x_pair(value, XReg::X16, XReg::X17)?;
+        self.emit_x_pair_to_str_location(XReg::X16, XReg::X17, destination)
     }
 
     pub(super) fn emit_set_str_raw_parts(
@@ -1040,8 +1312,8 @@ impl EntryEmitter {
         pointer: &UsizeValue,
         len: &UsizeValue,
     ) -> Result<(), Vec<Diagnostic>> {
-        self.emit_usize_value_to_x(pointer, XReg::X16)?;
         self.emit_usize_value_to_x(len, XReg::X17)?;
+        self.emit_usize_value_to_x(pointer, XReg::X16)?;
         self.emit_x_pair_to_str_location(XReg::X16, XReg::X17, destination)
     }
 
@@ -1050,8 +1322,8 @@ impl EntryEmitter {
         destination: SliceLocation,
         value: &SliceValue,
     ) -> Result<(), Vec<Diagnostic>> {
-        let (ptr_destination, len_destination) = self.slice_location_registers(destination)?;
-        self.emit_slice_value_to_x_pair(value, ptr_destination, len_destination)
+        self.emit_slice_value_to_x_pair(value, XReg::X16, XReg::X17)?;
+        self.emit_x_pair_to_slice_location(XReg::X16, XReg::X17, destination)
     }
 
     pub(super) fn emit_set_slice_raw_parts(
@@ -1060,8 +1332,8 @@ impl EntryEmitter {
         pointer: &UsizeValue,
         len: &UsizeValue,
     ) -> Result<(), Vec<Diagnostic>> {
-        self.emit_usize_value_to_x(pointer, XReg::X16)?;
         self.emit_usize_value_to_x(len, XReg::X17)?;
+        self.emit_usize_value_to_x(pointer, XReg::X16)?;
         self.emit_x_pair_to_slice_location(XReg::X16, XReg::X17, destination)
     }
 
@@ -1071,7 +1343,13 @@ impl EntryEmitter {
         left: &I32Value,
         right: &I32Value,
     ) -> Result<(), Vec<Diagnostic>> {
-        let destination = self.i32_location_register(destination)?;
+        let Some(destination) = self.i32_register_destination(destination)? else {
+            self.emit_i32_value_to_w(left, WReg::W16)?;
+            self.emit_i32_value_to_w(right, WReg::W17)?;
+            self.encoder.emit_adds_w(WReg::W16, WReg::W16, WReg::W17);
+            self.emit_i32_overflow_check("i32 addition non-overflow target")?;
+            return self.emit_w_to_i32_location(WReg::W16, destination);
+        };
         self.emit_i32_value_to_w(left, WReg::W16)?;
         self.emit_i32_value_to_w(right, destination)?;
         self.encoder
@@ -1086,7 +1364,13 @@ impl EntryEmitter {
         left: &I32Value,
         right: &I32Value,
     ) -> Result<(), Vec<Diagnostic>> {
-        let destination = self.i32_location_register(destination)?;
+        let Some(destination) = self.i32_register_destination(destination)? else {
+            self.emit_i32_value_to_w(left, WReg::W16)?;
+            self.emit_i32_value_to_w(right, WReg::W17)?;
+            self.encoder.emit_subs_w(WReg::W16, WReg::W16, WReg::W17);
+            self.emit_i32_overflow_check("i32 subtraction non-overflow target")?;
+            return self.emit_w_to_i32_location(WReg::W16, destination);
+        };
         self.emit_i32_value_to_w(left, WReg::W16)?;
         self.emit_i32_value_to_w(right, destination)?;
         self.encoder
@@ -1101,7 +1385,20 @@ impl EntryEmitter {
         left: &I32Value,
         right: &I32Value,
     ) -> Result<(), Vec<Diagnostic>> {
-        let destination = self.i32_location_register(destination)?;
+        let Some(destination) = self.i32_register_destination(destination)? else {
+            self.emit_i32_value_to_w(left, WReg::W16)?;
+            self.emit_i32_value_to_w(right, WReg::W17)?;
+            self.encoder.emit_smull_x(XReg::X17, WReg::W16, WReg::W17);
+            self.encoder.emit_sxtw_x_w(XReg::X16, WReg::W17);
+            self.encoder.emit_cmp_x(XReg::X17, XReg::X16);
+            let exact_fit = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+            self.emit_trap();
+            self.patch_branch_placeholder_to_current(
+                exact_fit,
+                "i32 multiplication exact-fit target",
+            )?;
+            return self.emit_w_to_i32_location(WReg::W17, destination);
+        };
         self.emit_i32_value_to_w(left, WReg::W16)?;
         self.emit_i32_value_to_w(right, destination)?;
         self.encoder.emit_smull_x(XReg::X17, WReg::W16, destination);
@@ -1122,7 +1419,13 @@ impl EntryEmitter {
         left: &I32Value,
         right: &I32Value,
     ) -> Result<(), Vec<Diagnostic>> {
-        let destination = self.i32_location_register(destination)?;
+        let Some(destination) = self.i32_register_destination(destination)? else {
+            self.emit_i32_division_safety_checks_for_values(left, right)?;
+            self.emit_i32_value_to_w(left, WReg::W16)?;
+            self.emit_i32_value_to_w(right, WReg::W17)?;
+            self.encoder.emit_sdiv_w(WReg::W16, WReg::W16, WReg::W17);
+            return self.emit_w_to_i32_location(WReg::W16, destination);
+        };
         self.emit_i32_value_to_w(left, WReg::W16)?;
         self.emit_i32_value_to_w(right, destination)?;
         self.emit_i32_division_safety_checks(WReg::W16, destination)?;
@@ -1137,7 +1440,15 @@ impl EntryEmitter {
         left: &I32Value,
         right: &I32Value,
     ) -> Result<(), Vec<Diagnostic>> {
-        let destination = self.i32_location_register(destination)?;
+        let Some(destination) = self.i32_register_destination(destination)? else {
+            self.emit_i32_division_safety_checks_for_values(left, right)?;
+            self.emit_i32_value_to_w(left, WReg::W16)?;
+            self.emit_i32_value_to_w(right, WReg::W17)?;
+            self.encoder.emit_sdiv_w(WReg::W8, WReg::W16, WReg::W17);
+            self.encoder
+                .emit_msub_w(WReg::W16, WReg::W8, WReg::W17, WReg::W16);
+            return self.emit_w_to_i32_location(WReg::W16, destination);
+        };
         self.emit_i32_value_to_w(left, WReg::W16)?;
         self.emit_i32_value_to_w(right, destination)?;
         self.emit_i32_division_safety_checks(WReg::W16, destination)?;
@@ -1153,7 +1464,13 @@ impl EntryEmitter {
         left: &I32Value,
         right: &I32Value,
     ) -> Result<(), Vec<Diagnostic>> {
-        let destination = self.i32_location_register(destination)?;
+        let Some(destination) = self.i32_register_destination(destination)? else {
+            self.emit_i32_value_to_w(right, WReg::W17)?;
+            self.emit_i32_shift_count_safety_checks_with_scratch(WReg::W17, WReg::W16)?;
+            self.emit_i32_value_to_w(left, WReg::W16)?;
+            self.encoder.emit_lslv_w(WReg::W16, WReg::W16, WReg::W17);
+            return self.emit_w_to_i32_location(WReg::W16, destination);
+        };
         self.emit_i32_value_to_w(left, WReg::W16)?;
         self.emit_i32_value_to_w(right, destination)?;
         self.emit_i32_shift_count_safety_checks(destination)?;
@@ -1168,7 +1485,13 @@ impl EntryEmitter {
         left: &I32Value,
         right: &I32Value,
     ) -> Result<(), Vec<Diagnostic>> {
-        let destination = self.i32_location_register(destination)?;
+        let Some(destination) = self.i32_register_destination(destination)? else {
+            self.emit_i32_value_to_w(right, WReg::W17)?;
+            self.emit_i32_shift_count_safety_checks_with_scratch(WReg::W17, WReg::W16)?;
+            self.emit_i32_value_to_w(left, WReg::W16)?;
+            self.encoder.emit_asrv_w(WReg::W16, WReg::W16, WReg::W17);
+            return self.emit_w_to_i32_location(WReg::W16, destination);
+        };
         self.emit_i32_value_to_w(left, WReg::W16)?;
         self.emit_i32_value_to_w(right, destination)?;
         self.emit_i32_shift_count_safety_checks(destination)?;
@@ -1183,7 +1506,13 @@ impl EntryEmitter {
         left: &UsizeValue,
         right: &UsizeValue,
     ) -> Result<(), Vec<Diagnostic>> {
-        let destination = self.usize_location_register(destination)?;
+        let Some(destination) = self.usize_register_destination(destination)? else {
+            self.emit_usize_value_to_x(left, XReg::X16)?;
+            self.emit_usize_value_to_x(right, XReg::X17)?;
+            self.encoder.emit_adds_x(XReg::X16, XReg::X16, XReg::X17);
+            self.emit_usize_no_carry_check("usize addition non-overflow target")?;
+            return self.emit_x_to_usize_location(XReg::X16, destination);
+        };
         self.emit_usize_value_to_x(left, XReg::X16)?;
         self.emit_usize_value_to_x(right, destination)?;
         self.encoder
@@ -1198,7 +1527,13 @@ impl EntryEmitter {
         left: &UsizeValue,
         right: &UsizeValue,
     ) -> Result<(), Vec<Diagnostic>> {
-        let destination = self.usize_location_register(destination)?;
+        let Some(destination) = self.usize_register_destination(destination)? else {
+            self.emit_usize_value_to_x(left, XReg::X16)?;
+            self.emit_usize_value_to_x(right, XReg::X17)?;
+            self.encoder.emit_subs_x(XReg::X16, XReg::X16, XReg::X17);
+            self.emit_usize_no_borrow_check("usize subtraction non-underflow target")?;
+            return self.emit_x_to_usize_location(XReg::X16, destination);
+        };
         self.emit_usize_value_to_x(left, XReg::X16)?;
         self.emit_usize_value_to_x(right, destination)?;
         self.encoder
@@ -1213,7 +1548,20 @@ impl EntryEmitter {
         left: &UsizeValue,
         right: &UsizeValue,
     ) -> Result<(), Vec<Diagnostic>> {
-        let destination = self.usize_location_register(destination)?;
+        let Some(destination) = self.usize_register_destination(destination)? else {
+            self.emit_usize_value_to_x(left, XReg::X16)?;
+            self.emit_usize_value_to_x(right, XReg::X8)?;
+            self.encoder.emit_umulh_x(XReg::X17, XReg::X16, XReg::X8);
+            self.encoder.emit_cmp_x_zero(XReg::X17);
+            let exact_fit = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+            self.emit_trap();
+            self.patch_branch_placeholder_to_current(
+                exact_fit,
+                "usize multiplication exact-fit target",
+            )?;
+            self.encoder.emit_mul_x(XReg::X16, XReg::X16, XReg::X8);
+            return self.emit_x_to_usize_location(XReg::X16, destination);
+        };
         self.emit_usize_value_to_x(left, XReg::X16)?;
         self.emit_usize_value_to_x(right, destination)?;
         self.encoder.emit_umulh_x(XReg::X17, XReg::X16, destination);
@@ -1234,7 +1582,13 @@ impl EntryEmitter {
         left: &UsizeValue,
         right: &UsizeValue,
     ) -> Result<(), Vec<Diagnostic>> {
-        let destination = self.usize_location_register(destination)?;
+        let Some(destination) = self.usize_register_destination(destination)? else {
+            self.emit_usize_value_to_x(right, XReg::X17)?;
+            self.emit_usize_division_safety_checks(XReg::X17)?;
+            self.emit_usize_value_to_x(left, XReg::X16)?;
+            self.encoder.emit_udiv_x(XReg::X16, XReg::X16, XReg::X17);
+            return self.emit_x_to_usize_location(XReg::X16, destination);
+        };
         self.emit_usize_value_to_x(left, XReg::X16)?;
         self.emit_usize_value_to_x(right, destination)?;
         self.emit_usize_division_safety_checks(destination)?;
@@ -1249,7 +1603,15 @@ impl EntryEmitter {
         left: &UsizeValue,
         right: &UsizeValue,
     ) -> Result<(), Vec<Diagnostic>> {
-        let destination = self.usize_location_register(destination)?;
+        let Some(destination) = self.usize_register_destination(destination)? else {
+            self.emit_usize_value_to_x(right, XReg::X17)?;
+            self.emit_usize_division_safety_checks(XReg::X17)?;
+            self.emit_usize_value_to_x(left, XReg::X16)?;
+            self.encoder.emit_udiv_x(XReg::X8, XReg::X16, XReg::X17);
+            self.encoder
+                .emit_msub_x(XReg::X16, XReg::X8, XReg::X17, XReg::X16);
+            return self.emit_x_to_usize_location(XReg::X16, destination);
+        };
         self.emit_usize_value_to_x(left, XReg::X16)?;
         self.emit_usize_value_to_x(right, destination)?;
         self.emit_usize_division_safety_checks(destination)?;
@@ -1265,7 +1627,13 @@ impl EntryEmitter {
         left: &UsizeValue,
         right: &UsizeValue,
     ) -> Result<(), Vec<Diagnostic>> {
-        let destination = self.usize_location_register(destination)?;
+        let Some(destination) = self.usize_register_destination(destination)? else {
+            self.emit_usize_value_to_x(right, XReg::X17)?;
+            self.emit_usize_shift_count_safety_checks_with_scratch(XReg::X17, XReg::X16)?;
+            self.emit_usize_value_to_x(left, XReg::X16)?;
+            self.encoder.emit_lslv_x(XReg::X16, XReg::X16, XReg::X17);
+            return self.emit_x_to_usize_location(XReg::X16, destination);
+        };
         self.emit_usize_value_to_x(left, XReg::X16)?;
         self.emit_usize_value_to_x(right, destination)?;
         self.emit_usize_shift_count_safety_checks(destination)?;
@@ -1280,7 +1648,13 @@ impl EntryEmitter {
         left: &UsizeValue,
         right: &UsizeValue,
     ) -> Result<(), Vec<Diagnostic>> {
-        let destination = self.usize_location_register(destination)?;
+        let Some(destination) = self.usize_register_destination(destination)? else {
+            self.emit_usize_value_to_x(right, XReg::X17)?;
+            self.emit_usize_shift_count_safety_checks_with_scratch(XReg::X17, XReg::X16)?;
+            self.emit_usize_value_to_x(left, XReg::X16)?;
+            self.encoder.emit_lsrv_x(XReg::X16, XReg::X16, XReg::X17);
+            return self.emit_x_to_usize_location(XReg::X16, destination);
+        };
         self.emit_usize_value_to_x(left, XReg::X16)?;
         self.emit_usize_value_to_x(right, destination)?;
         self.emit_usize_shift_count_safety_checks(destination)?;
@@ -1290,13 +1664,21 @@ impl EntryEmitter {
     }
 
     fn emit_i32_shift_count_safety_checks(&mut self, count: WReg) -> Result<(), Vec<Diagnostic>> {
+        self.emit_i32_shift_count_safety_checks_with_scratch(count, WReg::W17)
+    }
+
+    fn emit_i32_shift_count_safety_checks_with_scratch(
+        &mut self,
+        count: WReg,
+        scratch: WReg,
+    ) -> Result<(), Vec<Diagnostic>> {
         self.encoder.emit_cmp_w_zero(count);
         let count_nonnegative = self.emit_cond_branch_placeholder(BranchCondition::Ge);
         self.emit_trap();
         self.patch_branch_placeholder_to_current(count_nonnegative, "shift non-negative target")?;
 
-        emit_mov_i32_to_w(&mut self.encoder, WReg::W17, I32_BIT_WIDTH);
-        self.encoder.emit_cmp_w(count, WReg::W17);
+        emit_mov_i32_to_w(&mut self.encoder, scratch, I32_BIT_WIDTH);
+        self.encoder.emit_cmp_w(count, scratch);
         let count_in_range = self.emit_cond_branch_placeholder(BranchCondition::Lt);
         self.emit_trap();
         self.patch_branch_placeholder_to_current(count_in_range, "shift count in-range target")?;
@@ -1305,8 +1687,16 @@ impl EntryEmitter {
     }
 
     fn emit_usize_shift_count_safety_checks(&mut self, count: XReg) -> Result<(), Vec<Diagnostic>> {
-        emit_mov_u64_to_x(&mut self.encoder, XReg::X17, USIZE_BIT_WIDTH);
-        self.encoder.emit_cmp_x(count, XReg::X17);
+        self.emit_usize_shift_count_safety_checks_with_scratch(count, XReg::X17)
+    }
+
+    fn emit_usize_shift_count_safety_checks_with_scratch(
+        &mut self,
+        count: XReg,
+        scratch: XReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        emit_mov_u64_to_x(&mut self.encoder, scratch, USIZE_BIT_WIDTH);
+        self.encoder.emit_cmp_x(count, scratch);
         let count_in_range = self.emit_cond_branch_placeholder(BranchCondition::Cc);
         self.emit_trap();
         self.patch_branch_placeholder_to_current(count_in_range, "shift count in-range target")?;
@@ -1347,6 +1737,37 @@ impl EntryEmitter {
         self.patch_branch_placeholder_to_current(
             divisor_not_minus_one,
             "signed division overflow divisor target",
+        )?;
+
+        Ok(())
+    }
+
+    fn emit_i32_division_safety_checks_for_values(
+        &mut self,
+        dividend: &I32Value,
+        divisor: &I32Value,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_i32_value_to_w(divisor, WReg::W17)?;
+        self.encoder.emit_cmp_w_zero(WReg::W17);
+        let divisor_nonzero = self.emit_cond_branch_placeholder(BranchCondition::Ne);
+        self.emit_trap();
+        self.patch_branch_placeholder_to_current(divisor_nonzero, "division non-zero target")?;
+
+        emit_mov_i32_to_w(&mut self.encoder, WReg::W16, -1);
+        self.encoder.emit_cmp_w(WReg::W17, WReg::W16);
+        let divisor_not_minus_one = self.emit_cond_branch_placeholder(BranchCondition::Ne);
+        self.emit_i32_value_to_w(dividend, WReg::W16)?;
+        emit_mov_i32_to_w(&mut self.encoder, WReg::W17, i32::MIN);
+        self.encoder.emit_cmp_w(WReg::W16, WReg::W17);
+        let dividend_not_min = self.emit_cond_branch_placeholder(BranchCondition::Ne);
+        self.emit_trap();
+        self.patch_branch_placeholder_to_current(
+            divisor_not_minus_one,
+            "signed division overflow divisor target",
+        )?;
+        self.patch_branch_placeholder_to_current(
+            dividend_not_min,
+            "signed division overflow dividend target",
         )?;
 
         Ok(())
@@ -1455,9 +1876,13 @@ impl EntryEmitter {
                     self.emit_parameter_word_to_w(*index, destination)?;
                     return Ok(());
                 }
-                let source = self.i32_location_register(*location)?;
-                if source != destination {
-                    self.encoder.emit_mov_w(destination, source);
+                if let I32Location::Local(index) = location {
+                    self.emit_local_word_to_w(*index, destination, LocalScalarWidth::I32)?;
+                } else {
+                    let source = self.i32_location_register(*location)?;
+                    if source != destination {
+                        self.encoder.emit_mov_w(destination, source);
+                    }
                 }
             }
             I32Value::U8ZeroExtend(value) => {
@@ -1480,9 +1905,13 @@ impl EntryEmitter {
                     self.emit_parameter_word_to_x(*index, destination)?;
                     return Ok(());
                 }
-                let source = self.usize_location_register(*location)?;
-                if source != destination {
-                    self.encoder.emit_mov_x(destination, source);
+                if let UsizeLocation::Local(index) = location {
+                    self.emit_local_word_to_x(*index, destination)?;
+                } else {
+                    let source = self.usize_location_register(*location)?;
+                    if source != destination {
+                        self.encoder.emit_mov_x(destination, source);
+                    }
                 }
             }
             UsizeValue::U8ZeroExtend(value) => {
@@ -1493,22 +1922,34 @@ impl EntryEmitter {
             }
             UsizeValue::StrLen(location) => {
                 if let StrLocation::Parameter(index) = *location {
-                    self.emit_parameter_word_to_x(index + 1, destination)?;
+                    let len_index = pair_len_index(index, "parameter str")?;
+                    self.emit_parameter_word_to_x(len_index, destination)?;
                     return Ok(());
                 }
-                let (_, source) = self.str_location_registers(*location)?;
-                if source != destination {
-                    self.encoder.emit_mov_x(destination, source);
+                if let StrLocation::Local(index) = *location {
+                    let len_index = pair_len_index(index, "local str")?;
+                    self.emit_local_word_to_x(len_index, destination)?;
+                } else {
+                    let (_, source) = self.str_location_registers(*location)?;
+                    if source != destination {
+                        self.encoder.emit_mov_x(destination, source);
+                    }
                 }
             }
             UsizeValue::SliceLen(location) => {
                 if let SliceLocation::Parameter(index) = *location {
-                    self.emit_parameter_word_to_x(index + 1, destination)?;
+                    let len_index = pair_len_index(index, "parameter slice")?;
+                    self.emit_parameter_word_to_x(len_index, destination)?;
                     return Ok(());
                 }
-                let (_, source) = self.slice_location_registers(*location)?;
-                if source != destination {
-                    self.encoder.emit_mov_x(destination, source);
+                if let SliceLocation::Local(index) = *location {
+                    let len_index = pair_len_index(index, "local slice")?;
+                    self.emit_local_word_to_x(len_index, destination)?;
+                } else {
+                    let (_, source) = self.slice_location_registers(*location)?;
+                    if source != destination {
+                        self.encoder.emit_mov_x(destination, source);
+                    }
                 }
             }
         }
@@ -1530,14 +1971,22 @@ impl EntryEmitter {
                     self.emit_parameter_word_to_w(*index, destination)?;
                     return Ok(());
                 }
-                let source = self.u8_location_register(*location)?;
-                if source != destination {
-                    self.encoder.emit_mov_w(destination, source);
+                if let U8Location::Local(index) = location {
+                    self.emit_local_word_to_w(*index, destination, LocalScalarWidth::Byte)?;
+                } else {
+                    let source = self.u8_location_register(*location)?;
+                    if source != destination {
+                        self.encoder.emit_mov_w(destination, source);
+                    }
                 }
             }
             U8Value::StrIndex { source, index } => {
                 if let StrLocation::Parameter(parameter_index) = *source {
                     self.emit_checked_parameter_byte_load(destination, parameter_index, index)?;
+                    return Ok(());
+                }
+                if let StrLocation::Local(local_index) = *source {
+                    self.emit_checked_local_byte_load(destination, local_index, index)?;
                     return Ok(());
                 }
                 let (ptr, len) = self.str_location_registers(*source)?;
@@ -1554,6 +2003,10 @@ impl EntryEmitter {
             U8Value::SliceIndex { source, index } => {
                 if let SliceLocation::Parameter(parameter_index) = *source {
                     self.emit_checked_parameter_byte_load(destination, parameter_index, index)?;
+                    return Ok(());
+                }
+                if let SliceLocation::Local(local_index) = *source {
+                    self.emit_checked_local_byte_load(destination, local_index, index)?;
                     return Ok(());
                 }
                 let (ptr, len) = self.slice_location_registers(*source)?;
@@ -1577,6 +2030,24 @@ impl EntryEmitter {
         self.emit_parameter_word_to_x(len_word_index, XReg::X17)?;
         self.emit_index_in_bounds_check(XReg::X16, XReg::X17)?;
         self.emit_parameter_word_to_x(ptr_word_index, XReg::X17)?;
+        self.encoder
+            .emit_ldrb_w_reg(destination, XReg::X17, XReg::X16);
+        Ok(())
+    }
+
+    fn emit_checked_local_byte_load(
+        &mut self,
+        destination: WReg,
+        ptr_word_index: usize,
+        index: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let len_word_index = ptr_word_index
+            .checked_add(1)
+            .ok_or_else(|| byte_load_diagnostic("local length word index overflows"))?;
+        self.emit_usize_value_to_x(index, XReg::X16)?;
+        self.emit_local_word_to_x(len_word_index, XReg::X17)?;
+        self.emit_index_in_bounds_check(XReg::X16, XReg::X17)?;
+        self.emit_local_word_to_x(ptr_word_index, XReg::X17)?;
         self.encoder
             .emit_ldrb_w_reg(destination, XReg::X17, XReg::X16);
         Ok(())
@@ -1621,11 +2092,20 @@ impl EntryEmitter {
                     self.emit_parameter_word_to_w(*index, destination)?;
                     return Ok(());
                 }
-                let source = self.bool_location_register(*location)?;
-                if source != destination {
-                    self.encoder.emit_mov_w(destination, source);
+                if let BoolLocation::Local(index) = location {
+                    self.emit_local_word_to_w(*index, destination, LocalScalarWidth::Byte)?;
+                } else {
+                    let source = self.bool_location_register(*location)?;
+                    if source != destination {
+                        self.encoder.emit_mov_w(destination, source);
+                    }
                 }
             }
+            BoolValue::StrComparison {
+                operator,
+                left,
+                right,
+            } => self.emit_str_comparison_to_w(*operator, left, right, destination)?,
             BoolValue::Not(_)
             | BoolValue::Logical { .. }
             | BoolValue::I32Comparison { .. }
@@ -1649,6 +2129,104 @@ impl EntryEmitter {
         Ok(())
     }
 
+    fn emit_str_comparison_to_w(
+        &mut self,
+        operator: BoolComparisonOperator,
+        left: &StrValue,
+        right: &StrValue,
+        destination: WReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let (equal_result, not_equal_result) = match operator {
+            BoolComparisonOperator::Equal => (true, false),
+            BoolComparisonOperator::NotEqual => (false, true),
+        };
+
+        self.emit_str_len_to_x(left, XReg::X16)?;
+        self.emit_str_len_to_x(right, XReg::X17)?;
+        self.encoder.emit_cmp_x(XReg::X16, XReg::X17);
+        let mut not_equal_branches = vec![self.emit_cond_branch_placeholder(BranchCondition::Ne)];
+
+        self.encoder.emit_cmp_x_zero(XReg::X16);
+        let equal_branch = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+        emit_mov_u64_to_x(&mut self.encoder, XReg::X8, 0);
+
+        let loop_start = self.encoder.position();
+        self.emit_str_pointer_to_x(left, XReg::X16)?;
+        self.encoder.emit_ldrb_w_reg(WReg::W16, XReg::X16, XReg::X8);
+        self.emit_str_pointer_to_x(right, XReg::X17)?;
+        self.encoder.emit_ldrb_w_reg(WReg::W17, XReg::X17, XReg::X8);
+        self.encoder.emit_cmp_w(WReg::W16, WReg::W17);
+        not_equal_branches.push(self.emit_cond_branch_placeholder(BranchCondition::Ne));
+
+        self.encoder.emit_add_x_imm(XReg::X8, XReg::X8, 1);
+        self.emit_str_len_to_x(left, XReg::X16)?;
+        self.encoder.emit_cmp_x(XReg::X8, XReg::X16);
+        let has_more = self.emit_cond_branch_placeholder(BranchCondition::Cc);
+        self.patch_branch_placeholder_to_offset(
+            has_more,
+            loop_start,
+            "string comparison loop target",
+        )?;
+
+        self.patch_branch_placeholder_to_current(equal_branch, "empty string equality target")?;
+        emit_mov_i32_to_w(&mut self.encoder, destination, i32::from(equal_result));
+        let end_branch = self.emit_branch_placeholder();
+
+        self.patch_branch_placeholders_to_current(not_equal_branches, "string inequality target")?;
+        emit_mov_i32_to_w(&mut self.encoder, destination, i32::from(not_equal_result));
+        self.patch_branch_placeholder_to_current(end_branch, "string comparison end target")
+    }
+
+    fn emit_str_pointer_to_x(
+        &mut self,
+        value: &StrValue,
+        destination: XReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match value {
+            StrValue::StaticBytes(bytes) => {
+                self.emit_static_data_address(destination, bytes);
+            }
+            StrValue::Location(StrLocation::Return) => {
+                if destination != XReg::X0 {
+                    self.encoder.emit_mov_x(destination, XReg::X0);
+                }
+            }
+            StrValue::Location(StrLocation::Parameter(index)) => {
+                self.emit_parameter_word_to_x(*index, destination)?;
+            }
+            StrValue::Location(StrLocation::Local(index)) => {
+                self.emit_local_word_to_x(*index, destination)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn emit_str_len_to_x(
+        &mut self,
+        value: &StrValue,
+        destination: XReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match value {
+            StrValue::StaticBytes(bytes) => {
+                emit_mov_u64_to_x(&mut self.encoder, destination, bytes.len() as u64);
+            }
+            StrValue::Location(StrLocation::Return) => {
+                if destination != XReg::X1 {
+                    self.encoder.emit_mov_x(destination, XReg::X1);
+                }
+            }
+            StrValue::Location(StrLocation::Parameter(index)) => {
+                let len_index = pair_len_index(*index, "parameter str")?;
+                self.emit_parameter_word_to_x(len_index, destination)?;
+            }
+            StrValue::Location(StrLocation::Local(index)) => {
+                let len_index = pair_len_index(*index, "local str")?;
+                self.emit_local_word_to_x(len_index, destination)?;
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn emit_str_value_to_x_pair(
         &mut self,
         value: &StrValue,
@@ -1662,16 +2240,23 @@ impl EntryEmitter {
             }
             StrValue::Location(location) => {
                 if let StrLocation::Parameter(index) = *location {
-                    self.emit_parameter_word_to_x(index, ptr_destination)?;
-                    self.emit_parameter_word_to_x(index + 1, len_destination)?;
+                    self.emit_parameter_word_pair_to_x_pair(
+                        index,
+                        ptr_destination,
+                        len_destination,
+                    )?;
                     return Ok(());
                 }
-                let (ptr_source, len_source) = self.str_location_registers(*location)?;
-                if ptr_source != ptr_destination {
-                    self.encoder.emit_mov_x(ptr_destination, ptr_source);
-                }
-                if len_source != len_destination {
-                    self.encoder.emit_mov_x(len_destination, len_source);
+                if let StrLocation::Local(index) = *location {
+                    self.emit_local_word_pair_to_x_pair(index, ptr_destination, len_destination)?;
+                } else {
+                    let (ptr_source, len_source) = self.str_location_registers(*location)?;
+                    self.emit_x_pair_to_x_pair(
+                        ptr_source,
+                        len_source,
+                        ptr_destination,
+                        len_destination,
+                    )?;
                 }
             }
         }
@@ -1691,16 +2276,23 @@ impl EntryEmitter {
             }
             SliceValue::Location(location) => {
                 if let SliceLocation::Parameter(index) = *location {
-                    self.emit_parameter_word_to_x(index, ptr_destination)?;
-                    self.emit_parameter_word_to_x(index + 1, len_destination)?;
+                    self.emit_parameter_word_pair_to_x_pair(
+                        index,
+                        ptr_destination,
+                        len_destination,
+                    )?;
                     return Ok(());
                 }
-                let (ptr_source, len_source) = self.slice_location_registers(*location)?;
-                if ptr_source != ptr_destination {
-                    self.encoder.emit_mov_x(ptr_destination, ptr_source);
-                }
-                if len_source != len_destination {
-                    self.encoder.emit_mov_x(len_destination, len_source);
+                if let SliceLocation::Local(index) = *location {
+                    self.emit_local_word_pair_to_x_pair(index, ptr_destination, len_destination)?;
+                } else {
+                    let (ptr_source, len_source) = self.slice_location_registers(*location)?;
+                    self.emit_x_pair_to_x_pair(
+                        ptr_source,
+                        len_source,
+                        ptr_destination,
+                        len_destination,
+                    )?;
                 }
             }
         }
@@ -1717,6 +2309,27 @@ fn validate_aggregate_usize_field_offset(offset: u32) -> Result<(), Vec<Diagnost
     }
 
     Ok(())
+}
+
+fn pair_len_index(first_index: usize, subject: &str) -> Result<usize, Vec<Diagnostic>> {
+    first_index.checked_add(1).ok_or_else(|| {
+        vec![Diagnostic::error(
+            "E9005",
+            format!("{subject} length word index overflows"),
+        )]
+    })
+}
+
+fn pair_scratch_register(excluded: &[XReg]) -> Result<XReg, Vec<Diagnostic>> {
+    [XReg::X17, XReg::X16, XReg::X8]
+        .into_iter()
+        .find(|register| !excluded.contains(register))
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "E9005",
+                "view pair move has no available scratch register",
+            )]
+        })
 }
 
 fn validate_aggregate_i32_field_offset(offset: u32) -> Result<(), Vec<Diagnostic>> {

@@ -15,6 +15,7 @@ use super::functions::{
     lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
     lower_scope_end_drops_for_locals_since, lower_value_return_with_scope_drops,
     mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
+    payloadless_if_is_as_if_statement, payloadless_switch_as_if_statement,
 };
 use crate::ast::{
     AssignmentOperator, BinaryExpr, BinaryOperator, Block, Expr, ForRangeStmt, IfStmt, LoopStmt,
@@ -817,6 +818,53 @@ fn lower_nonterminal_loop_block_statements(
                 ends_execution = instruction_list_ends_execution(&lowered);
                 instructions.extend(lowered);
             }
+            Stmt::IfIs(statement) => {
+                let if_statement =
+                    payloadless_if_is_as_if_statement(statement, context, diagnostic_code)
+                        .map_err(|diagnostics| {
+                            attach_primary_span_if_absent(
+                                diagnostics,
+                                sources,
+                                statement.pattern_span,
+                            )
+                        })?;
+                let lowered = lower_nonterminal_if_statement(
+                    &if_statement,
+                    context,
+                    loop_scope_mark,
+                    continue_instructions,
+                    diagnostic_code,
+                    subject,
+                    sources,
+                )
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                })?;
+                ends_execution = instruction_list_ends_execution(&lowered);
+                instructions.extend(lowered);
+            }
+            Stmt::Switch(statement) => {
+                let switch =
+                    payloadless_switch_as_if_statement(statement, context, diagnostic_code)
+                        .map_err(|diagnostics| {
+                            attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                        })?;
+                instructions.extend(switch.leading_instructions);
+                let lowered = lower_nonterminal_if_statement(
+                    &switch.if_statement,
+                    context,
+                    loop_scope_mark,
+                    continue_instructions,
+                    diagnostic_code,
+                    subject,
+                    sources,
+                )
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                })?;
+                ends_execution = instruction_list_ends_execution(&lowered);
+                instructions.extend(lowered);
+            }
             Stmt::While(statement) => instructions.extend(
                 lower_nonterminal_while_statement(
                     statement,
@@ -937,6 +985,23 @@ fn statement_exits_function(statement: &Stmt, context: &LoweringContext) -> bool
             block_exits_function(&statement.then_block, context)
                 && block_exits_function(else_block, context)
         }
+        Stmt::IfIs(statement) => {
+            let Some(else_block) = &statement.else_block else {
+                return false;
+            };
+            block_exits_function(&statement.then_block, context)
+                && block_exits_function(else_block, context)
+        }
+        Stmt::Switch(statement) => {
+            let Some(else_arm) = &statement.else_arm else {
+                return false;
+            };
+            statement
+                .arms
+                .iter()
+                .all(|arm| block_exits_function(&arm.body, context))
+                && block_exits_function(&else_arm.body, context)
+        }
         _ => false,
     }
 }
@@ -967,6 +1032,23 @@ fn statement_may_exit_current_loop(statement: &Stmt) -> bool {
                     .else_block
                     .as_ref()
                     .is_some_and(block_may_exit_current_loop)
+        }
+        Stmt::IfIs(statement) => {
+            block_may_exit_current_loop(&statement.then_block)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(block_may_exit_current_loop)
+        }
+        Stmt::Switch(statement) => {
+            statement
+                .arms
+                .iter()
+                .any(|arm| block_may_exit_current_loop(&arm.body))
+                || statement
+                    .else_arm
+                    .as_ref()
+                    .is_some_and(|arm| block_may_exit_current_loop(&arm.body))
         }
         Stmt::While(_) | Stmt::Loop(_) => false,
         _ => false,
@@ -1282,6 +1364,36 @@ fn lower_i32_return_block(
             )?);
             Ok(instructions)
         }
+        Stmt::IfIs(statement) => {
+            let if_statement =
+                payloadless_if_is_as_if_statement(statement, &branch_context, diagnostic_code)?;
+            instructions.extend(lower_terminal_i32_if_statement(
+                &if_statement,
+                &branch_context,
+                return_type,
+                diagnostic_code,
+                subject,
+                sources,
+            )?);
+            Ok(instructions)
+        }
+        Stmt::Switch(statement) => {
+            let switch = payloadless_switch_as_if_statement(
+                statement,
+                &mut branch_context,
+                diagnostic_code,
+            )?;
+            instructions.extend(switch.leading_instructions);
+            instructions.extend(lower_terminal_i32_if_statement(
+                &switch.if_statement,
+                &branch_context,
+                return_type,
+                diagnostic_code,
+                subject,
+                sources,
+            )?);
+            Ok(instructions)
+        }
         Stmt::Expression(statement) => {
             let Some(terminating_instructions) = lower_never_expression_with_scope_drops(
                 &statement.expression,
@@ -1351,6 +1463,36 @@ fn lower_bool_return_block(
         Stmt::If(statement) => {
             instructions.extend(lower_terminal_bool_if_statement(
                 statement,
+                &branch_context,
+                return_type,
+                diagnostic_code,
+                subject,
+                sources,
+            )?);
+            Ok(instructions)
+        }
+        Stmt::IfIs(statement) => {
+            let if_statement =
+                payloadless_if_is_as_if_statement(statement, &branch_context, diagnostic_code)?;
+            instructions.extend(lower_terminal_bool_if_statement(
+                &if_statement,
+                &branch_context,
+                return_type,
+                diagnostic_code,
+                subject,
+                sources,
+            )?);
+            Ok(instructions)
+        }
+        Stmt::Switch(statement) => {
+            let switch = payloadless_switch_as_if_statement(
+                statement,
+                &mut branch_context,
+                diagnostic_code,
+            )?;
+            instructions.extend(switch.leading_instructions);
+            instructions.extend(lower_terminal_bool_if_statement(
+                &switch.if_statement,
                 &branch_context,
                 return_type,
                 diagnostic_code,
@@ -1440,6 +1582,40 @@ fn lower_scalar_return_block(
             )?);
             Ok(instructions)
         }
+        Stmt::IfIs(statement) => {
+            let if_statement =
+                payloadless_if_is_as_if_statement(statement, &branch_context, diagnostic_code)?;
+            instructions.extend(lower_terminal_scalar_if_statement(
+                &if_statement,
+                &branch_context,
+                return_type,
+                diagnostic_code,
+                subject,
+                return_label,
+                lower_return_expression,
+                sources,
+            )?);
+            Ok(instructions)
+        }
+        Stmt::Switch(statement) => {
+            let switch = payloadless_switch_as_if_statement(
+                statement,
+                &mut branch_context,
+                diagnostic_code,
+            )?;
+            instructions.extend(switch.leading_instructions);
+            instructions.extend(lower_terminal_scalar_if_statement(
+                &switch.if_statement,
+                &branch_context,
+                return_type,
+                diagnostic_code,
+                subject,
+                return_label,
+                lower_return_expression,
+                sources,
+            )?);
+            Ok(instructions)
+        }
         Stmt::Expression(statement) => {
             let Some(terminating_instructions) = lower_never_expression_with_scope_drops(
                 &statement.expression,
@@ -1490,6 +1666,36 @@ fn lower_void_return_block(
         Stmt::If(statement) => {
             instructions.extend(lower_terminal_void_if_statement(
                 statement,
+                &branch_context,
+                return_type,
+                diagnostic_code,
+                subject,
+                sources,
+            )?);
+            Ok(instructions)
+        }
+        Stmt::IfIs(statement) => {
+            let if_statement =
+                payloadless_if_is_as_if_statement(statement, &branch_context, diagnostic_code)?;
+            instructions.extend(lower_terminal_void_if_statement(
+                &if_statement,
+                &branch_context,
+                return_type,
+                diagnostic_code,
+                subject,
+                sources,
+            )?);
+            Ok(instructions)
+        }
+        Stmt::Switch(statement) => {
+            let switch = payloadless_switch_as_if_statement(
+                statement,
+                &mut branch_context,
+                diagnostic_code,
+            )?;
+            instructions.extend(switch.leading_instructions);
+            instructions.extend(lower_terminal_void_if_statement(
+                &switch.if_statement,
                 &branch_context,
                 return_type,
                 diagnostic_code,

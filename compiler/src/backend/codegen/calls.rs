@@ -1,6 +1,6 @@
 use super::{
     DARWIN_SYSCALL_TRAP, EntryEmitter, FunctionCallPatch, FunctionSymbol,
-    control_flow::BranchPatch, emit_mov_i32_to_w, emit_mov_u64_to_x,
+    control_flow::BranchPatch, emit_mov_i32_to_w, emit_mov_u64_to_x, values::LocalScalarWidth,
 };
 use crate::abi::{ABI_WORD_SIZE, ARGUMENT_REGISTER_COUNT, ValueLayout};
 use crate::backend::frame::{ArgumentStagingSlot, FrameLayout};
@@ -72,7 +72,8 @@ impl EntryEmitter {
     ) -> Result<(), Vec<Diagnostic>> {
         self.emit_syscall_word_to_staging(0, number, frame)?;
         for (index, argument) in arguments.iter().enumerate() {
-            self.emit_syscall_word_to_staging(index + 1, argument, frame)?;
+            let abi_word_index = next_abi_word_index(index, "macOS syscall argument index")?;
+            self.emit_syscall_word_to_staging(abi_word_index, argument, frame)?;
         }
 
         let number_slot = staging_slot(frame, 0)?;
@@ -84,7 +85,8 @@ impl EntryEmitter {
                     format!("macOS syscall argument {index} has no ARM64 argument register"),
                 )]);
             };
-            let slot = staging_slot(frame, index + 1)?;
+            let abi_word_index = next_abi_word_index(index, "macOS syscall argument index")?;
+            let slot = staging_slot(frame, abi_word_index)?;
             self.encoder.emit_ldr_x_sp(register, slot.offset());
         }
         Ok(())
@@ -833,47 +835,52 @@ impl EntryEmitter {
                     let slot = staging_slot(frame, abi_word_index)?;
                     self.emit_i32_value_to_w(value, WReg::W16)?;
                     self.encoder.emit_str_w_sp(WReg::W16, slot.offset());
-                    abi_word_index += 1;
+                    abi_word_index = next_abi_word_index(abi_word_index, "call argument index")?;
                 }
                 ScalarArgument::U8(value) => {
                     let slot = staging_slot(frame, abi_word_index)?;
                     self.emit_u8_value_to_w(value, WReg::W16)?;
                     self.encoder.emit_str_w_sp(WReg::W16, slot.offset());
-                    abi_word_index += 1;
+                    abi_word_index = next_abi_word_index(abi_word_index, "call argument index")?;
                 }
                 ScalarArgument::Usize(value) => {
                     let slot = staging_slot(frame, abi_word_index)?;
                     self.emit_usize_value_to_x(value, XReg::X16)?;
                     self.encoder.emit_str_x_sp(XReg::X16, slot.offset());
-                    abi_word_index += 1;
+                    abi_word_index = next_abi_word_index(abi_word_index, "call argument index")?;
                 }
                 ScalarArgument::Bool(value) => {
                     let slot = staging_slot(frame, abi_word_index)?;
                     self.emit_bool_value_to_w(value, WReg::W16)?;
                     self.encoder.emit_str_w_sp(WReg::W16, slot.offset());
-                    abi_word_index += 1;
+                    abi_word_index = next_abi_word_index(abi_word_index, "call argument index")?;
                 }
                 ScalarArgument::Str(value) => {
                     let ptr_slot = staging_slot(frame, abi_word_index)?;
-                    let len_slot = staging_slot(frame, abi_word_index + 1)?;
+                    let len_word_index = next_abi_word_index(abi_word_index, "call str argument")?;
+                    let len_slot = staging_slot(frame, len_word_index)?;
                     self.emit_str_value_to_x_pair(value, XReg::X16, XReg::X17)?;
                     self.encoder.emit_str_x_sp(XReg::X16, ptr_slot.offset());
                     self.encoder.emit_str_x_sp(XReg::X17, len_slot.offset());
-                    abi_word_index += 2;
+                    abi_word_index =
+                        advance_abi_word_index(abi_word_index, 2, "call argument index")?;
                 }
                 ScalarArgument::Slice(value) => {
                     let ptr_slot = staging_slot(frame, abi_word_index)?;
-                    let len_slot = staging_slot(frame, abi_word_index + 1)?;
+                    let len_word_index =
+                        next_abi_word_index(abi_word_index, "call slice argument")?;
+                    let len_slot = staging_slot(frame, len_word_index)?;
                     self.emit_slice_value_to_x_pair(value, XReg::X16, XReg::X17)?;
                     self.encoder.emit_str_x_sp(XReg::X16, ptr_slot.offset());
                     self.encoder.emit_str_x_sp(XReg::X17, len_slot.offset());
-                    abi_word_index += 2;
+                    abi_word_index =
+                        advance_abi_word_index(abi_word_index, 2, "call argument index")?;
                 }
                 ScalarArgument::Borrow(argument) => {
                     let slot = staging_slot(frame, abi_word_index)?;
                     self.emit_borrow_source_address_to_x(argument.source, XReg::X16, frame)?;
                     self.encoder.emit_str_x_sp(XReg::X16, slot.offset());
-                    abi_word_index += 1;
+                    abi_word_index = next_abi_word_index(abi_word_index, "call argument index")?;
                 }
                 ScalarArgument::AggregateIndirect(argument) => {
                     let slot = staging_slot(frame, abi_word_index)?;
@@ -883,7 +890,7 @@ impl EntryEmitter {
                         frame,
                     )?;
                     self.encoder.emit_str_x_sp(XReg::X16, slot.offset());
-                    abi_word_index += 1;
+                    abi_word_index = next_abi_word_index(abi_word_index, "call argument index")?;
                 }
                 ScalarArgument::AggregateDirect(argument) => {
                     if argument.words != argument.layout.size.div_ceil(8) as usize {
@@ -893,7 +900,12 @@ impl EntryEmitter {
                         )]);
                     }
                     for word_index in 0..argument.words {
-                        let slot = staging_slot(frame, abi_word_index + word_index)?;
+                        let register_index = advance_abi_word_index(
+                            abi_word_index,
+                            word_index,
+                            "direct aggregate argument index",
+                        )?;
+                        let slot = staging_slot(frame, register_index)?;
                         self.emit_direct_aggregate_argument_word_to_staging_slot(
                             argument.source,
                             argument.layout,
@@ -902,7 +914,11 @@ impl EntryEmitter {
                             frame,
                         )?;
                     }
-                    abi_word_index += argument.words;
+                    abi_word_index = advance_abi_word_index(
+                        abi_word_index,
+                        argument.words,
+                        "call argument index",
+                    )?;
                 }
             }
         }
@@ -924,7 +940,7 @@ impl EntryEmitter {
                         slot,
                         outgoing_stack.area_size,
                     )?;
-                    abi_word_index += 1;
+                    abi_word_index = next_abi_word_index(abi_word_index, "call argument index")?;
                 }
                 ScalarArgument::Usize(_)
                 | ScalarArgument::Borrow(_)
@@ -935,11 +951,15 @@ impl EntryEmitter {
                         slot,
                         outgoing_stack.area_size,
                     )?;
-                    abi_word_index += 1;
+                    abi_word_index = next_abi_word_index(abi_word_index, "call argument index")?;
                 }
                 ScalarArgument::AggregateDirect(argument) => {
                     for word_index in 0..argument.words {
-                        let register_index = abi_word_index + word_index;
+                        let register_index = advance_abi_word_index(
+                            abi_word_index,
+                            word_index,
+                            "direct aggregate argument index",
+                        )?;
                         let slot = staging_slot(frame, register_index)?;
                         self.emit_staged_x_argument_word(
                             register_index,
@@ -947,10 +967,14 @@ impl EntryEmitter {
                             outgoing_stack.area_size,
                         )?;
                     }
-                    abi_word_index += argument.words;
+                    abi_word_index = advance_abi_word_index(
+                        abi_word_index,
+                        argument.words,
+                        "call argument index",
+                    )?;
                 }
                 ScalarArgument::Str(_) | ScalarArgument::Slice(_) => {
-                    let len_word_index = abi_word_index + 1;
+                    let len_word_index = next_abi_word_index(abi_word_index, "view argument")?;
                     let ptr_slot = staging_slot(frame, abi_word_index)?;
                     let len_slot = staging_slot(frame, len_word_index)?;
                     self.emit_staged_x_argument_word(
@@ -963,7 +987,8 @@ impl EntryEmitter {
                         len_slot,
                         outgoing_stack.area_size,
                     )?;
-                    abi_word_index += 2;
+                    abi_word_index =
+                        advance_abi_word_index(abi_word_index, 2, "call argument index")?;
                 }
             }
         }
@@ -1018,16 +1043,9 @@ impl EntryEmitter {
         frame: &FrameLayout,
     ) -> Result<(), Vec<Diagnostic>> {
         for slot in frame.scalar_spill_slots() {
-            let register = XReg::local(slot.local_index()).ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "E9004",
-                    format!(
-                        "codegen supports at most 7 local scalar bindings, got local {}",
-                        slot.local_index()
-                    ),
-                )]
-            })?;
-            self.encoder.emit_str_x_sp(register, slot.offset());
+            if let Some(register) = XReg::local(slot.local_index()) {
+                self.encoder.emit_str_x_sp(register, slot.offset());
+            }
         }
 
         Ok(())
@@ -1038,16 +1056,9 @@ impl EntryEmitter {
         frame: &FrameLayout,
     ) -> Result<(), Vec<Diagnostic>> {
         for slot in frame.scalar_spill_slots() {
-            let register = XReg::local(slot.local_index()).ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "E9004",
-                    format!(
-                        "codegen supports at most 7 local scalar bindings, got local {}",
-                        slot.local_index()
-                    ),
-                )]
-            })?;
-            self.encoder.emit_ldr_x_sp(register, slot.offset());
+            if let Some(register) = XReg::local(slot.local_index()) {
+                self.encoder.emit_ldr_x_sp(register, slot.offset());
+            }
         }
 
         Ok(())
@@ -1107,6 +1118,10 @@ impl EntryEmitter {
         source: WReg,
         destination: I32Location,
     ) -> Result<(), Vec<Diagnostic>> {
+        if let I32Location::Local(index) = destination {
+            return self.emit_w_to_local_word(source, index, LocalScalarWidth::I32);
+        }
+
         let destination = self.i32_location_register(destination)?;
         if destination != source {
             self.encoder.emit_mov_w(destination, source);
@@ -1127,6 +1142,10 @@ impl EntryEmitter {
         source: XReg,
         destination: UsizeLocation,
     ) -> Result<(), Vec<Diagnostic>> {
+        if let UsizeLocation::Local(index) = destination {
+            return self.emit_x_to_local_word(source, index);
+        }
+
         let destination = self.usize_location_register(destination)?;
         if destination != source {
             self.encoder.emit_mov_x(destination, source);
@@ -1142,11 +1161,15 @@ impl EntryEmitter {
         self.emit_w_to_u8_location(WReg::W0, destination)
     }
 
-    fn emit_w_to_u8_location(
+    pub(super) fn emit_w_to_u8_location(
         &mut self,
         source: WReg,
         destination: U8Location,
     ) -> Result<(), Vec<Diagnostic>> {
+        if let U8Location::Local(index) = destination {
+            return self.emit_w_to_local_word(source, index, LocalScalarWidth::Byte);
+        }
+
         let destination = self.u8_location_register(destination)?;
         if destination != source {
             self.encoder.emit_mov_w(destination, source);
@@ -1162,11 +1185,15 @@ impl EntryEmitter {
         self.emit_w_to_bool_location(WReg::W0, destination)
     }
 
-    fn emit_w_to_bool_location(
+    pub(super) fn emit_w_to_bool_location(
         &mut self,
         source: WReg,
         destination: BoolLocation,
     ) -> Result<(), Vec<Diagnostic>> {
+        if let BoolLocation::Local(index) = destination {
+            return self.emit_w_to_local_word(source, index, LocalScalarWidth::Byte);
+        }
+
         let destination = self.bool_location_register(destination)?;
         if destination != source {
             self.encoder.emit_mov_w(destination, source);
@@ -1188,22 +1215,12 @@ impl EntryEmitter {
         len_source: XReg,
         destination: StrLocation,
     ) -> Result<(), Vec<Diagnostic>> {
+        if let StrLocation::Local(index) = destination {
+            return self.emit_x_pair_to_local_words(ptr_source, len_source, index);
+        }
+
         let (ptr_destination, len_destination) = self.str_location_registers(destination)?;
-        let len_source = if ptr_destination == len_source {
-            self.encoder.emit_mov_x(XReg::X17, len_source);
-            XReg::X17
-        } else {
-            len_source
-        };
-
-        if ptr_destination != ptr_source {
-            self.encoder.emit_mov_x(ptr_destination, ptr_source);
-        }
-        if len_destination != len_source {
-            self.encoder.emit_mov_x(len_destination, len_source);
-        }
-
-        Ok(())
+        self.emit_x_pair_to_x_pair(ptr_source, len_source, ptr_destination, len_destination)
     }
 
     fn emit_call_result_to_slice_location(
@@ -1219,22 +1236,12 @@ impl EntryEmitter {
         len_source: XReg,
         destination: SliceLocation,
     ) -> Result<(), Vec<Diagnostic>> {
+        if let SliceLocation::Local(index) = destination {
+            return self.emit_x_pair_to_local_words(ptr_source, len_source, index);
+        }
+
         let (ptr_destination, len_destination) = self.slice_location_registers(destination)?;
-        let len_source = if ptr_destination == len_source {
-            self.encoder.emit_mov_x(XReg::X17, len_source);
-            XReg::X17
-        } else {
-            len_source
-        };
-
-        if ptr_destination != ptr_source {
-            self.encoder.emit_mov_x(ptr_destination, ptr_source);
-        }
-        if len_destination != len_source {
-            self.encoder.emit_mov_x(len_destination, len_source);
-        }
-
-        Ok(())
+        self.emit_x_pair_to_x_pair(ptr_source, len_source, ptr_destination, len_destination)
     }
 }
 
@@ -1254,6 +1261,23 @@ fn staging_slot(
         })?;
     debug_assert_eq!(slot.abi_word_index(), abi_word_index);
     Ok(slot)
+}
+
+fn next_abi_word_index(index: usize, subject: &str) -> Result<usize, Vec<Diagnostic>> {
+    advance_abi_word_index(index, 1, subject)
+}
+
+fn advance_abi_word_index(
+    index: usize,
+    words: usize,
+    subject: &str,
+) -> Result<usize, Vec<Diagnostic>> {
+    index.checked_add(words).ok_or_else(|| {
+        vec![Diagnostic::error(
+            "E9003",
+            format!("{subject} ABI word index overflows"),
+        )]
+    })
 }
 
 fn call_argument_abi_word_count(arguments: &[ScalarArgument]) -> usize {

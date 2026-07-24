@@ -59,7 +59,8 @@ fn return_type_from_type_expr_inner(
                     .or_else(|| aggregate_type_from_type_expr(ty, resolved));
             };
             let Some(target) = &symbol.alias_target else {
-                return aggregate_type_from_type_expr(ty, resolved);
+                return scalar_or_view_type_from_type_expr(ty, resolved)
+                    .or_else(|| aggregate_type_from_type_expr(ty, resolved));
             };
             if !resolving_names.insert(symbol.canonical_name.clone()) {
                 return None;

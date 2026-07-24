@@ -3319,26 +3319,26 @@ func helper(limit: u64): i32 {
 }
 
 #[test]
-fn build_command_reports_match_before_ir_lowering() {
-    let project = TempProject::new("cli-build-match-boundary");
+fn build_command_reports_payload_match_before_ir_lowering() {
+    let project = TempProject::new("cli-build-payload-match-boundary");
     let source = project.write_source(
-        "match_boundary.nct",
-        r#"enum Choice {
-    yes
-    no
+        "payload_match_boundary.nct",
+        r#"enum AppError {
+    missing_path
+    open_failed(path: &str)
 }
 
 func main(): i32 {
-    return describe(Choice.yes)
+    return describe(AppError.missing_path)
 }
 
-func describe(choice: Choice): i32 {
-    match choice {
-        Choice.yes {
+func describe(error: AppError): i32 {
+    match error {
+        AppError.missing_path {
             return 0
         }
 
-        else {
+        AppError.open_failed(path) {
             return 1
         }
     }
@@ -3362,7 +3362,7 @@ func describe(choice: Choice): i32 {
         "expected match diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("11 |     match choice {"),
+        stderr.contains("11 |     match error {"),
         "expected source line, got:\n{stderr}"
     );
     assert!(
@@ -3835,10 +3835,10 @@ func header(): [u8; 2] {
 }
 
 #[test]
-fn build_command_reports_str_equality_before_ir_lowering() {
-    let project = TempProject::new("cli-build-str-equality-boundary");
+fn build_command_accepts_str_equality() {
+    let project = TempProject::new("cli-build-str-equality");
     let source = project.write_source(
-        "str_equality_boundary.nct",
+        "str_equality.nct",
         r#"func main(): i32 {
     if "a" == "b" {
         return 0
@@ -3852,35 +3852,15 @@ fn build_command_reports_str_equality_before_ir_lowering() {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("`&str` equality and inequality comparisons"),
-        "expected str equality diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("2 |     if \"a\" == \"b\" {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
-fn build_command_reports_payloadless_enum_equality_before_ir_lowering() {
-    let project = TempProject::new("cli-build-payloadless-enum-equality-boundary");
+fn build_command_accepts_payloadless_enum_equality() {
+    let project = TempProject::new("cli-build-payloadless-enum-equality");
     let source = project.write_source(
-        "payloadless_enum_equality_boundary.nct",
+        "payloadless_enum_equality.nct",
         r#"enum Choice {
     yes
     no
@@ -3899,6 +3879,131 @@ func main(): i32 {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_accepts_payloadless_if_is() {
+    let project = TempProject::new("cli-build-payloadless-if-is");
+    let source = project.write_source(
+        "payloadless_if_is.nct",
+        r#"enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    let choice = Choice.yes
+    if choice is Choice.yes {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_accepts_payloadless_match() {
+    let project = TempProject::new("cli-build-payloadless-match");
+    let source = project.write_source(
+        "payloadless_match.nct",
+        r#"enum Choice {
+    yes
+    no
+    maybe
+}
+
+func main(): i32 {
+    match choose() {
+        Choice.yes {
+            return 1
+        }
+
+        Choice.no {
+            return 2
+        }
+
+        Choice.maybe {
+            return 3
+        }
+    }
+}
+
+func choose(): Choice {
+    return Choice.yes
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_accepts_payloadless_pattern_conditional() {
+    let project = TempProject::new("cli-build-payloadless-pattern-conditional");
+    let source = project.write_source(
+        "payloadless_pattern_conditional.nct",
+        r#"enum Choice {
+    yes
+    no
+    maybe
+}
+
+func main(): i32 {
+    let choice = Choice.no
+    let code = choice ?{
+        Choice.yes : 1
+        Choice.no : 2
+        : 3
+    }
+    return code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_reports_payload_pattern_conditional_before_ir_lowering() {
+    let project = TempProject::new("cli-build-payload-pattern-conditional-boundary");
+    let source = project.write_source(
+        "payload_pattern_conditional_boundary.nct",
+        r#"enum Result {
+    ok(value: i32)
+    failed
+}
+
+func main(): i32 {
+    let result = Result.ok(10)
+    return result ?{
+        Result.ok(value) : value
+        : 0
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
     assert_eq!(output.status.code(), Some(1));
     let stderr = text(&output.stderr);
     assert!(
@@ -3906,11 +4011,11 @@ func main(): i32 {
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("payloadless enum equality and inequality comparisons"),
-        "expected payloadless enum equality diagnostic, got:\n{stderr}"
+        stderr.contains("pattern conditional `?{}` expressions"),
+        "expected pattern conditional diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("7 |     if Choice.yes == Choice.no {"),
+        stderr.contains("8 |     return result ?{"),
         "expected source line, got:\n{stderr}"
     );
     assert!(
