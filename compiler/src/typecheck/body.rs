@@ -12,9 +12,10 @@ use super::controls::{
 };
 use super::copyability::{implicit_non_copy_struct_value_source, non_copy_struct_type_name};
 use super::diagnostics::{
-    assignment_type_mismatch_diagnostic, immutable_assignment_diagnostic,
-    loop_control_outside_loop_diagnostic, non_copy_struct_assignment_diagnostic,
-    readwrite_borrow_requires_writable_place_diagnostic, self_move_assignment_diagnostic,
+    assignment_type_mismatch_diagnostic, compound_assignment_operand_type_mismatch_diagnostic,
+    immutable_assignment_diagnostic, loop_control_outside_loop_diagnostic,
+    non_copy_struct_assignment_diagnostic, readwrite_borrow_requires_writable_place_diagnostic,
+    self_move_assignment_diagnostic,
 };
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
@@ -29,7 +30,7 @@ use super::fallible::check_force_unwrap_operand;
 use super::model::{TypeEnvironment, binding_kind_is_mutable};
 use super::operations::{
     check_binary_expression, check_optional_default_expression, check_type_conversion_expression,
-    check_unary_expression, is_expression_assignable,
+    check_unary_expression, compound_assignment_operands_match, is_expression_assignable,
 };
 use super::places::expression_is_writable_place;
 use super::strings::check_interpolated_string_expression;
@@ -494,6 +495,26 @@ fn check_assignment_statement(
 
     if !is_expression_assignable(&target_type, &statement.value, resolved, environment) {
         diagnostics.push(assignment_type_mismatch_diagnostic(
+            sources,
+            statement,
+            &target_type,
+            &value_type,
+        ));
+        return;
+    }
+
+    if statement.operator != AssignmentOperator::Assign
+        && !compound_assignment_operands_match(
+            statement.operator,
+            &target_type,
+            &statement.target,
+            &value_type,
+            &statement.value,
+            resolved,
+            environment,
+        )
+    {
+        diagnostics.push(compound_assignment_operand_type_mismatch_diagnostic(
             sources,
             statement,
             &target_type,

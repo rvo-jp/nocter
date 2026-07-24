@@ -81,6 +81,31 @@ pub(in crate::typecheck) fn assignment_type_mismatch_diagnostic(
     diagnostic
 }
 
+pub(in crate::typecheck) fn compound_assignment_operand_type_mismatch_diagnostic(
+    sources: &SourceMap,
+    statement: &AssignmentStmt,
+    target: &Type,
+    value: &Type,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0437",
+        format!(
+            "operator `{}` combines assignment target `{}` with value `{}`, but compound assignment requires matching integer operands",
+            assignment_operator_text(statement.operator),
+            target.display(),
+            value.display()
+        ),
+    );
+    diagnostic.primary_span = sources
+        .span_to_json(statement.operator_span)
+        .ok()
+        .map(Box::new);
+    diagnostic.help = Some(
+        "use integer operands with the same type, or write a plain `=` assignment".to_string(),
+    );
+    diagnostic
+}
+
 pub(in crate::typecheck) fn non_copy_struct_assignment_diagnostic(
     sources: &SourceMap,
     statement: &AssignmentStmt,
@@ -99,6 +124,17 @@ pub(in crate::typecheck) fn non_copy_struct_assignment_diagnostic(
         "declare `{type_name}` with `copy struct` or write `move {source_name}` to transfer ownership"
     ));
     diagnostic
+}
+
+fn assignment_operator_text(operator: crate::ast::AssignmentOperator) -> &'static str {
+    match operator {
+        crate::ast::AssignmentOperator::Assign => "=",
+        crate::ast::AssignmentOperator::AddAssign => "+=",
+        crate::ast::AssignmentOperator::SubtractAssign => "-=",
+        crate::ast::AssignmentOperator::MultiplyAssign => "*=",
+        crate::ast::AssignmentOperator::DivideAssign => "/=",
+        crate::ast::AssignmentOperator::RemainderAssign => "%=",
+    }
 }
 
 pub(in crate::typecheck) fn non_copy_struct_binding_diagnostic(

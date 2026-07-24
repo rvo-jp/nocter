@@ -19,8 +19,8 @@ use super::numeric::{
 use super::type_expr::type_expr_to_type_in_environment;
 use super::variants::{enum_variant_expression_is_assignable, types_are_same_payloadless_enum};
 use crate::ast::{
-    BinaryExpr, BinaryOperator, Expr, OptionalDefaultExpr, TypeConversionExpr, UnaryExpr,
-    UnaryOperator,
+    AssignmentOperator, BinaryExpr, BinaryOperator, Expr, OptionalDefaultExpr, TypeConversionExpr,
+    UnaryExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
@@ -299,6 +299,32 @@ pub(super) fn is_expression_assignable(
 
 pub(super) fn is_bool_type(ty: &Type) -> bool {
     matches!(ty, Type::Primitive(name) if name == "bool")
+}
+
+pub(super) fn compound_assignment_operands_match(
+    operator: AssignmentOperator,
+    target_type: &Type,
+    target: &Expr,
+    value_type: &Type,
+    value: &Expr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    match operator {
+        AssignmentOperator::Assign => true,
+        AssignmentOperator::AddAssign
+        | AssignmentOperator::SubtractAssign
+        | AssignmentOperator::MultiplyAssign
+        | AssignmentOperator::DivideAssign
+        | AssignmentOperator::RemainderAssign => arithmetic_operands_match(
+            target_type,
+            target,
+            value_type,
+            value,
+            resolved,
+            environment,
+        ),
+    }
 }
 
 fn is_str_type(ty: &Type) -> bool {

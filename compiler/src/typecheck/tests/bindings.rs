@@ -182,6 +182,43 @@ fn diagnoses_assignment_type_mismatch() {
 }
 
 #[test]
+fn diagnoses_bool_compound_assignment() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    var ready = true
+    ready += false
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0437");
+    assert!(diagnostics[0].message.contains("bool"));
+}
+
+#[test]
+fn diagnoses_integer_compound_assignment_type_mismatch_as_assignment_mismatch() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    var byte: u8 = 1
+    byte += wide()
+    return 0
+}
+
+func wide(): u16 {
+    return 2
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0382");
+    assert!(diagnostics[0].message.contains("u8"));
+    assert!(diagnostics[0].message.contains("u16"));
+}
+
+#[test]
 fn diagnoses_assignment_from_non_copy_struct_binding() {
     let diagnostics = check_text(
         r#"struct Text {

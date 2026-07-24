@@ -1772,10 +1772,10 @@ fn build_command_lowers_compound_bool_equality_condition() {
 }
 
 #[test]
-fn build_command_reports_bool_compound_assignment_before_ir_lowering() {
-    let project = TempProject::new("cli-build-bool-compound-assignment-boundary");
+fn build_command_reports_bool_compound_assignment_compile_diagnostic() {
+    let project = TempProject::new("cli-build-bool-compound-assignment-diagnostic");
     let source = project.write_source(
-        "bool_compound_assignment_boundary.nct",
+        "bool_compound_assignment_diagnostic.nct",
         r#"func main(): i32 {
     var ready = true
     ready += false
@@ -1790,11 +1790,11 @@ fn build_command_reports_bool_compound_assignment_before_ir_lowering() {
     assert_eq!(output.status.code(), Some(1));
     let stderr = text(&output.stderr);
     assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
+        stderr.contains("error[E0437]"),
+        "expected compound assignment diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("compound assignment statements"),
+        stderr.contains("compound assignment requires matching integer operands"),
         "expected compound assignment diagnostic, got:\n{stderr}"
     );
     assert!(
@@ -1802,8 +1802,8 @@ fn build_command_reports_bool_compound_assignment_before_ir_lowering() {
         "expected source line, got:\n{stderr}"
     );
     assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+        !stderr.contains("error[E0435]"),
+        "typecheck should reject before buildability preflight, got:\n{stderr}"
     );
     assert!(
         !executable.exists(),
@@ -1836,10 +1836,10 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_reports_bool_field_compound_assignment_before_ir_lowering() {
-    let project = TempProject::new("cli-build-bool-field-compound-assignment-boundary");
+fn build_command_reports_bool_field_compound_assignment_compile_diagnostic() {
+    let project = TempProject::new("cli-build-bool-field-compound-assignment-diagnostic");
     let source = project.write_source(
-        "bool_field_compound_assignment_boundary.nct",
+        "bool_field_compound_assignment_diagnostic.nct",
         r#"struct Flag {
     ready: bool
 }
@@ -1858,11 +1858,11 @@ func main(): i32 {
     assert_eq!(output.status.code(), Some(1));
     let stderr = text(&output.stderr);
     assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
+        stderr.contains("error[E0437]"),
+        "expected compound assignment diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("compound assignment statements"),
+        stderr.contains("compound assignment requires matching integer operands"),
         "expected compound assignment diagnostic, got:\n{stderr}"
     );
     assert!(
@@ -1870,8 +1870,8 @@ func main(): i32 {
         "expected source line, got:\n{stderr}"
     );
     assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+        !stderr.contains("error[E0435]"),
+        "typecheck should reject before buildability preflight, got:\n{stderr}"
     );
     assert!(
         !executable.exists(),
