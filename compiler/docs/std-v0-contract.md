@@ -166,10 +166,22 @@ explicit allocator.
 
 | API | Status | Notes |
 |---|---|---|
-| `Vec<T>` | check only | Future owned variable-length array type. |
+| `Vec<T>` | runtime ship narrow | Future owned variable-length array type with private fields; zero-capacity values are usable. |
+| `Vec.empty<T>`, `empty<T>` | runtime ship narrow | Returns a zero-capacity vector without allocation. |
+| `Vec.with_capacity<T>`, `with_capacity<T>` | recoverable unsupported narrow | Capacity `0` returns an empty vector; nonzero capacity fails with `std.vec.unsupported`. |
+| `Vec.from_slice<T>`, `from_slice<T>` | recoverable unsupported narrow | Empty slices return an empty vector; non-empty slices fail with `std.vec.unsupported`. |
+| `Vec.len()`, `len` | runtime ship narrow | Metadata accessor. |
+| `Vec.capacity()`, `capacity` | runtime ship narrow | Metadata accessor. |
+| `Vec.is_empty()`, `is_empty` | runtime ship narrow | Metadata accessor. |
+| `Vec.view()`, `view` | runtime ship narrow | Returns a readonly slice over the current length. |
+| `Vec.view_mut()`, `view_mut` | runtime ship narrow | Returns a read-write slice over the current length. |
+| `Vec.reserve()`, `reserve` | recoverable unsupported narrow | Additional capacity `0` succeeds; positive growth fails with `std.vec.unsupported`. |
+| `Vec.clear()`, `clear` | runtime ship narrow | Sets length to zero; general element drop behavior is deferred with real storage. |
+| `Vec.push()`, `push` | recoverable unsupported | Fails with `std.vec.unsupported` until element layout, allocation, copy, and drop glue are wired into the backend. |
+| `unsupported` | private helper | Module-local helper for unimplemented storage operations. |
 
-`Vec<T>` is present to reserve the process API shape, but v0 has no public
-collection operations. It is not part of the prelude.
+`Vec<T>` is not part of the prelude. General collection storage, growth,
+element copying, and element drop behavior are deferred.
 
 ### `std/ptr`
 

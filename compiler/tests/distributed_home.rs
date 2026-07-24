@@ -399,6 +399,127 @@ func main(): i32! {
     );
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_empty_shape_runs() {
+    let project = TempProject::new("distributed-home-vec-empty-shape-run");
+    let source = project.write_source(
+        "vec_empty_shape.nct",
+        r#"use std/vec.{Vec, empty}
+
+func main(): i32 {
+    let first: Vec<u8> = Vec.empty()
+    if !first.is_empty() {
+        return 1
+    }
+    if first.len() != 0 {
+        return 2
+    }
+    if first.capacity() != 0 {
+        return 3
+    }
+    let first_view = first.view()
+    if slice_len(first_view) != 0 {
+        return 4
+    }
+
+    var second: Vec<u8> = empty()
+    let second_view = second.view_mut()
+    if slice_len_mut(second_view) != 0 {
+        return 5
+    }
+    second.clear()
+    return 0
+}
+
+func slice_len(values: &[u8]): usize {
+    return values.len()
+}
+
+func slice_len_mut(values: &+[u8]): usize {
+    return values.len()
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_nonzero_capacity_reports_unsupported() {
+    let project = TempProject::new("distributed-home-vec-nonzero-capacity-unsupported");
+    let source = project.write_source(
+        "vec_nonzero_capacity_unsupported.nct",
+        r#"use std/mem.page_allocator
+use std/vec.{Vec, with_capacity}
+
+func main(): i32! {
+    var allocator = page_allocator()
+    let values: Vec<u8> = with_capacity(&+allocator, 1)?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert_eq!(
+        output.stderr,
+        b"std.vec.unsupported: Vec storage is not implemented\n"
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_push_reports_unsupported() {
+    let project = TempProject::new("distributed-home-vec-push-unsupported");
+    let source = project.write_source(
+        "vec_push_unsupported.nct",
+        r#"use std/vec.Vec
+
+func main(): i32! {
+    var values: Vec<u8> = Vec.empty()
+    values.push(1)?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert_eq!(
+        output.stderr,
+        b"std.vec.unsupported: Vec storage is not implemented\n"
+    );
+}
+
 #[test]
 fn distributed_std_vec_fields_are_private() {
     let project = TempProject::new("distributed-home-vec-fields-private");
