@@ -560,6 +560,7 @@ impl TypecheckFactCollector<'_> {
                             expression,
                             return_type,
                             environment,
+                            Some(return_type),
                         );
                     } else {
                         self.collect_expression_facts(expression, environment);
@@ -570,11 +571,23 @@ impl TypecheckFactCollector<'_> {
                 self.collect_binding_statement_facts(statement, environment, return_type)
             }
             Stmt::Assignment(statement) => {
-                self.collect_expression_facts(&statement.target, environment);
-                self.collect_expression_facts(&statement.value, environment);
+                self.collect_expression_facts_in_context(
+                    &statement.target,
+                    environment,
+                    return_type,
+                );
+                self.collect_expression_facts_in_context(
+                    &statement.value,
+                    environment,
+                    return_type,
+                );
             }
             Stmt::If(statement) => {
-                self.collect_expression_facts(&statement.condition, environment);
+                self.collect_expression_facts_in_context(
+                    &statement.condition,
+                    environment,
+                    return_type,
+                );
 
                 let mut then_environment = environment.clone();
                 self.collect_block_facts(&statement.then_block, &mut then_environment, return_type);
@@ -584,7 +597,11 @@ impl TypecheckFactCollector<'_> {
                 }
             }
             Stmt::IfIs(statement) => {
-                self.collect_expression_facts(&statement.expression, environment);
+                self.collect_expression_facts_in_context(
+                    &statement.expression,
+                    environment,
+                    return_type,
+                );
                 self.record_type_reference(&statement.enum_name, statement.enum_name_span);
 
                 let mut then_environment =
@@ -599,7 +616,11 @@ impl TypecheckFactCollector<'_> {
                 }
             }
             Stmt::IfLet(statement) => {
-                self.collect_expression_facts(&statement.initializer, environment);
+                self.collect_expression_facts_in_context(
+                    &statement.initializer,
+                    environment,
+                    return_type,
+                );
 
                 let mut then_environment =
                     environment_for_if_let_binding(statement, self.resolved, environment);
@@ -615,7 +636,11 @@ impl TypecheckFactCollector<'_> {
                 }
             }
             Stmt::Switch(statement) => {
-                self.collect_expression_facts(&statement.expression, environment);
+                self.collect_expression_facts_in_context(
+                    &statement.expression,
+                    environment,
+                    return_type,
+                );
                 for arm in &statement.arms {
                     self.record_type_reference(&arm.enum_name, arm.enum_name_span);
                     let mut arm_environment = environment_for_switch_arm(
@@ -635,8 +660,12 @@ impl TypecheckFactCollector<'_> {
                 }
             }
             Stmt::ForRange(statement) => {
-                self.collect_expression_facts(&statement.start, environment);
-                self.collect_expression_facts(&statement.end, environment);
+                self.collect_expression_facts_in_context(
+                    &statement.start,
+                    environment,
+                    return_type,
+                );
+                self.collect_expression_facts_in_context(&statement.end, environment, return_type);
 
                 let mut body_environment =
                     environment_for_for_range_binding(statement, self.resolved, environment);
@@ -648,13 +677,21 @@ impl TypecheckFactCollector<'_> {
                 self.collect_block_facts(&statement.body, &mut body_environment, return_type);
             }
             Stmt::While(statement) => {
-                self.collect_expression_facts(&statement.condition, environment);
+                self.collect_expression_facts_in_context(
+                    &statement.condition,
+                    environment,
+                    return_type,
+                );
 
                 let mut body_environment = environment.clone();
                 self.collect_block_facts(&statement.body, &mut body_environment, return_type);
             }
             Stmt::WhileLet(statement) => {
-                self.collect_expression_facts(&statement.initializer, environment);
+                self.collect_expression_facts_in_context(
+                    &statement.initializer,
+                    environment,
+                    return_type,
+                );
 
                 let mut body_environment =
                     environment_for_while_let_binding(statement, self.resolved, environment);
@@ -670,7 +707,11 @@ impl TypecheckFactCollector<'_> {
                 self.collect_block_facts(&statement.body, &mut body_environment, return_type);
             }
             Stmt::Expression(statement) => {
-                self.collect_expression_facts(&statement.expression, environment);
+                self.collect_expression_facts_in_context(
+                    &statement.expression,
+                    environment,
+                    return_type,
+                );
             }
             Stmt::Drop(_) | Stmt::Break(_) | Stmt::Continue(_) => {}
         }
@@ -696,9 +737,14 @@ impl TypecheckFactCollector<'_> {
                 &statement.initializer,
                 expected,
                 environment,
+                return_type,
             );
         } else {
-            self.collect_expression_facts(&statement.initializer, environment);
+            self.collect_expression_facts_in_context(
+                &statement.initializer,
+                environment,
+                return_type,
+            );
         }
         let initializer_type = expression_type(&statement.initializer, self.resolved, environment);
 
@@ -719,8 +765,9 @@ impl TypecheckFactCollector<'_> {
         expression: &Expr,
         expected: &Type,
         environment: &mut TypeEnvironment,
+        return_type: Option<&Type>,
     ) {
-        self.collect_expression_facts(expression, environment);
+        self.collect_expression_facts_in_context(expression, environment, return_type);
         self.collect_expected_expression_facts(expression, expected, environment);
     }
 
@@ -789,15 +836,36 @@ impl TypecheckFactCollector<'_> {
     }
 
     fn collect_expression_facts(&mut self, expression: &Expr, environment: &mut TypeEnvironment) {
+        self.collect_expression_facts_in_context(expression, environment, None);
+    }
+
+    fn collect_expression_facts_in_context(
+        &mut self,
+        expression: &Expr,
+        environment: &mut TypeEnvironment,
+        return_type: Option<&Type>,
+    ) {
         match expression {
             Expr::Propagate(expression) => {
-                self.collect_expression_facts(&expression.expression, environment);
+                self.collect_expression_facts_in_context(
+                    &expression.expression,
+                    environment,
+                    return_type,
+                );
             }
             Expr::Force(expression) => {
-                self.collect_expression_facts(&expression.expression, environment);
+                self.collect_expression_facts_in_context(
+                    &expression.expression,
+                    environment,
+                    return_type,
+                );
             }
             Expr::Catch(expression) => {
-                self.collect_expression_facts(&expression.expression, environment);
+                self.collect_expression_facts_in_context(
+                    &expression.expression,
+                    environment,
+                    return_type,
+                );
                 let mut catch_environment = environment_for_catch(
                     expression.error_name.clone(),
                     &expression.expression,
@@ -809,20 +877,44 @@ impl TypecheckFactCollector<'_> {
                     &expression.error_name,
                     &catch_environment,
                 );
-                self.collect_block_facts(&expression.catch_block, &mut catch_environment, None);
+                self.collect_block_facts(
+                    &expression.catch_block,
+                    &mut catch_environment,
+                    return_type,
+                );
             }
             Expr::Borrow(expression) => {
-                self.collect_expression_facts(&expression.expression, environment);
+                self.collect_expression_facts_in_context(
+                    &expression.expression,
+                    environment,
+                    return_type,
+                );
             }
             Expr::Binary(expression) => {
-                self.collect_expression_facts(&expression.left, environment);
-                self.collect_expression_facts(&expression.right, environment);
+                self.collect_expression_facts_in_context(
+                    &expression.left,
+                    environment,
+                    return_type,
+                );
+                self.collect_expression_facts_in_context(
+                    &expression.right,
+                    environment,
+                    return_type,
+                );
             }
             Expr::Unary(expression) => {
-                self.collect_expression_facts(&expression.operand, environment);
+                self.collect_expression_facts_in_context(
+                    &expression.operand,
+                    environment,
+                    return_type,
+                );
             }
             Expr::TypeConversion(expression) => {
-                self.collect_expression_facts(&expression.expression, environment);
+                self.collect_expression_facts_in_context(
+                    &expression.expression,
+                    environment,
+                    return_type,
+                );
                 self.collect_type_expr_references(&expression.ty);
             }
             Expr::Call(expression) => {
@@ -853,7 +945,11 @@ impl TypecheckFactCollector<'_> {
                         method.member_span,
                         method_signature_hover_label(resolved_method, owner, self.resolved),
                     );
-                    self.collect_expression_facts(&method.object, environment);
+                    self.collect_expression_facts_in_context(
+                        &method.object,
+                        environment,
+                        return_type,
+                    );
                 } else if let Some(method) = method_member_for_call(expression)
                     && let Some((owner, resolved_function)) =
                         self.resolved.associated_function_for_call(expression)
@@ -877,13 +973,21 @@ impl TypecheckFactCollector<'_> {
                             self.resolved,
                         ),
                     );
-                    self.collect_expression_facts(&method.object, environment);
+                    self.collect_expression_facts_in_context(
+                        &method.object,
+                        environment,
+                        return_type,
+                    );
                 } else if let Some(method) = method_member_for_call(expression)
                     && let Some((owner, variant)) =
                         resolved_enum_variant_for_member(method, self.resolved)
                 {
                     self.record_enum_variant_reference(method.member_span, owner, variant);
-                    self.collect_expression_facts(&method.object, environment);
+                    self.collect_expression_facts_in_context(
+                        &method.object,
+                        environment,
+                        return_type,
+                    );
                 } else {
                     if let Some(symbol) = self.resolved.symbol_for_call(expression)
                         && let SymbolKind::Function(signature) = &symbol.kind
@@ -897,15 +1001,23 @@ impl TypecheckFactCollector<'_> {
                             environment,
                         );
                     }
-                    self.collect_expression_facts(&expression.callee, environment);
+                    self.collect_expression_facts_in_context(
+                        &expression.callee,
+                        environment,
+                        return_type,
+                    );
                 }
 
                 for argument in &expression.arguments {
-                    self.collect_expression_facts(argument, environment);
+                    self.collect_expression_facts_in_context(argument, environment, return_type);
                 }
             }
             Expr::Member(expression) => {
-                self.collect_expression_facts(&expression.object, environment);
+                self.collect_expression_facts_in_context(
+                    &expression.object,
+                    environment,
+                    return_type,
+                );
                 self.record_struct_field_member_reference(expression, environment);
                 if let Some((owner, variant)) =
                     resolved_enum_variant_for_member(expression, self.resolved)
@@ -914,37 +1026,69 @@ impl TypecheckFactCollector<'_> {
                 }
             }
             Expr::Index(expression) => {
-                self.collect_expression_facts(&expression.object, environment);
-                self.collect_expression_facts(&expression.index, environment);
+                self.collect_expression_facts_in_context(
+                    &expression.object,
+                    environment,
+                    return_type,
+                );
+                self.collect_expression_facts_in_context(
+                    &expression.index,
+                    environment,
+                    return_type,
+                );
             }
             Expr::ArrayLiteral(expression) => {
                 for element in &expression.elements {
-                    self.collect_expression_facts(element, environment);
+                    self.collect_expression_facts_in_context(element, environment, return_type);
                 }
             }
             Expr::StructLiteral(expression) => {
                 self.collect_type_expr_references(&expression.ty);
                 for field in &expression.fields {
                     self.record_struct_literal_field_reference(expression, field, environment);
-                    self.collect_expression_facts(&field.value, environment);
+                    self.collect_expression_facts_in_context(
+                        &field.value,
+                        environment,
+                        return_type,
+                    );
                 }
             }
             Expr::Group(expression) => {
-                self.collect_expression_facts(&expression.expression, environment);
+                self.collect_expression_facts_in_context(
+                    &expression.expression,
+                    environment,
+                    return_type,
+                );
             }
             Expr::InterpolatedString(expression) => {
                 for part in &expression.parts {
                     if let InterpolatedStringPart::Expression(part) = part {
-                        self.collect_expression_facts(&part.expression, environment);
+                        self.collect_expression_facts_in_context(
+                            &part.expression,
+                            environment,
+                            return_type,
+                        );
                     }
                 }
             }
             Expr::OptionalDefault(expression) => {
-                self.collect_expression_facts(&expression.value, environment);
-                self.collect_expression_facts(&expression.default, environment);
+                self.collect_expression_facts_in_context(
+                    &expression.value,
+                    environment,
+                    return_type,
+                );
+                self.collect_expression_facts_in_context(
+                    &expression.default,
+                    environment,
+                    return_type,
+                );
             }
             Expr::PatternConditional(expression) => {
-                self.collect_expression_facts(&expression.target, environment);
+                self.collect_expression_facts_in_context(
+                    &expression.target,
+                    environment,
+                    return_type,
+                );
                 for arm in &expression.arms {
                     self.record_type_reference(&arm.enum_name, arm.enum_name_span);
                     let mut arm_environment = environment_for_pattern_conditional_arm(
@@ -956,9 +1100,17 @@ impl TypecheckFactCollector<'_> {
                     if let Some(payload) = &arm.payload {
                         self.record_payload_binding(payload, &arm_environment);
                     }
-                    self.collect_expression_facts(&arm.expression, &mut arm_environment);
+                    self.collect_expression_facts_in_context(
+                        &arm.expression,
+                        &mut arm_environment,
+                        return_type,
+                    );
                 }
-                self.collect_expression_facts(&expression.fallback, environment);
+                self.collect_expression_facts_in_context(
+                    &expression.fallback,
+                    environment,
+                    return_type,
+                );
             }
             Expr::Identifier(identifier) => {
                 self.record_environment_binding_readonly(

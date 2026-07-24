@@ -8,7 +8,8 @@ use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{AggregateFieldKind, DropGlue, LoweringContext};
 use super::errors::{ErrorPayload, lower_error_payload};
 use super::functions::{
-    append_scope_end_drops_before_exit, lower_never_expression_with_scope_drops,
+    append_scope_end_drops_before_exit, lower_aggregate_return_expression,
+    lower_direct_aggregate_return_with_scope_drops, lower_never_expression_with_scope_drops,
     lower_value_return_with_scope_drops, mark_lowered_statement_aggregate_uses,
     propagating_failure_mode,
 };
@@ -1096,6 +1097,25 @@ fn lower_catch_block(
                 return Ok(instructions);
             }
 
+            if let Some(expression) = &statement.expression
+                && matches!(success_type, Type::DirectAggregate { .. })
+                && !context.pending_aggregate_drops().is_empty()
+            {
+                let Some((_root_source, resolved)) = context.resolved_calls() else {
+                    return Err(unsupported_catch_block_diagnostic());
+                };
+                let function_name = context.function_name().to_string();
+                instructions.extend(lower_direct_aggregate_return_with_scope_drops(
+                    expression,
+                    &success_type,
+                    &function_return_type,
+                    &function_name,
+                    resolved,
+                    context,
+                )?);
+                return Ok(instructions);
+            }
+
             let return_instructions = match (&success_type, &statement.expression) {
                 (Type::I32, Some(expression)) => lower_i32_return_expression(expression, context),
                 (Type::U8, Some(expression)) => lower_u8_return_expression(expression, context),
@@ -1109,6 +1129,19 @@ fn lower_catch_block(
                 (Type::Slice { .. }, Some(expression)) => {
                     lower_slice_return_expression(expression, context)
                 }
+                (Type::Aggregate { .. } | Type::DirectAggregate { .. }, Some(expression)) => {
+                    let Some((_root_source, resolved)) = context.resolved_calls() else {
+                        return Err(unsupported_catch_block_diagnostic());
+                    };
+                    let function_name = context.function_name().to_string();
+                    lower_aggregate_return_expression(
+                        expression,
+                        &success_type,
+                        &function_name,
+                        resolved,
+                        context,
+                    )
+                }
                 (Type::Void, None) => Ok(vec![Instruction::Return]),
                 (Type::Void, Some(_)) => Err(unsupported_catch_block_diagnostic()),
                 (Type::Never, Some(_)) => Err(unsupported_catch_block_diagnostic()),
@@ -1118,8 +1151,8 @@ fn lower_catch_block(
                 | (Type::Bool, None)
                 | (Type::Str, None)
                 | (Type::Slice { .. }, None)
-                | (Type::Aggregate { .. }, _)
-                | (Type::DirectAggregate { .. }, _)
+                | (Type::Aggregate { .. }, None)
+                | (Type::DirectAggregate { .. }, None)
                 | (Type::Borrow { .. }, _)
                 | (Type::Never, None) => Err(unsupported_catch_block_diagnostic()),
                 (Type::Fallible(_), _) => Err(unsupported_catch_block_diagnostic()),

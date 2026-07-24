@@ -430,6 +430,36 @@ func main(): i32 {
 }
 
 #[test]
+fn infers_generic_function_type_argument_from_catch_block_return_type() {
+    let diagnostics = check_text(
+        r#"struct Marker<T> {
+    code: i32
+}
+
+func make<T>(): Marker<T> {
+    return Marker<T>{ code: 42 }
+}
+
+func source(): Marker<u8>! {
+    return Marker<u8>{ code: 1 }
+}
+
+func recover(): Marker<u8> {
+    return source() catch error {
+        return make()
+    }
+}
+
+func main(): i32 {
+    return recover().code
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn checks_repeated_generic_function_parameter_types() {
     let diagnostics = check_text(
         r#"func same<T>(left: T, right: T): void {

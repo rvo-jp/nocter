@@ -1592,7 +1592,7 @@ fn lower_terminal_direct_aggregate_return_with_scope_drops(
     Ok(instructions)
 }
 
-fn lower_direct_aggregate_return_with_scope_drops(
+pub(super) fn lower_direct_aggregate_return_with_scope_drops(
     expression: &Expr,
     success_type: &Type,
     function_return_type: &Type,
@@ -2466,7 +2466,7 @@ fn unsupported_drop_statement_diagnostic(name: &str) -> Vec<Diagnostic> {
     )]
 }
 
-fn lower_aggregate_return_expression(
+pub(super) fn lower_aggregate_return_expression(
     expression: &Expr,
     return_type: &Type,
     function_name: &str,

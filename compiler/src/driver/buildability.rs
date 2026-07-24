@@ -2459,6 +2459,38 @@ func make<T>(): Marker<T> {
     }
 
     #[test]
+    fn accepts_reachable_generic_function_in_catch_return_with_expected_return_type() {
+        let (sources, analysis) = analyze_text(
+            r#"struct Marker<T> {
+    code: i32
+}
+
+func main(): i32 {
+    return recover().code
+}
+
+func recover(): Marker<u8> {
+    return source() catch error {
+        return make()
+    }
+}
+
+func source(): Marker<u8>! {
+    return Marker<u8>{ code: 1 }
+}
+
+func make<T>(): Marker<T> {
+    return Marker<T>{ code: 42 }
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
     fn reports_unspecialized_generic_function_call_inside_reachable_specialization() {
         let (sources, analysis) = analyze_text(
             r#"func main(): i32 {
