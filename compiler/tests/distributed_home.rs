@@ -1179,10 +1179,10 @@ func main(): i32 {
 }
 
 #[test]
-fn distributed_std_process_args_is_check_only_for_build() {
-    let project = TempProject::new("distributed-home-process-args-check-only-build");
+fn distributed_std_process_args_builds_to_macho() {
+    let project = TempProject::new("distributed-home-process-args-build");
     let source = project.write_source(
-        "process_args_check_only.nct",
+        "process_args_build.nct",
         r#"use std/process.args
 
 func main(): i32! {
@@ -1195,23 +1195,32 @@ func main(): i32! {
 
     let output = nocter_build(&project, &source, &executable);
 
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_process_args_reports_runtime_unsupported() {
+    let project = TempProject::new("distributed-home-process-args-runtime-unsupported");
+    let source = project.write_source(
+        "process_args_runtime_unsupported.nct",
+        r#"use std/process.args
+
+func main(): i32! {
+    let values = args()?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
     assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("check-only `std/process.args` calls"),
-        "expected args check-only diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("4 |     let values = args()?"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
+    assert!(output.stdout.is_empty());
+    assert_eq!(
+        output.stderr,
+        b"std.process.unsupported: process arguments are not implemented\n"
     );
 }
 

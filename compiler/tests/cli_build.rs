@@ -3624,11 +3624,11 @@ func value(): (i32?)! {
 }
 
 #[test]
-fn build_command_reports_std_process_args_check_only_before_ir_lowering() {
-    let project = TempProject::new("cli-build-process-args-check-only-boundary");
+fn build_command_lowers_std_process_args_failure_boundary() {
+    let project = TempProject::new("cli-build-process-args-failure-boundary");
     write_process_contract_std(&project);
     let source = project.write_source(
-        "process_args_check_only_boundary.nct",
+        "process_args_failure_boundary.nct",
         r#"use std/process.args
 
 func main(): i32! {
@@ -3641,28 +3641,8 @@ func main(): i32! {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("check-only `std/process.args` calls"),
-        "expected args check-only diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("4 |     let values = args()?"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]

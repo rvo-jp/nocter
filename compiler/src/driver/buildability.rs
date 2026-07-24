@@ -1621,12 +1621,6 @@ fn unsupported_check_only_std_call_diagnostic(
         .text()
         .get(symbol.declaration_span.start..symbol.declaration_span.end)?;
     match declaration_name {
-        "args" => Some(unsupported_v0_build_diagnostic(
-            sources,
-            call.span,
-            "check-only `std/process.args` calls",
-            "`std/process.args` reserves the future `Vec<&str>!` API shape; keep this code on `check` or pass arguments through project code until `Vec` and process context runtime are promoted",
-        )),
         "env" => Some(unsupported_v0_build_diagnostic(
             sources,
             call.span,
