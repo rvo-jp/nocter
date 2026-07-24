@@ -134,7 +134,15 @@ Aggregates use their computed aggregate alignment.
 
 ### Enum Layout
 
-Enum values are represented as a tag plus a payload union.
+The v0 backend only ships payloadless enum values. They are represented as a
+single tag byte.
+
+```text
+payloadless enum = u8 tag
+```
+
+Payload-carrying enum values are reserved for a later backend phase and will use
+a tag plus a payload union once promoted.
 
 ```text
 enum = tag + payload union
@@ -142,13 +150,13 @@ enum = tag + payload union
 
 Rules:
 
-- The tag type is `u32`.
+- Payloadless enums in the v0 backend use a `u8` tag and may have at most 256
+  variants.
 - Variant tag values are assigned by declaration order starting at `0`.
-- The payload area is large enough and aligned enough for the largest payload variant.
-- The payload starts after padding needed to satisfy the maximum payload alignment.
-- Inactive payload bytes are unspecified and must not be read.
-- Drop checks and generated drop code operate only on the active payload.
-- Payloadless enums still store the `u32` tag.
+- Payload-carrying enum runtime layout is deferred until the backend promotes
+  payload enum values. That promotion must define the tag width, payload
+  alignment, inactive-byte behavior, and active-payload drop rules in this
+  document before code generation relies on them.
 
 ### Optional Layout
 
