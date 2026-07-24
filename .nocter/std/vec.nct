@@ -136,4 +136,9 @@ impl<T> Vec<T> {
         push(self, value)?
         return
     }
+
+    drop &+self {
+        self.len = 0
+        return
+    }
 }

@@ -178,6 +178,7 @@ explicit allocator.
 | `Vec.reserve()`, `reserve` | recoverable unsupported narrow | Additional capacity `0` succeeds; positive growth fails with `std.vec.unsupported`. |
 | `Vec.clear()`, `clear` | runtime ship narrow | Sets length to zero; general element drop behavior is deferred with real storage. |
 | `Vec.push()`, `push` | recoverable unsupported | Fails with `std.vec.unsupported` until element layout, allocation, copy, and drop glue are wired into the backend. |
+| `drop &+self` | runtime ship narrow | Current zero-capacity values clear metadata on drop; future storage release belongs here. |
 | `unsupported` | private helper | Module-local helper for unimplemented storage operations. |
 
 `Vec<T>` is not part of the prelude. General collection storage, growth,

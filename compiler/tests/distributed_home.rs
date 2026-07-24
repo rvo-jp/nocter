@@ -447,6 +447,40 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn distributed_std_vec_empty_drop_runs() {
+    let project = TempProject::new("distributed-home-vec-empty-drop-run");
+    let source = project.write_source(
+        "vec_empty_drop.nct",
+        r#"use std/vec.Vec
+
+func main(): i32 {
+    var values: Vec<u8> = Vec.empty()
+    drop values
+
+    let scoped: Vec<u8> = Vec.empty()
+    if scoped.is_empty() {
+        return 0
+    }
+    return 1
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn distributed_std_vec_nonzero_capacity_reports_unsupported() {
     let project = TempProject::new("distributed-home-vec-nonzero-capacity-unsupported");
     let source = project.write_source(
