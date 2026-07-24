@@ -164,7 +164,7 @@ fn distributed_std_public_api_passes_check() {
     let source = project.write_source(
         "std_smoke.nct",
         r#"use std/fmt.{append_bool, append_i32, append_str, append_string, append_usize}
-use std/io.{File, print, read, stderr, stdout, write, write_text}
+use std/io.{File, open, print, read, stderr, stdout, write, write_text}
 use std/mem.{Allocator, Layout, RawBuffer, alloc, bytes as raw_bytes, bytes_mut as raw_bytes_mut, free, invalid_argument, out_of_memory, page_allocator, prefix as raw_prefix, prefix_mut as raw_prefix_mut}
 use std/process.{abort, args, cwd, env, exit}
 use std/ptr.{addr, from_ref, from_ref_mut}
@@ -215,6 +215,10 @@ func string_clear(text: &+String): void {
 
 func file_read(file: &+File, buffer: &+[u8]): usize! {
     return read(file, buffer)?
+}
+
+func file_open(path: &str): File! {
+    return open(path)?
 }
 
 func file_write(file: &+File, buffer: &[u8]): void! {
@@ -592,10 +596,13 @@ fn distributed_io_file_methods_pass_check() {
     let project = TempProject::new("distributed-home-io-file-methods");
     let source = project.write_source(
         "io_file_methods.nct",
-        r#"use std/io.{File, stdout}
+        r#"use std/io.{File, open, stdout}
 
 func main(): i32! {
     let input = File.open("input.txt") catch error {
+        return 0
+    }
+    let opened = open("input.txt") catch error {
         return 0
     }
     var out = stdout()
@@ -720,13 +727,13 @@ fn distributed_io_top_level_read_write_runs() {
     fs::write(project.root().join("input.txt"), b"IO").unwrap();
     let source = project.write_source(
         "io_top_level_read_write.nct",
-        r#"use std/io.{File, stdout, read, write}
+        r#"use std/io.{open, stdout, read, write}
 use std/mem.{alloc, free, page_allocator}
 
 func main(): i32! {
     var allocator = page_allocator()
     var buffer = alloc(&+allocator, 4, 1)?
-    var input = File.open("input.txt")?
+    var input = open("input.txt")?
     let count: usize = read(&+input, buffer.bytes_mut())?
     var out = stdout()
     let bytes: &[u8] = buffer.prefix(count)?

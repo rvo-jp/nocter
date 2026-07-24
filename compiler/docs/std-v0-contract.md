@@ -131,6 +131,7 @@ collection storage policies are deferred.
 | API | Status | Notes |
 |---|---|---|
 | `File` | runtime ship narrow | Move-only file/stream handle with private fields. |
+| `open(path: &str): File!` | runtime ship narrow | Free-function wrapper for opening existing files for reading. |
 | `File.open(path: &str): File!` | runtime ship narrow | Opens existing files for reading. |
 | `File.read(buffer: &+[u8]): usize!` | runtime ship narrow | Reads into caller storage. |
 | `File.write(bytes: &[u8]): void!` | runtime ship narrow | Writes all bytes or fails. |

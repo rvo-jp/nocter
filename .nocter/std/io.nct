@@ -134,6 +134,10 @@ pub func stderr(): File {
     return File { fd: stderr_fd(), close_on_drop: false }
 }
 
+pub func open(path: &str): File! {
+    return File.open(path)?
+}
+
 pub func File.open(path: &str): File! {
     let fd = open_read_fd(path)?
     return File { fd: fd, close_on_drop: true }
