@@ -5,13 +5,18 @@
 //! type. Its storage details are intentionally not exposed outside `std/vec`.
 //!
 //! v0 fixes the public contract before promoting generic collection lowering.
-//! Read-only shape operations are ordinary std functions. Growth and copying
-//! operations return `std.vec.unsupported` until element layout and drop glue are
-//! wired into the backend.
+//! Empty vectors, capacity allocation, read-only shape operations, and release
+//! are ordinary std functions. Growth and copying operations return
+//! `std.vec.unsupported` until element write and drop glue are wired into the
+//! backend.
 
 use std/error.Error
 use std/mem.Allocator
+use std/mem.alloc_pages as alloc_pages_impl
+use std/mem.free_pages as free_pages_impl
+use std/ptr.addr
 use std/ptr.from_addr
+use std/ptr.pointee_size
 use std/ptr.slice_from_raw_parts_value
 use std/ptr.slice_from_raw_parts_value_mut
 
@@ -19,6 +24,7 @@ pub struct Vec<T> {
     ptr: *T
     len: usize
     capacity: usize
+    byte_capacity: usize
 }
 
 pub func Vec.empty<T>(): Vec<T> {
@@ -26,6 +32,7 @@ pub func Vec.empty<T>(): Vec<T> {
         ptr: from_addr(1),
         len: 0,
         capacity: 0,
+        byte_capacity: 0,
     }
 }
 
@@ -38,7 +45,23 @@ pub func Vec.with_capacity<T>(allocator: &+Allocator, requested_capacity: usize)
         return Vec.empty()
     }
 
-    return unsupported()
+    let seed: Vec<T> = Vec.empty()
+    let element_size: usize = pointee_size(seed.ptr)
+    if element_size == 0 {
+        return unsupported()
+    }
+    if requested_capacity > 18446744073709551615 / element_size {
+        return capacity_overflow()
+    }
+
+    let byte_capacity: usize = requested_capacity * element_size
+    let address: usize = alloc_pages_impl(byte_capacity)?
+    return Vec<T> {
+        ptr: from_addr(address),
+        len: 0,
+        capacity: requested_capacity,
+        byte_capacity: byte_capacity,
+    }
 }
 
 pub func with_capacity<T>(allocator: &+Allocator, requested_capacity: usize): Vec<T>! {
@@ -101,6 +124,10 @@ func unsupported(): error {
     return Error.new("std.vec.unsupported", "Vec storage is not implemented")
 }
 
+pub func capacity_overflow(): error {
+    return Error.new("std.vec.capacity_overflow", "Vec capacity overflow")
+}
+
 impl<T> Vec<T> {
     pub method &self.len(): usize {
         return len(self)
@@ -138,7 +165,13 @@ impl<T> Vec<T> {
     }
 
     drop &+self {
+        let vec_byte_capacity: usize = self.byte_capacity
+        if vec_byte_capacity != 0 {
+            free_pages_impl(addr(self.ptr), vec_byte_capacity)
+        }
         self.len = 0
+        self.capacity = 0
+        self.byte_capacity = 0
         return
     }
 }

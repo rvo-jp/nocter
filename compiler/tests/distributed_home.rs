@@ -594,17 +594,34 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn distributed_std_vec_nonzero_capacity_reports_unsupported() {
-    let project = TempProject::new("distributed-home-vec-nonzero-capacity-unsupported");
+fn distributed_std_vec_nonzero_capacity_runs() {
+    let project = TempProject::new("distributed-home-vec-nonzero-capacity-run");
     let source = project.write_source(
-        "vec_nonzero_capacity_unsupported.nct",
+        "vec_nonzero_capacity.nct",
         r#"use std/mem.page_allocator
 use std/vec.{Vec, with_capacity}
 
 func main(): i32! {
     var allocator = page_allocator()
     let values: Vec<u8> = with_capacity(&+allocator, 1)?
-    return 0
+    if values.len() != 0 {
+        return 1
+    }
+    if values.capacity() != 1 {
+        return 2
+    }
+    if !values.is_empty() {
+        return 3
+    }
+
+    let words: Vec<usize> = Vec.with_capacity(&+allocator, 2)?
+    if words.len() != 0 {
+        return 4
+    }
+    if words.capacity() != 2 {
+        return 5
+    }
+    return 42
 }
 "#,
     );
@@ -613,16 +630,13 @@ func main(): i32! {
 
     assert_eq!(
         output.status.code(),
-        Some(1),
+        Some(42),
         "stdout:\n{}\nstderr:\n{}",
         text(&output.stdout),
         text(&output.stderr)
     );
     assert!(output.stdout.is_empty(), "expected empty stdout");
-    assert_eq!(
-        output.stderr,
-        b"std.vec.unsupported: Vec storage is not implemented\n"
-    );
+    assert!(output.stderr.is_empty(), "expected empty stderr");
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
