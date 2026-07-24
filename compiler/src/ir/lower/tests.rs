@@ -3721,7 +3721,7 @@ func main(): i32 {
                         value: i32_const(3),
                     },
                     Instruction::CallVoid {
-                        target: CallTarget::same_file("Box.drop"),
+                        target: CallTarget::same_file("Box<i32>.drop"),
                         arguments: vec![ScalarArgument::Borrow(BorrowArgument {
                             source: BorrowSource::AggregateSlot(0),
                         })],
@@ -3731,8 +3731,8 @@ func main(): i32 {
                 ],
             },
             Function {
-                name: "Box.drop".to_string(),
-                target: CallTarget::same_file("Box.drop"),
+                name: "Box<i32>.drop".to_string(),
+                target: CallTarget::same_file("Box<i32>.drop"),
                 return_type: Type::Void,
                 instructions: vec![Instruction::Return],
             },
@@ -3925,7 +3925,7 @@ func main(): i32 {
                         value: i32_const(0),
                     },
                     Instruction::CallVoid {
-                        target: CallTarget::same_file("Box.drop"),
+                        target: CallTarget::same_file("Box<i32>.drop"),
                         arguments: vec![ScalarArgument::Borrow(BorrowArgument {
                             source: BorrowSource::AggregateSlot(0),
                         })],
@@ -3938,12 +3938,97 @@ func main(): i32 {
                 ],
             },
             Function {
-                name: "Box.drop".to_string(),
-                target: CallTarget::same_file("Box.drop"),
+                name: "Box<i32>.drop".to_string(),
+                target: CallTarget::same_file("Box<i32>.drop"),
                 return_type: Type::Void,
                 instructions: vec![Instruction::Return],
             },
         ])
+    );
+}
+
+#[test]
+fn lowers_generic_impl_drop_with_concrete_self_type_substitutions() {
+    let ir = lower_text_with_nocter_home_files(
+        r#"use std/box_test.run
+
+func main(): i32 {
+    return run()
+}
+"#,
+        &[
+            (
+                "std/ptr.nct",
+                r#"pub(nocter) primitive from_addr<T>(address: usize): *T
+pub(nocter) primitive pointee_size<T>(pointer: *T): usize
+"#,
+            ),
+            (
+                "std/box_test.nct",
+                r#"use std/ptr.from_addr
+use std/ptr.pointee_size
+
+struct Box<T> {
+    ptr: *T
+    size: usize
+}
+
+impl<U> Box<U> {
+    drop &+self {
+        self.size = pointee_size(self.ptr)
+        return
+    }
+}
+
+pub func run(): i32 {
+    var box = Box<u8>{ ptr: from_addr(1), size: 0 }
+    return 0
+}
+"#,
+            ),
+        ],
+    );
+
+    let run = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "run")
+        .expect("expected run function");
+    assert!(
+        run.instructions.iter().any(|instruction| matches!(
+            instruction,
+            Instruction::CallVoid {
+                target,
+                ..
+            } if call_target_name_is(target, "Box<u8>.drop")
+        )),
+        "{:?}",
+        run.instructions
+    );
+
+    let drop = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "Box<u8>.drop")
+        .expect("expected specialized generic drop function");
+    assert!(call_target_name_is(&drop.target, "Box<u8>.drop"));
+    assert!(
+        drop.instructions
+            .contains(&Instruction::StoreAggregateUsize {
+                destination: AggregateLocation::Parameter(0),
+                offset: 8,
+                value: UsizeValue::Const(1),
+            }),
+        "{:?}",
+        drop.instructions
+    );
+    assert!(
+        !drop.instructions.iter().any(|instruction| matches!(
+            instruction,
+            Instruction::CallUsize { target, .. } if call_target_name_is(target, "pointee_size")
+        )),
+        "{:?}",
+        drop.instructions
     );
 }
 

@@ -31,7 +31,6 @@ use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::ir::Type;
 use crate::resolve::{
     FunctionSignature as ResolvedFunctionSignature, ParameterSignature, ResolveOutput,
-    drop_function_name,
 };
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::TypecheckFacts;
@@ -174,6 +173,7 @@ enum IndexedDeclaration<'a> {
     Drop {
         declaration: &'a DropDecl,
         self_ty: TypeExpr,
+        substitutions: HashMap<String, TypeExpr>,
         name: String,
     },
     Method {
@@ -233,8 +233,8 @@ impl<'a> FunctionIndex<'a> {
                         };
                         for member in &impl_.members {
                             match member {
-                                ImplMember::Drop(drop_) => {
-                                    let name = drop_function_name(type_name);
+                                ImplMember::Drop(drop_) if impl_.generics.parameters.is_empty() => {
+                                    let name = drop_target_name(&impl_.target_ty);
                                     let target = call_target_for_source(
                                         file.ast.span.source,
                                         root_source,
@@ -245,10 +245,35 @@ impl<'a> FunctionIndex<'a> {
                                         IndexedCallable::new_drop(
                                             drop_,
                                             impl_.target_ty.clone(),
+                                            HashMap::new(),
                                             name,
                                             file,
                                         ),
                                     );
+                                }
+                                ImplMember::Drop(drop_) => {
+                                    for specialization in call_specializations
+                                        .drops
+                                        .get(&drop_name_span(drop_.span))
+                                        .into_iter()
+                                        .flatten()
+                                    {
+                                        let target = call_target_for_source(
+                                            file.ast.span.source,
+                                            root_source,
+                                            specialization.target_name.clone(),
+                                        );
+                                        definitions.insert(
+                                            target,
+                                            IndexedCallable::new_drop(
+                                                drop_,
+                                                specialization.self_ty.clone(),
+                                                specialization.substitutions.clone(),
+                                                specialization.target_name.clone(),
+                                                file,
+                                            ),
+                                        );
+                                    }
                                 }
                                 ImplMember::Method(method)
                                     if method.body.is_some()
@@ -380,6 +405,7 @@ impl<'a> IndexedCallable<'a> {
     fn new_drop(
         declaration: &'a DropDecl,
         self_ty: TypeExpr,
+        substitutions: HashMap<String, TypeExpr>,
         name: String,
         file: &'a FileAnalysis,
     ) -> Self {
@@ -387,6 +413,7 @@ impl<'a> IndexedCallable<'a> {
             declaration: IndexedDeclaration::Drop {
                 declaration,
                 self_ty,
+                substitutions,
                 name,
             },
             resolved: &file.resolved,
@@ -493,10 +520,12 @@ impl<'a> IndexedCallable<'a> {
             IndexedDeclaration::Drop {
                 declaration,
                 self_ty,
+                substitutions,
                 name,
             } => functions::lower_drop_function(
                 declaration,
                 self_ty,
+                substitutions,
                 name.clone(),
                 sources,
                 target,
@@ -567,9 +596,13 @@ impl<'a> IndexedCallable<'a> {
             IndexedDeclaration::Drop {
                 declaration,
                 self_ty,
+                substitutions,
                 ..
             } => {
-                let parameter_ty = type_expr_with_self_type(&declaration.binding.ty, self_ty);
+                let parameter_ty = substitute_type_expr_parameters(
+                    &type_expr_with_self_type(&declaration.binding.ty, self_ty),
+                    substitutions,
+                );
                 let parameter_type = lower_signature_parameter_type(&parameter_ty, self.resolved)?;
                 let resolved_signature = resolved_function_signature(
                     &[Parameter {
@@ -640,8 +673,12 @@ impl<'a> IndexedCallable<'a> {
             } if substitutions.is_empty() => Some((declaration.name_span, name.clone())),
             IndexedDeclaration::Function { .. } => None,
             IndexedDeclaration::Drop {
-                declaration, name, ..
-            } => Some((drop_name_span(declaration.span), name.clone())),
+                declaration,
+                substitutions,
+                name,
+                ..
+            } if substitutions.is_empty() => Some((drop_name_span(declaration.span), name.clone())),
+            IndexedDeclaration::Drop { .. } => None,
             IndexedDeclaration::Method {
                 declaration,
                 substitutions,
@@ -759,6 +796,43 @@ fn call_target_for_source(source: SourceId, root_source: SourceId, name: String)
 
 fn method_target_name(type_name: &str, method_name: &str) -> String {
     format!("{type_name}.{method_name}")
+}
+
+fn drop_target_name(self_ty: &TypeExpr) -> String {
+    format!("{}.drop", type_expr_display_lossy(self_ty))
+}
+
+fn type_expr_display_lossy(ty: &TypeExpr) -> String {
+    match ty {
+        TypeExpr::Reference(reference) => reference.name.clone(),
+        TypeExpr::Generic(generic) => {
+            let arguments = generic
+                .arguments
+                .iter()
+                .map(type_expr_display_lossy)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{}<{arguments}>", generic.name)
+        }
+        TypeExpr::Pointer(pointer) => format!("*{}", type_expr_display_lossy(&pointer.inner)),
+        TypeExpr::Borrow(borrow) if borrow.is_readwrite => {
+            format!("&+{}", type_expr_display_lossy(&borrow.inner))
+        }
+        TypeExpr::Borrow(borrow) => format!("&{}", type_expr_display_lossy(&borrow.inner)),
+        TypeExpr::View(view) if view.is_readwrite => {
+            format!("&+[{}]", type_expr_display_lossy(&view.element))
+        }
+        TypeExpr::View(view) => format!("[{}]", type_expr_display_lossy(&view.element)),
+        TypeExpr::Array(array) => {
+            format!(
+                "[{}; {}]",
+                type_expr_display_lossy(&array.element),
+                array.length.value
+            )
+        }
+        TypeExpr::Optional(optional) => format!("{}?", type_expr_display_lossy(&optional.inner)),
+        TypeExpr::Fallible(fallible) => format!("{}!", type_expr_display_lossy(&fallible.success)),
+    }
 }
 
 fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {

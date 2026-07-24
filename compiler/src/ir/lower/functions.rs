@@ -180,6 +180,7 @@ fn function_parameters(
 pub(super) fn lower_drop_function(
     drop_: &DropDecl,
     self_ty: &TypeExpr,
+    substitutions: &HashMap<String, TypeExpr>,
     name: String,
     sources: &SourceMap,
     target: CallTarget,
@@ -194,7 +195,10 @@ pub(super) fn lower_drop_function(
         span: drop_.binding.span,
         name: drop_.binding.name.clone(),
         name_span: drop_.binding.name_span,
-        ty: type_expr_with_self_type(&drop_.binding.ty, self_ty),
+        ty: substitute_type_expr_parameters(
+            &type_expr_with_self_type(&drop_.binding.ty, self_ty),
+            substitutions,
+        ),
     };
     let parameters = lower_scalar_parameters(
         &name,
@@ -223,6 +227,7 @@ pub(super) fn lower_drop_function(
     .with_function_return_type(return_type.clone())
     .with_function_returns_optional(false)
     .with_call_resolution(root_source, resolved, typecheck_facts, function_names)
+    .with_generic_substitutions(substitutions.clone())
     .with_error_payloads(error_payloads);
     let mut instructions = parameter_setup;
     instructions.extend(lower_callable_body(

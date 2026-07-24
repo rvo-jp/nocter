@@ -19,8 +19,6 @@ pub use symbols::{
     Symbol, SymbolId, SymbolKind, SymbolTable, TypeSymbol, TypeSymbolKind,
 };
 
-pub(crate) use signatures::drop_function_name;
-
 use module_index::ModuleIndex;
 
 use crate::ast::AstFile;

@@ -56,6 +56,7 @@ pub(crate) struct TypecheckFacts {
     function_call_specializations: HashMap<ByteSpan, FunctionCallSpecialization>,
     generic_method_call_spans: HashMap<ByteSpan, ByteSpan>,
     method_call_specializations: HashMap<ByteSpan, MethodCallSpecialization>,
+    drop_type_specializations: Vec<DropTypeSpecialization>,
 }
 
 impl TypecheckFacts {
@@ -197,6 +198,12 @@ impl TypecheckFacts {
             .map(|(span, specialization)| (*span, specialization))
     }
 
+    pub(crate) fn drop_type_specializations(
+        &self,
+    ) -> impl Iterator<Item = &DropTypeSpecialization> + '_ {
+        self.drop_type_specializations.iter()
+    }
+
     pub(crate) fn associated_function_target(&self, member_span: ByteSpan) -> Option<ByteSpan> {
         self.associated_function_targets.get(&member_span).copied()
     }
@@ -316,6 +323,35 @@ pub(crate) struct MethodCallSpecialization {
     generic_parameters: Vec<String>,
     pub(crate) substitutions: HashMap<String, TypeExpr>,
     free_type_parameters: HashSet<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct DropTypeSpecialization {
+    pub(crate) declaration_span: ByteSpan,
+    pub(crate) target_name: String,
+    pub(crate) self_ty: TypeExpr,
+    base_target_name: String,
+    free_type_parameters: HashSet<String>,
+}
+
+impl DropTypeSpecialization {
+    pub(crate) fn with_context_substitutions(
+        &self,
+        context_substitutions: &HashMap<String, TypeExpr>,
+    ) -> Option<Self> {
+        let self_ty = substitute_type_expr_parameters(&self.self_ty, context_substitutions);
+        if type_expr_contains_free_parameters(&self_ty, &self.free_type_parameters) {
+            return None;
+        }
+
+        Some(Self {
+            declaration_span: self.declaration_span,
+            target_name: drop_target_name_from_base_and_self_ty(&self.base_target_name, &self_ty),
+            self_ty,
+            base_target_name: self.base_target_name.clone(),
+            free_type_parameters: HashSet::new(),
+        })
+    }
 }
 
 impl MethodCallSpecialization {
@@ -1334,6 +1370,23 @@ impl TypecheckFactCollector<'_> {
         if let Some(kind) = scalar_view_kind(ty) {
             self.facts.binding_scalar_view_kinds.insert(name_span, kind);
         }
+        self.record_drop_type_specialization(name_span, ty);
+    }
+
+    fn record_drop_type_specialization(&mut self, span: ByteSpan, ty: &Type) {
+        let mut free_type_parameters = HashSet::new();
+        let Some(self_ty) =
+            type_to_type_expr_allowing_parameters(ty, span, &mut free_type_parameters)
+        else {
+            return;
+        };
+        let Some(specialization) =
+            drop_type_specialization_from_self_ty(&self_ty, self.resolved, free_type_parameters)
+        else {
+            return;
+        };
+
+        self.facts.drop_type_specializations.push(specialization);
     }
 
     fn record_struct_field_member_reference(
@@ -1745,6 +1798,105 @@ fn specialized_target_name(
 
 fn method_target_name_from_self_ty(self_ty: &TypeExpr, method_name: &str) -> String {
     format!("{}.{}", type_expr_display_lossy(self_ty), method_name)
+}
+
+fn drop_target_name_from_base_and_self_ty(base_target_name: &str, self_ty: &TypeExpr) -> String {
+    let Some(base_type_name) = base_target_name.strip_suffix(".drop") else {
+        return base_target_name.to_string();
+    };
+    let TypeExpr::Generic(generic) = self_ty else {
+        return base_target_name.to_string();
+    };
+    let arguments = generic
+        .arguments
+        .iter()
+        .map(type_expr_display_lossy)
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("{base_type_name}<{arguments}>.drop")
+}
+
+fn drop_type_specialization_from_self_ty(
+    self_ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    free_type_parameters: HashSet<String>,
+) -> Option<DropTypeSpecialization> {
+    drop_type_specialization_from_self_ty_inner(
+        self_ty,
+        resolved,
+        free_type_parameters,
+        &mut HashSet::new(),
+    )
+}
+
+fn drop_type_specialization_from_self_ty_inner(
+    self_ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    free_type_parameters: HashSet<String>,
+    resolving_names: &mut HashSet<String>,
+) -> Option<DropTypeSpecialization> {
+    match self_ty {
+        TypeExpr::Optional(optional) => {
+            return drop_type_specialization_from_self_ty_inner(
+                &optional.inner,
+                resolved,
+                free_type_parameters,
+                resolving_names,
+            );
+        }
+        TypeExpr::Fallible(fallible) => {
+            return drop_type_specialization_from_self_ty_inner(
+                &fallible.success,
+                resolved,
+                free_type_parameters,
+                resolving_names,
+            );
+        }
+        _ => {}
+    }
+
+    let (type_name, substitutions) = match self_ty {
+        TypeExpr::Reference(reference) => (reference.name.as_str(), HashMap::new()),
+        TypeExpr::Generic(generic) => {
+            let symbol = resolved.type_symbol_by_reference_name(&generic.name)?;
+            if symbol.generic_arity != generic.arguments.len() {
+                return None;
+            }
+            let substitutions = symbol
+                .generic_parameters
+                .iter()
+                .cloned()
+                .zip(generic.arguments.iter().cloned())
+                .collect();
+            (generic.name.as_str(), substitutions)
+        }
+        _ => return None,
+    };
+    let symbol = resolved.type_symbol_by_reference_name(type_name)?;
+    if symbol.kind == crate::resolve::TypeSymbolKind::Alias {
+        let target = symbol.alias_target.as_ref()?;
+        if !resolving_names.insert(symbol.canonical_name.clone()) {
+            return None;
+        }
+        let target = substitute_type_expr_parameters(target, &substitutions);
+        let specialization = drop_type_specialization_from_self_ty_inner(
+            &target,
+            resolved,
+            free_type_parameters,
+            resolving_names,
+        );
+        resolving_names.remove(&symbol.canonical_name);
+        return specialization;
+    }
+
+    let drop_member = symbol.drop_member.as_ref()?;
+    Some(DropTypeSpecialization {
+        declaration_span: drop_member.name_span,
+        target_name: drop_target_name_from_base_and_self_ty(&drop_member.target_name, self_ty),
+        self_ty: self_ty.clone(),
+        base_target_name: drop_member.target_name.clone(),
+        free_type_parameters,
+    })
 }
 
 fn type_expr_contains_free_parameters(

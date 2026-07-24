@@ -4,12 +4,12 @@ use crate::analysis::{
 };
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, Block, CallExpr, DropDecl, Expr, ForRangeStmt,
-    FunctionDecl, IfLetStmt, ImplDecl, ImplMember, Item, Stmt, TypeExpr, WhileLetStmt,
+    FunctionDecl, IfLetStmt, ImplMember, Item, Stmt, TypeExpr, WhileLetStmt,
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::ir::CallTarget;
-use crate::resolve::{ResolveOutput, SymbolKind, TypeSymbolKind, drop_function_name};
+use crate::resolve::{ResolveOutput, SymbolKind, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::{FunctionCallSpecialization, MethodCallSpecialization, TypecheckFacts};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -152,8 +152,8 @@ impl<'a> CallableIndex<'a> {
                                     }
                                 }
                                 ImplMember::Method(_) => {}
-                                ImplMember::Drop(drop_) => {
-                                    let name = drop_function_name(type_name);
+                                ImplMember::Drop(drop_) if impl_.generics.parameters.is_empty() => {
+                                    let name = drop_target_name(&impl_.target_ty);
                                     let target = call_target_for_source(
                                         file.ast.span.source,
                                         root_source,
@@ -162,8 +162,30 @@ impl<'a> CallableIndex<'a> {
                                     names.insert(drop_name_span(drop_.span), name.clone());
                                     definitions.insert(
                                         target,
-                                        IndexedCallable::new_drop(drop_, impl_, file),
+                                        IndexedCallable::new_drop(drop_, HashMap::new(), file),
                                     );
+                                }
+                                ImplMember::Drop(drop_) => {
+                                    for specialization in call_specializations
+                                        .drops
+                                        .get(&drop_name_span(drop_.span))
+                                        .into_iter()
+                                        .flatten()
+                                    {
+                                        let target = call_target_for_source(
+                                            file.ast.span.source,
+                                            root_source,
+                                            specialization.target_name.clone(),
+                                        );
+                                        definitions.insert(
+                                            target,
+                                            IndexedCallable::new_drop(
+                                                drop_,
+                                                specialization.substitutions.clone(),
+                                                file,
+                                            ),
+                                        );
+                                    }
                                 }
                             }
                         }
@@ -240,13 +262,17 @@ impl<'a> IndexedCallable<'a> {
         }
     }
 
-    fn new_drop(drop_: &'a DropDecl, impl_: &'a ImplDecl, file: &'a FileAnalysis) -> Self {
+    fn new_drop(
+        drop_: &'a DropDecl,
+        substitutions: HashMap<String, TypeExpr>,
+        file: &'a FileAnalysis,
+    ) -> Self {
         Self {
             body: &drop_.body,
-            substitutions: HashMap::new(),
+            substitutions,
             resolved: &file.resolved,
             typecheck_facts: &file.typecheck_facts,
-            issues: generic_impl_issue(impl_).into_iter().collect(),
+            issues: Vec::new(),
         }
     }
 }
@@ -1947,6 +1973,43 @@ fn method_target_name(type_name: &str, method_name: &str) -> String {
     format!("{type_name}.{method_name}")
 }
 
+fn drop_target_name(self_ty: &TypeExpr) -> String {
+    format!("{}.drop", type_expr_display_lossy(self_ty))
+}
+
+fn type_expr_display_lossy(ty: &TypeExpr) -> String {
+    match ty {
+        TypeExpr::Reference(reference) => reference.name.clone(),
+        TypeExpr::Generic(generic) => {
+            let arguments = generic
+                .arguments
+                .iter()
+                .map(type_expr_display_lossy)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{}<{arguments}>", generic.name)
+        }
+        TypeExpr::Pointer(pointer) => format!("*{}", type_expr_display_lossy(&pointer.inner)),
+        TypeExpr::Borrow(borrow) if borrow.is_readwrite => {
+            format!("&+{}", type_expr_display_lossy(&borrow.inner))
+        }
+        TypeExpr::Borrow(borrow) => format!("&{}", type_expr_display_lossy(&borrow.inner)),
+        TypeExpr::View(view) if view.is_readwrite => {
+            format!("&+[{}]", type_expr_display_lossy(&view.element))
+        }
+        TypeExpr::View(view) => format!("[{}]", type_expr_display_lossy(&view.element)),
+        TypeExpr::Array(array) => {
+            format!(
+                "[{}; {}]",
+                type_expr_display_lossy(&array.element),
+                array.length.value
+            )
+        }
+        TypeExpr::Optional(optional) => format!("{}?", type_expr_display_lossy(&optional.inner)),
+        TypeExpr::Fallible(fallible) => format!("{}!", type_expr_display_lossy(&fallible.success)),
+    }
+}
+
 fn nested_fallible_return_issue(
     function: &FunctionDecl,
     resolved: &ResolveOutput,
@@ -1994,21 +2057,6 @@ fn type_expr_fallible_depth_inner(
         }
         _ => 0,
     }
-}
-
-fn generic_impl_issue(impl_: &ImplDecl) -> Option<BuildabilityIssue> {
-    if impl_.generics.parameters.is_empty() {
-        return None;
-    }
-
-    Some(BuildabilityIssue {
-        span: impl_
-            .generics
-            .span
-            .unwrap_or_else(|| impl_.target_ty.span()),
-        construct: "generic impl members",
-        help: "use a non-generic impl target until v0 monomorphization is promoted",
-    })
 }
 
 fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {

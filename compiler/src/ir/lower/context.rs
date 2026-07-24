@@ -1462,13 +1462,64 @@ fn drop_glue_for_type_expr_inner(
     }
 
     let drop_member = type_symbol.drop_member.as_ref()?;
-    let target = if symbol.declaration_span.source == root_source {
-        CallTarget::same_file(drop_member.target_name.clone())
+    let target_name = if type_symbol.generic_arity > 0 {
+        drop_target_name_from_base_and_type_expr(&drop_member.target_name, ty)
     } else {
-        CallTarget::imported(
-            symbol.declaration_span.source,
-            drop_member.target_name.clone(),
-        )
+        drop_member.target_name.clone()
+    };
+    let target = if symbol.declaration_span.source == root_source {
+        CallTarget::same_file(target_name)
+    } else {
+        CallTarget::imported(symbol.declaration_span.source, target_name)
     };
     Some(DropGlue { target })
+}
+
+fn drop_target_name_from_base_and_type_expr(base_target_name: &str, ty: &TypeExpr) -> String {
+    let Some(base_type_name) = base_target_name.strip_suffix(".drop") else {
+        return base_target_name.to_string();
+    };
+    let TypeExpr::Generic(generic) = ty else {
+        return base_target_name.to_string();
+    };
+    let arguments = generic
+        .arguments
+        .iter()
+        .map(type_expr_display_lossy)
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("{base_type_name}<{arguments}>.drop")
+}
+
+fn type_expr_display_lossy(ty: &TypeExpr) -> String {
+    match ty {
+        TypeExpr::Reference(reference) => reference.name.clone(),
+        TypeExpr::Generic(generic) => {
+            let arguments = generic
+                .arguments
+                .iter()
+                .map(type_expr_display_lossy)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{}<{arguments}>", generic.name)
+        }
+        TypeExpr::Pointer(pointer) => format!("*{}", type_expr_display_lossy(&pointer.inner)),
+        TypeExpr::Borrow(borrow) if borrow.is_readwrite => {
+            format!("&+{}", type_expr_display_lossy(&borrow.inner))
+        }
+        TypeExpr::Borrow(borrow) => format!("&{}", type_expr_display_lossy(&borrow.inner)),
+        TypeExpr::View(view) if view.is_readwrite => {
+            format!("&+[{}]", type_expr_display_lossy(&view.element))
+        }
+        TypeExpr::View(view) => format!("[{}]", type_expr_display_lossy(&view.element)),
+        TypeExpr::Array(array) => {
+            format!(
+                "[{}; {}]",
+                type_expr_display_lossy(&array.element),
+                array.length.value
+            )
+        }
+        TypeExpr::Optional(optional) => format!("{}?", type_expr_display_lossy(&optional.inner)),
+        TypeExpr::Fallible(fallible) => format!("{}!", type_expr_display_lossy(&fallible.success)),
+    }
 }
