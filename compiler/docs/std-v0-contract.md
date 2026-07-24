@@ -140,6 +140,8 @@ collection storage policies are deferred.
 | `File.write_text(text: &str): void!` | runtime ship | Writes UTF-8 text. |
 | `stdout`, `stderr` | runtime ship | Borrowed process standard streams. |
 | `print(text: &str): void!` | runtime ship | Writes to stdout without newline. |
+| `read(file: &+File, buffer: &+[u8]): usize!` | runtime ship narrow | Free-function wrapper. |
+| `write(file: &+File, bytes: &[u8]): void!` | runtime ship narrow | Free-function wrapper. |
 | `write_text(file: &+File, text: &str): void!` | runtime ship | Free-function wrapper. |
 | `unsupported` | private helper | Module-local helper for future I/O failures. |
 | raw fd helpers, `IOError`, `from_os_error` | std internal | Not user-facing v0 API. |

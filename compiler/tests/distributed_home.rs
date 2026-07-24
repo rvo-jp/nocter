@@ -2191,6 +2191,36 @@ func main(): i32! {
     );
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_file_write_text_stderr_runs() {
+    let project = TempProject::new("distributed-home-file-write-text-stderr-run");
+    let source = project.write_source(
+        "file_write_text_stderr.nct",
+        r#"use std/io.{stderr, write_text}
+
+func main(): i32! {
+    var err = stderr()
+    err.write_text("Hello")?
+    write_text(&+err, " stderr")?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert_eq!(output.stderr, b"Hello stderr");
+}
+
 #[test]
 fn distributed_std_sources_do_not_reintroduce_removed_placeholders() {
     let mut files = Vec::new();
