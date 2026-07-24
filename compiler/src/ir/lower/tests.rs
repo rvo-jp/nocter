@@ -332,6 +332,54 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_method_call_temporary_receiver_as_implicit_readonly_borrow() {
+    let ir = lower_text(
+        r#"copy struct File {
+    fd: i32
+}
+
+impl File {
+    method &self.value(): i32 {
+        return self.fd
+    }
+}
+
+func main(): i32 {
+    return make_file().value()
+}
+
+func make_file(): File {
+    return File{ fd: 42 }
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::CallDirectAggregate {
+                destination: AggregateLocation::Slot(0),
+                target: CallTarget::same_file("make_file"),
+                arguments: vec![],
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::CallI32 {
+                destination: I32Location::Return,
+                target: CallTarget::same_file("File.value"),
+                arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                    source: BorrowSource::AggregateSlot(0),
+                })],
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_entry_i32_let_initializer_normal_call() {
     let ir = lower_text(
         r#"func main(): i32 {
@@ -14475,6 +14523,58 @@ func choose(value: &i32, code: i32): i32 {
 }
 
 #[test]
+fn lowers_aggregate_call_scalar_field_borrow_call_argument() {
+    let ir = lower_text(
+        r#"copy struct Pair {
+    value: i32
+}
+
+func main(): i32 {
+    return choose(&make().value, 42)
+}
+
+func make(): Pair {
+    return Pair{ value: 1 }
+}
+
+func choose(value: &i32, code: i32): i32 {
+    return code
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0].instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::CallDirectAggregate {
+                destination: AggregateLocation::Slot(0),
+                target: CallTarget::same_file("make"),
+                arguments: vec![],
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::CallI32 {
+                destination: I32Location::Return,
+                target: CallTarget::same_file("choose"),
+                arguments: vec![
+                    ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateSlotField {
+                            slot_index: 0,
+                            offset: 0,
+                        },
+                    }),
+                    ScalarArgument::I32(I32Value::Const(42)),
+                ],
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_borrowed_aggregate_scalar_field_borrow_call_argument() {
     let ir = lower_text(
         r#"copy struct Pair {
@@ -14666,6 +14766,75 @@ func choose(value: &i32, code: i32): i32 {
                     arguments: vec![
                         ScalarArgument::Borrow(BorrowArgument {
                             source: BorrowSource::I32(I32Location::Local(0)),
+                        }),
+                        ScalarArgument::I32(I32Value::Const(42)),
+                    ],
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_readonly_temporary_scalar_borrow_call_argument() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func caller(): i32 {
+    return choose(&answer(), 42)
+}
+
+func answer(): i32 {
+    return 7
+}
+
+func choose(value: &i32, code: i32): i32 {
+    return code
+}
+"#,
+        "caller",
+        function_signatures(vec![
+            ("answer", Type::I32, vec![]),
+            (
+                "choose",
+                Type::I32,
+                vec![
+                    Type::Borrow {
+                        is_readwrite: false,
+                        inner: Box::new(Type::I32),
+                    },
+                    Type::I32,
+                ],
+            ),
+        ]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "caller".to_string(),
+            target: crate::ir::CallTarget::same_file("caller".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::CallI32 {
+                    destination: I32Location::Local(0),
+                    target: CallTarget::same_file("answer"),
+                    arguments: vec![],
+                },
+                Instruction::SetI32 {
+                    destination: I32Location::Local(1),
+                    value: I32Value::Location(I32Location::Local(0)),
+                },
+                Instruction::CallI32 {
+                    destination: I32Location::Return,
+                    target: CallTarget::same_file("choose"),
+                    arguments: vec![
+                        ScalarArgument::Borrow(BorrowArgument {
+                            source: BorrowSource::I32(I32Location::Local(1)),
                         }),
                         ScalarArgument::I32(I32Value::Const(42)),
                     ],

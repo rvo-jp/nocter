@@ -589,16 +589,24 @@ pub(super) fn lower_call_arguments(
                 arguments.push(ScalarArgument::Slice(argument.value));
             }
             Type::Borrow { .. } => {
-                let argument = if is_method_receiver {
+                let (argument_instructions, argument) = if is_method_receiver {
                     lower_implicit_receiver_borrow_argument(
                         argument,
                         parameter_type,
                         callee_name,
                         context,
+                        temporaries,
                     )?
                 } else {
-                    lower_borrow_argument(argument, parameter_type, callee_name, context)?
+                    lower_borrow_argument(
+                        argument,
+                        parameter_type,
+                        callee_name,
+                        context,
+                        temporaries,
+                    )?
                 };
+                instructions.extend(argument_instructions);
                 arguments.push(ScalarArgument::Borrow(argument));
             }
             Type::Aggregate { .. } => {
@@ -1096,7 +1104,8 @@ fn lower_borrow_argument(
     parameter_type: &Type,
     callee_name: &str,
     context: &LoweringContext,
-) -> Result<BorrowArgument, Vec<Diagnostic>> {
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, BorrowArgument), Vec<Diagnostic>> {
     let Type::Borrow {
         is_readwrite,
         inner,
@@ -1105,7 +1114,7 @@ fn lower_borrow_argument(
         unreachable!("borrow argument lowering requires a borrow parameter type");
     };
 
-    let source = match unwrap_group(argument) {
+    let (instructions, source) = match unwrap_group(argument) {
         Expr::Borrow(borrow) => {
             if borrow.is_readwrite != *is_readwrite {
                 return Err(unsupported_borrow_argument_diagnostic(
@@ -1113,42 +1122,31 @@ fn lower_borrow_argument(
                     parameter_type,
                 ));
             }
-            match unwrap_group(&borrow.expression) {
-                Expr::Identifier(identifier) => lower_borrow_source_from_identifier(
-                    &identifier.name,
-                    inner,
-                    parameter_type,
-                    callee_name,
-                    context,
-                )?,
-                Expr::Member(member) => lower_borrow_source_from_aggregate_member(
-                    member,
-                    inner,
-                    *is_readwrite,
-                    parameter_type,
-                    callee_name,
-                    context,
-                )?,
-                _ => {
-                    return Err(unsupported_borrow_argument_diagnostic(
-                        callee_name,
-                        parameter_type,
-                    ));
-                }
-            }
+            lower_borrow_source_from_expression(
+                &borrow.expression,
+                inner,
+                *is_readwrite,
+                parameter_type,
+                callee_name,
+                context,
+                temporaries,
+            )?
         }
         Expr::Identifier(identifier)
             if context
                 .aggregate_borrow_parameter(&identifier.name)
                 .is_some() =>
         {
-            lower_borrow_source_from_identifier(
-                &identifier.name,
-                inner,
-                parameter_type,
-                callee_name,
-                context,
-            )?
+            (
+                Vec::new(),
+                lower_borrow_source_from_identifier(
+                    &identifier.name,
+                    inner,
+                    parameter_type,
+                    callee_name,
+                    context,
+                )?,
+            )
         }
         _ => {
             return Err(unsupported_borrow_argument_diagnostic(
@@ -1158,7 +1156,7 @@ fn lower_borrow_argument(
         }
     };
 
-    Ok(BorrowArgument { source })
+    Ok((instructions, BorrowArgument { source }))
 }
 
 fn lower_implicit_receiver_borrow_argument(
@@ -1166,7 +1164,8 @@ fn lower_implicit_receiver_borrow_argument(
     parameter_type: &Type,
     callee_name: &str,
     context: &LoweringContext,
-) -> Result<BorrowArgument, Vec<Diagnostic>> {
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, BorrowArgument), Vec<Diagnostic>> {
     let Type::Borrow { inner, .. } = parameter_type else {
         unreachable!("receiver borrow argument lowering requires a borrow parameter type");
     };
@@ -1178,31 +1177,61 @@ fn lower_implicit_receiver_borrow_argument(
             ..
         }
     );
-    let source = match unwrap_group(argument) {
-        Expr::Identifier(identifier) => lower_borrow_source_from_identifier(
-            &identifier.name,
-            inner,
-            parameter_type,
-            callee_name,
-            context,
-        )?,
-        Expr::Member(member) => lower_borrow_source_from_aggregate_member(
-            member,
+    let (instructions, source) = lower_borrow_source_from_expression(
+        argument,
+        inner,
+        is_readwrite,
+        parameter_type,
+        callee_name,
+        context,
+        temporaries,
+    )?;
+
+    Ok((instructions, BorrowArgument { source }))
+}
+
+fn lower_borrow_source_from_expression(
+    expression: &Expr,
+    inner: &Type,
+    is_readwrite: bool,
+    parameter_type: &Type,
+    callee_name: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, BorrowSource), Vec<Diagnostic>> {
+    match unwrap_group(expression) {
+        Expr::Identifier(identifier) => Ok((
+            Vec::new(),
+            lower_borrow_source_from_identifier(
+                &identifier.name,
+                inner,
+                parameter_type,
+                callee_name,
+                context,
+            )?,
+        )),
+        Expr::Member(_) => lower_borrow_source_from_aggregate_member_expression(
+            expression,
             inner,
             is_readwrite,
             parameter_type,
             callee_name,
             context,
-        )?,
-        _ => {
-            return Err(unsupported_borrow_argument_diagnostic(
-                callee_name,
-                parameter_type,
-            ));
-        }
-    };
-
-    Ok(BorrowArgument { source })
+            temporaries,
+        ),
+        _ if !is_readwrite => lower_readonly_temporary_borrow_source(
+            expression,
+            inner,
+            parameter_type,
+            callee_name,
+            context,
+            temporaries,
+        ),
+        _ => Err(unsupported_borrow_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        )),
+    }
 }
 
 fn lower_borrow_source_from_identifier(
@@ -1294,23 +1323,16 @@ fn lower_borrow_source_from_identifier(
     }
 }
 
-fn lower_borrow_source_from_aggregate_member(
-    member: &crate::ast::MemberExpr,
+fn lower_borrow_source_from_aggregate_member_expression(
+    expression: &Expr,
     inner: &Type,
     is_readwrite: bool,
     parameter_type: &Type,
     callee_name: &str,
     context: &LoweringContext,
-) -> Result<BorrowSource, Vec<Diagnostic>> {
-    let Some((aggregate_name, mut fields)) = aggregate_member_root_and_path(&member.object) else {
-        return Err(unsupported_borrow_argument_diagnostic(
-            callee_name,
-            parameter_type,
-        ));
-    };
-    fields.push(member.member.as_str());
-    let field_name = fields.join(".");
-    let Some(field) = context.aggregate_field(aggregate_name, &field_name) else {
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, BorrowSource), Vec<Diagnostic>> {
+    let Some(field) = lower_aggregate_member_field_access(expression, context, temporaries)? else {
         return Err(unsupported_borrow_argument_diagnostic(
             callee_name,
             parameter_type,
@@ -1329,7 +1351,7 @@ fn lower_borrow_source_from_aggregate_member(
         ));
     }
 
-    match field.source {
+    let source = match field.source {
         AggregateLocation::Slot(slot_index) => Ok(BorrowSource::AggregateSlotField {
             slot_index,
             offset: field.offset,
@@ -1346,18 +1368,82 @@ fn lower_borrow_source_from_aggregate_member(
             callee_name,
             parameter_type,
         )),
-    }
+    }?;
+    Ok((field.instructions, source))
 }
 
-fn aggregate_member_root_and_path(expression: &Expr) -> Option<(&str, Vec<&str>)> {
-    match unwrap_group(expression) {
-        Expr::Identifier(identifier) => Some((&identifier.name, Vec::new())),
-        Expr::Member(member) => {
-            let (root, mut fields) = aggregate_member_root_and_path(&member.object)?;
-            fields.push(member.member.as_str());
-            Some((root, fields))
+fn lower_readonly_temporary_borrow_source(
+    expression: &Expr,
+    inner: &Type,
+    parameter_type: &Type,
+    callee_name: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, BorrowSource), Vec<Diagnostic>> {
+    match inner {
+        Type::I32 => {
+            let lowered = lower_i32_expression_to_value(expression, context, temporaries)?;
+            let destination = temporaries.next_i32()?;
+            let mut instructions = lowered.instructions;
+            instructions.push(Instruction::SetI32 {
+                destination,
+                value: lowered.value,
+            });
+            Ok((instructions, BorrowSource::I32(destination)))
         }
-        _ => None,
+        Type::U8 => {
+            let lowered = lower_u8_expression_to_value(expression, context, temporaries)?;
+            let destination = temporaries.next_u8()?;
+            let mut instructions = lowered.instructions;
+            instructions.push(Instruction::SetU8 {
+                destination,
+                value: lowered.value,
+            });
+            Ok((instructions, BorrowSource::U8(destination)))
+        }
+        Type::Usize => {
+            let lowered = lower_usize_expression_to_value(expression, context, temporaries)?;
+            let destination = temporaries.next_usize()?;
+            let mut instructions = lowered.instructions;
+            instructions.push(Instruction::SetUsize {
+                destination,
+                value: lowered.value,
+            });
+            Ok((instructions, BorrowSource::Usize(destination)))
+        }
+        Type::Bool => {
+            let lowered = lower_bool_expression_to_value_with_temporaries(
+                expression,
+                context,
+                "E8006",
+                temporaries,
+            )?;
+            let destination = temporaries.next_bool()?;
+            let mut instructions = lowered.instructions;
+            instructions.push(Instruction::SetBool {
+                destination,
+                value: lowered.value,
+            });
+            Ok((instructions, BorrowSource::Bool(destination)))
+        }
+        Type::Aggregate { .. } | Type::DirectAggregate { .. } => {
+            let (instructions, source) = lower_aggregate_argument_source(
+                expression,
+                inner,
+                callee_name,
+                context,
+                temporaries,
+            )?;
+            match source {
+                AggregateArgumentSource::Slot(slot_index) => {
+                    Ok((instructions, BorrowSource::AggregateSlot(slot_index)))
+                }
+            }
+        }
+        _ => Err(unsupported_borrow_argument_diagnostic(
+            callee_name,
+            parameter_type,
+        )),
     }
 }
 

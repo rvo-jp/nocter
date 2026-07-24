@@ -1570,7 +1570,8 @@ fn unsupported_borrow_call_argument_diagnostic(
             }
             match unwrap_group_expr(argument) {
                 Expr::Borrow(borrow)
-                    if !borrow_argument_source_is_binding_or_field(&borrow.expression) =>
+                    if borrow.is_readwrite
+                        && !borrow_argument_source_is_binding_or_field(&borrow.expression) =>
                 {
                     Some(argument)
                 }
@@ -1581,8 +1582,8 @@ fn unsupported_borrow_call_argument_diagnostic(
     Some(unsupported_v0_build_diagnostic(
         sources,
         argument.span(),
-        "borrow call arguments from unsupported expressions",
-        "borrow a local binding, an aggregate field rooted at a binding, or pass an existing borrow parameter until general borrow-place lowering is promoted",
+        "read-write borrow call arguments from unsupported expressions",
+        "borrow a mutable local binding or mutable aggregate field rooted at a binding until read-write temporary borrow lowering is promoted",
     ))
 }
 
@@ -1595,7 +1596,7 @@ fn unsupported_method_borrow_receiver_diagnostic(
         return None;
     };
     typecheck_facts.method_call_target(member.member_span)?;
-    if !method_call_receiver_is_borrow(member.member_span, typecheck_facts) {
+    if !method_call_receiver_is_readwrite_borrow(member.member_span, typecheck_facts) {
         return None;
     }
     if borrow_argument_source_is_binding_or_field(&member.object) {
@@ -1605,18 +1606,21 @@ fn unsupported_method_borrow_receiver_diagnostic(
     Some(unsupported_v0_build_diagnostic(
         sources,
         member.object.span(),
-        "method borrow receivers from unsupported expressions",
-        "call the method on a local binding or an aggregate field rooted at a binding until general receiver-place lowering is promoted",
+        "read-write method borrow receivers from unsupported expressions",
+        "call the method on a mutable local binding or mutable aggregate field rooted at a binding until read-write temporary receiver lowering is promoted",
     ))
 }
 
-fn method_call_receiver_is_borrow(member_span: ByteSpan, typecheck_facts: &TypecheckFacts) -> bool {
+fn method_call_receiver_is_readwrite_borrow(
+    member_span: ByteSpan,
+    typecheck_facts: &TypecheckFacts,
+) -> bool {
     let Some((_span, label)) = typecheck_facts.call_hover_at_offset(member_span.start) else {
         return false;
     };
     label
         .strip_prefix("method ")
-        .is_some_and(|label| label.starts_with('&'))
+        .is_some_and(|label| label.starts_with("&+"))
 }
 
 fn borrow_argument_source_is_binding_or_field(expression: &Expr) -> bool {

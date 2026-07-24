@@ -119,6 +119,43 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_temporary_method_receiver_exit_code() {
+    let project = TempProject::new("cli-run-temporary-method-receiver");
+    let source = project.write_source(
+        "temporary_method_receiver.nct",
+        r#"copy struct File {
+    fd: i32
+}
+
+impl File {
+    method &self.value(): i32 {
+        return self.fd
+    }
+}
+
+func main(): i32 {
+    return make_file().value()
+}
+
+func make_file(): File {
+    return File{ fd: 42 }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_readwrite_aggregate_field_method_receiver_exit_code() {
     let project = TempProject::new("cli-run-readwrite-aggregate-field-method-receiver");
     let source = project.write_source(
@@ -6473,6 +6510,41 @@ func main(): i32 {
 }
 
 func choose(value: IntRef, code: i32): i32 {
+    return code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_passes_aggregate_call_field_borrow_argument() {
+    let project = TempProject::new("cli-run-aggregate-call-field-borrow-argument");
+    let source = project.write_source(
+        "aggregate_call_field_borrow_argument.nct",
+        r#"copy struct Pair {
+    value: i32
+}
+
+func main(): i32 {
+    return choose(&make().value, 42)
+}
+
+func make(): Pair {
+    return Pair{ value: 1 }
+}
+
+func choose(value: &i32, code: i32): i32 {
     return code
 }
 "#,

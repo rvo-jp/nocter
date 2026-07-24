@@ -2803,6 +2803,7 @@ pub(super) struct LoweredAggregateFieldAccess {
     pub(super) source: AggregateLocation,
     pub(super) offset: u32,
     pub(super) kind: AggregateFieldKind,
+    pub(super) is_readwrite: bool,
     pub(super) is_copy: bool,
 }
 
@@ -2822,6 +2823,7 @@ pub(super) fn lower_aggregate_member_field_access(
                 source: field.source,
                 offset: field.offset,
                 kind: field.kind,
+                is_readwrite: field.is_readwrite,
                 is_copy: field.is_copy,
             })),
         AggregateMemberRoot::Call(call) => {
@@ -2954,6 +2956,7 @@ fn lower_aggregate_call_member_field_access(
             source: AggregateLocation::Slot(slot_index),
             offset: field.offset,
             kind: field.kind,
+            is_readwrite: false,
             is_copy: true,
         }));
     }
@@ -2993,6 +2996,7 @@ fn lower_aggregate_call_member_field_access(
         source: AggregateLocation::Slot(slot_index),
         offset: field.offset,
         kind: field.kind,
+        is_readwrite: false,
         is_copy: true,
     }))
 }
@@ -3055,6 +3059,7 @@ fn lower_aggregate_fallible_call_member_field_access(
         source: AggregateLocation::Slot(slot_index),
         offset: field.offset,
         kind: field.kind,
+        is_readwrite: false,
         is_copy: true,
     }))
 }

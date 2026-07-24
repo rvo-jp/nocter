@@ -2161,10 +2161,10 @@ func choose(value: IntRef, fallback: i32): i32 {
 }
 
 #[test]
-fn build_command_reports_non_binding_root_borrow_argument_before_ir_lowering() {
-    let project = TempProject::new("cli-build-non-binding-root-borrow-argument-boundary");
+fn build_command_lowers_non_binding_root_borrow_argument() {
+    let project = TempProject::new("cli-build-non-binding-root-borrow-argument");
     let source = project.write_source(
-        "non_binding_root_borrow_argument_boundary.nct",
+        "non_binding_root_borrow_argument.nct",
         r#"copy struct Pair {
     value: i32
 }
@@ -2186,28 +2186,8 @@ func choose(value: &i32, fallback: i32): i32 {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("borrow call arguments from unsupported expressions"),
-        "expected borrow argument diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("6 |     return choose(&make().value, 0)"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E8006]"),
-        "buildability preflight should reject before IR call argument lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
@@ -3722,10 +3702,10 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_reports_temporary_method_borrow_receiver_before_ir_lowering() {
-    let project = TempProject::new("cli-build-temporary-method-borrow-receiver-boundary");
+fn build_command_lowers_temporary_method_borrow_receiver() {
+    let project = TempProject::new("cli-build-temporary-method-borrow-receiver");
     let source = project.write_source(
-        "temporary_method_borrow_receiver_boundary.nct",
+        "temporary_method_borrow_receiver.nct",
         r#"copy struct File {
     fd: i32
 }
@@ -3749,28 +3729,8 @@ func make_file(): File {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("method borrow receivers from unsupported expressions"),
-        "expected method receiver diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("12 |     return make_file().value()"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]
