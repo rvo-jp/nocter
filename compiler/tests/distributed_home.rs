@@ -418,26 +418,16 @@ func main(): i32 {
     if first.capacity() != 0 {
         return 3
     }
-    let first_view = first.view()
-    if slice_len(first_view) != 0 {
+    if first.view().len() != 0 {
         return 4
     }
 
     var second: Vec<u8> = empty()
-    let second_view = second.view_mut()
-    if slice_len_mut(second_view) != 0 {
+    if second.view_mut().len() != 0 {
         return 5
     }
     second.clear()
     return 0
-}
-
-func slice_len(values: &[u8]): usize {
-    return values.len()
-}
-
-func slice_len_mut(values: &+[u8]): usize {
-    return values.len()
 }
 "#,
     );

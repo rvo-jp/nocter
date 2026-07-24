@@ -16630,6 +16630,99 @@ func size(bytes: &+[u8]): usize {
 }
 
 #[test]
+fn lowers_u8_slice_len_comparison_condition() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func choose(bytes: &[u8]): i32 {
+    if bytes.len() == 0 {
+        return 42
+    } else {
+        return 7
+    }
+}
+"#,
+        "choose",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "choose".to_string(),
+            target: crate::ir::CallTarget::same_file("choose".to_string()),
+            return_type: Type::I32,
+            instructions: vec![Instruction::If {
+                condition: BoolValue::UsizeComparison {
+                    operator: I32ComparisonOperator::Equal,
+                    left: usize_slice_len(SliceLocation::Parameter(0)),
+                    right: usize_const(0),
+                },
+                then_instructions: vec![set_return_i32(42), Instruction::Return],
+                else_instructions: vec![set_return_i32(7), Instruction::Return],
+            }],
+        }
+    );
+}
+
+#[test]
+fn lowers_u8_slice_call_result_len_comparison_condition() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func choose(bytes: &[u8]): i32 {
+    if identity(bytes).len() != 0 {
+        return 42
+    } else {
+        return 7
+    }
+}
+
+func identity(bytes: &[u8]): &[u8] {
+    return bytes
+}
+"#,
+        "choose",
+        function_signatures(vec![(
+            "identity",
+            readonly_u8_slice_type(),
+            vec![readonly_u8_slice_type()],
+        )]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "choose".to_string(),
+            target: crate::ir::CallTarget::same_file("choose".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                call_slice(
+                    SliceLocation::Local(0),
+                    "identity",
+                    vec![ScalarArgument::Slice(SliceValue::Location(
+                        SliceLocation::Parameter(0),
+                    ))],
+                ),
+                Instruction::If {
+                    condition: BoolValue::UsizeComparison {
+                        operator: I32ComparisonOperator::NotEqual,
+                        left: usize_slice_len(SliceLocation::Local(0)),
+                        right: usize_const(0),
+                    },
+                    then_instructions: vec![set_return_i32(42), Instruction::Return],
+                    else_instructions: vec![set_return_i32(7), Instruction::Return],
+                },
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_str_parameter_len_return() {
     let function = lower_named_function(
         r#"func main(): i32 {
@@ -26054,6 +26147,10 @@ fn u8_local(index: usize) -> U8Value {
 
 fn usize_const(value: u64) -> UsizeValue {
     UsizeValue::Const(value)
+}
+
+fn usize_slice_len(location: SliceLocation) -> UsizeValue {
+    UsizeValue::SliceLen(location)
 }
 
 fn usize_param(index: usize) -> UsizeValue {
