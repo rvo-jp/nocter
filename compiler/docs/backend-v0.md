@@ -38,17 +38,17 @@ A normal call returns to the caller after clobbering argument, return, and scrat
 
 ## Normal Call Lowering Design
 
-Normal calls are the next backend boundary to design before implementation.
-They must not be added by treating `bl` as a drop-in replacement for the existing tail-call `b`.
+Normal calls are implemented under the current narrow backend boundary.
+They are not treated as a drop-in replacement for the existing tail-call `b`.
 On ARM64, `bl` writes the caller return address into `x30`.
 If a Nocter function executes `bl` and later executes `ret`, the original `x30` value must be restored first.
 The current register-only local model also keeps scalar locals in caller-clobbered registers, so a callee may overwrite values that remain live after the call.
 
-The first implementation should keep the user-visible subset small:
+The implementation keeps the user-visible subset small:
 
-- same-file, non-generic calls only
-- scalar `i32`/`usize`/`bool` arguments and `&str` slice arguments only
-- `i32` return values in lowerable `i32` expressions, `let` initializers, and `i32` comparison operands
+- same-file and loaded imported calls, including fully concrete generic specializations
+- scalar `i32`/`u8`/`usize`/`bool`, borrow, `&str`, slice, and selected aggregate arguments in the documented ABI subset
+- `i32`, `u8`, `usize`, and `bool` return values in lowerable scalar/view positions
 - `bool` return values in `let` initializers, unary-not bool expressions, bool equality/inequality operands, short-circuit bool value expressions, direct terminal-if conditions, and terminal-if short-circuit conditions
 - direct `&str` return values from static string literals, `&str` parameters, `&str` locals, and tail calls
 - `&str` return values in annotated `&str` `let` initializers and as `&str` call arguments
@@ -260,7 +260,7 @@ Implement normal calls in this order:
 
 ### Aggregate ABI Status
 
-The backend currently supports the normal-call register and stack-argument portion of Nocter ABI v0 for supported non-generic aggregate structs:
+The backend currently supports the normal-call register and stack-argument portion of Nocter ABI v0 for supported non-generic aggregate structs and fully concrete generic struct instantiations:
 
 - direct aggregate parameters, arguments, and returns up to 16 bytes, including partial final ABI words
 - direct aggregate argument staging, call-result slot stores, and fallible success-payload forwarding cover partial final ABI words, including a 9-byte value carried as two ABI words
