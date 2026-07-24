@@ -10,13 +10,15 @@ use super::expressions::{
 use super::functions::propagating_failure_mode;
 use super::literals::{lower_u16_literal, lower_u32_literal};
 use crate::abi::{AbiType, ValueLayout, abi_value_from_type_expr, layout_of, layout_struct};
-use crate::ast::{CallExpr, Expr, StructLiteralExpr, TypeExpr, UnaryOperator};
+use crate::ast::{
+    CallExpr, Expr, StructLiteralExpr, TypeExpr, UnaryOperator, substitute_type_expr_parameters,
+};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateLocation, CallTarget, FallibleFailureMode, Instruction, ScalarArgument, Type,
     UsizeValue,
 };
-use crate::resolve::{ResolveOutput, StructFieldSignature, TypeSymbolKind};
+use crate::resolve::{ResolveOutput, StructFieldSignature, TypeSymbol, TypeSymbolKind};
 use crate::source::SourceId;
 use std::collections::{HashMap, HashSet};
 
@@ -59,6 +61,9 @@ fn type_expr_is_copy_struct_inner(
             let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
                 return false;
             };
+            if symbol.generic_arity > 0 {
+                return false;
+            }
             match symbol.kind {
                 TypeSymbolKind::Struct => symbol.is_copy,
                 TypeSymbolKind::Alias => {
@@ -67,6 +72,29 @@ fn type_expr_is_copy_struct_inner(
                     }
                     let is_copy = symbol.alias_target.as_ref().is_some_and(|target| {
                         type_expr_is_copy_struct_inner(target, resolved, resolving_names)
+                    });
+                    resolving_names.remove(&symbol.canonical_name);
+                    is_copy
+                }
+                TypeSymbolKind::Enum | TypeSymbolKind::Interface => false,
+            }
+        }
+        TypeExpr::Generic(generic) => {
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&generic.name) else {
+                return false;
+            };
+            let Some(substitutions) = generic_type_expr_substitutions(symbol, ty) else {
+                return false;
+            };
+            match symbol.kind {
+                TypeSymbolKind::Struct => symbol.is_copy,
+                TypeSymbolKind::Alias => {
+                    if !resolving_names.insert(symbol.canonical_name.clone()) {
+                        return false;
+                    }
+                    let is_copy = symbol.alias_target.as_ref().is_some_and(|target| {
+                        let target = substitute_type_expr_parameters(target, &substitutions);
+                        type_expr_is_copy_struct_inner(&target, resolved, resolving_names)
                     });
                     resolving_names.remove(&symbol.canonical_name);
                     is_copy
@@ -316,18 +344,44 @@ pub(super) fn aggregate_fields_from_type_expr(
     Some(aggregate_fields)
 }
 
-fn struct_field_signatures_from_type_expr<'a>(
-    ty: &'a TypeExpr,
-    resolved: &'a ResolveOutput,
-) -> Option<&'a [StructFieldSignature]> {
+fn struct_field_signatures_from_type_expr(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+) -> Option<Vec<StructFieldSignature>> {
     match ty {
         TypeExpr::Reference(reference) => {
             let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
+            if symbol.generic_arity > 0 {
+                return None;
+            }
             match symbol.kind {
-                TypeSymbolKind::Struct => Some(&symbol.fields),
+                TypeSymbolKind::Struct => Some(symbol.fields.clone()),
                 TypeSymbolKind::Alias => {
                     let target = symbol.alias_target.as_ref()?;
                     struct_field_signatures_from_type_expr(target, resolved)
+                }
+                TypeSymbolKind::Enum | TypeSymbolKind::Interface => None,
+            }
+        }
+        TypeExpr::Generic(generic) => {
+            let symbol = resolved.type_symbol_by_reference_name(&generic.name)?;
+            let substitutions = generic_type_expr_substitutions(symbol, ty)?;
+            match symbol.kind {
+                TypeSymbolKind::Struct => Some(
+                    symbol
+                        .fields
+                        .iter()
+                        .cloned()
+                        .map(|mut field| {
+                            field.ty = substitute_type_expr_parameters(&field.ty, &substitutions);
+                            field
+                        })
+                        .collect(),
+                ),
+                TypeSymbolKind::Alias => {
+                    let target = symbol.alias_target.as_ref()?;
+                    let target = substitute_type_expr_parameters(target, &substitutions);
+                    struct_field_signatures_from_type_expr(&target, resolved)
                 }
                 TypeSymbolKind::Enum | TypeSymbolKind::Interface => None,
             }
@@ -340,6 +394,26 @@ fn struct_field_signatures_from_type_expr<'a>(
         }
         _ => None,
     }
+}
+
+fn generic_type_expr_substitutions(
+    symbol: &TypeSymbol,
+    ty: &TypeExpr,
+) -> Option<HashMap<String, TypeExpr>> {
+    let TypeExpr::Generic(generic) = ty else {
+        return None;
+    };
+    if symbol.generic_arity != generic.arguments.len() {
+        return None;
+    }
+    Some(
+        symbol
+            .generic_parameters
+            .iter()
+            .cloned()
+            .zip(generic.arguments.iter().cloned())
+            .collect(),
+    )
 }
 
 fn collect_aggregate_fields(
@@ -380,6 +454,7 @@ fn collect_aggregate_fields(
     };
     for (index, (field, layout)) in fields.iter().zip(struct_layout.fields.iter()).enumerate() {
         let nested_source_ty = nested_source_fields
+            .as_ref()
             .and_then(|source_fields| source_fields.get(index))
             .map(|field| &field.ty);
         collect_aggregate_fields(
@@ -406,6 +481,7 @@ fn collect_aggregate_fields(
     for (index, (field, layout)) in fields.iter().zip(struct_layout.fields.iter()).enumerate() {
         let offset = base_offset.checked_add(layout.offset)?;
         let nested_source_ty = nested_source_fields
+            .as_ref()
             .and_then(|source_fields| source_fields.get(index))
             .map(|field| &field.ty);
         collect_aggregate_fields(

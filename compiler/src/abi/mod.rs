@@ -1,8 +1,8 @@
 //! Nocter ABI lowering and layout rules.
 
-use crate::ast::TypeExpr;
+use crate::ast::{TypeExpr, substitute_type_expr_parameters};
 use crate::resolve::{FunctionSignature, ResolveOutput, TypeSymbol, TypeSymbolKind};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 pub const ABI_WORD_SIZE: u64 = 8;
 pub const ARGUMENT_REGISTER_COUNT: usize = 8;
@@ -364,7 +364,7 @@ pub fn abi_type_from_type_expr(
     ty: &TypeExpr,
     resolved: &ResolveOutput,
 ) -> Result<AbiType, AbiTypeError> {
-    match abi_type_kind_from_type_expr(ty, resolved, &mut HashSet::new())? {
+    match abi_type_kind_from_type_expr(ty, resolved, &HashMap::new(), &mut HashSet::new())? {
         AbiTypeKind::Value(ty) => Ok(ty),
         AbiTypeKind::UnsizedStr => Err(AbiTypeError::UnsizedValue("str".to_string())),
         AbiTypeKind::UnsizedArray => Err(AbiTypeError::UnsizedValue(type_expr_display_lossy(ty))),
@@ -425,6 +425,7 @@ enum AbiTypeKind {
 fn abi_type_kind_from_type_expr(
     ty: &TypeExpr,
     resolved: &ResolveOutput,
+    substitutions: &HashMap<String, TypeExpr>,
     resolving_names: &mut HashSet<String>,
 ) -> Result<AbiTypeKind, AbiTypeError> {
     match ty {
@@ -444,22 +445,62 @@ fn abi_type_kind_from_type_expr(
             "void" | "never" | "error" => {
                 Err(AbiTypeError::UnsupportedType(reference.name.clone()))
             }
+            name if substitutions.contains_key(name) => {
+                let Some(substitution) = substitutions.get(name) else {
+                    return Err(AbiTypeError::UnresolvedType(name.to_string()));
+                };
+                let substitution = substitute_type_expr_parameters(substitution, substitutions);
+                abi_type_kind_from_type_expr(
+                    &substitution,
+                    resolved,
+                    substitutions,
+                    resolving_names,
+                )
+            }
             name => {
                 let Some(symbol) = resolved.type_symbol_by_reference_name(name) else {
                     return Err(AbiTypeError::UnresolvedType(name.to_string()));
                 };
-                abi_type_kind_from_symbol(symbol, resolved, resolving_names)
+                if symbol.generic_arity > 0 {
+                    return Err(AbiTypeError::UnsupportedType(symbol.canonical_name.clone()));
+                }
+                abi_type_kind_from_symbol(symbol, resolved, substitutions, resolving_names)
             }
         },
         TypeExpr::Generic(generic) => {
             let Some(symbol) = resolved.type_symbol_by_reference_name(&generic.name) else {
                 return Err(AbiTypeError::UnresolvedType(generic.name.clone()));
             };
-            abi_type_kind_from_symbol(symbol, resolved, resolving_names)
+            if symbol.generic_arity != generic.arguments.len() {
+                return Err(AbiTypeError::UnsupportedType(type_expr_display_lossy(ty)));
+            }
+
+            let mut instantiated_substitutions = substitutions.clone();
+            for (parameter, argument) in symbol
+                .generic_parameters
+                .iter()
+                .zip(generic.arguments.iter())
+            {
+                instantiated_substitutions.insert(
+                    parameter.clone(),
+                    substitute_type_expr_parameters(argument, substitutions),
+                );
+            }
+            abi_type_kind_from_symbol(
+                symbol,
+                resolved,
+                &instantiated_substitutions,
+                resolving_names,
+            )
         }
         TypeExpr::Pointer(_) => Ok(AbiTypeKind::Value(AbiType::Pointer)),
         TypeExpr::Borrow(borrow) => {
-            match abi_type_kind_from_type_expr(&borrow.inner, resolved, resolving_names)? {
+            match abi_type_kind_from_type_expr(
+                &borrow.inner,
+                resolved,
+                substitutions,
+                resolving_names,
+            )? {
                 AbiTypeKind::UnsizedStr => Ok(AbiTypeKind::Value(AbiType::StrView)),
                 AbiTypeKind::UnsizedArray => Ok(AbiTypeKind::Value(AbiType::SliceView)),
                 AbiTypeKind::Value(_) => Ok(AbiTypeKind::Value(AbiType::Borrow)),
@@ -485,6 +526,7 @@ fn abi_type_kind_from_type_expr(
 fn abi_type_kind_from_symbol(
     symbol: &TypeSymbol,
     resolved: &ResolveOutput,
+    substitutions: &HashMap<String, TypeExpr>,
     resolving_names: &mut HashSet<String>,
 ) -> Result<AbiTypeKind, AbiTypeError> {
     if !resolving_names.insert(symbol.canonical_name.clone()) {
@@ -494,7 +536,7 @@ fn abi_type_kind_from_symbol(
     let result = (|| match symbol.kind {
         TypeSymbolKind::Alias => {
             if let Some(target) = &symbol.alias_target {
-                abi_type_kind_from_type_expr(target, resolved, resolving_names)
+                abi_type_kind_from_type_expr(target, resolved, substitutions, resolving_names)
             } else {
                 Err(AbiTypeError::UnsupportedType(symbol.canonical_name.clone()))
             }
@@ -502,7 +544,12 @@ fn abi_type_kind_from_symbol(
         TypeSymbolKind::Struct => {
             let mut fields = Vec::with_capacity(symbol.fields.len());
             for field in &symbol.fields {
-                let ty = match abi_type_kind_from_type_expr(&field.ty, resolved, resolving_names)? {
+                let ty = match abi_type_kind_from_type_expr(
+                    &field.ty,
+                    resolved,
+                    substitutions,
+                    resolving_names,
+                )? {
                     AbiTypeKind::Value(ty) => ty,
                     AbiTypeKind::UnsizedStr => {
                         return Err(AbiTypeError::UnsizedValue("str".to_string()));
@@ -670,6 +717,83 @@ func make(): Text {
 
         assert_eq!(layout_of(&ty).unwrap(), ValueLayout::new(24, 8));
         assert_eq!(classify_value(&ty).unwrap(), ValueClassification::Indirect);
+    }
+
+    #[test]
+    fn maps_concrete_generic_struct_type_expr_to_abi_struct_layout() {
+        let (ast, resolved) = parse_and_resolve(
+            r#"struct Box<T> {
+    value: T
+}
+
+func make(): Box<i32> {
+}
+"#,
+        );
+        let return_type = ast
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(function) if function.name == "make" => Some(&function.return_type),
+                _ => None,
+            })
+            .expect("expected make function");
+
+        let ty = abi_type_from_type_expr(return_type, &resolved).unwrap();
+
+        assert_eq!(
+            ty,
+            AbiType::Struct(vec![AbiField::new("value", AbiType::I32)])
+        );
+        assert_eq!(layout_of(&ty).unwrap(), ValueLayout::new(4, 4));
+        assert_eq!(
+            classify_value(&ty).unwrap(),
+            ValueClassification::Direct { words: 1 }
+        );
+    }
+
+    #[test]
+    fn maps_nested_concrete_generic_struct_type_expr_to_abi_struct_layout() {
+        let (ast, resolved) = parse_and_resolve(
+            r#"struct Pair<T, U> {
+    first: T
+    second: U
+}
+
+struct Box<T> {
+    value: Pair<T, usize>
+}
+
+func make(): Box<i32> {
+}
+"#,
+        );
+        let return_type = ast
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(function) if function.name == "make" => Some(&function.return_type),
+                _ => None,
+            })
+            .expect("expected make function");
+
+        let ty = abi_type_from_type_expr(return_type, &resolved).unwrap();
+
+        assert_eq!(
+            ty,
+            AbiType::Struct(vec![AbiField::new(
+                "value",
+                AbiType::Struct(vec![
+                    AbiField::new("first", AbiType::I32),
+                    AbiField::new("second", AbiType::Usize),
+                ])
+            )])
+        );
+        assert_eq!(layout_of(&ty).unwrap(), ValueLayout::new(16, 8));
+        assert_eq!(
+            classify_value(&ty).unwrap(),
+            ValueClassification::Direct { words: 2 }
+        );
     }
 
     #[test]

@@ -141,11 +141,6 @@ impl<'a> IndexedCallable<'a> {
     fn new_function(function: &'a FunctionDecl, file: &'a FileAnalysis) -> Self {
         let mut issues = Vec::new();
         issues.extend(generic_function_issue(function));
-        issues.extend(generic_instantiation_signature_issues(
-            function.parameters.parameters.iter(),
-            &function.return_type,
-            &file.resolved,
-        ));
         issues.extend(nested_fallible_return_issue(function, &file.resolved));
 
         Self {
@@ -158,17 +153,12 @@ impl<'a> IndexedCallable<'a> {
 
     fn new_method(
         impl_: &'a ImplDecl,
-        method: &'a MethodDecl,
+        _method: &'a MethodDecl,
         body: &'a Block,
         file: &'a FileAnalysis,
     ) -> Self {
         let mut issues = Vec::new();
         issues.extend(generic_impl_issue(impl_, &file.resolved));
-        issues.extend(generic_instantiation_signature_issues(
-            method.parameters.parameters.iter(),
-            &method.return_type,
-            &file.resolved,
-        ));
 
         Self {
             body,
@@ -1171,14 +1161,6 @@ fn collect_expression_diagnostics(
             }
         }
         Expr::StructLiteral(expression) => {
-            if type_expr_contains_generic_instantiation(&expression.ty, resolved) {
-                diagnostics.push(unsupported_v0_build_diagnostic(
-                    sources,
-                    expression.ty.span(),
-                    "generic struct literals",
-                    "use a non-generic aggregate type until v0 monomorphization is promoted",
-                ));
-            }
             for field in &expression.fields {
                 collect_expression_diagnostics(
                     &field.value,
@@ -1829,34 +1811,6 @@ fn generic_function_issue(function: &FunctionDecl) -> Option<BuildabilityIssue> 
     })
 }
 
-fn generic_instantiation_signature_issues<'a>(
-    parameters: impl Iterator<Item = &'a crate::ast::Parameter>,
-    return_type: &TypeExpr,
-    resolved: &ResolveOutput,
-) -> Vec<BuildabilityIssue> {
-    let mut issues = Vec::new();
-
-    for parameter in parameters {
-        if type_expr_contains_generic_instantiation(&parameter.ty, resolved) {
-            issues.push(BuildabilityIssue {
-                span: parameter.ty.span(),
-                construct: "generic type instantiations in reachable function signatures",
-                help: "use concrete non-generic parameter and return types until v0 monomorphization is promoted",
-            });
-        }
-    }
-
-    if type_expr_contains_generic_instantiation(return_type, resolved) {
-        issues.push(BuildabilityIssue {
-            span: return_type.span(),
-            construct: "generic type instantiations in reachable function signatures",
-            help: "use concrete non-generic parameter and return types until v0 monomorphization is promoted",
-        });
-    }
-
-    issues
-}
-
 fn nested_fallible_return_issue(
     function: &FunctionDecl,
     resolved: &ResolveOutput,
@@ -2221,7 +2175,7 @@ func unused(): bool {
     }
 
     #[test]
-    fn reports_reachable_generic_struct_literal_before_ir_lowering() {
+    fn accepts_reachable_concrete_generic_struct_literal() {
         let (sources, analysis) = analyze_text(
             r#"struct Box<T> {
     value: T
@@ -2238,21 +2192,11 @@ func main(): i32 {
 
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-        assert_eq!(diagnostics.len(), 1);
-        assert_eq!(diagnostics[0].code, "E0435");
-        assert_eq!(
-            diagnostics[0].message,
-            "Nocter v0 build cannot lower generic struct literals yet"
-        );
-        assert_eq!(
-            diagnostics[0].help.as_deref(),
-            Some("use a non-generic aggregate type until v0 monomorphization is promoted")
-        );
-        assert!(diagnostics[0].primary_span.is_some());
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
 
     #[test]
-    fn reports_reachable_generic_instantiation_signature_before_ir_lowering() {
+    fn accepts_reachable_concrete_generic_instantiation_signature() {
         let (sources, analysis) = analyze_text(
             r#"struct Box<T> {
     value: T
@@ -2272,17 +2216,7 @@ func make(): Box<i32> {
 
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
-        assert!(
-            diagnostics.iter().any(|diagnostic| diagnostic.message
-                == "Nocter v0 build cannot lower generic type instantiations in reachable function signatures yet"),
-            "expected generic signature diagnostic, got {diagnostics:?}"
-        );
-        assert!(
-            diagnostics
-                .iter()
-                .all(|diagnostic| diagnostic.code == "E0435"),
-            "expected v0 buildability diagnostics, got {diagnostics:?}"
-        );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
 
     #[test]

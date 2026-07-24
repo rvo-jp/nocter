@@ -3244,6 +3244,47 @@ func make_wrap(): Wrap {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_concrete_generic_aggregate_exit_code() {
+    let project = TempProject::new("cli-run-concrete-generic-aggregate");
+    let source = project.write_source(
+        "concrete_generic_aggregate.nct",
+        r#"struct Pair<T, U> {
+    first: T
+    second: U
+}
+
+struct Box<T> {
+    value: Pair<T, i32>
+}
+
+func main(): i32 {
+    let box = make_box()
+    return read(move box)
+}
+
+func make_box(): Box<i32> {
+    return Box<i32>{ value: Pair<i32, i32>{ first: 1, second: 42 } }
+}
+
+func read(box: Box<i32>): i32 {
+    return box.value.second
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_runs_direct_aggregate_return_scope_drops() {
     let project = TempProject::new("cli-run-direct-aggregate-return-scope-drops");
     project.write_nocter_home_file(

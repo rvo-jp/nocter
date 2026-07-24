@@ -3524,10 +3524,10 @@ func identity<T>(value: T): T {
 }
 
 #[test]
-fn build_command_reports_reachable_generic_struct_literal_before_ir_lowering() {
-    let project = TempProject::new("cli-build-generic-struct-literal-boundary");
+fn build_command_lowers_concrete_generic_struct_literal() {
+    let project = TempProject::new("cli-build-concrete-generic-struct-literal");
     let source = project.write_source(
-        "generic_struct_literal_boundary.nct",
+        "concrete_generic_struct_literal.nct",
         r#"struct Box<T> {
     value: T
 }
@@ -3544,28 +3544,8 @@ func main(): i32 {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("generic struct literals"),
-        "expected generic struct literal diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("6 |     let box = Box<i32>{"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]

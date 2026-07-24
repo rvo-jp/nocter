@@ -9481,6 +9481,99 @@ func make(): Code {
 }
 
 #[test]
+fn lowers_concrete_generic_aggregate_struct_literal_return() {
+    let function = lower_named_function(
+        r#"struct Box<T> {
+    value: T
+}
+
+func main(): i32 {
+    return 0
+}
+
+func make(): Box<i32> {
+    return Box<i32>{ value: 42 }
+}
+"#,
+        "make",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "make".to_string(),
+            target: CallTarget::same_file("make"),
+            return_type: Type::DirectAggregate {
+                layout: ValueLayout::new(4, 4),
+                words: 1,
+            },
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(4, 4),
+                },
+                Instruction::StoreAggregateI32 {
+                    destination: AggregateLocation::Slot(0),
+                    offset: 0,
+                    value: I32Value::Const(42),
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::DirectReturn,
+                    source: AggregateLocation::Slot(0),
+                    layout: ValueLayout::new(4, 4),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_concrete_generic_aggregate_value_parameter_field_return() {
+    let function = lower_named_function(
+        r#"struct Box<T> {
+    value: T
+}
+
+func main(): i32 {
+    return 0
+}
+
+func read(box: Box<i32>): i32 {
+    return box.value
+}
+"#,
+        "read",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "read".to_string(),
+            target: CallTarget::same_file("read"),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::ReserveAggregateSlot {
+                    slot_index: 0,
+                    layout: ValueLayout::new(4, 4),
+                },
+                Instruction::CopyAggregate {
+                    destination: AggregateLocation::Slot(0),
+                    source: AggregateLocation::DirectParameter { start_index: 0 },
+                    layout: ValueLayout::new(4, 4),
+                },
+                Instruction::LoadAggregateI32 {
+                    destination: I32Location::Return,
+                    source: AggregateLocation::Slot(0),
+                    offset: 0,
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_five_byte_direct_aggregate_struct_literal_return_through_slot() {
     let function = lower_named_function(
         r#"struct Bytes {
