@@ -3,22 +3,22 @@ use super::bindings::{
 };
 use super::context::LoweringContext;
 use super::expressions::{
-    TemporaryAllocator, lower_bool_expression_to_value, lower_bool_return_expression,
-    lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
-    lower_fallible_slice_normal_call, lower_fallible_str_normal_call,
-    lower_fallible_u8_normal_call, lower_fallible_usize_normal_call,
-    lower_i32_expression_to_location, lower_i32_return_expression, lower_slice_return_expression,
-    lower_str_return_expression, lower_u8_return_expression, lower_usize_expression_to_location,
-    lower_usize_return_expression, lower_void_expression_statement, primitive_trap_call,
+    TemporaryAllocator, lower_bool_expression_to_value, lower_fallible_bool_normal_call,
+    lower_fallible_i32_normal_call, lower_fallible_slice_normal_call,
+    lower_fallible_str_normal_call, lower_fallible_u8_normal_call,
+    lower_fallible_usize_normal_call, lower_i32_expression_to_location,
+    lower_slice_return_expression, lower_str_return_expression, lower_u8_return_expression,
+    lower_usize_expression_to_location, lower_usize_return_expression,
+    lower_void_expression_statement, primitive_trap_call,
     short_circuit_bool_expression_needs_branch,
 };
 use super::functions::{
-    append_scope_end_drops_before_exit, expression_contains_explicit_aggregate_move,
+    expression_contains_explicit_aggregate_move,
     expression_contains_explicit_aggregate_move_outside, lower_drop_statement,
     lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
-    lower_scope_end_drops_for_locals_since, lower_value_return_with_scope_drops,
-    mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
-    payloadless_if_is_as_if_statement, payloadless_switch_as_if_statement,
+    lower_scope_end_drops_for_locals_since, mark_explicit_moves_in_expression,
+    mark_lowered_statement_aggregate_uses, payloadless_if_is_as_if_statement,
+    payloadless_switch_as_if_statement,
 };
 use super::types::return_type_expr_is_top_level_optional;
 use crate::ast::{
@@ -1860,26 +1860,13 @@ fn lower_i32_return_block(
 
     match terminal {
         Stmt::Return(statement) => {
-            let Some(expression) = &statement.expression else {
-                return Err(unsupported_terminal_if_diagnostic(
-                    diagnostic_code,
-                    subject,
-                    "i32",
-                ));
-            };
-            if let Some(return_instructions) = lower_value_return_with_scope_drops(
-                return_type.success_type(),
-                expression,
-                return_type,
+            let return_instructions = lower_return_statement_with_scope_drops(
+                statement,
                 &mut branch_context,
-            )? {
-                instructions.extend(return_instructions);
-                return Ok(instructions);
-            }
-            let return_instructions = lower_i32_return_expression(expression, &branch_context)?;
-            mark_explicit_moves_in_expression(expression, &mut branch_context);
+                diagnostic_code,
+            )?;
             instructions.extend(return_instructions);
-            append_scope_end_drops_before_exit(instructions, &mut branch_context)
+            Ok(instructions)
         }
         Stmt::If(statement) => {
             instructions.extend(lower_terminal_i32_if_statement(
@@ -1968,27 +1955,13 @@ fn lower_bool_return_block(
 
     match terminal {
         Stmt::Return(statement) => {
-            let Some(expression) = &statement.expression else {
-                return Err(unsupported_terminal_if_diagnostic(
-                    diagnostic_code,
-                    subject,
-                    "bool",
-                ));
-            };
-            if let Some(return_instructions) = lower_value_return_with_scope_drops(
-                return_type.success_type(),
-                expression,
-                return_type,
+            let return_instructions = lower_return_statement_with_scope_drops(
+                statement,
                 &mut branch_context,
-            )? {
-                instructions.extend(return_instructions);
-                return Ok(instructions);
-            }
-            let return_instructions =
-                lower_bool_return_expression(expression, &branch_context, diagnostic_code)?;
-            mark_explicit_moves_in_expression(expression, &mut branch_context);
+                diagnostic_code,
+            )?;
             instructions.extend(return_instructions);
-            append_scope_end_drops_before_exit(instructions, &mut branch_context)
+            Ok(instructions)
         }
         Stmt::If(statement) => {
             instructions.extend(lower_terminal_bool_if_statement(
@@ -2080,26 +2053,13 @@ fn lower_scalar_return_block(
 
     match terminal {
         Stmt::Return(statement) => {
-            let Some(expression) = &statement.expression else {
-                return Err(unsupported_terminal_if_diagnostic(
-                    diagnostic_code,
-                    subject,
-                    return_label,
-                ));
-            };
-            if let Some(return_instructions) = lower_value_return_with_scope_drops(
-                return_type.success_type(),
-                expression,
-                return_type,
+            let return_instructions = lower_return_statement_with_scope_drops(
+                statement,
                 &mut branch_context,
-            )? {
-                instructions.extend(return_instructions);
-                return Ok(instructions);
-            }
-            let return_instructions = lower_return_expression(expression, &branch_context)?;
-            mark_explicit_moves_in_expression(expression, &mut branch_context);
+                diagnostic_code,
+            )?;
             instructions.extend(return_instructions);
-            append_scope_end_drops_before_exit(instructions, &mut branch_context)
+            Ok(instructions)
         }
         Stmt::If(statement) => {
             instructions.extend(lower_terminal_scalar_if_statement(
@@ -2193,9 +2153,14 @@ fn lower_void_return_block(
     )?;
 
     match terminal {
-        Stmt::Return(statement) if statement.expression.is_none() => {
-            instructions.push(Instruction::Return);
-            append_scope_end_drops_before_exit(instructions, &mut branch_context)
+        Stmt::Return(statement) => {
+            let return_instructions = lower_return_statement_with_scope_drops(
+                statement,
+                &mut branch_context,
+                diagnostic_code,
+            )?;
+            instructions.extend(return_instructions);
+            Ok(instructions)
         }
         Stmt::If(statement) => {
             instructions.extend(lower_terminal_void_if_statement(

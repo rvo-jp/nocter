@@ -18644,6 +18644,39 @@ func maybe_answer(): i32? {
 }
 
 #[test]
+fn lowers_optional_i32_terminal_if_none_branch() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func maybe_answer(flag: bool): i32? {
+    if flag {
+        return 42
+    } else {
+        return none
+    }
+}
+"#,
+        "maybe_answer",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "maybe_answer".to_string(),
+            target: crate::ir::CallTarget::same_file("maybe_answer".to_string()),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Parameter(0)),
+                then_instructions: vec![set_return_i32(42), Instruction::ReturnFallibleSuccess],
+                else_instructions: vec![Instruction::ReturnOptionalNone],
+            }],
+        }
+    );
+}
+
+#[test]
 fn lowers_optional_i32_return_propagation() {
     let ir = lower_text(
         r#"func main(): i32 {

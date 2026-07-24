@@ -8584,6 +8584,39 @@ func maybe_answer_none(): i32? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_optional_terminal_if_none_branch_exit_code() {
+    let project = TempProject::new("cli-run-optional-terminal-if-none-branch");
+    let source = project.write_source(
+        "optional_terminal_if_none_branch.nct",
+        r#"func main(): i32 {
+    let success = maybe_answer(true) ?? 0
+    let fallback = maybe_answer(false) ?? 2
+    return success + fallback
+}
+
+func maybe_answer(flag: bool): i32? {
+    if flag {
+        return 40
+    } else {
+        return none
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_runs_optional_let_else_never_scope_drop_before_trap() {
     let project = TempProject::new("cli-run-optional-let-else-never-cleanup");
     project.write_nocter_home_file(
