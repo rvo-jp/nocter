@@ -48,6 +48,8 @@ pub(crate) struct TypecheckFacts {
     associated_function_targets: HashMap<ByteSpan, ByteSpan>,
     enum_variant_targets: HashMap<ByteSpan, ByteSpan>,
     method_call_targets: HashMap<ByteSpan, ByteSpan>,
+    generic_function_call_spans: HashMap<ByteSpan, ByteSpan>,
+    function_call_specializations: HashMap<ByteSpan, FunctionCallSpecialization>,
     generic_method_call_spans: HashMap<ByteSpan, ByteSpan>,
     method_call_specializations: HashMap<ByteSpan, MethodCallSpecialization>,
 }
@@ -141,6 +143,23 @@ impl TypecheckFacts {
         self.method_call_targets.get(&member_span).copied()
     }
 
+    pub(crate) fn generic_function_call_target(&self, call_span: ByteSpan) -> Option<ByteSpan> {
+        self.generic_function_call_spans.get(&call_span).copied()
+    }
+
+    pub(crate) fn function_call_specialization(
+        &self,
+        call_span: ByteSpan,
+    ) -> Option<&FunctionCallSpecialization> {
+        self.function_call_specializations.get(&call_span)
+    }
+
+    pub(crate) fn function_call_specializations(
+        &self,
+    ) -> impl Iterator<Item = &FunctionCallSpecialization> + '_ {
+        self.function_call_specializations.values()
+    }
+
     pub(crate) fn generic_method_call_target(&self, member_span: ByteSpan) -> Option<ByteSpan> {
         self.generic_method_call_spans.get(&member_span).copied()
     }
@@ -213,6 +232,13 @@ pub(crate) struct TypeReferenceFact {
     pub(crate) span: ByteSpan,
     pub(crate) symbol_name_span: Option<ByteSpan>,
     pub(crate) symbol_declaration_span: Option<ByteSpan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct FunctionCallSpecialization {
+    pub(crate) declaration_span: ByteSpan,
+    pub(crate) target_name: String,
+    pub(crate) substitutions: HashMap<String, TypeExpr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -615,6 +641,13 @@ impl TypecheckFactCollector<'_> {
                     self.facts
                         .associated_function_targets
                         .insert(method.member_span, resolved_function.name_span);
+                    self.record_generic_function_call_specialization(
+                        expression,
+                        resolved_function.name_span,
+                        &resolved_function.target_name,
+                        &resolved_function.signature,
+                        environment,
+                    );
                     self.facts.call_hover_labels.insert(
                         method.member_span,
                         associated_function_signature_hover_label(
@@ -631,6 +664,17 @@ impl TypecheckFactCollector<'_> {
                     self.record_enum_variant_reference(method.member_span, owner, variant);
                     self.collect_expression_facts(&method.object, environment);
                 } else {
+                    if let Some(symbol) = self.resolved.symbol_for_call(expression)
+                        && let SymbolKind::Function(signature) = &symbol.kind
+                    {
+                        self.record_generic_function_call_specialization(
+                            expression,
+                            symbol.declaration_span,
+                            &symbol.name,
+                            signature,
+                            environment,
+                        );
+                    }
                     self.collect_expression_facts(&expression.callee, environment);
                 }
 
@@ -900,6 +944,68 @@ impl TypecheckFactCollector<'_> {
             enum_variant_signature_hover_label(owner, variant, self.resolved),
         );
     }
+
+    fn record_generic_function_call_specialization(
+        &mut self,
+        call: &crate::ast::CallExpr,
+        declaration_span: ByteSpan,
+        base_target_name: &str,
+        signature: &FunctionSignature,
+        environment: &TypeEnvironment,
+    ) {
+        if signature.generic_parameters.is_empty() {
+            return;
+        }
+        self.facts
+            .generic_function_call_spans
+            .insert(call.span, declaration_span);
+        if let Some(specialization) = function_call_specialization(
+            call,
+            declaration_span,
+            base_target_name,
+            signature,
+            self.resolved,
+            environment,
+        ) {
+            self.facts
+                .function_call_specializations
+                .insert(call.span, specialization);
+        }
+    }
+}
+
+fn function_call_specialization(
+    call: &crate::ast::CallExpr,
+    declaration_span: ByteSpan,
+    base_target_name: &str,
+    signature: &FunctionSignature,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<FunctionCallSpecialization> {
+    let checked = resolved_call_signature(resolved, call, environment)?;
+    let substitution_types = infer_generic_substitutions(call, &checked, resolved, environment);
+    if !signature
+        .generic_parameters
+        .iter()
+        .all(|parameter| substitution_types.contains_key(parameter))
+    {
+        return None;
+    }
+    let type_arguments = signature
+        .generic_parameters
+        .iter()
+        .map(|parameter| substitution_types.get(parameter).map(Type::display))
+        .collect::<Option<Vec<_>>>()?;
+    let substitutions = substitution_types
+        .into_iter()
+        .map(|(name, ty)| type_to_type_expr(&ty, call.span).map(|ty| (name, ty)))
+        .collect::<Option<HashMap<_, _>>>()?;
+
+    Some(FunctionCallSpecialization {
+        declaration_span,
+        target_name: format!("{base_target_name}<{}>", type_arguments.join(", ")),
+        substitutions,
+    })
 }
 
 fn method_call_specialization(

@@ -140,7 +140,6 @@ struct BuildabilityIssue {
 impl<'a> IndexedCallable<'a> {
     fn new_function(function: &'a FunctionDecl, file: &'a FileAnalysis) -> Self {
         let mut issues = Vec::new();
-        issues.extend(generic_function_issue(function));
         issues.extend(nested_fallible_return_issue(function, &file.resolved));
 
         Self {
@@ -1306,6 +1305,13 @@ fn collect_expression_diagnostics(
             {
                 diagnostics.push(diagnostic);
             }
+            if let Some(diagnostic) = unsupported_unspecialized_generic_function_call_diagnostic(
+                sources,
+                expression,
+                typecheck_facts,
+            ) {
+                diagnostics.push(diagnostic);
+            }
             if let Some(diagnostic) = unsupported_unspecialized_generic_method_call_diagnostic(
                 sources,
                 expression,
@@ -1618,6 +1624,27 @@ fn unsupported_unspecialized_generic_method_call_diagnostic(
     ))
 }
 
+fn unsupported_unspecialized_generic_function_call_diagnostic(
+    sources: &SourceMap,
+    call: &CallExpr,
+    typecheck_facts: &TypecheckFacts,
+) -> Option<Diagnostic> {
+    typecheck_facts.generic_function_call_target(call.span)?;
+    if typecheck_facts
+        .function_call_specialization(call.span)
+        .is_some()
+    {
+        return None;
+    }
+
+    Some(unsupported_v0_build_diagnostic(
+        sources,
+        call.span,
+        "generic function calls without concrete type arguments",
+        "pass arguments that determine every generic parameter until return-context generic inference is promoted",
+    ))
+}
+
 fn method_call_receiver_is_readwrite_borrow(
     member_span: ByteSpan,
     typecheck_facts: &TypecheckFacts,
@@ -1756,6 +1783,14 @@ fn call_target_for_call(
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
 ) -> Option<CallTarget> {
+    if let Some(specialization) = typecheck_facts.function_call_specialization(call.span) {
+        return Some(call_target_for_source(
+            specialization.declaration_span.source,
+            root_source,
+            specialization.target_name.clone(),
+        ));
+    }
+
     if let Expr::Member(member) = call.callee.as_ref() {
         if let Some(method_name_span) = typecheck_facts.method_call_target(member.member_span) {
             let target_name = typecheck_facts
@@ -1826,18 +1861,6 @@ fn call_target_for_source(source: SourceId, root_source: SourceId, name: String)
 
 fn method_target_name(type_name: &str, method_name: &str) -> String {
     format!("{type_name}.{method_name}")
-}
-
-fn generic_function_issue(function: &FunctionDecl) -> Option<BuildabilityIssue> {
-    if function.generics.parameters.is_empty() {
-        return None;
-    }
-
-    Some(BuildabilityIssue {
-        span: function.generics.span.unwrap_or(function.span),
-        construct: "generic functions",
-        help: "define a monomorphic wrapper until v0 monomorphization is promoted",
-    })
 }
 
 fn nested_fallible_return_issue(
@@ -2174,6 +2197,54 @@ func make(): Box<i32> {
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn accepts_reachable_generic_function_with_concrete_arguments() {
+        let (sources, analysis) = analyze_text(
+            r#"func main(): i32 {
+    return identity(42)
+}
+
+func identity<T>(value: T): T {
+    return value
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn reports_reachable_unspecialized_generic_function_call() {
+        let (sources, analysis) = analyze_text(
+            r#"func main(): i32 {
+    let value = empty()
+    return 0
+}
+
+func empty<T>(): T? {
+    return none
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "E0435");
+        assert_eq!(
+            diagnostics[0].message,
+            "Nocter v0 build cannot lower generic function calls without concrete type arguments yet"
+        );
+        assert_eq!(
+            diagnostics[0].help.as_deref(),
+            Some(
+                "pass arguments that determine every generic parameter until return-context generic inference is promoted"
+            )
+        );
     }
 
     #[test]

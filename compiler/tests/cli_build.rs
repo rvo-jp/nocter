@@ -3460,10 +3460,10 @@ func describe(error: AppError): i32 {
 }
 
 #[test]
-fn build_command_reports_reachable_generic_function_before_ir_lowering() {
-    let project = TempProject::new("cli-build-generic-function-boundary");
+fn build_command_lowers_generic_function_with_concrete_arguments() {
+    let project = TempProject::new("cli-build-generic-function");
     let source = project.write_source(
-        "generic_function_boundary.nct",
+        "generic_function.nct",
         r#"func main(): i32 {
     return identity(42)
 }
@@ -3477,28 +3477,35 @@ func identity<T>(value: T): T {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_lowers_generic_associated_function_with_concrete_arguments() {
+    let project = TempProject::new("cli-build-generic-associated-function");
+    let source = project.write_source(
+        "generic_associated_function.nct",
+        r#"struct Box<T> {
+    value: T
+}
+
+func Box.unwrap<T>(box: Box<T>): T {
+    return box.value
+}
+
+func main(): i32 {
+    let box = Box<i32>{ value: 42 }
+    return Box.unwrap(move box)
+}
+"#,
     );
-    assert!(
-        stderr.contains("generic functions"),
-        "expected generic function diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("5 | func identity<T>(value: T): T {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]

@@ -3285,6 +3285,65 @@ func read(box: Box<i32>): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_generic_function_exit_code() {
+    let project = TempProject::new("cli-run-generic-function");
+    let source = project.write_source(
+        "generic_function.nct",
+        r#"func identity<T>(value: T): T {
+    return value
+}
+
+func main(): i32 {
+    return identity(42)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_generic_associated_function_exit_code() {
+    let project = TempProject::new("cli-run-generic-associated-function");
+    let source = project.write_source(
+        "generic_associated_function.nct",
+        r#"struct Box<T> {
+    value: T
+}
+
+func Box.unwrap<T>(box: Box<T>): T {
+    return box.value
+}
+
+func main(): i32 {
+    let box = Box<i32>{ value: 42 }
+    return Box.unwrap(move box)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_concrete_generic_impl_method_exit_code() {
     let project = TempProject::new("cli-run-concrete-generic-impl-method");
     let source = project.write_source(

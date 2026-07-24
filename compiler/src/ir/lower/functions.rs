@@ -67,6 +67,8 @@ use std::collections::HashMap;
 
 pub(super) fn lower_function(
     function: &FunctionDecl,
+    substitutions: &HashMap<String, TypeExpr>,
+    name: String,
     sources: &SourceMap,
     target: CallTarget,
     function_signatures: FunctionSignatures,
@@ -76,13 +78,18 @@ pub(super) fn lower_function(
     typecheck_facts: &TypecheckFacts,
     error_payloads: ErrorPayloads,
 ) -> Result<Function, Vec<Diagnostic>> {
-    if !function.generics.parameters.is_empty() {
+    if !function
+        .generics
+        .parameters
+        .iter()
+        .all(|parameter| substitutions.contains_key(&parameter.name))
+    {
         return Err(attach_primary_span_if_absent(
             vec![Diagnostic::error(
                 "E8007",
                 format!(
-                    "IR v0 can only lower non-generic functions, got `{}`",
-                    function.name
+                    "IR v0 can only lower function `{}` with concrete generic arguments, got `{}`",
+                    name, function.name
                 ),
             )],
             sources,
@@ -90,48 +97,45 @@ pub(super) fn lower_function(
         ));
     }
 
-    let parameters = lower_scalar_parameters(
-        &function.name,
-        &function.parameters.parameters,
-        root_source,
-        resolved,
-        sources,
-    )
-    .map_err(|diagnostics| {
-        attach_primary_span_if_absent(diagnostics, sources, function.parameters.span)
-    })?;
+    let parameters = function_parameters(function, substitutions);
+    let return_type_expr = substitute_type_expr_parameters(&function.return_type, substitutions);
+    let parameter_slots =
+        lower_scalar_parameters(&name, &parameters, root_source, resolved, sources).map_err(
+            |diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, function.parameters.span)
+            },
+        )?;
     validate_parameter_slots_match_function_abi(
-        &function.name,
-        &function.parameters.parameters,
-        &function.return_type,
-        resolved,
+        &name,
         &parameters,
+        &return_type_expr,
+        resolved,
+        &parameter_slots,
     )
     .map_err(|diagnostics| {
         attach_primary_span_if_absent(diagnostics, sources, function.parameters.span)
     })?;
-    let parameter_setup = lower_aggregate_parameter_setup(&parameters);
-    let return_type =
-        match lower_function_return_type(&function.return_type, &function.name, resolved) {
-            Ok(return_type) => return_type,
-            Err(diagnostics) => {
-                return Err(attach_primary_span_if_absent(
-                    diagnostics,
-                    sources,
-                    function.return_type.span(),
-                ));
-            }
-        };
+    let parameter_setup = lower_aggregate_parameter_setup(&parameter_slots);
+    let return_type = match lower_function_return_type(&return_type_expr, &name, resolved) {
+        Ok(return_type) => return_type,
+        Err(diagnostics) => {
+            return Err(attach_primary_span_if_absent(
+                diagnostics,
+                sources,
+                function.return_type.span(),
+            ));
+        }
+    };
     let success_type = return_type.success_type().clone();
     let mut context = LoweringContext::new(
-        function.name.clone(),
+        name.clone(),
         success_type,
         function_signatures,
-        parameters,
+        parameter_slots,
     )
     .with_function_return_type(return_type.clone())
     .with_function_returns_optional(return_type_expr_is_top_level_optional(
-        &function.return_type,
+        &return_type_expr,
         resolved,
     ))
     .with_call_resolution(root_source, resolved, typecheck_facts, function_names)
@@ -148,11 +152,28 @@ pub(super) fn lower_function(
     )?);
 
     Ok(Function {
-        name: function.name.clone(),
+        name,
         target,
         return_type,
         instructions,
     })
+}
+
+fn function_parameters(
+    function: &FunctionDecl,
+    substitutions: &HashMap<String, TypeExpr>,
+) -> Vec<Parameter> {
+    function
+        .parameters
+        .parameters
+        .iter()
+        .map(|parameter| Parameter {
+            span: parameter.span,
+            name: parameter.name.clone(),
+            name_span: parameter.name_span,
+            ty: substitute_type_expr_parameters(&parameter.ty, substitutions),
+        })
+        .collect()
 }
 
 pub(super) fn lower_drop_function(

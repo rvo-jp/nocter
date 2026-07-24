@@ -32,7 +32,7 @@ use crate::resolve::{
     drop_function_name,
 };
 use crate::source::{ByteSpan, SourceId, SourceMap};
-use crate::typecheck::{MethodCallSpecialization, TypecheckFacts};
+use crate::typecheck::{FunctionCallSpecialization, MethodCallSpecialization, TypecheckFacts};
 use context::{ErrorPayloads, FunctionNames, FunctionSignature, FunctionSignatures};
 use imported_calls::imported_call_diagnostics;
 use reachability::reachable_call_targets;
@@ -164,7 +164,11 @@ struct IndexedCallable<'a> {
 }
 
 enum IndexedDeclaration<'a> {
-    Function(&'a FunctionDecl),
+    Function {
+        declaration: &'a FunctionDecl,
+        substitutions: HashMap<String, TypeExpr>,
+        name: String,
+    },
     Drop {
         declaration: &'a DropDecl,
         self_ty: TypeExpr,
@@ -181,17 +185,41 @@ enum IndexedDeclaration<'a> {
 impl<'a> FunctionIndex<'a> {
     fn new(analysis: &'a CompileUnitAnalysis, root_source: SourceId) -> Self {
         let mut definitions = HashMap::new();
+        let function_specializations = function_specializations(analysis);
         let method_specializations = method_specializations(analysis);
         for file in &analysis.files {
             for item in &file.ast.items {
                 match item {
-                    Item::Function(function) => {
+                    Item::Function(function) if function.generics.parameters.is_empty() => {
                         let target = call_target_for_source(
                             file.ast.span.source,
                             root_source,
                             function.name.clone(),
                         );
                         definitions.insert(target, IndexedCallable::new_function(function, file));
+                    }
+                    Item::Function(function) => {
+                        for specialization in function_specializations
+                            .get(&function.name_span)
+                            .or_else(|| function_specializations.get(&function.member_name_span))
+                            .into_iter()
+                            .flatten()
+                        {
+                            let target = call_target_for_source(
+                                file.ast.span.source,
+                                root_source,
+                                specialization.target_name.clone(),
+                            );
+                            definitions.insert(
+                                target,
+                                IndexedCallable::new_function_specialization(
+                                    function,
+                                    specialization.substitutions.clone(),
+                                    specialization.target_name.clone(),
+                                    file,
+                                ),
+                            );
+                        }
                     }
                     Item::Impl(impl_) if impl_.interface_ty.is_none() => {
                         let Some(type_name) = impl_target_type_name(&impl_.target_ty) else {
@@ -312,7 +340,28 @@ impl<'a> FunctionIndex<'a> {
 impl<'a> IndexedCallable<'a> {
     fn new_function(declaration: &'a FunctionDecl, file: &'a FileAnalysis) -> Self {
         Self {
-            declaration: IndexedDeclaration::Function(declaration),
+            declaration: IndexedDeclaration::Function {
+                declaration,
+                substitutions: HashMap::new(),
+                name: declaration.name.clone(),
+            },
+            resolved: &file.resolved,
+            typecheck_facts: &file.typecheck_facts,
+        }
+    }
+
+    fn new_function_specialization(
+        declaration: &'a FunctionDecl,
+        substitutions: HashMap<String, TypeExpr>,
+        name: String,
+        file: &'a FileAnalysis,
+    ) -> Self {
+        Self {
+            declaration: IndexedDeclaration::Function {
+                declaration,
+                substitutions,
+                name,
+            },
             resolved: &file.resolved,
             typecheck_facts: &file.typecheck_facts,
         }
@@ -360,8 +409,8 @@ impl<'a> IndexedCallable<'a> {
         root_source: SourceId,
     ) -> Vec<Diagnostic> {
         match &self.declaration {
-            IndexedDeclaration::Function(function) => {
-                imported_call_diagnostics(sources, function, root_source, self.resolved)
+            IndexedDeclaration::Function { declaration, .. } => {
+                imported_call_diagnostics(sources, declaration, root_source, self.resolved)
             }
             IndexedDeclaration::Drop { declaration, .. } => {
                 imported_calls::imported_call_diagnostics_for_block(
@@ -387,7 +436,11 @@ impl<'a> IndexedCallable<'a> {
     }
 
     fn static_error_payload(&self, root_source: SourceId) -> Option<errors::ErrorPayload> {
-        let IndexedDeclaration::Function(function) = &self.declaration else {
+        let IndexedDeclaration::Function {
+            declaration: function,
+            ..
+        } = &self.declaration
+        else {
             return None;
         };
         let [Stmt::Return(statement)] = function.body.statements.as_slice() else {
@@ -410,8 +463,14 @@ impl<'a> IndexedCallable<'a> {
     ) -> Result<Function, Vec<Diagnostic>> {
         let span = self.declaration.span();
         match &self.declaration {
-            IndexedDeclaration::Function(function) => functions::lower_function(
-                function,
+            IndexedDeclaration::Function {
+                declaration,
+                substitutions,
+                name,
+            } => functions::lower_function(
+                declaration,
+                substitutions,
+                name.clone(),
                 sources,
                 target,
                 function_signatures,
@@ -463,36 +522,37 @@ impl<'a> IndexedCallable<'a> {
 
     fn signature(&self) -> Option<FunctionSignature> {
         match &self.declaration {
-            IndexedDeclaration::Function(function) => {
-                let resolved_signature = resolved_function_signature(
-                    &function.parameters.parameters,
-                    function.return_type.clone(),
-                );
-                lower_signature_return_type(&function.return_type, self.resolved).map(
-                    |return_type| {
-                        let parameter_types = function
-                            .parameters
-                            .parameters
-                            .iter()
-                            .map(|parameter| {
-                                lower_signature_parameter_type(&parameter.ty, self.resolved)
-                            })
-                            .collect::<Option<Vec<_>>>();
+            IndexedDeclaration::Function {
+                declaration: function,
+                substitutions,
+                ..
+            } => {
+                let parameters = function_parameters(function, substitutions);
+                let return_type =
+                    substitute_type_expr_parameters(&function.return_type, substitutions);
+                let resolved_signature =
+                    resolved_function_signature(&parameters, return_type.clone());
+                lower_signature_return_type(&return_type, self.resolved).map(|return_type| {
+                    let parameter_types = parameters
+                        .iter()
+                        .map(|parameter| {
+                            lower_signature_parameter_type(&parameter.ty, self.resolved)
+                        })
+                        .collect::<Option<Vec<_>>>();
 
-                        FunctionSignature {
-                            return_type,
-                            parameter_types,
-                            parameter_abi_word_count: parameter_abi_word_count(
-                                &resolved_signature,
-                                self.resolved,
-                            ),
-                            success_return_passing: success_return_passing(
-                                &resolved_signature,
-                                self.resolved,
-                            ),
-                        }
-                    },
-                )
+                    FunctionSignature {
+                        return_type,
+                        parameter_types,
+                        parameter_abi_word_count: parameter_abi_word_count(
+                            &resolved_signature,
+                            self.resolved,
+                        ),
+                        success_return_passing: success_return_passing(
+                            &resolved_signature,
+                            self.resolved,
+                        ),
+                    }
+                })
             }
             IndexedDeclaration::Drop {
                 declaration,
@@ -564,9 +624,12 @@ impl<'a> IndexedCallable<'a> {
 
     fn name_declaration(&self) -> Option<(crate::source::ByteSpan, String)> {
         match &self.declaration {
-            IndexedDeclaration::Function(function) => {
-                Some((function.name_span, function.name.clone()))
-            }
+            IndexedDeclaration::Function {
+                declaration,
+                substitutions,
+                name,
+            } if substitutions.is_empty() => Some((declaration.name_span, name.clone())),
+            IndexedDeclaration::Function { .. } => None,
             IndexedDeclaration::Drop {
                 declaration, name, ..
             } => Some((drop_name_span(declaration.span), name.clone())),
@@ -609,6 +672,43 @@ fn method_parameters(
             }),
     );
     parameters
+}
+
+fn function_parameters(
+    function: &FunctionDecl,
+    substitutions: &HashMap<String, TypeExpr>,
+) -> Vec<Parameter> {
+    function
+        .parameters
+        .parameters
+        .iter()
+        .map(|parameter| Parameter {
+            span: parameter.span,
+            name: parameter.name.clone(),
+            name_span: parameter.name_span,
+            ty: substitute_type_expr_parameters(&parameter.ty, substitutions),
+        })
+        .collect()
+}
+
+fn function_specializations(
+    analysis: &CompileUnitAnalysis,
+) -> HashMap<ByteSpan, Vec<FunctionCallSpecialization>> {
+    let mut specializations: HashMap<ByteSpan, Vec<FunctionCallSpecialization>> = HashMap::new();
+    for file in &analysis.files {
+        for specialization in file.typecheck_facts.function_call_specializations() {
+            let entries = specializations
+                .entry(specialization.declaration_span)
+                .or_default();
+            if !entries.iter().any(|entry| {
+                entry.target_name == specialization.target_name
+                    && entry.substitutions == specialization.substitutions
+            }) {
+                entries.push(specialization.clone());
+            }
+        }
+    }
+    specializations
 }
 
 fn method_specializations(
@@ -674,7 +774,7 @@ fn void_type_expr(span: ByteSpan) -> TypeExpr {
 impl IndexedDeclaration<'_> {
     fn span(&self) -> ByteSpan {
         match self {
-            IndexedDeclaration::Function(function) => function.span,
+            IndexedDeclaration::Function { declaration, .. } => declaration.span,
             IndexedDeclaration::Drop { declaration, .. } => declaration.span,
             IndexedDeclaration::Method { declaration, .. } => declaration.span,
         }

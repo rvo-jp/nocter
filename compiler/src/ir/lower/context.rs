@@ -321,6 +321,10 @@ impl<'a> LoweringContext<'a> {
         &self,
         call: &CallExpr,
     ) -> Option<(CallTarget, String)> {
+        if let Some((target, target_name)) = self.function_call_specialization_target_and_name(call)
+        {
+            return Some((target, target_name));
+        }
         match call.callee.as_ref() {
             Expr::Identifier(identifier) => Some((
                 self.call_target(call, &identifier.name),
@@ -352,6 +356,11 @@ impl<'a> LoweringContext<'a> {
         let Some(resolution) = &self.call_resolution else {
             return CallTarget::same_file(fallback_name);
         };
+        if let Some((target, _target_name)) =
+            self.function_call_specialization_target_and_name(call)
+        {
+            return target;
+        }
         if let Some((_owner, function)) = resolution.resolved.associated_function_for_call(call) {
             return call_target_for_source(
                 function.name_span.source,
@@ -382,6 +391,22 @@ impl<'a> LoweringContext<'a> {
             }
             SymbolKind::Imported(_) => CallTarget::same_file(fallback_name),
         }
+    }
+
+    fn function_call_specialization_target_and_name(
+        &self,
+        call: &CallExpr,
+    ) -> Option<(CallTarget, String)> {
+        let resolution = self.call_resolution.as_ref()?;
+        let specialization = resolution
+            .typecheck_facts
+            .function_call_specialization(call.span)?;
+        let target = call_target_for_source(
+            specialization.declaration_span.source,
+            resolution.root_source,
+            specialization.target_name.clone(),
+        );
+        Some((target, specialization.target_name.clone()))
     }
 
     pub(super) fn primitive_name_for_call(&self, call: &CallExpr) -> Option<&str> {

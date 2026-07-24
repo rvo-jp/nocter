@@ -376,6 +376,98 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_generic_function_call_with_concrete_arguments() {
+    let ir = lower_text(
+        r#"func identity<T>(value: T): T {
+    return value
+}
+
+func main(): i32 {
+    return identity(42)
+}
+"#,
+    );
+
+    let specialized_target = CallTarget::same_file("identity<i32>");
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+
+    assert!(
+        main.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                Instruction::TailCall {
+                    target,
+                    arguments,
+                } if target == &specialized_target
+                    && arguments == &vec![ScalarArgument::I32(i32_const(42))]
+            )
+        }),
+        "{main:?}"
+    );
+
+    let function = ir
+        .functions
+        .iter()
+        .find(|function| function.target == specialized_target)
+        .expect("expected lowered specialized function");
+
+    assert_eq!(function.name, "identity<i32>");
+    assert_eq!(function.return_type, Type::I32);
+}
+
+#[test]
+fn lowers_generic_associated_function_call_with_concrete_arguments() {
+    let ir = lower_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+func Box.unwrap<T>(box: Box<T>): T {
+    return box.value
+}
+
+func main(): i32 {
+    let box = Box<i32>{ value: 42 }
+    return Box.unwrap(move box)
+}
+"#,
+    );
+
+    let specialized_target = CallTarget::same_file("Box.unwrap<i32>");
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+
+    assert!(
+        main.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                Instruction::TailCall {
+                    target,
+                    arguments,
+                } if target == &specialized_target && arguments.len() == 1
+            )
+        }),
+        "{main:?}"
+    );
+
+    let function = ir
+        .functions
+        .iter()
+        .find(|function| function.target == specialized_target)
+        .expect("expected lowered specialized associated function");
+
+    assert_eq!(function.name, "Box.unwrap<i32>");
+    assert_eq!(function.return_type, Type::I32);
+}
+
+#[test]
 fn lowers_generic_impl_method_call_with_concrete_receiver() {
     let ir = lower_text(
         r#"struct Box<T> {
@@ -25122,6 +25214,8 @@ fn lower_named_function_with_signatures(
 
     functions::lower_function(
         function,
+        &HashMap::new(),
+        function_name.to_string(),
         &fixture.sources,
         CallTarget::same_file(function_name),
         function_signatures,
