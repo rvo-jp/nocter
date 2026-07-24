@@ -5648,6 +5648,114 @@ fn run_command_returns_stack_backed_usize_local_arithmetic_exit_code() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_stack_backed_u8_local_index_exit_code() {
+    let project = TempProject::new("cli-run-stack-backed-u8-local-index");
+    let source = project.write_source(
+        "stack_backed_u8_local_index.nct",
+        r#"func main(): i32 {
+    let a0 = 1
+    let a1 = 2
+    let a2 = 3
+    let a3 = 4
+    let a4 = 5
+    let a5 = 6
+    let a6 = 7
+    let value: u8 = "Nocter"[0]
+    return value as i32
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(78),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_stack_backed_bool_local_condition_exit_code() {
+    let project = TempProject::new("cli-run-stack-backed-bool-local-condition");
+    let source = project.write_source(
+        "stack_backed_bool_local_condition.nct",
+        r#"func main(): i32 {
+    let a0 = 1
+    let a1 = 2
+    let a2 = 3
+    let a3 = 4
+    let a4 = 5
+    let a5 = 6
+    let a6 = 7
+    let ready = "Nocter"[0] == 78
+    if ready {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_stack_backed_slice_local_first_byte_exit_code() {
+    let project = TempProject::new("cli-run-stack-backed-slice-local");
+    project.write_nocter_home_file(
+        "std/string.nct",
+        r#"pub(nocter) primitive bytes_from_str(value: &str): &[u8]
+
+pub func bytes(value: &str): &[u8] {
+    return bytes_from_str(value)
+}
+"#,
+    );
+    let source = project.write_source(
+        "stack_backed_slice_local.nct",
+        r#"use std/string.bytes
+
+func main(): i32 {
+    let a0 = 1
+    let a1 = 2
+    let a2 = 3
+    let a3 = 4
+    let a4 = 5
+    let a5 = 6
+    let a6 = 7
+    let view = bytes("Nocter")
+    return view[0] as i32
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(78),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_preserves_stack_backed_local_across_call_exit_code() {
     let project = TempProject::new("cli-run-stack-backed-local-across-call");
     let source = project.write_source(
