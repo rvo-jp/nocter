@@ -158,7 +158,7 @@ impl<'a> IndexedCallable<'a> {
         file: &'a FileAnalysis,
     ) -> Self {
         let mut issues = Vec::new();
-        issues.extend(generic_impl_issue(impl_, &file.resolved));
+        issues.extend(generic_impl_issue(impl_));
 
         Self {
             body,
@@ -173,9 +173,7 @@ impl<'a> IndexedCallable<'a> {
             body: &drop_.body,
             resolved: &file.resolved,
             typecheck_facts: &file.typecheck_facts,
-            issues: generic_impl_issue(impl_, &file.resolved)
-                .into_iter()
-                .collect(),
+            issues: generic_impl_issue(impl_).into_iter().collect(),
         }
     }
 }
@@ -1860,10 +1858,8 @@ fn type_expr_fallible_depth_inner(
     }
 }
 
-fn generic_impl_issue(impl_: &ImplDecl, resolved: &ResolveOutput) -> Option<BuildabilityIssue> {
-    if impl_.generics.parameters.is_empty()
-        && !type_expr_contains_generic_instantiation(&impl_.target_ty, resolved)
-    {
+fn generic_impl_issue(impl_: &ImplDecl) -> Option<BuildabilityIssue> {
+    if impl_.generics.parameters.is_empty() {
         return None;
     }
 
@@ -1875,76 +1871,6 @@ fn generic_impl_issue(impl_: &ImplDecl, resolved: &ResolveOutput) -> Option<Buil
         construct: "generic impl members",
         help: "use a non-generic impl target until v0 monomorphization is promoted",
     })
-}
-
-fn type_expr_contains_generic_instantiation(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    type_expr_contains_generic_instantiation_inner(ty, resolved, &mut HashSet::new())
-}
-
-fn type_expr_contains_generic_instantiation_inner(
-    ty: &TypeExpr,
-    resolved: &ResolveOutput,
-    resolving_names: &mut HashSet<String>,
-) -> bool {
-    match ty {
-        TypeExpr::Reference(reference) => {
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
-                return false;
-            };
-            let Some(target) = &symbol.alias_target else {
-                return false;
-            };
-            if !resolving_names.insert(symbol.canonical_name.clone()) {
-                return false;
-            }
-            let contains =
-                type_expr_contains_generic_instantiation_inner(target, resolved, resolving_names);
-            resolving_names.remove(&symbol.canonical_name);
-            contains
-        }
-        TypeExpr::Generic(generic) => {
-            !generic.arguments.is_empty()
-                || generic.arguments.iter().any(|argument| {
-                    type_expr_contains_generic_instantiation_inner(
-                        argument,
-                        resolved,
-                        resolving_names,
-                    )
-                })
-        }
-        TypeExpr::Pointer(pointer) => type_expr_contains_generic_instantiation_inner(
-            &pointer.inner,
-            resolved,
-            resolving_names,
-        ),
-        TypeExpr::Borrow(borrow) => {
-            type_expr_contains_generic_instantiation_inner(&borrow.inner, resolved, resolving_names)
-        }
-        TypeExpr::View(view) => {
-            type_expr_contains_generic_instantiation_inner(&view.element, resolved, resolving_names)
-        }
-        TypeExpr::Array(array) => type_expr_contains_generic_instantiation_inner(
-            &array.element,
-            resolved,
-            resolving_names,
-        ),
-        TypeExpr::Optional(optional) => type_expr_contains_generic_instantiation_inner(
-            &optional.inner,
-            resolved,
-            resolving_names,
-        ),
-        TypeExpr::Fallible(fallible) => {
-            type_expr_contains_generic_instantiation_inner(
-                &fallible.success,
-                resolved,
-                resolving_names,
-            ) || type_expr_contains_generic_instantiation_inner(
-                &fallible.error,
-                resolved,
-                resolving_names,
-            )
-        }
-    }
 }
 
 fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {
@@ -2210,6 +2136,31 @@ func make(): Box<i32> {
     return Box<i32>{
         value: 42,
     }
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn accepts_reachable_concrete_generic_impl_method() {
+        let (sources, analysis) = analyze_text(
+            r#"struct Box<T> {
+    value: T
+}
+
+impl Box<i32> {
+    method &self.read(): i32 {
+        return self.value
+    }
+}
+
+func main(): i32 {
+    let box = Box<i32>{ value: 42 }
+    return box.read()
 }
 "#,
         );

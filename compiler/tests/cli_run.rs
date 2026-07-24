@@ -3285,6 +3285,40 @@ func read(box: Box<i32>): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_concrete_generic_impl_method_exit_code() {
+    let project = TempProject::new("cli-run-concrete-generic-impl-method");
+    let source = project.write_source(
+        "concrete_generic_impl_method.nct",
+        r#"struct Box<T> {
+    value: T
+}
+
+impl Box<i32> {
+    method &self.read(): i32 {
+        return self.value
+    }
+}
+
+func main(): i32 {
+    let box = Box<i32>{ value: 42 }
+    return box.read()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_runs_direct_aggregate_return_scope_drops() {
     let project = TempProject::new("cli-run-direct-aggregate-return-scope-drops");
     project.write_nocter_home_file(

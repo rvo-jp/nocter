@@ -332,6 +332,50 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_concrete_generic_impl_method_call() {
+    let ir = lower_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+impl Box<i32> {
+    method &self.read(): i32 {
+        return self.value
+    }
+}
+
+func main(): i32 {
+    let box = Box<i32>{ value: 42 }
+    return box.read()
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+
+    assert!(
+        main.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                Instruction::CallI32 {
+                    destination: I32Location::Return,
+                    target,
+                    arguments,
+                } if target == &CallTarget::same_file("Box.read")
+                    && arguments == &vec![ScalarArgument::Borrow(BorrowArgument {
+                        source: BorrowSource::AggregateSlot(0),
+                    })]
+            )
+        }),
+        "{main:?}"
+    );
+}
+
+#[test]
 fn lowers_method_call_temporary_receiver_as_implicit_readonly_borrow() {
     let ir = lower_text(
         r#"copy struct File {

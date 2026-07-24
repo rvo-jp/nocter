@@ -3786,6 +3786,35 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_lowers_concrete_generic_impl_method() {
+    let project = TempProject::new("cli-build-concrete-generic-impl-method");
+    let source = project.write_source(
+        "concrete_generic_impl_method.nct",
+        r#"struct Box<T> {
+    value: T
+}
+
+impl Box<i32> {
+    method &self.read(): i32 {
+        return self.value
+    }
+}
+
+func main(): i32 {
+    let box = Box<i32>{ value: 42 }
+    return box.read()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_temporary_method_borrow_receiver() {
     let project = TempProject::new("cli-build-temporary-method-borrow-receiver");
     let source = project.write_source(

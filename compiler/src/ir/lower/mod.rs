@@ -615,6 +615,7 @@ fn method_target_name(type_name: &str, method_name: &str) -> String {
 fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {
     match ty {
         TypeExpr::Reference(reference) => Some(&reference.name),
+        TypeExpr::Generic(generic) => Some(&generic.name),
         _ => None,
     }
 }
