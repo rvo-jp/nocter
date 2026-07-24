@@ -71,11 +71,13 @@ pub func with_capacity<T>(allocator: &+Allocator, requested_capacity: usize): Ve
 }
 
 pub func Vec.from_slice<T>(allocator: &+Allocator, values: &[T]): Vec<T>! {
-    if values.len() == 0 {
-        return Vec.empty()
+    var result: Vec<T> = Vec.with_capacity(allocator, values.len())?
+    var index: usize = 0
+    while index < values.len() {
+        result.push(values[index])?
+        index = index + 1
     }
-
-    return unsupported()
+    return move result
 }
 
 pub func from_slice<T>(allocator: &+Allocator, values: &[T]): Vec<T>! {

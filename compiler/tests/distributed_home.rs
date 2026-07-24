@@ -509,6 +509,64 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn distributed_std_vec_from_scalar_slice_runs() {
+    let project = TempProject::new("distributed-home-vec-from-scalar-slice-run");
+    let source = project.write_source(
+        "vec_from_scalar_slice.nct",
+        r#"use std/mem.page_allocator
+use std/vec.Vec
+
+func main(): i32! {
+    var allocator = page_allocator()
+
+    var bytes: Vec<u8> = Vec.empty()
+    bytes.push(3)?
+    bytes.push(9)?
+    let byte_copy: Vec<u8> = Vec.from_slice(&+allocator, bytes.view())?
+    if byte_copy.len() != 2 {
+        return 1
+    }
+    if byte_copy.view()[0] != 3 {
+        return 2
+    }
+    if byte_copy.view()[1] != 9 {
+        return 3
+    }
+
+    var words: Vec<usize> = Vec.empty()
+    words.push(13)?
+    words.push(21)?
+    let word_copy: Vec<usize> = Vec.from_slice(&+allocator, words.view())?
+    if word_copy.len() != 2 {
+        return 4
+    }
+    if word_copy.view()[0] != 13 {
+        return 5
+    }
+    if word_copy.view()[1] != 21 {
+        return 6
+    }
+
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn distributed_std_vec_empty_non_byte_slice_index_branch_runs() {
     let project = TempProject::new("distributed-home-vec-empty-non-byte-slice-index-run");
     let source = project.write_source(
