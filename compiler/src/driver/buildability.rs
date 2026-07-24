@@ -1790,7 +1790,7 @@ fn unsupported_unspecialized_generic_function_call_diagnostic(
         sources,
         call.span,
         "generic function calls without concrete type arguments",
-        "pass arguments that determine every generic parameter until return-context generic inference is promoted",
+        "make every generic parameter concrete through argument types or return context",
     ))
 }
 
@@ -2491,6 +2491,62 @@ func make<T>(): Marker<T> {
     }
 
     #[test]
+    fn accepts_reachable_generic_function_with_parameter_expected_type() {
+        let (sources, analysis) = analyze_text(
+            r#"struct Marker<T> {
+    code: i32
+}
+
+func main(): i32 {
+    return consume(make())
+}
+
+func consume(marker: Marker<u8>): i32 {
+    return marker.code
+}
+
+func make<T>(): Marker<T> {
+    return Marker<T>{ code: 42 }
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn accepts_reachable_nested_generic_function_with_parameter_expected_type() {
+        let (sources, analysis) = analyze_text(
+            r#"copy struct Marker<T> {
+    code: i32
+}
+
+func main(): i32 {
+    return consume(forward(make()))
+}
+
+func consume(marker: Marker<u8>): i32 {
+    return marker.code
+}
+
+func forward<T>(value: T): T {
+    return value
+}
+
+func make<T>(): Marker<T> {
+    return Marker<T>{ code: 42 }
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
     fn reports_unspecialized_generic_function_call_inside_reachable_specialization() {
         let (sources, analysis) = analyze_text(
             r#"func main(): i32 {
@@ -2542,9 +2598,7 @@ func empty<T>(): T? {
         );
         assert_eq!(
             diagnostics[0].help.as_deref(),
-            Some(
-                "pass arguments that determine every generic parameter until return-context generic inference is promoted"
-            )
+            Some("make every generic parameter concrete through argument types or return context")
         );
     }
 

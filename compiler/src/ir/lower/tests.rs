@@ -15,6 +15,9 @@ use crate::target::DEFAULT_TARGET;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static TEMP_PROJECT_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[test]
 fn lowers_entry_returning_i32_literal() {
@@ -570,6 +573,116 @@ func main(): i32 {
         ir.functions
             .iter()
             .any(|function| function.target == specialized_target),
+        "{ir:?}"
+    );
+}
+
+#[test]
+fn lowers_generic_function_call_inferred_from_parameter_type() {
+    let ir = lower_text(
+        r#"struct Marker<T> {
+    code: i32
+}
+
+func make<T>(): Marker<T> {
+    return Marker<T>{ code: 42 }
+}
+
+func consume(marker: Marker<u8>): i32 {
+    return marker.code
+}
+
+func main(): i32 {
+    return consume(make())
+}
+"#,
+    );
+
+    let specialized_target = CallTarget::same_file("make<u8>");
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+
+    assert!(
+        main.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                Instruction::CallDirectAggregate { target, .. } if target == &specialized_target
+            )
+        }),
+        "{main:?}"
+    );
+    assert!(
+        ir.functions
+            .iter()
+            .any(|function| function.target == specialized_target),
+        "{ir:?}"
+    );
+}
+
+#[test]
+fn lowers_nested_generic_function_call_inferred_from_parameter_type() {
+    let ir = lower_text(
+        r#"copy struct Marker<T> {
+    code: i32
+}
+
+func make<T>(): Marker<T> {
+    return Marker<T>{ code: 42 }
+}
+
+func forward<T>(value: T): T {
+    return value
+}
+
+func consume(marker: Marker<u8>): i32 {
+    return marker.code
+}
+
+func main(): i32 {
+    return consume(forward(make()))
+}
+"#,
+    );
+
+    let make_target = CallTarget::same_file("make<u8>");
+    let forward_target = CallTarget::same_file("forward<Marker<u8>>");
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+
+    assert!(
+        main.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                Instruction::CallDirectAggregate { target, .. } if target == &make_target
+            )
+        }),
+        "{main:?}"
+    );
+    assert!(
+        main.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                Instruction::CallDirectAggregate { target, .. } if target == &forward_target
+            )
+        }),
+        "{main:?}"
+    );
+    assert!(
+        ir.functions
+            .iter()
+            .any(|function| function.target == make_target),
+        "{ir:?}"
+    );
+    assert!(
+        ir.functions
+            .iter()
+            .any(|function| function.target == forward_target),
         "{ir:?}"
     );
 }
@@ -25903,12 +26016,13 @@ fn write_nocter_home_files(home: &Path, files: &[(&str, &str)]) {
 
 fn make_temp_project() -> PathBuf {
     let unique = format!(
-        "nocter-ir-{}-{}",
+        "nocter-ir-{}-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
-            .as_nanos()
+            .as_nanos(),
+        TEMP_PROJECT_COUNTER.fetch_add(1, Ordering::Relaxed),
     );
     let root = std::env::temp_dir().join(unique);
     fs::create_dir_all(&root).unwrap();

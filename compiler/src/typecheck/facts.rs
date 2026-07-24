@@ -20,6 +20,7 @@ use super::structs::{resolved_struct_field_for_literal_field, resolved_struct_fi
 use super::type_expr::{
     infer_type_expr_substitutions, simple_type_from_display_name, type_expr_display_lossy,
     type_expr_to_type_in_environment, type_expr_to_type_with_self_type,
+    type_expr_to_type_with_substitutions,
 };
 use super::variants::resolved_enum_variant_for_member;
 use crate::ast::{
@@ -768,7 +769,7 @@ impl TypecheckFactCollector<'_> {
         return_type: Option<&Type>,
     ) {
         self.collect_expression_facts_in_context(expression, environment, return_type);
-        self.collect_expected_expression_facts(expression, expected, environment);
+        self.collect_expected_expression_facts(expression, expected, environment, return_type);
     }
 
     fn collect_expected_expression_facts(
@@ -776,6 +777,7 @@ impl TypecheckFactCollector<'_> {
         expression: &Expr,
         expected: &Type,
         environment: &mut TypeEnvironment,
+        return_type: Option<&Type>,
     ) {
         match expression {
             Expr::Group(expression) => {
@@ -783,6 +785,7 @@ impl TypecheckFactCollector<'_> {
                     &expression.expression,
                     expected,
                     environment,
+                    return_type,
                 );
             }
             Expr::Propagate(expression) => {
@@ -796,6 +799,7 @@ impl TypecheckFactCollector<'_> {
                     &expression.expression,
                     &expected_attempt,
                     environment,
+                    return_type,
                 );
             }
             Expr::Force(expression) => {
@@ -809,6 +813,7 @@ impl TypecheckFactCollector<'_> {
                     &expression.expression,
                     &expected_attempt,
                     environment,
+                    return_type,
                 );
             }
             Expr::Catch(expression) => {
@@ -822,6 +827,7 @@ impl TypecheckFactCollector<'_> {
                     &expression.expression,
                     &expected_attempt,
                     environment,
+                    return_type,
                 );
             }
             Expr::Call(call) => {
@@ -830,6 +836,7 @@ impl TypecheckFactCollector<'_> {
                     expected,
                     environment,
                 );
+                self.collect_call_argument_facts(call, Some(expected), environment, return_type);
             }
             _ => {}
         }
@@ -1008,9 +1015,7 @@ impl TypecheckFactCollector<'_> {
                     );
                 }
 
-                for argument in &expression.arguments {
-                    self.collect_expression_facts_in_context(argument, environment, return_type);
-                }
+                self.collect_call_argument_facts(expression, None, environment, return_type);
             }
             Expr::Member(expression) => {
                 self.collect_expression_facts_in_context(
@@ -1123,6 +1128,69 @@ impl TypecheckFactCollector<'_> {
             | Expr::StringLiteral(_)
             | Expr::BoolLiteral(_)
             | Expr::NoneLiteral(_) => {}
+        }
+    }
+
+    fn collect_call_argument_facts(
+        &mut self,
+        call: &crate::ast::CallExpr,
+        expected_return_type: Option<&Type>,
+        environment: &mut TypeEnvironment,
+        return_type: Option<&Type>,
+    ) {
+        let Some(checked) = resolved_call_signature(self.resolved, call, environment) else {
+            for argument in &call.arguments {
+                self.collect_expression_facts_in_context(argument, environment, return_type);
+            }
+            return;
+        };
+        if call.arguments.len() != checked.signature.parameters.len() {
+            for argument in &call.arguments {
+                self.collect_expression_facts_in_context(argument, environment, return_type);
+            }
+            return;
+        }
+
+        let mut substitutions =
+            infer_generic_substitutions(call, &checked, self.resolved, environment);
+        if let Some(expected_return_type) = expected_return_type {
+            let parameters = checked
+                .signature
+                .generic_parameters
+                .iter()
+                .map(String::as_str)
+                .collect::<HashSet<_>>();
+            infer_type_expr_substitutions(
+                &checked.signature.return_type,
+                expected_return_type,
+                self.resolved,
+                checked.self_type.as_ref(),
+                &parameters,
+                &mut substitutions,
+            );
+        }
+
+        for (argument, parameter) in call
+            .arguments
+            .iter()
+            .zip(checked.signature.parameters.iter())
+        {
+            let expected = type_expr_to_type_with_substitutions(
+                &parameter.ty,
+                self.resolved,
+                checked.self_type.as_ref(),
+                &substitutions,
+            );
+            if expected.is_unknown_or_unresolved() || expected.first_unsized_part().is_some() {
+                self.collect_expression_facts_in_context(argument, environment, return_type);
+            } else {
+                self.collect_expression_facts_with_expected(
+                    argument,
+                    &expected,
+                    environment,
+                    return_type,
+                );
+            }
         }
     }
 

@@ -52,9 +52,7 @@ pub(super) fn infer_type_expr_substitutions(
             }
         }
         TypeExpr::Reference(reference) if parameters.contains(reference.name.as_str()) => {
-            substitutions
-                .entry(reference.name.clone())
-                .or_insert_with(|| actual.clone());
+            merge_inferred_substitution(&reference.name, actual, substitutions);
         }
         TypeExpr::Pointer(pointer) => {
             if let Type::Pointer(actual_inner) = actual {
@@ -355,6 +353,109 @@ fn expected_generic_parts(
 
     match actual {
         Type::Generic { name, arguments } if *name == expected_name => Some(arguments.clone()),
+        _ => None,
+    }
+}
+
+fn merge_inferred_substitution(
+    name: &str,
+    actual: &Type,
+    substitutions: &mut HashMap<String, Type>,
+) {
+    if let Some(existing) = substitutions.get(name) {
+        if let Some(merged) = merge_substitution_types(existing, actual) {
+            substitutions.insert(name.to_string(), merged);
+        }
+    } else {
+        substitutions.insert(name.to_string(), actual.clone());
+    }
+}
+
+fn merge_substitution_types(existing: &Type, actual: &Type) -> Option<Type> {
+    if existing == actual {
+        return Some(existing.clone());
+    }
+
+    match (existing, actual) {
+        (Type::Parameter(_), _) => Some(actual.clone()),
+        (_, Type::Parameter(_)) => Some(existing.clone()),
+        (Type::Pointer(existing), Type::Pointer(actual)) => {
+            merge_substitution_types(existing, actual).map(|inner| Type::Pointer(Box::new(inner)))
+        }
+        (Type::Optional(existing), Type::Optional(actual)) => {
+            merge_substitution_types(existing, actual).map(|inner| Type::Optional(Box::new(inner)))
+        }
+        (
+            Type::View {
+                is_readwrite: existing_readwrite,
+                element: existing,
+            },
+            Type::View {
+                is_readwrite: actual_readwrite,
+                element: actual,
+            },
+        ) if existing_readwrite == actual_readwrite => merge_substitution_types(existing, actual)
+            .map(|element| Type::View {
+                is_readwrite: *existing_readwrite,
+                element: Box::new(element),
+            }),
+        (Type::ArrayData { element: existing }, Type::ArrayData { element: actual }) => {
+            merge_substitution_types(existing, actual).map(|element| Type::ArrayData {
+                element: Box::new(element),
+            })
+        }
+        (
+            Type::Array {
+                element: existing,
+                length: existing_length,
+            },
+            Type::Array {
+                element: actual,
+                length: actual_length,
+            },
+        ) if existing_length == actual_length => {
+            merge_substitution_types(existing, actual).map(|element| Type::Array {
+                element: Box::new(element),
+                length: existing_length.clone(),
+            })
+        }
+        (
+            Type::Fallible {
+                success: existing_success,
+                error: existing_error,
+            },
+            Type::Fallible {
+                success: actual_success,
+                error: actual_error,
+            },
+        ) => {
+            let success = merge_substitution_types(existing_success, actual_success)?;
+            let error = merge_substitution_types(existing_error, actual_error)?;
+            Some(Type::Fallible {
+                success: Box::new(success),
+                error: Box::new(error),
+            })
+        }
+        (
+            Type::Generic {
+                name: existing_name,
+                arguments: existing_arguments,
+            },
+            Type::Generic {
+                name: actual_name,
+                arguments: actual_arguments,
+            },
+        ) if existing_name == actual_name && existing_arguments.len() == actual_arguments.len() => {
+            let arguments = existing_arguments
+                .iter()
+                .zip(actual_arguments.iter())
+                .map(|(existing, actual)| merge_substitution_types(existing, actual))
+                .collect::<Option<Vec<_>>>()?;
+            Some(Type::Generic {
+                name: existing_name.clone(),
+                arguments,
+            })
+        }
         _ => None,
     }
 }

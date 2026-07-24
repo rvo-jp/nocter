@@ -460,6 +460,58 @@ func main(): i32 {
 }
 
 #[test]
+fn infers_generic_function_type_argument_from_parameter_type() {
+    let diagnostics = check_text(
+        r#"struct Marker<T> {
+    code: i32
+}
+
+func make<T>(): Marker<T> {
+    return Marker<T>{ code: 42 }
+}
+
+func consume(marker: Marker<u8>): i32 {
+    return marker.code
+}
+
+func main(): i32 {
+    return consume(make())
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn infers_nested_generic_function_type_argument_from_parameter_type() {
+    let diagnostics = check_text(
+        r#"copy struct Marker<T> {
+    code: i32
+}
+
+func make<T>(): Marker<T> {
+    return Marker<T>{ code: 42 }
+}
+
+func forward<T>(value: T): T {
+    return value
+}
+
+func consume(marker: Marker<u8>): i32 {
+    return marker.code
+}
+
+func main(): i32 {
+    return consume(forward(make()))
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn checks_repeated_generic_function_parameter_types() {
     let diagnostics = check_text(
         r#"func same<T>(left: T, right: T): void {
