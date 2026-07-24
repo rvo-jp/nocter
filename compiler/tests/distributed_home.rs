@@ -191,10 +191,19 @@ func raw_buffer_prefix_mut(buffer: &+RawBuffer, prefix_len: usize): &+[u8]! {
     return raw_prefix_mut(buffer, prefix_len)?
 }
 
+func allocator_alloc(allocator: &+Allocator, size: usize, align: usize): RawBuffer! {
+    return allocator.alloc(size, align)?
+}
+
+func allocator_free(allocator: &+Allocator, buffer: RawBuffer): void {
+    allocator.free(move buffer)
+    return
+}
+
 func allocator_methods(): void! {
     var allocator = page_allocator()
-    var buffer = allocator.alloc(1, 1)?
-    allocator.free(move buffer)
+    var buffer = allocator_alloc(&+allocator, 1, 1)?
+    allocator_free(&+allocator, move buffer)
     return
 }
 
@@ -1061,11 +1070,20 @@ fn distributed_std_allocator_methods_run() {
     let source = project.write_source(
         "allocator_methods.nct",
         r#"use std/io.File
-use std/mem.page_allocator
+use std/mem.{Allocator, RawBuffer, page_allocator}
+
+func allocate(allocator: &+Allocator): RawBuffer! {
+    return allocator.alloc(2, 1)?
+}
+
+func release(allocator: &+Allocator, buffer: RawBuffer): void {
+    allocator.free(move buffer)
+    return
+}
 
 func main(): i32! {
     var allocator = page_allocator()
-    var buffer = allocator.alloc(2, 1)?
+    var buffer = allocate(&+allocator)?
     var input = File.open("input.txt")?
     let count = input.read(buffer.bytes_mut())?
     if count != 2 {
@@ -1078,7 +1096,7 @@ func main(): i32! {
     if bytes[1] != 75 {
         return 3
     }
-    allocator.free(move buffer)
+    release(&+allocator, move buffer)
     return 42
 }
 "#,

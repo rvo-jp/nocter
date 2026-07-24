@@ -3,8 +3,8 @@
 
 use super::bindings::continuing_binding_type;
 use super::calls::{
-    infer_generic_substitutions, method_member_for_call, resolved_call_signature,
-    resolved_method_for_call,
+    infer_generic_substitutions, method_member_for_call, method_self_type_for_receiver,
+    resolved_call_signature, resolved_method_for_call,
 };
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
@@ -1624,9 +1624,10 @@ fn method_call_specialization(
     environment: &TypeEnvironment,
 ) -> Option<MethodCallSpecialization> {
     let receiver_type = expression_type(&member.object, resolved, environment);
+    let self_type = method_self_type_for_receiver(&receiver_type);
     let mut free_type_parameters = HashSet::new();
     let self_ty = type_to_type_expr_allowing_parameters(
-        &receiver_type,
+        &self_type,
         member.object.span(),
         &mut free_type_parameters,
     )?;

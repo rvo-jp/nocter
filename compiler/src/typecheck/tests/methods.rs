@@ -69,6 +69,60 @@ func main(): i32 {
 }
 
 #[test]
+fn accepts_readonly_borrow_method_receiver() {
+    let diagnostics = check_text(
+        r#"struct Counter {
+    value: i32
+}
+
+impl Counter {
+    method &self.get(): i32 {
+        return self.value
+    }
+}
+
+func inspect(counter: &Counter): i32 {
+    return counter.get()
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_readwrite_borrow_method_receiver() {
+    let diagnostics = check_text(
+        r#"struct Counter {
+    value: i32
+}
+
+impl Counter {
+    method &+self.bump(): void {
+        self.value = self.value + 1
+        return
+    }
+}
+
+func bump(counter: &+Counter): void {
+    counter.bump()
+    return
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn accepts_generic_impl_method_body_and_call_return_type() {
     let diagnostics = check_text(
         r#"struct Box<T> {

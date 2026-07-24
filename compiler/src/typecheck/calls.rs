@@ -8,7 +8,10 @@ use super::diagnostics::{
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment};
 use super::operations::is_expression_assignable;
-use super::type_expr::{infer_type_expr_substitutions, type_expr_to_type_with_substitutions};
+use super::type_expr::{
+    infer_type_expr_substitutions, simple_type_from_display_name,
+    type_expr_to_type_with_substitutions,
+};
 use crate::ast::{CallExpr, Expr, MemberExpr, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{
@@ -154,9 +157,10 @@ pub(super) fn resolved_call_signature<'a>(
         let receiver_type = method_member_for_call(call)
             .map(|member| expression_type(&member.object, resolved, environment))
             .unwrap_or_else(|| Type::Named(owner.canonical_name.clone()));
+        let self_type = method_self_type_for_receiver(&receiver_type);
         CheckedCallSignature {
             signature: &method.signature,
-            self_type: Some(receiver_type),
+            self_type: Some(self_type),
             impl_target_ty: method.impl_target_ty.as_ref(),
             name: format!("{}.{}", owner.canonical_name, method.name),
             kind: CheckedCallKind::Method,
@@ -172,11 +176,12 @@ pub(super) fn resolved_method_for_call<'a>(
 ) -> Option<(&'a TypeSymbol, &'a MethodSignature)> {
     let member = method_member_for_call(call)?;
     let receiver_type = expression_type(&member.object, resolved, environment);
-    let owner = inherent_method_owner_for_type(&receiver_type, resolved)?;
+    let self_type = method_self_type_for_receiver(&receiver_type);
+    let owner = inherent_method_owner_for_type(&self_type, resolved)?;
     let method = owner.methods.iter().find(|method| {
         method.is_accessible
             && method.name == member.member
-            && method_applies_to_receiver(method, &receiver_type, resolved)
+            && method_applies_to_receiver(method, &self_type, resolved)
     })?;
 
     Some((owner, method))
@@ -321,7 +326,8 @@ pub(super) fn check_unresolved_member_call(
         return;
     }
 
-    let Some(owner) = inherent_method_owner_for_type(&receiver_type, resolved) else {
+    let self_type = method_self_type_for_receiver(&receiver_type);
+    let Some(owner) = inherent_method_owner_for_type(&self_type, resolved) else {
         diagnostics.push(method_unknown_diagnostic(
             sources,
             member,
@@ -379,7 +385,9 @@ fn type_expr_is_self_reference(ty: &TypeExpr) -> bool {
 
 fn receiver_is_mutable_binding(member: &MemberExpr, environment: &TypeEnvironment) -> bool {
     match unwrap_group(&member.object) {
-        Expr::Identifier(identifier) => environment.is_mutable_binding(&identifier.name),
+        Expr::Identifier(identifier) => {
+            aggregate_member_root_is_writable_place(&identifier.name, environment)
+        }
         Expr::Member(_) => aggregate_member_root_name(&member.object)
             .is_some_and(|name| aggregate_member_root_is_writable_place(name, environment)),
         _ => false,
@@ -417,6 +425,17 @@ fn inherent_method_owner_for_type<'a>(
     resolved
         .type_symbol_by_canonical_name(canonical_name)
         .filter(|symbol| matches!(symbol.kind, TypeSymbolKind::Struct | TypeSymbolKind::Enum))
+}
+
+pub(super) fn method_self_type_for_receiver(receiver_type: &Type) -> Type {
+    match receiver_type {
+        Type::Named(name) => name
+            .strip_prefix("&+")
+            .or_else(|| name.strip_prefix('&'))
+            .map(simple_type_from_display_name)
+            .unwrap_or_else(|| receiver_type.clone()),
+        _ => receiver_type.clone(),
+    }
 }
 
 fn associated_function_owner_for_member<'a>(
