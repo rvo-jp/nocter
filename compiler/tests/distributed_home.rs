@@ -163,8 +163,8 @@ fn distributed_std_public_api_passes_check() {
     let project = TempProject::new("distributed-home-smoke");
     let source = project.write_source(
         "std_smoke.nct",
-        r#"use std/fmt.{append_bool, append_i32, append_str, append_string, append_usize, unsupported as fmt_unsupported}
-use std/io.{File, print, stderr, stdout, unsupported as io_unsupported, write_text}
+        r#"use std/fmt.{append_bool, append_i32, append_str, append_string, append_usize}
+use std/io.{File, print, stderr, stdout, write_text}
 use std/mem.{Allocator, Layout, RawBuffer, alloc, bytes as raw_bytes, bytes_mut as raw_bytes_mut, free, invalid_argument, out_of_memory, page_allocator, prefix as raw_prefix, prefix_mut as raw_prefix_mut}
 use std/process.{abort, args, cwd, env, exit}
 use std/ptr.{addr, from_ref, from_ref_mut}
@@ -825,6 +825,74 @@ func main(): i32 {
     assert!(
         stderr.contains("E0412") && stderr.contains("pub(nocter)"),
         "expected pub(nocter) visibility diagnostic, got:\n{stderr}"
+    );
+}
+
+#[test]
+fn distributed_fmt_unsupported_helper_is_not_public_api() {
+    let project = TempProject::new("distributed-home-fmt-unsupported-private");
+    let source = project.write_source(
+        "fmt_unsupported_private.nct",
+        r#"use std/fmt.unsupported
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(
+        output.stdout.is_empty(),
+        "expected empty stdout, got:\n{}",
+        text(&output.stdout)
+    );
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("E0412") && stderr.contains("cannot access private name `unsupported`"),
+        "expected private fmt unsupported diagnostic, got:\n{stderr}"
+    );
+}
+
+#[test]
+fn distributed_io_unsupported_helper_is_not_public_api() {
+    let project = TempProject::new("distributed-home-io-unsupported-private");
+    let source = project.write_source(
+        "io_unsupported_private.nct",
+        r#"use std/io.unsupported
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(
+        output.stdout.is_empty(),
+        "expected empty stdout, got:\n{}",
+        text(&output.stdout)
+    );
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("E0412") && stderr.contains("cannot access private name `unsupported`"),
+        "expected private io unsupported diagnostic, got:\n{stderr}"
     );
 }
 

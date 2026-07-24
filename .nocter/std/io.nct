@@ -172,6 +172,6 @@ pub func write_text(file: &+File, text: &str): void! {
     return
 }
 
-pub func unsupported(): error {
+func unsupported(): error {
     return Error.new("std.io.unsupported", "unsupported I/O operation")
 }

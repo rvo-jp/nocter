@@ -143,6 +143,6 @@ pub func append_bool(out: &+String, value: bool): void! {
     return
 }
 
-pub func unsupported(): error {
+func unsupported(): error {
     return Error.new("std.fmt.unsupported", "value cannot be formatted")
 }

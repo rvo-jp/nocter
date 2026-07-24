@@ -6326,6 +6326,41 @@ fn run_command_returns_fully_stack_backed_str_local_first_byte_exit_code() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_fully_stack_backed_str_local_equality_exit_code() {
+    let project = TempProject::new("cli-run-fully-stack-backed-str-local-equality");
+    let source = project.write_source(
+        "fully_stack_backed_str_local_equality.nct",
+        r#"func main(): i32 {
+    let a0 = 1
+    let a1 = 2
+    let a2 = 3
+    let a3 = 4
+    let a4 = 5
+    let a5 = 6
+    let a6 = 7
+    let text = "Nocter"
+    if text == "Nocter" && text != "Other" {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_writes_str_parameter_when_len_register_aliases_destination() {
     let project = TempProject::new("cli-run-str-parameter-len-register-alias");
     project.write_nocter_home_file(
