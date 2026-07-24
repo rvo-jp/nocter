@@ -30,59 +30,31 @@ pub func Vec.empty<T>(): Vec<T> {
 }
 
 pub func empty<T>(): Vec<T> {
-    return Vec<T> {
-        ptr: from_addr(1),
-        len: 0,
-        capacity: 0,
-    }
+    return Vec.empty()
 }
 
 pub func Vec.with_capacity<T>(allocator: &+Allocator, requested_capacity: usize): Vec<T>! {
     if requested_capacity == 0 {
-        return Vec<T> {
-            ptr: from_addr(1),
-            len: 0,
-            capacity: 0,
-        }
+        return Vec.empty()
     }
 
     return unsupported()
 }
 
 pub func with_capacity<T>(allocator: &+Allocator, requested_capacity: usize): Vec<T>! {
-    if requested_capacity == 0 {
-        return Vec<T> {
-            ptr: from_addr(1),
-            len: 0,
-            capacity: 0,
-        }
-    }
-
-    return unsupported()
+    return Vec.with_capacity(allocator, requested_capacity)?
 }
 
 pub func Vec.from_slice<T>(allocator: &+Allocator, values: &[T]): Vec<T>! {
     if values.len() == 0 {
-        return Vec<T> {
-            ptr: from_addr(1),
-            len: 0,
-            capacity: 0,
-        }
+        return Vec.empty()
     }
 
     return unsupported()
 }
 
 pub func from_slice<T>(allocator: &+Allocator, values: &[T]): Vec<T>! {
-    if values.len() == 0 {
-        return Vec<T> {
-            ptr: from_addr(1),
-            len: 0,
-            capacity: 0,
-        }
-    }
-
-    return unsupported()
+    return Vec.from_slice(allocator, values)?
 }
 
 pub func len<T>(values: &Vec<T>): usize {
