@@ -385,6 +385,51 @@ func main(): i32 {
 }
 
 #[test]
+fn infers_generic_function_type_argument_from_binding_annotation() {
+    let diagnostics = check_text(
+        r#"struct Marker<T> {
+    code: i32
+}
+
+func make<T>(): Marker<T> {
+    return Marker<T>{ code: 42 }
+}
+
+func main(): i32 {
+    let marker: Marker<u8> = make()
+    return marker.code
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn infers_generic_function_type_argument_from_return_type() {
+    let diagnostics = check_text(
+        r#"struct Marker<T> {
+    code: i32
+}
+
+func make<T>(): Marker<T> {
+    return Marker<T>{ code: 42 }
+}
+
+func make_u8(): Marker<u8> {
+    return make()
+}
+
+func main(): i32 {
+    return make_u8().code
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn checks_repeated_generic_function_parameter_types() {
     let diagnostics = check_text(
         r#"func same<T>(left: T, right: T): void {

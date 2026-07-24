@@ -468,6 +468,50 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_generic_function_call_inferred_from_binding_annotation() {
+    let ir = lower_text(
+        r#"struct Marker<T> {
+    code: i32
+}
+
+func make<T>(): Marker<T> {
+    return Marker<T>{ code: 42 }
+}
+
+func main(): i32 {
+    let marker: Marker<u8> = make()
+    return marker.code
+}
+"#,
+    );
+
+    let specialized_target = CallTarget::same_file("make<u8>");
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+
+    assert!(
+        main.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                Instruction::CallAggregate { target, .. }
+                    | Instruction::CallDirectAggregate { target, .. }
+                    if target == &specialized_target
+            )
+        }),
+        "{main:?}"
+    );
+    assert!(
+        ir.functions
+            .iter()
+            .any(|function| function.target == specialized_target),
+        "{ir:?}"
+    );
+}
+
+#[test]
 fn lowers_generic_function_body_call_with_concrete_arguments() {
     let ir = lower_text(
         r#"func identity<T>(value: T): T {

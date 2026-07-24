@@ -350,6 +350,37 @@ func main(): i32 {
     assert_success(&output);
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_with_capacity_zero_runs() {
+    let project = TempProject::new("distributed-home-vec-with-capacity-zero-run");
+    let source = project.write_source(
+        "vec_with_capacity_zero.nct",
+        r#"use std/mem.page_allocator
+use std/vec.{Vec, with_capacity}
+
+func main(): i32! {
+    var allocator = page_allocator()
+    let values: Vec<u8> = with_capacity(&+allocator, 0)?
+    if values.is_empty() {
+        return 42
+    }
+    return 1
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
 #[test]
 fn distributed_std_vec_fields_are_private() {
     let project = TempProject::new("distributed-home-vec-fields-private");

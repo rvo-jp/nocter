@@ -18,7 +18,8 @@ use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
 use super::places::field_member_is_writable_place;
 use super::structs::{resolved_struct_field_for_literal_field, resolved_struct_field_for_member};
 use super::type_expr::{
-    simple_type_from_display_name, type_expr_display_lossy, type_expr_to_type_with_self_type,
+    infer_type_expr_substitutions, simple_type_from_display_name, type_expr_display_lossy,
+    type_expr_to_type_in_environment, type_expr_to_type_with_self_type,
 };
 use super::variants::resolved_enum_variant_for_member;
 use crate::ast::{
@@ -472,7 +473,17 @@ impl TypecheckFactCollector<'_> {
             Item::Function(function) => {
                 let mut environment = environment_for_function(function, self.resolved);
                 self.record_parameter_bindings(&function.parameters.parameters, &environment);
-                self.collect_block_facts(&function.body, &mut environment);
+                let return_type = type_expr_to_type_in_environment(
+                    &function.return_type,
+                    self.resolved,
+                    &environment,
+                );
+                let return_success_type = return_type.success_type().clone();
+                self.collect_block_facts(
+                    &function.body,
+                    &mut environment,
+                    Some(&return_success_type),
+                );
             }
             Item::Impl(impl_) => self.collect_impl_member_body_facts(impl_),
             Item::Use(_)
@@ -499,7 +510,13 @@ impl TypecheckFactCollector<'_> {
                         &environment,
                     );
                     self.record_parameter_bindings(&method.parameters.parameters, &environment);
-                    self.collect_block_facts(body, &mut environment);
+                    let return_type = type_expr_to_type_in_environment(
+                        &method.return_type,
+                        self.resolved,
+                        &environment,
+                    );
+                    let return_success_type = return_type.success_type().clone();
+                    self.collect_block_facts(body, &mut environment, Some(&return_success_type));
                 }
                 ImplMember::Drop(drop_) => {
                     let mut environment = environment_for_parameters_in_impl(
@@ -511,27 +528,46 @@ impl TypecheckFactCollector<'_> {
                         std::slice::from_ref(&drop_.binding),
                         &environment,
                     );
-                    self.collect_block_facts(&drop_.body, &mut environment);
+                    let return_type = Type::Void;
+                    self.collect_block_facts(&drop_.body, &mut environment, Some(&return_type));
                 }
             }
         }
     }
 
-    fn collect_block_facts(&mut self, block: &Block, environment: &mut TypeEnvironment) {
+    fn collect_block_facts(
+        &mut self,
+        block: &Block,
+        environment: &mut TypeEnvironment,
+        return_type: Option<&Type>,
+    ) {
         for statement in &block.statements {
-            self.collect_statement_facts(statement, environment);
+            self.collect_statement_facts(statement, environment, return_type);
         }
     }
 
-    fn collect_statement_facts(&mut self, statement: &Stmt, environment: &mut TypeEnvironment) {
+    fn collect_statement_facts(
+        &mut self,
+        statement: &Stmt,
+        environment: &mut TypeEnvironment,
+        return_type: Option<&Type>,
+    ) {
         match statement {
             Stmt::Return(statement) => {
                 if let Some(expression) = &statement.expression {
-                    self.collect_expression_facts(expression, environment);
+                    if let Some(return_type) = return_type {
+                        self.collect_expression_facts_with_expected(
+                            expression,
+                            return_type,
+                            environment,
+                        );
+                    } else {
+                        self.collect_expression_facts(expression, environment);
+                    }
                 }
             }
             Stmt::Binding(statement) => {
-                self.collect_binding_statement_facts(statement, environment)
+                self.collect_binding_statement_facts(statement, environment, return_type)
             }
             Stmt::Assignment(statement) => {
                 self.collect_expression_facts(&statement.target, environment);
@@ -541,10 +577,10 @@ impl TypecheckFactCollector<'_> {
                 self.collect_expression_facts(&statement.condition, environment);
 
                 let mut then_environment = environment.clone();
-                self.collect_block_facts(&statement.then_block, &mut then_environment);
+                self.collect_block_facts(&statement.then_block, &mut then_environment, return_type);
                 if let Some(else_block) = &statement.else_block {
                     let mut else_environment = environment.clone();
-                    self.collect_block_facts(else_block, &mut else_environment);
+                    self.collect_block_facts(else_block, &mut else_environment, return_type);
                 }
             }
             Stmt::IfIs(statement) => {
@@ -556,10 +592,10 @@ impl TypecheckFactCollector<'_> {
                 if let Some(payload) = &statement.payload {
                     self.record_payload_binding(payload, &then_environment);
                 }
-                self.collect_block_facts(&statement.then_block, &mut then_environment);
+                self.collect_block_facts(&statement.then_block, &mut then_environment, return_type);
                 if let Some(else_block) = &statement.else_block {
                     let mut else_environment = environment.clone();
-                    self.collect_block_facts(else_block, &mut else_environment);
+                    self.collect_block_facts(else_block, &mut else_environment, return_type);
                 }
             }
             Stmt::IfLet(statement) => {
@@ -572,10 +608,10 @@ impl TypecheckFactCollector<'_> {
                     &statement.name,
                     &then_environment,
                 );
-                self.collect_block_facts(&statement.then_block, &mut then_environment);
+                self.collect_block_facts(&statement.then_block, &mut then_environment, return_type);
                 if let Some(else_block) = &statement.else_block {
                     let mut else_environment = environment.clone();
-                    self.collect_block_facts(else_block, &mut else_environment);
+                    self.collect_block_facts(else_block, &mut else_environment, return_type);
                 }
             }
             Stmt::Switch(statement) => {
@@ -591,11 +627,11 @@ impl TypecheckFactCollector<'_> {
                     if let Some(payload) = &arm.payload {
                         self.record_payload_binding(payload, &arm_environment);
                     }
-                    self.collect_block_facts(&arm.body, &mut arm_environment);
+                    self.collect_block_facts(&arm.body, &mut arm_environment, return_type);
                 }
                 if let Some(arm) = &statement.else_arm {
                     let mut else_environment = environment.clone();
-                    self.collect_block_facts(&arm.body, &mut else_environment);
+                    self.collect_block_facts(&arm.body, &mut else_environment, return_type);
                 }
             }
             Stmt::ForRange(statement) => {
@@ -609,13 +645,13 @@ impl TypecheckFactCollector<'_> {
                     &statement.name,
                     &body_environment,
                 );
-                self.collect_block_facts(&statement.body, &mut body_environment);
+                self.collect_block_facts(&statement.body, &mut body_environment, return_type);
             }
             Stmt::While(statement) => {
                 self.collect_expression_facts(&statement.condition, environment);
 
                 let mut body_environment = environment.clone();
-                self.collect_block_facts(&statement.body, &mut body_environment);
+                self.collect_block_facts(&statement.body, &mut body_environment, return_type);
             }
             Stmt::WhileLet(statement) => {
                 self.collect_expression_facts(&statement.initializer, environment);
@@ -627,11 +663,11 @@ impl TypecheckFactCollector<'_> {
                     &statement.name,
                     &body_environment,
                 );
-                self.collect_block_facts(&statement.body, &mut body_environment);
+                self.collect_block_facts(&statement.body, &mut body_environment, return_type);
             }
             Stmt::Loop(statement) => {
                 let mut body_environment = environment.clone();
-                self.collect_block_facts(&statement.body, &mut body_environment);
+                self.collect_block_facts(&statement.body, &mut body_environment, return_type);
             }
             Stmt::Expression(statement) => {
                 self.collect_expression_facts(&statement.expression, environment);
@@ -644,16 +680,31 @@ impl TypecheckFactCollector<'_> {
         &mut self,
         statement: &BindingStmt,
         environment: &mut TypeEnvironment,
+        return_type: Option<&Type>,
     ) {
-        if let Some(ty) = &statement.ty {
+        let expected_initializer_type = statement.ty.as_ref().map(|ty| {
             self.collect_type_expr_references(ty);
+            let binding_type = type_expr_to_type_in_environment(ty, self.resolved, environment);
+            if statement.else_block.is_some() {
+                Type::Optional(Box::new(binding_type))
+            } else {
+                binding_type
+            }
+        });
+        if let Some(expected) = &expected_initializer_type {
+            self.collect_expression_facts_with_expected(
+                &statement.initializer,
+                expected,
+                environment,
+            );
+        } else {
+            self.collect_expression_facts(&statement.initializer, environment);
         }
-        self.collect_expression_facts(&statement.initializer, environment);
         let initializer_type = expression_type(&statement.initializer, self.resolved, environment);
 
         if let Some(else_block) = &statement.else_block {
             let mut else_environment = environment.clone();
-            self.collect_block_facts(else_block, &mut else_environment);
+            self.collect_block_facts(else_block, &mut else_environment, return_type);
         }
 
         let binding_type =
@@ -661,6 +712,80 @@ impl TypecheckFactCollector<'_> {
         let is_mutable = binding_kind_is_mutable(statement.kind);
         self.record_binding(statement.name_span, &binding_type, is_mutable);
         environment.define_binding(statement.name.clone(), binding_type, is_mutable);
+    }
+
+    fn collect_expression_facts_with_expected(
+        &mut self,
+        expression: &Expr,
+        expected: &Type,
+        environment: &mut TypeEnvironment,
+    ) {
+        self.collect_expression_facts(expression, environment);
+        self.collect_expected_expression_facts(expression, expected, environment);
+    }
+
+    fn collect_expected_expression_facts(
+        &mut self,
+        expression: &Expr,
+        expected: &Type,
+        environment: &mut TypeEnvironment,
+    ) {
+        match expression {
+            Expr::Group(expression) => {
+                self.collect_expected_expression_facts(
+                    &expression.expression,
+                    expected,
+                    environment,
+                );
+            }
+            Expr::Propagate(expression) => {
+                let expected_attempt = expected_attempt_type(
+                    &expression.expression,
+                    expected,
+                    self.resolved,
+                    environment,
+                );
+                self.collect_expected_expression_facts(
+                    &expression.expression,
+                    &expected_attempt,
+                    environment,
+                );
+            }
+            Expr::Force(expression) => {
+                let expected_attempt = expected_attempt_type(
+                    &expression.expression,
+                    expected,
+                    self.resolved,
+                    environment,
+                );
+                self.collect_expected_expression_facts(
+                    &expression.expression,
+                    &expected_attempt,
+                    environment,
+                );
+            }
+            Expr::Catch(expression) => {
+                let expected_attempt = expected_attempt_type(
+                    &expression.expression,
+                    expected,
+                    self.resolved,
+                    environment,
+                );
+                self.collect_expected_expression_facts(
+                    &expression.expression,
+                    &expected_attempt,
+                    environment,
+                );
+            }
+            Expr::Call(call) => {
+                self.record_expected_generic_function_call_specialization(
+                    call,
+                    expected,
+                    environment,
+                );
+            }
+            _ => {}
+        }
     }
 
     fn collect_expression_facts(&mut self, expression: &Expr, environment: &mut TypeEnvironment) {
@@ -684,7 +809,7 @@ impl TypecheckFactCollector<'_> {
                     &expression.error_name,
                     &catch_environment,
                 );
-                self.collect_block_facts(&expression.catch_block, &mut catch_environment);
+                self.collect_block_facts(&expression.catch_block, &mut catch_environment, None);
             }
             Expr::Borrow(expression) => {
                 self.collect_expression_facts(&expression.expression, environment);
@@ -741,6 +866,7 @@ impl TypecheckFactCollector<'_> {
                         resolved_function.name_span,
                         &resolved_function.target_name,
                         &resolved_function.signature,
+                        None,
                         environment,
                     );
                     self.facts.call_hover_labels.insert(
@@ -767,6 +893,7 @@ impl TypecheckFactCollector<'_> {
                             symbol.declaration_span,
                             &symbol.name,
                             signature,
+                            None,
                             environment,
                         );
                     }
@@ -1046,6 +1173,7 @@ impl TypecheckFactCollector<'_> {
         declaration_span: ByteSpan,
         base_target_name: &str,
         signature: &FunctionSignature,
+        expected_return_type: Option<&Type>,
         environment: &TypeEnvironment,
     ) {
         if signature.generic_parameters.is_empty() {
@@ -1059,6 +1187,7 @@ impl TypecheckFactCollector<'_> {
             declaration_span,
             base_target_name,
             signature,
+            expected_return_type,
             self.resolved,
             environment,
         ) {
@@ -1067,6 +1196,57 @@ impl TypecheckFactCollector<'_> {
                 .insert(call.span, specialization);
         }
     }
+
+    fn record_expected_generic_function_call_specialization(
+        &mut self,
+        call: &crate::ast::CallExpr,
+        expected_return_type: &Type,
+        environment: &TypeEnvironment,
+    ) {
+        if let Some((_owner, resolved_function)) = self.resolved.associated_function_for_call(call)
+        {
+            self.record_generic_function_call_specialization(
+                call,
+                resolved_function.name_span,
+                &resolved_function.target_name,
+                &resolved_function.signature,
+                Some(expected_return_type),
+                environment,
+            );
+            return;
+        }
+
+        let Some(symbol) = self.resolved.symbol_for_call(call) else {
+            return;
+        };
+        let SymbolKind::Function(signature) = &symbol.kind else {
+            return;
+        };
+        self.record_generic_function_call_specialization(
+            call,
+            symbol.declaration_span,
+            &symbol.name,
+            signature,
+            Some(expected_return_type),
+            environment,
+        );
+    }
+}
+
+fn expected_attempt_type(
+    expression: &Expr,
+    expected_success: &Type,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Type {
+    match expression_type(expression, resolved, environment) {
+        Type::Fallible { error, .. } => Type::Fallible {
+            success: Box::new(expected_success.clone()),
+            error,
+        },
+        Type::Optional(_) => Type::Optional(Box::new(expected_success.clone())),
+        _ => expected_success.clone(),
+    }
 }
 
 fn function_call_specialization(
@@ -1074,11 +1254,27 @@ fn function_call_specialization(
     declaration_span: ByteSpan,
     base_target_name: &str,
     signature: &FunctionSignature,
+    expected_return_type: Option<&Type>,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> Option<FunctionCallSpecialization> {
     let checked = resolved_call_signature(resolved, call, environment)?;
-    let substitution_types = infer_generic_substitutions(call, &checked, resolved, environment);
+    let mut substitution_types = infer_generic_substitutions(call, &checked, resolved, environment);
+    if let Some(expected_return_type) = expected_return_type {
+        let parameters = signature
+            .generic_parameters
+            .iter()
+            .map(String::as_str)
+            .collect::<HashSet<_>>();
+        infer_type_expr_substitutions(
+            &signature.return_type,
+            expected_return_type,
+            resolved,
+            checked.self_type.as_ref(),
+            &parameters,
+            &mut substitution_types,
+        );
+    }
     if !signature
         .generic_parameters
         .iter()

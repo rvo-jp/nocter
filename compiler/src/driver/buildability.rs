@@ -2436,6 +2436,29 @@ func forward<T>(box: Box<T>): T {
     }
 
     #[test]
+    fn accepts_reachable_generic_function_with_expected_return_type() {
+        let (sources, analysis) = analyze_text(
+            r#"struct Marker<T> {
+    code: i32
+}
+
+func main(): i32 {
+    let marker: Marker<u8> = make()
+    return marker.code
+}
+
+func make<T>(): Marker<T> {
+    return Marker<T>{ code: 42 }
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
     fn reports_unspecialized_generic_function_call_inside_reachable_specialization() {
         let (sources, analysis) = analyze_text(
             r#"func main(): i32 {

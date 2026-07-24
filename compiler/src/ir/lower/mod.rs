@@ -287,7 +287,10 @@ impl<'a> FunctionIndex<'a> {
                                             target,
                                             IndexedCallable::new_method(
                                                 method,
-                                                specialization.self_ty.clone(),
+                                                substitute_type_expr_parameters(
+                                                    &impl_.target_ty,
+                                                    &specialization.substitutions,
+                                                ),
                                                 specialization.substitutions.clone(),
                                                 specialization.target_name.clone(),
                                                 file,

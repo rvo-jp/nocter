@@ -1,4 +1,5 @@
 use super::arrays::array_length_matches;
+use super::calls::{infer_generic_substitutions, resolved_call_signature};
 use super::copyability::non_copy_struct_type_name;
 use super::diagnostics::{
     arithmetic_operand_type_mismatch_diagnostic, equality_operand_type_mismatch_diagnostic,
@@ -16,7 +17,10 @@ use super::numeric::{
     is_integer_literal_expr, is_integer_type, is_negative_integer_literal_expr,
     is_signed_integer_type, negative_integer_literal_fits_type,
 };
-use super::type_expr::type_expr_to_type_in_environment;
+use super::type_expr::{
+    infer_type_expr_substitutions, type_expr_to_type_in_environment,
+    type_expr_to_type_with_substitutions,
+};
 use super::variants::{enum_variant_expression_is_assignable, types_are_same_payloadless_enum};
 use crate::ast::{
     AssignmentOperator, BinaryExpr, BinaryOperator, Expr, OptionalDefaultExpr, TypeConversionExpr,
@@ -25,6 +29,7 @@ use crate::ast::{
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
 use crate::source::SourceMap;
+use std::collections::HashSet;
 
 pub(super) fn check_binary_expression(
     sources: &SourceMap,
@@ -287,6 +292,11 @@ pub(super) fn is_expression_assignable(
         (_, Expr::Group(group)) => {
             is_expression_assignable(expected, &group.expression, resolved, environment)
         }
+        (_, Expr::Call(call))
+            if generic_call_return_is_assignable(expected, call, resolved, environment) =>
+        {
+            true
+        }
         (_, _) => {
             enum_variant_expression_is_assignable(expected, expression, resolved, environment)
                 .unwrap_or_else(|| {
@@ -295,6 +305,52 @@ pub(super) fn is_expression_assignable(
                 })
         }
     }
+}
+
+fn generic_call_return_is_assignable(
+    expected: &Type,
+    call: &crate::ast::CallExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    let Some(signature) = resolved_call_signature(resolved, call, environment) else {
+        return false;
+    };
+    if signature.signature.generic_parameters.is_empty() {
+        return false;
+    }
+
+    let mut substitutions = infer_generic_substitutions(call, &signature, resolved, environment);
+    let parameters = signature
+        .signature
+        .generic_parameters
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
+    infer_type_expr_substitutions(
+        &signature.signature.return_type,
+        expected,
+        resolved,
+        signature.self_type.as_ref(),
+        &parameters,
+        &mut substitutions,
+    );
+    if !signature
+        .signature
+        .generic_parameters
+        .iter()
+        .all(|parameter| substitutions.contains_key(parameter))
+    {
+        return false;
+    }
+
+    let actual = type_expr_to_type_with_substitutions(
+        &signature.signature.return_type,
+        resolved,
+        signature.self_type.as_ref(),
+        &substitutions,
+    );
+    is_assignable(expected, &actual)
 }
 
 pub(super) fn is_bool_type(ty: &Type) -> bool {

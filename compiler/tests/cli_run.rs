@@ -3375,6 +3375,38 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_generic_function_inferred_from_binding_exit_code() {
+    let project = TempProject::new("cli-run-generic-function-expected-binding");
+    let source = project.write_source(
+        "generic_function_expected_binding.nct",
+        r#"struct Marker<T> {
+    code: i32
+}
+
+func make<T>(): Marker<T> {
+    return Marker<T>{ code: 42 }
+}
+
+func main(): i32 {
+    let marker: Marker<u8> = make()
+    return marker.code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_generic_impl_method_body_generic_function_exit_code() {
     let project = TempProject::new("cli-run-generic-method-body-function");
     let source = project.write_source(
