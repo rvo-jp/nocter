@@ -24,7 +24,7 @@ mod temporaries;
 use crate::abi::{ValueLayout, abi_value_from_type_expr};
 use crate::ast::{
     BinaryExpr, BinaryOperator, Block, CallExpr, CatchExpr, Expr, IndexExpr, PatternConditionalArm,
-    PatternConditionalExpr, Stmt, TypeConversionExpr, TypeExpr, UnaryExpr, UnaryOperator,
+    PatternConditionalExpr, Stmt, TypeConversionExpr, UnaryExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -846,10 +846,10 @@ fn lower_aggregate_normal_call_statement(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let Some(return_type_expr) = call_return_type_expr(call, context) else {
+    let Some(return_type_expr) = context.call_return_type_expr(call) else {
         return Err(unsupported_aggregate_call_statement_diagnostic());
     };
-    let drop_glue = context.drop_glue_for_type_expr(return_type_expr);
+    let drop_glue = context.drop_glue_for_type_expr(&return_type_expr);
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_aggregate_call_statement_diagnostic());
     };
@@ -901,10 +901,10 @@ fn lower_aggregate_fallible_call_statement(
     temporaries: &mut TemporaryAllocator,
     failure_mode: FallibleFailureMode,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let Some(return_type_expr) = call_return_type_expr(call, context) else {
+    let Some(return_type_expr) = context.call_return_type_expr(call) else {
         return Err(unsupported_aggregate_call_statement_diagnostic());
     };
-    let drop_glue = context.drop_glue_for_type_expr(return_type_expr);
+    let drop_glue = context.drop_glue_for_type_expr(&return_type_expr);
     let Some((target, call_name)) = context.direct_call_target_and_name(call) else {
         return Err(unsupported_aggregate_call_statement_diagnostic());
     };
@@ -931,14 +931,6 @@ fn lower_aggregate_fallible_call_statement(
     );
     append_discarded_aggregate_drop(&mut instructions, drop_glue, layout, slot_index, context)?;
     Ok(instructions)
-}
-
-fn call_return_type_expr<'a>(
-    call: &CallExpr,
-    context: &'a LoweringContext,
-) -> Option<&'a TypeExpr> {
-    let (_root_source, resolved) = context.resolved_calls()?;
-    Some(&resolved.call_signature_for_call(call)?.return_type)
 }
 
 fn append_discarded_aggregate_drop(
@@ -3195,8 +3187,8 @@ pub(super) fn aggregate_call_field(
     context: &LoweringContext,
 ) -> Option<super::context::AggregateField> {
     let (root_source, resolved) = context.resolved_calls()?;
-    let signature = resolved.call_signature_for_call(call)?;
-    aggregate_fields_from_type_expr(&signature.return_type, root_source, resolved)?
+    let return_type = context.call_return_type_expr(call)?;
+    aggregate_fields_from_type_expr(&return_type, root_source, resolved)?
         .into_iter()
         .find(|field| field.name == member_name)
 }

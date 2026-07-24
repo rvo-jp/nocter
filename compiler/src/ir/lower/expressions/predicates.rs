@@ -582,10 +582,8 @@ fn identifier_slice_element_kind(
 
 fn call_return_slice_element_type(call: &CallExpr, context: &LoweringContext) -> Option<Type> {
     let (_root_source, resolved) = context.resolved_calls()?;
-    view_element_type_from_type_expr(
-        &resolved.call_signature_for_call(call)?.return_type,
-        resolved,
-    )
+    let return_type = context.call_return_type_expr(call)?;
+    view_element_type_from_type_expr(&return_type, resolved)
 }
 
 fn type_conversion_target_is(

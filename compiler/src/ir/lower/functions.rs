@@ -38,7 +38,7 @@ use super::expressions::{
 };
 use super::types::{
     borrow_inner_type, borrow_type_from_type_expr, parameter_type_from_type_expr,
-    return_type_expr_is_top_level_optional, return_type_from_type_expr,
+    return_type_expr_is_top_level_optional, return_type_from_type_expr, type_expr_with_self_type,
     view_element_type_from_type_expr,
 };
 use crate::abi::{
@@ -46,10 +46,9 @@ use crate::abi::{
     function_parameter_abi_word_count_from_signature,
 };
 use crate::ast::{
-    ArrayType, BinaryExpr, BinaryOperator, Block, BorrowType, CallExpr, DropDecl, DropStmt, Expr,
-    FallibleType, FunctionDecl, GenericType, IdentifierExpr, IfIsStmt, IfStmt, MemberExpr,
-    MethodDecl, OptionalType, Parameter, PointerType, ReturnStmt, Stmt, StructLiteralExpr,
-    SwitchArm, SwitchStmt, TypeExpr, TypeReference, UnaryOperator, ViewType,
+    BinaryExpr, BinaryOperator, Block, CallExpr, DropDecl, DropStmt, Expr, FunctionDecl,
+    IdentifierExpr, IfIsStmt, IfStmt, MemberExpr, MethodDecl, Parameter, ReturnStmt, Stmt,
+    StructLiteralExpr, SwitchArm, SwitchStmt, TypeExpr, TypeReference, UnaryOperator,
     substitute_type_expr_parameters,
 };
 use crate::diagnostics::Diagnostic;
@@ -1807,51 +1806,6 @@ fn append_scope_drops_then_restore_return(
     Ok(())
 }
 
-pub(super) fn type_expr_with_self_type(ty: &TypeExpr, self_ty: &TypeExpr) -> TypeExpr {
-    match ty {
-        TypeExpr::Reference(reference) if reference.name == "Self" => self_ty.clone(),
-        TypeExpr::Reference(_) => ty.clone(),
-        TypeExpr::Generic(generic) => TypeExpr::Generic(GenericType {
-            span: generic.span,
-            name: generic.name.clone(),
-            name_span: generic.name_span,
-            arguments: generic
-                .arguments
-                .iter()
-                .map(|argument| type_expr_with_self_type(argument, self_ty))
-                .collect(),
-        }),
-        TypeExpr::Pointer(pointer) => TypeExpr::Pointer(PointerType {
-            span: pointer.span,
-            inner: Box::new(type_expr_with_self_type(&pointer.inner, self_ty)),
-        }),
-        TypeExpr::Borrow(borrow) => TypeExpr::Borrow(BorrowType {
-            span: borrow.span,
-            is_readwrite: borrow.is_readwrite,
-            inner: Box::new(type_expr_with_self_type(&borrow.inner, self_ty)),
-        }),
-        TypeExpr::View(view) => TypeExpr::View(ViewType {
-            span: view.span,
-            is_readwrite: view.is_readwrite,
-            element: Box::new(type_expr_with_self_type(&view.element, self_ty)),
-        }),
-        TypeExpr::Array(array) => TypeExpr::Array(ArrayType {
-            span: array.span,
-            element: Box::new(type_expr_with_self_type(&array.element, self_ty)),
-            length: array.length.clone(),
-        }),
-        TypeExpr::Optional(optional) => TypeExpr::Optional(OptionalType {
-            span: optional.span,
-            inner: Box::new(type_expr_with_self_type(&optional.inner, self_ty)),
-        }),
-        TypeExpr::Fallible(fallible) => TypeExpr::Fallible(FallibleType {
-            span: fallible.span,
-            success: Box::new(type_expr_with_self_type(&fallible.success, self_ty)),
-            error: Box::new(type_expr_with_self_type(&fallible.error, self_ty)),
-        }),
-    }
-}
-
 fn lower_leading_bindings(
     statements: &[Stmt],
     context: &mut LoweringContext,
@@ -3383,10 +3337,10 @@ fn call_return_type_expr_is_top_level_optional(call: &CallExpr, context: &Loweri
     let Some((_root_source, resolved)) = context.resolved_calls() else {
         return false;
     };
-    let Some(signature) = resolved.call_signature_for_call(call) else {
+    let Some(return_type) = context.call_return_type_expr(call) else {
         return false;
     };
-    return_type_expr_is_top_level_optional(&signature.return_type, resolved)
+    return_type_expr_is_top_level_optional(&return_type, resolved)
 }
 
 fn lower_optional_default_return_failure_mode(

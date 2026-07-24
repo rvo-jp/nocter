@@ -125,10 +125,10 @@ fn lower_optional_let_else_binding(
             "IR v0 cannot lower optional `let ... else` bindings without resolved call information",
         ));
     };
-    let Some(signature) = resolved.call_signature_for_call(call) else {
+    let Some(return_type) = context.call_return_type_expr(call) else {
         return Ok(None);
     };
-    if !return_type_expr_is_top_level_optional(&signature.return_type, resolved) {
+    if !return_type_expr_is_top_level_optional(&return_type, resolved) {
         return Ok(None);
     }
 
@@ -358,10 +358,10 @@ fn lower_optional_default_scalar_binding(
             "IR v0 cannot lower optional default bindings without resolved call information",
         ));
     };
-    let Some(signature) = resolved.call_signature_for_call(call) else {
+    let Some(return_type) = context.call_return_type_expr(call) else {
         return Ok(None);
     };
-    if !return_type_expr_is_top_level_optional(&signature.return_type, resolved) {
+    if !return_type_expr_is_top_level_optional(&return_type, resolved) {
         return Ok(None);
     }
 
@@ -524,10 +524,10 @@ fn lower_optional_default_aggregate_binding(
             "IR v0 cannot lower optional default aggregate bindings without resolved call information",
         ));
     };
-    let Some(signature) = resolved.call_signature_for_call(call) else {
+    let Some(return_type) = context.call_return_type_expr(call) else {
         return Ok(None);
     };
-    if !return_type_expr_is_top_level_optional(&signature.return_type, resolved) {
+    if !return_type_expr_is_top_level_optional(&return_type, resolved) {
         return Ok(None);
     }
 
@@ -2394,9 +2394,10 @@ fn primitive_call_scalar_binding_kind(
         "slice_from_raw_parts"
         | "slice_from_raw_parts_mut"
         | "slice_from_raw_parts_value"
-        | "slice_from_raw_parts_value_mut" => {
-            Some(ScalarBindingKind::Slice(TypecheckSliceElementKind::Other))
-        }
+        | "slice_from_raw_parts_value_mut" => Some(ScalarBindingKind::Slice(
+            call_return_slice_element_kind(call, context)
+                .unwrap_or(TypecheckSliceElementKind::Other),
+        )),
         _ => None,
     }
 }
@@ -2467,9 +2468,9 @@ fn call_return_slice_element_kind(
     context: &LoweringContext,
 ) -> Option<TypecheckSliceElementKind> {
     let (_root_source, resolved) = context.resolved_calls()?;
-    let return_type = &resolved.call_signature_for_call(call)?.return_type;
+    let return_type = context.call_return_type_expr(call)?;
     Some(slice_element_kind_from_type(
-        view_element_type_from_type_expr(return_type, resolved),
+        view_element_type_from_type_expr(&return_type, resolved),
     ))
 }
 
@@ -2478,7 +2479,8 @@ fn call_success_slice_element_kind(
     context: &LoweringContext,
 ) -> Option<TypecheckSliceElementKind> {
     let (_root_source, resolved) = context.resolved_calls()?;
-    let TypeExpr::Fallible(fallible) = &resolved.call_signature_for_call(call)?.return_type else {
+    let return_type = context.call_return_type_expr(call)?;
+    let TypeExpr::Fallible(fallible) = return_type else {
         return None;
     };
     Some(slice_element_kind_from_type(
@@ -2528,10 +2530,10 @@ fn call_success_type_is_copy_struct(call: &CallExpr, context: &LoweringContext) 
     let Some((_root_source, resolved)) = context.resolved_calls() else {
         return false;
     };
-    let Some(signature) = resolved.call_signature_for_call(call) else {
+    let Some(return_type) = context.call_return_type_expr(call) else {
         return false;
     };
-    type_expr_is_copy_struct(&signature.return_type, resolved)
+    type_expr_is_copy_struct(&return_type, resolved)
 }
 
 fn call_success_aggregate_fields(
@@ -2541,20 +2543,18 @@ fn call_success_aggregate_fields(
     let Some((root_source, resolved)) = context.resolved_calls() else {
         return Vec::new();
     };
-    let Some(signature) = resolved.call_signature_for_call(call) else {
+    let Some(return_type) = context.call_return_type_expr(call) else {
         return Vec::new();
     };
-    aggregate_fields_from_type_expr(&signature.return_type, root_source, resolved)
-        .unwrap_or_default()
+    aggregate_fields_from_type_expr(&return_type, root_source, resolved).unwrap_or_default()
 }
 
 fn call_success_drop_glue(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> Option<super::context::DropGlue> {
-    let (_root_source, resolved) = context.resolved_calls()?;
-    let signature = resolved.call_signature_for_call(call)?;
-    context.drop_glue_for_type_expr(&signature.return_type)
+    let return_type = context.call_return_type_expr(call)?;
+    context.drop_glue_for_type_expr(&return_type)
 }
 
 fn macos_syscall_primitive_call(call: &CallExpr, context: &LoweringContext) -> bool {

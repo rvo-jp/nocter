@@ -38,8 +38,8 @@ pub(super) fn aggregate_call_return_layout_from_resolved(
     context: &LoweringContext,
 ) -> Option<ValueLayout> {
     let (_root_source, resolved) = context.resolved_calls()?;
-    let signature = resolved.call_signature_for_call(call)?;
-    let value = abi_value_from_type_expr(&signature.return_type, resolved).ok()?;
+    let return_type = context.call_return_type_expr(call)?;
+    let value = abi_value_from_type_expr(&return_type, resolved).ok()?;
     if matches!(value.ty, AbiType::Struct(_)) {
         Some(value.layout)
     } else {

@@ -585,14 +585,14 @@ pub(super) fn lower_nonterminal_if_let_statement(
             statement.initializer.span(),
         ));
     };
-    let Some(signature) = resolved.call_signature_for_call(call) else {
+    let Some(return_type) = context.call_return_type_expr(call) else {
         return Err(attach_primary_span_if_absent(
             unsupported_nonterminal_if_let_diagnostic(diagnostic_code, subject),
             sources,
             statement.initializer.span(),
         ));
     };
-    if !return_type_expr_is_top_level_optional(&signature.return_type, resolved) {
+    if !return_type_expr_is_top_level_optional(&return_type, resolved) {
         return Err(attach_primary_span_if_absent(
             unsupported_nonterminal_if_let_diagnostic(diagnostic_code, subject),
             sources,
@@ -803,14 +803,14 @@ pub(super) fn lower_nonterminal_while_let_statement(
             statement.initializer.span(),
         ));
     };
-    let Some(signature) = resolved.call_signature_for_call(call) else {
+    let Some(return_type) = context.call_return_type_expr(call) else {
         return Err(attach_primary_span_if_absent(
             unsupported_nonterminal_while_let_diagnostic(diagnostic_code, subject),
             sources,
             statement.initializer.span(),
         ));
     };
-    if !return_type_expr_is_top_level_optional(&signature.return_type, resolved) {
+    if !return_type_expr_is_top_level_optional(&return_type, resolved) {
         return Err(attach_primary_span_if_absent(
             unsupported_nonterminal_while_let_diagnostic(diagnostic_code, subject),
             sources,

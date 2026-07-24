@@ -3,13 +3,60 @@
 //! Converts resolved AST type expressions into the limited IR type set used by v0 lowering.
 
 use crate::abi::{AbiType, AbiValue, ValueClassification, abi_value_from_type_expr};
-use crate::ast::{BorrowType, TypeExpr};
+use crate::ast::{
+    ArrayType, BorrowType, FallibleType, GenericType, OptionalType, PointerType, TypeExpr, ViewType,
+};
 use crate::ir::Type;
 use crate::resolve::ResolveOutput;
 use std::collections::HashSet;
 
 pub(super) fn return_type_from_type_expr(ty: &TypeExpr, resolved: &ResolveOutput) -> Option<Type> {
     return_type_from_type_expr_inner(ty, resolved, &mut HashSet::new())
+}
+
+pub(super) fn type_expr_with_self_type(ty: &TypeExpr, self_ty: &TypeExpr) -> TypeExpr {
+    match ty {
+        TypeExpr::Reference(reference) if reference.name == "Self" => self_ty.clone(),
+        TypeExpr::Reference(_) => ty.clone(),
+        TypeExpr::Generic(generic) => TypeExpr::Generic(GenericType {
+            span: generic.span,
+            name: generic.name.clone(),
+            name_span: generic.name_span,
+            arguments: generic
+                .arguments
+                .iter()
+                .map(|argument| type_expr_with_self_type(argument, self_ty))
+                .collect(),
+        }),
+        TypeExpr::Pointer(pointer) => TypeExpr::Pointer(PointerType {
+            span: pointer.span,
+            inner: Box::new(type_expr_with_self_type(&pointer.inner, self_ty)),
+        }),
+        TypeExpr::Borrow(borrow) => TypeExpr::Borrow(BorrowType {
+            span: borrow.span,
+            is_readwrite: borrow.is_readwrite,
+            inner: Box::new(type_expr_with_self_type(&borrow.inner, self_ty)),
+        }),
+        TypeExpr::View(view) => TypeExpr::View(ViewType {
+            span: view.span,
+            is_readwrite: view.is_readwrite,
+            element: Box::new(type_expr_with_self_type(&view.element, self_ty)),
+        }),
+        TypeExpr::Array(array) => TypeExpr::Array(ArrayType {
+            span: array.span,
+            element: Box::new(type_expr_with_self_type(&array.element, self_ty)),
+            length: array.length.clone(),
+        }),
+        TypeExpr::Optional(optional) => TypeExpr::Optional(OptionalType {
+            span: optional.span,
+            inner: Box::new(type_expr_with_self_type(&optional.inner, self_ty)),
+        }),
+        TypeExpr::Fallible(fallible) => TypeExpr::Fallible(FallibleType {
+            span: fallible.span,
+            success: Box::new(type_expr_with_self_type(&fallible.success, self_ty)),
+            error: Box::new(type_expr_with_self_type(&fallible.error, self_ty)),
+        }),
+    }
 }
 
 pub(super) fn return_type_expr_is_top_level_optional(

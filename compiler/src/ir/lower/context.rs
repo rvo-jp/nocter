@@ -13,6 +13,7 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use super::errors::ErrorPayload;
+use super::types::type_expr_with_self_type;
 
 pub(super) type ErrorPayloads = HashMap<CallTarget, ErrorPayload>;
 
@@ -344,6 +345,29 @@ impl<'a> LoweringContext<'a> {
         self.function_signatures.return_type(target)
     }
 
+    pub(super) fn call_return_type_expr(&self, call: &CallExpr) -> Option<TypeExpr> {
+        if let Some(return_type) = self.method_call_return_type_expr(call) {
+            return Some(return_type);
+        }
+
+        let resolution = self.call_resolution.as_ref()?;
+        let signature = resolution.resolved.call_signature_for_call(call)?;
+        let mut return_type = signature.return_type.clone();
+        if let Some(specialization) = resolution
+            .typecheck_facts
+            .function_call_specialization(call.span)
+        {
+            let specialization =
+                specialization.with_context_substitutions(&self.generic_substitutions)?;
+            return_type =
+                substitute_type_expr_parameters(&return_type, &specialization.substitutions);
+        }
+        Some(substitute_type_expr_parameters(
+            &return_type,
+            &self.generic_substitutions,
+        ))
+    }
+
     pub(super) fn call_parameter_types(&self, target: &CallTarget) -> Option<&[Type]> {
         self.function_signatures.parameter_types(target)
     }
@@ -554,6 +578,49 @@ impl<'a> LoweringContext<'a> {
             target_name.clone(),
         );
         Some((target, target_name))
+    }
+
+    fn method_call_return_type_expr(&self, call: &CallExpr) -> Option<TypeExpr> {
+        let resolution = self.call_resolution.as_ref()?;
+        let Expr::Member(member) = call.callee.as_ref() else {
+            return None;
+        };
+        let method_name_span = resolution
+            .typecheck_facts
+            .method_call_target(member.member_span)?;
+        let method = resolution
+            .resolved
+            .method_signature_by_name_span(method_name_span)?;
+        let mut return_type = method.signature.return_type.clone();
+        if let Some(specialization) = resolution
+            .typecheck_facts
+            .method_call_specialization(member.member_span)
+            .and_then(|specialization| {
+                specialization.with_context_substitutions(&self.generic_substitutions)
+            })
+        {
+            return_type = type_expr_with_self_type(&return_type, &specialization.self_ty);
+            return_type =
+                substitute_type_expr_parameters(&return_type, &specialization.substitutions);
+            return Some(substitute_type_expr_parameters(
+                &return_type,
+                &self.generic_substitutions,
+            ));
+        }
+        if resolution
+            .typecheck_facts
+            .generic_method_call_target(member.member_span)
+            .is_some()
+        {
+            return None;
+        }
+        if let Some(self_ty) = &method.impl_target_ty {
+            return_type = type_expr_with_self_type(&return_type, self_ty);
+        }
+        Some(substitute_type_expr_parameters(
+            &return_type,
+            &self.generic_substitutions,
+        ))
     }
 
     pub(super) fn next_i32_local_location(&self) -> Result<I32Location, Vec<Diagnostic>> {

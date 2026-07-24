@@ -133,6 +133,20 @@ impl ResolveOutput {
             .or_else(|| self.associated_function_signature_for_call(call))
     }
 
+    pub fn method_signature_by_name_span(&self, name_span: ByteSpan) -> Option<&MethodSignature> {
+        self.symbols
+            .symbols()
+            .find_map(|symbol| match &symbol.kind {
+                SymbolKind::Type(type_symbol) => type_symbol
+                    .methods
+                    .iter()
+                    .find(|method| method.name_span == name_span),
+                SymbolKind::Function(_) | SymbolKind::Primitive(_) | SymbolKind::Imported(_) => {
+                    None
+                }
+            })
+    }
+
     pub fn call_name_for_diagnostic(&self, call: &CallExpr) -> String {
         if let Some(symbol) = self.symbol_for_call(call) {
             return symbol.name.clone();

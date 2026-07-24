@@ -39,7 +39,7 @@ use context::{ErrorPayloads, FunctionNames, FunctionSignature, FunctionSignature
 use imported_calls::imported_call_diagnostics;
 use reachability::reachable_call_targets;
 use std::collections::{HashMap, HashSet};
-use types::{parameter_type_from_type_expr, return_type_from_type_expr};
+use types::{parameter_type_from_type_expr, return_type_from_type_expr, type_expr_with_self_type};
 
 pub(crate) fn lower_executable(
     analysis: &CompileUnitAnalysis,
@@ -569,8 +569,7 @@ impl<'a> IndexedCallable<'a> {
                 self_ty,
                 ..
             } => {
-                let parameter_ty =
-                    functions::type_expr_with_self_type(&declaration.binding.ty, self_ty);
+                let parameter_ty = type_expr_with_self_type(&declaration.binding.ty, self_ty);
                 let parameter_type = lower_signature_parameter_type(&parameter_ty, self.resolved)?;
                 let resolved_signature = resolved_function_signature(
                     &[Parameter {
@@ -602,7 +601,7 @@ impl<'a> IndexedCallable<'a> {
             } => {
                 let parameters = method_parameters(declaration, self_ty, substitutions);
                 let return_type = substitute_type_expr_parameters(
-                    &functions::type_expr_with_self_type(&declaration.return_type, self_ty),
+                    &type_expr_with_self_type(&declaration.return_type, self_ty),
                     substitutions,
                 );
                 let resolved_signature =
@@ -665,7 +664,7 @@ fn method_parameters(
         name: method.receiver.name.clone(),
         name_span: method.receiver.name_span,
         ty: substitute_type_expr_parameters(
-            &functions::type_expr_with_self_type(&method.receiver.ty, self_ty),
+            &type_expr_with_self_type(&method.receiver.ty, self_ty),
             substitutions,
         ),
     });
