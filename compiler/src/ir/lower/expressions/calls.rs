@@ -2435,8 +2435,8 @@ fn describe_type(ty: &Type) -> &'static str {
         Type::Str => "&str",
         Type::Slice {
             is_readwrite: false,
-        } => "&[u8]",
-        Type::Slice { is_readwrite: true } => "&+[u8]",
+        } => "&[T]",
+        Type::Slice { is_readwrite: true } => "&+[T]",
         Type::Aggregate { .. } => "aggregate",
         Type::DirectAggregate { .. } => "aggregate",
         Type::Error => "error",
@@ -2474,8 +2474,8 @@ fn describe_type(ty: &Type) -> &'static str {
             Type::Str => "&str!",
             Type::Slice {
                 is_readwrite: false,
-            } => "&[u8]!",
-            Type::Slice { is_readwrite: true } => "&+[u8]!",
+            } => "&[T]!",
+            Type::Slice { is_readwrite: true } => "&+[T]!",
             Type::Aggregate { .. } => "aggregate!",
             Type::DirectAggregate { .. } => "aggregate!",
             Type::Borrow {

@@ -427,6 +427,14 @@ func main(): i32 {
         return 5
     }
     second.clear()
+
+    let third: Vec<usize> = Vec.empty()
+    if third.view().len() != 0 {
+        return 6
+    }
+    if !third.view().is_empty() {
+        return 7
+    }
     return 0
 }
 "#,
@@ -437,6 +445,43 @@ func main(): i32 {
     assert_eq!(
         output.status.code(),
         Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_from_empty_non_byte_slice_runs() {
+    let project = TempProject::new("distributed-home-vec-empty-non-byte-slice-run");
+    let source = project.write_source(
+        "vec_empty_non_byte_slice.nct",
+        r#"use std/mem.page_allocator
+use std/vec.Vec
+
+func main(): i32! {
+    var allocator = page_allocator()
+    let source: Vec<usize> = Vec.empty()
+    let copy: Vec<usize> = Vec.from_slice(&+allocator, source.view())?
+    if copy.len() != 0 {
+        return 1
+    }
+    if !copy.view().is_empty() {
+        return 2
+    }
+    return 42
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
         "stdout:\n{}\nstderr:\n{}",
         text(&output.stdout),
         text(&output.stderr)

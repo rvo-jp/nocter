@@ -655,7 +655,7 @@ fn unsupported_parameter_type_diagnostic(function_name: &str) -> Vec<Diagnostic>
     vec![Diagnostic::error(
         "E8007",
         format!(
-            "IR v0 can only lower `i32`, `u8`, `usize`, `bool`, `&str`, `&[u8]`, `&+[u8]`, scalar borrow parameters, aggregate borrow parameters, and aggregate value parameters with non-empty ABI layouts for function `{function_name}`"
+            "IR v0 can only lower `i32`, `u8`, `usize`, `bool`, `&str`, `&[T]`, `&+[T]`, scalar borrow parameters, aggregate borrow parameters, and aggregate value parameters with non-empty ABI layouts for function `{function_name}`"
         ),
     )]
 }
@@ -673,7 +673,7 @@ fn unsupported_function_return_type_diagnostic(name: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8007",
         format!(
-            "IR v0 can only lower function `{name}` return type `i32`, `u8`, `usize`, `bool`, `&str`, `&[u8]`, `&+[u8]`, `void`, `never`, aggregates, or a fallible form of those types"
+            "IR v0 can only lower function `{name}` return type `i32`, `u8`, `usize`, `bool`, `&str`, `&[T]`, `&+[T]`, `void`, `never`, aggregates, or a fallible form of those types"
         ),
     )]
 }

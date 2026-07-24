@@ -2289,7 +2289,7 @@ fn scalar_binding_kind(
                 Some(Type::Str) => Ok(ScalarBindingKind::Str),
                 Some(Type::Slice { .. }) => Ok(ScalarBindingKind::Slice),
                 _ => Err(unsupported_binding_diagnostic(
-                    "IR v0 can only lower local bindings annotated as `i32`, `u8`, `usize`, `bool`, `&str`, `&[u8]`, `&+[u8]`, or aliases to those types",
+                    "IR v0 can only lower local bindings annotated as `i32`, `u8`, `usize`, `bool`, `&str`, `&[T]`, `&+[T]`, or aliases to those types",
                 )),
             }
         }

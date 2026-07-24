@@ -224,11 +224,9 @@ fn view_type_from_type_expr_inner(
             let value = abi_value_from_type_expr(ty, resolved).ok()?;
             match &value.ty {
                 AbiType::StrView if !borrow.is_readwrite => Some(Type::Str),
-                AbiType::SliceView if type_expr_is_u8_slice_data_type(&borrow.inner, resolved) => {
-                    Some(Type::Slice {
-                        is_readwrite: borrow.is_readwrite,
-                    })
-                }
+                AbiType::SliceView => Some(Type::Slice {
+                    is_readwrite: borrow.is_readwrite,
+                }),
                 _ => None,
             }
         }
@@ -245,37 +243,5 @@ fn view_type_from_type_expr_inner(
             result
         }
         _ => None,
-    }
-}
-
-fn type_expr_is_u8_slice_data_type(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    type_expr_is_u8_slice_data_type_inner(ty, resolved, &mut HashSet::new())
-}
-
-fn type_expr_is_u8_slice_data_type_inner(
-    ty: &TypeExpr,
-    resolved: &ResolveOutput,
-    resolving_names: &mut HashSet<String>,
-) -> bool {
-    match ty {
-        TypeExpr::View(view) => {
-            !view.is_readwrite
-                && matches!(view.element.as_ref(), TypeExpr::Reference(reference) if reference.name == "u8")
-        }
-        TypeExpr::Reference(reference) => {
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
-                return false;
-            };
-            let Some(target) = &symbol.alias_target else {
-                return false;
-            };
-            if !resolving_names.insert(symbol.canonical_name.clone()) {
-                return false;
-            }
-            let result = type_expr_is_u8_slice_data_type_inner(target, resolved, resolving_names);
-            resolving_names.remove(&symbol.canonical_name);
-            result
-        }
-        _ => false,
     }
 }

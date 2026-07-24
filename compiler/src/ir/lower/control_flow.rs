@@ -194,8 +194,8 @@ pub(super) fn lower_terminal_slice_if_statement(
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let return_label = match return_type.success_type() {
-        Type::Slice { is_readwrite: true } => "&+[u8]",
-        _ => "&[u8]",
+        Type::Slice { is_readwrite: true } => "&+[T]",
+        _ => "&[T]",
     };
 
     lower_terminal_scalar_if_statement(
@@ -2328,7 +2328,7 @@ fn unsupported_nonterminal_if_let_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower non-terminal `if let` optional branches for {subject} when the initializer is a direct optional call returning i32, u8, usize, bool, &str, or &[u8] and the initializer does not move aggregates"
+            "IR v0 can only lower non-terminal `if let` optional branches for {subject} when the initializer is a direct optional call returning i32, u8, usize, bool, &str, or a slice and the initializer does not move aggregates"
         ),
     )]
 }
@@ -2340,7 +2340,7 @@ fn unsupported_nonterminal_while_let_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower non-terminal `while let` optional loops for {subject} when the initializer is a direct optional call returning i32, u8, usize, bool, &str, or &[u8] and the initializer does not move aggregates"
+            "IR v0 can only lower non-terminal `while let` optional loops for {subject} when the initializer is a direct optional call returning i32, u8, usize, bool, &str, or a slice and the initializer does not move aggregates"
         ),
     )]
 }

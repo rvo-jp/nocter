@@ -16630,6 +16630,37 @@ func size(bytes: &+[u8]): usize {
 }
 
 #[test]
+fn lowers_non_byte_slice_len_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func size(values: &[usize]): usize {
+    return values.len()
+}
+"#,
+        "size",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "size".to_string(),
+            target: crate::ir::CallTarget::same_file("size".to_string()),
+            return_type: Type::Usize,
+            instructions: vec![
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: UsizeValue::SliceLen(SliceLocation::Parameter(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_u8_slice_len_comparison_condition() {
     let function = lower_named_function(
         r#"func main(): i32 {
@@ -16755,6 +16786,62 @@ func choose(bytes: &[u8]): i32 {
                 then_instructions: vec![set_return_i32(42), Instruction::Return],
                 else_instructions: vec![set_return_i32(7), Instruction::Return],
             }],
+        }
+    );
+}
+
+#[test]
+fn lowers_non_byte_slice_call_result_is_empty_return() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func empty(values: &[usize]): bool {
+    return identity(values).is_empty()
+}
+
+func identity(values: &[usize]): &[usize] {
+    return values
+}
+"#,
+        "empty",
+        function_signatures(vec![(
+            "identity",
+            Type::Slice {
+                is_readwrite: false,
+            },
+            vec![Type::Slice {
+                is_readwrite: false,
+            }],
+        )]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "empty".to_string(),
+            target: crate::ir::CallTarget::same_file("empty".to_string()),
+            return_type: Type::Bool,
+            instructions: vec![
+                call_slice(
+                    SliceLocation::Local(0),
+                    "identity",
+                    vec![ScalarArgument::Slice(SliceValue::Location(
+                        SliceLocation::Parameter(0),
+                    ))],
+                ),
+                Instruction::SetBool {
+                    destination: BoolLocation::Return,
+                    value: BoolValue::UsizeComparison {
+                        operator: I32ComparisonOperator::Equal,
+                        left: usize_slice_len(SliceLocation::Local(0)),
+                        right: usize_const(0),
+                    },
+                },
+                Instruction::Return,
+            ],
         }
     );
 }
