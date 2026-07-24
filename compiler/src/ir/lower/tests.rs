@@ -6606,8 +6606,8 @@ func done(): bool {
 }
 
 #[test]
-fn rejects_explicit_aggregate_move_in_terminal_if_condition() {
-    let diagnostics = lower_text_diagnostics(
+fn lowers_explicit_aggregate_move_in_terminal_if_condition() {
+    let ir = lower_text(
         r#"struct File {
     fd: i32
 }
@@ -6633,8 +6633,134 @@ func main(): i32 {
 "#,
     );
 
-    assert_eq!(diagnostics[0].code, "E8002");
-    assert!(diagnostics[0].message.contains("control-flow conditions"));
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(1),
+            },
+            call_bool(
+                BoolLocation::Local(0),
+                "consume",
+                vec![ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                    source: AggregateArgumentSource::Slot(0),
+                    layout: ValueLayout::new(4, 4),
+                    words: 1,
+                })],
+            ),
+            Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Local(0)),
+                then_instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_const(0),
+                    },
+                    Instruction::Return,
+                ],
+                else_instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_const(1),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ],
+    );
+}
+
+#[test]
+fn lowers_explicit_aggregate_move_in_terminal_bool_if_condition() {
+    let ir = lower_text(
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func consume(file: File): bool {
+    return true
+}
+
+func pick(): bool {
+    var file = File{ fd: 1 }
+    if consume(move file) {
+        return true
+    } else {
+        return false
+    }
+}
+
+func main(): i32 {
+    if pick() {
+        return 0
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let pick = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "pick")
+        .unwrap();
+    assert_eq!(
+        pick.instructions,
+        vec![
+            Instruction::ReserveAggregateSlot {
+                slot_index: 0,
+                layout: ValueLayout::new(4, 4),
+            },
+            Instruction::StoreAggregateI32 {
+                destination: AggregateLocation::Slot(0),
+                offset: 0,
+                value: i32_const(1),
+            },
+            call_bool(
+                BoolLocation::Local(0),
+                "consume",
+                vec![ScalarArgument::AggregateDirect(DirectAggregateArgument {
+                    source: AggregateArgumentSource::Slot(0),
+                    layout: ValueLayout::new(4, 4),
+                    words: 1,
+                })],
+            ),
+            Instruction::If {
+                condition: BoolValue::Location(BoolLocation::Local(0)),
+                then_instructions: vec![
+                    Instruction::SetBool {
+                        destination: BoolLocation::Return,
+                        value: BoolValue::Const(true),
+                    },
+                    Instruction::Return,
+                ],
+                else_instructions: vec![
+                    Instruction::SetBool {
+                        destination: BoolLocation::Return,
+                        value: BoolValue::Const(false),
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ],
+    );
 }
 
 #[test]

@@ -1245,6 +1245,48 @@ func size(): usize {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_explicit_move_terminal_if_condition_exit_code() {
+    let project = TempProject::new("cli-run-move-terminal-if-condition");
+    let source = project.write_source(
+        "move_terminal_if_condition.nct",
+        r#"struct File {
+    fd: i32
+}
+
+impl File {
+    drop &+self {
+        return
+    }
+}
+
+func consume(file: File): bool {
+    return file.fd == 42
+}
+
+func main(): i32 {
+    var file = File{ fd: 42 }
+    if consume(move file) {
+        return 42
+    } else {
+        return 1
+    }
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_imported_usize_condition_exit_code() {
     let project = TempProject::new("cli-run-imported-usize-condition");
     project.write_nocter_home_file(

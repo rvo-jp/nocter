@@ -3087,10 +3087,10 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_reports_explicit_move_in_condition_before_ir_lowering() {
-    let project = TempProject::new("cli-build-move-in-condition-boundary");
+fn build_command_lowers_explicit_move_in_terminal_if_condition() {
+    let project = TempProject::new("cli-build-move-in-terminal-if-condition");
     let source = project.write_source(
-        "move_in_condition_boundary.nct",
+        "move_in_terminal_if_condition.nct",
         r#"struct File {
     fd: i32
 }
@@ -3119,28 +3119,8 @@ func main(): i32 {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("explicit aggregate moves in control-flow conditions"),
-        "expected move condition diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("17 |     if consume(move file) {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E8002]"),
-        "buildability preflight should reject before IR control-flow lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]

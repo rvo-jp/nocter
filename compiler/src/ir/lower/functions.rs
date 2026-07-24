@@ -1330,24 +1330,29 @@ fn lower_terminal_aggregate_if_statement(
         return Err(unsupported_terminal_aggregate_if_diagnostic(function_name));
     };
 
+    let then_instructions = lower_terminal_aggregate_return_block(
+        &statement.then_block,
+        context,
+        &statement.condition,
+        success_type,
+        function_name,
+        resolved,
+        sources,
+    )?;
+    let else_instructions = lower_terminal_aggregate_return_block(
+        else_block,
+        context,
+        &statement.condition,
+        success_type,
+        function_name,
+        resolved,
+        sources,
+    )?;
+
     lower_terminal_condition(
         &statement.condition,
-        lower_terminal_aggregate_return_block(
-            &statement.then_block,
-            context,
-            success_type,
-            function_name,
-            resolved,
-            sources,
-        )?,
-        lower_terminal_aggregate_return_block(
-            else_block,
-            context,
-            success_type,
-            function_name,
-            resolved,
-            sources,
-        )?,
+        then_instructions,
+        else_instructions,
         context,
         "E8007",
         sources,
@@ -1357,6 +1362,7 @@ fn lower_terminal_aggregate_if_statement(
 fn lower_terminal_aggregate_return_block(
     block: &Block,
     context: &LoweringContext,
+    pre_moved_expression: &Expr,
     success_type: &Type,
     function_name: &str,
     resolved: &ResolveOutput,
@@ -1365,6 +1371,7 @@ fn lower_terminal_aggregate_return_block(
     let (terminal, leading) =
         split_terminal_branch_block(block, "E8007", "functions", "aggregate")?;
     let mut branch_context = context.clone();
+    mark_explicit_moves_in_expression(pre_moved_expression, &mut branch_context);
     let mut instructions = lower_terminal_branch_leading_statements(
         leading,
         &mut branch_context,

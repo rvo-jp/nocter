@@ -19,14 +19,16 @@ use super::functions::{
 };
 use crate::ast::{
     AssignmentOperator, BinaryExpr, BinaryOperator, Block, Expr, ForRangeStmt, IfStmt, LoopStmt,
-    Stmt, WhileStmt,
+    Stmt, UnaryOperator, WhileStmt,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
-    BoolLocation, BoolValue, I32ComparisonOperator, I32Location, I32Value, Instruction,
-    SliceLocation, StrLocation, Type, U8Location, UsizeLocation, UsizeValue,
+    AggregateArgumentSource, BoolLocation, BoolValue, BorrowSource, FallibleFailureMode,
+    I32ComparisonOperator, I32Location, I32Value, Instruction, ScalarArgument, SliceLocation,
+    StrLocation, Type, U8Location, UsizeLocation, UsizeValue,
 };
 use crate::source::{ByteSpan, SourceMap};
+use std::collections::HashSet;
 
 type ReturnLowerer = fn(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>;
 
@@ -56,6 +58,7 @@ pub(super) fn lower_terminal_i32_if_statement(
         lower_i32_return_block(
             &statement.then_block,
             context,
+            &statement.condition,
             return_type,
             diagnostic_code,
             subject,
@@ -64,6 +67,7 @@ pub(super) fn lower_terminal_i32_if_statement(
         lower_i32_return_block(
             else_block,
             context,
+            &statement.condition,
             return_type,
             diagnostic_code,
             subject,
@@ -96,6 +100,7 @@ pub(super) fn lower_terminal_bool_if_statement(
         lower_bool_return_block(
             &statement.then_block,
             context,
+            &statement.condition,
             return_type,
             diagnostic_code,
             subject,
@@ -104,6 +109,7 @@ pub(super) fn lower_terminal_bool_if_statement(
         lower_bool_return_block(
             else_block,
             context,
+            &statement.condition,
             return_type,
             diagnostic_code,
             subject,
@@ -217,29 +223,33 @@ fn lower_terminal_scalar_if_statement(
             return_label,
         ));
     };
+    let then_instructions = lower_scalar_return_block(
+        &statement.then_block,
+        context,
+        &statement.condition,
+        return_type,
+        diagnostic_code,
+        subject,
+        return_label,
+        lower_return_expression,
+        sources,
+    )?;
+    let else_instructions = lower_scalar_return_block(
+        else_block,
+        context,
+        &statement.condition,
+        return_type,
+        diagnostic_code,
+        subject,
+        return_label,
+        lower_return_expression,
+        sources,
+    )?;
 
     lower_terminal_condition(
         &statement.condition,
-        lower_scalar_return_block(
-            &statement.then_block,
-            context,
-            return_type,
-            diagnostic_code,
-            subject,
-            return_label,
-            lower_return_expression,
-            sources,
-        )?,
-        lower_scalar_return_block(
-            else_block,
-            context,
-            return_type,
-            diagnostic_code,
-            subject,
-            return_label,
-            lower_return_expression,
-            sources,
-        )?,
+        then_instructions,
+        else_instructions,
         context,
         diagnostic_code,
         sources,
@@ -262,24 +272,29 @@ pub(super) fn lower_terminal_void_if_statement(
         ));
     };
 
+    let then_instructions = lower_void_return_block(
+        &statement.then_block,
+        context,
+        &statement.condition,
+        return_type,
+        diagnostic_code,
+        subject,
+        sources,
+    )?;
+    let else_instructions = lower_void_return_block(
+        else_block,
+        context,
+        &statement.condition,
+        return_type,
+        diagnostic_code,
+        subject,
+        sources,
+    )?;
+
     lower_terminal_condition(
         &statement.condition,
-        lower_void_return_block(
-            &statement.then_block,
-            context,
-            return_type,
-            diagnostic_code,
-            subject,
-            sources,
-        )?,
-        lower_void_return_block(
-            else_block,
-            context,
-            return_type,
-            diagnostic_code,
-            subject,
-            sources,
-        )?,
+        then_instructions,
+        else_instructions,
         context,
         diagnostic_code,
         sources,
@@ -288,13 +303,15 @@ pub(super) fn lower_terminal_void_if_statement(
 
 pub(super) fn lower_terminal_condition(
     condition: &Expr,
-    then_instructions: Vec<Instruction>,
-    else_instructions: Vec<Instruction>,
+    mut then_instructions: Vec<Instruction>,
+    mut else_instructions: Vec<Instruction>,
     context: &LoweringContext,
     diagnostic_code: &'static str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    if expression_contains_explicit_aggregate_move(condition, context) {
+    if expression_contains_explicit_aggregate_move(condition, context)
+        && !condition_explicit_moves_are_single_evaluation_call(condition)
+    {
         return Err(attach_primary_span_if_absent(
             unsupported_control_flow_condition_move_diagnostic(diagnostic_code),
             sources,
@@ -317,12 +334,169 @@ pub(super) fn lower_terminal_condition(
         |diagnostics| attach_primary_span_if_absent(diagnostics, sources, condition.span()),
     )?;
     let mut instructions = condition.instructions;
+    let moved_slots = aggregate_argument_slots_in_instructions(&instructions);
+    remove_condition_moved_aggregate_drops(&mut then_instructions, &moved_slots);
+    remove_condition_moved_aggregate_drops(&mut else_instructions, &moved_slots);
     instructions.push(Instruction::If {
         condition: condition.value,
         then_instructions,
         else_instructions,
     });
     Ok(instructions)
+}
+
+fn condition_explicit_moves_are_single_evaluation_call(condition: &Expr) -> bool {
+    match condition {
+        Expr::Call(_) => true,
+        Expr::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+            condition_explicit_moves_are_single_evaluation_call(&unary.operand)
+        }
+        Expr::Propagate(propagation) => {
+            condition_explicit_moves_are_single_evaluation_call(&propagation.expression)
+        }
+        Expr::Force(force) => {
+            condition_explicit_moves_are_single_evaluation_call(&force.expression)
+        }
+        Expr::Catch(catch) => {
+            condition_explicit_moves_are_single_evaluation_call(&catch.expression)
+        }
+        Expr::Group(group) => {
+            condition_explicit_moves_are_single_evaluation_call(&group.expression)
+        }
+        _ => false,
+    }
+}
+
+fn aggregate_argument_slots_in_instructions(instructions: &[Instruction]) -> HashSet<usize> {
+    let mut slots = HashSet::new();
+    for instruction in instructions {
+        match instruction {
+            Instruction::CallI32 { arguments, .. }
+            | Instruction::CallFallibleI32 { arguments, .. }
+            | Instruction::CallU8 { arguments, .. }
+            | Instruction::CallFallibleU8 { arguments, .. }
+            | Instruction::CallUsize { arguments, .. }
+            | Instruction::CallFallibleUsize { arguments, .. }
+            | Instruction::CallBool { arguments, .. }
+            | Instruction::CallFallibleBool { arguments, .. }
+            | Instruction::CallStr { arguments, .. }
+            | Instruction::CallFallibleStr { arguments, .. }
+            | Instruction::CallSlice { arguments, .. }
+            | Instruction::CallFallibleSlice { arguments, .. }
+            | Instruction::CallVoid { arguments, .. }
+            | Instruction::CallAggregate { arguments, .. }
+            | Instruction::CallFallibleAggregate { arguments, .. }
+            | Instruction::CallDirectAggregate { arguments, .. }
+            | Instruction::CallFallibleDirectAggregate { arguments, .. }
+            | Instruction::TailCall { arguments, .. } => {
+                collect_aggregate_argument_slots(arguments, &mut slots);
+            }
+            Instruction::If {
+                then_instructions,
+                else_instructions,
+                ..
+            } => {
+                slots.extend(aggregate_argument_slots_in_instructions(then_instructions));
+                slots.extend(aggregate_argument_slots_in_instructions(else_instructions));
+            }
+            Instruction::While {
+                condition_instructions,
+                body_instructions,
+                ..
+            } => {
+                slots.extend(aggregate_argument_slots_in_instructions(
+                    condition_instructions,
+                ));
+                slots.extend(aggregate_argument_slots_in_instructions(body_instructions));
+            }
+            _ => {}
+        }
+    }
+    slots
+}
+
+fn collect_aggregate_argument_slots(arguments: &[ScalarArgument], slots: &mut HashSet<usize>) {
+    for argument in arguments {
+        let source = match argument {
+            ScalarArgument::AggregateIndirect(argument) => &argument.source,
+            ScalarArgument::AggregateDirect(argument) => &argument.source,
+            _ => continue,
+        };
+        let AggregateArgumentSource::Slot(slot_index) = source;
+        slots.insert(*slot_index);
+    }
+}
+
+fn remove_condition_moved_aggregate_drops(
+    instructions: &mut Vec<Instruction>,
+    moved_slots: &HashSet<usize>,
+) {
+    if moved_slots.is_empty() {
+        return;
+    }
+    for instruction in instructions.iter_mut() {
+        match instruction {
+            Instruction::If {
+                then_instructions,
+                else_instructions,
+                ..
+            } => {
+                remove_condition_moved_aggregate_drops(then_instructions, moved_slots);
+                remove_condition_moved_aggregate_drops(else_instructions, moved_slots);
+            }
+            Instruction::While {
+                condition_instructions,
+                body_instructions,
+                ..
+            } => {
+                remove_condition_moved_aggregate_drops(condition_instructions, moved_slots);
+                remove_condition_moved_aggregate_drops(body_instructions, moved_slots);
+            }
+            Instruction::CallFallibleI32 { failure_mode, .. }
+            | Instruction::CallFallibleU8 { failure_mode, .. }
+            | Instruction::CallFallibleUsize { failure_mode, .. }
+            | Instruction::CallFallibleBool { failure_mode, .. }
+            | Instruction::CallFallibleStr { failure_mode, .. }
+            | Instruction::CallFallibleSlice { failure_mode, .. }
+            | Instruction::CallFallibleAggregate { failure_mode, .. }
+            | Instruction::CallFallibleDirectAggregate { failure_mode, .. } => {
+                remove_condition_moved_aggregate_drops_from_failure_mode(failure_mode, moved_slots);
+            }
+            _ => {}
+        }
+    }
+    instructions.retain(|instruction| !is_condition_moved_aggregate_drop(instruction, moved_slots));
+}
+
+fn remove_condition_moved_aggregate_drops_from_failure_mode(
+    failure_mode: &mut FallibleFailureMode,
+    moved_slots: &HashSet<usize>,
+) {
+    match failure_mode {
+        FallibleFailureMode::PropagateWithCleanup { instructions, .. }
+        | FallibleFailureMode::Recover { instructions }
+        | FallibleFailureMode::Handle { instructions }
+        | FallibleFailureMode::Catch { instructions, .. } => {
+            remove_condition_moved_aggregate_drops(instructions, moved_slots);
+        }
+        FallibleFailureMode::Propagate | FallibleFailureMode::Trap => {}
+    }
+}
+
+fn is_condition_moved_aggregate_drop(
+    instruction: &Instruction,
+    moved_slots: &HashSet<usize>,
+) -> bool {
+    let Instruction::CallVoid { arguments, .. } = instruction else {
+        return false;
+    };
+    let [ScalarArgument::Borrow(argument)] = arguments.as_slice() else {
+        return false;
+    };
+    let BorrowSource::AggregateSlot(slot_index) = argument.source else {
+        return false;
+    };
+    moved_slots.contains(&slot_index)
 }
 
 pub(super) fn lower_nonterminal_if_statement(
@@ -334,6 +508,14 @@ pub(super) fn lower_nonterminal_if_statement(
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if expression_contains_explicit_aggregate_move(&statement.condition, context) {
+        return Err(attach_primary_span_if_absent(
+            unsupported_control_flow_condition_move_diagnostic(diagnostic_code),
+            sources,
+            statement.condition.span(),
+        ));
+    }
+
     let then_instructions = lower_nonterminal_if_block(
         &statement.then_block,
         context,
@@ -1314,6 +1496,7 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
 fn lower_i32_return_block(
     block: &Block,
     context: &LoweringContext,
+    pre_moved_expression: &Expr,
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
@@ -1321,6 +1504,7 @@ fn lower_i32_return_block(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let (terminal, leading) = split_terminal_branch_block(block, diagnostic_code, subject, "i32")?;
     let mut branch_context = context.clone();
+    mark_explicit_moves_in_expression(pre_moved_expression, &mut branch_context);
     let mut instructions = lower_terminal_branch_leading_statements(
         leading,
         &mut branch_context,
@@ -1420,6 +1604,7 @@ fn lower_i32_return_block(
 fn lower_bool_return_block(
     block: &Block,
     context: &LoweringContext,
+    pre_moved_expression: &Expr,
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
@@ -1427,6 +1612,7 @@ fn lower_bool_return_block(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let (terminal, leading) = split_terminal_branch_block(block, diagnostic_code, subject, "bool")?;
     let mut branch_context = context.clone();
+    mark_explicit_moves_in_expression(pre_moved_expression, &mut branch_context);
     let mut instructions = lower_terminal_branch_leading_statements(
         leading,
         &mut branch_context,
@@ -1527,6 +1713,7 @@ fn lower_bool_return_block(
 fn lower_scalar_return_block(
     block: &Block,
     context: &LoweringContext,
+    pre_moved_expression: &Expr,
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
@@ -1537,6 +1724,7 @@ fn lower_scalar_return_block(
     let (terminal, leading) =
         split_terminal_branch_block(block, diagnostic_code, subject, return_label)?;
     let mut branch_context = context.clone();
+    mark_explicit_moves_in_expression(pre_moved_expression, &mut branch_context);
     let mut instructions = lower_terminal_branch_leading_statements(
         leading,
         &mut branch_context,
@@ -1642,6 +1830,7 @@ fn lower_scalar_return_block(
 fn lower_void_return_block(
     block: &Block,
     context: &LoweringContext,
+    pre_moved_expression: &Expr,
     return_type: &Type,
     diagnostic_code: &'static str,
     subject: &str,
@@ -1649,6 +1838,7 @@ fn lower_void_return_block(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     let (terminal, leading) = split_terminal_branch_block(block, diagnostic_code, subject, "void")?;
     let mut branch_context = context.clone();
+    mark_explicit_moves_in_expression(pre_moved_expression, &mut branch_context);
     let mut instructions = lower_terminal_branch_leading_statements(
         leading,
         &mut branch_context,
