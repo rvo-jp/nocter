@@ -211,6 +211,11 @@ pub(crate) enum Instruction {
         offset: UsizeValue,
         value: BoolValue,
     },
+    StoreStrToPointer {
+        pointer: UsizeValue,
+        offset: UsizeValue,
+        value: StrValue,
+    },
     AddI32 {
         destination: I32Location,
         left: I32Value,

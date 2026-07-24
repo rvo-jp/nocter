@@ -5,10 +5,10 @@
 //! type. Its storage details are intentionally not exposed outside `std/vec`.
 //!
 //! v0 fixes the public contract before promoting generic collection lowering.
-//! Empty vectors, capacity allocation, read-only shape operations, scalar
-//! pushes, and release are ordinary std functions. Copying operations and
-//! non-scalar element moves return `std.vec.unsupported` or fail buildability
-//! until element drop glue is wired into vector storage.
+//! Empty vectors, capacity allocation, read-only shape operations, scalar and
+//! string-view pushes, and release are ordinary std functions. Copying
+//! operations and non-view aggregate element moves return `std.vec.unsupported`
+//! or fail buildability until element drop glue is wired into vector storage.
 
 use std/error.Error
 use std/mem.Allocator

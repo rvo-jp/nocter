@@ -826,6 +826,45 @@ func main(): i32! {
     assert!(output.stderr.is_empty(), "expected empty stderr");
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_push_str_values_runs() {
+    let project = TempProject::new("distributed-home-vec-push-str-run");
+    let source = project.write_source(
+        "vec_push_str.nct",
+        r#"use std/vec.Vec
+
+func main(): i32! {
+    var values: Vec<&str> = Vec.empty()
+    values.push("first")?
+    values.push("second")?
+    if values.len() != 2 {
+        return 1
+    }
+    if values.capacity() != 2 {
+        return 2
+    }
+    if values.view().len() != 2 {
+        return 3
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
 #[test]
 fn distributed_std_vec_fields_are_private() {
     let project = TempProject::new("distributed-home-vec-fields-private");

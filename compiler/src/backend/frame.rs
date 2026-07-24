@@ -421,7 +421,8 @@ fn instruction_clobbers_parameter_registers(instruction: &Instruction) -> bool {
         | Instruction::StoreU8ToPointer { .. }
         | Instruction::StoreI32ToPointer { .. }
         | Instruction::StoreUsizeToPointer { .. }
-        | Instruction::StoreBoolToPointer { .. } => true,
+        | Instruction::StoreBoolToPointer { .. }
+        | Instruction::StoreStrToPointer { .. } => true,
         Instruction::If {
             then_instructions,
             else_instructions,
@@ -548,7 +549,8 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::StoreU8ToPointer { .. }
         | Instruction::StoreI32ToPointer { .. }
         | Instruction::StoreUsizeToPointer { .. }
-        | Instruction::StoreBoolToPointer { .. } => true,
+        | Instruction::StoreBoolToPointer { .. }
+        | Instruction::StoreStrToPointer { .. } => true,
         Instruction::CopyAggregate {
             destination,
             source,
@@ -736,6 +738,7 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::StoreI32ToPointer { .. }
         | Instruction::StoreUsizeToPointer { .. }
         | Instruction::StoreBoolToPointer { .. }
+        | Instruction::StoreStrToPointer { .. }
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::StoreAggregateUsize { .. }
         | Instruction::StoreAggregateI32 { .. }
@@ -863,6 +866,7 @@ fn record_instruction_aggregate_slot_requests(
         | Instruction::StoreI32ToPointer { .. }
         | Instruction::StoreUsizeToPointer { .. }
         | Instruction::StoreBoolToPointer { .. }
+        | Instruction::StoreStrToPointer { .. }
         | Instruction::SetI32 { .. }
         | Instruction::SetStrRawParts { .. }
         | Instruction::SetSliceRawParts { .. }
@@ -1239,6 +1243,17 @@ fn record_instruction_parameter_spill_requests(
                 record_usize_value_parameter_spill_requests(pointer, requests);
                 record_usize_value_parameter_spill_requests(offset, requests);
                 record_bool_value_parameter_spill_requests(value, requests);
+            }
+        }
+        Instruction::StoreStrToPointer {
+            pointer,
+            offset,
+            value,
+        } => {
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(pointer, requests);
+                record_usize_value_parameter_spill_requests(offset, requests);
+                record_str_value_parameter_spill_requests(value, requests);
             }
         }
         Instruction::StoreAggregateUsize {
@@ -1877,6 +1892,15 @@ fn record_instruction_scalar_locals(
             record_usize_value(pointer, highest_local_index);
             record_usize_value(offset, highest_local_index);
             record_bool_value(value, highest_local_index);
+        }
+        Instruction::StoreStrToPointer {
+            pointer,
+            offset,
+            value,
+        } => {
+            record_usize_value(pointer, highest_local_index);
+            record_usize_value(offset, highest_local_index);
+            record_str_value(value, highest_local_index);
         }
         Instruction::TailCall { arguments, .. } => {
             for argument in arguments {

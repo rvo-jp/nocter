@@ -376,6 +376,13 @@ impl EntryEmitter {
             } => {
                 self.emit_store_bool_to_pointer(pointer, offset, value, frame)?;
             }
+            Instruction::StoreStrToPointer {
+                pointer,
+                offset,
+                value,
+            } => {
+                self.emit_store_str_to_pointer(pointer, offset, value, frame)?;
+            }
             Instruction::AddI32 {
                 destination,
                 left,
@@ -3813,6 +3820,35 @@ mod tests {
         assert!(contains_instruction(
             &code.text,
             encoded_strb_w_imm(WReg::W2, XReg::X0, 0)
+        ));
+    }
+
+    #[test]
+    fn pointer_str_store_uses_two_word_stores() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::StoreStrToPointer {
+                    pointer: UsizeValue::Const(4096),
+                    offset: UsizeValue::Const(16),
+                    value: StrValue::StaticBytes(b"arg".to_vec()),
+                },
+                set_return_i32(0),
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module).unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_x_imm(XReg::X2, XReg::X0, 0)
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_x_imm(XReg::X3, XReg::X0, 8)
         ));
     }
 

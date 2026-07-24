@@ -2252,7 +2252,7 @@ pub(super) fn lower_store_value_to_ptr_primitive_call(
     };
     let Some(value_type) = scalar_or_view_type_from_type_expr(&pointee_type, resolved) else {
         return Err(unsupported_pointer_primitive_diagnostic(
-            "`store_value_to_ptr` supports only scalar element types",
+            "`store_value_to_ptr` supports only scalar and string-view element types",
         ));
     };
 
@@ -2303,8 +2303,16 @@ pub(super) fn lower_store_value_to_ptr_primitive_call(
                 value: value.value,
             });
         }
-        Type::Str
-        | Type::Slice { .. }
+        Type::Str => {
+            let value = lower_str_expression_to_value(&call.arguments[2], context, temporaries)?;
+            instructions.extend(value.instructions);
+            instructions.push(Instruction::StoreStrToPointer {
+                pointer,
+                offset: offset.value,
+                value: value.value,
+            });
+        }
+        Type::Slice { .. }
         | Type::Aggregate { .. }
         | Type::DirectAggregate { .. }
         | Type::Borrow { .. }
@@ -2313,7 +2321,7 @@ pub(super) fn lower_store_value_to_ptr_primitive_call(
         | Type::Never
         | Type::Fallible(_) => {
             return Err(unsupported_pointer_primitive_diagnostic(
-                "`store_value_to_ptr` supports only `u8`, `usize`, `i32`, and `bool` element types",
+                "`store_value_to_ptr` supports only `u8`, `usize`, `i32`, `bool`, and `&str` element types",
             ));
         }
     }

@@ -109,6 +109,7 @@ fn collect_reachable_call_targets(
             | Instruction::StoreI32ToPointer { .. }
             | Instruction::StoreUsizeToPointer { .. }
             | Instruction::StoreBoolToPointer { .. }
+            | Instruction::StoreStrToPointer { .. }
             | Instruction::ReserveAggregateSlot { .. }
             | Instruction::StoreAggregateUsize { .. }
             | Instruction::StoreAggregateI32 { .. }

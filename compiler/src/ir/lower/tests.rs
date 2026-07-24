@@ -23510,6 +23510,50 @@ pub func store_word(address: usize, offset: usize, value: usize): void {
 }
 
 #[test]
+fn lowers_store_value_to_ptr_call_for_str() {
+    let store = lower_imported_named_function_with_nocter_home_files(
+        r#"use std/ptr_store.store_text
+
+func main(): void {
+    return
+}
+"#,
+        "store_text",
+        &[
+            (
+                "std/ptr.nct",
+                r#"pub(nocter) primitive from_addr<T>(address: usize): *T
+pub(nocter) primitive store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
+"#,
+            ),
+            (
+                "std/ptr_store.nct",
+                r#"use std/ptr.from_addr
+use std/ptr.store_value_to_ptr
+
+pub func store_text(address: usize, offset: usize, value: &str): void {
+    store_value_to_ptr(from_addr(address), offset, value)
+    return
+}
+"#,
+            ),
+        ],
+    );
+
+    assert_eq!(
+        store.instructions,
+        vec![
+            Instruction::StoreStrToPointer {
+                pointer: UsizeValue::Location(UsizeLocation::Parameter(0)),
+                offset: UsizeValue::Location(UsizeLocation::Parameter(1)),
+                value: StrValue::Location(StrLocation::Parameter(2)),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_pointee_size_call_for_usize_pointer_field() {
     let size = lower_imported_named_function_with_nocter_home_files(
         r#"use std/ptr_size.size
