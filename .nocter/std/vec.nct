@@ -108,7 +108,36 @@ pub func reserve<T>(values: &+Vec<T>, additional: usize): void! {
         return
     }
 
-    return unsupported()
+    let values_len: usize = values.len
+    let values_capacity: usize = values.capacity
+    if values_capacity >= values_len {
+        let spare_capacity: usize = values_capacity - values_len
+        if additional <= spare_capacity {
+            return
+        }
+    }
+
+    if values_len != 0 {
+        return unsupported()
+    }
+    if values_capacity != 0 {
+        return unsupported()
+    }
+
+    let element_size: usize = pointee_size(values.ptr)
+    if element_size == 0 {
+        return unsupported()
+    }
+    if additional > 18446744073709551615 / element_size {
+        return capacity_overflow()
+    }
+
+    let byte_capacity: usize = additional * element_size
+    let address: usize = alloc_pages_impl(byte_capacity)?
+    values.ptr = from_addr(address)
+    values.capacity = additional
+    values.byte_capacity = byte_capacity
+    return
 }
 
 pub func clear<T>(values: &+Vec<T>): void {

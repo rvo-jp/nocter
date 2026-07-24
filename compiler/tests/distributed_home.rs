@@ -641,6 +641,60 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn distributed_std_vec_reserve_empty_runs() {
+    let project = TempProject::new("distributed-home-vec-reserve-empty-run");
+    let source = project.write_source(
+        "vec_reserve_empty.nct",
+        r#"use std/vec.{Vec, reserve}
+
+func main(): i32! {
+    var values: Vec<u8> = Vec.empty()
+    values.reserve(3)?
+    if values.len() != 0 {
+        return 1
+    }
+    if values.capacity() != 3 {
+        return 2
+    }
+    if !values.is_empty() {
+        return 3
+    }
+    if values.view().len() != 0 {
+        return 4
+    }
+    reserve(&+values, 1)?
+    if values.capacity() != 3 {
+        return 5
+    }
+
+    var words: Vec<usize> = Vec.empty()
+    reserve(&+words, 2)?
+    if words.len() != 0 {
+        return 6
+    }
+    if words.capacity() != 2 {
+        return 7
+    }
+    return 42
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn distributed_std_vec_push_reports_unsupported() {
     let project = TempProject::new("distributed-home-vec-push-unsupported");
     let source = project.write_source(
