@@ -3771,6 +3771,39 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_lowers_generic_function_body_method_call_with_concrete_arguments() {
+    let project = TempProject::new("cli-build-generic-function-body-method");
+    let source = project.write_source(
+        "generic_function_body_method.nct",
+        r#"struct Box<T> {
+    value: T
+}
+
+impl<U> Box<U> {
+    method self.into_value(): U {
+        return self.value
+    }
+}
+
+func forward<T>(box: Box<T>): T {
+    return (move box).into_value()
+}
+
+func main(): i32 {
+    let box = Box<i32>{ value: 42 }
+    return forward(move box)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_concrete_generic_impl_method() {
     let project = TempProject::new("cli-build-concrete-generic-impl-method");
     let source = project.write_source(

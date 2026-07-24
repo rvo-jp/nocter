@@ -3413,6 +3413,44 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_generic_function_body_method_call_exit_code() {
+    let project = TempProject::new("cli-run-generic-function-body-method");
+    let source = project.write_source(
+        "generic_function_body_method.nct",
+        r#"struct Box<T> {
+    value: T
+}
+
+impl<U> Box<U> {
+    method self.into_value(): U {
+        return self.value
+    }
+}
+
+func forward<T>(box: Box<T>): T {
+    return (move box).into_value()
+}
+
+func main(): i32 {
+    let box = Box<i32>{ value: 42 }
+    return forward(move box)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_concrete_generic_impl_method_exit_code() {
     let project = TempProject::new("cli-run-concrete-generic-impl-method");
     let source = project.write_source(

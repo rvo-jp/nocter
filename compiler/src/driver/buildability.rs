@@ -13,7 +13,7 @@ use crate::resolve::{
     FunctionSignature, ResolveOutput, SymbolKind, TypeSymbolKind, drop_function_name,
 };
 use crate::source::{ByteSpan, SourceId, SourceMap};
-use crate::typecheck::{FunctionCallSpecialization, TypecheckFacts};
+use crate::typecheck::{FunctionCallSpecialization, MethodCallSpecialization, TypecheckFacts};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
 
@@ -1439,6 +1439,7 @@ fn collect_expression_diagnostics(
                 sources,
                 expression,
                 typecheck_facts,
+                generic_substitutions,
             ) {
                 diagnostics.push(diagnostic);
             }
@@ -1744,14 +1745,13 @@ fn unsupported_unspecialized_generic_method_call_diagnostic(
     sources: &SourceMap,
     call: &CallExpr,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<Diagnostic> {
     let Expr::Member(member) = call.callee.as_ref() else {
         return None;
     };
     typecheck_facts.generic_method_call_target(member.member_span)?;
-    if typecheck_facts
-        .method_call_specialization(member.member_span)
-        .is_some()
+    if concrete_method_call_specialization(member, typecheck_facts, generic_substitutions).is_some()
     {
         return None;
     }
@@ -1762,6 +1762,16 @@ fn unsupported_unspecialized_generic_method_call_diagnostic(
         "generic impl method calls without concrete type arguments",
         "call the method through a receiver whose generic arguments are concrete until generic method bodies can be re-specialized recursively",
     ))
+}
+
+fn concrete_method_call_specialization(
+    member: &crate::ast::MemberExpr,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<MethodCallSpecialization> {
+    typecheck_facts
+        .method_call_specialization(member.member_span)?
+        .with_context_substitutions(generic_substitutions)
 }
 
 fn unsupported_unspecialized_generic_function_call_diagnostic(
@@ -1945,10 +1955,15 @@ fn call_target_for_call(
 
     if let Expr::Member(member) = call.callee.as_ref() {
         if let Some(method_name_span) = typecheck_facts.method_call_target(member.member_span) {
-            let target_name = typecheck_facts
-                .method_call_specialization(member.member_span)
-                .map(|specialization| specialization.target_name.clone())
-                .or_else(|| names.get(&method_name_span).cloned())?;
+            let target_name = if typecheck_facts
+                .generic_method_call_target(member.member_span)
+                .is_some()
+            {
+                concrete_method_call_specialization(member, typecheck_facts, generic_substitutions)?
+                    .target_name
+            } else {
+                names.get(&method_name_span).cloned()?
+            };
             return Some(call_target_for_source(
                 method_name_span.source,
                 root_source,
@@ -2382,6 +2397,35 @@ func forward<T>(value: T): T {
 
 func identity<T>(value: T): T {
     return value
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn accepts_reachable_generic_function_body_method_call_with_concrete_arguments() {
+        let (sources, analysis) = analyze_text(
+            r#"struct Box<T> {
+    value: T
+}
+
+impl<U> Box<U> {
+    method self.into_value(): U {
+        return self.value
+    }
+}
+
+func main(): i32 {
+    let box = Box<i32>{ value: 42 }
+    return forward(move box)
+}
+
+func forward<T>(box: Box<T>): T {
+    return (move box).into_value()
 }
 "#,
         );

@@ -567,6 +567,59 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_generic_function_body_method_call_with_concrete_arguments() {
+    let ir = lower_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+impl<U> Box<U> {
+    method self.into_value(): U {
+        return self.value
+    }
+}
+
+func forward<T>(box: Box<T>): T {
+    return (move box).into_value()
+}
+
+func main(): i32 {
+    let box = Box<i32>{ value: 42 }
+    return forward(move box)
+}
+"#,
+    );
+
+    let forward_target = CallTarget::same_file("forward<i32>");
+    let method_target = CallTarget::same_file("Box<i32>.into_value");
+    let forward = ir
+        .functions
+        .iter()
+        .find(|function| function.target == forward_target)
+        .expect("expected lowered specialized forward function");
+
+    assert_eq!(forward.return_type, Type::I32);
+    assert!(
+        forward.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                Instruction::TailCall {
+                    target,
+                    arguments,
+                } if target == &method_target && arguments.len() == 1
+            )
+        }),
+        "{forward:?}"
+    );
+    assert!(
+        ir.functions
+            .iter()
+            .any(|function| function.target == method_target && function.return_type == Type::I32),
+        "{ir:?}"
+    );
+}
+
+#[test]
 fn lowers_generic_impl_method_call_with_concrete_receiver() {
     let ir = lower_text(
         r#"struct Box<T> {

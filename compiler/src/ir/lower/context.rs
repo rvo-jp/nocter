@@ -499,6 +499,9 @@ impl<'a> LoweringContext<'a> {
         if let Some(specialization) = resolution
             .typecheck_facts
             .method_call_specialization(member.member_span)
+            .and_then(|specialization| {
+                specialization.with_context_substitutions(&self.generic_substitutions)
+            })
         {
             let target = call_target_for_source(
                 method_name_span.source,
@@ -506,6 +509,13 @@ impl<'a> LoweringContext<'a> {
                 specialization.target_name.clone(),
             );
             return Some((target, specialization.target_name.clone()));
+        }
+        if resolution
+            .typecheck_facts
+            .generic_method_call_target(member.member_span)
+            .is_some()
+        {
+            return None;
         }
         let target_name = self
             .function_names

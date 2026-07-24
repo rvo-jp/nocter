@@ -187,6 +187,14 @@ impl TypecheckFacts {
         self.method_call_specializations.values()
     }
 
+    pub(crate) fn method_call_specialization_entries(
+        &self,
+    ) -> impl Iterator<Item = (ByteSpan, &MethodCallSpecialization)> + '_ {
+        self.method_call_specializations
+            .iter()
+            .map(|(span, specialization)| (*span, specialization))
+    }
+
     pub(crate) fn associated_function_target(&self, member_span: ByteSpan) -> Option<ByteSpan> {
         self.associated_function_targets.get(&member_span).copied()
     }
@@ -293,9 +301,47 @@ impl FunctionCallSpecialization {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct MethodCallSpecialization {
     pub(crate) declaration_span: ByteSpan,
+    method_name: String,
     pub(crate) target_name: String,
     pub(crate) self_ty: TypeExpr,
+    generic_parameters: Vec<String>,
     pub(crate) substitutions: HashMap<String, TypeExpr>,
+    free_type_parameters: HashSet<String>,
+}
+
+impl MethodCallSpecialization {
+    pub(crate) fn with_context_substitutions(
+        &self,
+        context_substitutions: &HashMap<String, TypeExpr>,
+    ) -> Option<Self> {
+        let self_ty = substitute_type_expr_parameters(&self.self_ty, context_substitutions);
+        let mut substitutions = HashMap::new();
+        for parameter in &self.generic_parameters {
+            let ty = self.substitutions.get(parameter)?;
+            substitutions.insert(
+                parameter.clone(),
+                substitute_type_expr_parameters(ty, context_substitutions),
+            );
+        }
+        if type_expr_contains_free_parameters(&self_ty, &self.free_type_parameters)
+            || substitutions
+                .values()
+                .any(|ty| type_expr_contains_free_parameters(ty, &self.free_type_parameters))
+        {
+            return None;
+        }
+        let target_name = method_target_name_from_self_ty(&self_ty, &self.method_name);
+
+        Some(Self {
+            declaration_span: self.declaration_span,
+            method_name: self.method_name.clone(),
+            target_name,
+            self_ty,
+            generic_parameters: self.generic_parameters.clone(),
+            substitutions,
+            free_type_parameters: HashSet::new(),
+        })
+    }
 }
 
 pub(crate) fn collect_typecheck_facts(ast: &AstFile, resolved: &ResolveOutput) -> TypecheckFacts {
@@ -1072,11 +1118,23 @@ fn method_call_specialization(
     environment: &TypeEnvironment,
 ) -> Option<MethodCallSpecialization> {
     let receiver_type = expression_type(&member.object, resolved, environment);
-    let self_ty = type_to_type_expr(&receiver_type, member.object.span())?;
+    let mut free_type_parameters = HashSet::new();
+    let self_ty = type_to_type_expr_allowing_parameters(
+        &receiver_type,
+        member.object.span(),
+        &mut free_type_parameters,
+    )?;
     let checked = resolved_call_signature(resolved, call, environment)?;
     let substitutions = infer_generic_substitutions(call, &checked, resolved, environment)
         .into_iter()
-        .map(|(name, ty)| type_to_type_expr(&ty, member.member_span).map(|ty| (name, ty)))
+        .map(|(name, ty)| {
+            type_to_type_expr_allowing_parameters(
+                &ty,
+                member.member_span,
+                &mut free_type_parameters,
+            )
+            .map(|ty| (name, ty))
+        })
         .collect::<Option<HashMap<_, _>>>()?;
     if !method
         .signature
@@ -1089,9 +1147,12 @@ fn method_call_specialization(
 
     Some(MethodCallSpecialization {
         declaration_span: method.name_span,
-        target_name: format!("{}.{}", receiver_type.display(), method.name),
+        method_name: method.name.clone(),
+        target_name: method_target_name_from_self_ty(&self_ty, &method.name),
         self_ty,
+        generic_parameters: method.signature.generic_parameters.clone(),
         substitutions,
+        free_type_parameters,
     })
 }
 
@@ -1227,6 +1288,10 @@ fn specialized_target_name(
         .map(|parameter| substitutions.get(parameter).map(type_expr_display_lossy))
         .collect::<Option<Vec<_>>>()?;
     Some(format!("{base_target_name}<{}>", type_arguments.join(", ")))
+}
+
+fn method_target_name_from_self_ty(self_ty: &TypeExpr, method_name: &str) -> String {
+    format!("{}.{}", type_expr_display_lossy(self_ty), method_name)
 }
 
 fn type_expr_contains_free_parameters(
