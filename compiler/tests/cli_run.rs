@@ -1078,6 +1078,34 @@ func value(): Value {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_ignores_aggregate_literal_expression_statement() {
+    let project = TempProject::new("cli-run-ignored-aggregate-literal-statement");
+    let source = project.write_source(
+        "ignored_aggregate_literal_statement.nct",
+        r#"struct Value {
+    code: i32
+}
+
+func main(): i32 {
+    Value{ code: 1 }
+    return 42
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_ignores_fallible_aggregate_call_expression_statement() {
     let project = TempProject::new("cli-run-ignored-fallible-aggregate-call-statement");
     let source = project.write_source(

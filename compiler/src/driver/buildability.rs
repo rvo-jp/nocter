@@ -870,8 +870,18 @@ fn expression_statement_is_supported(expression: &Expr, resolved: &ResolveOutput
         Expr::Catch(expression) => {
             fallible_void_statement_inner_is_supported(&expression.expression, resolved)
         }
+        Expr::StructLiteral(literal) => aggregate_literal_statement_is_supported(literal, resolved),
         _ => false,
     }
+}
+
+fn aggregate_literal_statement_is_supported(
+    literal: &crate::ast::StructLiteralExpr,
+    resolved: &ResolveOutput,
+) -> bool {
+    abi_value_from_type_expr(&literal.ty, resolved)
+        .map(|value| matches!(value.ty, AbiType::Struct(_)))
+        .unwrap_or(false)
 }
 
 fn fallible_void_statement_inner_is_supported(expression: &Expr, resolved: &ResolveOutput) -> bool {

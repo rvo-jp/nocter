@@ -1,7 +1,8 @@
 use super::aggregates::{
     aggregate_call_return_layout_from_resolved, aggregate_fields_from_type_expr,
-    aggregate_type_layout, push_aggregate_call_instruction,
-    push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
+    aggregate_type_layout, lower_aggregate_struct_literal_to_location_with_temporaries,
+    push_aggregate_call_instruction, push_fallible_aggregate_call_instruction,
+    supported_aggregate_copy_layout,
 };
 use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{AggregateFieldKind, DropGlue, LoweringContext};
@@ -19,7 +20,7 @@ mod calls;
 mod predicates;
 mod temporaries;
 
-use crate::abi::ValueLayout;
+use crate::abi::{ValueLayout, abi_value_from_type_expr};
 use crate::ast::{
     BinaryExpr, BinaryOperator, Block, CallExpr, CatchExpr, Expr, IndexExpr, PatternConditionalArm,
     PatternConditionalExpr, Stmt, TypeConversionExpr, TypeExpr, UnaryExpr, UnaryOperator,
@@ -668,8 +669,51 @@ pub(super) fn lower_void_expression_statement(
                     .unwrap_or(0),
             )?,
         ),
+        Expr::StructLiteral(literal) => {
+            lower_aggregate_struct_literal_statement(literal, context).map(Some)
+        }
         _ => Ok(None),
     }
+}
+
+fn lower_aggregate_struct_literal_statement(
+    literal: &crate::ast::StructLiteralExpr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_aggregate_literal_statement_diagnostic());
+    };
+    let value = abi_value_from_type_expr(&literal.ty, resolved)
+        .map_err(|_error| unsupported_aggregate_literal_statement_diagnostic())?;
+    if !supported_aggregate_copy_layout(value.layout) {
+        return Err(unsupported_aggregate_literal_statement_diagnostic());
+    }
+
+    let drop_glue = context.drop_glue_for_type_expr(&literal.ty);
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let slot_index = temporaries.next_aggregate_slot();
+    let mut instructions = vec![Instruction::ReserveAggregateSlot {
+        slot_index,
+        layout: value.layout,
+    }];
+    instructions.extend(lower_aggregate_struct_literal_to_location_with_temporaries(
+        literal,
+        value.layout,
+        AggregateLocation::Slot(slot_index),
+        "E8007",
+        "expression statements",
+        resolved,
+        context,
+        &mut temporaries,
+    )?);
+    append_discarded_aggregate_drop(
+        &mut instructions,
+        drop_glue,
+        value.layout,
+        slot_index,
+        context,
+    )?;
+    Ok(instructions)
 }
 
 fn lower_fallible_void_expression_statement(
@@ -938,6 +982,13 @@ fn unsupported_aggregate_call_statement_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8007",
         "IR v0 cannot lower discarded aggregate call statement",
+    )]
+}
+
+fn unsupported_aggregate_literal_statement_diagnostic() -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8007",
+        "IR v0 cannot lower discarded aggregate literal statement",
     )]
 }
 
