@@ -1,5 +1,5 @@
 use crate::abi::{ReturnPassing, ValueLayout};
-use crate::ast::{CallExpr, Expr, MemberExpr, TypeExpr};
+use crate::ast::{CallExpr, Expr, MemberExpr, TypeExpr, substitute_type_expr_parameters};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateLocation, BoolLocation, CallTarget, I32Location, SliceLocation, StrLocation, Type,
@@ -1222,19 +1222,32 @@ fn drop_glue_for_type_expr_inner(
         _ => {}
     }
 
-    let reference = match ty {
-        TypeExpr::Reference(reference) => reference,
+    let (type_name, substitutions) = match ty {
+        TypeExpr::Reference(reference) => (reference.name.as_str(), HashMap::new()),
+        TypeExpr::Generic(generic) => {
+            let type_symbol = resolved.type_symbol_by_reference_name(&generic.name)?;
+            if type_symbol.generic_arity != generic.arguments.len() {
+                return None;
+            }
+            let substitutions = type_symbol
+                .generic_parameters
+                .iter()
+                .cloned()
+                .zip(generic.arguments.iter().cloned())
+                .collect();
+            (generic.name.as_str(), substitutions)
+        }
         _ => return None,
     };
-    let (symbol, type_symbol) =
-        resolved.type_symbol_definition_by_reference_name(&reference.name)?;
+    let (symbol, type_symbol) = resolved.type_symbol_definition_by_reference_name(type_name)?;
     if type_symbol.kind == TypeSymbolKind::Alias {
         let target = type_symbol.alias_target.as_ref()?;
         if !resolving_names.insert(type_symbol.canonical_name.clone()) {
             return None;
         }
+        let target = substitute_type_expr_parameters(target, &substitutions);
         let drop_glue =
-            drop_glue_for_type_expr_inner(target, root_source, resolved, resolving_names);
+            drop_glue_for_type_expr_inner(&target, root_source, resolved, resolving_names);
         resolving_names.remove(&type_symbol.canonical_name);
         return drop_glue;
     }

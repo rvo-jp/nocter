@@ -3132,6 +3132,64 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_concrete_generic_explicit_drop_to_drop_member_call() {
+    let ir = lower_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+impl Box<i32> {
+    drop &+self {
+        return
+    }
+}
+
+func main(): i32 {
+    var box = Box<i32>{ value: 3 }
+    drop box
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: CallTarget::same_file("main"),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::Slot(0),
+                        offset: 0,
+                        value: i32_const(3),
+                    },
+                    Instruction::CallVoid {
+                        target: CallTarget::same_file("Box.drop"),
+                        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                            source: BorrowSource::AggregateSlot(0),
+                        })],
+                    },
+                    set_return_i32(0),
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "Box.drop".to_string(),
+                target: CallTarget::same_file("Box.drop"),
+                return_type: Type::Void,
+                instructions: vec![Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
 fn lowers_imported_explicit_drop_to_imported_drop_member_call() {
     let fixture = analyze_text_fixture_with_nocter_home_files(
         r#"use std/file.File
@@ -3267,6 +3325,70 @@ func main(): i32 {
             Function {
                 name: "File.drop".to_string(),
                 target: CallTarget::same_file("File.drop"),
+                return_type: Type::Void,
+                instructions: vec![Instruction::Return],
+            },
+        ])
+    );
+}
+
+#[test]
+fn lowers_concrete_generic_scope_end_drop_to_drop_member_call() {
+    let ir = lower_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+impl Box<i32> {
+    drop &+self {
+        return
+    }
+}
+
+func main(): i32 {
+    var box = Box<i32>{ value: 3 }
+    return 0
+}
+"#,
+    );
+
+    assert_eq!(
+        ir,
+        IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: CallTarget::same_file("main"),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::ReserveAggregateSlot {
+                        slot_index: 0,
+                        layout: ValueLayout::new(4, 4),
+                    },
+                    Instruction::StoreAggregateI32 {
+                        destination: AggregateLocation::Slot(0),
+                        offset: 0,
+                        value: i32_const(3),
+                    },
+                    Instruction::SetI32 {
+                        destination: I32Location::Local(0),
+                        value: i32_const(0),
+                    },
+                    Instruction::CallVoid {
+                        target: CallTarget::same_file("Box.drop"),
+                        arguments: vec![ScalarArgument::Borrow(BorrowArgument {
+                            source: BorrowSource::AggregateSlot(0),
+                        })],
+                    },
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: i32_local(0),
+                    },
+                    Instruction::Return,
+                ],
+            },
+            Function {
+                name: "Box.drop".to_string(),
+                target: CallTarget::same_file("Box.drop"),
                 return_type: Type::Void,
                 instructions: vec![Instruction::Return],
             },
