@@ -3777,6 +3777,35 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_lowers_concrete_generic_scope_end_drop() {
+    let project = TempProject::new("cli-build-concrete-generic-scope-end-drop");
+    let source = project.write_source(
+        "concrete_generic_scope_end_drop.nct",
+        r#"struct Box<T> {
+    value: T
+}
+
+impl Box<i32> {
+    drop &+self {
+        return
+    }
+}
+
+func main(): i32 {
+    var box = Box<i32>{ value: 42 }
+    return box.value
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_generic_function_body_method_call_with_concrete_arguments() {
     let project = TempProject::new("cli-build-generic-function-body-method");
     let source = project.write_source(

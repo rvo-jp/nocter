@@ -3711,6 +3711,61 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_runs_concrete_generic_scope_end_drop() {
+    let project = TempProject::new("cli-run-concrete-generic-scope-end-drop");
+    project.write_nocter_home_file(
+        "std/log.nct",
+        r#"use std/io.write_text_raw
+
+pub func write(text: &str): void! {
+    write_text_raw(1, text)?
+    return
+}
+"#,
+    );
+    project.write_nocter_home_file(
+        "std/io.nct",
+        r#"#target("arm64-darwin")
+pub(nocter) primitive write_text_raw(fd: i32, text: &str): void!
+"#,
+    );
+    let source = project.write_source(
+        "concrete_generic_scope_end_drop.nct",
+        r#"use std/log.write
+
+struct Box<T> {
+    value: T
+}
+
+impl Box<i32> {
+    drop &+self {
+        write("drop\n")!
+        return
+    }
+}
+
+func main(): i32! {
+    var box = Box<i32>{ value: 42 }
+    return box.value
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"drop\n");
+    assert!(output.stderr.is_empty());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_generic_impl_method_multiple_concrete_receivers_exit_code() {
     let project = TempProject::new("cli-run-generic-impl-method-multiple");
     let source = project.write_source(
