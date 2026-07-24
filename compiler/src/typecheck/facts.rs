@@ -978,6 +978,7 @@ impl TypecheckFactCollector<'_> {
                         &resolved_function.signature,
                         None,
                         environment,
+                        true,
                     );
                     self.facts.call_hover_labels.insert(
                         method.member_span,
@@ -1003,17 +1004,32 @@ impl TypecheckFactCollector<'_> {
                         return_type,
                     );
                 } else {
-                    if let Some(symbol) = self.resolved.symbol_for_call(expression)
-                        && let SymbolKind::Function(signature) = &symbol.kind
-                    {
-                        self.record_generic_function_call_specialization(
-                            expression,
-                            symbol.declaration_span,
-                            &symbol.name,
-                            signature,
-                            None,
-                            environment,
-                        );
+                    if let Some(symbol) = self.resolved.symbol_for_call(expression) {
+                        match &symbol.kind {
+                            SymbolKind::Function(signature) => {
+                                self.record_generic_function_call_specialization(
+                                    expression,
+                                    symbol.declaration_span,
+                                    &symbol.name,
+                                    signature,
+                                    None,
+                                    environment,
+                                    true,
+                                );
+                            }
+                            SymbolKind::Primitive(signature) => {
+                                self.record_generic_function_call_specialization(
+                                    expression,
+                                    symbol.declaration_span,
+                                    &symbol.name,
+                                    signature,
+                                    None,
+                                    environment,
+                                    false,
+                                );
+                            }
+                            SymbolKind::Type(_) | SymbolKind::Imported(_) => {}
+                        }
                     }
                     self.collect_expression_facts_in_context(
                         &expression.callee,
@@ -1402,13 +1418,16 @@ impl TypecheckFactCollector<'_> {
         signature: &FunctionSignature,
         expected_return_type: Option<&Type>,
         environment: &TypeEnvironment,
+        report_unspecialized: bool,
     ) {
         if signature.generic_parameters.is_empty() {
             return;
         }
-        self.facts
-            .generic_function_call_spans
-            .insert(call.span, declaration_span);
+        if report_unspecialized {
+            self.facts
+                .generic_function_call_spans
+                .insert(call.span, declaration_span);
+        }
         if let Some(specialization) = function_call_specialization(
             call,
             declaration_span,
@@ -1439,6 +1458,7 @@ impl TypecheckFactCollector<'_> {
                 &resolved_function.signature,
                 Some(expected_return_type),
                 environment,
+                true,
             );
             return;
         }
@@ -1446,17 +1466,27 @@ impl TypecheckFactCollector<'_> {
         let Some(symbol) = self.resolved.symbol_for_call(call) else {
             return;
         };
-        let SymbolKind::Function(signature) = &symbol.kind else {
-            return;
-        };
-        self.record_generic_function_call_specialization(
-            call,
-            symbol.declaration_span,
-            &symbol.name,
-            signature,
-            Some(expected_return_type),
-            environment,
-        );
+        match &symbol.kind {
+            SymbolKind::Function(signature) => self.record_generic_function_call_specialization(
+                call,
+                symbol.declaration_span,
+                &symbol.name,
+                signature,
+                Some(expected_return_type),
+                environment,
+                true,
+            ),
+            SymbolKind::Primitive(signature) => self.record_generic_function_call_specialization(
+                call,
+                symbol.declaration_span,
+                &symbol.name,
+                signature,
+                Some(expected_return_type),
+                environment,
+                false,
+            ),
+            SymbolKind::Type(_) | SymbolKind::Imported(_) => {}
+        }
     }
 }
 

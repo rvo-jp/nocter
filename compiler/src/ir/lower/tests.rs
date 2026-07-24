@@ -23337,6 +23337,98 @@ pub func store_nul(address: usize, offset: usize): void {
 }
 
 #[test]
+fn lowers_pointee_size_call_for_usize_pointer_field() {
+    let size = lower_imported_named_function_with_nocter_home_files(
+        r#"use std/ptr_size.size
+
+func main(): void {
+    return
+}
+"#,
+        "size",
+        &[
+            (
+                "std/ptr.nct",
+                r#"pub(nocter) primitive pointee_size<T>(pointer: *T): usize
+"#,
+            ),
+            (
+                "std/ptr_size.nct",
+                r#"use std/ptr.pointee_size
+
+pub copy struct Holder {
+    pub ptr: *usize
+}
+
+pub func size(holder: Holder): usize {
+    return pointee_size(holder.ptr)
+}
+"#,
+            ),
+        ],
+    );
+
+    assert!(
+        size.instructions.contains(&Instruction::SetUsize {
+            destination: UsizeLocation::Return,
+            value: UsizeValue::Const(8),
+        }),
+        "{:?}",
+        size.instructions
+    );
+    assert!(
+        !size.instructions.iter().any(|instruction| matches!(
+            instruction,
+            Instruction::CallUsize { target, .. } if call_target_name_is(target, "pointee_size")
+        )),
+        "{:?}",
+        size.instructions
+    );
+}
+
+#[test]
+fn lowers_pointee_size_call_for_u8_pointer_field() {
+    let size = lower_imported_named_function_with_nocter_home_files(
+        r#"use std/ptr_size.size
+
+func main(): void {
+    return
+}
+"#,
+        "size",
+        &[
+            (
+                "std/ptr.nct",
+                r#"pub(nocter) primitive pointee_size<T>(pointer: *T): usize
+"#,
+            ),
+            (
+                "std/ptr_size.nct",
+                r#"use std/ptr.pointee_size
+
+pub copy struct Holder {
+    pub ptr: *u8
+}
+
+pub func size(holder: Holder): usize {
+    return pointee_size(holder.ptr)
+}
+"#,
+            ),
+        ],
+    );
+
+    assert!(
+        size.instructions.contains(&Instruction::SetUsize {
+            destination: UsizeLocation::Return,
+            value: UsizeValue::Const(1),
+        }),
+        "{:?}",
+        size.instructions
+    );
+}
+
+#[test]
 fn lowers_slice_from_raw_parts_call() {
     let view = lower_imported_named_function_with_nocter_home_files(
         r#"use std/ptr_slice.view_mut
@@ -26384,6 +26476,12 @@ fn call_void(function: &str, arguments: Vec<ScalarArgument>) -> Instruction {
     Instruction::CallVoid {
         target: CallTarget::same_file(function),
         arguments,
+    }
+}
+
+fn call_target_name_is(target: &CallTarget, expected: &str) -> bool {
+    match target {
+        CallTarget::SameFile(name) | CallTarget::Imported { name, .. } => name == expected,
     }
 }
 

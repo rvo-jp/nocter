@@ -186,6 +186,10 @@ const PTR_FROM_ADDR_PARAMETERS: &[PrimitiveParameterSpec] = &[PrimitiveParameter
     name: "address",
     ty: "usize",
 }];
+const PTR_POINTEE_SIZE_PARAMETERS: &[PrimitiveParameterSpec] = &[PrimitiveParameterSpec {
+    name: "pointer",
+    ty: "*T",
+}];
 const PTR_COPY_STR_TO_PTR_PARAMETERS: &[PrimitiveParameterSpec] = &[
     PrimitiveParameterSpec {
         name: "destination",
@@ -461,6 +465,15 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             generics: &["T"],
             parameters: PTR_FROM_ADDR_PARAMETERS,
             return_type: "*T",
+        },
+        PrimitiveSpec {
+            module_path: "std/ptr",
+            target: None,
+            visibility: Visibility::Nocter,
+            name: "pointee_size",
+            generics: &["T"],
+            parameters: PTR_POINTEE_SIZE_PARAMETERS,
+            return_type: "usize",
         },
         PrimitiveSpec {
             module_path: "std/ptr",

@@ -15,6 +15,8 @@ pub primitive from_ref_mut<T>(value: &+T): *T
 // User project modules must not call these functions.
 pub(nocter) primitive from_addr<T>(address: usize): *T
 
+pub(nocter) primitive pointee_size<T>(pointer: *T): usize
+
 pub(nocter) primitive copy_str_to_ptr(destination: *u8, offset: usize, text: &str): void
 
 pub(nocter) primitive store_u8_to_ptr(destination: *u8, offset: usize, value: u8): void

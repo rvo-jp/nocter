@@ -41,13 +41,14 @@ use calls::{
     lower_addr_primitive_call_to_word, lower_bool_normal_call, lower_call_arguments,
     lower_close_fd_raw_primitive_call, lower_copy_str_to_ptr_primitive_call,
     lower_direct_tail_call, lower_exit_raw_primitive_call, lower_fallible_void_normal_call,
-    lower_i32_normal_call, lower_slice_from_raw_parts_primitive_call_to_location,
-    lower_slice_normal_call, lower_store_u8_to_ptr_primitive_call,
-    lower_str_bytes_primitive_call_to_location, lower_str_bytes_primitive_call_to_value,
-    lower_str_from_raw_parts_primitive_call_to_location, lower_str_normal_call,
-    lower_u8_normal_call, lower_usize_normal_call, lower_void_normal_call, primitive_addr_call,
-    primitive_bytes_from_str_call, primitive_close_fd_raw_call, primitive_copy_str_to_ptr_call,
-    primitive_exit_raw_call, primitive_slice_from_raw_parts_call, primitive_store_u8_to_ptr_call,
+    lower_i32_normal_call, lower_pointee_size_primitive_call_to_word,
+    lower_slice_from_raw_parts_primitive_call_to_location, lower_slice_normal_call,
+    lower_store_u8_to_ptr_primitive_call, lower_str_bytes_primitive_call_to_location,
+    lower_str_bytes_primitive_call_to_value, lower_str_from_raw_parts_primitive_call_to_location,
+    lower_str_normal_call, lower_u8_normal_call, lower_usize_normal_call, lower_void_normal_call,
+    primitive_addr_call, primitive_bytes_from_str_call, primitive_close_fd_raw_call,
+    primitive_copy_str_to_ptr_call, primitive_exit_raw_call, primitive_pointee_size_call,
+    primitive_slice_from_raw_parts_call, primitive_store_u8_to_ptr_call,
     primitive_str_from_raw_parts_call, primitive_write_bytes_raw_call,
     primitive_write_text_raw_call,
 };
@@ -267,6 +268,12 @@ pub(super) fn lower_usize_expression_to_location(
             if primitive_addr_call(call, context) {
                 let (mut instructions, value) =
                     lower_addr_primitive_call_to_word(call, context, &mut temporaries)?;
+                instructions.push(Instruction::SetUsize { destination, value });
+                return Ok(instructions);
+            }
+            if primitive_pointee_size_call(call, context) {
+                let (mut instructions, value) =
+                    lower_pointee_size_primitive_call_to_word(call, context, &mut temporaries)?;
                 instructions.push(Instruction::SetUsize { destination, value });
                 return Ok(instructions);
             }
@@ -1781,6 +1788,14 @@ fn lower_usize_expression_to_value(
                     value,
                 });
             }
+            if primitive_pointee_size_call(call, context) {
+                let (instructions, value) =
+                    lower_pointee_size_primitive_call_to_word(call, context, temporaries)?;
+                return Ok(LoweredUsizeValue {
+                    instructions,
+                    value,
+                });
+            }
 
             let temporary = temporaries.next_usize()?;
             Ok(LoweredUsizeValue {
@@ -2275,6 +2290,16 @@ pub(super) fn lower_usize_return_expression(
             if primitive_addr_call(call, context) {
                 let (mut instructions, value) =
                     lower_addr_primitive_call_to_word(call, context, &mut temporaries)?;
+                instructions.push(Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value,
+                });
+                instructions.push(Instruction::Return);
+                return Ok(instructions);
+            }
+            if primitive_pointee_size_call(call, context) {
+                let (mut instructions, value) =
+                    lower_pointee_size_primitive_call_to_word(call, context, &mut temporaries)?;
                 instructions.push(Instruction::SetUsize {
                     destination: UsizeLocation::Return,
                     value,

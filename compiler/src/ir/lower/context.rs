@@ -368,6 +368,19 @@ impl<'a> LoweringContext<'a> {
         ))
     }
 
+    pub(super) fn function_call_type_substitution(
+        &self,
+        call: &CallExpr,
+        parameter: &str,
+    ) -> Option<TypeExpr> {
+        let resolution = self.call_resolution.as_ref()?;
+        let specialization = resolution
+            .typecheck_facts
+            .function_call_specialization(call.span)?
+            .with_context_substitutions(&self.generic_substitutions)?;
+        specialization.substitutions.get(parameter).cloned()
+    }
+
     pub(super) fn call_parameter_types(&self, target: &CallTarget) -> Option<&[Type]> {
         self.function_signatures.parameter_types(target)
     }

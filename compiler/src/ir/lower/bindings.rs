@@ -2388,7 +2388,7 @@ fn primitive_call_scalar_binding_kind(
     context: &LoweringContext,
 ) -> Option<ScalarBindingKind> {
     match context.primitive_name_for_call(call)? {
-        "addr" => Some(ScalarBindingKind::Usize),
+        "addr" | "pointee_size" => Some(ScalarBindingKind::Usize),
         "str_from_raw_parts" => Some(ScalarBindingKind::Str),
         "bytes_from_str" => Some(ScalarBindingKind::Slice(TypecheckSliceElementKind::U8)),
         "slice_from_raw_parts"

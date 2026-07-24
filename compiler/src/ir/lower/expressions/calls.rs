@@ -2049,6 +2049,10 @@ pub(super) fn primitive_addr_call(call: &CallExpr, context: &LoweringContext) ->
     matches!(context.primitive_name_for_call(call), Some("addr"))
 }
 
+pub(super) fn primitive_pointee_size_call(call: &CallExpr, context: &LoweringContext) -> bool {
+    matches!(context.primitive_name_for_call(call), Some("pointee_size"))
+}
+
 pub(super) fn primitive_copy_str_to_ptr_call(call: &CallExpr, context: &LoweringContext) -> bool {
     matches!(
         context.primitive_name_for_call(call),
@@ -2099,6 +2103,36 @@ pub(super) fn lower_addr_primitive_call_to_word(
         ));
     }
     lower_pointer_address_expression_to_word(&call.arguments[0], context, temporaries)
+}
+
+pub(super) fn lower_pointee_size_primitive_call_to_word(
+    call: &CallExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, UsizeValue), Vec<Diagnostic>> {
+    if call.arguments.len() != 1 {
+        return Err(unsupported_pointer_primitive_diagnostic(
+            "`pointee_size` requires one pointer argument",
+        ));
+    }
+    let (instructions, _pointer) =
+        lower_pointer_address_expression_to_word(&call.arguments[0], context, temporaries)?;
+    let Some(pointee_type) = context.function_call_type_substitution(call, "T") else {
+        return Err(unsupported_pointer_primitive_diagnostic(
+            "`pointee_size` requires a concrete pointer element type",
+        ));
+    };
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_pointer_primitive_diagnostic(
+            "`pointee_size` requires resolved type information",
+        ));
+    };
+    let value = abi_value_from_type_expr(&pointee_type, resolved).map_err(|_error| {
+        unsupported_pointer_primitive_diagnostic(
+            "`pointee_size` requires a pointer element type with an ABI layout",
+        )
+    })?;
+    Ok((instructions, UsizeValue::Const(value.layout.size)))
 }
 
 pub(super) fn lower_copy_str_to_ptr_primitive_call(
