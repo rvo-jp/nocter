@@ -4191,6 +4191,46 @@ func dynamic(): &str {
 }
 
 #[test]
+fn build_command_lowers_dynamic_failure_payload_code_and_message() {
+    let project = TempProject::new("cli-build-dynamic-failure-payload-code-message");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    let source = project.write_source(
+        "dynamic_failure_payload_code_message.nct",
+        r#"use std/error.Error
+
+func main(): i32! {
+    return Error.new(dynamic_code(), dynamic_message())
+}
+
+func dynamic_code(): &str {
+    return "app.failed"
+}
+
+func dynamic_message(): &str {
+    return "failed"
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_does_not_reject_unreachable_dynamic_failure_payload() {
     let project = TempProject::new("cli-build-unreachable-dynamic-failure-payload");
     project.write_nocter_home_file(
