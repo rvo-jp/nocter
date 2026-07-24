@@ -12,7 +12,8 @@ use super::context::{
     LoweringParameterSlots, PendingAggregateDrop, drop_glue_for_type_expr,
 };
 use super::control_flow::{
-    lower_nonterminal_for_range_statement, lower_nonterminal_if_statement,
+    instruction_list_ends_execution, lower_nonterminal_for_range_statement,
+    lower_nonterminal_if_let_statement, lower_nonterminal_if_statement,
     lower_nonterminal_loop_statement, lower_nonterminal_while_statement,
     lower_terminal_bool_if_statement, lower_terminal_branch_leading_statements,
     lower_terminal_condition, lower_terminal_i32_if_statement, lower_terminal_slice_if_statement,
@@ -703,6 +704,29 @@ fn lower_callable_body(
                     statement.span,
                 ));
             };
+            instructions.extend(branch_instructions);
+            Ok(instructions)
+        }
+        Stmt::IfLet(statement) => {
+            let branch_instructions = lower_nonterminal_if_let_statement(
+                statement,
+                context,
+                None,
+                &[],
+                "E8007",
+                "functions",
+                sources,
+            )
+            .map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, statement.span)
+            })?;
+            if !instruction_list_ends_execution(&branch_instructions) {
+                return Err(attach_primary_span_if_absent(
+                    unsupported_function_body_diagnostic(function_name),
+                    sources,
+                    statement.span,
+                ));
+            }
             instructions.extend(branch_instructions);
             Ok(instructions)
         }
@@ -1820,6 +1844,22 @@ fn lower_leading_bindings(
                 instructions.extend(
                     lower_nonterminal_if_statement(
                         &if_statement,
+                        context,
+                        None,
+                        &[],
+                        "E8007",
+                        "functions",
+                        sources,
+                    )
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    })?,
+                );
+            }
+            Stmt::IfLet(statement) => {
+                instructions.extend(
+                    lower_nonterminal_if_let_statement(
+                        statement,
                         context,
                         None,
                         &[],

@@ -2,7 +2,7 @@ use crate::abi::{AbiType, abi_value_from_type_expr};
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, Block, CallExpr, DropDecl, Expr, ForRangeStmt,
-    FunctionDecl, ImplDecl, ImplMember, Item, MethodDecl, Stmt, TypeExpr,
+    FunctionDecl, IfLetStmt, ImplDecl, ImplMember, Item, MethodDecl, Stmt, TypeExpr,
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
@@ -275,6 +275,66 @@ fn if_is_statement_is_buildable(
         return false;
     };
     u8::try_from(index).is_ok()
+}
+
+fn if_let_statement_is_buildable(statement: &IfLetStmt, resolved: &ResolveOutput) -> bool {
+    let Some(else_block) = &statement.else_block else {
+        return false;
+    };
+    if !block_guarantees_buildable_exit(else_block, resolved) {
+        return false;
+    }
+
+    let Expr::Call(call) = unwrap_group_expr(&statement.initializer) else {
+        return false;
+    };
+    matches!(
+        optional_call_success_shape(call, resolved),
+        Some(ReturnShape::DiscardableScalar | ReturnShape::DiscardableView)
+    )
+}
+
+fn block_guarantees_buildable_exit(block: &Block, resolved: &ResolveOutput) -> bool {
+    block
+        .statements
+        .last()
+        .is_some_and(|statement| statement_guarantees_buildable_exit(statement, resolved))
+}
+
+fn statement_guarantees_buildable_exit(statement: &Stmt, resolved: &ResolveOutput) -> bool {
+    match statement {
+        Stmt::Return(_) | Stmt::Break(_) | Stmt::Continue(_) => true,
+        Stmt::Expression(statement) => {
+            let Expr::Call(call) = unwrap_group_expr(&statement.expression) else {
+                return false;
+            };
+            call_return_shape(call, resolved) == Some(ReturnShape::Never)
+        }
+        Stmt::If(statement) => statement.else_block.as_ref().is_some_and(|else_block| {
+            block_guarantees_buildable_exit(&statement.then_block, resolved)
+                && block_guarantees_buildable_exit(else_block, resolved)
+        }),
+        Stmt::IfIs(statement) => statement.else_block.as_ref().is_some_and(|else_block| {
+            block_guarantees_buildable_exit(&statement.then_block, resolved)
+                && block_guarantees_buildable_exit(else_block, resolved)
+        }),
+        Stmt::IfLet(statement) => statement.else_block.as_ref().is_some_and(|else_block| {
+            block_guarantees_buildable_exit(&statement.then_block, resolved)
+                && block_guarantees_buildable_exit(else_block, resolved)
+        }),
+        Stmt::Switch(statement) => {
+            statement
+                .else_arm
+                .as_ref()
+                .is_some_and(|else_arm| block_guarantees_buildable_exit(&else_arm.body, resolved))
+                && statement
+                    .arms
+                    .iter()
+                    .all(|arm| block_guarantees_buildable_exit(&arm.body, resolved))
+        }
+        Stmt::Loop(statement) => block_guarantees_buildable_exit(&statement.body, resolved),
+        _ => false,
+    }
 }
 
 fn switch_statement_is_buildable(
@@ -606,12 +666,14 @@ fn collect_statement_diagnostics(
             }
         }
         Stmt::IfLet(statement) => {
-            diagnostics.push(unsupported_v0_build_diagnostic(
-                sources,
-                statement.span,
-                "`if let` optional branches",
-                "use `let ... else` in the current buildable optional subset",
-            ));
+            if !if_let_statement_is_buildable(statement, resolved) {
+                diagnostics.push(unsupported_v0_build_diagnostic(
+                    sources,
+                    statement.span,
+                    "`if let` optional branches",
+                    "use a direct optional scalar/view call with an `else` branch that exits, or use `let ... else` in the current buildable optional subset",
+                ));
+            }
             collect_expression_diagnostics(
                 &statement.initializer,
                 sources,
@@ -972,6 +1034,46 @@ fn call_return_shape(call: &CallExpr, resolved: &ResolveOutput) -> Option<Return
         &signature.return_type,
         resolved,
     ))
+}
+
+fn optional_call_success_shape(call: &CallExpr, resolved: &ResolveOutput) -> Option<ReturnShape> {
+    let signature = resolved.call_signature_for_call(call)?;
+    Some(optional_success_shape_from_type_expr(
+        &signature.return_type,
+        resolved,
+    ))
+}
+
+fn optional_success_shape_from_type_expr(ty: &TypeExpr, resolved: &ResolveOutput) -> ReturnShape {
+    optional_success_shape_from_type_expr_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn optional_success_shape_from_type_expr_inner(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> ReturnShape {
+    match ty {
+        TypeExpr::Optional(optional) => {
+            return_shape_from_type_expr_inner(&optional.inner, resolved, resolving_names)
+        }
+        TypeExpr::Reference(reference) => {
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+                return ReturnShape::Other;
+            };
+            let Some(target) = &symbol.alias_target else {
+                return ReturnShape::Other;
+            };
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return ReturnShape::Other;
+            }
+            let shape =
+                optional_success_shape_from_type_expr_inner(target, resolved, resolving_names);
+            resolving_names.remove(&symbol.canonical_name);
+            shape
+        }
+        _ => ReturnShape::Other,
+    }
 }
 
 fn return_shape_from_type_expr(ty: &TypeExpr, resolved: &ResolveOutput) -> ReturnShape {

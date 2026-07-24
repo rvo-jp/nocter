@@ -3,10 +3,13 @@ use super::bindings::{
 };
 use super::context::LoweringContext;
 use super::expressions::{
-    lower_bool_expression_to_value, lower_bool_return_expression, lower_i32_expression_to_location,
-    lower_i32_return_expression, lower_slice_return_expression, lower_str_return_expression,
-    lower_u8_return_expression, lower_usize_expression_to_location, lower_usize_return_expression,
-    lower_void_expression_statement, primitive_trap_call,
+    TemporaryAllocator, lower_bool_expression_to_value, lower_bool_return_expression,
+    lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
+    lower_fallible_slice_normal_call, lower_fallible_str_normal_call,
+    lower_fallible_u8_normal_call, lower_fallible_usize_normal_call,
+    lower_i32_expression_to_location, lower_i32_return_expression, lower_slice_return_expression,
+    lower_str_return_expression, lower_u8_return_expression, lower_usize_expression_to_location,
+    lower_usize_return_expression, lower_void_expression_statement, primitive_trap_call,
     short_circuit_bool_expression_needs_branch,
 };
 use super::functions::{
@@ -17,9 +20,10 @@ use super::functions::{
     mark_explicit_moves_in_expression, mark_lowered_statement_aggregate_uses,
     payloadless_if_is_as_if_statement, payloadless_switch_as_if_statement,
 };
+use super::types::return_type_expr_is_top_level_optional;
 use crate::ast::{
-    AssignmentOperator, BinaryExpr, BinaryOperator, Block, Expr, ForRangeStmt, IfStmt, LoopStmt,
-    Stmt, UnaryOperator, WhileStmt,
+    AssignmentOperator, BinaryExpr, BinaryOperator, Block, CallExpr, Expr, ForRangeStmt, IfLetStmt,
+    IfStmt, LoopStmt, Stmt, UnaryOperator, WhileStmt,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -549,6 +553,228 @@ pub(super) fn lower_nonterminal_if_statement(
     )
 }
 
+pub(super) fn lower_nonterminal_if_let_statement(
+    statement: &IfLetStmt,
+    context: &LoweringContext,
+    loop_scope_mark: Option<usize>,
+    continue_instructions: &[Instruction],
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let Some(else_block) = &statement.else_block else {
+        return Err(attach_primary_span_if_absent(
+            unsupported_nonterminal_if_let_diagnostic(diagnostic_code, subject),
+            sources,
+            statement.span,
+        ));
+    };
+    if expression_contains_explicit_aggregate_move(&statement.initializer, context) {
+        return Err(attach_primary_span_if_absent(
+            unsupported_control_flow_condition_move_diagnostic(diagnostic_code),
+            sources,
+            statement.initializer.span(),
+        ));
+    }
+
+    let Expr::Call(call) = unwrap_group(&statement.initializer) else {
+        return Err(attach_primary_span_if_absent(
+            unsupported_nonterminal_if_let_diagnostic(diagnostic_code, subject),
+            sources,
+            statement.initializer.span(),
+        ));
+    };
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(attach_primary_span_if_absent(
+            unsupported_nonterminal_if_let_diagnostic(diagnostic_code, subject),
+            sources,
+            statement.initializer.span(),
+        ));
+    };
+    let Some(signature) = resolved.call_signature_for_call(call) else {
+        return Err(attach_primary_span_if_absent(
+            unsupported_nonterminal_if_let_diagnostic(diagnostic_code, subject),
+            sources,
+            statement.initializer.span(),
+        ));
+    };
+    if !return_type_expr_is_top_level_optional(&signature.return_type, resolved) {
+        return Err(attach_primary_span_if_absent(
+            unsupported_nonterminal_if_let_diagnostic(diagnostic_code, subject),
+            sources,
+            statement.initializer.span(),
+        ));
+    }
+
+    let Some((target, _call_name)) = context.direct_call_target_and_name(call) else {
+        return Err(attach_primary_span_if_absent(
+            unsupported_nonterminal_if_let_diagnostic(diagnostic_code, subject),
+            sources,
+            statement.initializer.span(),
+        ));
+    };
+    let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
+        return Err(attach_primary_span_if_absent(
+            unsupported_nonterminal_if_let_diagnostic(diagnostic_code, subject),
+            sources,
+            statement.initializer.span(),
+        ));
+    };
+
+    let failure_mode = lower_nonterminal_if_let_failure_mode(
+        else_block,
+        context,
+        loop_scope_mark,
+        continue_instructions,
+        diagnostic_code,
+        subject,
+        sources,
+    )?;
+    let mut then_context = context.clone();
+    let mut instructions = lower_nonterminal_if_let_optional_call(
+        statement,
+        call,
+        success_type.as_ref(),
+        failure_mode,
+        &mut then_context,
+        diagnostic_code,
+        subject,
+    )?;
+    instructions.extend(lower_nonterminal_if_block(
+        &statement.then_block,
+        &then_context,
+        loop_scope_mark,
+        continue_instructions,
+        diagnostic_code,
+        subject,
+        sources,
+    )?);
+    Ok(instructions)
+}
+
+fn lower_nonterminal_if_let_failure_mode(
+    else_block: &Block,
+    context: &LoweringContext,
+    loop_scope_mark: Option<usize>,
+    continue_instructions: &[Instruction],
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
+    let mut else_context = context.clone();
+    let local_mark = else_context.local_mark();
+    let lowered = lower_nonterminal_loop_block_statements(
+        &else_block.statements,
+        &mut else_context,
+        local_mark,
+        loop_scope_mark,
+        continue_instructions,
+        diagnostic_code,
+        subject,
+        sources,
+    )?;
+    if !lowered.ends_execution {
+        return Err(attach_primary_span_if_absent(
+            unsupported_nonterminal_if_let_diagnostic(diagnostic_code, subject),
+            sources,
+            else_block.span,
+        ));
+    }
+    Ok(FallibleFailureMode::Handle {
+        instructions: lowered.instructions,
+    })
+}
+
+fn lower_nonterminal_if_let_optional_call(
+    statement: &IfLetStmt,
+    call: &CallExpr,
+    success_type: &Type,
+    failure_mode: FallibleFailureMode,
+    context: &mut LoweringContext,
+    diagnostic_code: &'static str,
+    subject: &str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    match success_type {
+        Type::I32 => {
+            let destination = context.next_i32_local_location()?;
+            let instructions = lower_fallible_i32_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_i32_local(statement.name.clone());
+            Ok(instructions)
+        }
+        Type::U8 => {
+            let destination = context.next_u8_local_location()?;
+            let instructions = lower_fallible_u8_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_u8_local(statement.name.clone());
+            Ok(instructions)
+        }
+        Type::Usize => {
+            let destination = context.next_usize_local_location()?;
+            let instructions = lower_fallible_usize_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_usize_local(statement.name.clone());
+            Ok(instructions)
+        }
+        Type::Bool => {
+            let destination = context.next_bool_local_location()?;
+            let instructions = lower_fallible_bool_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_bool_local(statement.name.clone());
+            Ok(instructions)
+        }
+        Type::Str => {
+            let destination = context.next_str_local_location()?;
+            let instructions = lower_fallible_str_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_str_local(statement.name.clone());
+            Ok(instructions)
+        }
+        Type::Slice { .. } => {
+            let destination = context.next_slice_local_location()?;
+            let instructions = lower_fallible_slice_normal_call(
+                call,
+                destination,
+                context,
+                &mut temporaries,
+                failure_mode,
+            )?;
+            context.define_slice_local(statement.name.clone());
+            Ok(instructions)
+        }
+        _ => Err(unsupported_nonterminal_if_let_diagnostic(
+            diagnostic_code,
+            subject,
+        )),
+    }
+}
+
 pub(super) fn lower_nonterminal_while_statement(
     statement: &WhileStmt,
     context: &mut LoweringContext,
@@ -1025,6 +1251,22 @@ fn lower_nonterminal_loop_block_statements(
                 ends_execution = instruction_list_ends_execution(&lowered);
                 instructions.extend(lowered);
             }
+            Stmt::IfLet(statement) => {
+                let lowered = lower_nonterminal_if_let_statement(
+                    statement,
+                    context,
+                    loop_scope_mark,
+                    continue_instructions,
+                    diagnostic_code,
+                    subject,
+                    sources,
+                )
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                })?;
+                ends_execution = instruction_list_ends_execution(&lowered);
+                instructions.extend(lowered);
+            }
             Stmt::Switch(statement) => {
                 let switch =
                     payloadless_switch_as_if_statement(statement, context, diagnostic_code)
@@ -1468,7 +1710,7 @@ fn aggregate_move_assignment_before_function_exit_allowed(
         && direct_outer_aggregate_move(&statement.value, context, local_mark)
 }
 
-fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
+pub(super) fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
     match instructions.last() {
         Some(
             Instruction::Return
@@ -2009,7 +2251,19 @@ fn unsupported_nonterminal_if_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower non-terminal `if`/`while`/`loop` statements for {subject} when branches/bodies contain supported local bindings, branch/body-local assignments, outer scalar/view/aggregate local assignments, explicit aggregate drops, effect-only call statements, returns, or nested non-terminal `if`/`while`/`loop` statements"
+            "IR v0 can only lower non-terminal `if`/`while`/`loop` statements for {subject} when branches/bodies contain supported local bindings, branch/body-local assignments, outer scalar/view/aggregate local assignments, explicit aggregate drops, effect-only call statements, returns, or nested non-terminal `if`/`if let`/`while`/`loop` statements"
+        ),
+    )]
+}
+
+fn unsupported_nonterminal_if_let_diagnostic(
+    diagnostic_code: &'static str,
+    subject: &str,
+) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        diagnostic_code,
+        format!(
+            "IR v0 can only lower non-terminal `if let` optional branches for {subject} when the initializer is a direct optional call returning i32, u8, usize, bool, &str, or &[u8], the initializer does not move aggregates, and the `else` branch exits with `return`, `never`, `break`, or `continue`"
         ),
     )]
 }

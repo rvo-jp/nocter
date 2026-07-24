@@ -8487,6 +8487,53 @@ func maybe_answer(): i32? {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_optional_if_let_exit_code() {
+    let project = TempProject::new("cli-run-optional-if-let");
+    let source = project.write_source(
+        "optional_if_let.nct",
+        r#"func main(): i32 {
+    return choose_success() + choose_none()
+}
+
+func choose_success(): i32 {
+    if let value = maybe_answer_success() {
+        return value
+    } else {
+        return 2
+    }
+}
+
+func choose_none(): i32 {
+    if let value = maybe_answer_none() {
+        return value
+    } else {
+        return 2
+    }
+}
+
+func maybe_answer_success(): i32? {
+    return 40
+}
+
+func maybe_answer_none(): i32? {
+    return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_runs_optional_let_else_never_scope_drop_before_trap() {
     let project = TempProject::new("cli-run-optional-let-else-never-cleanup");
     project.write_nocter_home_file(
