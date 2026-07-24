@@ -16661,6 +16661,42 @@ func size(values: &[usize]): usize {
 }
 
 #[test]
+fn lowers_non_byte_slice_identifier_local_len_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func size(values: &[usize]): usize {
+    let copy = values
+    return copy.len()
+}
+"#,
+        "size",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "size".to_string(),
+            target: crate::ir::CallTarget::same_file("size".to_string()),
+            return_type: Type::Usize,
+            instructions: vec![
+                Instruction::SetSlice {
+                    destination: SliceLocation::Local(0),
+                    value: SliceValue::Location(SliceLocation::Parameter(0)),
+                },
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: UsizeValue::SliceLen(SliceLocation::Local(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_u8_slice_len_comparison_condition() {
     let function = lower_named_function(
         r#"func main(): i32 {

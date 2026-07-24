@@ -465,7 +465,8 @@ use std/vec.Vec
 func main(): i32! {
     var allocator = page_allocator()
     let source: Vec<usize> = Vec.empty()
-    let copy: Vec<usize> = Vec.from_slice(&+allocator, source.view())?
+    let view = source.view()
+    let copy: Vec<usize> = Vec.from_slice(&+allocator, view)?
     if copy.len() != 0 {
         return 1
     }

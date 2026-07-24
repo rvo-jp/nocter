@@ -2316,7 +2316,7 @@ fn scalar_binding_kind_from_typecheck_kind(kind: TypecheckScalarViewKind) -> Sca
         TypecheckScalarViewKind::Usize => ScalarBindingKind::Usize,
         TypecheckScalarViewKind::Bool => ScalarBindingKind::Bool,
         TypecheckScalarViewKind::Str => ScalarBindingKind::Str,
-        TypecheckScalarViewKind::U8Slice => ScalarBindingKind::Slice,
+        TypecheckScalarViewKind::Slice => ScalarBindingKind::Slice,
     }
 }
 
