@@ -2305,6 +2305,32 @@ func choose(value: IntRef, fallback: i32): i32 {
 }
 
 #[test]
+fn build_command_lowers_readonly_temporary_scalar_borrow_argument() {
+    let project = TempProject::new("cli-build-readonly-temporary-scalar-borrow-argument");
+    let source = project.write_source(
+        "readonly_temporary_scalar_borrow_argument.nct",
+        r#"func main(): i32 {
+    return choose(&answer(), 0)
+}
+
+func answer(): i32 {
+    return 1
+}
+
+func choose(value: &i32, fallback: i32): i32 {
+    return fallback
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_non_binding_root_borrow_argument() {
     let project = TempProject::new("cli-build-non-binding-root-borrow-argument");
     let source = project.write_source(

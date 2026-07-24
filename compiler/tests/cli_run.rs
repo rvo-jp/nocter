@@ -717,6 +717,37 @@ func choose(value: &i32, code: i32): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_i32_normal_call_with_readonly_temporary_borrow_argument_exit_code() {
+    let project = TempProject::new("cli-run-readonly-temporary-borrow-normal-call");
+    let source = project.write_source(
+        "readonly_temporary_borrow_arg.nct",
+        r#"func main(): i32 {
+    return choose(&answer(), 42)
+}
+
+func answer(): i32 {
+    return 7
+}
+
+func choose(value: &i32, code: i32): i32 {
+    return code
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_i32_normal_call_with_readwrite_borrow_argument_exit_code() {
     let project = TempProject::new("cli-run-readwrite-borrow-normal-call");
     let source = project.write_source(

@@ -166,7 +166,7 @@ Currently buildable:
 - static string literals and `&str` parameters as call arguments, passed as `ptr,len` ABI word pairs
 - same-file and loaded imported non-generic normal calls returning `&str` in annotated `&str` `let` initializers and as `&str` call or tail-call arguments, with results staged into two local ABI words
 - `.len()` on `&str`, string literals, `&[u8]`, `&+[u8]`, and supported call results in lowerable `usize` positions; byte indexing into those values in lowerable `u8` positions
-- normal calls across scalar `i32`/`usize`/`bool`, local and readonly parameter scalar borrows, scalar aggregate field borrows, `&str`, slices, and supported aggregate arguments, including ABI words after `x7` passed through the caller stack argument area
+- normal calls across scalar `i32`/`usize`/`bool`, local, readonly parameter, and readonly temporary scalar borrows, scalar aggregate field borrows from local slots, aggregate parameters, or supported aggregate call results, `&str`, slices, and supported aggregate arguments, including ABI words after `x7` passed through the caller stack argument area
 - same-file and loaded imported inherent associated function calls, plus method calls whose implicit borrow receiver is a local binding, aggregate field rooted at a binding, or supported readonly aggregate call temporary, within the current scalar/view/aggregate call subset
 - reordered parameter arguments are supported for normal calls and tail calls through argument staging
 - functions returning `usize` literal/local/call/arithmetic/shift values in lowerable positions
