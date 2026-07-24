@@ -106,6 +106,12 @@ fn parameter_type_from_type_expr_inner(
         return result;
     }
 
+    if let TypeExpr::Reference(reference) = ty
+        && reference.name == "error"
+    {
+        return Some(Type::Error);
+    }
+
     if let Some(ty) = scalar_or_view_type_from_type_expr(ty, resolved) {
         return Some(ty);
     }

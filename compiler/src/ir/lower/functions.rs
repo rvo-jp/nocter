@@ -37,8 +37,8 @@ use super::expressions::{
     lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
 };
 use super::types::{
-    borrow_inner_type, borrow_type_from_type_expr, return_type_expr_is_top_level_optional,
-    return_type_from_type_expr, scalar_or_view_type_from_type_expr,
+    borrow_inner_type, borrow_type_from_type_expr, parameter_type_from_type_expr,
+    return_type_expr_is_top_level_optional, return_type_from_type_expr,
 };
 use crate::abi::{
     AbiType, AbiValue, ValueClassification, ValueLayout, abi_value_from_type_expr,
@@ -401,6 +401,9 @@ fn lower_scalar_parameters(
                 slots.push_slice_parameter(parameter.name.clone());
                 slots.push_empty_abi_word();
             }
+            ScalarParameterKind::Error => {
+                slots.push_error_parameter(parameter.name.clone());
+            }
             ScalarParameterKind::Borrow => {
                 slots.push_empty_abi_word();
             }
@@ -534,6 +537,7 @@ enum ScalarParameterKind {
     Bool,
     Str,
     Slice,
+    Error,
     Borrow,
     BorrowAggregate {
         layout: crate::abi::ValueLayout,
@@ -557,13 +561,14 @@ fn lower_scalar_parameter_kind(
     root_source: SourceId,
     resolved: &ResolveOutput,
 ) -> Result<ScalarParameterKind, Vec<Diagnostic>> {
-    match scalar_or_view_type_from_type_expr(&parameter.ty, resolved) {
+    match parameter_type_from_type_expr(&parameter.ty, resolved) {
         Some(Type::I32) => return Ok(ScalarParameterKind::I32),
         Some(Type::U8) => return Ok(ScalarParameterKind::U8),
         Some(Type::Usize) => return Ok(ScalarParameterKind::Usize),
         Some(Type::Bool) => return Ok(ScalarParameterKind::Bool),
         Some(Type::Str) => return Ok(ScalarParameterKind::Str),
         Some(Type::Slice { .. }) => return Ok(ScalarParameterKind::Slice),
+        Some(Type::Error) => return Ok(ScalarParameterKind::Error),
         _ => {}
     }
 
@@ -943,7 +948,7 @@ fn lower_terminal_if_statement_for_success_type(
                 sources,
             )?
         }
-        Type::Never | Type::Fallible(_) | Type::Borrow { .. } => return Ok(None),
+        Type::Never | Type::Fallible(_) | Type::Borrow { .. } | Type::Error => return Ok(None),
     };
 
     Ok(Some(mark_fallible_success_returns(
@@ -1343,6 +1348,11 @@ pub(super) fn lower_return_statement_with_scope_drops(
         (Type::Aggregate { .. } | Type::DirectAggregate { .. }, None) => Err(
             unsupported_bare_return_diagnostic(diagnostic_code, &function_name, "aggregate"),
         ),
+        (Type::Error, _) => Err(unsupported_return_diagnostic(
+            diagnostic_code,
+            &function_name,
+            "error",
+        )),
         (Type::Borrow { .. }, _) => Err(unsupported_return_diagnostic(
             diagnostic_code,
             &function_name,
@@ -1755,6 +1765,7 @@ pub(super) fn lower_value_return_with_scope_drops(
         }
         Type::Aggregate { .. }
         | Type::DirectAggregate { .. }
+        | Type::Error
         | Type::Void
         | Type::Never
         | Type::Borrow { .. }
@@ -3074,6 +3085,7 @@ fn lower_optional_default_scalar_return_call_to_return(
         ),
         Type::Aggregate { .. }
         | Type::DirectAggregate { .. }
+        | Type::Error
         | Type::Borrow { .. }
         | Type::Void
         | Type::Never
@@ -3165,6 +3177,7 @@ fn lower_optional_default_scalar_return_call_to_temporary(
         }
         Type::Aggregate { .. }
         | Type::DirectAggregate { .. }
+        | Type::Error
         | Type::Borrow { .. }
         | Type::Void
         | Type::Never
@@ -3208,6 +3221,7 @@ fn append_scope_drops_then_restore_scalar_return(
         }],
         Type::Aggregate { .. }
         | Type::DirectAggregate { .. }
+        | Type::Error
         | Type::Borrow { .. }
         | Type::Void
         | Type::Never

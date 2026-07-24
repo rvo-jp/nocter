@@ -1154,6 +1154,7 @@ fn lower_catch_block(
                 | (Type::Aggregate { .. }, None)
                 | (Type::DirectAggregate { .. }, None)
                 | (Type::Borrow { .. }, _)
+                | (Type::Error, _)
                 | (Type::Never, None) => Err(unsupported_catch_block_diagnostic()),
                 (Type::Fallible(_), _) => Err(unsupported_catch_block_diagnostic()),
             }?;

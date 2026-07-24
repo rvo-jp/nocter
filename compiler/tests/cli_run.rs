@@ -10601,6 +10601,43 @@ func dynamic(): &str {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_reports_forwarded_error_parameter_failure() {
+    let project = TempProject::new("cli-run-forwarded-error-parameter");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    let source = project.write_source(
+        "forwarded_error_parameter.nct",
+        r#"use std/error.Error
+
+func main(): i32! {
+    return forward(Error.new("app.failed", "failed"))?
+}
+
+func forward(error: error): i32! {
+    return error
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(output.stderr, b"app.failed: failed\n");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_reports_fallible_entry_failure_dynamic_code_and_message() {
     let project = TempProject::new("cli-run-fallible-failure-dynamic-code-message");
     project.write_nocter_home_file(
@@ -10629,6 +10666,43 @@ func dynamic_code(): &str {
 
 func dynamic_message(): &str {
     return "failed"
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(output.stderr, b"app.failed: failed\n");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_reports_crossed_failure_payload_parameter_registers() {
+    let project = TempProject::new("cli-run-crossed-failure-payload-parameter-registers");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    let source = project.write_source(
+        "crossed_failure_payload_parameters.nct",
+        r#"use std/error.Error
+
+func main(): i32! {
+    return fail("failed", "app.failed")?
+}
+
+func fail(message: &str, code: &str): i32! {
+    return Error.new(code, message)
 }
 "#,
     );

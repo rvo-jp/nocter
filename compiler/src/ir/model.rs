@@ -659,6 +659,7 @@ pub(crate) enum Type {
         is_readwrite: bool,
         inner: Box<Type>,
     },
+    Error,
     Void,
     Never,
     Fallible(Box<Type>),
@@ -677,6 +678,7 @@ impl Type {
             | Self::Aggregate { .. }
             | Self::DirectAggregate { .. }
             | Self::Borrow { .. }
+            | Self::Error
             | Self::Void
             | Self::Never => self,
         }
@@ -690,6 +692,7 @@ impl Type {
             Self::Str | Self::Slice { .. } => Some(ReturnPassing::Direct { words: 2 }),
             Self::Aggregate { .. } => Some(ReturnPassing::IndirectPointer),
             Self::DirectAggregate { words, .. } => Some(ReturnPassing::Direct { words: *words }),
+            Self::Error => None,
             Self::Void => Some(ReturnPassing::Void),
             Self::Never => Some(ReturnPassing::Never),
             Self::Fallible(success) => success.success_return_passing(),

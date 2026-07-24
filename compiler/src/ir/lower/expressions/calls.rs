@@ -4,6 +4,7 @@ use super::super::aggregates::{
     push_fallible_aggregate_call_instruction, supported_aggregate_copy_layout,
 };
 use super::super::context::{AggregateFieldKind, LoweringContext};
+use super::super::errors::lower_error_payload;
 use super::super::functions::propagating_failure_mode;
 use super::temporaries::TemporaryAllocator;
 use super::{
@@ -18,8 +19,8 @@ use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateArgument, AggregateArgumentSource, AggregateLocation, BoolLocation, BorrowArgument,
     BorrowSource, CallTarget, DirectAggregateArgument, FallibleFailureMode, I32Location,
-    Instruction, ScalarArgument, SliceLocation, SliceValue, StrLocation, Type, U8Location,
-    UsizeLocation, UsizeValue,
+    Instruction, ScalarArgument, SliceLocation, SliceValue, StrLocation, StrValue, Type,
+    U8Location, UsizeLocation, UsizeValue,
 };
 
 pub(super) fn lower_i32_normal_call(
@@ -506,7 +507,7 @@ fn lower_non_tail_return_call_instruction(
             arguments,
             *layout,
         )),
-        Type::Never | Type::Void | Type::Fallible(_) | Type::Borrow { .. } => {
+        Type::Never | Type::Void | Type::Fallible(_) | Type::Borrow { .. } | Type::Error => {
             Err(unsupported_non_tail_return_call_diagnostic(callee_name))
         }
     }
@@ -588,6 +589,13 @@ pub(super) fn lower_call_arguments(
                 instructions.extend(argument.instructions);
                 arguments.push(ScalarArgument::Slice(argument.value));
             }
+            Type::Error => {
+                let (argument_instructions, code, message) =
+                    lower_error_argument(argument, callee_name, context, temporaries)?;
+                instructions.extend(argument_instructions);
+                arguments.push(ScalarArgument::Str(code));
+                arguments.push(ScalarArgument::Str(message));
+            }
             Type::Borrow { .. } => {
                 let (argument_instructions, argument) = if is_method_receiver {
                     lower_implicit_receiver_borrow_argument(
@@ -660,6 +668,40 @@ pub(super) fn lower_call_arguments(
         ));
     }
     Ok((instructions, arguments))
+}
+
+fn lower_error_argument(
+    argument: &Expr,
+    callee_name: &str,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, StrValue, StrValue), Vec<Diagnostic>> {
+    let Some((root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_error_argument_diagnostic(callee_name));
+    };
+
+    let code = temporaries.next_str()?;
+    let message = temporaries.next_str()?;
+    let payload_context =
+        context.with_reserved_local_abi_words(temporaries.reserved_local_abi_words(context)?);
+    let Some(payload) =
+        lower_error_payload(argument, resolved, root_source, Some(&payload_context))?
+    else {
+        return Err(unsupported_error_argument_diagnostic(callee_name));
+    };
+
+    Ok((
+        payload.into_store_instructions(code, message),
+        StrValue::Location(code),
+        StrValue::Location(message),
+    ))
+}
+
+fn unsupported_error_argument_diagnostic(callee_name: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "E8006",
+        format!("IR v0 cannot lower error argument for function `{callee_name}`"),
+    )]
 }
 
 pub(in crate::ir::lower) fn lower_macos_syscall_primitive_call_to_location(
@@ -2397,6 +2439,7 @@ fn describe_type(ty: &Type) -> &'static str {
         Type::Slice { is_readwrite: true } => "&+[u8]",
         Type::Aggregate { .. } => "aggregate",
         Type::DirectAggregate { .. } => "aggregate",
+        Type::Error => "error",
         Type::Borrow {
             is_readwrite: false,
             inner,
@@ -2461,6 +2504,7 @@ fn describe_type(ty: &Type) -> &'static str {
             },
             Type::Void => "void!",
             Type::Never => "never!",
+            Type::Error => "error!",
             Type::Fallible(_) => "fallible",
         },
     }

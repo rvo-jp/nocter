@@ -317,12 +317,50 @@ pub fn function_parameter_abi_word_count_from_signature(
     resolved: &ResolveOutput,
 ) -> Result<usize, AbiTypeError> {
     let mut count = 0_usize;
-    for parameter in function_parameters_abi_from_signature(signature, resolved)? {
+    for parameter in &signature.parameters {
+        if type_expr_resolves_to_error(&parameter.ty, resolved, &mut HashSet::new()) {
+            count = count
+                .checked_add(4)
+                .ok_or(AbiTypeError::Layout(LayoutError::SizeOverflow))?;
+            continue;
+        }
+
+        let parameter = AbiParameter {
+            name: parameter.name.clone(),
+            value: abi_value_from_type_expr(&parameter.ty, resolved)?,
+        };
         count = count
             .checked_add(parameter.value.parameter_abi_word_count())
             .ok_or(AbiTypeError::Layout(LayoutError::SizeOverflow))?;
     }
     Ok(count)
+}
+
+fn type_expr_resolves_to_error(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> bool {
+    let TypeExpr::Reference(reference) = ty else {
+        return false;
+    };
+
+    if reference.name == "error" {
+        return true;
+    }
+
+    let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+        return false;
+    };
+    let Some(target) = &symbol.alias_target else {
+        return false;
+    };
+    if !resolving_names.insert(symbol.canonical_name.clone()) {
+        return false;
+    }
+    let result = type_expr_resolves_to_error(target, resolved, resolving_names);
+    resolving_names.remove(&symbol.canonical_name);
+    result
 }
 
 pub fn function_success_return_passing_from_signature(
@@ -1018,6 +1056,22 @@ func done(): Unit {
         let count = function_parameter_abi_word_count_from_signature(signature, &resolved).unwrap();
 
         assert_eq!(count, 3);
+    }
+
+    #[test]
+    fn counts_error_parameters_as_failure_payload_words() {
+        let (_ast, resolved) = parse_and_resolve(
+            r#"type Error = error
+
+func relay(error: Error, tag: i32): i32! {
+}
+"#,
+        );
+        let signature = resolved_function_signature(&resolved, "relay");
+
+        let count = function_parameter_abi_word_count_from_signature(signature, &resolved).unwrap();
+
+        assert_eq!(count, 5);
     }
 
     #[test]

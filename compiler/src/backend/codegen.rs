@@ -4,7 +4,8 @@ use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::ir::{
     CallTarget, DirectAggregateArgument, FallibleFailureMode, Function, I32Location, I32Value,
-    Instruction, IrModule, ScalarArgument, SliceValue, StrValue, Type, UsizeLocation, UsizeValue,
+    Instruction, IrModule, ScalarArgument, SliceValue, StrLocation, StrValue, Type, UsizeLocation,
+    UsizeValue,
 };
 use crate::target::arm64::{BranchCondition, Encoder, MoveWideShift, WReg, XReg};
 use std::collections::HashMap;
@@ -859,7 +860,7 @@ impl EntryEmitter {
                 }
             },
             Type::Void => {}
-            Type::Borrow { .. } | Type::Never | Type::Fallible(_) => {
+            Type::Borrow { .. } | Type::Error | Type::Never | Type::Fallible(_) => {
                 return Err(vec![Diagnostic::error(
                     "E9002",
                     "invalid fallible success payload type for codegen",
@@ -876,11 +877,87 @@ impl EntryEmitter {
         message: &StrValue,
         frame: Option<&FrameLayout>,
     ) -> Result<(), Vec<Diagnostic>> {
-        self.emit_str_value_to_x_pair(code, XReg::X1, XReg::X2)?;
-        self.emit_str_value_to_x_pair(message, XReg::X3, XReg::X4)?;
+        self.emit_failure_payload_to_registers(code, message)?;
         emit_mov_i32_to_w0(&mut self.encoder, 1);
         self.emit_return(frame);
         Ok(())
+    }
+
+    fn emit_failure_payload_to_registers(
+        &mut self,
+        code: &StrValue,
+        message: &StrValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let code_sources = self.str_value_source_registers(code)?;
+        let message_sources = self.str_value_source_registers(message)?;
+        let code_destinations = [XReg::X1, XReg::X2];
+        let message_destinations = [XReg::X3, XReg::X4];
+
+        let code_clobbers_message = registers_overlap(&code_destinations, &message_sources);
+        let message_clobbers_code = registers_overlap(&message_destinations, &code_sources);
+
+        match (code_clobbers_message, message_clobbers_code) {
+            (true, true) => {
+                let (temporary_ptr, temporary_len) =
+                    failure_payload_temporary_pair(&message_sources, &message_destinations)?;
+                self.emit_str_value_to_x_pair(code, temporary_ptr, temporary_len)?;
+                self.emit_str_value_to_x_pair(message, XReg::X3, XReg::X4)?;
+                self.emit_x_pair_to_x_pair(temporary_ptr, temporary_len, XReg::X1, XReg::X2)?;
+            }
+            (true, false) => {
+                self.emit_str_value_to_x_pair(message, XReg::X3, XReg::X4)?;
+                self.emit_str_value_to_x_pair(code, XReg::X1, XReg::X2)?;
+            }
+            _ => {
+                self.emit_str_value_to_x_pair(code, XReg::X1, XReg::X2)?;
+                self.emit_str_value_to_x_pair(message, XReg::X3, XReg::X4)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn str_value_source_registers(
+        &self,
+        value: &StrValue,
+    ) -> Result<[Option<XReg>; 2], Vec<Diagnostic>> {
+        match value {
+            StrValue::StaticBytes(_) => Ok([None, None]),
+            StrValue::Location(location) => self.str_location_source_registers(*location),
+        }
+    }
+
+    fn str_location_source_registers(
+        &self,
+        location: StrLocation,
+    ) -> Result<[Option<XReg>; 2], Vec<Diagnostic>> {
+        match location {
+            StrLocation::Return => Ok([Some(XReg::X0), Some(XReg::X1)]),
+            StrLocation::Parameter(index) => {
+                let len_index = checked_pair_len_index(index, "parameter failure payload")?;
+                Ok([
+                    self.parameter_word_source_register(index),
+                    self.parameter_word_source_register(len_index),
+                ])
+            }
+            StrLocation::Local(index) => {
+                let len_index = checked_pair_len_index(index, "local failure payload")?;
+                Ok([
+                    self.local_word_source_register(index),
+                    self.local_word_source_register(len_index),
+                ])
+            }
+        }
+    }
+
+    fn parameter_word_source_register(&self, index: usize) -> Option<XReg> {
+        if self.current_parameter_spill_offsets.contains_key(&index) {
+            return None;
+        }
+        XReg::argument(index)
+    }
+
+    fn local_word_source_register(&self, index: usize) -> Option<XReg> {
+        XReg::local(index)
     }
 
     fn emit_return_optional_none(&mut self, frame: Option<&FrameLayout>) {
@@ -2092,6 +2169,57 @@ fn direct_aggregate_layout_word_count(layout: crate::abi::ValueLayout) -> Option
     usize::try_from(layout.size.div_ceil(crate::abi::ABI_WORD_SIZE)).ok()
 }
 
+fn registers_overlap(destinations: &[XReg], sources: &[Option<XReg>; 2]) -> bool {
+    destinations
+        .iter()
+        .any(|destination| sources.iter().any(|source| source == &Some(*destination)))
+}
+
+fn failure_payload_temporary_pair(
+    protected_sources: &[Option<XReg>; 2],
+    protected_destinations: &[XReg; 2],
+) -> Result<(XReg, XReg), Vec<Diagnostic>> {
+    let candidates = [
+        XReg::X5,
+        XReg::X6,
+        XReg::X7,
+        XReg::X9,
+        XReg::X10,
+        XReg::X11,
+        XReg::X12,
+        XReg::X13,
+        XReg::X14,
+        XReg::X15,
+    ];
+    let selected = candidates
+        .into_iter()
+        .filter(|register| {
+            !protected_destinations.contains(register)
+                && !protected_sources
+                    .iter()
+                    .any(|source| source == &Some(*register))
+        })
+        .take(2)
+        .collect::<Vec<_>>();
+
+    let [ptr, len] = selected.as_slice() else {
+        return Err(vec![Diagnostic::error(
+            "E9005",
+            "codegen cannot allocate temporary registers for fallible failure payload",
+        )]);
+    };
+    Ok((*ptr, *len))
+}
+
+fn checked_pair_len_index(first_index: usize, subject: &str) -> Result<usize, Vec<Diagnostic>> {
+    first_index.checked_add(1).ok_or_else(|| {
+        vec![Diagnostic::error(
+            "E9005",
+            format!("{subject} length word index overflows"),
+        )]
+    })
+}
+
 fn return_passing_description(passing: Option<ReturnPassing>) -> &'static str {
     passing.map_or("unsupported return ABI", ReturnPassing::description)
 }
@@ -2111,6 +2239,7 @@ fn type_return_description(ty: &Type) -> String {
             format!("direct aggregate {}", layout_description(*layout))
         }
         Type::Borrow { .. } => "borrow".to_string(),
+        Type::Error => "error".to_string(),
         Type::Void => "void".to_string(),
         Type::Never => "never".to_string(),
         Type::Fallible(success) => format!("fallible {}", type_return_description(success)),

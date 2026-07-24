@@ -23447,6 +23447,64 @@ func dynamic(): &str {
 }
 
 #[test]
+fn lowers_fallible_entry_forwarded_error_parameter_failure() {
+    let ir = lower_text_with_std_error(
+        r#"use std/error.Error
+
+func main(): i32! {
+    return forward(Error.new("app.failed", "failed"))?
+}
+
+func forward(error: error): i32! {
+    return error
+}
+"#,
+    );
+
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "main")
+        .unwrap();
+    assert_eq!(
+        main.instructions,
+        vec![
+            Instruction::SetStr {
+                destination: StrLocation::Local(0),
+                value: StrValue::StaticBytes(b"app.failed".to_vec()),
+            },
+            Instruction::SetStr {
+                destination: StrLocation::Local(2),
+                value: StrValue::StaticBytes(b"failed".to_vec()),
+            },
+            Instruction::CallFallibleI32 {
+                destination: I32Location::Return,
+                target: CallTarget::same_file("forward"),
+                arguments: vec![
+                    ScalarArgument::Str(StrValue::Location(StrLocation::Local(0))),
+                    ScalarArgument::Str(StrValue::Location(StrLocation::Local(2))),
+                ],
+                failure_mode: FallibleFailureMode::Propagate,
+            },
+            Instruction::ReturnFallibleSuccess,
+        ]
+    );
+
+    let forward = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "forward")
+        .unwrap();
+    assert_eq!(
+        forward.instructions,
+        vec![Instruction::ReturnFallibleFailure {
+            code: StrValue::Location(StrLocation::Parameter(0)),
+            message: StrValue::Location(StrLocation::Parameter(2)),
+        }]
+    );
+}
+
+#[test]
 fn lowers_fallible_entry_return_dynamic_error_code_and_message() {
     let ir = lower_text_with_std_error(
         r#"use std/error.Error

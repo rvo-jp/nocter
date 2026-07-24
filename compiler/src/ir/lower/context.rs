@@ -31,6 +31,7 @@ pub(super) struct LoweringContext<'a> {
     bool_parameters: Vec<Option<String>>,
     str_parameters: Vec<Option<String>>,
     slice_parameters: Vec<Option<String>>,
+    error_parameters: Vec<Option<String>>,
     reserved_local_abi_words: usize,
     locals: Vec<LocalBinding>,
     aggregate_fields: HashMap<usize, Vec<AggregateField>>,
@@ -56,6 +57,7 @@ impl<'a> Clone for LoweringContext<'a> {
             bool_parameters: self.bool_parameters.clone(),
             str_parameters: self.str_parameters.clone(),
             slice_parameters: self.slice_parameters.clone(),
+            error_parameters: self.error_parameters.clone(),
             reserved_local_abi_words: self.reserved_local_abi_words,
             locals: self.locals.clone(),
             aggregate_fields: self.aggregate_fields.clone(),
@@ -74,37 +76,45 @@ pub(super) struct LoweringParameterSlots {
     pub(super) bool: Vec<Option<String>>,
     pub(super) str: Vec<Option<String>>,
     pub(super) slice: Vec<Option<String>>,
+    pub(super) error: Vec<Option<String>>,
     pub(super) aggregates: Vec<LoweringAggregateParameter>,
     pub(super) aggregate_borrows: Vec<AggregateBorrowParameter>,
 }
 
 impl LoweringParameterSlots {
     pub(super) fn push_i32_parameter(&mut self, name: String) {
-        self.push_abi_word(Some(name), None, None, None, None, None);
+        self.push_abi_word(Some(name), None, None, None, None, None, None);
     }
 
     pub(super) fn push_u8_parameter(&mut self, name: String) {
-        self.push_abi_word(None, Some(name), None, None, None, None);
+        self.push_abi_word(None, Some(name), None, None, None, None, None);
     }
 
     pub(super) fn push_usize_parameter(&mut self, name: String) {
-        self.push_abi_word(None, None, Some(name), None, None, None);
+        self.push_abi_word(None, None, Some(name), None, None, None, None);
     }
 
     pub(super) fn push_bool_parameter(&mut self, name: String) {
-        self.push_abi_word(None, None, None, Some(name), None, None);
+        self.push_abi_word(None, None, None, Some(name), None, None, None);
     }
 
     pub(super) fn push_str_parameter(&mut self, name: String) {
-        self.push_abi_word(None, None, None, None, Some(name), None);
+        self.push_abi_word(None, None, None, None, Some(name), None, None);
     }
 
     pub(super) fn push_slice_parameter(&mut self, name: String) {
-        self.push_abi_word(None, None, None, None, None, Some(name));
+        self.push_abi_word(None, None, None, None, None, Some(name), None);
+    }
+
+    pub(super) fn push_error_parameter(&mut self, name: String) {
+        self.push_abi_word(None, None, None, None, None, None, Some(name));
+        self.push_empty_abi_word();
+        self.push_empty_abi_word();
+        self.push_empty_abi_word();
     }
 
     pub(super) fn push_empty_abi_word(&mut self) {
-        self.push_abi_word(None, None, None, None, None, None);
+        self.push_abi_word(None, None, None, None, None, None, None);
     }
 
     pub(super) fn reserve_empty_abi_words(&mut self, words: usize) -> usize {
@@ -121,6 +131,7 @@ impl LoweringParameterSlots {
         debug_assert_eq!(self.i32.len(), self.bool.len());
         debug_assert_eq!(self.i32.len(), self.str.len());
         debug_assert_eq!(self.i32.len(), self.slice.len());
+        debug_assert_eq!(self.i32.len(), self.error.len());
         self.i32.len()
     }
 
@@ -136,6 +147,7 @@ impl LoweringParameterSlots {
         bool_name: Option<String>,
         str_name: Option<String>,
         slice_name: Option<String>,
+        error_name: Option<String>,
     ) {
         self.i32.push(i32_name);
         self.u8.push(u8_name);
@@ -143,6 +155,7 @@ impl LoweringParameterSlots {
         self.bool.push(bool_name);
         self.str.push(str_name);
         self.slice.push(slice_name);
+        self.error.push(error_name);
     }
 }
 
@@ -193,6 +206,7 @@ impl<'a> LoweringContext<'a> {
             bool_parameters: Vec::new(),
             str_parameters: Vec::new(),
             slice_parameters: Vec::new(),
+            error_parameters: Vec::new(),
             reserved_local_abi_words: 0,
             locals: Vec::new(),
             aggregate_fields: HashMap::new(),
@@ -246,6 +260,7 @@ impl<'a> LoweringContext<'a> {
             bool_parameters: parameters.bool,
             str_parameters: parameters.str,
             slice_parameters: parameters.slice,
+            error_parameters: parameters.error,
             reserved_local_abi_words: 0,
             locals,
             aggregate_fields,
@@ -722,6 +737,12 @@ impl<'a> LoweringContext<'a> {
             .iter()
             .find(|local| local.name == name && local.kind == LocalKind::Error)
             .map(|local| StrLocation::Local(local.index))
+            .or_else(|| {
+                self.error_parameters
+                    .iter()
+                    .position(|parameter| parameter.as_deref() == Some(name))
+                    .map(StrLocation::Parameter)
+            })
     }
 
     pub(super) fn error_message_location(&self, name: &str) -> Option<StrLocation> {
@@ -729,6 +750,12 @@ impl<'a> LoweringContext<'a> {
             .iter()
             .find(|local| local.name == name && local.kind == LocalKind::Error)
             .map(|local| StrLocation::Local(local.index + 2))
+            .or_else(|| {
+                self.error_parameters
+                    .iter()
+                    .position(|parameter| parameter.as_deref() == Some(name))
+                    .map(|index| StrLocation::Parameter(index + 2))
+            })
     }
 
     pub(super) fn aggregate_slot(&self, name: &str) -> Option<(usize, ValueLayout)> {
