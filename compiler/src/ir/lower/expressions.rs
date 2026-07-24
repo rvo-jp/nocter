@@ -2364,7 +2364,23 @@ pub(super) fn lower_bool_return_expression(
     diagnostic_code: &'static str,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     match expression {
-        Expr::Call(call) => lower_direct_tail_call(call, context),
+        Expr::Call(call) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            if let Some(value) =
+                lower_builtin_is_empty_call_to_value(call, context, &mut temporaries)
+            {
+                let lowered = value?;
+                let mut instructions = lowered.instructions;
+                instructions.push(Instruction::SetBool {
+                    destination: BoolLocation::Return,
+                    value: lowered.value,
+                });
+                instructions.push(Instruction::Return);
+                return Ok(instructions);
+            }
+
+            lower_direct_tail_call(call, context)
+        }
         Expr::Group(group) => {
             lower_bool_return_expression(&group.expression, context, diagnostic_code)
         }
@@ -2483,6 +2499,17 @@ pub(super) fn lower_bool_expression_to_location(
         }
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
+            if let Some(value) =
+                lower_builtin_is_empty_call_to_value(call, context, &mut temporaries)
+            {
+                let lowered = value?;
+                let mut instructions = lowered.instructions;
+                instructions.push(Instruction::SetBool {
+                    destination,
+                    value: lowered.value,
+                });
+                return Ok(instructions);
+            }
             lower_bool_normal_call(call, destination, context, &mut temporaries)
         }
         Expr::Propagate(propagation) => lower_bool_fallible_expression_to_location(
@@ -3256,6 +3283,10 @@ fn lower_bool_expression_to_value_with_temporaries(
             )
         }
         Expr::Call(call) => {
+            if let Some(value) = lower_builtin_is_empty_call_to_value(call, context, temporaries) {
+                return value;
+            }
+
             let temporary = temporaries.next_bool()?;
             Ok(LoweredBoolValue {
                 instructions: lower_bool_normal_call(call, temporary, context, temporaries)?,
@@ -3788,34 +3819,71 @@ fn lower_builtin_len_call_to_value(
     }
     byte_collection_expression_kind(&member.object, context)?;
 
+    Some(lower_byte_collection_len_expression_to_value(
+        &member.object,
+        context,
+        temporaries,
+    ))
+}
+
+fn lower_builtin_is_empty_call_to_value(
+    call: &CallExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Option<Result<LoweredBoolValue, Vec<Diagnostic>>> {
+    let Expr::Member(member) = call.callee.as_ref() else {
+        return None;
+    };
+    if member.member != "is_empty" || !call.arguments.is_empty() {
+        return None;
+    }
+    byte_collection_expression_kind(&member.object, context)?;
+
     Some(
-        lower_byte_collection_expression_to_value(&member.object, context, temporaries).map(
-            |source| match source {
-                LoweredByteCollectionValue::Str(source) => LoweredUsizeValue {
-                    instructions: source.instructions,
-                    value: match source.value {
-                        StrValue::StaticBytes(bytes) => UsizeValue::Const(bytes.len() as u64),
-                        StrValue::Location(location) => UsizeValue::StrLen(location),
-                    },
+        lower_byte_collection_len_expression_to_value(&member.object, context, temporaries).map(
+            |source| LoweredBoolValue {
+                instructions: source.instructions,
+                value: BoolValue::UsizeComparison {
+                    operator: I32ComparisonOperator::Equal,
+                    left: source.value,
+                    right: UsizeValue::Const(0),
                 },
-                LoweredByteCollectionValue::Slice(source) => {
-                    let value = match source.value {
-                        SliceValue::Location(location) => UsizeValue::SliceLen(location),
-                        SliceValue::StrBytes(StrValue::StaticBytes(bytes)) => {
-                            UsizeValue::Const(bytes.len() as u64)
-                        }
-                        SliceValue::StrBytes(StrValue::Location(location)) => {
-                            UsizeValue::StrLen(location)
-                        }
-                    };
-                    LoweredUsizeValue {
-                        instructions: source.instructions,
-                        value,
-                    }
-                }
             },
         ),
     )
+}
+
+fn lower_byte_collection_len_expression_to_value(
+    expression: &Expr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredUsizeValue, Vec<Diagnostic>> {
+    lower_byte_collection_expression_to_value(expression, context, temporaries).map(|source| {
+        match source {
+            LoweredByteCollectionValue::Str(source) => LoweredUsizeValue {
+                instructions: source.instructions,
+                value: match source.value {
+                    StrValue::StaticBytes(bytes) => UsizeValue::Const(bytes.len() as u64),
+                    StrValue::Location(location) => UsizeValue::StrLen(location),
+                },
+            },
+            LoweredByteCollectionValue::Slice(source) => {
+                let value = match source.value {
+                    SliceValue::Location(location) => UsizeValue::SliceLen(location),
+                    SliceValue::StrBytes(StrValue::StaticBytes(bytes)) => {
+                        UsizeValue::Const(bytes.len() as u64)
+                    }
+                    SliceValue::StrBytes(StrValue::Location(location)) => {
+                        UsizeValue::StrLen(location)
+                    }
+                };
+                LoweredUsizeValue {
+                    instructions: source.instructions,
+                    value,
+                }
+            }
+        }
+    })
 }
 
 pub(super) fn lower_bool_value(

@@ -6567,6 +6567,37 @@ func length(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, text
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_str_is_empty_exit_code() {
+    let project = TempProject::new("cli-run-str-is-empty");
+    let source = project.write_source(
+        "str_is_empty.nct",
+        r#"func main(): i32 {
+    if "".is_empty() == true && identity("Nocter").is_empty() == false {
+        return 42
+    } else {
+        return 1
+    }
+}
+
+func identity(text: &str): &str {
+    return text
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_split_register_stack_passed_str_argument_first_byte_exit_code() {
     let project = TempProject::new("cli-run-split-register-stack-str-arg-first-byte");
     let source = project.write_source(

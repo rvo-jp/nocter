@@ -165,7 +165,7 @@ Currently buildable:
 - nested scalar tail-call arguments such as `return outer(inner())`, for `i32`, `usize`, and `bool` parameter positions
 - static string literals and `&str` parameters as call arguments, passed as `ptr,len` ABI word pairs
 - same-file and loaded imported non-generic normal calls returning `&str` in annotated `&str` `let` initializers and as `&str` call or tail-call arguments, with results staged into two local ABI words
-- `.len()` on `&str`, string literals, `&[u8]`, `&+[u8]`, and supported call results in lowerable `usize` positions; byte indexing into those values in lowerable `u8` positions
+- `.len()` and `.is_empty()` on `&str`, string literals, `&[u8]`, `&+[u8]`, and supported call results in lowerable `usize` or `bool` positions; byte indexing into those values in lowerable `u8` positions
 - normal calls across scalar `i32`/`usize`/`bool`, local, readonly parameter, and readonly temporary scalar borrows, scalar aggregate field borrows from local slots, aggregate parameters, or supported aggregate call results, `&str`, slices, and supported aggregate arguments, including ABI words after `x7` passed through the caller stack argument area
 - same-file and loaded imported inherent associated function calls, plus method calls whose implicit borrow receiver is a local binding, aggregate field rooted at a binding, or supported readonly aggregate call temporary, within the current scalar/view/aggregate call subset
 - fully concrete generic function, associated function, and generic impl method calls through specialized call targets when type parameters are fixed by argument types, receiver type, binding or return context, catch return context, or parameter expectation
@@ -192,7 +192,7 @@ Currently not buildable even when it may be checkable:
 - general local storage beyond the listed scalar/view and aggregate slot paths, and compound assignment outside the `i32`/`usize` whole-binding and aggregate scalar field subset
 - general `if`/`while`/`loop`/range-`for` forms beyond the supported terminal and scalar/view plus branch/body-local non-terminal subsets, optional `if let`/`while let` outside the direct optional scalar/view call subset, non-`i32`/`usize` range `for`, payload-carrying enum pattern control flow, and pattern conditional values outside the scalar/view subset
 - unloaded imported function placeholders; reachable calls are rejected by the buildability preflight
-- general `&str`/view member operations beyond `.len()`, and iteration over views or bytes; direct byte indexing remains buildable in lowerable `u8` positions
+- general `&str`/view member operations beyond `.len()`/`.is_empty()`, and iteration over views or bytes; direct byte indexing remains buildable in lowerable `u8` positions
 - interpolated string construction
 - optional control-flow and storage forms beyond the supported force unwrap, `let ... else`, `??`, and direct optional scalar/view call `if let`/`while let` paths
 - source-level aggregate moves beyond the supported explicit `move name` argument/return/binding/assignment/struct-literal-field paths, broad branch/loop/catch scope-end drop insertion, arrays, general views beyond the listed slice ABI paths, raw pointer expressions beyond closed `std/ptr.from_addr` aggregate fields, method receiver places beyond local bindings, aggregate fields, and readonly aggregate call temporaries, interfaces, unspecialized or unsupported generic forms, and full ownership lowering

@@ -24,7 +24,7 @@ use super::environments::{
     environment_for_switch_arm, environment_for_while_let_binding,
 };
 use super::expressions::{
-    check_error_member_expression, collection_len_call_type, expression_type,
+    check_error_member_expression, collection_builtin_call_type, expression_type,
 };
 use super::fallible::check_force_unwrap_operand;
 use super::model::{TypeEnvironment, binding_kind_is_mutable};
@@ -748,7 +748,7 @@ fn check_expression_tree(
                 );
             }
             check_method_receiver_call(sources, expression, resolved, diagnostics, environment);
-            if collection_len_call_type(expression, resolved, environment).is_none()
+            if collection_builtin_call_type(expression, resolved, environment).is_none()
                 && !is_enum_variant_call(expression, resolved)
             {
                 check_unresolved_member_call(

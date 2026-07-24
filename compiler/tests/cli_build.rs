@@ -4631,6 +4631,36 @@ func identity(text: &str): &str {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn built_executable_runs_str_is_empty_call_results() {
+    let project = TempProject::new("cli-build-run-str-is-empty-call-results");
+    let source = project.write_source(
+        "str_is_empty_call_results.nct",
+        r#"func main(): i32 {
+    let empty = "".is_empty()
+    let nonempty = identity("Nocter").is_empty()
+    if empty && !nonempty {
+        return 42
+    } else {
+        return 1
+    }
+}
+
+func identity(text: &str): &str {
+    return text
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    let status = Command::new(&executable).status().unwrap();
+    assert_eq!(status.code(), Some(42));
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn built_executable_passes_direct_aggregate_argument_words() {
     let project = TempProject::new("cli-build-run-direct-aggregate-argument-words");
     let source = project.write_source(

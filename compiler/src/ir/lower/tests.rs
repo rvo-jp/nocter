@@ -16723,6 +16723,43 @@ func identity(bytes: &[u8]): &[u8] {
 }
 
 #[test]
+fn lowers_u8_slice_is_empty_condition() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func choose(bytes: &[u8]): i32 {
+    if bytes.is_empty() {
+        return 42
+    } else {
+        return 7
+    }
+}
+"#,
+        "choose",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "choose".to_string(),
+            target: crate::ir::CallTarget::same_file("choose".to_string()),
+            return_type: Type::I32,
+            instructions: vec![Instruction::If {
+                condition: BoolValue::UsizeComparison {
+                    operator: I32ComparisonOperator::Equal,
+                    left: usize_slice_len(SliceLocation::Parameter(0)),
+                    right: usize_const(0),
+                },
+                then_instructions: vec![set_return_i32(42), Instruction::Return],
+                else_instructions: vec![set_return_i32(7), Instruction::Return],
+            }],
+        }
+    );
+}
+
+#[test]
 fn lowers_str_parameter_len_return() {
     let function = lower_named_function(
         r#"func main(): i32 {
@@ -16869,6 +16906,93 @@ func identity(text: &str): &str {
                 Instruction::SetUsize {
                     destination: UsizeLocation::Return,
                     value: UsizeValue::StrLen(StrLocation::Local(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_str_call_result_is_empty_return() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func empty(text: &str): bool {
+    return identity(text).is_empty()
+}
+
+func identity(text: &str): &str {
+    return text
+}
+"#,
+        "empty",
+        function_signatures(vec![("identity", Type::Str, vec![Type::Str])]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "empty".to_string(),
+            target: crate::ir::CallTarget::same_file("empty".to_string()),
+            return_type: Type::Bool,
+            instructions: vec![
+                call_str(
+                    StrLocation::Local(0),
+                    "identity",
+                    vec![ScalarArgument::Str(StrValue::Location(
+                        StrLocation::Parameter(0),
+                    ))],
+                ),
+                Instruction::SetBool {
+                    destination: BoolLocation::Return,
+                    value: BoolValue::UsizeComparison {
+                        operator: I32ComparisonOperator::Equal,
+                        left: UsizeValue::StrLen(StrLocation::Local(0)),
+                        right: usize_const(0),
+                    },
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_str_is_empty_bool_comparison_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func empty(text: &str): bool {
+    return text.is_empty() == false
+}
+"#,
+        "empty",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "empty".to_string(),
+            target: crate::ir::CallTarget::same_file("empty".to_string()),
+            return_type: Type::Bool,
+            instructions: vec![
+                Instruction::SetBool {
+                    destination: BoolLocation::Return,
+                    value: BoolValue::BoolComparison {
+                        operator: BoolComparisonOperator::Equal,
+                        left: Box::new(BoolValue::UsizeComparison {
+                            operator: I32ComparisonOperator::Equal,
+                            left: UsizeValue::StrLen(StrLocation::Parameter(0)),
+                            right: usize_const(0),
+                        }),
+                        right: Box::new(BoolValue::Const(false)),
+                    },
                 },
                 Instruction::Return,
             ],

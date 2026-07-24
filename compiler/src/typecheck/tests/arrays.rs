@@ -132,6 +132,22 @@ func size(bytes: &[u8]): usize {
 }
 
 #[test]
+fn accepts_view_is_empty_call_return() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func empty(bytes: &[u8]): bool {
+    return bytes.is_empty()
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn accepts_readwrite_view_len_call_return() {
     let diagnostics = check_text(
         r#"func main(): i32 {
@@ -140,6 +156,22 @@ fn accepts_readwrite_view_len_call_return() {
 
 func size(bytes: &+[u8]): usize {
     return bytes.len()
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_readwrite_view_is_empty_call_return() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func empty(bytes: &+[u8]): bool {
+    return bytes.is_empty()
 }
 "#,
     );
@@ -172,6 +204,22 @@ fn accepts_str_len_call_return() {
 
 func size(): usize {
     return "hello".len()
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_str_is_empty_call_return() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func empty(): bool {
+    return "".is_empty()
 }
 "#,
     );

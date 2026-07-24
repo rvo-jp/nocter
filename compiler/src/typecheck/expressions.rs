@@ -99,8 +99,8 @@ pub(super) fn expression_type(
             .into_fallible_success_type(),
         Expr::Borrow(expression) => borrow_expression_type(expression, resolved, environment),
         Expr::Call(expression) => {
-            if collection_len_call_type(expression, resolved, environment).is_some() {
-                return Type::Primitive("usize".to_string());
+            if let Some(ty) = collection_builtin_call_type(expression, resolved, environment) {
+                return ty;
             }
 
             resolved_call_signature(resolved, expression, environment)
@@ -157,16 +157,48 @@ pub(super) fn collection_len_call_type(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> Option<Type> {
+    collection_method_call_type(
+        call,
+        resolved,
+        environment,
+        "len",
+        Type::Primitive("usize".to_string()),
+    )
+}
+
+pub(super) fn collection_builtin_call_type(
+    call: &crate::ast::CallExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<Type> {
+    collection_len_call_type(call, resolved, environment).or_else(|| {
+        collection_method_call_type(
+            call,
+            resolved,
+            environment,
+            "is_empty",
+            Type::Primitive("bool".to_string()),
+        )
+    })
+}
+
+fn collection_method_call_type(
+    call: &crate::ast::CallExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    method_name: &str,
+    return_type: Type,
+) -> Option<Type> {
     let Expr::Member(member) = call.callee.as_ref() else {
         return None;
     };
-    if member.member != "len" || !call.arguments.is_empty() {
+    if member.member != method_name || !call.arguments.is_empty() {
         return None;
     }
 
     let receiver_type = expression_type(&member.object, resolved, environment);
     if collection_has_len(&receiver_type) {
-        Some(Type::Primitive("usize".to_string()))
+        Some(return_type)
     } else {
         None
     }

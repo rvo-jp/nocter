@@ -10,7 +10,7 @@ use super::environments::{
     environment_for_parameters_in_impl, environment_for_pattern_conditional_arm,
     environment_for_switch_arm, environment_for_while_let_binding,
 };
-use super::expressions::{collection_len_call_type, expression_type};
+use super::expressions::{collection_builtin_call_type, expression_type};
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
 use super::variants::switch_statement_covers_all_variants;
 use crate::ast::{
@@ -1845,7 +1845,7 @@ fn check_expression_ownership(
                     resolved,
                 );
                 ownership.move_binding(sources, identifier, diagnostics);
-            } else if collection_len_call_type(expression, resolved, environment).is_some() {
+            } else if collection_builtin_call_type(expression, resolved, environment).is_some() {
                 if let Some(method) = method_member_for_call(expression) {
                     check_expression_ownership(
                         sources,

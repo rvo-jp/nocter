@@ -221,6 +221,7 @@ pub(in crate::ir::lower) fn expression_is_lowerable_bool_binding(
     match expression {
         Expr::BoolLiteral(_) => true,
         Expr::Identifier(identifier) => context.bool_location(&identifier.name).is_some(),
+        Expr::Call(call) => builtin_is_empty_call_is_lowerable(call, context),
         Expr::Member(_) => {
             expression_is_aggregate_field_kind(expression, AggregateFieldKind::Bool, context)
         }
@@ -389,7 +390,10 @@ fn expression_is_lowerable_bool_expression(expression: &Expr, context: &Lowering
     match expression {
         Expr::BoolLiteral(_) => true,
         Expr::Identifier(identifier) => context.bool_location(&identifier.name).is_some(),
-        Expr::Call(call) => direct_call_return_type(call, context) == Some(&Type::Bool),
+        Expr::Call(call) => {
+            builtin_is_empty_call_is_lowerable(call, context)
+                || direct_call_return_type(call, context) == Some(&Type::Bool)
+        }
         Expr::Member(_) => {
             expression_is_aggregate_field_kind(expression, AggregateFieldKind::Bool, context)
         }
@@ -586,6 +590,15 @@ fn builtin_len_call_is_lowerable(call: &CallExpr, context: &LoweringContext) -> 
         return false;
     };
     member.member == "len"
+        && call.arguments.is_empty()
+        && super::byte_collection_expression_kind(&member.object, context).is_some()
+}
+
+fn builtin_is_empty_call_is_lowerable(call: &CallExpr, context: &LoweringContext) -> bool {
+    let Expr::Member(member) = call.callee.as_ref() else {
+        return false;
+    };
+    member.member == "is_empty"
         && call.arguments.is_empty()
         && super::byte_collection_expression_kind(&member.object, context).is_some()
 }
