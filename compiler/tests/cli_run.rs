@@ -10636,6 +10636,55 @@ func dynamic(): &str {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_reports_fully_stack_backed_error_local_failure() {
+    let project = TempProject::new("cli-run-fully-stack-backed-error-local");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    let source = project.write_source(
+        "fully_stack_backed_error_local.nct",
+        r#"use std/error.Error
+
+func main(): i32! {
+    let a0 = 1
+    let a1 = 2
+    let a2 = 3
+    let a3 = 4
+    let a4 = 5
+    let a5 = 6
+    let a6 = 7
+    let value = Error.new(dynamic_code(), dynamic_message())
+    return value
+}
+
+func dynamic_code(): &str {
+    return "app.failed"
+}
+
+func dynamic_message(): &str {
+    return "failed"
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(output.stderr, b"app.failed: failed\n");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_reports_forwarded_error_parameter_failure() {
     let project = TempProject::new("cli-run-forwarded-error-parameter");
     project.write_nocter_home_file(
@@ -10660,6 +10709,88 @@ func main(): i32! {
 
 func forward(error: error): i32! {
     return error
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(output.stderr, b"app.failed: failed\n");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_reports_stack_passed_error_parameter_failure() {
+    let project = TempProject::new("cli-run-stack-passed-error-parameter");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    let source = project.write_source(
+        "stack_passed_error_parameter.nct",
+        r#"use std/error.Error
+
+func main(): i32! {
+    return forward(1, 2, 3, 4, 5, 6, 7, 8, Error.new("app.failed", "failed"))?
+}
+
+func forward(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, error: error): i32! {
+    return error
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(output.stderr, b"app.failed: failed\n");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_reports_split_stack_error_parameter_failure() {
+    let project = TempProject::new("cli-run-split-stack-error-parameter");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    let source = project.write_source(
+        "split_stack_error_parameter.nct",
+        r#"use std/error.Error
+
+func main(): i32! {
+    return forward(1, 2, 3, 4, 5, 6, Error.new(dynamic_code(), dynamic_message()))?
+}
+
+func forward(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, error: error): i32! {
+    return error
+}
+
+func dynamic_code(): &str {
+    return "app.failed"
+}
+
+func dynamic_message(): &str {
+    return "failed"
 }
 "#,
     );
