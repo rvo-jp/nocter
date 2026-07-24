@@ -562,13 +562,6 @@ pub(super) fn lower_nonterminal_if_let_statement(
     subject: &str,
     sources: &SourceMap,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
-    let Some(else_block) = &statement.else_block else {
-        return Err(attach_primary_span_if_absent(
-            unsupported_nonterminal_if_let_diagnostic(diagnostic_code, subject),
-            sources,
-            statement.span,
-        ));
-    };
     if expression_contains_explicit_aggregate_move(&statement.initializer, context) {
         return Err(attach_primary_span_if_absent(
             unsupported_control_flow_condition_move_diagnostic(diagnostic_code),
@@ -622,7 +615,7 @@ pub(super) fn lower_nonterminal_if_let_statement(
     };
 
     let failure_mode = lower_nonterminal_if_let_failure_mode(
-        else_block,
+        statement.else_block.as_ref(),
         context,
         loop_scope_mark,
         continue_instructions,
@@ -653,7 +646,7 @@ pub(super) fn lower_nonterminal_if_let_statement(
 }
 
 fn lower_nonterminal_if_let_failure_mode(
-    else_block: &Block,
+    else_block: Option<&Block>,
     context: &LoweringContext,
     loop_scope_mark: Option<usize>,
     continue_instructions: &[Instruction],
@@ -661,6 +654,12 @@ fn lower_nonterminal_if_let_failure_mode(
     subject: &str,
     sources: &SourceMap,
 ) -> Result<FallibleFailureMode, Vec<Diagnostic>> {
+    let Some(else_block) = else_block else {
+        return Ok(FallibleFailureMode::Recover {
+            instructions: Vec::new(),
+        });
+    };
+
     let mut else_context = context.clone();
     let local_mark = else_context.local_mark();
     let lowered = lower_nonterminal_loop_block_statements(
@@ -673,16 +672,15 @@ fn lower_nonterminal_if_let_failure_mode(
         subject,
         sources,
     )?;
+    let mut instructions = lowered.instructions;
     if !lowered.ends_execution {
-        return Err(attach_primary_span_if_absent(
-            unsupported_nonterminal_if_let_diagnostic(diagnostic_code, subject),
-            sources,
-            else_block.span,
-        ));
+        instructions.extend(lower_scope_end_drops_for_locals_since(
+            &mut else_context,
+            local_mark,
+        )?);
+        return Ok(FallibleFailureMode::Recover { instructions });
     }
-    Ok(FallibleFailureMode::Handle {
-        instructions: lowered.instructions,
-    })
+    Ok(FallibleFailureMode::Handle { instructions })
 }
 
 fn lower_nonterminal_optional_call_binding(
@@ -2330,7 +2328,7 @@ fn unsupported_nonterminal_if_let_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower non-terminal `if let` optional branches for {subject} when the initializer is a direct optional call returning i32, u8, usize, bool, &str, or &[u8], the initializer does not move aggregates, and the `else` branch exits with `return`, `never`, `break`, or `continue`"
+            "IR v0 can only lower non-terminal `if let` optional branches for {subject} when the initializer is a direct optional call returning i32, u8, usize, bool, &str, or &[u8] and the initializer does not move aggregates"
         ),
     )]
 }

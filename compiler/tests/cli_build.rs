@@ -2158,16 +2158,17 @@ func maybe_answer(): i32? {
 }
 
 #[test]
-fn build_command_reports_unsupported_optional_if_let_without_exiting_else() {
-    let project = TempProject::new("cli-build-unsupported-optional-if-let-without-exiting-else");
+fn build_command_lowers_optional_if_let_without_else() {
+    let project = TempProject::new("cli-build-optional-if-let-without-else");
     let source = project.write_source(
-        "unsupported_optional_if_let_without_exiting_else.nct",
+        "optional_if_let_without_else.nct",
         r#"func main(): i32 {
+    var result = 7
     if let value = maybe_answer() {
-        return value
+        result = value
     }
 
-    return 7
+    return result
 }
 
 func maybe_answer(): i32? {
@@ -2177,17 +2178,39 @@ func maybe_answer(): i32? {
     );
 
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
-    let stderr = text(&output.stderr);
+    let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected buildability diagnostic, got:\n{stderr}"
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_lowers_optional_if_let_fallthrough_else() {
+    let project = TempProject::new("cli-build-optional-if-let-fallthrough-else");
+    let source = project.write_source(
+        "optional_if_let_fallthrough_else.nct",
+        r#"func main(): i32 {
+    var result = 0
+    if let value = maybe_answer() {
+        result = value
+    } else {
+        result = 7
+    }
+
+    return result
+}
+
+func maybe_answer(): i32? {
+    return none
+}
+"#,
     );
-    assert!(
-        stderr.contains("Nocter v0 build cannot lower `if let` optional branches yet"),
-        "expected optional if-let diagnostic, got:\n{stderr}"
-    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]

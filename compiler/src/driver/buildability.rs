@@ -278,13 +278,6 @@ fn if_is_statement_is_buildable(
 }
 
 fn if_let_statement_is_buildable(statement: &IfLetStmt, resolved: &ResolveOutput) -> bool {
-    let Some(else_block) = &statement.else_block else {
-        return false;
-    };
-    if !block_guarantees_buildable_exit(else_block, resolved) {
-        return false;
-    }
-
     let Expr::Call(call) = unwrap_group_expr(&statement.initializer) else {
         return false;
     };
@@ -302,49 +295,6 @@ fn while_let_statement_is_buildable(statement: &WhileLetStmt, resolved: &Resolve
         optional_call_success_shape(call, resolved),
         Some(ReturnShape::DiscardableScalar | ReturnShape::DiscardableView)
     )
-}
-
-fn block_guarantees_buildable_exit(block: &Block, resolved: &ResolveOutput) -> bool {
-    block
-        .statements
-        .last()
-        .is_some_and(|statement| statement_guarantees_buildable_exit(statement, resolved))
-}
-
-fn statement_guarantees_buildable_exit(statement: &Stmt, resolved: &ResolveOutput) -> bool {
-    match statement {
-        Stmt::Return(_) | Stmt::Break(_) | Stmt::Continue(_) => true,
-        Stmt::Expression(statement) => {
-            let Expr::Call(call) = unwrap_group_expr(&statement.expression) else {
-                return false;
-            };
-            call_return_shape(call, resolved) == Some(ReturnShape::Never)
-        }
-        Stmt::If(statement) => statement.else_block.as_ref().is_some_and(|else_block| {
-            block_guarantees_buildable_exit(&statement.then_block, resolved)
-                && block_guarantees_buildable_exit(else_block, resolved)
-        }),
-        Stmt::IfIs(statement) => statement.else_block.as_ref().is_some_and(|else_block| {
-            block_guarantees_buildable_exit(&statement.then_block, resolved)
-                && block_guarantees_buildable_exit(else_block, resolved)
-        }),
-        Stmt::IfLet(statement) => statement.else_block.as_ref().is_some_and(|else_block| {
-            block_guarantees_buildable_exit(&statement.then_block, resolved)
-                && block_guarantees_buildable_exit(else_block, resolved)
-        }),
-        Stmt::Switch(statement) => {
-            statement
-                .else_arm
-                .as_ref()
-                .is_some_and(|else_arm| block_guarantees_buildable_exit(&else_arm.body, resolved))
-                && statement
-                    .arms
-                    .iter()
-                    .all(|arm| block_guarantees_buildable_exit(&arm.body, resolved))
-        }
-        Stmt::Loop(statement) => block_guarantees_buildable_exit(&statement.body, resolved),
-        _ => false,
-    }
 }
 
 fn switch_statement_is_buildable(
@@ -681,7 +631,7 @@ fn collect_statement_diagnostics(
                     sources,
                     statement.span,
                     "`if let` optional branches",
-                    "use a direct optional scalar/view call with an `else` branch that exits, or use `let ... else` in the current buildable optional subset",
+                    "use a direct optional scalar/view call initializer, or use `let ... else` when the none path must exit immediately",
                 ));
             }
             collect_expression_diagnostics(

@@ -8492,7 +8492,13 @@ fn run_command_returns_optional_if_let_exit_code() {
     let source = project.write_source(
         "optional_if_let.nct",
         r#"func main(): i32 {
-    return choose_success() + choose_none()
+    var result = choose_success()
+    result = result + choose_none()
+    result = result + choose_without_else_success()
+    result = result + choose_without_else_none()
+    result = result + choose_fallthrough_else_success()
+    result = result + choose_fallthrough_else_none()
+    return result
 }
 
 func choose_success(): i32 {
@@ -8511,8 +8517,56 @@ func choose_none(): i32 {
     }
 }
 
+func choose_without_else_success(): i32 {
+    var result = 1
+    if let value = maybe_answer_three() {
+        result = value
+    }
+
+    return result
+}
+
+func choose_without_else_none(): i32 {
+    var result = 4
+    if let value = maybe_answer_none() {
+        result = value
+    }
+
+    return result
+}
+
+func choose_fallthrough_else_success(): i32 {
+    var result = 0
+    if let value = maybe_answer_six() {
+        result = value
+    } else {
+        result = 7
+    }
+
+    return result
+}
+
+func choose_fallthrough_else_none(): i32 {
+    var result = 0
+    if let value = maybe_answer_none() {
+        result = value
+    } else {
+        result = 5
+    }
+
+    return result
+}
+
 func maybe_answer_success(): i32? {
     return 40
+}
+
+func maybe_answer_three(): i32? {
+    return 3
+}
+
+func maybe_answer_six(): i32? {
+    return 6
 }
 
 func maybe_answer_none(): i32? {
@@ -8525,7 +8579,7 @@ func maybe_answer_none(): i32? {
 
     assert_eq!(
         output.status.code(),
-        Some(42),
+        Some(60),
         "stdout:\n{}\nstderr:\n{}",
         text(&output.stdout),
         text(&output.stderr)
