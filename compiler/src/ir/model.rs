@@ -487,6 +487,10 @@ pub(crate) enum UsizeValue {
     U8ZeroExtend(Box<U8Value>),
     StrLen(StrLocation),
     SliceLen(SliceLocation),
+    SliceIndex {
+        source: SliceLocation,
+        index: Box<UsizeValue>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -298,6 +298,17 @@ pub(super) fn lower_usize_expression_to_location(
         Expr::Binary(binary) if is_usize_binary_operator(binary.operator) => {
             lower_usize_binary_expression_to_location(binary, destination, context)
         }
+        Expr::Index(index) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let lowered =
+                lower_usize_slice_index_expression_to_value(index, context, &mut temporaries)?;
+            let mut instructions = lowered.instructions;
+            instructions.push(Instruction::SetUsize {
+                destination,
+                value: lowered.value,
+            });
+            Ok(instructions)
+        }
         Expr::TypeConversion(conversion)
             if type_conversion_target_is(conversion, context, Type::Usize) =>
         {
@@ -1836,6 +1847,9 @@ fn lower_usize_expression_to_value(
                 )?,
                 value: UsizeValue::Location(temporary),
             })
+        }
+        Expr::Index(index) => {
+            lower_usize_slice_index_expression_to_value(index, context, temporaries)
         }
         Expr::TypeConversion(conversion)
             if type_conversion_target_is(conversion, context, Type::Usize) =>
@@ -3676,6 +3690,29 @@ fn lower_u8_index_expression_to_value(
     }
 }
 
+fn lower_usize_slice_index_expression_to_value(
+    expression: &IndexExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredUsizeValue, Vec<Diagnostic>> {
+    let source = lower_slice_expression_to_value(&expression.object, context, temporaries)?;
+    let index = lower_usize_expression_to_value(&expression.index, context, temporaries)?;
+    let mut instructions = source.instructions;
+    instructions.extend(index.instructions);
+
+    let SliceValue::Location(source) = source.value else {
+        return Err(unsupported_usize_expression_diagnostic());
+    };
+
+    Ok(LoweredUsizeValue {
+        instructions,
+        value: UsizeValue::SliceIndex {
+            source,
+            index: Box::new(index.value),
+        },
+    })
+}
+
 enum ByteCollectionKind {
     Str,
     Slice,
@@ -4100,7 +4137,7 @@ fn unsupported_u8_expression_diagnostic() -> Vec<Diagnostic> {
 fn unsupported_usize_expression_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8006",
-        "IR v0 can only lower usize literals, parameters, arithmetic or shift expressions, and direct tail calls",
+        "IR v0 can only lower usize literals, parameters, locals, arithmetic or shift expressions, slice indexing, len calls, and direct tail calls",
     )]
 }
 

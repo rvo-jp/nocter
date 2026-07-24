@@ -43,7 +43,7 @@ use sized::*;
 
 pub(crate) use facts::{
     FunctionCallSpecialization, MethodCallSpecialization, TypecheckFacts, TypecheckScalarViewKind,
-    collect_typecheck_facts,
+    TypecheckSliceElementKind, collect_typecheck_facts,
 };
 
 pub fn check(sources: &SourceMap, ast: &AstFile, resolved: &ResolveOutput) -> Vec<Diagnostic> {

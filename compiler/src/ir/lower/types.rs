@@ -144,6 +144,41 @@ pub(super) fn scalar_or_view_type_from_type_expr(
     }
 }
 
+pub(super) fn view_element_type_from_type_expr(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+) -> Option<Type> {
+    view_element_type_from_type_expr_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn view_element_type_from_type_expr_inner(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> Option<Type> {
+    match ty {
+        TypeExpr::Borrow(borrow) => {
+            let TypeExpr::View(view) = borrow.inner.as_ref() else {
+                return None;
+            };
+            scalar_or_view_type_from_type_expr(&view.element, resolved)
+        }
+        TypeExpr::Reference(reference) => {
+            let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
+            let Some(target) = &symbol.alias_target else {
+                return None;
+            };
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return None;
+            }
+            let result = view_element_type_from_type_expr_inner(target, resolved, resolving_names);
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
+        _ => None,
+    }
+}
+
 pub(super) fn aggregate_type_from_type_expr(
     ty: &TypeExpr,
     resolved: &ResolveOutput,

@@ -1952,6 +1952,22 @@ impl EntryEmitter {
                     }
                 }
             }
+            UsizeValue::SliceIndex { source, index } => {
+                if let SliceLocation::Parameter(parameter_index) = *source {
+                    self.emit_checked_parameter_usize_load(
+                        destination,
+                        parameter_index,
+                        index.as_ref(),
+                    )?;
+                    return Ok(());
+                }
+                if let SliceLocation::Local(local_index) = *source {
+                    self.emit_checked_local_usize_load(destination, local_index, index.as_ref())?;
+                    return Ok(());
+                }
+                let (ptr, len) = self.slice_location_registers(*source)?;
+                self.emit_checked_usize_load(destination, ptr, len, index.as_ref())?;
+            }
         }
 
         Ok(())
@@ -2025,7 +2041,7 @@ impl EntryEmitter {
     ) -> Result<(), Vec<Diagnostic>> {
         let len_word_index = ptr_word_index
             .checked_add(1)
-            .ok_or_else(|| byte_load_diagnostic("parameter length word index overflows"))?;
+            .ok_or_else(|| indexed_load_diagnostic("parameter length word index overflows"))?;
         self.emit_usize_value_to_x(index, XReg::X16)?;
         self.emit_parameter_word_to_x(len_word_index, XReg::X17)?;
         self.emit_index_in_bounds_check(XReg::X16, XReg::X17)?;
@@ -2043,7 +2059,7 @@ impl EntryEmitter {
     ) -> Result<(), Vec<Diagnostic>> {
         let len_word_index = ptr_word_index
             .checked_add(1)
-            .ok_or_else(|| byte_load_diagnostic("local length word index overflows"))?;
+            .ok_or_else(|| indexed_load_diagnostic("local length word index overflows"))?;
         self.emit_usize_value_to_x(index, XReg::X16)?;
         self.emit_local_word_to_x(len_word_index, XReg::X17)?;
         self.emit_index_in_bounds_check(XReg::X16, XReg::X17)?;
@@ -2064,6 +2080,59 @@ impl EntryEmitter {
         self.emit_index_in_bounds_check(XReg::X16, len)?;
         self.encoder.emit_ldrb_w_reg(destination, ptr, XReg::X16);
         Ok(())
+    }
+
+    fn emit_checked_parameter_usize_load(
+        &mut self,
+        destination: XReg,
+        ptr_word_index: usize,
+        index: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let len_word_index = ptr_word_index
+            .checked_add(1)
+            .ok_or_else(|| indexed_load_diagnostic("parameter length word index overflows"))?;
+        self.emit_usize_value_to_x(index, XReg::X16)?;
+        self.emit_parameter_word_to_x(len_word_index, XReg::X17)?;
+        self.emit_index_in_bounds_check(XReg::X16, XReg::X17)?;
+        self.emit_parameter_word_to_x(ptr_word_index, XReg::X17)?;
+        self.emit_indexed_usize_load(destination, XReg::X17);
+        Ok(())
+    }
+
+    fn emit_checked_local_usize_load(
+        &mut self,
+        destination: XReg,
+        ptr_word_index: usize,
+        index: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let len_word_index = ptr_word_index
+            .checked_add(1)
+            .ok_or_else(|| indexed_load_diagnostic("local length word index overflows"))?;
+        self.emit_usize_value_to_x(index, XReg::X16)?;
+        self.emit_local_word_to_x(len_word_index, XReg::X17)?;
+        self.emit_index_in_bounds_check(XReg::X16, XReg::X17)?;
+        self.emit_local_word_to_x(ptr_word_index, XReg::X17)?;
+        self.emit_indexed_usize_load(destination, XReg::X17);
+        Ok(())
+    }
+
+    fn emit_checked_usize_load(
+        &mut self,
+        destination: XReg,
+        ptr: XReg,
+        len: XReg,
+        index: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_usize_value_to_x(index, XReg::X16)?;
+        self.emit_index_in_bounds_check(XReg::X16, len)?;
+        self.emit_indexed_usize_load(destination, ptr);
+        Ok(())
+    }
+
+    fn emit_indexed_usize_load(&mut self, destination: XReg, ptr: XReg) {
+        self.encoder.emit_lsl_x_imm(XReg::X16, XReg::X16, 3);
+        self.encoder.emit_adds_x(XReg::X17, ptr, XReg::X16);
+        self.encoder.emit_ldr_x_imm(destination, XReg::X17, 0);
     }
 
     fn emit_index_in_bounds_check(
@@ -2428,10 +2497,10 @@ fn aggregate_load_diagnostic(reason: &str) -> Vec<Diagnostic> {
     )]
 }
 
-fn byte_load_diagnostic(reason: &str) -> Vec<Diagnostic> {
+fn indexed_load_diagnostic(reason: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E9005",
-        format!("byte load is invalid: {reason}"),
+        format!("indexed load is invalid: {reason}"),
     )]
 }
 

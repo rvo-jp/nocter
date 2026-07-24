@@ -16697,6 +16697,126 @@ func size(values: &[usize]): usize {
 }
 
 #[test]
+fn lowers_usize_slice_index_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func first(values: &[usize]): usize {
+    return values[0]
+}
+"#,
+        "first",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "first".to_string(),
+            target: crate::ir::CallTarget::same_file("first".to_string()),
+            return_type: Type::Usize,
+            instructions: vec![
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: usize_slice_index(SliceLocation::Parameter(0), usize_const(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_usize_slice_call_result_index_return() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func first(values: &[usize]): usize {
+    return identity(values)[0]
+}
+
+func identity(values: &[usize]): &[usize] {
+    return values
+}
+"#,
+        "first",
+        function_signatures(vec![(
+            "identity",
+            Type::Slice {
+                is_readwrite: false,
+            },
+            vec![Type::Slice {
+                is_readwrite: false,
+            }],
+        )]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "first".to_string(),
+            target: crate::ir::CallTarget::same_file("first".to_string()),
+            return_type: Type::Usize,
+            instructions: vec![
+                call_slice(
+                    SliceLocation::Local(0),
+                    "identity",
+                    vec![ScalarArgument::Slice(SliceValue::Location(
+                        SliceLocation::Parameter(0),
+                    ))],
+                ),
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value: usize_slice_index(SliceLocation::Local(0), usize_const(0)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_usize_slice_index_comparison_condition() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func choose(values: &[usize]): i32 {
+    if values[0] == 42 {
+        return 1
+    } else {
+        return 2
+    }
+}
+"#,
+        "choose",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "choose".to_string(),
+            target: crate::ir::CallTarget::same_file("choose".to_string()),
+            return_type: Type::I32,
+            instructions: vec![Instruction::If {
+                condition: BoolValue::UsizeComparison {
+                    operator: I32ComparisonOperator::Equal,
+                    left: usize_slice_index(SliceLocation::Parameter(0), usize_const(0)),
+                    right: usize_const(42),
+                },
+                then_instructions: vec![set_return_i32(1), Instruction::Return],
+                else_instructions: vec![set_return_i32(2), Instruction::Return],
+            }],
+        }
+    );
+}
+
+#[test]
 fn lowers_u8_slice_len_comparison_condition() {
     let function = lower_named_function(
         r#"func main(): i32 {
@@ -26398,6 +26518,13 @@ fn usize_const(value: u64) -> UsizeValue {
 
 fn usize_slice_len(location: SliceLocation) -> UsizeValue {
     UsizeValue::SliceLen(location)
+}
+
+fn usize_slice_index(location: SliceLocation, index: UsizeValue) -> UsizeValue {
+    UsizeValue::SliceIndex {
+        source: location,
+        index: Box::new(index),
+    }
 }
 
 fn usize_param(index: usize) -> UsizeValue {

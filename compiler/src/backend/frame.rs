@@ -1514,6 +1514,10 @@ fn record_usize_value_parameter_spill_requests(value: &UsizeValue, requests: &mu
         UsizeValue::U8ZeroExtend(value) => {
             record_u8_value_parameter_spill_requests(value, requests);
         }
+        UsizeValue::SliceIndex { source, index } => {
+            record_slice_location_parameter_pair_spill_requests(*source, requests);
+            record_usize_value_parameter_spill_requests(index, requests);
+        }
         UsizeValue::StrLen(StrLocation::Parameter(index))
         | UsizeValue::SliceLen(SliceLocation::Parameter(index)) => {
             if let Some(len_index) = index.checked_add(1) {
@@ -2203,6 +2207,10 @@ fn record_usize_value(value: &UsizeValue, highest_local_index: &mut Option<usize
         UsizeValue::U8ZeroExtend(value) => record_u8_value(value, highest_local_index),
         UsizeValue::StrLen(location) => record_str_location(*location, highest_local_index),
         UsizeValue::SliceLen(location) => record_slice_location(*location, highest_local_index),
+        UsizeValue::SliceIndex { source, index } => {
+            record_slice_location(*source, highest_local_index);
+            record_usize_value(index, highest_local_index);
+        }
     }
 }
 

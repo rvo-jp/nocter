@@ -243,7 +243,14 @@ pub(crate) enum TypecheckScalarViewKind {
     Usize,
     Bool,
     Str,
-    Slice,
+    Slice(TypecheckSliceElementKind),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TypecheckSliceElementKind {
+    U8,
+    Usize,
+    Other,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1771,8 +1778,18 @@ fn scalar_view_kind(ty: &Type) -> Option<TypecheckScalarViewKind> {
         Type::Primitive(name) if name == "usize" => Some(TypecheckScalarViewKind::Usize),
         Type::Primitive(name) if name == "bool" => Some(TypecheckScalarViewKind::Bool),
         Type::Str => Some(TypecheckScalarViewKind::Str),
-        Type::View { .. } => Some(TypecheckScalarViewKind::Slice),
+        Type::View { element, .. } => {
+            Some(TypecheckScalarViewKind::Slice(slice_element_kind(element)))
+        }
         _ => None,
+    }
+}
+
+fn slice_element_kind(element: &Type) -> TypecheckSliceElementKind {
+    match element {
+        Type::Primitive(name) if name == "u8" => TypecheckSliceElementKind::U8,
+        Type::Primitive(name) if name == "usize" => TypecheckSliceElementKind::Usize,
+        _ => TypecheckSliceElementKind::Other,
     }
 }
 

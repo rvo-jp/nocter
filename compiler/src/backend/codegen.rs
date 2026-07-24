@@ -3201,6 +3201,49 @@ mod tests {
     }
 
     #[test]
+    fn generates_slice_index_usize_load_from_hand_built_ir() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "first".to_string(),
+                target: crate::ir::CallTarget::same_file("first".to_string()),
+                return_type: Type::Usize,
+                instructions: vec![
+                    Instruction::SetUsize {
+                        destination: UsizeLocation::Return,
+                        value: UsizeValue::SliceIndex {
+                            source: SliceLocation::Parameter(0),
+                            index: Box::new(UsizeValue::Const(1)),
+                        },
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module).unwrap();
+
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+        assert!(contains_instruction(
+            &code.text,
+            encoded_lsl_x_imm(XReg::X16, XReg::X16, 3),
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_adds_x(XReg::X17, XReg::X17, XReg::X16),
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_x_imm(XReg::X0, XReg::X17, 0),
+        ));
+    }
+
+    #[test]
     fn generates_stack_passed_slice_index_byte_load_from_hand_built_ir() {
         let module = IrModule::new(vec![
             Function {
@@ -6464,6 +6507,12 @@ mod tests {
     fn encoded_lsl_x_imm(destination: XReg, source: XReg, shift: u32) -> [u8; 4] {
         let mut encoder = Encoder::new();
         encoder.emit_lsl_x_imm(destination, source, shift);
+        encoded_instruction(encoder)
+    }
+
+    fn encoded_adds_x(destination: XReg, left: XReg, right: XReg) -> [u8; 4] {
+        let mut encoder = Encoder::new();
+        encoder.emit_adds_x(destination, left, right);
         encoded_instruction(encoder)
     }
 

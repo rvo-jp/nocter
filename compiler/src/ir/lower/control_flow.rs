@@ -32,6 +32,7 @@ use crate::ir::{
     StrLocation, Type, U8Location, UsizeLocation, UsizeValue,
 };
 use crate::source::{ByteSpan, SourceMap};
+use crate::typecheck::TypecheckSliceElementKind;
 use std::collections::HashSet;
 
 type ReturnLowerer = fn(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec<Diagnostic>>;
@@ -763,7 +764,7 @@ fn lower_nonterminal_optional_call_binding(
                 &mut temporaries,
                 failure_mode,
             )?;
-            context.define_slice_local(binding_name.to_string());
+            context.define_slice_local(binding_name.to_string(), TypecheckSliceElementKind::Other);
             Ok(instructions)
         }
         _ => Err(unsupported_nonterminal_if_let_diagnostic(

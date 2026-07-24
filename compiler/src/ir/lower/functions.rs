@@ -39,6 +39,7 @@ use super::expressions::{
 use super::types::{
     borrow_inner_type, borrow_type_from_type_expr, parameter_type_from_type_expr,
     return_type_expr_is_top_level_optional, return_type_from_type_expr,
+    view_element_type_from_type_expr,
 };
 use crate::abi::{
     AbiType, AbiValue, ValueClassification, ValueLayout, abi_value_from_type_expr,
@@ -62,7 +63,7 @@ use crate::resolve::{
     FunctionSignature as ResolvedFunctionSignature, ParameterSignature, ResolveOutput,
 };
 use crate::source::{ByteSpan, SourceId, SourceMap};
-use crate::typecheck::TypecheckFacts;
+use crate::typecheck::{TypecheckFacts, TypecheckSliceElementKind};
 use std::collections::HashMap;
 
 pub(super) fn lower_function(
@@ -397,8 +398,8 @@ fn lower_scalar_parameters(
                 slots.push_str_parameter(parameter.name.clone());
                 slots.push_empty_abi_word();
             }
-            ScalarParameterKind::Slice => {
-                slots.push_slice_parameter(parameter.name.clone());
+            ScalarParameterKind::Slice(element_kind) => {
+                slots.push_slice_parameter(parameter.name.clone(), element_kind);
                 slots.push_empty_abi_word();
             }
             ScalarParameterKind::Error => {
@@ -536,7 +537,7 @@ enum ScalarParameterKind {
     Usize,
     Bool,
     Str,
-    Slice,
+    Slice(TypecheckSliceElementKind),
     Error,
     Borrow,
     BorrowAggregate {
@@ -567,7 +568,11 @@ fn lower_scalar_parameter_kind(
         Some(Type::Usize) => return Ok(ScalarParameterKind::Usize),
         Some(Type::Bool) => return Ok(ScalarParameterKind::Bool),
         Some(Type::Str) => return Ok(ScalarParameterKind::Str),
-        Some(Type::Slice { .. }) => return Ok(ScalarParameterKind::Slice),
+        Some(Type::Slice { .. }) => {
+            return Ok(ScalarParameterKind::Slice(
+                slice_element_kind_from_type_expr(&parameter.ty, resolved),
+            ));
+        }
         Some(Type::Error) => return Ok(ScalarParameterKind::Error),
         _ => {}
     }
@@ -582,6 +587,17 @@ fn lower_scalar_parameter_kind(
             lower_aggregate_parameter_kind(parameter, function_name, root_source, resolved, &value)
         }
         _ => Err(unsupported_parameter_type_diagnostic(function_name)),
+    }
+}
+
+fn slice_element_kind_from_type_expr(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+) -> TypecheckSliceElementKind {
+    match view_element_type_from_type_expr(ty, resolved) {
+        Some(Type::U8) => TypecheckSliceElementKind::U8,
+        Some(Type::Usize) => TypecheckSliceElementKind::Usize,
+        _ => TypecheckSliceElementKind::Other,
     }
 }
 

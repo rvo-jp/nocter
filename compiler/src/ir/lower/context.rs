@@ -7,7 +7,7 @@ use crate::ir::{
 };
 use crate::resolve::{ResolveOutput, SymbolKind, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceId};
-use crate::typecheck::{TypecheckFacts, TypecheckScalarViewKind};
+use crate::typecheck::{TypecheckFacts, TypecheckScalarViewKind, TypecheckSliceElementKind};
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
@@ -30,7 +30,7 @@ pub(super) struct LoweringContext<'a> {
     usize_parameters: Vec<Option<String>>,
     bool_parameters: Vec<Option<String>>,
     str_parameters: Vec<Option<String>>,
-    slice_parameters: Vec<Option<String>>,
+    slice_parameters: Vec<Option<SliceBinding>>,
     error_parameters: Vec<Option<String>>,
     reserved_local_abi_words: usize,
     locals: Vec<LocalBinding>,
@@ -75,7 +75,7 @@ pub(super) struct LoweringParameterSlots {
     pub(super) usize: Vec<Option<String>>,
     pub(super) bool: Vec<Option<String>>,
     pub(super) str: Vec<Option<String>>,
-    pub(super) slice: Vec<Option<String>>,
+    pub(super) slice: Vec<Option<SliceBinding>>,
     pub(super) error: Vec<Option<String>>,
     pub(super) aggregates: Vec<LoweringAggregateParameter>,
     pub(super) aggregate_borrows: Vec<AggregateBorrowParameter>,
@@ -102,8 +102,20 @@ impl LoweringParameterSlots {
         self.push_abi_word(None, None, None, None, Some(name), None, None);
     }
 
-    pub(super) fn push_slice_parameter(&mut self, name: String) {
-        self.push_abi_word(None, None, None, None, None, Some(name), None);
+    pub(super) fn push_slice_parameter(
+        &mut self,
+        name: String,
+        element_kind: TypecheckSliceElementKind,
+    ) {
+        self.push_abi_word(
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(SliceBinding { name, element_kind }),
+            None,
+        );
     }
 
     pub(super) fn push_error_parameter(&mut self, name: String) {
@@ -146,7 +158,7 @@ impl LoweringParameterSlots {
         usize_name: Option<String>,
         bool_name: Option<String>,
         str_name: Option<String>,
-        slice_name: Option<String>,
+        slice_name: Option<SliceBinding>,
         error_name: Option<String>,
     ) {
         self.i32.push(i32_name);
@@ -598,8 +610,12 @@ impl<'a> LoweringContext<'a> {
         self.define_local(name, LocalKind::Str);
     }
 
-    pub(super) fn define_slice_local(&mut self, name: String) {
-        self.define_local(name, LocalKind::Slice);
+    pub(super) fn define_slice_local(
+        &mut self,
+        name: String,
+        element_kind: TypecheckSliceElementKind,
+    ) {
+        self.define_local(name, LocalKind::Slice(element_kind));
     }
 
     pub(super) fn rename_local(&mut self, old_name: &str, new_name: String) -> bool {
@@ -722,13 +738,34 @@ impl<'a> LoweringContext<'a> {
     pub(super) fn slice_location(&self, name: &str) -> Option<SliceLocation> {
         self.locals
             .iter()
-            .find(|local| local.name == name && local.kind == LocalKind::Slice)
+            .find(|local| local.name == name && matches!(local.kind, LocalKind::Slice(_)))
             .map(|local| SliceLocation::Local(local.index))
             .or_else(|| {
                 self.slice_parameters
                     .iter()
-                    .position(|parameter| parameter.as_deref() == Some(name))
+                    .position(|parameter| {
+                        parameter
+                            .as_ref()
+                            .is_some_and(|parameter| parameter.name == name)
+                    })
                     .map(SliceLocation::Parameter)
+            })
+    }
+
+    pub(super) fn slice_element_kind(&self, name: &str) -> Option<TypecheckSliceElementKind> {
+        self.locals
+            .iter()
+            .find_map(|local| match &local.kind {
+                LocalKind::Slice(element_kind) if local.name == name => Some(*element_kind),
+                _ => None,
+            })
+            .or_else(|| {
+                self.slice_parameters
+                    .iter()
+                    .find_map(|parameter| match parameter {
+                        Some(parameter) if parameter.name == name => Some(parameter.element_kind),
+                        _ => None,
+                    })
             })
     }
 
@@ -1176,6 +1213,12 @@ struct LocalBinding {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct SliceBinding {
+    pub(super) name: String,
+    pub(super) element_kind: TypecheckSliceElementKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct AggregateLocal {
     pub(super) slot_index: usize,
     pub(super) layout: ValueLayout,
@@ -1236,7 +1279,7 @@ enum LocalKind {
     Usize,
     Bool,
     Str,
-    Slice,
+    Slice(TypecheckSliceElementKind),
     Error,
     Aggregate {
         layout: ValueLayout,
@@ -1251,7 +1294,7 @@ impl LocalKind {
     fn abi_word_count(&self) -> usize {
         match self {
             Self::I32 | Self::U8 | Self::Usize | Self::Bool => 1,
-            Self::Str | Self::Slice => 2,
+            Self::Str | Self::Slice(_) => 2,
             Self::Error => 4,
             Self::Aggregate { .. } => 0,
         }

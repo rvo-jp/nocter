@@ -3,13 +3,14 @@ use super::super::context::{AggregateFieldKind, LoweringContext};
 use super::super::literals::{
     lower_i32_literal, lower_str_literal, lower_u8_literal, lower_usize_literal,
 };
-use super::super::types::scalar_or_view_type_from_type_expr;
+use super::super::types::{scalar_or_view_type_from_type_expr, view_element_type_from_type_expr};
 use super::aggregate_call_field;
 use crate::ast::{
     BinaryExpr, BinaryOperator, CallExpr, Expr, InterpolatedStringPart, TypeConversionExpr,
     UnaryOperator,
 };
 use crate::ir::Type;
+use crate::typecheck::TypecheckSliceElementKind;
 
 pub(in crate::ir::lower) fn short_circuit_bool_expression_needs_branch(
     binary: &BinaryExpr,
@@ -543,17 +544,48 @@ fn expression_is_lowerable_byte_index_object(expression: &Expr, context: &Loweri
         Expr::StringLiteral(_) => true,
         Expr::Identifier(identifier) => {
             context.str_location(&identifier.name).is_some()
-                || context.slice_location(&identifier.name).is_some()
+                || identifier_slice_element_kind(identifier, context)
+                    == Some(TypecheckSliceElementKind::U8)
         }
         Expr::Call(call) => {
-            matches!(
-                direct_call_return_type(call, context),
-                Some(Type::Str | Type::Slice { .. })
-            )
+            direct_call_return_type(call, context) == Some(&Type::Str)
+                || call_return_slice_element_type(call, context) == Some(Type::U8)
         }
         Expr::Group(group) => expression_is_lowerable_byte_index_object(&group.expression, context),
         _ => false,
     }
+}
+
+fn expression_is_lowerable_slice_index_object(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    match expression {
+        Expr::Identifier(identifier) => {
+            identifier_slice_element_kind(identifier, context)
+                == Some(TypecheckSliceElementKind::Usize)
+        }
+        Expr::Call(call) => call_return_slice_element_type(call, context) == Some(Type::Usize),
+        Expr::Group(group) => {
+            expression_is_lowerable_slice_index_object(&group.expression, context)
+        }
+        _ => false,
+    }
+}
+
+fn identifier_slice_element_kind(
+    identifier: &crate::ast::IdentifierExpr,
+    context: &LoweringContext,
+) -> Option<TypecheckSliceElementKind> {
+    context.slice_element_kind(&identifier.name)
+}
+
+fn call_return_slice_element_type(call: &CallExpr, context: &LoweringContext) -> Option<Type> {
+    let (_root_source, resolved) = context.resolved_calls()?;
+    view_element_type_from_type_expr(
+        &resolved.call_signature_for_call(call)?.return_type,
+        resolved,
+    )
 }
 
 fn type_conversion_target_is(
@@ -576,6 +608,10 @@ fn expression_is_lowerable_usize_expression(expression: &Expr, context: &Lowerin
         Expr::Binary(binary) if is_usize_binary_operator(binary.operator) => {
             expression_is_lowerable_usize_expression(&binary.left, context)
                 && expression_is_lowerable_usize_expression(&binary.right, context)
+        }
+        Expr::Index(index) => {
+            expression_is_lowerable_slice_index_object(&index.object, context)
+                && expression_is_lowerable_usize_expression(&index.index, context)
         }
         Expr::Member(_) => {
             expression_is_aggregate_field_kind(expression, AggregateFieldKind::Usize, context)

@@ -493,6 +493,39 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn distributed_std_vec_empty_non_byte_slice_index_branch_runs() {
+    let project = TempProject::new("distributed-home-vec-empty-non-byte-slice-index-run");
+    let source = project.write_source(
+        "vec_empty_non_byte_slice_index.nct",
+        r#"use std/vec.Vec
+
+func main(): usize {
+    let values: Vec<usize> = Vec.empty()
+    let view = values.view()
+    if view.len() == 0 {
+        return 42
+    } else {
+        return view[0]
+    }
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn distributed_std_vec_empty_drop_runs() {
     let project = TempProject::new("distributed-home-vec-empty-drop-run");
     let source = project.write_source(
