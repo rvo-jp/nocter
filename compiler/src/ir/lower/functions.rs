@@ -49,6 +49,7 @@ use crate::ast::{
     FallibleType, FunctionDecl, GenericType, IdentifierExpr, IfIsStmt, IfStmt, MemberExpr,
     MethodDecl, OptionalType, Parameter, PointerType, ReturnStmt, Stmt, StructLiteralExpr,
     SwitchArm, SwitchStmt, TypeExpr, TypeReference, UnaryOperator, ViewType,
+    substitute_type_expr_parameters,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -62,6 +63,7 @@ use crate::resolve::{
 };
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::TypecheckFacts;
+use std::collections::HashMap;
 
 pub(super) fn lower_function(
     function: &FunctionDecl,
@@ -222,6 +224,7 @@ pub(super) fn lower_drop_function(
 pub(super) fn lower_method_function(
     method: &MethodDecl,
     self_ty: &TypeExpr,
+    substitutions: &HashMap<String, TypeExpr>,
     name: String,
     sources: &SourceMap,
     target: CallTarget,
@@ -243,8 +246,11 @@ pub(super) fn lower_method_function(
         ));
     };
 
-    let parameters = method_parameters(method, self_ty);
-    let return_type_expr = type_expr_with_self_type(&method.return_type, self_ty);
+    let parameters = method_parameters(method, self_ty, substitutions);
+    let return_type_expr = type_expr_with_impl_substitutions(
+        &type_expr_with_self_type(&method.return_type, self_ty),
+        substitutions,
+    );
     let parameter_slots =
         lower_scalar_parameters(&name, &parameters, root_source, resolved, sources).map_err(
             |diagnostics| {
@@ -303,16 +309,41 @@ pub(super) fn lower_method_function(
     })
 }
 
-fn method_parameters(method: &MethodDecl, self_ty: &TypeExpr) -> Vec<Parameter> {
+fn method_parameters(
+    method: &MethodDecl,
+    self_ty: &TypeExpr,
+    substitutions: &HashMap<String, TypeExpr>,
+) -> Vec<Parameter> {
     let mut parameters = Vec::with_capacity(method.parameters.parameters.len() + 1);
     parameters.push(Parameter {
         span: method.receiver.span,
         name: method.receiver.name.clone(),
         name_span: method.receiver.name_span,
-        ty: type_expr_with_self_type(&method.receiver.ty, self_ty),
+        ty: type_expr_with_impl_substitutions(
+            &type_expr_with_self_type(&method.receiver.ty, self_ty),
+            substitutions,
+        ),
     });
-    parameters.extend(method.parameters.parameters.iter().cloned());
+    parameters.extend(
+        method
+            .parameters
+            .parameters
+            .iter()
+            .map(|parameter| Parameter {
+                span: parameter.span,
+                name: parameter.name.clone(),
+                name_span: parameter.name_span,
+                ty: type_expr_with_impl_substitutions(&parameter.ty, substitutions),
+            }),
+    );
     parameters
+}
+
+fn type_expr_with_impl_substitutions(
+    ty: &TypeExpr,
+    substitutions: &HashMap<String, TypeExpr>,
+) -> TypeExpr {
+    substitute_type_expr_parameters(ty, substitutions)
 }
 
 fn lower_scalar_parameters(

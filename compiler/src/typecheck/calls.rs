@@ -182,7 +182,7 @@ pub(super) fn resolved_method_for_call<'a>(
     Some((owner, method))
 }
 
-fn infer_generic_substitutions(
+pub(super) fn infer_generic_substitutions(
     call: &CallExpr,
     signature: &CheckedCallSignature<'_>,
     resolved: &ResolveOutput,

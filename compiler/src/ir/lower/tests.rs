@@ -376,6 +376,93 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_generic_impl_method_call_with_concrete_receiver() {
+    let ir = lower_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+impl<U> Box<U> {
+    method self.into_value(): U {
+        return self.value
+    }
+}
+
+func main(): i32 {
+    let box = Box<i32>{ value: 42 }
+    return (move box).into_value()
+}
+"#,
+    );
+
+    let specialized_target = CallTarget::same_file("Box<i32>.into_value");
+    let main = ir
+        .functions
+        .iter()
+        .find(|function| function.target == CallTarget::same_file("main"))
+        .expect("expected lowered main function");
+
+    assert!(
+        main.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                Instruction::TailCall {
+                    target,
+                    arguments,
+                } if target == &specialized_target && arguments.len() == 1
+            )
+        }),
+        "{main:?}"
+    );
+
+    let method = ir
+        .functions
+        .iter()
+        .find(|function| function.target == specialized_target)
+        .expect("expected lowered specialized method");
+
+    assert_eq!(method.name, "Box<i32>.into_value");
+    assert_eq!(method.return_type, Type::I32);
+}
+
+#[test]
+fn lowers_generic_impl_method_for_multiple_concrete_receivers() {
+    let ir = lower_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+impl<U> Box<U> {
+    method self.into_value(): U {
+        return self.value
+    }
+}
+
+func main(): i32 {
+    let first_box = Box<i32>{ value: 42 }
+    let second_box = Box<u8>{ value: 7 }
+    let first = (move first_box).into_value()
+    let second = (move second_box).into_value()
+    return first + (second as i32)
+}
+"#,
+    );
+
+    assert!(
+        ir.functions.iter().any(|function| function.target
+            == CallTarget::same_file("Box<i32>.into_value")
+            && function.return_type == Type::I32),
+        "{ir:?}"
+    );
+    assert!(
+        ir.functions.iter().any(|function| function.target
+            == CallTarget::same_file("Box<u8>.into_value")
+            && function.return_type == Type::U8),
+        "{ir:?}"
+    );
+}
+
+#[test]
 fn lowers_method_call_temporary_receiver_as_implicit_readonly_borrow() {
     let ir = lower_text(
         r#"copy struct File {

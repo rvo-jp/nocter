@@ -458,6 +458,17 @@ impl<'a> LoweringContext<'a> {
         let method_name_span = resolution
             .typecheck_facts
             .method_call_target(member.member_span)?;
+        if let Some(specialization) = resolution
+            .typecheck_facts
+            .method_call_specialization(member.member_span)
+        {
+            let target = call_target_for_source(
+                method_name_span.source,
+                resolution.root_source,
+                specialization.target_name.clone(),
+            );
+            return Some((target, specialization.target_name.clone()));
+        }
         let target_name = self
             .function_names
             .name_for_declaration(method_name_span)?

@@ -2,7 +2,10 @@
 //! the checker.
 
 use super::bindings::continuing_binding_type;
-use super::calls::{method_member_for_call, resolved_method_for_call};
+use super::calls::{
+    infer_generic_substitutions, method_member_for_call, resolved_call_signature,
+    resolved_method_for_call,
+};
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
     environment_for_if_is_binding, environment_for_if_let_binding, environment_for_method,
@@ -14,13 +17,14 @@ use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
 use super::places::field_member_is_writable_place;
 use super::structs::{resolved_struct_field_for_literal_field, resolved_struct_field_for_member};
-use super::type_expr::type_expr_to_type_with_self_type;
+use super::type_expr::{simple_type_from_display_name, type_expr_to_type_with_self_type};
 use super::variants::resolved_enum_variant_for_member;
 use crate::ast::{
-    AstFile, BindingStmt, Block, EnumDecl, EnumVariant, Expr, GenericParamList, ImplDecl,
-    ImplMember, InterpolatedStringPart, Item, MemberExpr, MethodDecl, Parameter, Stmt, StructDecl,
+    ArrayLength, ArrayType, AstFile, BindingStmt, Block, BorrowType, EnumDecl, EnumVariant, Expr,
+    FallibleType, GenericParamList, GenericType, ImplDecl, ImplMember, InterpolatedStringPart,
+    Item, MemberExpr, MethodDecl, OptionalType, Parameter, PointerType, Stmt, StructDecl,
     StructField, StructLiteralExpr, StructLiteralField, SwitchPayloadBinding, TypeAliasDecl,
-    TypeExpr,
+    TypeExpr, TypeReference, ViewType,
 };
 use crate::resolve::{
     AssociatedFunctionSignature, FunctionSignature, MethodSignature, ParameterSignature,
@@ -44,6 +48,8 @@ pub(crate) struct TypecheckFacts {
     associated_function_targets: HashMap<ByteSpan, ByteSpan>,
     enum_variant_targets: HashMap<ByteSpan, ByteSpan>,
     method_call_targets: HashMap<ByteSpan, ByteSpan>,
+    generic_method_call_spans: HashMap<ByteSpan, ByteSpan>,
+    method_call_specializations: HashMap<ByteSpan, MethodCallSpecialization>,
 }
 
 impl TypecheckFacts {
@@ -135,6 +141,23 @@ impl TypecheckFacts {
         self.method_call_targets.get(&member_span).copied()
     }
 
+    pub(crate) fn generic_method_call_target(&self, member_span: ByteSpan) -> Option<ByteSpan> {
+        self.generic_method_call_spans.get(&member_span).copied()
+    }
+
+    pub(crate) fn method_call_specialization(
+        &self,
+        member_span: ByteSpan,
+    ) -> Option<&MethodCallSpecialization> {
+        self.method_call_specializations.get(&member_span)
+    }
+
+    pub(crate) fn method_call_specializations(
+        &self,
+    ) -> impl Iterator<Item = &MethodCallSpecialization> + '_ {
+        self.method_call_specializations.values()
+    }
+
     pub(crate) fn associated_function_target(&self, member_span: ByteSpan) -> Option<ByteSpan> {
         self.associated_function_targets.get(&member_span).copied()
     }
@@ -190,6 +213,14 @@ pub(crate) struct TypeReferenceFact {
     pub(crate) span: ByteSpan,
     pub(crate) symbol_name_span: Option<ByteSpan>,
     pub(crate) symbol_declaration_span: Option<ByteSpan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MethodCallSpecialization {
+    pub(crate) declaration_span: ByteSpan,
+    pub(crate) target_name: String,
+    pub(crate) self_ty: TypeExpr,
+    pub(crate) substitutions: HashMap<String, TypeExpr>,
 }
 
 pub(crate) fn collect_typecheck_facts(ast: &AstFile, resolved: &ResolveOutput) -> TypecheckFacts {
@@ -556,6 +587,22 @@ impl TypecheckFactCollector<'_> {
                     self.facts
                         .method_call_targets
                         .insert(method.member_span, resolved_method.name_span);
+                    if !resolved_method.signature.generic_parameters.is_empty() {
+                        self.facts
+                            .generic_method_call_spans
+                            .insert(method.member_span, resolved_method.name_span);
+                        if let Some(specialization) = method_call_specialization(
+                            expression,
+                            method,
+                            resolved_method,
+                            self.resolved,
+                            environment,
+                        ) {
+                            self.facts
+                                .method_call_specializations
+                                .insert(method.member_span, specialization);
+                        }
+                    }
                     self.facts.call_hover_labels.insert(
                         method.member_span,
                         method_signature_hover_label(resolved_method, owner, self.resolved),
@@ -853,6 +900,130 @@ impl TypecheckFactCollector<'_> {
             enum_variant_signature_hover_label(owner, variant, self.resolved),
         );
     }
+}
+
+fn method_call_specialization(
+    call: &crate::ast::CallExpr,
+    member: &MemberExpr,
+    method: &MethodSignature,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Option<MethodCallSpecialization> {
+    let receiver_type = expression_type(&member.object, resolved, environment);
+    let self_ty = type_to_type_expr(&receiver_type, member.object.span())?;
+    let checked = resolved_call_signature(resolved, call, environment)?;
+    let substitutions = infer_generic_substitutions(call, &checked, resolved, environment)
+        .into_iter()
+        .map(|(name, ty)| type_to_type_expr(&ty, member.member_span).map(|ty| (name, ty)))
+        .collect::<Option<HashMap<_, _>>>()?;
+    if !method
+        .signature
+        .generic_parameters
+        .iter()
+        .all(|parameter| substitutions.contains_key(parameter))
+    {
+        return None;
+    }
+
+    Some(MethodCallSpecialization {
+        declaration_span: method.name_span,
+        target_name: format!("{}.{}", receiver_type.display(), method.name),
+        self_ty,
+        substitutions,
+    })
+}
+
+fn type_to_type_expr(ty: &Type, span: ByteSpan) -> Option<TypeExpr> {
+    match ty {
+        Type::I32 => Some(type_reference("i32", span)),
+        Type::Primitive(name) => Some(type_reference(name, span)),
+        Type::Named(name) if name.starts_with("&+") => {
+            borrowed_display_type_to_type_expr(name.strip_prefix("&+")?, true, span)
+        }
+        Type::Named(name) if name.starts_with('&') => {
+            borrowed_display_type_to_type_expr(name.strip_prefix('&')?, false, span)
+        }
+        Type::Named(name) => Some(type_reference(name, span)),
+        Type::StrData => Some(type_reference("str", span)),
+        Type::Str => Some(TypeExpr::Borrow(BorrowType {
+            span,
+            is_readwrite: false,
+            inner: Box::new(type_reference("str", span)),
+        })),
+        Type::Error => Some(type_reference("error", span)),
+        Type::Void => Some(type_reference("void", span)),
+        Type::Never => Some(type_reference("never", span)),
+        Type::ArrayData { element } => Some(TypeExpr::View(ViewType {
+            span,
+            is_readwrite: false,
+            element: Box::new(type_to_type_expr(element, span)?),
+        })),
+        Type::View {
+            is_readwrite,
+            element,
+        } => Some(TypeExpr::Borrow(BorrowType {
+            span,
+            is_readwrite: *is_readwrite,
+            inner: Box::new(TypeExpr::View(ViewType {
+                span,
+                is_readwrite: false,
+                element: Box::new(type_to_type_expr(element, span)?),
+            })),
+        })),
+        Type::Array { element, length } => Some(TypeExpr::Array(ArrayType {
+            span,
+            element: Box::new(type_to_type_expr(element, span)?),
+            length: ArrayLength {
+                span,
+                value: length.clone(),
+            },
+        })),
+        Type::Pointer(inner) => Some(TypeExpr::Pointer(PointerType {
+            span,
+            inner: Box::new(type_to_type_expr(inner, span)?),
+        })),
+        Type::Optional(inner) => Some(TypeExpr::Optional(OptionalType {
+            span,
+            inner: Box::new(type_to_type_expr(inner, span)?),
+        })),
+        Type::Fallible { success, error } => Some(TypeExpr::Fallible(FallibleType {
+            span,
+            success: Box::new(type_to_type_expr(success, span)?),
+            error: Box::new(type_to_type_expr(error, span)?),
+        })),
+        Type::Generic { name, arguments } => Some(TypeExpr::Generic(GenericType {
+            span,
+            name: name.clone(),
+            name_span: span,
+            arguments: arguments
+                .iter()
+                .map(|argument| type_to_type_expr(argument, span))
+                .collect::<Option<Vec<_>>>()?,
+        })),
+        Type::None | Type::Parameter(_) | Type::Unresolved(_) | Type::Unknown => None,
+    }
+}
+
+fn type_reference(name: impl Into<String>, span: ByteSpan) -> TypeExpr {
+    TypeExpr::Reference(TypeReference {
+        span,
+        name: name.into(),
+    })
+}
+
+fn borrowed_display_type_to_type_expr(
+    inner: &str,
+    is_readwrite: bool,
+    span: ByteSpan,
+) -> Option<TypeExpr> {
+    Some(TypeExpr::Borrow(BorrowType {
+        span,
+        is_readwrite,
+        inner: Box::new(type_to_type_expr(
+            &simple_type_from_display_name(inner),
+            span,
+        )?),
+    }))
 }
 
 fn scalar_view_kind(ty: &Type) -> Option<TypecheckScalarViewKind> {

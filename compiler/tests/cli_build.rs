@@ -3735,25 +3735,23 @@ func main(): i32! {
 }
 
 #[test]
-fn build_command_reports_reachable_generic_impl_method_before_ir_lowering() {
-    let project = TempProject::new("cli-build-generic-impl-method-boundary");
+fn build_command_lowers_generic_impl_method_with_concrete_receiver() {
+    let project = TempProject::new("cli-build-generic-impl-method");
     let source = project.write_source(
-        "generic_impl_method_boundary.nct",
+        "generic_impl_method.nct",
         r#"struct Box<T> {
     value: T
 }
 
 impl<U> Box<U> {
-    method self.value(): U {
+    method self.into_value(): U {
         return self.value
     }
 }
 
 func main(): i32 {
-    let box = Box<i32>{
-        value: 42,
-    }
-    return box.value()
+    let box = Box<i32>{ value: 42 }
+    return (move box).into_value()
 }
 "#,
     );
@@ -3761,28 +3759,8 @@ func main(): i32 {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("generic impl members"),
-        "expected generic impl diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("5 | impl<U> Box<U> {"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]

@@ -22,6 +22,7 @@ use crate::abi::{
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
     DropDecl, FunctionDecl, ImplMember, Item, MethodDecl, Parameter, Stmt, TypeExpr, TypeReference,
+    substitute_type_expr_parameters,
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
@@ -31,6 +32,7 @@ use crate::resolve::{
     drop_function_name,
 };
 use crate::source::{ByteSpan, SourceId, SourceMap};
+use crate::typecheck::{MethodCallSpecialization, TypecheckFacts};
 use context::{ErrorPayloads, FunctionNames, FunctionSignature, FunctionSignatures};
 use imported_calls::imported_call_diagnostics;
 use reachability::reachable_call_targets;
@@ -158,19 +160,20 @@ struct FunctionIndex<'a> {
 struct IndexedCallable<'a> {
     declaration: IndexedDeclaration<'a>,
     resolved: &'a ResolveOutput,
-    typecheck_facts: &'a crate::typecheck::TypecheckFacts,
+    typecheck_facts: &'a TypecheckFacts,
 }
 
 enum IndexedDeclaration<'a> {
     Function(&'a FunctionDecl),
     Drop {
         declaration: &'a DropDecl,
-        self_ty: &'a TypeExpr,
+        self_ty: TypeExpr,
         name: String,
     },
     Method {
         declaration: &'a MethodDecl,
-        self_ty: &'a TypeExpr,
+        self_ty: TypeExpr,
+        substitutions: HashMap<String, TypeExpr>,
         name: String,
     },
 }
@@ -178,6 +181,7 @@ enum IndexedDeclaration<'a> {
 impl<'a> FunctionIndex<'a> {
     fn new(analysis: &'a CompileUnitAnalysis, root_source: SourceId) -> Self {
         let mut definitions = HashMap::new();
+        let method_specializations = method_specializations(analysis);
         for file in &analysis.files {
             for item in &file.ast.items {
                 match item {
@@ -206,13 +210,16 @@ impl<'a> FunctionIndex<'a> {
                                         target,
                                         IndexedCallable::new_drop(
                                             drop_,
-                                            &impl_.target_ty,
+                                            impl_.target_ty.clone(),
                                             name,
                                             file,
                                         ),
                                     );
                                 }
-                                ImplMember::Method(method) if method.body.is_some() => {
+                                ImplMember::Method(method)
+                                    if method.body.is_some()
+                                        && impl_.generics.parameters.is_empty() =>
+                                {
                                     let name = method_target_name(type_name, &method.name);
                                     let target = call_target_for_source(
                                         file.ast.span.source,
@@ -223,11 +230,35 @@ impl<'a> FunctionIndex<'a> {
                                         target,
                                         IndexedCallable::new_method(
                                             method,
-                                            &impl_.target_ty,
+                                            impl_.target_ty.clone(),
+                                            HashMap::new(),
                                             name,
                                             file,
                                         ),
                                     );
+                                }
+                                ImplMember::Method(method) if method.body.is_some() => {
+                                    for specialization in method_specializations
+                                        .get(&method.name_span)
+                                        .into_iter()
+                                        .flatten()
+                                    {
+                                        let target = call_target_for_source(
+                                            file.ast.span.source,
+                                            root_source,
+                                            specialization.target_name.clone(),
+                                        );
+                                        definitions.insert(
+                                            target,
+                                            IndexedCallable::new_method(
+                                                method,
+                                                specialization.self_ty.clone(),
+                                                specialization.substitutions.clone(),
+                                                specialization.target_name.clone(),
+                                                file,
+                                            ),
+                                        );
+                                    }
                                 }
                                 ImplMember::Method(_) => {}
                             }
@@ -289,7 +320,7 @@ impl<'a> IndexedCallable<'a> {
 
     fn new_drop(
         declaration: &'a DropDecl,
-        self_ty: &'a TypeExpr,
+        self_ty: TypeExpr,
         name: String,
         file: &'a FileAnalysis,
     ) -> Self {
@@ -306,7 +337,8 @@ impl<'a> IndexedCallable<'a> {
 
     fn new_method(
         declaration: &'a MethodDecl,
-        self_ty: &'a TypeExpr,
+        self_ty: TypeExpr,
+        substitutions: HashMap<String, TypeExpr>,
         name: String,
         file: &'a FileAnalysis,
     ) -> Self {
@@ -314,6 +346,7 @@ impl<'a> IndexedCallable<'a> {
             declaration: IndexedDeclaration::Method {
                 declaration,
                 self_ty,
+                substitutions,
                 name,
             },
             resolved: &file.resolved,
@@ -408,10 +441,12 @@ impl<'a> IndexedCallable<'a> {
             IndexedDeclaration::Method {
                 declaration,
                 self_ty,
+                substitutions,
                 name,
             } => functions::lower_method_function(
                 declaration,
                 self_ty,
+                substitutions,
                 name.clone(),
                 sources,
                 target,
@@ -492,11 +527,14 @@ impl<'a> IndexedCallable<'a> {
             IndexedDeclaration::Method {
                 declaration,
                 self_ty,
+                substitutions,
                 ..
             } => {
-                let parameters = method_parameters(declaration, self_ty);
-                let return_type =
-                    functions::type_expr_with_self_type(&declaration.return_type, self_ty);
+                let parameters = method_parameters(declaration, self_ty, substitutions);
+                let return_type = substitute_type_expr_parameters(
+                    &functions::type_expr_with_self_type(&declaration.return_type, self_ty),
+                    substitutions,
+                );
                 let resolved_signature =
                     resolved_function_signature(&parameters, return_type.clone());
                 lower_signature_return_type(&return_type, self.resolved).map(|return_type| {
@@ -533,22 +571,65 @@ impl<'a> IndexedCallable<'a> {
                 declaration, name, ..
             } => Some((drop_name_span(declaration.span), name.clone())),
             IndexedDeclaration::Method {
-                declaration, name, ..
-            } => Some((declaration.name_span, name.clone())),
+                declaration,
+                substitutions,
+                name,
+                ..
+            } if substitutions.is_empty() => Some((declaration.name_span, name.clone())),
+            IndexedDeclaration::Method { .. } => None,
         }
     }
 }
 
-fn method_parameters(method: &MethodDecl, self_ty: &TypeExpr) -> Vec<Parameter> {
+fn method_parameters(
+    method: &MethodDecl,
+    self_ty: &TypeExpr,
+    substitutions: &HashMap<String, TypeExpr>,
+) -> Vec<Parameter> {
     let mut parameters = Vec::with_capacity(method.parameters.parameters.len() + 1);
     parameters.push(Parameter {
         span: method.receiver.span,
         name: method.receiver.name.clone(),
         name_span: method.receiver.name_span,
-        ty: functions::type_expr_with_self_type(&method.receiver.ty, self_ty),
+        ty: substitute_type_expr_parameters(
+            &functions::type_expr_with_self_type(&method.receiver.ty, self_ty),
+            substitutions,
+        ),
     });
-    parameters.extend(method.parameters.parameters.iter().cloned());
+    parameters.extend(
+        method
+            .parameters
+            .parameters
+            .iter()
+            .map(|parameter| Parameter {
+                span: parameter.span,
+                name: parameter.name.clone(),
+                name_span: parameter.name_span,
+                ty: substitute_type_expr_parameters(&parameter.ty, substitutions),
+            }),
+    );
     parameters
+}
+
+fn method_specializations(
+    analysis: &CompileUnitAnalysis,
+) -> HashMap<ByteSpan, Vec<MethodCallSpecialization>> {
+    let mut specializations: HashMap<ByteSpan, Vec<MethodCallSpecialization>> = HashMap::new();
+    for file in &analysis.files {
+        for specialization in file.typecheck_facts.method_call_specializations() {
+            let entries = specializations
+                .entry(specialization.declaration_span)
+                .or_default();
+            if !entries.iter().any(|entry| {
+                entry.target_name == specialization.target_name
+                    && entry.self_ty == specialization.self_ty
+                    && entry.substitutions == specialization.substitutions
+            }) {
+                entries.push(specialization.clone());
+            }
+        }
+    }
+    specializations
 }
 
 fn resolved_function_signature(

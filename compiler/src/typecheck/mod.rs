@@ -41,7 +41,9 @@ use ownership::*;
 use returns::*;
 use sized::*;
 
-pub(crate) use facts::{TypecheckFacts, TypecheckScalarViewKind, collect_typecheck_facts};
+pub(crate) use facts::{
+    MethodCallSpecialization, TypecheckFacts, TypecheckScalarViewKind, collect_typecheck_facts,
+};
 
 pub fn check(sources: &SourceMap, ast: &AstFile, resolved: &ResolveOutput) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();

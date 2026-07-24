@@ -3319,6 +3319,77 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_generic_impl_method_with_concrete_receiver_exit_code() {
+    let project = TempProject::new("cli-run-generic-impl-method");
+    let source = project.write_source(
+        "generic_impl_method.nct",
+        r#"struct Box<T> {
+    value: T
+}
+
+impl<U> Box<U> {
+    method self.into_value(): U {
+        return self.value
+    }
+}
+
+func main(): i32 {
+    let box = Box<i32>{ value: 42 }
+    return (move box).into_value()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_generic_impl_method_multiple_concrete_receivers_exit_code() {
+    let project = TempProject::new("cli-run-generic-impl-method-multiple");
+    let source = project.write_source(
+        "generic_impl_method_multiple.nct",
+        r#"struct Box<T> {
+    value: T
+}
+
+impl<U> Box<U> {
+    method self.into_value(): U {
+        return self.value
+    }
+}
+
+func main(): i32 {
+    let first_box = Box<i32>{ value: 42 }
+    let second_box = Box<u8>{ value: 7 }
+    let first = (move first_box).into_value()
+    let second = (move second_box).into_value()
+    return first + (second as i32)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(49),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_runs_direct_aggregate_return_scope_drops() {
     let project = TempProject::new("cli-run-direct-aggregate-return-scope-drops");
     project.write_nocter_home_file(
