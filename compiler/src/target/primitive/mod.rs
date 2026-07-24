@@ -1,6 +1,6 @@
 //! Validation and lowering for compiler-owned primitive boundaries.
 
-use crate::ast::{PrimitiveDecl, TypeExpr, Visibility};
+use crate::ast::{PrimitiveDecl, Visibility, type_expr_display_lossy};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PrimitiveValidationError {
@@ -145,10 +145,10 @@ impl PrimitiveSignature {
                 .iter()
                 .map(|parameter| PrimitiveParameter {
                     name: parameter.name.clone(),
-                    ty: type_expr_display(&parameter.ty),
+                    ty: type_expr_display_lossy(&parameter.ty),
                 })
                 .collect(),
-            return_type: type_expr_display(&primitive.return_type),
+            return_type: type_expr_display_lossy(&primitive.return_type),
         }
     }
 }
@@ -683,37 +683,4 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             return_type: "never",
         },
     ]
-}
-
-fn type_expr_display(ty: &TypeExpr) -> String {
-    match ty {
-        TypeExpr::Reference(reference) => reference.name.clone(),
-        TypeExpr::Generic(generic) => {
-            let arguments = generic
-                .arguments
-                .iter()
-                .map(type_expr_display)
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!("{}<{arguments}>", generic.name)
-        }
-        TypeExpr::Pointer(pointer) => format!("*{}", type_expr_display(&pointer.inner)),
-        TypeExpr::Borrow(borrow) if borrow.is_readwrite => {
-            format!("&+{}", type_expr_display(&borrow.inner))
-        }
-        TypeExpr::Borrow(borrow) => format!("&{}", type_expr_display(&borrow.inner)),
-        TypeExpr::View(view) if view.is_readwrite => {
-            format!("&+[{}]", type_expr_display(&view.element))
-        }
-        TypeExpr::View(view) => format!("[{}]", type_expr_display(&view.element)),
-        TypeExpr::Array(array) => {
-            format!(
-                "[{}; {}]",
-                type_expr_display(&array.element),
-                array.length.value
-            )
-        }
-        TypeExpr::Optional(optional) => format!("{}?", type_expr_display(&optional.inner)),
-        TypeExpr::Fallible(fallible) => format!("{}!", type_expr_display(&fallible.success)),
-    }
 }

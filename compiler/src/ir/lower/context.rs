@@ -1,5 +1,7 @@
 use crate::abi::{ReturnPassing, ValueLayout};
-use crate::ast::{CallExpr, Expr, MemberExpr, TypeExpr, substitute_type_expr_parameters};
+use crate::ast::{
+    CallExpr, Expr, MemberExpr, TypeExpr, substitute_type_expr_parameters, type_expr_display_lossy,
+};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateLocation, BoolLocation, CallTarget, I32Location, SliceLocation, StrLocation, Type,
@@ -1489,37 +1491,4 @@ fn drop_target_name_from_base_and_type_expr(base_target_name: &str, ty: &TypeExp
         .collect::<Vec<_>>()
         .join(", ");
     format!("{base_type_name}<{arguments}>.drop")
-}
-
-fn type_expr_display_lossy(ty: &TypeExpr) -> String {
-    match ty {
-        TypeExpr::Reference(reference) => reference.name.clone(),
-        TypeExpr::Generic(generic) => {
-            let arguments = generic
-                .arguments
-                .iter()
-                .map(type_expr_display_lossy)
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!("{}<{arguments}>", generic.name)
-        }
-        TypeExpr::Pointer(pointer) => format!("*{}", type_expr_display_lossy(&pointer.inner)),
-        TypeExpr::Borrow(borrow) if borrow.is_readwrite => {
-            format!("&+{}", type_expr_display_lossy(&borrow.inner))
-        }
-        TypeExpr::Borrow(borrow) => format!("&{}", type_expr_display_lossy(&borrow.inner)),
-        TypeExpr::View(view) if view.is_readwrite => {
-            format!("&+[{}]", type_expr_display_lossy(&view.element))
-        }
-        TypeExpr::View(view) => format!("[{}]", type_expr_display_lossy(&view.element)),
-        TypeExpr::Array(array) => {
-            format!(
-                "[{}; {}]",
-                type_expr_display_lossy(&array.element),
-                array.length.value
-            )
-        }
-        TypeExpr::Optional(optional) => format!("{}?", type_expr_display_lossy(&optional.inner)),
-        TypeExpr::Fallible(fallible) => format!("{}!", type_expr_display_lossy(&fallible.success)),
-    }
 }

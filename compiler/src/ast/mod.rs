@@ -5,7 +5,7 @@ mod json;
 mod types;
 
 pub use json::{AstEnvelope, JsonAstNode};
-pub(crate) use types::substitute_type_expr_parameters;
+pub(crate) use types::{substitute_type_expr_parameters, type_expr_display_lossy};
 
 use crate::source::ByteSpan;
 

@@ -1,6 +1,6 @@
 //! Nocter ABI lowering and layout rules.
 
-use crate::ast::{TypeExpr, substitute_type_expr_parameters};
+use crate::ast::{TypeExpr, substitute_type_expr_parameters, type_expr_display_lossy};
 use crate::resolve::{FunctionSignature, ResolveOutput, TypeSymbol, TypeSymbolKind};
 use std::collections::{HashMap, HashSet};
 
@@ -623,36 +623,6 @@ fn payloadless_enum_tag_type(symbol: &TypeSymbol) -> Result<AbiTypeKind, AbiType
     }
 
     Ok(AbiTypeKind::Value(AbiType::U8))
-}
-
-fn type_expr_display_lossy(ty: &TypeExpr) -> String {
-    match ty {
-        TypeExpr::Reference(reference) => reference.name.clone(),
-        TypeExpr::Generic(generic) => {
-            let arguments = generic
-                .arguments
-                .iter()
-                .map(type_expr_display_lossy)
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!("{}<{arguments}>", generic.name)
-        }
-        TypeExpr::Pointer(pointer) => format!("*{}", type_expr_display_lossy(&pointer.inner)),
-        TypeExpr::Borrow(borrow) if borrow.is_readwrite => {
-            format!("&+{}", type_expr_display_lossy(&borrow.inner))
-        }
-        TypeExpr::Borrow(borrow) => format!("&{}", type_expr_display_lossy(&borrow.inner)),
-        TypeExpr::View(view) => format!("[{}]", type_expr_display_lossy(&view.element)),
-        TypeExpr::Array(array) => {
-            format!(
-                "[{}; {}]",
-                type_expr_display_lossy(&array.element),
-                array.length.value
-            )
-        }
-        TypeExpr::Optional(optional) => format!("{}?", type_expr_display_lossy(&optional.inner)),
-        TypeExpr::Fallible(fallible) => format!("{}!", type_expr_display_lossy(&fallible.success)),
-    }
 }
 
 #[cfg(test)]

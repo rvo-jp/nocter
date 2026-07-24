@@ -1,6 +1,39 @@
 use super::TypeExpr;
 use std::collections::HashMap;
 
+pub(crate) fn type_expr_display_lossy(ty: &TypeExpr) -> String {
+    match ty {
+        TypeExpr::Reference(reference) => reference.name.clone(),
+        TypeExpr::Generic(generic) => {
+            let arguments = generic
+                .arguments
+                .iter()
+                .map(type_expr_display_lossy)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{}<{arguments}>", generic.name)
+        }
+        TypeExpr::Pointer(pointer) => format!("*{}", type_expr_display_lossy(&pointer.inner)),
+        TypeExpr::Borrow(borrow) if borrow.is_readwrite => {
+            format!("&+{}", type_expr_display_lossy(&borrow.inner))
+        }
+        TypeExpr::Borrow(borrow) => format!("&{}", type_expr_display_lossy(&borrow.inner)),
+        TypeExpr::View(view) if view.is_readwrite => {
+            format!("&+[{}]", type_expr_display_lossy(&view.element))
+        }
+        TypeExpr::View(view) => format!("[{}]", type_expr_display_lossy(&view.element)),
+        TypeExpr::Array(array) => {
+            format!(
+                "[{}; {}]",
+                type_expr_display_lossy(&array.element),
+                array.length.value
+            )
+        }
+        TypeExpr::Optional(optional) => format!("{}?", type_expr_display_lossy(&optional.inner)),
+        TypeExpr::Fallible(fallible) => format!("{}!", type_expr_display_lossy(&fallible.success)),
+    }
+}
+
 pub(crate) fn substitute_type_expr_parameters(
     ty: &TypeExpr,
     substitutions: &HashMap<String, TypeExpr>,

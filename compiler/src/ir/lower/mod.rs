@@ -24,7 +24,7 @@ use crate::analysis::{
 };
 use crate::ast::{
     DropDecl, FunctionDecl, ImplMember, Item, MethodDecl, Parameter, Stmt, TypeExpr, TypeReference,
-    substitute_type_expr_parameters,
+    substitute_type_expr_parameters, type_expr_display_lossy,
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
@@ -800,39 +800,6 @@ fn method_target_name(type_name: &str, method_name: &str) -> String {
 
 fn drop_target_name(self_ty: &TypeExpr) -> String {
     format!("{}.drop", type_expr_display_lossy(self_ty))
-}
-
-fn type_expr_display_lossy(ty: &TypeExpr) -> String {
-    match ty {
-        TypeExpr::Reference(reference) => reference.name.clone(),
-        TypeExpr::Generic(generic) => {
-            let arguments = generic
-                .arguments
-                .iter()
-                .map(type_expr_display_lossy)
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!("{}<{arguments}>", generic.name)
-        }
-        TypeExpr::Pointer(pointer) => format!("*{}", type_expr_display_lossy(&pointer.inner)),
-        TypeExpr::Borrow(borrow) if borrow.is_readwrite => {
-            format!("&+{}", type_expr_display_lossy(&borrow.inner))
-        }
-        TypeExpr::Borrow(borrow) => format!("&{}", type_expr_display_lossy(&borrow.inner)),
-        TypeExpr::View(view) if view.is_readwrite => {
-            format!("&+[{}]", type_expr_display_lossy(&view.element))
-        }
-        TypeExpr::View(view) => format!("[{}]", type_expr_display_lossy(&view.element)),
-        TypeExpr::Array(array) => {
-            format!(
-                "[{}; {}]",
-                type_expr_display_lossy(&array.element),
-                array.length.value
-            )
-        }
-        TypeExpr::Optional(optional) => format!("{}?", type_expr_display_lossy(&optional.inner)),
-        TypeExpr::Fallible(fallible) => format!("{}!", type_expr_display_lossy(&fallible.success)),
-    }
 }
 
 fn impl_target_type_name(ty: &TypeExpr) -> Option<&str> {

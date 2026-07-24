@@ -3,6 +3,8 @@ use crate::ast::TypeExpr;
 use crate::resolve::ResolveOutput;
 use std::collections::{HashMap, HashSet};
 
+pub(super) use crate::ast::type_expr_display_lossy;
+
 pub(super) fn type_expr_to_type(ty: &TypeExpr, resolved: &ResolveOutput) -> Type {
     type_expr_to_type_with_self_type(ty, resolved, None)
 }
@@ -621,37 +623,4 @@ fn split_top_level_type_arguments(arguments: &str) -> Vec<&str> {
     }
     result.push(arguments[start..].trim());
     result
-}
-
-pub(super) fn type_expr_display_lossy(ty: &TypeExpr) -> String {
-    match ty {
-        TypeExpr::Reference(reference) => reference.name.clone(),
-        TypeExpr::Generic(generic) => {
-            let arguments = generic
-                .arguments
-                .iter()
-                .map(type_expr_display_lossy)
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!("{}<{arguments}>", generic.name)
-        }
-        TypeExpr::Pointer(pointer) => format!("*{}", type_expr_display_lossy(&pointer.inner)),
-        TypeExpr::Borrow(borrow) if borrow.is_readwrite => {
-            format!("&+{}", type_expr_display_lossy(&borrow.inner))
-        }
-        TypeExpr::Borrow(borrow) => format!("&{}", type_expr_display_lossy(&borrow.inner)),
-        TypeExpr::View(view) if view.is_readwrite => {
-            format!("&+[{}]", type_expr_display_lossy(&view.element))
-        }
-        TypeExpr::View(view) => format!("[{}]", type_expr_display_lossy(&view.element)),
-        TypeExpr::Array(array) => {
-            format!(
-                "[{}; {}]",
-                type_expr_display_lossy(&array.element),
-                array.length.value
-            )
-        }
-        TypeExpr::Optional(optional) => format!("{}?", type_expr_display_lossy(&optional.inner)),
-        TypeExpr::Fallible(fallible) => format!("{}!", type_expr_display_lossy(&fallible.success)),
-    }
 }
