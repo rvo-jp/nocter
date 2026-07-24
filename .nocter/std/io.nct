@@ -46,7 +46,7 @@ pub(nocter) func open_read_fd(path: &str): i32! {
 
     let fd = open_read_raw(from_addr(address)) catch error {
         free_pages(address, allocation_size)
-        return Error.new(error.code, error.message)
+        return error
     }
     free_pages(address, allocation_size)
     return fd

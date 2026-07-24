@@ -1,20 +1,27 @@
 use super::context::LoweringContext;
+use super::expressions::lower_str_expression_to_location;
 use crate::ast::{CallExpr, Expr, TypeExpr};
 use crate::diagnostics::Diagnostic;
-use crate::ir::StrValue;
+use crate::ir::{Instruction, StrLocation, StrValue};
 use crate::literals::decode_string_literal_bytes;
 use crate::resolve::{FunctionSignature, ResolveOutput, SymbolKind};
 use crate::source::SourceId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ErrorPayload {
+    instructions: Vec<Instruction>,
     code: StrValue,
     message: StrValue,
 }
 
 impl ErrorPayload {
-    pub(super) fn into_str_values(self) -> (StrValue, StrValue) {
-        (self.code, self.message)
+    pub(super) fn into_return_instructions(self) -> Vec<Instruction> {
+        let mut instructions = self.instructions;
+        instructions.push(Instruction::ReturnFallibleFailure {
+            code: self.code,
+            message: self.message,
+        });
+        instructions
     }
 }
 
@@ -24,8 +31,29 @@ pub(super) fn lower_error_payload(
     root_source: SourceId,
     context: Option<&LoweringContext>,
 ) -> Result<Option<ErrorPayload>, Vec<Diagnostic>> {
-    let Expr::Call(call) = expression else {
-        return Ok(None);
+    let call = match expression {
+        Expr::Call(call) => call,
+        Expr::Identifier(identifier) => {
+            let Some(context) = context else {
+                return Ok(None);
+            };
+            let Some(code) = context.error_code_location(&identifier.name) else {
+                return Ok(None);
+            };
+            let Some(message) = context.error_message_location(&identifier.name) else {
+                return Ok(None);
+            };
+
+            return Ok(Some(ErrorPayload {
+                instructions: Vec::new(),
+                code: StrValue::Location(code),
+                message: StrValue::Location(message),
+            }));
+        }
+        Expr::Group(group) => {
+            return lower_error_payload(&group.expression, resolved, root_source, context);
+        }
+        _ => return Ok(None),
     };
 
     if !is_error_constructor_call(call, resolved, root_source) {
@@ -36,10 +64,31 @@ pub(super) fn lower_error_payload(
         return Err(unsupported_fail_payload_diagnostic());
     };
 
-    let code = lower_error_string_value(&call.arguments[0], "code", context)?;
-    let message = lower_error_string_value(&call.arguments[1], "message", context)?;
+    let mut instructions = Vec::new();
+    let mut reserved_local_abi_words = 0;
+    let code = lower_error_string_value(
+        &call.arguments[0],
+        "code",
+        context,
+        reserved_local_abi_words,
+        &mut instructions,
+    )?;
+    if error_payload_value_uses_reserved_local(&code, context) {
+        reserved_local_abi_words += 2;
+    }
+    let message = lower_error_string_value(
+        &call.arguments[1],
+        "message",
+        context,
+        reserved_local_abi_words,
+        &mut instructions,
+    )?;
 
-    Ok(Some(ErrorPayload { code, message }))
+    Ok(Some(ErrorPayload {
+        instructions,
+        code,
+        message,
+    }))
 }
 
 fn is_error_constructor_call(
@@ -89,6 +138,8 @@ fn lower_error_string_value(
     expression: &Expr,
     field: &str,
     context: Option<&LoweringContext>,
+    reserved_local_abi_words: usize,
+    instructions: &mut Vec<Instruction>,
 ) -> Result<StrValue, Vec<Diagnostic>> {
     match expression {
         Expr::StringLiteral(literal) => decode_string_literal_bytes(&literal.value)
@@ -121,14 +172,48 @@ fn lower_error_string_value(
                 .map(StrValue::Location)
                 .ok_or_else(unsupported_fail_payload_diagnostic)
         }
-        Expr::Group(group) => lower_error_string_value(&group.expression, field, context),
-        _ => Err(unsupported_fail_payload_diagnostic()),
+        Expr::Group(group) => lower_error_string_value(
+            &group.expression,
+            field,
+            context,
+            reserved_local_abi_words,
+            instructions,
+        ),
+        _ => {
+            let Some(context) = context else {
+                return Err(unsupported_fail_payload_diagnostic());
+            };
+            let destination_context =
+                context.with_reserved_local_abi_words(reserved_local_abi_words);
+            let destination = destination_context.next_str_local_location()?;
+            let expression_context =
+                context.with_reserved_local_abi_words(reserved_local_abi_words + 2);
+            instructions.extend(lower_str_expression_to_location(
+                expression,
+                destination,
+                &expression_context,
+            )?);
+            Ok(StrValue::Location(destination))
+        }
     }
+}
+
+fn error_payload_value_uses_reserved_local(
+    value: &StrValue,
+    context: Option<&LoweringContext>,
+) -> bool {
+    let Some(context) = context else {
+        return false;
+    };
+    let Ok(first_reserved) = context.first_temporary_local_index() else {
+        return false;
+    };
+    matches!(value, StrValue::Location(StrLocation::Local(index)) if *index >= first_reserved)
 }
 
 fn unsupported_fail_payload_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8004",
-        "IR v0 can only lower fallible failure returns through a loaded error constructor call with string code and message",
+        "IR cannot lower this fallible failure value because its code and message payload is not available",
     )]
 }

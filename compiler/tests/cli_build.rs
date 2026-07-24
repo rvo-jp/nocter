@@ -4120,8 +4120,8 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_reports_dynamic_failure_payload_before_ir_lowering() {
-    let project = TempProject::new("cli-build-dynamic-failure-payload-boundary");
+fn build_command_lowers_dynamic_failure_payload() {
+    let project = TempProject::new("cli-build-dynamic-failure-payload");
     project.write_nocter_home_file(
         "std/error.nct",
         r#"pub type ErrorCode = &str
@@ -4135,7 +4135,7 @@ pub func Error.new(code: ErrorCode, message: &str): Error {
 "#,
     );
     let source = project.write_source(
-        "dynamic_failure_payload_boundary.nct",
+        "dynamic_failure_payload.nct",
         r#"use std/error.Error
 
 func main(): i32! {
@@ -4151,28 +4151,8 @@ func dynamic(): &str {
     let output = nocter(&project, ["build", source.to_str().unwrap()]);
     let executable = source.with_extension("");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = text(&output.stderr);
-    assert!(
-        stderr.contains("error[E0435]"),
-        "expected v0 buildability diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("dynamic failure payload arguments"),
-        "expected dynamic failure payload diagnostic, got:\n{stderr}"
-    );
-    assert!(
-        stderr.contains("4 |     return Error.new(\"app.failed\", dynamic())"),
-        "expected source line, got:\n{stderr}"
-    );
-    assert!(
-        !stderr.contains("error[E800"),
-        "buildability preflight should reject before IR lowering, got:\n{stderr}"
-    );
-    assert!(
-        !executable.exists(),
-        "build should not leave an executable after preflight diagnostics"
-    );
+    assert_success(&output);
+    assert_macho_executable(&executable);
 }
 
 #[test]

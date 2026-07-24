@@ -23366,6 +23366,87 @@ func main(): i32! {
 }
 
 #[test]
+fn lowers_fallible_entry_return_dynamic_error_message() {
+    let ir = lower_text_with_std_error(
+        r#"use std/error.Error
+
+func main(): i32! {
+    return Error.new("app.failed", dynamic())
+}
+
+func dynamic(): &str {
+    return "failed"
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0],
+        Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![
+                Instruction::CallStr {
+                    destination: StrLocation::Local(0),
+                    target: CallTarget::same_file("dynamic"),
+                    arguments: vec![],
+                },
+                Instruction::ReturnFallibleFailure {
+                    code: StrValue::StaticBytes(b"app.failed".to_vec()),
+                    message: StrValue::Location(StrLocation::Local(0)),
+                },
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_fallible_entry_return_dynamic_error_code_and_message() {
+    let ir = lower_text_with_std_error(
+        r#"use std/error.Error
+
+func main(): i32! {
+    return Error.new(dynamic_code(), dynamic_message())
+}
+
+func dynamic_code(): &str {
+    return "app.failed"
+}
+
+func dynamic_message(): &str {
+    return "failed"
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0],
+        Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![
+                Instruction::CallStr {
+                    destination: StrLocation::Local(0),
+                    target: CallTarget::same_file("dynamic_code"),
+                    arguments: vec![],
+                },
+                Instruction::CallStr {
+                    destination: StrLocation::Local(2),
+                    target: CallTarget::same_file("dynamic_message"),
+                    arguments: vec![],
+                },
+                Instruction::ReturnFallibleFailure {
+                    code: StrValue::Location(StrLocation::Local(0)),
+                    message: StrValue::Location(StrLocation::Local(2)),
+                },
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_fallible_entry_return_static_error_constructor_with_multi_line_message() {
     let ir = lower_text_with_std_error(
         r#"use std/error.Error
@@ -23409,21 +23490,51 @@ func main(): i32! {
 }
 
 #[test]
-fn reports_unsupported_fail_payload() {
-    let diagnostics = lower_text_diagnostics_with_std_error(
+fn lowers_fallible_catch_direct_error_return() {
+    let ir = lower_text_with_std_error(
         r#"use std/error.Error
 
 func main(): i32! {
-    return Error.new("app.failed", dynamic())
+    let value = answer() catch error {
+        return error
+    }
+    return value
 }
 
-func dynamic(): &str {
-    return "failed"
+func answer(): i32! {
+    return Error.new("app.inner", "inner failed")
 }
 "#,
     );
 
-    assert_eq!(diagnostics[0].code, "E8004");
+    assert_eq!(
+        ir.functions[0],
+        Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![
+                Instruction::CallFallibleI32 {
+                    destination: I32Location::Local(0),
+                    target: CallTarget::same_file("answer"),
+                    arguments: vec![],
+                    failure_mode: FallibleFailureMode::Catch {
+                        code: StrLocation::Local(1),
+                        message: StrLocation::Local(3),
+                        instructions: vec![Instruction::ReturnFallibleFailure {
+                            code: StrValue::Location(StrLocation::Local(1)),
+                            message: StrValue::Location(StrLocation::Local(3)),
+                        }],
+                    },
+                },
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: I32Value::Location(I32Location::Local(0)),
+                },
+                Instruction::ReturnFallibleSuccess,
+            ],
+        }
+    );
 }
 
 #[test]
@@ -25864,14 +25975,6 @@ fn bool_param(index: usize) -> BoolValue {
 
 fn lower_text_diagnostics(text: &str) -> Vec<Diagnostic> {
     let fixture = analyze_text_fixture(text);
-    match lower_executable(&fixture.analysis, &fixture.sources) {
-        Ok(_) => Vec::new(),
-        Err(diagnostics) => diagnostics,
-    }
-}
-
-fn lower_text_diagnostics_with_std_error(text: &str) -> Vec<Diagnostic> {
-    let fixture = analyze_text_fixture_with_nocter_home_files(text, &[std_error_file()]);
     match lower_executable(&fixture.analysis, &fixture.sources) {
         Ok(_) => Vec::new(),
         Err(diagnostics) => diagnostics,

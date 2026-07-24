@@ -9,9 +9,7 @@ use crate::ast::{
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::ir::CallTarget;
-use crate::resolve::{
-    FunctionSignature, ResolveOutput, SymbolKind, TypeSymbolKind, drop_function_name,
-};
+use crate::resolve::{ResolveOutput, SymbolKind, TypeSymbolKind, drop_function_name};
 use crate::source::{ByteSpan, SourceId, SourceMap};
 use crate::typecheck::{FunctionCallSpecialization, MethodCallSpecialization, TypecheckFacts};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -1409,14 +1407,6 @@ fn collect_expression_diagnostics(
             {
                 diagnostics.push(diagnostic);
             }
-            if let Some(diagnostic) = unsupported_dynamic_failure_payload_diagnostic(
-                sources,
-                expression,
-                resolved,
-                root_source,
-            ) {
-                diagnostics.push(diagnostic);
-            }
             if let Some(diagnostic) =
                 unsupported_borrow_call_argument_diagnostic(sources, expression, resolved)
             {
@@ -1859,73 +1849,6 @@ fn type_expr_resolves_to_borrow_inner(
         }
         _ => false,
     }
-}
-
-fn unsupported_dynamic_failure_payload_diagnostic(
-    sources: &SourceMap,
-    call: &CallExpr,
-    resolved: &ResolveOutput,
-    root_source: SourceId,
-) -> Option<Diagnostic> {
-    if !is_imported_error_constructor_call(call, resolved, root_source) {
-        return None;
-    }
-
-    let argument = call
-        .arguments
-        .iter()
-        .map(unwrap_group_expr)
-        .find(|argument| matches!(argument, Expr::Call(_)))?;
-
-    Some(unsupported_v0_build_diagnostic(
-        sources,
-        argument.span(),
-        "dynamic failure payload arguments",
-        "use string literals, an existing lowerable &str local, or error.code/error.message until general failure payload lowering is promoted",
-    ))
-}
-
-fn is_imported_error_constructor_call(
-    call: &CallExpr,
-    resolved: &ResolveOutput,
-    root_source: SourceId,
-) -> bool {
-    if let Some(symbol) = resolved.symbol_for_call(call)
-        && symbol.declaration_span.source != root_source
-        && let SymbolKind::Function(signature) | SymbolKind::Primitive(signature) = &symbol.kind
-    {
-        return signature_is_static_error_constructor(signature, resolved);
-    }
-
-    if let Some((_owner, function)) = resolved.associated_function_for_call(call)
-        && function.name_span.source != root_source
-    {
-        return signature_is_static_error_constructor(&function.signature, resolved);
-    }
-
-    false
-}
-
-fn signature_is_static_error_constructor(
-    signature: &FunctionSignature,
-    resolved: &ResolveOutput,
-) -> bool {
-    signature.parameters.len() == 2 && type_expr_resolves_to_error(&signature.return_type, resolved)
-}
-
-fn type_expr_resolves_to_error(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
-    let TypeExpr::Reference(reference) = ty else {
-        return false;
-    };
-
-    if reference.name == "error" {
-        return true;
-    }
-
-    resolved
-        .type_symbol_by_name(&reference.name)
-        .and_then(|symbol| symbol.alias_target.as_ref())
-        .is_some_and(|target| type_expr_resolves_to_error(target, resolved))
 }
 
 fn unwrap_group_expr(expression: &Expr) -> &Expr {

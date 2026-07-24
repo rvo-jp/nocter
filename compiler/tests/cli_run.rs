@@ -10526,6 +10526,124 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_reports_fallible_entry_failure_dynamic_message() {
+    let project = TempProject::new("cli-run-fallible-failure-dynamic-message");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    let source = project.write_source(
+        "fail_dynamic.nct",
+        r#"use std/error.Error
+
+func main(): i32! {
+    return Error.new("app.failed", dynamic())
+}
+
+func dynamic(): &str {
+    return "failed"
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(output.stderr, b"app.failed: failed\n");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_reports_fallible_entry_failure_dynamic_code_and_message() {
+    let project = TempProject::new("cli-run-fallible-failure-dynamic-code-message");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    let source = project.write_source(
+        "fail_dynamic_code_message.nct",
+        r#"use std/error.Error
+
+func main(): i32! {
+    return Error.new(dynamic_code(), dynamic_message())
+}
+
+func dynamic_code(): &str {
+    return "app.failed"
+}
+
+func dynamic_message(): &str {
+    return "failed"
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(output.stderr, b"app.failed: failed\n");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_reports_catch_direct_error_return_failure() {
+    let project = TempProject::new("cli-run-catch-direct-error-return");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    let source = project.write_source(
+        "catch_direct_error_return.nct",
+        r#"use std/error.Error
+
+func main(): i32! {
+    let value = answer() catch error {
+        return error
+    }
+    return value
+}
+
+func answer(): i32! {
+    return Error.new("app.inner", "inner failed")
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(output.stderr, b"app.inner: inner failed\n");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_reports_fallible_entry_failure_multi_line_message() {
     let project = TempProject::new("cli-run-fallible-failure-multi-line");
     project.write_nocter_home_file(

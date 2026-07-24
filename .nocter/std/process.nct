@@ -88,22 +88,22 @@ pub func env(name: &str): &str?! {
 
 pub func cwd(allocator: &+Allocator): String! {
     let fd = open_current_directory() catch error {
-        return Error.new(error.code, error.message)
+        return error
     }
     var buffer = alloc(allocator, darwin_max_path_len(), 1) catch error {
         close_fd_word(fd)
-        return Error.new(error.code, error.message)
+        return error
     }
     let len = fill_cwd_path(fd, &+buffer) catch error {
         free(allocator, move buffer)
         close_fd_word(fd)
-        return Error.new(error.code, error.message)
+        return error
     }
     let view = str_from_raw_parts(buffer.ptr, len)
     let value = String.from_str(allocator, view) catch error {
         free(allocator, move buffer)
         close_fd_word(fd)
-        return Error.new(error.code, error.message)
+        return error
     }
     free(allocator, move buffer)
     close_fd_word(fd)

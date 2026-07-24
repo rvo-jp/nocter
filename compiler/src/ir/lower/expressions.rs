@@ -1221,8 +1221,7 @@ fn lower_catch_leading_statements(
 }
 
 fn lower_fallible_failure(payload: ErrorPayload) -> Vec<Instruction> {
-    let (code, message) = payload.into_str_values();
-    vec![Instruction::ReturnFallibleFailure { code, message }]
+    payload.into_return_instructions()
 }
 
 fn expression_is_none_literal(expression: &Expr) -> bool {

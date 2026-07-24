@@ -2960,8 +2960,7 @@ fn macos_syscall_primitive_call(call: &crate::ast::CallExpr, context: &LoweringC
 }
 
 fn lower_fallible_failure(payload: ErrorPayload) -> Vec<Instruction> {
-    let (code, message) = payload.into_str_values();
-    vec![Instruction::ReturnFallibleFailure { code, message }]
+    payload.into_return_instructions()
 }
 
 fn lower_optional_default_scalar_return_with_scope_drops(
