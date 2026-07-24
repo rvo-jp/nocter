@@ -17,21 +17,23 @@ use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
 use super::places::field_member_is_writable_place;
 use super::structs::{resolved_struct_field_for_literal_field, resolved_struct_field_for_member};
-use super::type_expr::{simple_type_from_display_name, type_expr_to_type_with_self_type};
+use super::type_expr::{
+    simple_type_from_display_name, type_expr_display_lossy, type_expr_to_type_with_self_type,
+};
 use super::variants::resolved_enum_variant_for_member;
 use crate::ast::{
     ArrayLength, ArrayType, AstFile, BindingStmt, Block, BorrowType, EnumDecl, EnumVariant, Expr,
     FallibleType, GenericParamList, GenericType, ImplDecl, ImplMember, InterpolatedStringPart,
     Item, MemberExpr, MethodDecl, OptionalType, Parameter, PointerType, Stmt, StructDecl,
     StructField, StructLiteralExpr, StructLiteralField, SwitchPayloadBinding, TypeAliasDecl,
-    TypeExpr, TypeReference, ViewType,
+    TypeExpr, TypeReference, ViewType, substitute_type_expr_parameters,
 };
 use crate::resolve::{
     AssociatedFunctionSignature, FunctionSignature, MethodSignature, ParameterSignature,
     ResolveOutput, SymbolKind, TypeSymbol,
 };
 use crate::source::ByteSpan;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct TypecheckFacts {
@@ -160,6 +162,14 @@ impl TypecheckFacts {
         self.function_call_specializations.values()
     }
 
+    pub(crate) fn function_call_specialization_entries(
+        &self,
+    ) -> impl Iterator<Item = (ByteSpan, &FunctionCallSpecialization)> + '_ {
+        self.function_call_specializations
+            .iter()
+            .map(|(span, specialization)| (*span, specialization))
+    }
+
     pub(crate) fn generic_method_call_target(&self, member_span: ByteSpan) -> Option<ByteSpan> {
         self.generic_method_call_spans.get(&member_span).copied()
     }
@@ -237,8 +247,47 @@ pub(crate) struct TypeReferenceFact {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct FunctionCallSpecialization {
     pub(crate) declaration_span: ByteSpan,
+    base_target_name: String,
+    generic_parameters: Vec<String>,
     pub(crate) target_name: String,
     pub(crate) substitutions: HashMap<String, TypeExpr>,
+    free_type_parameters: HashSet<String>,
+}
+
+impl FunctionCallSpecialization {
+    pub(crate) fn with_context_substitutions(
+        &self,
+        context_substitutions: &HashMap<String, TypeExpr>,
+    ) -> Option<Self> {
+        let mut substitutions = HashMap::new();
+        for parameter in &self.generic_parameters {
+            let ty = self.substitutions.get(parameter)?;
+            substitutions.insert(
+                parameter.clone(),
+                substitute_type_expr_parameters(ty, context_substitutions),
+            );
+        }
+        if substitutions
+            .values()
+            .any(|ty| type_expr_contains_free_parameters(ty, &self.free_type_parameters))
+        {
+            return None;
+        }
+        let target_name = specialized_target_name(
+            &self.base_target_name,
+            &self.generic_parameters,
+            &substitutions,
+        )?;
+
+        Some(Self {
+            declaration_span: self.declaration_span,
+            base_target_name: self.base_target_name.clone(),
+            generic_parameters: self.generic_parameters.clone(),
+            target_name,
+            substitutions,
+            free_type_parameters: HashSet::new(),
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -996,15 +1045,22 @@ fn function_call_specialization(
         .iter()
         .map(|parameter| substitution_types.get(parameter).map(Type::display))
         .collect::<Option<Vec<_>>>()?;
+    let mut free_type_parameters = HashSet::new();
     let substitutions = substitution_types
         .into_iter()
-        .map(|(name, ty)| type_to_type_expr(&ty, call.span).map(|ty| (name, ty)))
+        .map(|(name, ty)| {
+            type_to_type_expr_allowing_parameters(&ty, call.span, &mut free_type_parameters)
+                .map(|ty| (name, ty))
+        })
         .collect::<Option<HashMap<_, _>>>()?;
 
     Some(FunctionCallSpecialization {
         declaration_span,
+        base_target_name: base_target_name.to_string(),
+        generic_parameters: signature.generic_parameters.clone(),
         target_name: format!("{base_target_name}<{}>", type_arguments.join(", ")),
         substitutions,
+        free_type_parameters,
     })
 }
 
@@ -1040,6 +1096,22 @@ fn method_call_specialization(
 }
 
 fn type_to_type_expr(ty: &Type, span: ByteSpan) -> Option<TypeExpr> {
+    type_to_type_expr_inner(ty, span, None)
+}
+
+fn type_to_type_expr_allowing_parameters(
+    ty: &Type,
+    span: ByteSpan,
+    free_type_parameters: &mut HashSet<String>,
+) -> Option<TypeExpr> {
+    type_to_type_expr_inner(ty, span, Some(free_type_parameters))
+}
+
+fn type_to_type_expr_inner(
+    ty: &Type,
+    span: ByteSpan,
+    mut free_type_parameters: Option<&mut HashSet<String>>,
+) -> Option<TypeExpr> {
     match ty {
         Type::I32 => Some(type_reference("i32", span)),
         Type::Primitive(name) => Some(type_reference(name, span)),
@@ -1062,7 +1134,11 @@ fn type_to_type_expr(ty: &Type, span: ByteSpan) -> Option<TypeExpr> {
         Type::ArrayData { element } => Some(TypeExpr::View(ViewType {
             span,
             is_readwrite: false,
-            element: Box::new(type_to_type_expr(element, span)?),
+            element: Box::new(type_to_type_expr_inner(
+                element,
+                span,
+                free_type_parameters.as_deref_mut(),
+            )?),
         })),
         Type::View {
             is_readwrite,
@@ -1073,12 +1149,20 @@ fn type_to_type_expr(ty: &Type, span: ByteSpan) -> Option<TypeExpr> {
             inner: Box::new(TypeExpr::View(ViewType {
                 span,
                 is_readwrite: false,
-                element: Box::new(type_to_type_expr(element, span)?),
+                element: Box::new(type_to_type_expr_inner(
+                    element,
+                    span,
+                    free_type_parameters.as_deref_mut(),
+                )?),
             })),
         })),
         Type::Array { element, length } => Some(TypeExpr::Array(ArrayType {
             span,
-            element: Box::new(type_to_type_expr(element, span)?),
+            element: Box::new(type_to_type_expr_inner(
+                element,
+                span,
+                free_type_parameters.as_deref_mut(),
+            )?),
             length: ArrayLength {
                 span,
                 value: length.clone(),
@@ -1086,16 +1170,32 @@ fn type_to_type_expr(ty: &Type, span: ByteSpan) -> Option<TypeExpr> {
         })),
         Type::Pointer(inner) => Some(TypeExpr::Pointer(PointerType {
             span,
-            inner: Box::new(type_to_type_expr(inner, span)?),
+            inner: Box::new(type_to_type_expr_inner(
+                inner,
+                span,
+                free_type_parameters.as_deref_mut(),
+            )?),
         })),
         Type::Optional(inner) => Some(TypeExpr::Optional(OptionalType {
             span,
-            inner: Box::new(type_to_type_expr(inner, span)?),
+            inner: Box::new(type_to_type_expr_inner(
+                inner,
+                span,
+                free_type_parameters.as_deref_mut(),
+            )?),
         })),
         Type::Fallible { success, error } => Some(TypeExpr::Fallible(FallibleType {
             span,
-            success: Box::new(type_to_type_expr(success, span)?),
-            error: Box::new(type_to_type_expr(error, span)?),
+            success: Box::new(type_to_type_expr_inner(
+                success,
+                span,
+                free_type_parameters.as_deref_mut(),
+            )?),
+            error: Box::new(type_to_type_expr_inner(
+                error,
+                span,
+                free_type_parameters.as_deref_mut(),
+            )?),
         })),
         Type::Generic { name, arguments } => Some(TypeExpr::Generic(GenericType {
             span,
@@ -1103,10 +1203,61 @@ fn type_to_type_expr(ty: &Type, span: ByteSpan) -> Option<TypeExpr> {
             name_span: span,
             arguments: arguments
                 .iter()
-                .map(|argument| type_to_type_expr(argument, span))
+                .map(|argument| {
+                    type_to_type_expr_inner(argument, span, free_type_parameters.as_deref_mut())
+                })
                 .collect::<Option<Vec<_>>>()?,
         })),
-        Type::None | Type::Parameter(_) | Type::Unresolved(_) | Type::Unknown => None,
+        Type::Parameter(name) => {
+            let free_type_parameters = free_type_parameters.as_deref_mut()?;
+            free_type_parameters.insert(name.clone());
+            Some(type_reference(name, span))
+        }
+        Type::None | Type::Unresolved(_) | Type::Unknown => None,
+    }
+}
+
+fn specialized_target_name(
+    base_target_name: &str,
+    generic_parameters: &[String],
+    substitutions: &HashMap<String, TypeExpr>,
+) -> Option<String> {
+    let type_arguments = generic_parameters
+        .iter()
+        .map(|parameter| substitutions.get(parameter).map(type_expr_display_lossy))
+        .collect::<Option<Vec<_>>>()?;
+    Some(format!("{base_target_name}<{}>", type_arguments.join(", ")))
+}
+
+fn type_expr_contains_free_parameters(
+    ty: &TypeExpr,
+    free_type_parameters: &HashSet<String>,
+) -> bool {
+    match ty {
+        TypeExpr::Reference(reference) => free_type_parameters.contains(&reference.name),
+        TypeExpr::Generic(generic) => generic
+            .arguments
+            .iter()
+            .any(|argument| type_expr_contains_free_parameters(argument, free_type_parameters)),
+        TypeExpr::Pointer(pointer) => {
+            type_expr_contains_free_parameters(&pointer.inner, free_type_parameters)
+        }
+        TypeExpr::Borrow(borrow) => {
+            type_expr_contains_free_parameters(&borrow.inner, free_type_parameters)
+        }
+        TypeExpr::View(view) => {
+            type_expr_contains_free_parameters(&view.element, free_type_parameters)
+        }
+        TypeExpr::Array(array) => {
+            type_expr_contains_free_parameters(&array.element, free_type_parameters)
+        }
+        TypeExpr::Optional(optional) => {
+            type_expr_contains_free_parameters(&optional.inner, free_type_parameters)
+        }
+        TypeExpr::Fallible(fallible) => {
+            type_expr_contains_free_parameters(&fallible.success, free_type_parameters)
+                || type_expr_contains_free_parameters(&fallible.error, free_type_parameters)
+        }
     }
 }
 

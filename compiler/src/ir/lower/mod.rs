@@ -19,7 +19,9 @@ use crate::abi::{
     ReturnPassing, function_parameter_abi_word_count_from_signature,
     function_success_return_passing_from_signature,
 };
-use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
+use crate::analysis::{
+    CompileUnitAnalysis, FileAnalysis, call_specializations::collect_call_specializations,
+};
 use crate::ast::{
     DropDecl, FunctionDecl, ImplMember, Item, MethodDecl, Parameter, Stmt, TypeExpr, TypeReference,
     substitute_type_expr_parameters,
@@ -32,7 +34,7 @@ use crate::resolve::{
     drop_function_name,
 };
 use crate::source::{ByteSpan, SourceId, SourceMap};
-use crate::typecheck::{FunctionCallSpecialization, MethodCallSpecialization, TypecheckFacts};
+use crate::typecheck::TypecheckFacts;
 use context::{ErrorPayloads, FunctionNames, FunctionSignature, FunctionSignatures};
 use imported_calls::imported_call_diagnostics;
 use reachability::reachable_call_targets;
@@ -185,8 +187,7 @@ enum IndexedDeclaration<'a> {
 impl<'a> FunctionIndex<'a> {
     fn new(analysis: &'a CompileUnitAnalysis, root_source: SourceId) -> Self {
         let mut definitions = HashMap::new();
-        let function_specializations = function_specializations(analysis);
-        let method_specializations = method_specializations(analysis);
+        let call_specializations = collect_call_specializations(analysis);
         for file in &analysis.files {
             for item in &file.ast.items {
                 match item {
@@ -199,9 +200,14 @@ impl<'a> FunctionIndex<'a> {
                         definitions.insert(target, IndexedCallable::new_function(function, file));
                     }
                     Item::Function(function) => {
-                        for specialization in function_specializations
+                        for specialization in call_specializations
+                            .functions
                             .get(&function.name_span)
-                            .or_else(|| function_specializations.get(&function.member_name_span))
+                            .or_else(|| {
+                                call_specializations
+                                    .functions
+                                    .get(&function.member_name_span)
+                            })
                             .into_iter()
                             .flatten()
                         {
@@ -266,7 +272,8 @@ impl<'a> FunctionIndex<'a> {
                                     );
                                 }
                                 ImplMember::Method(method) if method.body.is_some() => {
-                                    for specialization in method_specializations
+                                    for specialization in call_specializations
+                                        .methods
                                         .get(&method.name_span)
                                         .into_iter()
                                         .flatten()
@@ -689,47 +696,6 @@ fn function_parameters(
             ty: substitute_type_expr_parameters(&parameter.ty, substitutions),
         })
         .collect()
-}
-
-fn function_specializations(
-    analysis: &CompileUnitAnalysis,
-) -> HashMap<ByteSpan, Vec<FunctionCallSpecialization>> {
-    let mut specializations: HashMap<ByteSpan, Vec<FunctionCallSpecialization>> = HashMap::new();
-    for file in &analysis.files {
-        for specialization in file.typecheck_facts.function_call_specializations() {
-            let entries = specializations
-                .entry(specialization.declaration_span)
-                .or_default();
-            if !entries.iter().any(|entry| {
-                entry.target_name == specialization.target_name
-                    && entry.substitutions == specialization.substitutions
-            }) {
-                entries.push(specialization.clone());
-            }
-        }
-    }
-    specializations
-}
-
-fn method_specializations(
-    analysis: &CompileUnitAnalysis,
-) -> HashMap<ByteSpan, Vec<MethodCallSpecialization>> {
-    let mut specializations: HashMap<ByteSpan, Vec<MethodCallSpecialization>> = HashMap::new();
-    for file in &analysis.files {
-        for specialization in file.typecheck_facts.method_call_specializations() {
-            let entries = specializations
-                .entry(specialization.declaration_span)
-                .or_default();
-            if !entries.iter().any(|entry| {
-                entry.target_name == specialization.target_name
-                    && entry.self_ty == specialization.self_ty
-                    && entry.substitutions == specialization.substitutions
-            }) {
-                entries.push(specialization.clone());
-            }
-        }
-    }
-    specializations
 }
 
 fn resolved_function_signature(

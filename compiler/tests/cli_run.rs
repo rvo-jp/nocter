@@ -3344,6 +3344,75 @@ func main(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_nested_generic_function_exit_code() {
+    let project = TempProject::new("cli-run-nested-generic-function");
+    let source = project.write_source(
+        "nested_generic_function.nct",
+        r#"func identity<T>(value: T): T {
+    return value
+}
+
+func forward<T>(value: T): T {
+    return identity(value)
+}
+
+func main(): i32 {
+    return forward(42)
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_generic_impl_method_body_generic_function_exit_code() {
+    let project = TempProject::new("cli-run-generic-method-body-function");
+    let source = project.write_source(
+        "generic_method_body_function.nct",
+        r#"struct Box<T> {
+    value: T
+}
+
+func identity<T>(value: T): T {
+    return value
+}
+
+impl<U> Box<U> {
+    method self.into_identity(): U {
+        return identity(self.value)
+    }
+}
+
+func main(): i32 {
+    let box = Box<i32>{ value: 42 }
+    return (move box).into_identity()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_returns_concrete_generic_impl_method_exit_code() {
     let project = TempProject::new("cli-run-concrete-generic-impl-method");
     let source = project.write_source(

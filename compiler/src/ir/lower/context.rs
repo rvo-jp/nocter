@@ -24,6 +24,7 @@ pub(super) struct LoweringContext<'a> {
     function_signatures: FunctionSignatures,
     call_resolution: Option<CallResolution<'a>>,
     function_names: FunctionNames,
+    generic_substitutions: HashMap<String, TypeExpr>,
     i32_parameters: Vec<Option<String>>,
     u8_parameters: Vec<Option<String>>,
     usize_parameters: Vec<Option<String>>,
@@ -48,6 +49,7 @@ impl<'a> Clone for LoweringContext<'a> {
             function_signatures: self.function_signatures.clone(),
             call_resolution: self.call_resolution.clone(),
             function_names: self.function_names.clone(),
+            generic_substitutions: self.generic_substitutions.clone(),
             i32_parameters: self.i32_parameters.clone(),
             u8_parameters: self.u8_parameters.clone(),
             usize_parameters: self.usize_parameters.clone(),
@@ -184,6 +186,7 @@ impl<'a> LoweringContext<'a> {
             function_signatures,
             call_resolution: None,
             function_names: FunctionNames::default(),
+            generic_substitutions: HashMap::new(),
             i32_parameters: Vec::new(),
             u8_parameters: Vec::new(),
             usize_parameters: Vec::new(),
@@ -236,6 +239,7 @@ impl<'a> LoweringContext<'a> {
             function_signatures,
             call_resolution: None,
             function_names: FunctionNames::default(),
+            generic_substitutions: HashMap::new(),
             i32_parameters: parameters.i32,
             u8_parameters: parameters.u8,
             usize_parameters: parameters.usize,
@@ -264,6 +268,14 @@ impl<'a> LoweringContext<'a> {
             typecheck_facts,
         });
         self.function_names = function_names;
+        self
+    }
+
+    pub(super) fn with_generic_substitutions(
+        mut self,
+        substitutions: HashMap<String, TypeExpr>,
+    ) -> Self {
+        self.generic_substitutions = substitutions;
         self
     }
 
@@ -400,7 +412,8 @@ impl<'a> LoweringContext<'a> {
         let resolution = self.call_resolution.as_ref()?;
         let specialization = resolution
             .typecheck_facts
-            .function_call_specialization(call.span)?;
+            .function_call_specialization(call.span)?
+            .with_context_substitutions(&self.generic_substitutions)?;
         let target = call_target_for_source(
             specialization.declaration_span.source,
             resolution.root_source,

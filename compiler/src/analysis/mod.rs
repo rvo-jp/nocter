@@ -1,5 +1,6 @@
 //! Whole-compile-unit semantic analysis.
 
+pub(crate) mod call_specializations;
 pub(crate) mod completion;
 pub(crate) mod definition;
 pub(crate) mod hover;

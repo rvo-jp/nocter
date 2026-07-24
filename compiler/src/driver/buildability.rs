@@ -1,8 +1,10 @@
 use crate::abi::{AbiType, abi_value_from_type_expr};
-use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
+use crate::analysis::{
+    CompileUnitAnalysis, FileAnalysis, call_specializations::collect_call_specializations,
+};
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, Block, CallExpr, DropDecl, Expr, ForRangeStmt,
-    FunctionDecl, IfLetStmt, ImplDecl, ImplMember, Item, MethodDecl, Stmt, TypeExpr, WhileLetStmt,
+    FunctionDecl, IfLetStmt, ImplDecl, ImplMember, Item, Stmt, TypeExpr, WhileLetStmt,
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
@@ -11,7 +13,7 @@ use crate::resolve::{
     FunctionSignature, ResolveOutput, SymbolKind, TypeSymbolKind, drop_function_name,
 };
 use crate::source::{ByteSpan, SourceId, SourceMap};
-use crate::typecheck::TypecheckFacts;
+use crate::typecheck::{FunctionCallSpecialization, TypecheckFacts};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
 
@@ -60,11 +62,12 @@ impl<'a> CallableIndex<'a> {
     fn new(analysis: &'a CompileUnitAnalysis, root_source: SourceId) -> Self {
         let mut definitions = HashMap::new();
         let mut names = HashMap::new();
+        let call_specializations = collect_call_specializations(analysis);
 
         for file in &analysis.files {
             for item in &file.ast.items {
                 match item {
-                    Item::Function(function) => {
+                    Item::Function(function) if function.generics.parameters.is_empty() => {
                         let target = call_target_for_source(
                             file.ast.span.source,
                             root_source,
@@ -73,13 +76,43 @@ impl<'a> CallableIndex<'a> {
                         names.insert(function.name_span, function.name.clone());
                         definitions.insert(target, IndexedCallable::new_function(function, file));
                     }
+                    Item::Function(function) => {
+                        for specialization in call_specializations
+                            .functions
+                            .get(&function.name_span)
+                            .or_else(|| {
+                                call_specializations
+                                    .functions
+                                    .get(&function.member_name_span)
+                            })
+                            .into_iter()
+                            .flatten()
+                        {
+                            let target = call_target_for_source(
+                                file.ast.span.source,
+                                root_source,
+                                specialization.target_name.clone(),
+                            );
+                            definitions.insert(
+                                target,
+                                IndexedCallable::new_function_specialization(
+                                    function,
+                                    specialization.substitutions.clone(),
+                                    file,
+                                ),
+                            );
+                        }
+                    }
                     Item::Impl(impl_) if impl_.interface_ty.is_none() => {
                         let Some(type_name) = impl_target_type_name(&impl_.target_ty) else {
                             continue;
                         };
                         for member in &impl_.members {
                             match member {
-                                ImplMember::Method(method) => {
+                                ImplMember::Method(method)
+                                    if method.body.is_some()
+                                        && impl_.generics.parameters.is_empty() =>
+                                {
                                     let Some(body) = method.body.as_ref() else {
                                         continue;
                                     };
@@ -92,9 +125,35 @@ impl<'a> CallableIndex<'a> {
                                     names.insert(method.name_span, name.clone());
                                     definitions.insert(
                                         target,
-                                        IndexedCallable::new_method(impl_, method, body, file),
+                                        IndexedCallable::new_method(body, HashMap::new(), file),
                                     );
                                 }
+                                ImplMember::Method(method) if method.body.is_some() => {
+                                    let Some(body) = method.body.as_ref() else {
+                                        continue;
+                                    };
+                                    for specialization in call_specializations
+                                        .methods
+                                        .get(&method.name_span)
+                                        .into_iter()
+                                        .flatten()
+                                    {
+                                        let target = call_target_for_source(
+                                            file.ast.span.source,
+                                            root_source,
+                                            specialization.target_name.clone(),
+                                        );
+                                        definitions.insert(
+                                            target,
+                                            IndexedCallable::new_method(
+                                                body,
+                                                specialization.substitutions.clone(),
+                                                file,
+                                            ),
+                                        );
+                                    }
+                                }
+                                ImplMember::Method(_) => {}
                                 ImplMember::Drop(drop_) => {
                                     let name = drop_function_name(type_name);
                                     let target = call_target_for_source(
@@ -126,6 +185,7 @@ impl<'a> CallableIndex<'a> {
 
 struct IndexedCallable<'a> {
     body: &'a Block,
+    substitutions: HashMap<String, TypeExpr>,
     resolved: &'a ResolveOutput,
     typecheck_facts: &'a TypecheckFacts,
     issues: Vec<BuildabilityIssue>,
@@ -144,6 +204,24 @@ impl<'a> IndexedCallable<'a> {
 
         Self {
             body: &function.body,
+            substitutions: HashMap::new(),
+            resolved: &file.resolved,
+            typecheck_facts: &file.typecheck_facts,
+            issues,
+        }
+    }
+
+    fn new_function_specialization(
+        function: &'a FunctionDecl,
+        substitutions: HashMap<String, TypeExpr>,
+        file: &'a FileAnalysis,
+    ) -> Self {
+        let mut issues = Vec::new();
+        issues.extend(nested_fallible_return_issue(function, &file.resolved));
+
+        Self {
+            body: &function.body,
+            substitutions,
             resolved: &file.resolved,
             typecheck_facts: &file.typecheck_facts,
             issues,
@@ -151,13 +229,13 @@ impl<'a> IndexedCallable<'a> {
     }
 
     fn new_method(
-        _impl_: &'a ImplDecl,
-        _method: &'a MethodDecl,
         body: &'a Block,
+        substitutions: HashMap<String, TypeExpr>,
         file: &'a FileAnalysis,
     ) -> Self {
         Self {
             body,
+            substitutions,
             resolved: &file.resolved,
             typecheck_facts: &file.typecheck_facts,
             issues: Vec::new(),
@@ -167,6 +245,7 @@ impl<'a> IndexedCallable<'a> {
     fn new_drop(drop_: &'a DropDecl, impl_: &'a ImplDecl, file: &'a FileAnalysis) -> Self {
         Self {
             body: &drop_.body,
+            substitutions: HashMap::new(),
             resolved: &file.resolved,
             typecheck_facts: &file.typecheck_facts,
             issues: generic_impl_issue(impl_).into_iter().collect(),
@@ -197,6 +276,7 @@ fn collect_callable_diagnostics(
         sources,
         callable.resolved,
         callable.typecheck_facts,
+        &callable.substitutions,
         root_source,
         names,
         nocter_home,
@@ -210,6 +290,7 @@ fn collect_block_diagnostics(
     sources: &SourceMap,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
     nocter_home: Option<&Path>,
@@ -222,6 +303,7 @@ fn collect_block_diagnostics(
             sources,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             root_source,
             names,
             nocter_home,
@@ -447,6 +529,7 @@ fn collect_statement_diagnostics(
     sources: &SourceMap,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
     nocter_home: Option<&Path>,
@@ -461,6 +544,7 @@ fn collect_statement_diagnostics(
                     sources,
                     resolved,
                     typecheck_facts,
+                    generic_substitutions,
                     root_source,
                     names,
                     nocter_home,
@@ -475,6 +559,7 @@ fn collect_statement_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -487,6 +572,7 @@ fn collect_statement_diagnostics(
                     sources,
                     resolved,
                     typecheck_facts,
+                    generic_substitutions,
                     root_source,
                     names,
                     nocter_home,
@@ -509,6 +595,7 @@ fn collect_statement_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -520,6 +607,7 @@ fn collect_statement_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -533,6 +621,7 @@ fn collect_statement_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -544,6 +633,7 @@ fn collect_statement_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -556,6 +646,7 @@ fn collect_statement_diagnostics(
                     sources,
                     resolved,
                     typecheck_facts,
+                    generic_substitutions,
                     root_source,
                     names,
                     nocter_home,
@@ -578,6 +669,7 @@ fn collect_statement_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -589,6 +681,7 @@ fn collect_statement_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -601,6 +694,7 @@ fn collect_statement_diagnostics(
                     sources,
                     resolved,
                     typecheck_facts,
+                    generic_substitutions,
                     root_source,
                     names,
                     nocter_home,
@@ -623,6 +717,7 @@ fn collect_statement_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -634,6 +729,7 @@ fn collect_statement_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -646,6 +742,7 @@ fn collect_statement_diagnostics(
                     sources,
                     resolved,
                     typecheck_facts,
+                    generic_substitutions,
                     root_source,
                     names,
                     nocter_home,
@@ -668,6 +765,7 @@ fn collect_statement_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -680,6 +778,7 @@ fn collect_statement_diagnostics(
                     sources,
                     resolved,
                     typecheck_facts,
+                    generic_substitutions,
                     root_source,
                     names,
                     nocter_home,
@@ -693,6 +792,7 @@ fn collect_statement_diagnostics(
                     sources,
                     resolved,
                     typecheck_facts,
+                    generic_substitutions,
                     root_source,
                     names,
                     nocter_home,
@@ -715,6 +815,7 @@ fn collect_statement_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -726,6 +827,7 @@ fn collect_statement_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -737,6 +839,7 @@ fn collect_statement_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -750,6 +853,7 @@ fn collect_statement_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -761,6 +865,7 @@ fn collect_statement_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -782,6 +887,7 @@ fn collect_statement_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -793,6 +899,7 @@ fn collect_statement_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -806,6 +913,7 @@ fn collect_statement_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -826,6 +934,7 @@ fn collect_statement_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -1098,6 +1207,7 @@ fn collect_expression_diagnostics(
     sources: &SourceMap,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
     nocter_home: Option<&Path>,
@@ -1124,6 +1234,7 @@ fn collect_expression_diagnostics(
                         sources,
                         resolved,
                         typecheck_facts,
+                        generic_substitutions,
                         root_source,
                         names,
                         nocter_home,
@@ -1146,6 +1257,7 @@ fn collect_expression_diagnostics(
                     sources,
                     resolved,
                     typecheck_facts,
+                    generic_substitutions,
                     root_source,
                     names,
                     nocter_home,
@@ -1161,6 +1273,7 @@ fn collect_expression_diagnostics(
                     sources,
                     resolved,
                     typecheck_facts,
+                    generic_substitutions,
                     root_source,
                     names,
                     nocter_home,
@@ -1174,6 +1287,7 @@ fn collect_expression_diagnostics(
             sources,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             root_source,
             names,
             nocter_home,
@@ -1185,6 +1299,7 @@ fn collect_expression_diagnostics(
             sources,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             root_source,
             names,
             nocter_home,
@@ -1197,6 +1312,7 @@ fn collect_expression_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -1208,6 +1324,7 @@ fn collect_expression_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -1220,6 +1337,7 @@ fn collect_expression_diagnostics(
             sources,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             root_source,
             names,
             nocter_home,
@@ -1231,6 +1349,7 @@ fn collect_expression_diagnostics(
             sources,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             root_source,
             names,
             nocter_home,
@@ -1243,6 +1362,7 @@ fn collect_expression_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -1254,6 +1374,7 @@ fn collect_expression_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -1266,6 +1387,7 @@ fn collect_expression_diagnostics(
             sources,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             root_source,
             names,
             nocter_home,
@@ -1309,6 +1431,7 @@ fn collect_expression_diagnostics(
                 sources,
                 expression,
                 typecheck_facts,
+                generic_substitutions,
             ) {
                 diagnostics.push(diagnostic);
             }
@@ -1324,6 +1447,7 @@ fn collect_expression_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -1331,8 +1455,14 @@ fn collect_expression_diagnostics(
                 diagnostics,
             );
             if check_only_std_call.is_none()
-                && let Some(target) =
-                    call_target_for_call(expression, resolved, typecheck_facts, root_source, names)
+                && let Some(target) = call_target_for_call(
+                    expression,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                )
             {
                 queue.push_back(target);
             }
@@ -1342,6 +1472,7 @@ fn collect_expression_diagnostics(
                     sources,
                     resolved,
                     typecheck_facts,
+                    generic_substitutions,
                     root_source,
                     names,
                     nocter_home,
@@ -1355,6 +1486,7 @@ fn collect_expression_diagnostics(
             sources,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             root_source,
             names,
             nocter_home,
@@ -1367,6 +1499,7 @@ fn collect_expression_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -1378,6 +1511,7 @@ fn collect_expression_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -1390,6 +1524,7 @@ fn collect_expression_diagnostics(
             sources,
             resolved,
             typecheck_facts,
+            generic_substitutions,
             root_source,
             names,
             nocter_home,
@@ -1402,6 +1537,7 @@ fn collect_expression_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -1413,6 +1549,7 @@ fn collect_expression_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -1434,6 +1571,7 @@ fn collect_expression_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -1446,6 +1584,7 @@ fn collect_expression_diagnostics(
                     sources,
                     resolved,
                     typecheck_facts,
+                    generic_substitutions,
                     root_source,
                     names,
                     nocter_home,
@@ -1458,6 +1597,7 @@ fn collect_expression_diagnostics(
                 sources,
                 resolved,
                 typecheck_facts,
+                generic_substitutions,
                 root_source,
                 names,
                 nocter_home,
@@ -1628,11 +1768,10 @@ fn unsupported_unspecialized_generic_function_call_diagnostic(
     sources: &SourceMap,
     call: &CallExpr,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
 ) -> Option<Diagnostic> {
     typecheck_facts.generic_function_call_target(call.span)?;
-    if typecheck_facts
-        .function_call_specialization(call.span)
-        .is_some()
+    if concrete_function_call_specialization(call, typecheck_facts, generic_substitutions).is_some()
     {
         return None;
     }
@@ -1643,6 +1782,16 @@ fn unsupported_unspecialized_generic_function_call_diagnostic(
         "generic function calls without concrete type arguments",
         "pass arguments that determine every generic parameter until return-context generic inference is promoted",
     ))
+}
+
+fn concrete_function_call_specialization(
+    call: &CallExpr,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<FunctionCallSpecialization> {
+    typecheck_facts
+        .function_call_specialization(call.span)?
+        .with_context_substitutions(generic_substitutions)
 }
 
 fn method_call_receiver_is_readwrite_borrow(
@@ -1780,10 +1929,13 @@ fn call_target_for_call(
     call: &crate::ast::CallExpr,
     resolved: &ResolveOutput,
     typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
     root_source: SourceId,
     names: &HashMap<ByteSpan, String>,
 ) -> Option<CallTarget> {
-    if let Some(specialization) = typecheck_facts.function_call_specialization(call.span) {
+    if let Some(specialization) =
+        concrete_function_call_specialization(call, typecheck_facts, generic_substitutions)
+    {
         return Some(call_target_for_source(
             specialization.declaration_span.source,
             root_source,
@@ -2215,6 +2367,56 @@ func identity<T>(value: T): T {
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn accepts_reachable_nested_generic_function_with_concrete_arguments() {
+        let (sources, analysis) = analyze_text(
+            r#"func main(): i32 {
+    return forward(42)
+}
+
+func forward<T>(value: T): T {
+    return identity(value)
+}
+
+func identity<T>(value: T): T {
+    return value
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn reports_unspecialized_generic_function_call_inside_reachable_specialization() {
+        let (sources, analysis) = analyze_text(
+            r#"func main(): i32 {
+    return forward(42)
+}
+
+func forward<T>(value: T): T {
+    let optional = empty()
+    return value
+}
+
+func empty<T>(): T? {
+    return none
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "E0435");
+        assert_eq!(
+            diagnostics[0].message,
+            "Nocter v0 build cannot lower generic function calls without concrete type arguments yet"
+        );
     }
 
     #[test]

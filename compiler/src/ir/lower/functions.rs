@@ -139,6 +139,7 @@ pub(super) fn lower_function(
         resolved,
     ))
     .with_call_resolution(root_source, resolved, typecheck_facts, function_names)
+    .with_generic_substitutions(substitutions.clone())
     .with_error_payloads(error_payloads);
     let mut instructions = parameter_setup;
     instructions.extend(lower_callable_body(
@@ -310,6 +311,7 @@ pub(super) fn lower_method_function(
         resolved,
     ))
     .with_call_resolution(root_source, resolved, typecheck_facts, function_names)
+    .with_generic_substitutions(substitutions.clone())
     .with_error_payloads(error_payloads);
     let mut instructions = parameter_setup;
     instructions.extend(lower_callable_body(
