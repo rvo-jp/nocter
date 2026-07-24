@@ -39,18 +39,20 @@ pub(super) use calls::primitive_trap_call;
 use calls::{
     call_arguments_require_stack, is_tail_call_stack_pointer_argument,
     lower_addr_primitive_call_to_word, lower_bool_normal_call, lower_call_arguments,
-    lower_close_fd_raw_primitive_call, lower_copy_str_to_ptr_primitive_call,
-    lower_direct_tail_call, lower_exit_raw_primitive_call, lower_fallible_void_normal_call,
-    lower_i32_normal_call, lower_pointee_size_primitive_call_to_word,
+    lower_close_fd_raw_primitive_call, lower_copy_ptr_to_ptr_primitive_call,
+    lower_copy_str_to_ptr_primitive_call, lower_direct_tail_call, lower_exit_raw_primitive_call,
+    lower_fallible_void_normal_call, lower_i32_normal_call,
+    lower_pointee_size_primitive_call_to_word,
     lower_slice_from_raw_parts_primitive_call_to_location, lower_slice_normal_call,
-    lower_store_u8_to_ptr_primitive_call, lower_str_bytes_primitive_call_to_location,
-    lower_str_bytes_primitive_call_to_value, lower_str_from_raw_parts_primitive_call_to_location,
-    lower_str_normal_call, lower_u8_normal_call, lower_usize_normal_call, lower_void_normal_call,
-    primitive_addr_call, primitive_bytes_from_str_call, primitive_close_fd_raw_call,
+    lower_store_u8_to_ptr_primitive_call, lower_store_value_to_ptr_primitive_call,
+    lower_str_bytes_primitive_call_to_location, lower_str_bytes_primitive_call_to_value,
+    lower_str_from_raw_parts_primitive_call_to_location, lower_str_normal_call,
+    lower_u8_normal_call, lower_usize_normal_call, lower_void_normal_call, primitive_addr_call,
+    primitive_bytes_from_str_call, primitive_close_fd_raw_call, primitive_copy_ptr_to_ptr_call,
     primitive_copy_str_to_ptr_call, primitive_exit_raw_call, primitive_pointee_size_call,
     primitive_slice_from_raw_parts_call, primitive_store_u8_to_ptr_call,
-    primitive_str_from_raw_parts_call, primitive_write_bytes_raw_call,
-    primitive_write_text_raw_call,
+    primitive_store_value_to_ptr_call, primitive_str_from_raw_parts_call,
+    primitive_write_bytes_raw_call, primitive_write_text_raw_call,
 };
 pub(super) use calls::{
     lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
@@ -618,9 +620,19 @@ pub(super) fn lower_void_expression_statement(
                 return lower_copy_str_to_ptr_primitive_call(call, context, &mut temporaries)
                     .map(Some);
             }
+            if primitive_copy_ptr_to_ptr_call(call, context) {
+                let mut temporaries = TemporaryAllocator::new(context)?;
+                return lower_copy_ptr_to_ptr_primitive_call(call, context, &mut temporaries)
+                    .map(Some);
+            }
             if primitive_store_u8_to_ptr_call(call, context) {
                 let mut temporaries = TemporaryAllocator::new(context)?;
                 return lower_store_u8_to_ptr_primitive_call(call, context, &mut temporaries)
+                    .map(Some);
+            }
+            if primitive_store_value_to_ptr_call(call, context) {
+                let mut temporaries = TemporaryAllocator::new(context)?;
+                return lower_store_value_to_ptr_primitive_call(call, context, &mut temporaries)
                     .map(Some);
             }
             if primitive_close_fd_raw_call(call, context) {

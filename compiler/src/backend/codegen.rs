@@ -341,12 +341,40 @@ impl EntryEmitter {
             } => {
                 self.emit_copy_str_to_pointer(pointer, offset, text, frame)?;
             }
+            Instruction::CopyPointerBytes {
+                destination,
+                source,
+                byte_count,
+            } => {
+                self.emit_copy_pointer_bytes(destination, source, byte_count, frame)?;
+            }
             Instruction::StoreU8ToPointer {
                 pointer,
                 offset,
                 value,
             } => {
                 self.emit_store_u8_to_pointer(pointer, offset, value, frame)?;
+            }
+            Instruction::StoreI32ToPointer {
+                pointer,
+                offset,
+                value,
+            } => {
+                self.emit_store_i32_to_pointer(pointer, offset, value, frame)?;
+            }
+            Instruction::StoreUsizeToPointer {
+                pointer,
+                offset,
+                value,
+            } => {
+                self.emit_store_usize_to_pointer(pointer, offset, value, frame)?;
+            }
+            Instruction::StoreBoolToPointer {
+                pointer,
+                offset,
+                value,
+            } => {
+                self.emit_store_bool_to_pointer(pointer, offset, value, frame)?;
             }
             Instruction::AddI32 {
                 destination,
@@ -3724,6 +3752,56 @@ mod tests {
                     pointer: UsizeValue::Const(4096),
                     offset: UsizeValue::Const(4),
                     value: U8Value::Const(0),
+                },
+                set_return_i32(0),
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module).unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_strb_w_imm(WReg::W2, XReg::X0, 0)
+        ));
+    }
+
+    #[test]
+    fn pointer_usize_store_uses_word_store() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::StoreUsizeToPointer {
+                    pointer: UsizeValue::Const(4096),
+                    offset: UsizeValue::Const(8),
+                    value: UsizeValue::Const(42),
+                },
+                set_return_i32(0),
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module).unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_x_imm(XReg::X2, XReg::X0, 0)
+        ));
+    }
+
+    #[test]
+    fn pointer_bool_store_uses_byte_store() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::StoreBoolToPointer {
+                    pointer: UsizeValue::Const(4096),
+                    offset: UsizeValue::Const(1),
+                    value: BoolValue::Const(true),
                 },
                 set_return_i32(0),
                 Instruction::Return,

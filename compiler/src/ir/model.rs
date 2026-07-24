@@ -186,10 +186,30 @@ pub(crate) enum Instruction {
         offset: UsizeValue,
         text: StrValue,
     },
+    CopyPointerBytes {
+        destination: UsizeValue,
+        source: UsizeValue,
+        byte_count: UsizeValue,
+    },
     StoreU8ToPointer {
         pointer: UsizeValue,
         offset: UsizeValue,
         value: U8Value,
+    },
+    StoreI32ToPointer {
+        pointer: UsizeValue,
+        offset: UsizeValue,
+        value: I32Value,
+    },
+    StoreUsizeToPointer {
+        pointer: UsizeValue,
+        offset: UsizeValue,
+        value: UsizeValue,
+    },
+    StoreBoolToPointer {
+        pointer: UsizeValue,
+        offset: UsizeValue,
+        value: BoolValue,
     },
     AddI32 {
         destination: I32Location,

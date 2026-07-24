@@ -104,7 +104,11 @@ fn collect_reachable_call_targets(
             | Instruction::CloseFd { .. }
             | Instruction::DarwinSyscall { .. }
             | Instruction::CopyStrToPointer { .. }
+            | Instruction::CopyPointerBytes { .. }
             | Instruction::StoreU8ToPointer { .. }
+            | Instruction::StoreI32ToPointer { .. }
+            | Instruction::StoreUsizeToPointer { .. }
+            | Instruction::StoreBoolToPointer { .. }
             | Instruction::ReserveAggregateSlot { .. }
             | Instruction::StoreAggregateUsize { .. }
             | Instruction::StoreAggregateI32 { .. }

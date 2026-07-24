@@ -6,6 +6,7 @@ use super::super::aggregates::{
 use super::super::context::{AggregateFieldKind, LoweringContext};
 use super::super::errors::lower_error_payload;
 use super::super::functions::propagating_failure_mode;
+use super::super::types::scalar_or_view_type_from_type_expr;
 use super::temporaries::TemporaryAllocator;
 use super::{
     lower_aggregate_member_field_access, lower_bool_expression_to_value_with_temporaries,
@@ -2060,10 +2061,27 @@ pub(super) fn primitive_copy_str_to_ptr_call(call: &CallExpr, context: &Lowering
     )
 }
 
+pub(super) fn primitive_copy_ptr_to_ptr_call(call: &CallExpr, context: &LoweringContext) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("copy_ptr_to_ptr")
+    )
+}
+
 pub(super) fn primitive_store_u8_to_ptr_call(call: &CallExpr, context: &LoweringContext) -> bool {
     matches!(
         context.primitive_name_for_call(call),
         Some("store_u8_to_ptr")
+    )
+}
+
+pub(super) fn primitive_store_value_to_ptr_call(
+    call: &CallExpr,
+    context: &LoweringContext,
+) -> bool {
+    matches!(
+        context.primitive_name_for_call(call),
+        Some("store_value_to_ptr")
     )
 }
 
@@ -2160,6 +2178,32 @@ pub(super) fn lower_copy_str_to_ptr_primitive_call(
     Ok(instructions)
 }
 
+pub(super) fn lower_copy_ptr_to_ptr_primitive_call(
+    call: &CallExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if call.arguments.len() != 3 {
+        return Err(unsupported_pointer_primitive_diagnostic(
+            "`copy_ptr_to_ptr` requires arguments `(destination: *u8, source: *u8, byte_count: usize)`",
+        ));
+    }
+
+    let (mut instructions, destination) =
+        lower_pointer_address_expression_to_word(&call.arguments[0], context, temporaries)?;
+    let (source_instructions, source) =
+        lower_pointer_address_expression_to_word(&call.arguments[1], context, temporaries)?;
+    instructions.extend(source_instructions);
+    let byte_count = lower_usize_expression_to_value(&call.arguments[2], context, temporaries)?;
+    instructions.extend(byte_count.instructions);
+    instructions.push(Instruction::CopyPointerBytes {
+        destination,
+        source,
+        byte_count: byte_count.value,
+    });
+    Ok(instructions)
+}
+
 pub(super) fn lower_store_u8_to_ptr_primitive_call(
     call: &CallExpr,
     context: &LoweringContext,
@@ -2182,6 +2226,98 @@ pub(super) fn lower_store_u8_to_ptr_primitive_call(
         offset: offset.value,
         value: value.value,
     });
+    Ok(instructions)
+}
+
+pub(super) fn lower_store_value_to_ptr_primitive_call(
+    call: &CallExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if call.arguments.len() != 3 {
+        return Err(unsupported_pointer_primitive_diagnostic(
+            "`store_value_to_ptr` requires arguments `(destination: *T, offset: usize, value: T)`",
+        ));
+    }
+
+    let Some(pointee_type) = context.function_call_type_substitution(call, "T") else {
+        return Err(unsupported_pointer_primitive_diagnostic(
+            "`store_value_to_ptr` requires a concrete pointer element type",
+        ));
+    };
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(unsupported_pointer_primitive_diagnostic(
+            "`store_value_to_ptr` requires resolved type information",
+        ));
+    };
+    let Some(value_type) = scalar_or_view_type_from_type_expr(&pointee_type, resolved) else {
+        return Err(unsupported_pointer_primitive_diagnostic(
+            "`store_value_to_ptr` supports only scalar element types",
+        ));
+    };
+
+    let (mut instructions, pointer) =
+        lower_pointer_address_expression_to_word(&call.arguments[0], context, temporaries)?;
+    let offset = lower_usize_expression_to_value(&call.arguments[1], context, temporaries)?;
+    instructions.extend(offset.instructions);
+
+    match value_type {
+        Type::U8 => {
+            let value = lower_u8_expression_to_value(&call.arguments[2], context, temporaries)?;
+            instructions.extend(value.instructions);
+            instructions.push(Instruction::StoreU8ToPointer {
+                pointer,
+                offset: offset.value,
+                value: value.value,
+            });
+        }
+        Type::I32 => {
+            let value = lower_i32_expression_to_value(&call.arguments[2], context, temporaries)?;
+            instructions.extend(value.instructions);
+            instructions.push(Instruction::StoreI32ToPointer {
+                pointer,
+                offset: offset.value,
+                value: value.value,
+            });
+        }
+        Type::Usize => {
+            let value = lower_usize_expression_to_value(&call.arguments[2], context, temporaries)?;
+            instructions.extend(value.instructions);
+            instructions.push(Instruction::StoreUsizeToPointer {
+                pointer,
+                offset: offset.value,
+                value: value.value,
+            });
+        }
+        Type::Bool => {
+            let value = lower_bool_expression_to_value_with_temporaries(
+                &call.arguments[2],
+                context,
+                "E8006",
+                temporaries,
+            )?;
+            instructions.extend(value.instructions);
+            instructions.push(Instruction::StoreBoolToPointer {
+                pointer,
+                offset: offset.value,
+                value: value.value,
+            });
+        }
+        Type::Str
+        | Type::Slice { .. }
+        | Type::Aggregate { .. }
+        | Type::DirectAggregate { .. }
+        | Type::Borrow { .. }
+        | Type::Error
+        | Type::Void
+        | Type::Never
+        | Type::Fallible(_) => {
+            return Err(unsupported_pointer_primitive_diagnostic(
+                "`store_value_to_ptr` supports only `u8`, `usize`, `i32`, and `bool` element types",
+            ));
+        }
+    }
+
     Ok(instructions)
 }
 

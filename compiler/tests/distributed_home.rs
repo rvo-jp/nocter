@@ -711,15 +711,45 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn distributed_std_vec_push_reports_unsupported() {
-    let project = TempProject::new("distributed-home-vec-push-unsupported");
+fn distributed_std_vec_push_scalar_values_runs() {
+    let project = TempProject::new("distributed-home-vec-push-scalar-run");
     let source = project.write_source(
-        "vec_push_unsupported.nct",
+        "vec_push_scalar.nct",
         r#"use std/vec.Vec
 
 func main(): i32! {
-    var values: Vec<u8> = Vec.empty()
-    values.push(1)?
+    var bytes: Vec<u8> = Vec.empty()
+    bytes.push(1)?
+    bytes.push(7)?
+    if bytes.len() != 2 {
+        return 1
+    }
+    if bytes.capacity() != 2 {
+        return 2
+    }
+    if bytes.view()[0] != 1 {
+        return 3
+    }
+    if bytes.view()[1] != 7 {
+        return 4
+    }
+
+    var words: Vec<usize> = Vec.empty()
+    words.push(11)?
+    words.push(31)?
+    if words.len() != 2 {
+        return 5
+    }
+    if words.capacity() != 2 {
+        return 6
+    }
+    if words.view()[0] != 11 {
+        return 7
+    }
+    if words.view()[1] != 31 {
+        return 8
+    }
+
     return 0
 }
 "#,
@@ -729,16 +759,13 @@ func main(): i32! {
 
     assert_eq!(
         output.status.code(),
-        Some(1),
+        Some(0),
         "stdout:\n{}\nstderr:\n{}",
         text(&output.stdout),
         text(&output.stderr)
     );
     assert!(output.stdout.is_empty(), "expected empty stdout");
-    assert_eq!(
-        output.stderr,
-        b"std.vec.unsupported: Vec storage is not implemented\n"
-    );
+    assert!(output.stderr.is_empty(), "expected empty stderr");
 }
 
 #[test]

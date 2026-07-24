@@ -1830,6 +1830,42 @@ impl EntryEmitter {
         self.emit_scalar_reloads(frame)
     }
 
+    pub(super) fn emit_copy_pointer_bytes(
+        &mut self,
+        destination: &UsizeValue,
+        source: &UsizeValue,
+        byte_count: &UsizeValue,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "pointer byte copy emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_usize_value_to_x(destination, XReg::X0)?;
+        self.emit_usize_value_to_x(source, XReg::X1)?;
+        self.emit_usize_value_to_x(byte_count, XReg::X2)?;
+
+        self.encoder.emit_cmp_x_zero(XReg::X2);
+        let empty_copy = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+        emit_mov_u64_to_x(&mut self.encoder, XReg::X4, 1);
+
+        let loop_start = self.encoder.position();
+        self.encoder.emit_ldrb_w_imm(WReg::W3, XReg::X1, 0);
+        self.encoder.emit_strb_w_imm(WReg::W3, XReg::X0, 0);
+        self.encoder.emit_adds_x(XReg::X0, XReg::X0, XReg::X4);
+        self.encoder.emit_adds_x(XReg::X1, XReg::X1, XReg::X4);
+        self.encoder.emit_subs_x(XReg::X2, XReg::X2, XReg::X4);
+        let has_more = self.emit_cond_branch_placeholder(BranchCondition::Ne);
+        self.patch_branch_placeholder_to_offset(has_more, loop_start, "pointer copy loop target")?;
+        self.patch_branch_placeholder_to_current(empty_copy, "pointer copy empty target")?;
+
+        self.emit_scalar_reloads(frame)
+    }
+
     pub(super) fn emit_store_u8_to_pointer(
         &mut self,
         pointer: &UsizeValue,
@@ -1849,6 +1885,75 @@ impl EntryEmitter {
         self.emit_usize_value_to_x(offset, XReg::X1)?;
         self.encoder.emit_adds_x(XReg::X0, XReg::X0, XReg::X1);
         self.emit_u8_value_to_w(value, WReg::W2)?;
+        self.encoder.emit_strb_w_imm(WReg::W2, XReg::X0, 0);
+        self.emit_scalar_reloads(frame)
+    }
+
+    pub(super) fn emit_store_i32_to_pointer(
+        &mut self,
+        pointer: &UsizeValue,
+        offset: &UsizeValue,
+        value: &I32Value,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "pointer i32 store emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_usize_value_to_x(pointer, XReg::X0)?;
+        self.emit_usize_value_to_x(offset, XReg::X1)?;
+        self.encoder.emit_adds_x(XReg::X0, XReg::X0, XReg::X1);
+        self.emit_i32_value_to_w(value, WReg::W2)?;
+        self.encoder.emit_str_w_imm(WReg::W2, XReg::X0, 0);
+        self.emit_scalar_reloads(frame)
+    }
+
+    pub(super) fn emit_store_usize_to_pointer(
+        &mut self,
+        pointer: &UsizeValue,
+        offset: &UsizeValue,
+        value: &UsizeValue,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "pointer usize store emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_usize_value_to_x(pointer, XReg::X0)?;
+        self.emit_usize_value_to_x(offset, XReg::X1)?;
+        self.encoder.emit_adds_x(XReg::X0, XReg::X0, XReg::X1);
+        self.emit_usize_value_to_x(value, XReg::X2)?;
+        self.encoder.emit_str_x_imm(XReg::X2, XReg::X0, 0);
+        self.emit_scalar_reloads(frame)
+    }
+
+    pub(super) fn emit_store_bool_to_pointer(
+        &mut self,
+        pointer: &UsizeValue,
+        offset: &UsizeValue,
+        value: &BoolValue,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "pointer bool store emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_usize_value_to_x(pointer, XReg::X0)?;
+        self.emit_usize_value_to_x(offset, XReg::X1)?;
+        self.encoder.emit_adds_x(XReg::X0, XReg::X0, XReg::X1);
+        self.emit_bool_value_to_w(value, WReg::W2)?;
         self.encoder.emit_strb_w_imm(WReg::W2, XReg::X0, 0);
         self.emit_scalar_reloads(frame)
     }

@@ -5,20 +5,22 @@
 //! type. Its storage details are intentionally not exposed outside `std/vec`.
 //!
 //! v0 fixes the public contract before promoting generic collection lowering.
-//! Empty vectors, capacity allocation, read-only shape operations, and release
-//! are ordinary std functions. Growth and copying operations return
-//! `std.vec.unsupported` until element write and drop glue are wired into the
-//! backend.
+//! Empty vectors, capacity allocation, read-only shape operations, scalar
+//! pushes, and release are ordinary std functions. Copying operations and
+//! non-scalar element moves return `std.vec.unsupported` or fail buildability
+//! until element drop glue is wired into vector storage.
 
 use std/error.Error
 use std/mem.Allocator
 use std/mem.alloc_pages as alloc_pages_impl
 use std/mem.free_pages as free_pages_impl
 use std/ptr.addr
+use std/ptr.copy_ptr_to_ptr
 use std/ptr.from_addr
 use std/ptr.pointee_size
 use std/ptr.slice_from_raw_parts_value
 use std/ptr.slice_from_raw_parts_value_mut
+use std/ptr.store_value_to_ptr
 
 pub struct Vec<T> {
     ptr: *T
@@ -109,6 +111,11 @@ pub func reserve<T>(values: &+Vec<T>, additional: usize): void! {
     }
 
     let values_len: usize = values.len
+    if additional > 18446744073709551615 - values_len {
+        return capacity_overflow()
+    }
+
+    let required_capacity: usize = values_len + additional
     let values_capacity: usize = values.capacity
     if values_capacity >= values_len {
         let spare_capacity: usize = values_capacity - values_len
@@ -117,25 +124,30 @@ pub func reserve<T>(values: &+Vec<T>, additional: usize): void! {
         }
     }
 
-    if values_len != 0 {
-        return unsupported()
-    }
-    if values_capacity != 0 {
-        return unsupported()
-    }
-
     let element_size: usize = pointee_size(values.ptr)
     if element_size == 0 {
         return unsupported()
     }
-    if additional > 18446744073709551615 / element_size {
+    if required_capacity > 18446744073709551615 / element_size {
+        return capacity_overflow()
+    }
+    if values_len > 18446744073709551615 / element_size {
         return capacity_overflow()
     }
 
-    let byte_capacity: usize = additional * element_size
+    let old_address: usize = addr(values.ptr)
+    let old_byte_len: usize = values_len * element_size
+    let old_byte_capacity: usize = values.byte_capacity
+    let byte_capacity: usize = required_capacity * element_size
     let address: usize = alloc_pages_impl(byte_capacity)?
+    if old_byte_len != 0 {
+        copy_ptr_to_ptr(from_addr(address), from_addr(old_address), old_byte_len)
+    }
+    if old_byte_capacity != 0 {
+        free_pages_impl(old_address, old_byte_capacity)
+    }
     values.ptr = from_addr(address)
-    values.capacity = additional
+    values.capacity = required_capacity
     values.byte_capacity = byte_capacity
     return
 }
@@ -146,7 +158,13 @@ pub func clear<T>(values: &+Vec<T>): void {
 }
 
 pub func push<T>(values: &+Vec<T>, value: T): void! {
-    return unsupported()
+    let old_len: usize = values.len
+    reserve(values, 1)?
+    let element_size: usize = pointee_size(values.ptr)
+    let byte_offset: usize = old_len * element_size
+    store_value_to_ptr(values.ptr, byte_offset, value)
+    values.len = old_len + 1
+    return
 }
 
 func unsupported(): error {

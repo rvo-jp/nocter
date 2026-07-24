@@ -204,6 +204,20 @@ const PTR_COPY_STR_TO_PTR_PARAMETERS: &[PrimitiveParameterSpec] = &[
         ty: "&str",
     },
 ];
+const PTR_COPY_PTR_TO_PTR_PARAMETERS: &[PrimitiveParameterSpec] = &[
+    PrimitiveParameterSpec {
+        name: "destination",
+        ty: "*u8",
+    },
+    PrimitiveParameterSpec {
+        name: "source",
+        ty: "*u8",
+    },
+    PrimitiveParameterSpec {
+        name: "byte_count",
+        ty: "usize",
+    },
+];
 const PTR_STORE_U8_TO_PTR_PARAMETERS: &[PrimitiveParameterSpec] = &[
     PrimitiveParameterSpec {
         name: "destination",
@@ -216,6 +230,20 @@ const PTR_STORE_U8_TO_PTR_PARAMETERS: &[PrimitiveParameterSpec] = &[
     PrimitiveParameterSpec {
         name: "value",
         ty: "u8",
+    },
+];
+const PTR_STORE_VALUE_TO_PTR_PARAMETERS: &[PrimitiveParameterSpec] = &[
+    PrimitiveParameterSpec {
+        name: "destination",
+        ty: "*T",
+    },
+    PrimitiveParameterSpec {
+        name: "offset",
+        ty: "usize",
+    },
+    PrimitiveParameterSpec {
+        name: "value",
+        ty: "T",
     },
 ];
 const PTR_STR_FROM_RAW_PARTS_PARAMETERS: &[PrimitiveParameterSpec] = &[
@@ -488,9 +516,27 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             module_path: "std/ptr",
             target: None,
             visibility: Visibility::Nocter,
+            name: "copy_ptr_to_ptr",
+            generics: &[],
+            parameters: PTR_COPY_PTR_TO_PTR_PARAMETERS,
+            return_type: "void",
+        },
+        PrimitiveSpec {
+            module_path: "std/ptr",
+            target: None,
+            visibility: Visibility::Nocter,
             name: "store_u8_to_ptr",
             generics: &[],
             parameters: PTR_STORE_U8_TO_PTR_PARAMETERS,
+            return_type: "void",
+        },
+        PrimitiveSpec {
+            module_path: "std/ptr",
+            target: None,
+            visibility: Visibility::Nocter,
+            name: "store_value_to_ptr",
+            generics: &["T"],
+            parameters: PTR_STORE_VALUE_TO_PTR_PARAMETERS,
             return_type: "void",
         },
         PrimitiveSpec {
