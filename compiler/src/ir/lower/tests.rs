@@ -22099,6 +22099,140 @@ pub func view_mut(address: usize, len: usize): &+[u8] {
 }
 
 #[test]
+fn lowers_slice_from_raw_parts_value_call() {
+    let view = lower_imported_named_function_with_nocter_home_files(
+        r#"use std/ptr_slice.view
+
+func main(): void {
+    return
+}
+"#,
+        "view",
+        &[
+            (
+                "std/ptr.nct",
+                r#"pub(nocter) primitive from_addr<T>(address: usize): *T
+pub(nocter) primitive slice_from_raw_parts_value<T>(pointer: *T, len: usize): &[T]
+"#,
+            ),
+            (
+                "std/ptr_slice.nct",
+                r#"use std/ptr.from_addr
+use std/ptr.slice_from_raw_parts_value
+
+pub func view(address: usize, len: usize): &[u8] {
+    return slice_from_raw_parts_value(from_addr(address), len)
+}
+"#,
+            ),
+        ],
+    );
+
+    assert_eq!(
+        view.instructions,
+        vec![
+            Instruction::SetSliceRawParts {
+                destination: SliceLocation::Return,
+                pointer: UsizeValue::Location(UsizeLocation::Parameter(0)),
+                len: UsizeValue::Location(UsizeLocation::Parameter(1)),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
+fn lowers_inferred_slice_from_raw_parts_value_local_binding() {
+    let view = lower_imported_named_function_with_nocter_home_files(
+        r#"use std/ptr_slice.view
+
+func main(): void {
+    return
+}
+"#,
+        "view",
+        &[
+            (
+                "std/ptr.nct",
+                r#"pub(nocter) primitive from_addr<T>(address: usize): *T
+pub(nocter) primitive slice_from_raw_parts_value<T>(pointer: *T, len: usize): &[T]
+"#,
+            ),
+            (
+                "std/ptr_slice.nct",
+                r#"use std/ptr.from_addr
+use std/ptr.slice_from_raw_parts_value
+
+pub func view(address: usize, len: usize): &[u8] {
+    let slice = slice_from_raw_parts_value(from_addr(address), len)
+    return slice
+}
+"#,
+            ),
+        ],
+    );
+
+    assert_eq!(
+        view.instructions,
+        vec![
+            Instruction::SetSliceRawParts {
+                destination: SliceLocation::Local(0),
+                pointer: UsizeValue::Location(UsizeLocation::Parameter(0)),
+                len: UsizeValue::Location(UsizeLocation::Parameter(1)),
+            },
+            Instruction::SetSlice {
+                destination: SliceLocation::Return,
+                value: SliceValue::Location(SliceLocation::Local(0)),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
+fn lowers_slice_from_raw_parts_value_mut_call() {
+    let view = lower_imported_named_function_with_nocter_home_files(
+        r#"use std/ptr_slice.view_mut
+
+func main(): void {
+    return
+}
+"#,
+        "view_mut",
+        &[
+            (
+                "std/ptr.nct",
+                r#"pub(nocter) primitive from_addr<T>(address: usize): *T
+pub(nocter) primitive slice_from_raw_parts_value_mut<T>(pointer: *T, len: usize): &+[T]
+"#,
+            ),
+            (
+                "std/ptr_slice.nct",
+                r#"use std/ptr.from_addr
+use std/ptr.slice_from_raw_parts_value_mut
+
+pub func view_mut(address: usize, len: usize): &+[u8] {
+    return slice_from_raw_parts_value_mut(from_addr(address), len)
+}
+"#,
+            ),
+        ],
+    );
+
+    assert_eq!(
+        view.instructions,
+        vec![
+            Instruction::SetSliceRawParts {
+                destination: SliceLocation::Return,
+                pointer: UsizeValue::Location(UsizeLocation::Parameter(0)),
+                len: UsizeValue::Location(UsizeLocation::Parameter(1)),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_str_from_raw_parts_call_len_return() {
     let size = lower_imported_named_function_with_nocter_home_files(
         r#"use std/ptr_str.size

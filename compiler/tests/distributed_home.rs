@@ -306,6 +306,82 @@ func main(): i32 {
     assert_success(&output);
 }
 
+#[test]
+fn distributed_std_vec_contract_shape_passes_check() {
+    let project = TempProject::new("distributed-home-vec-contract-shape");
+    let source = project.write_source(
+        "vec_contract_shape.nct",
+        r#"use std/mem.Allocator
+use std/vec.{Vec, capacity, clear, from_slice, is_empty, len, push, reserve, view, view_mut}
+
+func inspect(values: &Vec<usize>): usize {
+    return len(values) + capacity(values) + view(values).len()
+}
+
+func empty_check(values: &Vec<usize>): bool {
+    return is_empty(values)
+}
+
+func mutate(values: &+Vec<usize>, value: usize): usize! {
+    reserve(values, 0)?
+    push(values, value)?
+    clear(values)
+    return view_mut(values).len()
+}
+
+func method_shape(allocator: &+Allocator, values: &[usize]): usize! {
+    var owned = from_slice(allocator, values)?
+    owned.reserve(0)?
+    owned.push(1)?
+    owned.clear()
+    if owned.is_empty() {
+        return 0
+    }
+    return owned.len() + owned.capacity() + owned.view().len() + owned.view_mut().len()
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+    assert_success(&output);
+}
+
+#[test]
+fn distributed_std_vec_fields_are_private() {
+    let project = TempProject::new("distributed-home-vec-fields-private");
+    let source = project.write_source(
+        "vec_fields_private.nct",
+        r#"use std/vec.Vec
+
+func main(): i32 {
+    let values = Vec<usize>{
+        len: 0,
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_check(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("hidden field") || stderr.contains("not visible"),
+        "expected private Vec field diagnostic, got:\n{stderr}"
+    );
+}
+
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn distributed_std_error_helper_return_runs() {

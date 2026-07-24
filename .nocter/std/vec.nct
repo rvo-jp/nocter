@@ -1,9 +1,167 @@
 //! Common owning variable-length array type.
 //!
 //! `[T]` is the compiler built-in unsized array data type. `&[T]` and `&+[T]`
-//! are non-owning array slice types. Vec<T> is the future owning variable-length
-//! array type; its storage details are intentionally not exposed here.
+//! are non-owning array slice types. Vec<T> is the owning variable-length array
+//! type. Its storage details are intentionally not exposed outside `std/vec`.
+//!
+//! v0 fixes the public contract before promoting generic collection lowering.
+//! Read-only shape operations are ordinary std functions. Growth and copying
+//! operations return `std.vec.unsupported` until element layout and drop glue are
+//! wired into the backend.
+
+use std/error.Error
+use std/mem.Allocator
+use std/ptr.from_addr
+use std/ptr.slice_from_raw_parts_value
+use std/ptr.slice_from_raw_parts_value_mut
 
 pub struct Vec<T> {
+    ptr: *T
     len: usize
+    capacity: usize
+}
+
+pub func Vec.empty<T>(): Vec<T> {
+    return Vec<T> {
+        ptr: from_addr(1),
+        len: 0,
+        capacity: 0,
+    }
+}
+
+pub func empty<T>(): Vec<T> {
+    return Vec<T> {
+        ptr: from_addr(1),
+        len: 0,
+        capacity: 0,
+    }
+}
+
+pub func Vec.with_capacity<T>(allocator: &+Allocator, requested_capacity: usize): Vec<T>! {
+    if requested_capacity == 0 {
+        return Vec<T> {
+            ptr: from_addr(1),
+            len: 0,
+            capacity: 0,
+        }
+    }
+
+    return unsupported()
+}
+
+pub func with_capacity<T>(allocator: &+Allocator, requested_capacity: usize): Vec<T>! {
+    if requested_capacity == 0 {
+        return Vec<T> {
+            ptr: from_addr(1),
+            len: 0,
+            capacity: 0,
+        }
+    }
+
+    return unsupported()
+}
+
+pub func Vec.from_slice<T>(allocator: &+Allocator, values: &[T]): Vec<T>! {
+    if values.len() == 0 {
+        return Vec<T> {
+            ptr: from_addr(1),
+            len: 0,
+            capacity: 0,
+        }
+    }
+
+    return unsupported()
+}
+
+pub func from_slice<T>(allocator: &+Allocator, values: &[T]): Vec<T>! {
+    if values.len() == 0 {
+        return Vec<T> {
+            ptr: from_addr(1),
+            len: 0,
+            capacity: 0,
+        }
+    }
+
+    return unsupported()
+}
+
+pub func len<T>(values: &Vec<T>): usize {
+    let values_len: usize = values.len
+    return values_len
+}
+
+pub func capacity<T>(values: &Vec<T>): usize {
+    let values_capacity: usize = values.capacity
+    return values_capacity
+}
+
+pub func is_empty<T>(values: &Vec<T>): bool {
+    let values_len: usize = values.len
+    return values_len == 0
+}
+
+pub func view<T>(values: &Vec<T>): &[T] {
+    return slice_from_raw_parts_value(values.ptr, values.len)
+}
+
+pub func view_mut<T>(values: &+Vec<T>): &+[T] {
+    return slice_from_raw_parts_value_mut(values.ptr, values.len)
+}
+
+pub func reserve<T>(values: &+Vec<T>, additional: usize): void! {
+    if additional == 0 {
+        return
+    }
+
+    return unsupported()
+}
+
+pub func clear<T>(values: &+Vec<T>): void {
+    values.len = 0
+    return
+}
+
+pub func push<T>(values: &+Vec<T>, value: T): void! {
+    return unsupported()
+}
+
+func unsupported(): error {
+    return Error.new("std.vec.unsupported", "Vec storage is not implemented")
+}
+
+impl<T> Vec<T> {
+    pub method &self.len(): usize {
+        return len(self)
+    }
+
+    pub method &self.capacity(): usize {
+        return capacity(self)
+    }
+
+    pub method &self.is_empty(): bool {
+        return is_empty(self)
+    }
+
+    pub method &self.view(): &[T] {
+        return view(self)
+    }
+
+    pub method &+self.view_mut(): &+[T] {
+        return view_mut(self)
+    }
+
+    pub method &+self.reserve(additional: usize): void! {
+        reserve(self, additional)?
+        return
+    }
+
+    pub method &+self.clear(): void {
+        clear(self)
+        return
+    }
+
+    pub method &+self.push(value: T): void! {
+        push(self, value)?
+        return
+    }
 }

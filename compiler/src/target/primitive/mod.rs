@@ -234,6 +234,16 @@ const PTR_SLICE_FROM_RAW_PARTS_PARAMETERS: &[PrimitiveParameterSpec] = &[
         ty: "usize",
     },
 ];
+const PTR_SLICE_FROM_RAW_PARTS_VALUE_PARAMETERS: &[PrimitiveParameterSpec] = &[
+    PrimitiveParameterSpec {
+        name: "pointer",
+        ty: "*T",
+    },
+    PrimitiveParameterSpec {
+        name: "len",
+        ty: "usize",
+    },
+];
 const STRING_BYTES_FROM_STR_PARAMETERS: &[PrimitiveParameterSpec] = &[PrimitiveParameterSpec {
     name: "value",
     ty: "&str",
@@ -496,6 +506,24 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             generics: &[],
             parameters: PTR_SLICE_FROM_RAW_PARTS_PARAMETERS,
             return_type: "&+[u8]",
+        },
+        PrimitiveSpec {
+            module_path: "std/ptr",
+            target: None,
+            visibility: Visibility::Nocter,
+            name: "slice_from_raw_parts_value",
+            generics: &["T"],
+            parameters: PTR_SLICE_FROM_RAW_PARTS_VALUE_PARAMETERS,
+            return_type: "&[T]",
+        },
+        PrimitiveSpec {
+            module_path: "std/ptr",
+            target: None,
+            visibility: Visibility::Nocter,
+            name: "slice_from_raw_parts_value_mut",
+            generics: &["T"],
+            parameters: PTR_SLICE_FROM_RAW_PARTS_VALUE_PARAMETERS,
+            return_type: "&+[T]",
         },
         PrimitiveSpec {
             module_path: "std/string",

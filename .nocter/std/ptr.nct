@@ -24,3 +24,7 @@ pub(nocter) primitive str_from_raw_parts(pointer: *u8, len: usize): &str
 pub(nocter) primitive slice_from_raw_parts(pointer: *u8, len: usize): &[u8]
 
 pub(nocter) primitive slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
+
+pub(nocter) primitive slice_from_raw_parts_value<T>(pointer: *T, len: usize): &[T]
+
+pub(nocter) primitive slice_from_raw_parts_value_mut<T>(pointer: *T, len: usize): &+[T]

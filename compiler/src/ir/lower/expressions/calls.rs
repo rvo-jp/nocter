@@ -2037,7 +2037,12 @@ pub(super) fn primitive_slice_from_raw_parts_call(
 ) -> bool {
     matches!(
         context.primitive_name_for_call(call),
-        Some("slice_from_raw_parts" | "slice_from_raw_parts_mut")
+        Some(
+            "slice_from_raw_parts"
+                | "slice_from_raw_parts_mut"
+                | "slice_from_raw_parts_value"
+                | "slice_from_raw_parts_value_mut"
+        )
     )
 }
 
@@ -2136,7 +2141,7 @@ pub(super) fn lower_slice_from_raw_parts_primitive_call_to_location(
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
     if call.arguments.len() != 2 {
         return Err(unsupported_pointer_primitive_diagnostic(
-            "`slice_from_raw_parts` requires arguments `(pointer: *u8, len: usize)`",
+            "`slice_from_raw_parts` requires arguments `(pointer: *T, len: usize)`",
         ));
     }
 

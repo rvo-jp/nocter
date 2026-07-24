@@ -8,7 +8,10 @@ use super::diagnostics::{
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment};
 use super::operations::is_expression_assignable;
-use super::type_expr::{type_expr_to_type_in_environment, type_expr_to_type_with_substitutions};
+use super::type_expr::{
+    simple_type_from_display_name, type_expr_to_type_in_environment,
+    type_expr_to_type_with_substitutions,
+};
 use crate::ast::{MemberExpr, StructLiteralExpr, StructLiteralField};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{ResolveOutput, StructFieldSignature, TypeSymbol, TypeSymbolKind};
@@ -208,18 +211,29 @@ fn struct_type_symbol_for_type<'a>(
     ty: &Type,
     resolved: &'a ResolveOutput,
 ) -> Option<&'a TypeSymbol> {
-    let canonical_name = match ty {
-        Type::Named(canonical_name) => canonical_name
-            .strip_prefix("&+")
-            .or_else(|| canonical_name.strip_prefix('&'))
-            .unwrap_or(canonical_name),
-        Type::Generic { name, .. } => name,
+    let owner_type = struct_owner_type(ty);
+    let canonical_name = match &owner_type {
+        Type::Named(canonical_name) => canonical_name.as_str(),
+        Type::Generic { name, .. } => name.as_str(),
         _ => return None,
     };
 
     resolved
         .type_symbol_by_canonical_name(canonical_name)
         .filter(|symbol| symbol.kind == TypeSymbolKind::Struct)
+}
+
+fn struct_owner_type(ty: &Type) -> Type {
+    match ty {
+        Type::Named(name) => {
+            let unborrowed = name
+                .strip_prefix("&+")
+                .or_else(|| name.strip_prefix('&'))
+                .unwrap_or(name);
+            simple_type_from_display_name(unborrowed)
+        }
+        _ => ty.clone(),
+    }
 }
 
 fn struct_field_type_for_owner(
@@ -229,7 +243,7 @@ fn struct_field_type_for_owner(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> Type {
-    let substitutions = generic_substitutions_for_owner(struct_symbol, owner_type);
+    let substitutions = generic_substitutions_for_owner(struct_symbol, owner_type, resolved);
     type_expr_to_type_with_substitutions(
         &field.ty,
         resolved,
@@ -241,11 +255,13 @@ fn struct_field_type_for_owner(
 fn generic_substitutions_for_owner(
     struct_symbol: &TypeSymbol,
     owner_type: &Type,
+    resolved: &ResolveOutput,
 ) -> HashMap<String, Type> {
+    let owner_type = struct_owner_type(owner_type);
     let Type::Generic { name, arguments } = owner_type else {
         return HashMap::new();
     };
-    if name != &struct_symbol.canonical_name
+    if name != struct_symbol.canonical_name.as_str()
         || arguments.len() != struct_symbol.generic_parameters.len()
     {
         return HashMap::new();
@@ -255,8 +271,75 @@ fn generic_substitutions_for_owner(
         .generic_parameters
         .iter()
         .cloned()
-        .zip(arguments.iter().cloned())
+        .zip(
+            arguments
+                .into_iter()
+                .map(|argument| normalize_unresolved_display_type_parameters(argument, resolved)),
+        )
         .collect()
+}
+
+fn normalize_unresolved_display_type_parameters(ty: Type, resolved: &ResolveOutput) -> Type {
+    match ty {
+        Type::Named(name)
+            if is_plain_display_type_parameter_name(&name)
+                && resolved.type_symbol_by_canonical_name(&name).is_none()
+                && resolved.type_symbol_by_reference_name(&name).is_none() =>
+        {
+            Type::Parameter(name)
+        }
+        Type::Generic { name, arguments } => Type::Generic {
+            name,
+            arguments: arguments
+                .into_iter()
+                .map(|argument| normalize_unresolved_display_type_parameters(argument, resolved))
+                .collect(),
+        },
+        Type::Pointer(inner) => Type::Pointer(Box::new(
+            normalize_unresolved_display_type_parameters(*inner, resolved),
+        )),
+        Type::Optional(inner) => Type::Optional(Box::new(
+            normalize_unresolved_display_type_parameters(*inner, resolved),
+        )),
+        Type::Fallible { success, error } => Type::Fallible {
+            success: Box::new(normalize_unresolved_display_type_parameters(
+                *success, resolved,
+            )),
+            error: Box::new(normalize_unresolved_display_type_parameters(
+                *error, resolved,
+            )),
+        },
+        Type::View {
+            is_readwrite,
+            element,
+        } => Type::View {
+            is_readwrite,
+            element: Box::new(normalize_unresolved_display_type_parameters(
+                *element, resolved,
+            )),
+        },
+        Type::ArrayData { element } => Type::ArrayData {
+            element: Box::new(normalize_unresolved_display_type_parameters(
+                *element, resolved,
+            )),
+        },
+        Type::Array { element, length } => Type::Array {
+            element: Box::new(normalize_unresolved_display_type_parameters(
+                *element, resolved,
+            )),
+            length,
+        },
+        _ => ty,
+    }
+}
+
+fn is_plain_display_type_parameter_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    (first == '_' || first.is_ascii_alphabetic())
+        && chars.all(|ch| ch == '_' || ch.is_ascii_alphanumeric())
 }
 
 fn struct_field_for_member<'a>(

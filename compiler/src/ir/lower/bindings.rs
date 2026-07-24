@@ -2353,7 +2353,10 @@ fn primitive_call_scalar_binding_kind(
         "addr" => Some(ScalarBindingKind::Usize),
         "str_from_raw_parts" => Some(ScalarBindingKind::Str),
         "bytes_from_str" => Some(ScalarBindingKind::Slice),
-        "slice_from_raw_parts" | "slice_from_raw_parts_mut" => Some(ScalarBindingKind::Slice),
+        "slice_from_raw_parts"
+        | "slice_from_raw_parts_mut"
+        | "slice_from_raw_parts_value"
+        | "slice_from_raw_parts_value_mut" => Some(ScalarBindingKind::Slice),
         _ => None,
     }
 }

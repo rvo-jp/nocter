@@ -51,6 +51,67 @@ func set_x(point: &+Point): void {
 }
 
 #[test]
+fn accepts_borrowed_generic_struct_field_access() {
+    let diagnostics = check_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+func readonly<T>(box: &Box<T>): T {
+    return box.value
+}
+
+func readwrite<T>(box: &+Box<T>, value: T): void {
+    box.value = value
+    return
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn accepts_borrowed_generic_struct_field_access_with_display_type_arguments() {
+    let diagnostics = check_text(
+        r#"struct Box<T> {
+    value: T
+}
+
+struct User {
+    id: usize
+}
+
+func read_slice(box: &Box<&[u8]>): &[u8] {
+    return box.value
+}
+
+func read_optional(box: &Box<usize?>): usize? {
+    return box.value
+}
+
+func read_array(box: &Box<[u8; 4]>): [u8; 4] {
+    return box.value
+}
+
+func read_borrowed(box: &Box<&User>): &User {
+    return box.value
+}
+
+func main(): i32 {
+    return 0
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn uses_struct_field_type_for_return_checking() {
     let diagnostics = check_text(
         r#"struct Point {
