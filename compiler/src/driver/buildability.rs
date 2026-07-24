@@ -2,7 +2,7 @@ use crate::abi::{AbiType, abi_value_from_type_expr};
 use crate::analysis::{CompileUnitAnalysis, FileAnalysis};
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, Block, CallExpr, DropDecl, Expr, ForRangeStmt,
-    FunctionDecl, IfLetStmt, ImplDecl, ImplMember, Item, MethodDecl, Stmt, TypeExpr,
+    FunctionDecl, IfLetStmt, ImplDecl, ImplMember, Item, MethodDecl, Stmt, TypeExpr, WhileLetStmt,
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
@@ -285,6 +285,16 @@ fn if_let_statement_is_buildable(statement: &IfLetStmt, resolved: &ResolveOutput
         return false;
     }
 
+    let Expr::Call(call) = unwrap_group_expr(&statement.initializer) else {
+        return false;
+    };
+    matches!(
+        optional_call_success_shape(call, resolved),
+        Some(ReturnShape::DiscardableScalar | ReturnShape::DiscardableView)
+    )
+}
+
+fn while_let_statement_is_buildable(statement: &WhileLetStmt, resolved: &ResolveOutput) -> bool {
     let Expr::Call(call) = unwrap_group_expr(&statement.initializer) else {
         return false;
     };
@@ -825,12 +835,14 @@ fn collect_statement_diagnostics(
             );
         }
         Stmt::WhileLet(statement) => {
-            diagnostics.push(unsupported_v0_build_diagnostic(
-                sources,
-                statement.span,
-                "`while let` optional loops",
-                "use the current `while` subset with explicit scalar state until `while let` lowering is promoted",
-            ));
+            if !while_let_statement_is_buildable(statement, resolved) {
+                diagnostics.push(unsupported_v0_build_diagnostic(
+                    sources,
+                    statement.span,
+                    "`while let` optional loops",
+                    "use a direct optional scalar/view call in the current buildable `while let` subset",
+                ));
+            }
             collect_expression_diagnostics(
                 &statement.initializer,
                 sources,

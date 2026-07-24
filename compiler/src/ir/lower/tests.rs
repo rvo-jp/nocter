@@ -18822,6 +18822,65 @@ func maybe_answer(): i32? {
 }
 
 #[test]
+fn lowers_optional_i32_while_let_call_with_breaking_body() {
+    let ir = lower_text(
+        r#"func main(): i32 {
+    var result = 0
+    while let value = maybe_answer() {
+        result = value
+        break
+    }
+
+    return result
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0],
+        Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::SetI32 {
+                    destination: I32Location::Local(0),
+                    value: i32_const(0),
+                },
+                Instruction::While {
+                    condition_instructions: vec![],
+                    condition: BoolValue::Const(true),
+                    body_instructions: vec![
+                        Instruction::CallFallibleI32 {
+                            destination: I32Location::Local(1),
+                            target: CallTarget::same_file("maybe_answer"),
+                            arguments: vec![],
+                            failure_mode: FallibleFailureMode::Handle {
+                                instructions: vec![Instruction::Break],
+                            },
+                        },
+                        Instruction::SetI32 {
+                            destination: I32Location::Local(0),
+                            value: i32_local(1),
+                        },
+                        Instruction::Break,
+                    ],
+                },
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: i32_local(0),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_optional_i32_let_else_never_call_binding() {
     let ir = lower_text(
         r#"func main(): i32 {

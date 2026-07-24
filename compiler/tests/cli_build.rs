@@ -2191,6 +2191,68 @@ func maybe_answer(): i32? {
 }
 
 #[test]
+fn build_command_lowers_optional_while_let_scalar_loop() {
+    let project = TempProject::new("cli-build-optional-while-let-scalar");
+    let source = project.write_source(
+        "optional_while_let_scalar.nct",
+        r#"func main(): i32 {
+    var result = 0
+    while let value = maybe_answer() {
+        result = value
+        break
+    }
+
+    return result
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_reports_unsupported_optional_while_let_non_call_initializer() {
+    let project = TempProject::new("cli-build-unsupported-optional-while-let-non-call");
+    let source = project.write_source(
+        "unsupported_optional_while_let_non_call.nct",
+        r#"func main(): i32 {
+    var maybe = maybe_answer()
+    while let value = maybe {
+        return value
+    }
+
+    return 7
+}
+
+func maybe_answer(): i32? {
+    return 42
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let stderr = text(&output.stderr);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("Nocter v0 build cannot lower `while let` optional loops yet"),
+        "expected optional while-let diagnostic, got:\n{stderr}"
+    );
+}
+
+#[test]
 fn build_command_lowers_aggregate_field_borrow_argument() {
     let project = TempProject::new("cli-build-aggregate-field-borrow-argument");
     let source = project.write_source(

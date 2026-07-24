@@ -14,9 +14,10 @@ use super::context::{
 use super::control_flow::{
     instruction_list_ends_execution, lower_nonterminal_for_range_statement,
     lower_nonterminal_if_let_statement, lower_nonterminal_if_statement,
-    lower_nonterminal_loop_statement, lower_nonterminal_while_statement,
-    lower_terminal_bool_if_statement, lower_terminal_branch_leading_statements,
-    lower_terminal_condition, lower_terminal_i32_if_statement, lower_terminal_slice_if_statement,
+    lower_nonterminal_loop_statement, lower_nonterminal_while_let_statement,
+    lower_nonterminal_while_statement, lower_terminal_bool_if_statement,
+    lower_terminal_branch_leading_statements, lower_terminal_condition,
+    lower_terminal_i32_if_statement, lower_terminal_slice_if_statement,
     lower_terminal_str_if_statement, lower_terminal_u8_if_statement,
     lower_terminal_usize_if_statement, lower_terminal_void_if_statement,
     split_terminal_branch_block,
@@ -1921,6 +1922,20 @@ fn lower_leading_bindings(
                     })?,
                 );
             }
+            Stmt::WhileLet(statement) => {
+                instructions.extend(
+                    lower_nonterminal_while_let_statement(
+                        statement,
+                        context,
+                        "E8007",
+                        "functions",
+                        sources,
+                    )
+                    .map_err(|diagnostics| {
+                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                    })?,
+                );
+            }
             Stmt::Loop(statement) => {
                 instructions.extend(
                     lower_nonterminal_loop_statement(
@@ -1939,7 +1954,7 @@ fn lower_leading_bindings(
                 return Err(attach_primary_span_if_absent(
                     vec![Diagnostic::error(
                         "E8007",
-                        "IR v0 can only lower leading scalar local bindings, scalar assignments, drop statements, effect-only call statements, or supported non-terminal `if`/`for`/`while`/`loop` statements before `return`",
+                        "IR v0 can only lower leading scalar local bindings, scalar assignments, drop statements, effect-only call statements, or supported non-terminal `if`/`if let`/`for`/`while`/`while let`/`loop` statements before `return`",
                     )],
                     sources,
                     statement.span(),

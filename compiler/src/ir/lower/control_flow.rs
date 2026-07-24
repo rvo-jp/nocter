@@ -23,7 +23,7 @@ use super::functions::{
 use super::types::return_type_expr_is_top_level_optional;
 use crate::ast::{
     AssignmentOperator, BinaryExpr, BinaryOperator, Block, CallExpr, Expr, ForRangeStmt, IfLetStmt,
-    IfStmt, LoopStmt, Stmt, UnaryOperator, WhileStmt,
+    IfStmt, LoopStmt, Stmt, UnaryOperator, WhileLetStmt, WhileStmt,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -631,8 +631,8 @@ pub(super) fn lower_nonterminal_if_let_statement(
         sources,
     )?;
     let mut then_context = context.clone();
-    let mut instructions = lower_nonterminal_if_let_optional_call(
-        statement,
+    let mut instructions = lower_nonterminal_optional_call_binding(
+        &statement.name,
         call,
         success_type.as_ref(),
         failure_mode,
@@ -685,8 +685,8 @@ fn lower_nonterminal_if_let_failure_mode(
     })
 }
 
-fn lower_nonterminal_if_let_optional_call(
-    statement: &IfLetStmt,
+fn lower_nonterminal_optional_call_binding(
+    binding_name: &str,
     call: &CallExpr,
     success_type: &Type,
     failure_mode: FallibleFailureMode,
@@ -705,7 +705,7 @@ fn lower_nonterminal_if_let_optional_call(
                 &mut temporaries,
                 failure_mode,
             )?;
-            context.define_i32_local(statement.name.clone());
+            context.define_i32_local(binding_name.to_string());
             Ok(instructions)
         }
         Type::U8 => {
@@ -717,7 +717,7 @@ fn lower_nonterminal_if_let_optional_call(
                 &mut temporaries,
                 failure_mode,
             )?;
-            context.define_u8_local(statement.name.clone());
+            context.define_u8_local(binding_name.to_string());
             Ok(instructions)
         }
         Type::Usize => {
@@ -729,7 +729,7 @@ fn lower_nonterminal_if_let_optional_call(
                 &mut temporaries,
                 failure_mode,
             )?;
-            context.define_usize_local(statement.name.clone());
+            context.define_usize_local(binding_name.to_string());
             Ok(instructions)
         }
         Type::Bool => {
@@ -741,7 +741,7 @@ fn lower_nonterminal_if_let_optional_call(
                 &mut temporaries,
                 failure_mode,
             )?;
-            context.define_bool_local(statement.name.clone());
+            context.define_bool_local(binding_name.to_string());
             Ok(instructions)
         }
         Type::Str => {
@@ -753,7 +753,7 @@ fn lower_nonterminal_if_let_optional_call(
                 &mut temporaries,
                 failure_mode,
             )?;
-            context.define_str_local(statement.name.clone());
+            context.define_str_local(binding_name.to_string());
             Ok(instructions)
         }
         Type::Slice { .. } => {
@@ -765,7 +765,7 @@ fn lower_nonterminal_if_let_optional_call(
                 &mut temporaries,
                 failure_mode,
             )?;
-            context.define_slice_local(statement.name.clone());
+            context.define_slice_local(binding_name.to_string());
             Ok(instructions)
         }
         _ => Err(unsupported_nonterminal_if_let_diagnostic(
@@ -773,6 +773,103 @@ fn lower_nonterminal_if_let_optional_call(
             subject,
         )),
     }
+}
+
+pub(super) fn lower_nonterminal_while_let_statement(
+    statement: &WhileLetStmt,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if expression_contains_explicit_aggregate_move(&statement.initializer, context) {
+        return Err(attach_primary_span_if_absent(
+            unsupported_control_flow_condition_move_diagnostic(diagnostic_code),
+            sources,
+            statement.initializer.span(),
+        ));
+    }
+
+    let Expr::Call(call) = unwrap_group(&statement.initializer) else {
+        return Err(attach_primary_span_if_absent(
+            unsupported_nonterminal_while_let_diagnostic(diagnostic_code, subject),
+            sources,
+            statement.initializer.span(),
+        ));
+    };
+    let Some((_root_source, resolved)) = context.resolved_calls() else {
+        return Err(attach_primary_span_if_absent(
+            unsupported_nonterminal_while_let_diagnostic(diagnostic_code, subject),
+            sources,
+            statement.initializer.span(),
+        ));
+    };
+    let Some(signature) = resolved.call_signature_for_call(call) else {
+        return Err(attach_primary_span_if_absent(
+            unsupported_nonterminal_while_let_diagnostic(diagnostic_code, subject),
+            sources,
+            statement.initializer.span(),
+        ));
+    };
+    if !return_type_expr_is_top_level_optional(&signature.return_type, resolved) {
+        return Err(attach_primary_span_if_absent(
+            unsupported_nonterminal_while_let_diagnostic(diagnostic_code, subject),
+            sources,
+            statement.initializer.span(),
+        ));
+    }
+
+    let Some((target, _call_name)) = context.direct_call_target_and_name(call) else {
+        return Err(attach_primary_span_if_absent(
+            unsupported_nonterminal_while_let_diagnostic(diagnostic_code, subject),
+            sources,
+            statement.initializer.span(),
+        ));
+    };
+    let Some(Type::Fallible(success_type)) = context.call_return_type(&target).cloned() else {
+        return Err(attach_primary_span_if_absent(
+            unsupported_nonterminal_while_let_diagnostic(diagnostic_code, subject),
+            sources,
+            statement.initializer.span(),
+        ));
+    };
+
+    let mut body_context = context.clone();
+    let local_mark = body_context.local_mark();
+    let mut body_instructions = lower_nonterminal_optional_call_binding(
+        &statement.name,
+        call,
+        success_type.as_ref(),
+        FallibleFailureMode::Handle {
+            instructions: vec![Instruction::Break],
+        },
+        &mut body_context,
+        diagnostic_code,
+        subject,
+    )?;
+    let lowered = lower_nonterminal_loop_block_statements(
+        &statement.body.statements,
+        &mut body_context,
+        local_mark,
+        Some(local_mark),
+        &[],
+        diagnostic_code,
+        subject,
+        sources,
+    )?;
+    body_instructions.extend(lowered.instructions);
+    if !lowered.ends_execution {
+        body_instructions.extend(lower_scope_end_drops_for_locals_since(
+            &mut body_context,
+            local_mark,
+        )?);
+    }
+
+    Ok(vec![Instruction::While {
+        condition_instructions: Vec::new(),
+        condition: BoolValue::Const(true),
+        body_instructions,
+    }])
 }
 
 pub(super) fn lower_nonterminal_while_statement(
@@ -1301,6 +1398,18 @@ fn lower_nonterminal_loop_block_statements(
                     attach_primary_span_if_absent(diagnostics, sources, statement.span)
                 })?,
             ),
+            Stmt::WhileLet(statement) => instructions.extend(
+                lower_nonterminal_while_let_statement(
+                    statement,
+                    context,
+                    diagnostic_code,
+                    subject,
+                    sources,
+                )
+                .map_err(|diagnostics| {
+                    attach_primary_span_if_absent(diagnostics, sources, statement.span)
+                })?,
+            ),
             Stmt::ForRange(statement) => instructions.extend(
                 lower_nonterminal_for_range_statement(
                     statement,
@@ -1358,13 +1467,6 @@ fn lower_nonterminal_loop_block_statements(
                 );
                 ends_execution = true;
                 break;
-            }
-            _ => {
-                return Err(attach_primary_span_if_absent(
-                    unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
-                    sources,
-                    statement.span(),
-                ));
             }
         }
         mark_lowered_statement_aggregate_uses(statement, context);
@@ -2251,7 +2353,7 @@ fn unsupported_nonterminal_if_diagnostic(
     vec![Diagnostic::error(
         diagnostic_code,
         format!(
-            "IR v0 can only lower non-terminal `if`/`while`/`loop` statements for {subject} when branches/bodies contain supported local bindings, branch/body-local assignments, outer scalar/view/aggregate local assignments, explicit aggregate drops, effect-only call statements, returns, or nested non-terminal `if`/`if let`/`while`/`loop` statements"
+            "IR v0 can only lower non-terminal `if`/`while`/`loop` statements for {subject} when branches/bodies contain supported local bindings, branch/body-local assignments, outer scalar/view/aggregate local assignments, explicit aggregate drops, effect-only call statements, returns, or nested non-terminal `if`/`if let`/`while`/`while let`/`loop` statements"
         ),
     )]
 }
@@ -2264,6 +2366,18 @@ fn unsupported_nonterminal_if_let_diagnostic(
         diagnostic_code,
         format!(
             "IR v0 can only lower non-terminal `if let` optional branches for {subject} when the initializer is a direct optional call returning i32, u8, usize, bool, &str, or &[u8], the initializer does not move aggregates, and the `else` branch exits with `return`, `never`, `break`, or `continue`"
+        ),
+    )]
+}
+
+fn unsupported_nonterminal_while_let_diagnostic(
+    diagnostic_code: &'static str,
+    subject: &str,
+) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        diagnostic_code,
+        format!(
+            "IR v0 can only lower non-terminal `while let` optional loops for {subject} when the initializer is a direct optional call returning i32, u8, usize, bool, &str, or &[u8] and the initializer does not move aggregates"
         ),
     )]
 }
