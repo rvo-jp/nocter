@@ -23402,6 +23402,51 @@ func dynamic(): &str {
 }
 
 #[test]
+fn lowers_fallible_entry_return_error_local_dynamic_message() {
+    let ir = lower_text_with_std_error(
+        r#"use std/error.Error
+
+func main(): i32! {
+    let value = Error.new("app.failed", dynamic())
+    return value
+}
+
+func dynamic(): &str {
+    return "failed"
+}
+"#,
+    );
+
+    assert_eq!(
+        ir.functions[0],
+        Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::Fallible(Box::new(Type::I32)),
+            instructions: vec![
+                Instruction::CallStr {
+                    destination: StrLocation::Local(4),
+                    target: CallTarget::same_file("dynamic"),
+                    arguments: vec![],
+                },
+                Instruction::SetStr {
+                    destination: StrLocation::Local(0),
+                    value: StrValue::StaticBytes(b"app.failed".to_vec()),
+                },
+                Instruction::SetStr {
+                    destination: StrLocation::Local(2),
+                    value: StrValue::Location(StrLocation::Local(4)),
+                },
+                Instruction::ReturnFallibleFailure {
+                    code: StrValue::Location(StrLocation::Local(0)),
+                    message: StrValue::Location(StrLocation::Local(2)),
+                },
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_fallible_entry_return_dynamic_error_code_and_message() {
     let ir = lower_text_with_std_error(
         r#"use std/error.Error

@@ -6,6 +6,7 @@ use super::aggregates::{
     type_expr_is_copy_struct,
 };
 use super::context::{AggregateFieldKind, DropGlue, LoweringContext};
+use super::errors::lower_error_payload;
 use super::expressions::{
     TemporaryAllocator, aggregate_call_field, expression_contains_interpolated_string,
     expression_is_lowerable_bool_binding, lower_aggregate_member_field_access,
@@ -85,6 +86,10 @@ pub(super) fn lower_local_binding(
     }
 
     if let Some(instructions) = lower_aggregate_member_binding(statement, context)? {
+        return Ok(instructions);
+    }
+
+    if let Some(instructions) = lower_error_local_binding(statement, context)? {
         return Ok(instructions);
     }
 
@@ -2174,6 +2179,29 @@ fn lower_aggregate_fallible_call_assignment(
         failure_mode,
     );
     Ok(instructions)
+}
+
+fn lower_error_local_binding(
+    statement: &BindingStmt,
+    context: &mut LoweringContext,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    let Some((root_source, resolved)) = context.resolved_calls() else {
+        return Ok(None);
+    };
+
+    let payload_context = context.with_reserved_local_abi_words(4);
+    let Some(payload) = lower_error_payload(
+        &statement.initializer,
+        resolved,
+        root_source,
+        Some(&payload_context),
+    )?
+    else {
+        return Ok(None);
+    };
+
+    let (code, message) = context.define_error_local(statement.name.clone())?;
+    Ok(Some(payload.into_store_instructions(code, message)))
 }
 
 fn lower_i32_local_binding(

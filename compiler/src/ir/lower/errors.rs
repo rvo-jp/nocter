@@ -23,6 +23,23 @@ impl ErrorPayload {
         });
         instructions
     }
+
+    pub(super) fn into_store_instructions(
+        self,
+        code_destination: StrLocation,
+        message_destination: StrLocation,
+    ) -> Vec<Instruction> {
+        let mut instructions = self.instructions;
+        instructions.push(Instruction::SetStr {
+            destination: code_destination,
+            value: self.code,
+        });
+        instructions.push(Instruction::SetStr {
+            destination: message_destination,
+            value: self.message,
+        });
+        instructions
+    }
 }
 
 pub(super) fn lower_error_payload(

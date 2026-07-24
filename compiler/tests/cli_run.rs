@@ -10563,6 +10563,44 @@ func dynamic(): &str {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_reports_fallible_entry_failure_error_local_dynamic_message() {
+    let project = TempProject::new("cli-run-fallible-failure-error-local-dynamic-message");
+    project.write_nocter_home_file(
+        "std/error.nct",
+        r#"pub type ErrorCode = &str
+pub type Error = error
+
+pub(nocter) primitive new_error(code: &str, message: &str): error
+
+pub func Error.new(code: ErrorCode, message: &str): Error {
+    return new_error(code, message)
+}
+"#,
+    );
+    let source = project.write_source(
+        "fail_error_local_dynamic.nct",
+        r#"use std/error.Error
+
+func main(): i32! {
+    let value = Error.new("app.failed", dynamic())
+    return value
+}
+
+func dynamic(): &str {
+    return "failed"
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(output.stderr, b"app.failed: failed\n");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_reports_fallible_entry_failure_dynamic_code_and_message() {
     let project = TempProject::new("cli-run-fallible-failure-dynamic-code-message");
     project.write_nocter_home_file(
