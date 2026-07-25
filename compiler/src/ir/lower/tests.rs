@@ -16722,6 +16722,133 @@ func update(values: &+[usize]): void {
 }
 
 #[test]
+fn lowers_readwrite_i32_call_result_slice_index_compound_assignment() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func update(): void {
+    values()[1] += addend()
+    return
+}
+
+func values(): &+[i32] {
+    return values()
+}
+
+func addend(): i32 {
+    return 2
+}
+"#,
+        "update",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "update".to_string(),
+            target: crate::ir::CallTarget::same_file("update".to_string()),
+            return_type: Type::Void,
+            instructions: vec![
+                call_slice(SliceLocation::Local(0), "values", vec![]),
+                call_i32(I32Location::Local(2), "addend", vec![]),
+                Instruction::SetI32 {
+                    destination: I32Location::Local(3),
+                    value: I32Value::SliceIndex {
+                        source: SliceLocation::Local(0),
+                        index: usize_const(1),
+                    },
+                },
+                Instruction::AddI32 {
+                    destination: I32Location::Local(3),
+                    left: i32_local(3),
+                    right: i32_local(2),
+                },
+                Instruction::StoreI32ToSliceIndex {
+                    destination: SliceLocation::Local(0),
+                    index: usize_const(1),
+                    value: i32_local(3),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_readwrite_usize_fallible_call_result_slice_index_compound_assignment() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func update(values: &+[usize], indices: &[usize]): void! {
+    maybe_values(values)?[indices[0]] %= value()
+    return
+}
+
+func maybe_values(values: &+[usize]): &+[usize]! {
+    return values
+}
+
+func value(): usize {
+    return 5
+}
+"#,
+        "update",
+        function_signatures(vec![
+            (
+                "maybe_values",
+                Type::Fallible(Box::new(Type::Slice { is_readwrite: true })),
+                vec![Type::Slice { is_readwrite: true }],
+            ),
+            ("value", Type::Usize, vec![]),
+        ]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "update".to_string(),
+            target: crate::ir::CallTarget::same_file("update".to_string()),
+            return_type: Type::Fallible(Box::new(Type::Void)),
+            instructions: vec![
+                Instruction::CallFallibleSlice {
+                    destination: SliceLocation::Local(0),
+                    target: CallTarget::same_file("maybe_values"),
+                    arguments: vec![ScalarArgument::Slice(SliceValue::Location(
+                        SliceLocation::Parameter(0),
+                    ))],
+                    failure_mode: FallibleFailureMode::Propagate,
+                },
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Local(2),
+                    value: usize_slice_index(SliceLocation::Parameter(2), usize_const(0)),
+                },
+                call_usize(UsizeLocation::Local(3), "value", vec![]),
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Local(4),
+                    value: usize_slice_index(SliceLocation::Local(0), usize_local(2)),
+                },
+                Instruction::RemainderUsize {
+                    destination: UsizeLocation::Local(4),
+                    left: usize_local(4),
+                    right: usize_local(3),
+                },
+                Instruction::StoreUsizeToSliceIndex {
+                    destination: SliceLocation::Local(0),
+                    index: usize_local(2),
+                    value: usize_local(4),
+                },
+                Instruction::ReturnFallibleSuccess,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_u8_slice_alias_parameter_and_return() {
     let function = lower_named_function(
         r#"type Bytes = [u8]
