@@ -170,14 +170,14 @@ explicit allocator.
 |---|---|---|
 | `Vec<T>` | runtime ship narrow | Future owned variable-length array type with private fields; zero-capacity values are usable. |
 | `Vec.empty<T>`, `empty<T>` | runtime ship narrow | Returns a zero-capacity vector without allocation. |
-| `Vec.with_capacity<T>`, `with_capacity<T>` | runtime ship narrow | Allocates page-backed storage for ABI-sized element types. Zero capacity returns an empty vector without allocation. |
+| `Vec.with_capacity<T>`, `with_capacity<T>` | runtime ship narrow | Allocates page-backed storage for scalar and `&str` element types. Use `Vec.empty<T>` for zero-capacity values outside that storage subset. |
 | `Vec.from_slice<T>`, `from_slice<T>` | runtime ship narrow | Copies scalar and `&str` slice elements through `push`; broader element copy/drop glue remains deferred. |
 | `Vec.len()`, `len` | runtime ship narrow | Metadata accessor. |
 | `Vec.capacity()`, `capacity` | runtime ship narrow | Metadata accessor. |
 | `Vec.is_empty()`, `is_empty` | runtime ship narrow | Metadata accessor. |
 | `Vec.view()`, `view` | runtime ship narrow | Returns a readonly slice over the current length. |
 | `Vec.view_mut()`, `view_mut` | runtime ship narrow | Returns a read-write slice over the current length. |
-| `Vec.reserve()`, `reserve` | runtime ship narrow | Grows page-backed storage and byte-copies existing initialized elements. |
+| `Vec.reserve()`, `reserve` | runtime ship narrow | Grows page-backed storage and byte-copies existing initialized scalar or `&str` elements. |
 | `Vec.clear()`, `clear` | runtime ship narrow | Sets length to zero; element drop behavior is deferred. |
 | `Vec.push()`, `push` | runtime ship narrow | Appends scalar and `&str` elements; non-view aggregate element storage and element drop glue remain deferred. |
 | `drop &+self` | runtime ship narrow | Releases allocated storage; element drop behavior remains deferred. |

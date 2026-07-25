@@ -1689,7 +1689,10 @@ fn std_vec_element_storage_type(
         && let Some(specialization) =
             concrete_method_call_specialization(member, typecheck_facts, generic_substitutions)
         && source_is_std_vec(sources, specialization.declaration_span.source, nocter_home)
-        && declaration_name(sources, specialization.declaration_span) == Some("push")
+        && matches!(
+            declaration_name(sources, specialization.declaration_span),
+            Some("push" | "reserve")
+        )
     {
         return specialization.substitutions.get("T").cloned();
     }
@@ -1700,7 +1703,9 @@ fn std_vec_element_storage_type(
         return None;
     }
     match declaration_name(sources, specialization.declaration_span)? {
-        "push" | "from_slice" => specialization.substitutions.get("T").cloned(),
+        "push" | "from_slice" | "with_capacity" | "reserve" => {
+            specialization.substitutions.get("T").cloned()
+        }
         _ => None,
     }
 }

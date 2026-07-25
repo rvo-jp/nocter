@@ -1004,6 +1004,91 @@ func main(): i32! {
 }
 
 #[test]
+fn distributed_std_vec_rejects_aggregate_with_capacity_before_ir_lowering() {
+    let project = TempProject::new("distributed-home-vec-aggregate-with-capacity-boundary");
+    let source = project.write_source(
+        "vec_aggregate_with_capacity_boundary.nct",
+        r#"use std/mem.page_allocator
+use std/vec.Vec
+
+copy struct Pair {
+    pub value: i32
+}
+
+func main(): i32! {
+    var allocator = page_allocator()
+    let values: Vec<Pair> = Vec.with_capacity(&+allocator, 1)?
+    return 0
+}
+"#,
+    );
+    let executable = project.root().join("vec_aggregate_with_capacity_boundary");
+
+    let output = nocter_build(&project, &source, &executable);
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("`Vec` element storage outside scalar and `&str`"),
+        "expected Vec element storage boundary diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("10 |     let values: Vec<Pair> = Vec.with_capacity(&+allocator, 1)?"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
+fn distributed_std_vec_rejects_aggregate_reserve_before_ir_lowering() {
+    let project = TempProject::new("distributed-home-vec-aggregate-reserve-boundary");
+    let source = project.write_source(
+        "vec_aggregate_reserve_boundary.nct",
+        r#"use std/vec.Vec
+
+copy struct Pair {
+    pub value: i32
+}
+
+func main(): i32! {
+    var values: Vec<Pair> = Vec.empty()
+    values.reserve(1)?
+    return 0
+}
+"#,
+    );
+    let executable = project.root().join("vec_aggregate_reserve_boundary");
+
+    let output = nocter_build(&project, &source, &executable);
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("`Vec` element storage outside scalar and `&str`"),
+        "expected Vec element storage boundary diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("9 |     values.reserve(1)?"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn distributed_std_vec_rejects_aggregate_from_slice_before_ir_lowering() {
     let project = TempProject::new("distributed-home-vec-aggregate-from-slice-boundary");
     let source = project.write_source(
