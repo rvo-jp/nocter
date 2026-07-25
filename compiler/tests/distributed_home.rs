@@ -1850,6 +1850,24 @@ fn distributed_std_process_args_builds_to_macho() {
 
 func main(): i32! {
     let values = args()?
+    let values_len: usize = values.len()
+    if values_len == 0 {
+        return 1
+    }
+    let view = values.view()
+    let view_len: usize = view.len()
+    if view_len != values_len {
+        return 2
+    }
+    let executable = view[0]
+    let executable_len: usize = executable.len()
+    if executable_len == 0 {
+        return 3
+    }
+    let first_byte: u8 = executable[0]
+    if first_byte == 0 {
+        return 4
+    }
     return 0
 }
 "#,

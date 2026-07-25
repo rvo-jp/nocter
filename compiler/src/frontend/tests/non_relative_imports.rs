@@ -437,6 +437,120 @@ func main(): i32 {
 }
 
 #[test]
+fn check_uses_imported_function_return_type_with_imported_signature_type() {
+    let root = make_temp_project("std-import-return-imported-type");
+    let home = make_nocter_home(&root);
+    fs::write(
+        root.join("app.nct"),
+        r#"use std/process.args
+
+func main(): i32! {
+    let values = args()?
+    let count: usize = values.len()
+    return 0
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/process.nct"),
+        r#"use std/vec.Vec
+
+pub func args(): Vec<&str>! {
+    return Vec.empty()
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/vec.nct"),
+        r#"pub struct Vec<T> {
+    pub len: usize
+}
+
+pub func Vec.empty<T>(): Vec<T> {
+    return Vec<T> { len: 0 }
+}
+
+pub func len<T>(values: &Vec<T>): usize {
+    return values.len
+}
+
+impl<T> Vec<T> {
+    pub method &self.len(): usize {
+        return len(self)
+    }
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn check_bare_use_preserves_imported_signature_type_dependencies() {
+    let root = make_temp_project("std-bare-use-return-imported-type");
+    let home = make_nocter_home(&root);
+    fs::write(
+        root.join("app.nct"),
+        r#"use std/process
+
+func main(): i32! {
+    let values = args()?
+    let count: usize = values.len()
+    return 0
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/process.nct"),
+        r#"use std/vec.Vec
+
+pub func args(): Vec<&str>! {
+    return Vec.empty()
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/vec.nct"),
+        r#"pub struct Vec<T> {
+    pub len: usize
+}
+
+pub func Vec.empty<T>(): Vec<T> {
+    return Vec<T> { len: 0 }
+}
+
+pub func len<T>(values: &Vec<T>): usize {
+    return values.len
+}
+
+impl<T> Vec<T> {
+    pub method &self.len(): usize {
+        return len(self)
+    }
+}
+"#,
+    )
+    .unwrap();
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn check_loads_std_imports_from_common_std() {
     let root = make_temp_project("std-import-common");
     let home = make_nocter_home(&root);
