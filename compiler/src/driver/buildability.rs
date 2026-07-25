@@ -4,7 +4,7 @@ use crate::analysis::{
 };
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, Block, CallExpr, DropDecl, Expr, ForRangeStmt,
-    FunctionDecl, IfLetStmt, ImplMember, Item, Stmt, TypeExpr, WhileLetStmt,
+    FunctionDecl, IfLetStmt, ImplMember, Item, MethodDecl, Stmt, TypeExpr, WhileLetStmt,
     type_expr_display_lossy,
 };
 use crate::diagnostics::Diagnostic;
@@ -124,7 +124,12 @@ impl<'a> CallableIndex<'a> {
                                     names.insert(method.name_span, name.clone());
                                     definitions.insert(
                                         target,
-                                        IndexedCallable::new_method(body, HashMap::new(), file),
+                                        IndexedCallable::new_method(
+                                            method,
+                                            body,
+                                            HashMap::new(),
+                                            file,
+                                        ),
                                     );
                                 }
                                 ImplMember::Method(method) if method.body.is_some() => {
@@ -145,6 +150,7 @@ impl<'a> CallableIndex<'a> {
                                         definitions.insert(
                                             target,
                                             IndexedCallable::new_method(
+                                                method,
                                                 body,
                                                 specialization.substitutions.clone(),
                                                 file,
@@ -250,16 +256,23 @@ impl<'a> IndexedCallable<'a> {
     }
 
     fn new_method(
+        method: &'a MethodDecl,
         body: &'a Block,
         substitutions: HashMap<String, TypeExpr>,
         file: &'a FileAnalysis,
     ) -> Self {
+        let mut issues = Vec::new();
+        issues.extend(nested_fallible_return_type_issue(
+            &method.return_type,
+            &file.resolved,
+        ));
+
         Self {
             body,
             substitutions,
             resolved: &file.resolved,
             typecheck_facts: &file.typecheck_facts,
-            issues: Vec::new(),
+            issues,
         }
     }
 
@@ -1982,12 +1995,19 @@ fn nested_fallible_return_issue(
     function: &FunctionDecl,
     resolved: &ResolveOutput,
 ) -> Option<BuildabilityIssue> {
-    if type_expr_fallible_depth(&function.return_type, resolved) <= 1 {
+    nested_fallible_return_type_issue(&function.return_type, resolved)
+}
+
+fn nested_fallible_return_type_issue(
+    return_type: &TypeExpr,
+    resolved: &ResolveOutput,
+) -> Option<BuildabilityIssue> {
+    if type_expr_fallible_depth(return_type, resolved) <= 1 {
         return None;
     }
 
     Some(BuildabilityIssue {
-        span: function.return_type.span(),
+        span: return_type.span(),
         construct: "nested fallible or optional return types",
         help: "flatten the return boundary to a single optional or fallible layer until nested fallible lowering is promoted",
     })

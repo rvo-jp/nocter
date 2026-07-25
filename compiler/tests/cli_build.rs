@@ -3628,6 +3628,59 @@ func make_value(): (i32?)! {
 }
 
 #[test]
+fn build_command_reports_reachable_nested_fallible_method_return_before_ir_lowering() {
+    let project = TempProject::new("cli-build-nested-fallible-method-return-boundary");
+    let source = project.write_source(
+        "nested_fallible_method_return_boundary.nct",
+        r#"copy struct Holder {
+    pub value: i32
+}
+
+impl Holder {
+    pub method &self.make_value(): (i32?)! {
+        return none
+    }
+}
+
+func main(): i32 {
+    let holder = Holder { value: 0 }
+    return consume(holder.make_value()!)
+}
+
+func consume(item: i32?): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("nested fallible or optional return types"),
+        "expected nested fallible return diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("6 |     pub method &self.make_value(): (i32?)! {"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E8007]"),
+        "buildability preflight should reject before IR method lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_does_not_reject_unreachable_nested_fallible_return() {
     let project = TempProject::new("cli-build-unreachable-nested-fallible-return");
     let source = project.write_source(
@@ -3638,6 +3691,34 @@ fn build_command_does_not_reject_unreachable_nested_fallible_return() {
 
 func value(): (i32?)! {
     return none
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
+fn build_command_does_not_reject_unreachable_nested_fallible_method_return() {
+    let project = TempProject::new("cli-build-unreachable-nested-fallible-method-return");
+    let source = project.write_source(
+        "unreachable_nested_fallible_method_return.nct",
+        r#"copy struct Holder {
+    pub value: i32
+}
+
+impl Holder {
+    pub method &self.make_value(): (i32?)! {
+        return none
+    }
+}
+
+func main(): i32 {
+    return 0
 }
 "#,
     );
