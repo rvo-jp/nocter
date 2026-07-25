@@ -123,8 +123,8 @@ the CLI gates, and the documentation gates are all complete.
 | Interfaces | frontend ship | `interface` declarations, `pub` interface methods, and explicit structural `impl Interface for Type` conformance are checked. Interface types in value and borrow-like value positions are rejected by type checking. Interfaces provide no v0 code reuse, dynamic dispatch, generic bounds, or backend dispatch requirement. |
 | Generics | runtime ship narrow | Type arity, direct generic inference, generic aggregate substitution, generic enum checks, and fully concrete generic call specializations are checked. Generic functions, associated functions, generic impl methods, concrete generic drop members, concrete generic struct literals, and concrete generic aggregate signatures build and run when every type parameter is fixed by argument types, receiver type, binding or return context, or parameter expectation, and the resulting specialized body stays inside the documented scalar/view/aggregate subset. Unspecialized generic calls, unsupported specialized bodies, generic bounds, interface-bound dispatch, and broad monomorphization remain rejected or deferred. |
 | Standard library primitives | runtime ship narrow | Trusted primitives used by distributed std have explicit target gates, privacy boundaries, typechecked declarations, and native lowering or documented recoverable failure. The distributed `std/io` File, open, read, write, text write, stream, and print APIs build and run in the documented narrow file-descriptor subset. Placeholder public APIs must not silently succeed. |
-| `std/process` | runtime ship narrow | Process exit/status behavior works. `cwd` returns the current working directory as an owned `String` on `arm64-darwin`. `args` keeps its future API shape as a recoverable `std.process.unsupported` failure until full `Vec` storage and process context runtime are promoted. `env` remains check-only until nested fallible/optional returns and process context storage are promoted. |
-| `Vec` and collections | runtime ship narrow | The distributed `Vec<T>` shape, zero-capacity construction, metadata accessors, zero-length views, `clear`, zero-capacity drop, and documented recoverable `std.vec.unsupported` storage failures build and run. General collection storage, growth, element copying, and non-empty element drop behavior remain deferred unless needed by a promoted std/process API. |
+| `std/process` | runtime ship narrow | Process exit/status behavior works. `cwd` returns the current working directory as an owned `String` on `arm64-darwin`. `args` returns borrowed argv strings in a caller-owned `Vec<&str>` on `arm64-darwin`. `env` remains check-only until nested fallible/optional returns and process context storage are promoted. |
+| `Vec` and collections | runtime ship narrow | The distributed `Vec<T>` shape, zero-capacity construction, metadata accessors, views, `clear`, scalar and `&str` storage/growth/push/from-slice, and storage release on drop build and run. Non-view aggregate element storage, per-element drop glue, insertion/removal APIs, and iteration helpers remain deferred. |
 | CLI diagnostics | ship | `check`, `build`, and `run` render source-backed diagnostics in text and JSON where supported. Internal compiler errors are not acceptable for user source covered by this document. |
 | LSP | ship basic | LSP initializes, syncs documents, publishes compiler diagnostics, semantic tokens, hover, references, definition, document symbols, and basic completions from compiler facts. Richer editor behavior is not a v0 closure blocker. |
 | Documentation | ship | `spec`, `implementation-status.md`, `backend-v0.md`, `roadmap.md`, and this document agree on public syntax, ABI decisions, runtime boundaries, and deferred features. |
@@ -142,9 +142,9 @@ order:
    enum payload facts, drop glue, direct/indirect ABI edge cases, and aggregate
    cleanup.
 4. Standard library runtime: keep `std-v0-contract.md` and `.nocter/std`
-   aligned, finish allocator behavior, owned `String`, `fmt`, and
-   recoverable unsupported process APIs, then only promote `Vec`, `args`, and
-   `env` when their ABI and runtime API are stable enough to keep.
+   aligned, keep promoted allocator, owned `String`, `fmt`, `Vec`, and `args`
+   behavior covered by distributed tests, and only promote `env` when its ABI
+   and runtime API are stable enough to keep.
 5. Runtime promotion decisions: promote optionals, full control flow, arrays,
    methods, or generics only by changing the relevant matrix row and adding
    tests in the same commit.

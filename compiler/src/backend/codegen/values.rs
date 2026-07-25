@@ -2029,6 +2029,9 @@ impl EntryEmitter {
     ) -> Result<(), Vec<Diagnostic>> {
         match value {
             UsizeValue::Const(value) => emit_mov_u64_to_x(&mut self.encoder, destination, *value),
+            UsizeValue::ProcessArgCount => {
+                self.encoder.emit_ldr_x_imm(destination, XReg::X19, 0);
+            }
             UsizeValue::Location(location) => {
                 if let UsizeLocation::Parameter(index) = location {
                     self.emit_parameter_word_to_x(*index, destination)?;
@@ -2460,6 +2463,14 @@ impl EntryEmitter {
                     len_scratch,
                 )?;
             }
+            StrValue::ProcessArg { index } => {
+                let len_scratch = if destination == XReg::X8 {
+                    XReg::X17
+                } else {
+                    XReg::X8
+                };
+                self.emit_process_arg_to_x_pair(index, destination, len_scratch)?;
+            }
         }
         Ok(())
     }
@@ -2493,6 +2504,9 @@ impl EntryEmitter {
                     XReg::X16,
                     destination,
                 )?;
+            }
+            StrValue::ProcessArg { index } => {
+                self.emit_process_arg_to_x_pair(index, XReg::X16, destination)?;
             }
         }
         Ok(())
@@ -2538,9 +2552,42 @@ impl EntryEmitter {
                     len_destination,
                 )?;
             }
+            StrValue::ProcessArg { index } => {
+                self.emit_process_arg_to_x_pair(index, ptr_destination, len_destination)?;
+            }
         }
 
         Ok(())
+    }
+
+    fn emit_process_arg_to_x_pair(
+        &mut self,
+        index: &UsizeValue,
+        ptr_destination: XReg,
+        len_destination: XReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_usize_value_to_x(index, XReg::X16)?;
+        self.encoder.emit_ldr_x_imm(XReg::X17, XReg::X19, 0);
+        self.emit_index_in_bounds_check(XReg::X16, XReg::X17)?;
+        self.encoder.emit_lsl_x_imm(XReg::X16, XReg::X16, 3);
+        self.encoder.emit_adds_x(XReg::X17, XReg::X19, XReg::X16);
+        self.encoder.emit_ldr_x_imm(XReg::X16, XReg::X17, 8);
+
+        emit_mov_u64_to_x(&mut self.encoder, XReg::X8, 0);
+        let loop_start = self.encoder.position();
+        self.encoder.emit_ldrb_w_reg(WReg::W3, XReg::X16, XReg::X8);
+        self.encoder.emit_cmp_w_zero(WReg::W3);
+        let done = self.emit_cond_branch_placeholder(BranchCondition::Eq);
+        self.encoder.emit_add_x_imm(XReg::X8, XReg::X8, 1);
+        let branch_to_loop = self.emit_branch_placeholder();
+        self.patch_branch_placeholder_to_offset(
+            branch_to_loop,
+            loop_start,
+            "process argument length loop target",
+        )?;
+        self.patch_branch_placeholder_to_current(done, "process argument length done target")?;
+
+        self.emit_x_pair_to_x_pair(XReg::X16, XReg::X8, ptr_destination, len_destination)
     }
 
     pub(super) fn emit_slice_value_to_x_pair(
@@ -2905,7 +2952,7 @@ fn w_reg_for_x_reg(register: XReg) -> Option<WReg> {
         XReg::X15 => Some(WReg::W15),
         XReg::X16 => Some(WReg::W16),
         XReg::X17 => Some(WReg::W17),
-        XReg::X8 | XReg::X30 => None,
+        XReg::X8 | XReg::X19 | XReg::X30 => None,
     }
 }
 

@@ -509,6 +509,7 @@ pub(crate) enum UsizeLocation {
 pub(crate) enum UsizeValue {
     Const(u64),
     Location(UsizeLocation),
+    ProcessArgCount,
     U8ZeroExtend(Box<U8Value>),
     StrLen(StrLocation),
     SliceLen(SliceLocation),
@@ -584,6 +585,9 @@ pub(crate) enum BorrowSource {
 pub(crate) enum StrValue {
     StaticBytes(Vec<u8>),
     Location(StrLocation),
+    ProcessArg {
+        index: UsizeValue,
+    },
     SliceIndex {
         source: SliceLocation,
         index: UsizeValue,

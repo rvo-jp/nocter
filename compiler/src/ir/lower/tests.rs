@@ -2002,6 +2002,82 @@ func main(): i32 {
 }
 
 #[test]
+fn lowers_process_arg_count_primitive_to_ir_value() {
+    let fixture = analyze_text_fixture_with_nocter_home_files(
+        r#"use std/process.arg_count_probe
+
+func main(): i32 {
+    let count: usize = arg_count_probe()
+    return 0
+}
+"#,
+        &[(
+            "std/process.nct",
+            r#"#target("arm64-darwin")
+pub(nocter) primitive arg_count_raw(): usize
+
+pub func arg_count_probe(): usize {
+    return arg_count_raw()
+}
+"#,
+        )],
+    );
+    let ir = lower_executable(&fixture.analysis, &fixture.sources).unwrap();
+    let function = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "arg_count_probe")
+        .unwrap();
+
+    assert!(matches!(
+        &function.instructions[0],
+        Instruction::SetUsize {
+            destination: UsizeLocation::Return,
+            value: UsizeValue::ProcessArgCount,
+        }
+    ));
+}
+
+#[test]
+fn lowers_process_arg_primitive_to_ir_value() {
+    let fixture = analyze_text_fixture_with_nocter_home_files(
+        r#"use std/process.arg_probe
+
+func main(): i32 {
+    let first = arg_probe(0)
+    return 0
+}
+"#,
+        &[(
+            "std/process.nct",
+            r#"#target("arm64-darwin")
+pub(nocter) primitive arg_raw(index: usize): &str
+
+pub func arg_probe(index: usize): &str {
+    return arg_raw(index)
+}
+"#,
+        )],
+    );
+    let ir = lower_executable(&fixture.analysis, &fixture.sources).unwrap();
+    let function = ir
+        .functions
+        .iter()
+        .find(|function| function.name == "arg_probe")
+        .unwrap();
+
+    assert!(matches!(
+        &function.instructions[0],
+        Instruction::SetStr {
+            destination: StrLocation::Return,
+            value: StrValue::ProcessArg {
+                index: UsizeValue::Location(UsizeLocation::Parameter(0)),
+            },
+        }
+    ));
+}
+
+#[test]
 fn collects_loaded_imported_call_targets() {
     let analysis = analyze_text_with_nocter_home_files(
         r#"use std/math.answer

@@ -38,7 +38,8 @@ pub(super) use calls::lower_pointer_address_expression_to_word;
 pub(super) use calls::primitive_trap_call;
 use calls::{
     call_arguments_require_stack, is_tail_call_stack_pointer_argument,
-    lower_addr_primitive_call_to_word, lower_bool_normal_call, lower_call_arguments,
+    lower_addr_primitive_call_to_word, lower_arg_count_raw_primitive_call_to_word,
+    lower_arg_raw_primitive_call_to_value, lower_bool_normal_call, lower_call_arguments,
     lower_close_fd_raw_primitive_call, lower_copy_ptr_to_ptr_primitive_call,
     lower_copy_str_to_ptr_primitive_call, lower_direct_tail_call, lower_exit_raw_primitive_call,
     lower_fallible_void_normal_call, lower_i32_normal_call,
@@ -48,11 +49,12 @@ use calls::{
     lower_str_bytes_primitive_call_to_location, lower_str_bytes_primitive_call_to_value,
     lower_str_from_raw_parts_primitive_call_to_location, lower_str_normal_call,
     lower_u8_normal_call, lower_usize_normal_call, lower_void_normal_call, primitive_addr_call,
-    primitive_bytes_from_str_call, primitive_close_fd_raw_call, primitive_copy_ptr_to_ptr_call,
-    primitive_copy_str_to_ptr_call, primitive_exit_raw_call, primitive_pointee_size_call,
-    primitive_slice_from_raw_parts_call, primitive_store_u8_to_ptr_call,
-    primitive_store_value_to_ptr_call, primitive_str_from_raw_parts_call,
-    primitive_write_bytes_raw_call, primitive_write_text_raw_call,
+    primitive_arg_count_raw_call, primitive_arg_raw_call, primitive_bytes_from_str_call,
+    primitive_close_fd_raw_call, primitive_copy_ptr_to_ptr_call, primitive_copy_str_to_ptr_call,
+    primitive_exit_raw_call, primitive_pointee_size_call, primitive_slice_from_raw_parts_call,
+    primitive_store_u8_to_ptr_call, primitive_store_value_to_ptr_call,
+    primitive_str_from_raw_parts_call, primitive_write_bytes_raw_call,
+    primitive_write_text_raw_call,
 };
 pub(super) use calls::{
     lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
@@ -279,6 +281,11 @@ pub(super) fn lower_usize_expression_to_location(
                 instructions.push(Instruction::SetUsize { destination, value });
                 return Ok(instructions);
             }
+            if primitive_arg_count_raw_call(call, context) {
+                let (mut instructions, value) = lower_arg_count_raw_primitive_call_to_word(call)?;
+                instructions.push(Instruction::SetUsize { destination, value });
+                return Ok(instructions);
+            }
 
             lower_usize_normal_call(call, destination, context, &mut temporaries)
         }
@@ -366,6 +373,12 @@ pub(super) fn lower_str_expression_to_location(
         }
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
+            if primitive_arg_raw_call(call, context) {
+                let (mut instructions, value) =
+                    lower_arg_raw_primitive_call_to_value(call, context, &mut temporaries)?;
+                instructions.push(Instruction::SetStr { destination, value });
+                return Ok(instructions);
+            }
             if primitive_str_from_raw_parts_call(call, context) {
                 return lower_str_from_raw_parts_primitive_call_to_location(
                     call,
@@ -1816,6 +1829,13 @@ fn lower_usize_expression_to_value(
                     value,
                 });
             }
+            if primitive_arg_count_raw_call(call, context) {
+                let (instructions, value) = lower_arg_count_raw_primitive_call_to_word(call)?;
+                return Ok(LoweredUsizeValue {
+                    instructions,
+                    value,
+                });
+            }
 
             let temporary = temporaries.next_usize()?;
             Ok(LoweredUsizeValue {
@@ -1925,6 +1945,14 @@ fn lower_str_expression_to_value(
             })
         }
         Expr::Call(call) => {
+            if primitive_arg_raw_call(call, context) {
+                let (instructions, value) =
+                    lower_arg_raw_primitive_call_to_value(call, context, temporaries)?;
+                return Ok(LoweredStrValue {
+                    instructions,
+                    value,
+                });
+            }
             let temporary = temporaries.next_str()?;
             if primitive_str_from_raw_parts_call(call, context) {
                 return Ok(LoweredStrValue {
@@ -2330,6 +2358,15 @@ pub(super) fn lower_usize_return_expression(
                 instructions.push(Instruction::Return);
                 return Ok(instructions);
             }
+            if primitive_arg_count_raw_call(call, context) {
+                let (mut instructions, value) = lower_arg_count_raw_primitive_call_to_word(call)?;
+                instructions.push(Instruction::SetUsize {
+                    destination: UsizeLocation::Return,
+                    value,
+                });
+                instructions.push(Instruction::Return);
+                return Ok(instructions);
+            }
 
             lower_direct_tail_call(call, context)
         }
@@ -2350,6 +2387,16 @@ pub(super) fn lower_str_return_expression(
     match expression {
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
+            if primitive_arg_raw_call(call, context) {
+                let (mut instructions, value) =
+                    lower_arg_raw_primitive_call_to_value(call, context, &mut temporaries)?;
+                instructions.push(Instruction::SetStr {
+                    destination: StrLocation::Return,
+                    value,
+                });
+                instructions.push(Instruction::Return);
+                return Ok(instructions);
+            }
             if primitive_str_from_raw_parts_call(call, context) {
                 let mut instructions = lower_str_from_raw_parts_primitive_call_to_location(
                     call,
@@ -3490,9 +3537,9 @@ fn lower_str_comparison_to_value_with_temporaries(
     let right = lower_str_expression_to_value(&binary.right, context, temporaries)?;
 
     let mut instructions = left.instructions;
-    let left = materialize_str_slice_index_value(left.value, &mut instructions, temporaries)?;
+    let left = materialize_computed_str_value(left.value, &mut instructions, temporaries)?;
     instructions.extend(right.instructions);
-    let right = materialize_str_slice_index_value(right.value, &mut instructions, temporaries)?;
+    let right = materialize_computed_str_value(right.value, &mut instructions, temporaries)?;
     Ok(LoweredBoolValue {
         instructions,
         value: BoolValue::StrComparison {
@@ -3503,13 +3550,13 @@ fn lower_str_comparison_to_value_with_temporaries(
     })
 }
 
-fn materialize_str_slice_index_value(
+fn materialize_computed_str_value(
     value: StrValue,
     instructions: &mut Vec<Instruction>,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<StrValue, Vec<Diagnostic>> {
     match value {
-        StrValue::SliceIndex { .. } => {
+        StrValue::ProcessArg { .. } | StrValue::SliceIndex { .. } => {
             let temporary = temporaries.next_str()?;
             instructions.push(Instruction::SetStr {
                 destination: temporary,
@@ -3720,7 +3767,7 @@ fn lower_u8_index_expression_to_value(
                     source,
                     index: index.value,
                 },
-                value @ StrValue::SliceIndex { .. } => {
+                value @ (StrValue::ProcessArg { .. } | StrValue::SliceIndex { .. }) => {
                     let source = temporaries.next_str()?;
                     instructions.push(Instruction::SetStr {
                         destination: source,
@@ -3752,7 +3799,9 @@ fn lower_u8_index_expression_to_value(
                     source,
                     index: index.value,
                 },
-                SliceValue::StrBytes(value @ StrValue::SliceIndex { .. }) => {
+                SliceValue::StrBytes(
+                    value @ (StrValue::ProcessArg { .. } | StrValue::SliceIndex { .. }),
+                ) => {
                     let source = temporaries.next_str()?;
                     instructions.push(Instruction::SetStr {
                         destination: source,
@@ -3877,6 +3926,9 @@ fn byte_collection_call_kind(
     call: &CallExpr,
     context: &LoweringContext,
 ) -> Option<ByteCollectionKind> {
+    if primitive_arg_raw_call(call, context) {
+        return Some(ByteCollectionKind::Str);
+    }
     if primitive_str_from_raw_parts_call(call, context) {
         return Some(ByteCollectionKind::Str);
     }
@@ -4007,7 +4059,7 @@ fn lower_byte_collection_len_expression_to_value(
             let value = match source.value {
                 StrValue::StaticBytes(bytes) => UsizeValue::Const(bytes.len() as u64),
                 StrValue::Location(location) => UsizeValue::StrLen(location),
-                value @ StrValue::SliceIndex { .. } => {
+                value @ (StrValue::ProcessArg { .. } | StrValue::SliceIndex { .. }) => {
                     let temporary = temporaries.next_str()?;
                     instructions.push(Instruction::SetStr {
                         destination: temporary,
@@ -4029,7 +4081,9 @@ fn lower_byte_collection_len_expression_to_value(
                     UsizeValue::Const(bytes.len() as u64)
                 }
                 SliceValue::StrBytes(StrValue::Location(location)) => UsizeValue::StrLen(location),
-                SliceValue::StrBytes(value @ StrValue::SliceIndex { .. }) => {
+                SliceValue::StrBytes(
+                    value @ (StrValue::ProcessArg { .. } | StrValue::SliceIndex { .. }),
+                ) => {
                     let temporary = temporaries.next_str()?;
                     instructions.push(Instruction::SetStr {
                         destination: temporary,

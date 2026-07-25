@@ -2054,6 +2054,14 @@ pub(super) fn primitive_pointee_size_call(call: &CallExpr, context: &LoweringCon
     matches!(context.primitive_name_for_call(call), Some("pointee_size"))
 }
 
+pub(super) fn primitive_arg_count_raw_call(call: &CallExpr, context: &LoweringContext) -> bool {
+    matches!(context.primitive_name_for_call(call), Some("arg_count_raw"))
+}
+
+pub(super) fn primitive_arg_raw_call(call: &CallExpr, context: &LoweringContext) -> bool {
+    matches!(context.primitive_name_for_call(call), Some("arg_raw"))
+}
+
 pub(super) fn primitive_copy_str_to_ptr_call(call: &CallExpr, context: &LoweringContext) -> bool {
     matches!(
         context.primitive_name_for_call(call),
@@ -2151,6 +2159,35 @@ pub(super) fn lower_pointee_size_primitive_call_to_word(
         )
     })?;
     Ok((instructions, UsizeValue::Const(value.layout.size)))
+}
+
+pub(super) fn lower_arg_count_raw_primitive_call_to_word(
+    call: &CallExpr,
+) -> Result<(Vec<Instruction>, UsizeValue), Vec<Diagnostic>> {
+    if !call.arguments.is_empty() {
+        return Err(unsupported_pointer_primitive_diagnostic(
+            "`arg_count_raw` requires no arguments",
+        ));
+    }
+    Ok((Vec::new(), UsizeValue::ProcessArgCount))
+}
+
+pub(super) fn lower_arg_raw_primitive_call_to_value(
+    call: &CallExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<(Vec<Instruction>, StrValue), Vec<Diagnostic>> {
+    if call.arguments.len() != 1 {
+        return Err(unsupported_pointer_primitive_diagnostic(
+            "`arg_raw` requires one `usize` index argument",
+        ));
+    }
+
+    let index = lower_usize_expression_to_value(&call.arguments[0], context, temporaries)?;
+    Ok((
+        index.instructions,
+        StrValue::ProcessArg { index: index.value },
+    ))
 }
 
 pub(super) fn lower_copy_str_to_ptr_primitive_call(

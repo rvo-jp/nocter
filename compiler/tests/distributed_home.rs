@@ -1864,10 +1864,10 @@ func main(): i32! {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn distributed_std_process_args_reports_runtime_unsupported() {
-    let project = TempProject::new("distributed-home-process-args-runtime-unsupported");
+fn distributed_std_process_args_returns_argv_vector() {
+    let project = TempProject::new("distributed-home-process-args-runtime");
     let source = project.write_source(
-        "process_args_runtime_unsupported.nct",
+        "process_args_runtime.nct",
         r#"use std/process.args
 
 func main(): i32! {
@@ -1879,12 +1879,15 @@ func main(): i32! {
 
     let output = nocter_run(&project, &source);
 
-    assert_eq!(output.status.code(), Some(1));
-    assert!(output.stdout.is_empty());
     assert_eq!(
-        output.stderr,
-        b"std.process.unsupported: process arguments are not implemented\n"
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
     );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
 }
 
 #[test]

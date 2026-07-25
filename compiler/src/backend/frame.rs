@@ -1581,7 +1581,7 @@ fn record_u8_value_parameter_spill_requests(value: &U8Value, requests: &mut BTre
 
 fn record_usize_value_parameter_spill_requests(value: &UsizeValue, requests: &mut BTreeSet<usize>) {
     match value {
-        UsizeValue::Const(_) => {}
+        UsizeValue::Const(_) | UsizeValue::ProcessArgCount => {}
         UsizeValue::Location(UsizeLocation::Parameter(index)) => {
             requests.insert(*index);
         }
@@ -1641,6 +1641,9 @@ fn record_str_value_parameter_spill_requests(value: &StrValue, requests: &mut BT
         }
         StrValue::SliceIndex { source, index } => {
             record_slice_location_parameter_pair_spill_requests(*source, requests);
+            record_usize_value_parameter_spill_requests(index, requests);
+        }
+        StrValue::ProcessArg { index } => {
             record_usize_value_parameter_spill_requests(index, requests);
         }
     }
@@ -2326,7 +2329,7 @@ fn record_u8_location(location: U8Location, highest_local_index: &mut Option<usi
 
 fn record_usize_value(value: &UsizeValue, highest_local_index: &mut Option<usize>) {
     match value {
-        UsizeValue::Const(_) => {}
+        UsizeValue::Const(_) | UsizeValue::ProcessArgCount => {}
         UsizeValue::Location(location) => record_usize_location(*location, highest_local_index),
         UsizeValue::U8ZeroExtend(value) => record_u8_value(value, highest_local_index),
         UsizeValue::StrLen(location) => record_str_location(*location, highest_local_index),
@@ -2386,6 +2389,7 @@ fn record_str_value(value: &StrValue, highest_local_index: &mut Option<usize>) {
             record_slice_location(*source, highest_local_index);
             record_usize_value(index, highest_local_index);
         }
+        StrValue::ProcessArg { index } => record_usize_value(index, highest_local_index),
     }
 }
 

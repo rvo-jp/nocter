@@ -157,8 +157,8 @@ directory traversal are deferred.
 | `abort(): never` | runtime ship | Traps immediately. |
 | `cwd(allocator: &+Allocator): String!` | runtime ship narrow | Returns the current working directory as caller-owned `String` on `arm64-darwin`; fails with `std.process.cwd_failed` if the target path cannot be retrieved. |
 | `env(name: &str): &str?!` | check only | Future fallible-optional shape is reserved. Useful runtime requires nested fallible/optional return lowering and process context storage. It must not be implemented as a fake successful `none`. |
-| `args(): Vec<&str>!` | recoverable unsupported | Future API shape is reserved; current calls build and fail with `std.process.unsupported` until full `Vec` storage and process context exist. |
-| `exit_raw`, cwd syscall helpers | std internal | Target-gated termination primitive and ordinary Nocter wrappers over the closed `std/os` syscall boundary. |
+| `args(): Vec<&str>!` | runtime ship narrow | Returns borrowed argv strings in a caller-owned `Vec<&str>` on `arm64-darwin`. The argument strings borrow process-context storage valid for the whole program. |
+| `exit_raw`, `arg_count_raw`, `arg_raw`, cwd syscall helpers | std internal | Target-gated process primitives and ordinary Nocter wrappers over the closed `std/os` syscall boundary. |
 
 Future `args` and `env` results borrow process-context storage valid for the
 whole program. `cwd` returns caller-owned `String` storage allocated through the
@@ -170,21 +170,22 @@ explicit allocator.
 |---|---|---|
 | `Vec<T>` | runtime ship narrow | Future owned variable-length array type with private fields; zero-capacity values are usable. |
 | `Vec.empty<T>`, `empty<T>` | runtime ship narrow | Returns a zero-capacity vector without allocation. |
-| `Vec.with_capacity<T>`, `with_capacity<T>` | recoverable unsupported narrow | Capacity `0` returns an empty vector; nonzero capacity fails with `std.vec.unsupported`. |
-| `Vec.from_slice<T>`, `from_slice<T>` | recoverable unsupported narrow | Empty slices return an empty vector; non-empty slices fail with `std.vec.unsupported`. |
+| `Vec.with_capacity<T>`, `with_capacity<T>` | runtime ship narrow | Allocates page-backed storage for ABI-sized element types. Zero capacity returns an empty vector without allocation. |
+| `Vec.from_slice<T>`, `from_slice<T>` | runtime ship narrow | Copies scalar and `&str` slice elements through `push`; broader element copy/drop glue remains deferred. |
 | `Vec.len()`, `len` | runtime ship narrow | Metadata accessor. |
 | `Vec.capacity()`, `capacity` | runtime ship narrow | Metadata accessor. |
 | `Vec.is_empty()`, `is_empty` | runtime ship narrow | Metadata accessor. |
 | `Vec.view()`, `view` | runtime ship narrow | Returns a readonly slice over the current length. |
 | `Vec.view_mut()`, `view_mut` | runtime ship narrow | Returns a read-write slice over the current length. |
-| `Vec.reserve()`, `reserve` | recoverable unsupported narrow | Additional capacity `0` succeeds; positive growth fails with `std.vec.unsupported`. |
-| `Vec.clear()`, `clear` | runtime ship narrow | Sets length to zero; general element drop behavior is deferred with real storage. |
-| `Vec.push()`, `push` | recoverable unsupported | Fails with `std.vec.unsupported` until element layout, allocation, copy, and drop glue are wired into the backend. |
-| `drop &+self` | runtime ship narrow | Current zero-capacity values clear metadata on drop; future storage release belongs here. |
+| `Vec.reserve()`, `reserve` | runtime ship narrow | Grows page-backed storage and byte-copies existing initialized elements. |
+| `Vec.clear()`, `clear` | runtime ship narrow | Sets length to zero; element drop behavior is deferred. |
+| `Vec.push()`, `push` | runtime ship narrow | Appends scalar and `&str` elements; non-view aggregate element storage and element drop glue remain deferred. |
+| `drop &+self` | runtime ship narrow | Releases allocated storage; element drop behavior remains deferred. |
 | `unsupported` | private helper | Module-local helper for unimplemented storage operations. |
 
-`Vec<T>` is not part of the prelude. General collection storage, growth,
-element copying, and element drop behavior are deferred.
+`Vec<T>` is not part of the prelude. Non-view aggregate element storage,
+per-element drop glue, insertion/removal APIs, and iteration helpers are
+deferred.
 
 ### `std/ptr`
 

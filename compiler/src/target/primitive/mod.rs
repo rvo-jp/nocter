@@ -446,6 +446,10 @@ const PROCESS_EXIT_RAW_PARAMETERS: &[PrimitiveParameterSpec] = &[PrimitiveParame
     name: "code",
     ty: "i32",
 }];
+const PROCESS_ARG_RAW_PARAMETERS: &[PrimitiveParameterSpec] = &[PrimitiveParameterSpec {
+    name: "index",
+    ty: "usize",
+}];
 
 fn primitive_set() -> &'static [PrimitiveSpec] {
     &[
@@ -727,6 +731,24 @@ fn primitive_set() -> &'static [PrimitiveSpec] {
             generics: &[],
             parameters: PROCESS_EXIT_RAW_PARAMETERS,
             return_type: "never",
+        },
+        PrimitiveSpec {
+            module_path: "std/process",
+            target: Some("arm64-darwin"),
+            visibility: Visibility::Nocter,
+            name: "arg_count_raw",
+            generics: &[],
+            parameters: &[],
+            return_type: "usize",
+        },
+        PrimitiveSpec {
+            module_path: "std/process",
+            target: Some("arm64-darwin"),
+            visibility: Visibility::Nocter,
+            name: "arg_raw",
+            generics: &[],
+            parameters: PROCESS_ARG_RAW_PARAMETERS,
+            return_type: "&str",
         },
     ]
 }

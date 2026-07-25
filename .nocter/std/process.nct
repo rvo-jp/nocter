@@ -11,6 +11,7 @@ use std/mem.alloc_pages
 use std/mem.bytes_mut as raw_bytes_mut
 use std/mem.free
 use std/mem.free_pages
+use std/mem.page_allocator
 use std/os.darwin_f_getpath
 use std/os.darwin_max_path_len
 use std/os.darwin_sys_close
@@ -29,6 +30,12 @@ use std/vec.Vec
 
 #target("arm64-darwin")
 pub(nocter) primitive exit_raw(code: i32): never
+
+#target("arm64-darwin")
+pub(nocter) primitive arg_count_raw(): usize
+
+#target("arm64-darwin")
+pub(nocter) primitive arg_raw(index: usize): &str
 
 #target("arm64-darwin")
 pub(nocter) func open_current_directory(): usize! {
@@ -79,7 +86,15 @@ pub(nocter) func fill_cwd_path(fd: usize, buffer: &+RawBuffer): usize! {
 }
 
 pub func args(): Vec<&str>! {
-    return Error.new("std.process.unsupported", "process arguments are not implemented")
+    var allocator = page_allocator()
+    let count: usize = arg_count_raw()
+    var values: Vec<&str> = Vec.with_capacity(&+allocator, count)?
+    var index: usize = 0
+    while index < count {
+        values.push(arg_raw(index))?
+        index = index + 1
+    }
+    return move values
 }
 
 pub func env(name: &str): &str?! {
