@@ -327,11 +327,9 @@ pub enum Stmt {
     Assignment(AssignmentStmt),
     If(IfStmt),
     IfIs(IfIsStmt),
-    IfLet(IfLetStmt),
     Switch(SwitchStmt),
     ForRange(ForRangeStmt),
     While(WhileStmt),
-    WhileLet(WhileLetStmt),
     Loop(LoopStmt),
     Break(BreakStmt),
     Continue(ContinueStmt),
@@ -404,17 +402,6 @@ pub struct IfIsStmt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IfLetStmt {
-    pub span: ByteSpan,
-    pub kind: BindingKind,
-    pub name: String,
-    pub name_span: ByteSpan,
-    pub initializer: Expr,
-    pub then_block: Block,
-    pub else_block: Option<Block>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SwitchStmt {
     pub span: ByteSpan,
     pub expression: Expr,
@@ -460,16 +447,6 @@ pub struct ForRangeStmt {
 pub struct WhileStmt {
     pub span: ByteSpan,
     pub condition: Expr,
-    pub body: Block,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WhileLetStmt {
-    pub span: ByteSpan,
-    pub kind: BindingKind,
-    pub name: String,
-    pub name_span: ByteSpan,
-    pub initializer: Expr,
     pub body: Block,
 }
 
@@ -796,11 +773,9 @@ impl Stmt {
             Stmt::Assignment(statement) => statement.span,
             Stmt::If(statement) => statement.span,
             Stmt::IfIs(statement) => statement.span,
-            Stmt::IfLet(statement) => statement.span,
             Stmt::Switch(statement) => statement.span,
             Stmt::ForRange(statement) => statement.span,
             Stmt::While(statement) => statement.span,
-            Stmt::WhileLet(statement) => statement.span,
             Stmt::Loop(statement) => statement.span,
             Stmt::Break(statement) => statement.span,
             Stmt::Continue(statement) => statement.span,

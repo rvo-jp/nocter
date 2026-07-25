@@ -2,9 +2,8 @@ use super::support::ParsedEnumPattern;
 use super::{ParseResult, Parser};
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, BindingKind, BindingStmt, Block, BreakStmt, ContinueStmt,
-    DropStmt, Expr, ExpressionStmt, ForRangeStmt, IfIsStmt, IfLetStmt, IfStmt, LoopStmt,
-    ReturnStmt, Stmt, SwitchArm, SwitchElseArm, SwitchPayloadBinding, SwitchStmt, WhileLetStmt,
-    WhileStmt,
+    DropStmt, Expr, ExpressionStmt, ForRangeStmt, IfIsStmt, IfStmt, LoopStmt, ReturnStmt, Stmt,
+    SwitchArm, SwitchElseArm, SwitchPayloadBinding, SwitchStmt, WhileStmt,
 };
 use crate::lexer::{Keyword, TokenKind};
 
@@ -149,7 +148,10 @@ impl Parser<'_> {
     pub(super) fn parse_if_statement(&mut self) -> ParseResult<Stmt> {
         let start = self.expect_keyword(Keyword::If, "`if`")?;
         if self.at_keyword(Keyword::Let) || self.at_keyword(Keyword::Var) {
-            return self.parse_if_let_statement(start.span.start);
+            self.error_current(
+                "`if let` and `if var` were removed; use `let ... else` for optional extraction",
+            );
+            return Err(());
         }
 
         let condition = self.parse_expression()?;
@@ -193,33 +195,6 @@ impl Parser<'_> {
             variant_name: pattern.variant_name,
             variant_name_span: pattern.variant_name_span,
             payload: pattern.payload,
-            then_block,
-            else_block,
-        }))
-    }
-
-    pub(super) fn parse_if_let_statement(&mut self, start: usize) -> ParseResult<Stmt> {
-        let binding = self.bump();
-        let kind = match binding.kind {
-            TokenKind::Keyword(Keyword::Let) => BindingKind::Let,
-            TokenKind::Keyword(Keyword::Var) => BindingKind::Var,
-            _ => unreachable!("parse_if_let_statement starts at let or var"),
-        };
-        let name = self.expect_identifier("expected optional binding name")?;
-        self.expect_punctuation("=", "`=`")?;
-        let initializer = self.parse_expression()?;
-        let then_block = self.parse_block()?;
-        let else_block = self.parse_else_block()?;
-        let end = else_block
-            .as_ref()
-            .map_or(then_block.span.end, |block| block.span.end);
-
-        Ok(Stmt::IfLet(IfLetStmt {
-            span: self.span(start, end),
-            kind,
-            name: name.value,
-            name_span: name.span,
-            initializer,
             then_block,
             else_block,
         }))
@@ -304,7 +279,7 @@ impl Parser<'_> {
         &mut self,
         start: usize,
     ) -> ParseResult<ParsedEnumPattern> {
-        self.parse_enum_pattern_with_start(start, "expected enum name after `is`")
+        self.parse_enum_pattern_with_start(start, "expected enum pattern `Enum.variant` after `is`")
     }
 
     pub(super) fn parse_enum_pattern(
@@ -381,7 +356,10 @@ impl Parser<'_> {
     pub(super) fn parse_while_statement(&mut self) -> ParseResult<Stmt> {
         let start = self.expect_keyword(Keyword::While, "`while`")?;
         if self.at_keyword(Keyword::Let) || self.at_keyword(Keyword::Var) {
-            return self.parse_while_let_statement(start.span.start);
+            self.error_current(
+                "`while let` and `while var` were removed; use `loop` with `let ... else { break }` for optional iteration",
+            );
+            return Err(());
         }
 
         let condition = self.parse_expression()?;
@@ -391,29 +369,6 @@ impl Parser<'_> {
         Ok(Stmt::While(WhileStmt {
             span: self.span(start.span.start, end),
             condition,
-            body,
-        }))
-    }
-
-    pub(super) fn parse_while_let_statement(&mut self, start: usize) -> ParseResult<Stmt> {
-        let binding = self.bump();
-        let kind = match binding.kind {
-            TokenKind::Keyword(Keyword::Let) => BindingKind::Let,
-            TokenKind::Keyword(Keyword::Var) => BindingKind::Var,
-            _ => unreachable!("parse_while_let_statement starts at let or var"),
-        };
-        let name = self.expect_identifier("expected optional loop binding name")?;
-        self.expect_punctuation("=", "`=`")?;
-        let initializer = self.parse_expression()?;
-        let body = self.parse_block()?;
-        let end = body.span.end;
-
-        Ok(Stmt::WhileLet(WhileLetStmt {
-            span: self.span(start, end),
-            kind,
-            name: name.value,
-            name_span: name.span,
-            initializer,
             body,
         }))
     }

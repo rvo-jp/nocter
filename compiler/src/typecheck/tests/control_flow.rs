@@ -130,17 +130,13 @@ fn accepts_break_and_continue_inside_loops() {
         break
     }
 
-    while let value = maybe_answer() {
+    while ready() {
         continue
     }
 }
 
 func ready(): bool {
     return true
-}
-
-func maybe_answer(): i32? {
-    return none
 }
 "#,
     );

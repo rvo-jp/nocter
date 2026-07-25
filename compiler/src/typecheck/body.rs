@@ -6,10 +6,7 @@ use super::calls::{
     check_known_function_call, check_method_receiver_call, check_unresolved_member_call,
     method_member_for_call, resolved_call_signature,
 };
-use super::controls::{
-    check_for_range_bounds, check_if_condition, check_if_let_initializer, check_while_condition,
-    check_while_let_initializer,
-};
+use super::controls::{check_for_range_bounds, check_if_condition, check_while_condition};
 use super::copyability::{implicit_non_copy_struct_value_source, non_copy_struct_type_name};
 use super::diagnostics::{
     assignment_type_mismatch_diagnostic, compound_assignment_operand_type_mismatch_diagnostic,
@@ -19,9 +16,8 @@ use super::diagnostics::{
 };
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
-    environment_for_if_is_binding, environment_for_if_let_binding, environment_for_method,
-    environment_for_parameters_in_impl, environment_for_pattern_conditional_arm,
-    environment_for_switch_arm, environment_for_while_let_binding,
+    environment_for_if_is_binding, environment_for_method, environment_for_parameters_in_impl,
+    environment_for_pattern_conditional_arm, environment_for_switch_arm,
 };
 use super::expressions::{
     check_error_member_expression, collection_builtin_call_type, expression_type,
@@ -285,39 +281,6 @@ fn check_statement_expressions(
                 );
             }
         }
-        Stmt::IfLet(statement) => {
-            check_expression_tree(
-                sources,
-                &statement.initializer,
-                resolved,
-                diagnostics,
-                environment,
-                loop_depth,
-            );
-            check_if_let_initializer(sources, statement, resolved, diagnostics, environment);
-
-            let mut then_environment =
-                environment_for_if_let_binding(statement, resolved, environment);
-            check_block_expressions(
-                sources,
-                &statement.then_block,
-                resolved,
-                diagnostics,
-                &mut then_environment,
-                loop_depth,
-            );
-            if let Some(else_block) = &statement.else_block {
-                let mut else_environment = environment.clone();
-                check_block_expressions(
-                    sources,
-                    else_block,
-                    resolved,
-                    diagnostics,
-                    &mut else_environment,
-                    loop_depth,
-                );
-            }
-        }
         Stmt::Switch(statement) => {
             check_expression_tree(
                 sources,
@@ -365,28 +328,6 @@ fn check_statement_expressions(
             check_while_condition(sources, statement, resolved, diagnostics, environment);
 
             let mut body_environment = environment.clone();
-            check_block_expressions(
-                sources,
-                &statement.body,
-                resolved,
-                diagnostics,
-                &mut body_environment,
-                loop_depth + 1,
-            );
-        }
-        Stmt::WhileLet(statement) => {
-            check_expression_tree(
-                sources,
-                &statement.initializer,
-                resolved,
-                diagnostics,
-                environment,
-                loop_depth,
-            );
-            check_while_let_initializer(sources, statement, resolved, diagnostics, environment);
-
-            let mut body_environment =
-                environment_for_while_let_binding(statement, resolved, environment);
             check_block_expressions(
                 sources,
                 &statement.body,

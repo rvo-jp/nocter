@@ -1,53 +1,6 @@
 use super::{
-    BindingStmt, Block, Diagnostic, IfLetStmt, OptionalDefaultExpr, SourceMap, Type, WhileLetStmt,
-    binding_keyword,
+    BindingStmt, Block, Diagnostic, OptionalDefaultExpr, SourceMap, Type, binding_keyword,
 };
-
-pub(in crate::typecheck) fn optional_if_let_non_optional_diagnostic(
-    sources: &SourceMap,
-    statement: &IfLetStmt,
-    actual: &Type,
-) -> Diagnostic {
-    let keyword = binding_keyword(statement.kind);
-    let mut diagnostic = Diagnostic::error(
-        "E0356",
-        format!(
-            "`if {keyword}` requires an optional initializer, but the initializer has type `{}`",
-            actual.display()
-        ),
-    );
-    diagnostic.primary_span = sources
-        .span_to_json(statement.initializer.span())
-        .ok()
-        .map(Box::new);
-    diagnostic.help = Some(format!(
-        "use an initializer whose type is `T?`, or use a regular `if` condition instead of `if {keyword}`"
-    ));
-    diagnostic
-}
-
-pub(in crate::typecheck) fn optional_while_let_non_optional_diagnostic(
-    sources: &SourceMap,
-    statement: &WhileLetStmt,
-    actual: &Type,
-) -> Diagnostic {
-    let keyword = binding_keyword(statement.kind);
-    let mut diagnostic = Diagnostic::error(
-        "E0358",
-        format!(
-            "`while {keyword}` requires an optional initializer, but the initializer has type `{}`",
-            actual.display()
-        ),
-    );
-    diagnostic.primary_span = sources
-        .span_to_json(statement.initializer.span())
-        .ok()
-        .map(Box::new);
-    diagnostic.help = Some(format!(
-        "use an initializer whose type is `T?`, or use a regular `while` condition instead of `while {keyword}`"
-    ));
-    diagnostic
-}
 
 pub(in crate::typecheck) fn optional_let_else_non_optional_diagnostic(
     sources: &SourceMap,
@@ -104,43 +57,6 @@ pub(in crate::typecheck) fn optional_let_else_projection_binding_kind_diagnostic
         .ok()
         .map(Box::new);
     diagnostic.help = Some(optional_projection_binding_kind_help(is_readwrite));
-    diagnostic
-}
-
-pub(in crate::typecheck) fn optional_if_let_projection_binding_kind_diagnostic(
-    sources: &SourceMap,
-    statement: &IfLetStmt,
-    is_readwrite: bool,
-) -> Diagnostic {
-    let keyword = binding_keyword(statement.kind);
-    let construct = format!("if {keyword}");
-    let mut diagnostic = Diagnostic::error(
-        "E0429",
-        optional_projection_binding_kind_message(&construct, is_readwrite),
-    );
-    diagnostic.primary_span = sources
-        .span_to_json(statement.initializer.span())
-        .ok()
-        .map(Box::new);
-    diagnostic.help = Some(optional_projection_binding_kind_help(is_readwrite));
-    diagnostic
-}
-
-pub(in crate::typecheck) fn optional_while_let_projection_deferred_diagnostic(
-    sources: &SourceMap,
-    statement: &WhileLetStmt,
-) -> Diagnostic {
-    let keyword = binding_keyword(statement.kind);
-    let mut diagnostic = Diagnostic::error(
-        "E0430",
-        format!("borrowed optional projections in `while {keyword}` are deferred after v0"),
-    );
-    diagnostic.primary_span = sources
-        .span_to_json(statement.initializer.span())
-        .ok()
-        .map(Box::new);
-    diagnostic.help =
-        Some("use `while let` with an expression that produces `T?` directly".to_string());
     diagnostic
 }
 

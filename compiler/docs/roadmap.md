@@ -34,7 +34,7 @@ Recommended next implementation order:
 ## Near-Term Constraints
 
 - Keep broader control-flow disabled until lowering can represent non-terminal effects and joins safely.
-- Avoid broad `if`/`while`/`loop`, `while let`, `match`, non-scalar `var`, compound reassignment, and aggregate forms outside the current supported slot/call-result subset until backend storage and ABI rules are ready.
+- Avoid broad `if`/`while`/`loop`, `match`, non-scalar `var`, compound reassignment, and aggregate forms outside the current supported slot/call-result subset until backend storage and ABI rules are ready.
 - Prefer small user-visible build features with integration tests.
 - Prefer behavior-preserving LSP refactors before adding new LSP capabilities.
 

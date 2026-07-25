@@ -247,7 +247,7 @@ fn parses_index_assignment_targets() {
 }
 
 #[test]
-fn parses_optional_if_let_and_if_var_statements() {
+fn rejects_removed_if_let_and_if_var_statements() {
     let output = parse_text(
         r#"func main(): i32 {
     if let home = maybe_home {
@@ -265,35 +265,28 @@ fn parses_optional_if_let_and_if_var_statements() {
 "#,
     );
 
-    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
-    let ast = output.ast.unwrap();
-    let Item::Function(function) = &ast.items[0] else {
-        panic!("expected function item");
-    };
-    let Stmt::IfLet(first) = &function.body.statements[0] else {
-        panic!("expected if let statement");
-    };
-    let Stmt::IfLet(second) = &function.body.statements[1] else {
-        panic!("expected if var statement");
-    };
-
-    assert_eq!(first.kind, BindingKind::Let);
-    assert_eq!(first.name, "home");
-    assert!(first.else_block.is_some());
-    assert_eq!(second.kind, BindingKind::Var);
-    assert_eq!(second.name, "text");
-    assert!(second.else_block.is_none());
+    assert!(output.ast.is_none());
+    assert!(output.diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("`if let` and `if var` were removed")
+    }));
 }
 
 #[test]
 fn parses_else_if_chains_as_nested_else_blocks() {
     let output = parse_text(
-        r#"func main(): i32 {
+        r#"enum Status {
+    ready(value: i32)
+    fallback(value: i32)
+}
+
+func main(status: Status): i32 {
     if ready {
         return 0
-    } else if let value = maybe_value {
+    } else if status is Status.ready(value) {
         return value
-    } else if var fallback = maybe_fallback {
+    } else if status is Status.fallback(fallback) {
         return fallback
     } else {
         return 3
@@ -304,45 +297,35 @@ fn parses_else_if_chains_as_nested_else_blocks() {
 
     assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
     let ast = output.ast.unwrap();
-    let Item::Function(function) = &ast.items[0] else {
+    let Item::Function(function) = &ast.items[1] else {
         panic!("expected function item");
     };
     let Stmt::If(first) = &function.body.statements[0] else {
         panic!("expected if statement");
     };
     let first_else = first.else_block.as_ref().expect("expected else block");
-    let Stmt::IfLet(second) = &first_else.statements[0] else {
-        panic!("expected nested if let statement");
+    let Stmt::IfIs(second) = &first_else.statements[0] else {
+        panic!("expected nested if-is statement");
     };
     let second_else = second
         .else_block
         .as_ref()
         .expect("expected second else block");
-    let Stmt::IfLet(third) = &second_else.statements[0] else {
-        panic!("expected nested if var statement");
+    let Stmt::IfIs(third) = &second_else.statements[0] else {
+        panic!("expected nested if-is statement");
     };
 
-    assert_eq!(second.kind, BindingKind::Let);
-    assert_eq!(second.name, "value");
-    assert_eq!(third.kind, BindingKind::Var);
-    assert_eq!(third.name, "fallback");
+    assert_eq!(second.variant_name, "ready");
+    assert_eq!(third.variant_name, "fallback");
     assert!(third.else_block.is_some());
 }
 
 #[test]
-fn parses_while_and_optional_while_statements() {
+fn parses_while_statement() {
     let output = parse_text(
         r#"func main(): i32 {
     while ready {
         tick()
-    }
-
-    while let value = next_value {
-        use_value(value)
-    }
-
-    while var text = next_text {
-        use_text(text)
     }
 
     return 0
@@ -358,18 +341,33 @@ fn parses_while_and_optional_while_statements() {
     let Stmt::While(first) = &function.body.statements[0] else {
         panic!("expected while statement");
     };
-    let Stmt::WhileLet(second) = &function.body.statements[1] else {
-        panic!("expected while let statement");
-    };
-    let Stmt::WhileLet(third) = &function.body.statements[2] else {
-        panic!("expected while var statement");
-    };
 
     assert!(matches!(first.condition, Expr::Identifier(_)));
-    assert_eq!(second.kind, BindingKind::Let);
-    assert_eq!(second.name, "value");
-    assert_eq!(third.kind, BindingKind::Var);
-    assert_eq!(third.name, "text");
+}
+
+#[test]
+fn rejects_removed_while_let_and_while_var_statements() {
+    let output = parse_text(
+        r#"func main(): i32 {
+    while let value = next_value {
+        use_value(value)
+    }
+
+    while var text = next_text {
+        use_text(text)
+    }
+
+    return 0
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert!(output.diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("`while let` and `while var` were removed")
+    }));
 }
 
 #[test]
@@ -584,6 +582,39 @@ func code(error: AppError): i32 {
         panic!("expected else block");
     };
     assert!(matches!(else_block.statements[0], Stmt::IfIs(_)));
+}
+
+#[test]
+fn rejects_unqualified_if_is_patterns() {
+    let output = parse_text(
+        r#"struct Test {
+    value: i32
+}
+
+func main(maybe: Test?, fallible: Test!): i32 {
+    if maybe is none {
+        return 0
+    }
+
+    if maybe is Test(value) {
+        return value.value
+    }
+
+    if fallible is Error(error) {
+        return 1
+    }
+
+    return 3
+}
+"#,
+    );
+
+    assert!(output.ast.is_none());
+    assert!(output.diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("expected enum pattern `Enum.variant` after `is`")
+    }));
 }
 
 #[test]

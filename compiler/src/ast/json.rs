@@ -570,7 +570,7 @@ impl Stmt {
                     statement.expression.to_json(sources),
                     JsonAstNode::with_value(
                         "if_is_pattern",
-                        format!("{}.{}", statement.enum_name, statement.variant_name),
+                        if_is_pattern_value(statement),
                         json_span(sources, statement.pattern_span),
                         pattern_children,
                     ),
@@ -583,32 +583,6 @@ impl Stmt {
                 }
                 JsonAstNode::new(
                     "if_is_statement",
-                    json_span(sources, statement.span),
-                    children,
-                )
-            }
-            Stmt::IfLet(statement) => {
-                let mut children = vec![
-                    statement.initializer.to_json(sources),
-                    JsonAstNode::with_value(
-                        "if_binding",
-                        statement.name.clone(),
-                        json_span(sources, statement.name_span),
-                        Vec::new(),
-                    ),
-                    statement
-                        .then_block
-                        .to_json_with_kind(sources, "then_block"),
-                ];
-                if let Some(else_block) = &statement.else_block {
-                    children.push(else_block.to_json_with_kind(sources, "else_block"));
-                }
-                JsonAstNode::with_value(
-                    match statement.kind {
-                        BindingKind::Let => "if_let_statement",
-                        BindingKind::Var => "if_var_statement",
-                    },
-                    statement.name.clone(),
                     json_span(sources, statement.span),
                     children,
                 )
@@ -646,24 +620,6 @@ impl Stmt {
                 json_span(sources, statement.span),
                 vec![
                     statement.condition.to_json(sources),
-                    statement.body.to_json_with_kind(sources, "body"),
-                ],
-            ),
-            Stmt::WhileLet(statement) => JsonAstNode::with_value(
-                match statement.kind {
-                    BindingKind::Let => "while_let_statement",
-                    BindingKind::Var => "while_var_statement",
-                },
-                statement.name.clone(),
-                json_span(sources, statement.span),
-                vec![
-                    statement.initializer.to_json(sources),
-                    JsonAstNode::with_value(
-                        "while_binding",
-                        statement.name.clone(),
-                        json_span(sources, statement.name_span),
-                        Vec::new(),
-                    ),
                     statement.body.to_json_with_kind(sources, "body"),
                 ],
             ),
@@ -748,6 +704,10 @@ impl SwitchElseArm {
             vec![self.body.to_json_with_kind(sources, "body")],
         )
     }
+}
+
+fn if_is_pattern_value(statement: &IfIsStmt) -> String {
+    format!("{}.{}", statement.enum_name, statement.variant_name)
 }
 
 impl Expr {

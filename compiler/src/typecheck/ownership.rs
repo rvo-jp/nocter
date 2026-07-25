@@ -6,9 +6,8 @@ use super::diagnostics::{
 };
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
-    environment_for_if_is_binding, environment_for_if_let_binding, environment_for_method,
-    environment_for_parameters_in_impl, environment_for_pattern_conditional_arm,
-    environment_for_switch_arm, environment_for_while_let_binding,
+    environment_for_if_is_binding, environment_for_method, environment_for_parameters_in_impl,
+    environment_for_pattern_conditional_arm, environment_for_switch_arm,
 };
 use super::expressions::{collection_builtin_call_type, expression_type};
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
@@ -315,16 +314,6 @@ fn statement_conflicting_action(
                         .and_then(|block| block_move_action(block, source, resolved, environment))
                 })
         }
-        Stmt::IfLet(statement) => {
-            expression_move_action(&statement.initializer, source, resolved, environment)
-                .or_else(|| block_move_action(&statement.then_block, source, resolved, environment))
-                .or_else(|| {
-                    statement
-                        .else_block
-                        .as_ref()
-                        .and_then(|block| block_move_action(block, source, resolved, environment))
-                })
-        }
         Stmt::Switch(statement) => {
             expression_move_action(&statement.expression, source, resolved, environment)
                 .or_else(|| {
@@ -347,10 +336,6 @@ fn statement_conflicting_action(
         }
         Stmt::While(statement) => {
             expression_move_action(&statement.condition, source, resolved, environment)
-                .or_else(|| block_move_action(&statement.body, source, resolved, environment))
-        }
-        Stmt::WhileLet(statement) => {
-            expression_move_action(&statement.initializer, source, resolved, environment)
                 .or_else(|| block_move_action(&statement.body, source, resolved, environment))
         }
         Stmt::Loop(statement) => block_move_action(&statement.body, source, resolved, environment),
@@ -416,16 +401,6 @@ fn statement_read_action(
                         .and_then(|block| block_read_action(block, source, resolved, environment))
                 })
         }
-        Stmt::IfLet(statement) => {
-            expression_read_action(&statement.initializer, source, resolved, environment)
-                .or_else(|| block_read_action(&statement.then_block, source, resolved, environment))
-                .or_else(|| {
-                    statement
-                        .else_block
-                        .as_ref()
-                        .and_then(|block| block_read_action(block, source, resolved, environment))
-                })
-        }
         Stmt::Switch(statement) => {
             expression_read_action(&statement.expression, source, resolved, environment)
                 .or_else(|| {
@@ -448,10 +423,6 @@ fn statement_read_action(
         }
         Stmt::While(statement) => {
             expression_read_action(&statement.condition, source, resolved, environment)
-                .or_else(|| block_read_action(&statement.body, source, resolved, environment))
-        }
-        Stmt::WhileLet(statement) => {
-            expression_read_action(&statement.initializer, source, resolved, environment)
                 .or_else(|| block_read_action(&statement.body, source, resolved, environment))
         }
         Stmt::Loop(statement) => block_read_action(&statement.body, source, resolved, environment),
@@ -788,28 +759,6 @@ fn collect_direct_borrow_expressions_in_statement(
                 );
             }
         }
-        Stmt::IfLet(statement) => {
-            collect_direct_borrow_expressions(
-                &statement.initializer,
-                resolved,
-                environment,
-                borrows,
-            );
-            collect_direct_borrow_expressions_in_block(
-                &statement.then_block,
-                resolved,
-                environment,
-                borrows,
-            );
-            if let Some(else_block) = &statement.else_block {
-                collect_direct_borrow_expressions_in_block(
-                    else_block,
-                    resolved,
-                    environment,
-                    borrows,
-                );
-            }
-        }
         Stmt::Switch(statement) => {
             collect_direct_borrow_expressions(
                 &statement.expression,
@@ -846,20 +795,6 @@ fn collect_direct_borrow_expressions_in_statement(
         }
         Stmt::While(statement) => {
             collect_direct_borrow_expressions(&statement.condition, resolved, environment, borrows);
-            collect_direct_borrow_expressions_in_block(
-                &statement.body,
-                resolved,
-                environment,
-                borrows,
-            );
-        }
-        Stmt::WhileLet(statement) => {
-            collect_direct_borrow_expressions(
-                &statement.initializer,
-                resolved,
-                environment,
-                borrows,
-            );
             collect_direct_borrow_expressions_in_block(
                 &statement.body,
                 resolved,
@@ -1075,14 +1010,6 @@ fn statement_uses_identifier(statement: &Stmt, name: &str) -> bool {
                     .as_ref()
                     .is_some_and(|block| block_uses_identifier(block, name))
         }
-        Stmt::IfLet(statement) => {
-            expression_uses_identifier(&statement.initializer, name)
-                || block_uses_identifier(&statement.then_block, name)
-                || statement
-                    .else_block
-                    .as_ref()
-                    .is_some_and(|block| block_uses_identifier(block, name))
-        }
         Stmt::Switch(statement) => {
             expression_uses_identifier(&statement.expression, name)
                 || statement
@@ -1101,10 +1028,6 @@ fn statement_uses_identifier(statement: &Stmt, name: &str) -> bool {
         }
         Stmt::While(statement) => {
             expression_uses_identifier(&statement.condition, name)
-                || block_uses_identifier(&statement.body, name)
-        }
-        Stmt::WhileLet(statement) => {
-            expression_uses_identifier(&statement.initializer, name)
                 || block_uses_identifier(&statement.body, name)
         }
         Stmt::Loop(statement) => block_uses_identifier(&statement.body, name),
@@ -1412,64 +1335,6 @@ fn check_statement_ownership(
             }
             flow
         }
-        Stmt::IfLet(statement) => {
-            check_expression_ownership(
-                sources,
-                &statement.initializer,
-                resolved,
-                diagnostics,
-                environment,
-                ownership,
-            );
-
-            let mut then_environment =
-                environment_for_if_let_binding(statement, resolved, environment);
-            let mut then_ownership = ownership.clone();
-            then_ownership.define_binding_from_environment(
-                &statement.name,
-                statement.name_span,
-                &then_environment,
-                resolved,
-            );
-            let then_flow = check_block_ownership(
-                sources,
-                &statement.then_block,
-                resolved,
-                diagnostics,
-                &mut then_environment,
-                &mut then_ownership,
-            );
-            let then_reaches_end = then_flow.reaches_end;
-            let mut flow = FlowState::from_nested(then_flow);
-            let mut incoming = Vec::new();
-            if then_reaches_end {
-                incoming.push(then_ownership);
-            }
-            if let Some(else_block) = &statement.else_block {
-                let mut else_environment = environment.clone();
-                let mut else_ownership = ownership.clone();
-                let else_flow = check_block_ownership(
-                    sources,
-                    else_block,
-                    resolved,
-                    diagnostics,
-                    &mut else_environment,
-                    &mut else_ownership,
-                );
-                let else_reaches_end = else_flow.reaches_end;
-                flow.extend_nested(else_flow);
-                if else_reaches_end {
-                    incoming.push(else_ownership);
-                }
-            } else {
-                incoming.push(ownership.clone());
-            }
-            flow.reaches_end = !incoming.is_empty();
-            if flow.reaches_end {
-                ownership.join_branches(&incoming);
-            }
-            flow
-        }
         Stmt::Switch(statement) => {
             check_expression_ownership(
                 sources,
@@ -1543,42 +1408,6 @@ fn check_statement_ownership(
 
             let mut body_environment = environment.clone();
             let mut body_ownership = ownership.clone();
-            let body_flow = check_block_ownership(
-                sources,
-                &statement.body,
-                resolved,
-                diagnostics,
-                &mut body_environment,
-                &mut body_ownership,
-            );
-            let mut incoming = vec![ownership.clone()];
-            if body_flow.reaches_end {
-                incoming.push(body_ownership);
-            }
-            incoming.extend(body_flow.break_states.iter().cloned());
-            incoming.extend(body_flow.continue_states.iter().cloned());
-            ownership.join_branches(&incoming);
-            FlowState::fallthrough()
-        }
-        Stmt::WhileLet(statement) => {
-            check_expression_ownership(
-                sources,
-                &statement.initializer,
-                resolved,
-                diagnostics,
-                environment,
-                ownership,
-            );
-
-            let mut body_environment =
-                environment_for_while_let_binding(statement, resolved, environment);
-            let mut body_ownership = ownership.clone();
-            body_ownership.define_binding_from_environment(
-                &statement.name,
-                statement.name_span,
-                &body_environment,
-                resolved,
-            );
             let body_flow = check_block_ownership(
                 sources,
                 &statement.body,

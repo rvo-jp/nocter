@@ -90,25 +90,6 @@ fn check_statement(
                 check_block(sources, else_block, resolved, self_type, diagnostics);
             }
         }
-        Stmt::IfLet(statement) => {
-            check_expression(
-                sources,
-                &statement.initializer,
-                resolved,
-                self_type,
-                diagnostics,
-            );
-            check_block(
-                sources,
-                &statement.then_block,
-                resolved,
-                self_type,
-                diagnostics,
-            );
-            if let Some(else_block) = &statement.else_block {
-                check_block(sources, else_block, resolved, self_type, diagnostics);
-            }
-        }
         Stmt::Switch(statement) => {
             check_expression(
                 sources,
@@ -133,16 +114,6 @@ fn check_statement(
             check_expression(
                 sources,
                 &statement.condition,
-                resolved,
-                self_type,
-                diagnostics,
-            );
-            check_block(sources, &statement.body, resolved, self_type, diagnostics);
-        }
-        Stmt::WhileLet(statement) => {
-            check_expression(
-                sources,
-                &statement.initializer,
                 resolved,
                 self_type,
                 diagnostics,

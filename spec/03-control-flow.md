@@ -177,11 +177,9 @@ Rules:
 
 - `if condition { ... }` is a statement.
 - `if condition { ... } else { ... }` is a statement.
-- `if let name = optional_expr { ... }` is a statement.
-- `if var name = optional_expr { ... }` is a statement.
+- `if enum_expr is Enum.variant { ... }` is a statement.
 - `let name = optional_expr else { ... }` is a declaration statement.
 - `var name = optional_expr else { ... }` is a declaration statement.
-- `if enum_expr is Pattern { ... }` is a statement.
 - `match enum_expr { ... }` and `match enum_expr { ... else { ... } }` are statements.
 - `for name in start..<end { ... }` is a statement.
 - Blocks `{ ... }` do not return trailing expression values.
@@ -326,12 +324,16 @@ loop {
 }
 ```
 
-Optional loop conditions may bind a present optional value:
+Optional loops use ordinary `loop` plus `let ... else` when each iteration should stop on `none`:
 
 ```nct
 var iter = bytes.iter()
 
-while let byte = iter.next() {
+loop {
+    let byte = iter.next() else {
+        break
+    }
+
     consume(byte)
 }
 ```
@@ -339,17 +341,9 @@ while let byte = iter.next() {
 Rules:
 
 - `while condition { ... }` requires `condition` to have type `bool`.
-- `while let name = expr { ... }` applies only when `expr` has type `T?`.
-- `while var name = expr { ... }` applies only when `expr` has type `T?`.
-- If `expr` is present, the contained `T` value is bound to `name` and the loop body runs.
-- If `expr` is `none`, the loop exits normally.
-- `while let` creates an immutable binding scoped to the loop body.
-- `while var` creates a mutable binding scoped to the loop body.
-- `while let` and `while var` do not use `some` / `none` patterns.
-- For move-only `T`, each successful iteration consumes the optional value and moves the contained value into the binding.
-- For copy `T`, the contained value may be copied according to normal copy rules.
-- Borrowed optional projections such as `while let name = &place` and `while var name = &+place` are not part of v0.
-- Optional borrow values such as `(&T)?` are allowed. For example, `while let item = iter.next()` is valid when `next()` returns `(&T)?`.
+- `while let`, `while var`, `if let`, and `if var` are not Nocter syntax.
+- Optional iteration is expressed with `loop` and `let ... else { break }`.
+- Optional borrow values such as `(&T)?` are allowed. For example, `let item = iter.next() else { break }` is valid inside a loop when `next()` returns `(&T)?`.
 - `loop { ... }` is an infinite loop unless exited by `break`, `return`, or another terminating control flow.
 - `for name in start..<end { ... }` loops over a half-open integer range.
 - `in` is a reserved keyword used by the `for` header.
@@ -374,7 +368,7 @@ Deferred:
 - compiler-lowered iteration syntax that treats ordinary names such as `iter` or `next` specially
 - reverse iteration and custom step syntax
 
-Collection iteration is not part of the initial `for` syntax. The compiler must not lower `for item in items` into calls to methods named `iter` or `next`. Collection iteration is expressed through ordinary standard-library iterator types and optional loop conditions.
+Collection iteration is not part of the initial `for` syntax. The compiler must not lower `for item in items` into calls to methods named `iter` or `next`. Collection iteration is expressed through ordinary standard-library iterator types and explicit optional extraction.
 
 Use range `for` with indexing:
 
@@ -390,7 +384,11 @@ Or use explicit ordinary methods:
 ```nct
 var iter = bytes.iter()
 
-while let byte = iter.next() {
+loop {
+    let byte = iter.next() else {
+        break
+    }
+
     consume(byte)
 }
 ```
@@ -421,11 +419,11 @@ Example:
 use std/process as process
 
 func require_path(path: &str?): &str {
-    if let value = path {
-        return value
+    let value = path else {
+        process.abort()
     }
 
-    process.abort()
+    return value
 }
 ```
 

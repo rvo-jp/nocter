@@ -1,11 +1,10 @@
 use super::bindings::{lower_assignment, lower_local_binding};
 use super::context::{ErrorPayloads, FunctionNames, FunctionSignatures, LoweringContext};
 use super::control_flow::{
-    instruction_list_ends_execution, lower_nonterminal_for_range_statement,
-    lower_nonterminal_if_let_statement, lower_nonterminal_if_statement,
-    lower_nonterminal_loop_statement, lower_nonterminal_while_let_statement,
-    lower_nonterminal_while_statement, lower_terminal_i32_if_statement,
-    lower_terminal_usize_if_statement, lower_terminal_void_if_statement,
+    lower_nonterminal_for_range_statement, lower_nonterminal_if_statement,
+    lower_nonterminal_loop_statement, lower_nonterminal_while_statement,
+    lower_terminal_i32_if_statement, lower_terminal_usize_if_statement,
+    lower_terminal_void_if_statement,
 };
 use super::expressions::{
     lower_void_expression_statement, mark_fallible_success_returns, success_return_instruction,
@@ -195,29 +194,6 @@ fn lower_entry_body(
                     statement.span,
                 ));
             };
-            instructions.extend(branch_instructions);
-            Ok(instructions)
-        }
-        Stmt::IfLet(statement) => {
-            let branch_instructions = lower_nonterminal_if_let_statement(
-                statement,
-                &context,
-                None,
-                &[],
-                "E8002",
-                "entry functions",
-                sources,
-            )
-            .map_err(|diagnostics| {
-                attach_primary_span_if_absent(diagnostics, sources, statement.span)
-            })?;
-            if !instruction_list_ends_execution(&branch_instructions) {
-                return Err(attach_primary_span_if_absent(
-                    unsupported_entry_body_diagnostic(),
-                    sources,
-                    statement.span,
-                ));
-            }
             instructions.extend(branch_instructions);
             Ok(instructions)
         }
@@ -444,22 +420,6 @@ fn lower_leading_bindings(
                     })?,
                 );
             }
-            Stmt::IfLet(statement) => {
-                instructions.extend(
-                    lower_nonterminal_if_let_statement(
-                        statement,
-                        context,
-                        None,
-                        &[],
-                        "E8002",
-                        "entry functions",
-                        sources,
-                    )
-                    .map_err(|diagnostics| {
-                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
-                    })?,
-                );
-            }
             Stmt::Switch(statement) => {
                 let switch = payloadless_switch_as_if_statement(statement, context, "E8002")
                     .map_err(|diagnostics| {
@@ -484,20 +444,6 @@ fn lower_leading_bindings(
             Stmt::While(statement) => {
                 instructions.extend(
                     lower_nonterminal_while_statement(
-                        statement,
-                        context,
-                        "E8002",
-                        "entry functions",
-                        sources,
-                    )
-                    .map_err(|diagnostics| {
-                        attach_primary_span_if_absent(diagnostics, sources, statement.span)
-                    })?,
-                );
-            }
-            Stmt::WhileLet(statement) => {
-                instructions.extend(
-                    lower_nonterminal_while_let_statement(
                         statement,
                         context,
                         "E8002",
@@ -554,6 +500,6 @@ fn lower_leading_bindings(
 fn unsupported_entry_body_diagnostic() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "E8002",
-        "IR v0 can only lower entry function bodies containing leading scalar local bindings, scalar assignments, drop statements, effect-only call statements, or supported non-terminal `if`/`if let`/`for`/`while`/`while let`/`loop` statements followed by `return`, a static error constructor failure return, or a void return",
+        "IR v0 can only lower entry function bodies containing leading scalar local bindings, scalar assignments, drop statements, effect-only call statements, or supported non-terminal `if`/`for`/`while`/`loop` statements followed by `return`, a static error constructor failure return, or a void return",
     )]
 }

@@ -176,8 +176,8 @@ Currently buildable:
 - `i32` shifts with `<<` and `>>` used in lowerable `i32` expressions; shift counts trap when negative or greater than or equal to 32
 - bool `!`, `&&`, `||`, bool equality/inequality over lowerable bool operands including nested short-circuit bool call operands, and `i32`, `u8`, or `usize` comparisons used in lowerable bool expressions, including scalar aggregate field operands
 - terminal `if` / `else` statements with bool literal, bool local, bool equality/inequality over lowerable bool operands including nested short-circuit bool call operands, or `i32`/`u8`/`usize` comparison conditions including scalar aggregate field operands, and supported leading bindings, assignments, explicit `drop`, or void/ignored scalar/view/aggregate call statements before direct or nested terminal branches returning entry `i32`/`usize`/`void`, or non-entry `i32`, `u8`, `usize`, `bool`, `void`, `&str`, slices, or supported aggregate return expressions, including direct aggregate branches staged across pending drops
-- non-terminal `if`, `while`, `loop`, and `i32`/`usize` range `for` statements before a final return, when branches/bodies contain supported local bindings, branch/body-local assignments, outer whole-binding scalar/view local assignments, branch/body-local explicit aggregate drops, void/ignored scalar/view/aggregate call statements, supported returns, supported `while`/`loop`/range-`for` `break`/`continue`, or nested supported non-terminal `if`/`if let`/`while`/`while let`/`loop`/range-`for` statements; branch/body-local aggregate values with drop glue are dropped at scope end, before supported return exits, and before supported loop exits, lowerable `while` condition instructions are re-evaluated at the loop head, source `loop` lowers as an always-true loop, and range `for` evaluates start/end once before looping
-- direct optional scalar/view call `if let`/`while let`, payloadless enum `if is`, payloadless enum `match`, and scalar/view-producing payloadless enum `?{}` expressions
+- non-terminal `if`, `while`, `loop`, and `i32`/`usize` range `for` statements before a final return, when branches/bodies contain supported local bindings, branch/body-local assignments, outer whole-binding scalar/view local assignments, branch/body-local explicit aggregate drops, void/ignored scalar/view/aggregate call statements, supported returns, supported `while`/`loop`/range-`for` `break`/`continue`, or nested supported non-terminal `if`/`while`/`loop`/range-`for` statements; branch/body-local aggregate values with drop glue are dropped at scope end, before supported return exits, and before supported loop exits, lowerable `while` condition instructions are re-evaluated at the loop head, source `loop` lowers as an always-true loop, and range `for` evaluates start/end once before looping
+- payloadless enum `if is`, payloadless enum `match`, and scalar/view-producing payloadless enum `?{}` expressions
 - non-entry `never` functions that end with a lowerable call returning `never`; frame-dependent, aggregate-pointer, or stack-passed `never` calls lower as normal calls followed by a trap guard
 - the `std/os.trap` and `std/os.unreachable` target primitives as ARM64 `brk #0`
 - simple fallible entry success
@@ -190,11 +190,11 @@ Currently buildable:
 Currently not buildable even when it may be checkable:
 
 - general local storage beyond the listed scalar/view and aggregate slot paths, and compound assignment outside the `i32`/`usize` whole-binding, aggregate scalar field, and read-write slice element subset
-- general `if`/`while`/`loop`/range-`for` forms beyond the supported terminal and scalar/view plus branch/body-local non-terminal subsets, optional `if let`/`while let` outside the direct optional scalar/view call subset, non-`i32`/`usize` range `for`, payload-carrying enum pattern control flow, and pattern conditional values outside the scalar/view subset
+- general `if`/`while`/`loop`/range-`for` forms beyond the supported terminal and scalar/view plus branch/body-local non-terminal subsets, non-`i32`/`usize` range `for`, payload-carrying enum pattern control flow, and pattern conditional values outside the scalar/view subset
 - unloaded imported function placeholders; reachable calls are rejected by the buildability preflight
 - general `&str`/view member operations beyond `.len()`/`.is_empty()`, and iteration over views or bytes; direct byte indexing remains buildable in lowerable `u8` positions
 - interpolated string construction
-- optional control-flow and storage forms beyond the supported force unwrap, `let ... else`, `??`, and direct optional scalar/view call `if let`/`while let` paths
+- optional control-flow and storage forms beyond the supported force unwrap, `let ... else`, and `??` paths
 - source-level aggregate moves beyond the supported explicit `move name` argument/return/binding/assignment/struct-literal-field paths, broad branch/loop/catch scope-end drop insertion, arrays, general views beyond the listed slice ABI paths, raw pointer expressions beyond closed `std/ptr.from_addr` aggregate fields, method receiver places beyond local bindings, aggregate fields, and readonly aggregate call temporaries, interfaces, unspecialized or unsupported generic forms, and full ownership lowering
 
 ### Backend V0 Register Convention
@@ -404,11 +404,9 @@ Initial grammar coverage:
 - `let name = optional else { ... }` and `var name = optional else { ... }`
 - `if condition { ... }` and `if condition { ... } else { ... }`
 - `if value is Enum.variant { ... }` enum pattern statements, with optional single-payload pattern bindings
-- `if let name = optional { ... }` and `if var name = optional { ... }`
-- `else if`, `else if let`, and `else if var` chains, represented internally as nested `if` statements in synthetic else blocks
+- `else if` chains, represented internally as nested `if` or `if is` statements in synthetic else blocks
 - `match value { Enum.variant { ... } else { ... } }` enum match statements, with optional single-payload arm bindings and an optional fallback arm
 - `while condition { ... }`
-- `while let name = optional { ... }` and `while var name = optional { ... }`
 - `for name in start..<end { ... }` half-open integer range loops
 - `loop { ... }`
 - `break` and `continue` statements without labels or values
@@ -480,7 +478,7 @@ Current semantic coverage:
 - inherent `impl` function bodies and method bodies are resolved and checked for calls, returns, fallible propagation, control-flow termination, and local binding types
 - inside an inherent `impl`, `Self` in return types, parameter types, struct literals, and type conversions resolves to the impl target type
 - primitive return type checking for built-in primitive types, nominal struct types, `str`, `&str`, `error`, `[T]`, `&[T]`, `&+[T]`, `[T; N]`, array literals, struct literals, `void`, `never`, `T?`, and the success side of `T!`
-- local binding types are tracked inside a callable when they come from literals, struct literals, annotations, parameters, known direct calls, postfix `?`, `catch`, `??`, optional `let ... else`, optional `if let` / `if var`, or optional `while let` / `while var`
+- local binding types are tracked inside a callable when they come from literals, struct literals, annotations, parameters, known direct calls, postfix `?`, `catch`, `??`, optional `let ... else`, or `if is` payload bindings
 - integer literals have type `i32` in v0 checking
 - integer literals can be checked against an expected integer type in returns, function arguments, annotated bindings, and array literal elements
 - bool literals have type `bool` in v0 checking
@@ -499,13 +497,11 @@ Current semantic coverage:
 - index expressions check `[T; N]`, `&[T]`, `&+[T]`, and `&str` targets with integer indexes
 - struct literals check the target type, required fields, duplicate fields, unknown fields, hidden fields, and field initializer types
 - `if` statement conditions must have type `bool`
-- `if ... else`, `if is ... else`, and `if let ... else` statements count as terminating when both branches terminate; parser/check v0 currently recognizes `return`, nested terminal `if ... else`, nested terminal `if is ... else`, nested terminal `if let ... else`, `loop`, and terminal `match ... else` as terminating forms
+- `if ... else` and `if is ... else` statements count as terminating when both branches terminate; parser/check v0 currently recognizes `return`, nested terminal `if ... else`, nested terminal `if is ... else`, `loop`, and terminal `match ... else` as terminating forms
 - `if is` targets must have a known enum type when the target type is known
-- `if is` patterns must name the same enum type as the target and a variant declared by that enum
-- `if is` payload bindings must match the variant payload shape; parser/check v0 supports no payload or one payload binding
+- `if is` patterns must be qualified as `Enum.variant`, name the same enum type as the target, and name a variant declared by that enum
+- `if is` payload bindings must match the enum variant payload shape; parser/check v0 supports no payload or one payload binding
 - `if is` exposes the payload binding only inside the then block
-- `if let` and `if var` require a known `T?` initializer when the initializer type is known
-- `if let` and `if var` expose the contained `T` type only inside the then block
 - `match` statement targets must have a known enum type when the target type is known
 - `match` arm patterns must name the same enum type as the target and a variant declared by that enum
 - `match` arm payload bindings must match the variant payload shape; parser/check v0 supports no payload or one payload binding
@@ -517,8 +513,6 @@ Current semantic coverage:
 - `?{}` requires a fallback `: expression` arm in v0, and that fallback must be the last arm
 - `?{}` arm expressions must be assignable to the fallback arm type
 - `while` statement conditions must have type `bool`
-- `while let` and `while var` require a known `T?` initializer when the initializer type is known
-- `while let` and `while var` expose the contained `T` type only inside the loop body
 - range `for` bounds must be matching integer types, with integer literals contextually checked against the other bound type
 - range `for` exposes the loop variable inside the loop body with the resolved range bound type
 - `loop` bodies are checked as loop bodies and count as terminating when the body itself terminates

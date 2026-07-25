@@ -157,7 +157,7 @@ pub(in crate::typecheck) fn if_is_target_type_mismatch_diagnostic(
         .span_to_json(statement.expression.span())
         .ok()
         .map(Box::new);
-    diagnostic.help = Some("use `if value is Enum.variant` with an enum value".to_string());
+    diagnostic.help = Some("use `value is Enum.variant` with an enum value".to_string());
     diagnostic
 }
 

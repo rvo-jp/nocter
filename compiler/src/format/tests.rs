@@ -208,7 +208,7 @@ use std/io.{print as write,File}
 use std/process as process
 impl File{pub method &+self.write(text:&str):void!{let bytes=[1,2,3]
 var point=Point{x:1,y:2}
-while var item=next(){print(item)}
+while ready(){print(text)}
 }}
 impl File{drop &+self{drop self}}
 "#,
@@ -223,8 +223,8 @@ impl File{drop &+self{drop self}}
             "    pub method &+self.write(text: &str): void! {\n",
             "        let bytes = [1, 2, 3]\n",
             "        var point = Point { x: 1, y: 2 }\n",
-            "        while var item = next() {\n",
-            "            print(item)\n",
+            "        while ready() {\n",
+            "            print(text)\n",
             "        }\n",
             "    }\n",
             "}\n",

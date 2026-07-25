@@ -334,7 +334,11 @@ impl ViewIter<T> {
 ```nct
 var iter = bytes.iter()
 
-while let byte = iter.next() {
+loop {
+    let byte = iter.next() else {
+        break
+    }
+
     consume(byte)
 }
 ```

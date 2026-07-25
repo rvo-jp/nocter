@@ -1,6 +1,6 @@
 use super::Formatter;
 use crate::ast::{
-    AssignmentOperator, BindingKind, BindingStmt, Block, Expr, IfLetStmt, IfStmt, Stmt,
+    AssignmentOperator, BindingKind, BindingStmt, Block, Expr, IfIsStmt, IfStmt, Stmt,
     SwitchPayloadBinding, SwitchStmt,
 };
 
@@ -46,16 +46,11 @@ impl Formatter {
                 self.write("if ");
                 self.format_expression(&statement.expression);
                 self.write(" is ");
-                self.format_enum_pattern(
-                    &statement.enum_name,
-                    &statement.variant_name,
-                    statement.payload.as_ref(),
-                );
+                self.format_if_is_pattern(statement);
                 self.write(" ");
                 self.format_block(&statement.then_block);
                 self.format_else(&statement.else_block);
             }
-            Stmt::IfLet(statement) => self.format_if_let_statement(statement),
             Stmt::Switch(statement) => self.format_switch_statement(statement),
             Stmt::ForRange(statement) => {
                 self.write("for ");
@@ -70,16 +65,6 @@ impl Formatter {
             Stmt::While(statement) => {
                 self.write("while ");
                 self.format_expression(&statement.condition);
-                self.write(" ");
-                self.format_block(&statement.body);
-            }
-            Stmt::WhileLet(statement) => {
-                self.write("while ");
-                self.format_binding_kind(statement.kind);
-                self.write(" ");
-                self.write(&statement.name);
-                self.write(" = ");
-                self.format_expression(&statement.initializer);
                 self.write(" ");
                 self.format_block(&statement.body);
             }
@@ -117,18 +102,6 @@ impl Formatter {
     fn format_if_statement(&mut self, statement: &IfStmt) {
         self.write("if ");
         self.format_expression(&statement.condition);
-        self.write(" ");
-        self.format_block(&statement.then_block);
-        self.format_else(&statement.else_block);
-    }
-
-    fn format_if_let_statement(&mut self, statement: &IfLetStmt) {
-        self.write("if ");
-        self.format_binding_kind(statement.kind);
-        self.write(" ");
-        self.write(&statement.name);
-        self.write(" = ");
-        self.format_expression(&statement.initializer);
         self.write(" ");
         self.format_block(&statement.then_block);
         self.format_else(&statement.else_block);
@@ -185,25 +158,26 @@ impl Formatter {
             self.write(" else if ");
             self.format_expression(&statement.expression);
             self.write(" is ");
-            self.format_enum_pattern(
-                &statement.enum_name,
-                &statement.variant_name,
-                statement.payload.as_ref(),
-            );
+            self.format_if_is_pattern(statement);
             self.write(" ");
             self.format_block(&statement.then_block);
             self.format_else(&statement.else_block);
             return;
         }
 
-        if let [Stmt::IfLet(statement)] = else_block.statements.as_slice() {
-            self.write(" else ");
-            self.format_if_let_statement(statement);
-            return;
-        }
-
         self.write(" else ");
         self.format_block(else_block);
+    }
+
+    fn format_if_is_pattern(&mut self, statement: &IfIsStmt) {
+        self.write(&statement.enum_name);
+        self.write(".");
+        self.write(&statement.variant_name);
+        if let Some(payload) = &statement.payload {
+            self.write("(");
+            self.write(&payload.name);
+            self.write(")");
+        }
     }
 
     fn format_enum_pattern(

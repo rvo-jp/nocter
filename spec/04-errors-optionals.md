@@ -105,7 +105,7 @@ Rules:
 - `expr!` does not return `error` or `none` to the caller.
 - `expr!` has result type `T`.
 - `expr!` is intended for tests, prototypes, and truly unrecoverable assumptions.
-- Normal code should prefer `?`, `catch`, `if let`, `let ... else`, or `??`.
+- Normal code should prefer `?`, `catch`, `let ... else`, or `??`.
 - `expr!` is not stack unwinding.
 
 ## Recoverable Failure and Non-Recoverable Termination
@@ -275,19 +275,13 @@ func env(name: &str): &str?! {
 Using a fallible optional:
 
 ```nct
-let maybe_home = process.env("HOME")?
+let maybe_config = load_config()?
 
-if let home = maybe_home {
-    use(home)
+let config = maybe_config else {
+    return none
 }
-```
 
-Equivalent compact use:
-
-```nct
-if let home = process.env("HOME")? {
-    use(home)
-}
+use(config)
 ```
 
 ### Optional Propagation
@@ -298,11 +292,11 @@ When `expr` has type `T?`, `expr?` unwraps the present `T`. If `expr` is `none`,
 
 ```nct
 func require_home(): &str? {
-    if let home = lookup("HOME") {
-        return home
+    let home = lookup("HOME") else {
+        return none
     }
 
-    return none
+    return home
 }
 ```
 
@@ -311,7 +305,6 @@ Rules:
 - Postfix `?` on `T?` is valid when the current function's return type can carry `none`, such as `U?` or `(U?)!`.
 - In a function returning `(U?)!`, `none` is returned as successful absence, not as failure.
 - Postfix `?` on `T?` is invalid in a function whose current return layer cannot carry `none`.
-- Present / absent branching uses `if let`, `if var`, `while let`, and `while var`.
 - Early-exit extraction uses `let ... else` and `var ... else`.
 - Defaulting uses `??`.
 - `??` does not propagate absence out of the current function; it selects a fallback value or fallback optional expression.
@@ -386,126 +379,48 @@ Rules:
 - The projected borrow carries the provenance of the source optional place.
 - Returning or storing the projected borrow is allowed only when the normal borrow-like provenance and lifetime rules allow it.
 
-`let ... else` is for early exit. When both present and absent cases should continue locally, use `if let` or `if var` instead.
-
-```nct
-if let home = lookup("HOME") {
-    use(home)
-} else {
-    use_default_home()
-}
-```
+`let ... else` is for early exit. A local optional branch where both present and absent paths continue is not part of v0. Use `??` when absence should select a value.
 
 When absence should become a value, use `??` instead.
 
 ```nct
-let home = lookup("HOME") ?? "/tmp"
+let home = lookup_home() ?? "/tmp"
 ```
 
-### Optional Local Branching
+### Optional and Fallible Pattern Branching
 
-Adopted: optional local branching uses `if let` and `if var`.
-
-```nct
-if let home = env("HOME") {
-    consume(home)
-} else {
-    use_default_home()
-}
-```
-
-```nct
-if var text = maybe_text {
-    text.push("!")
-    consume(move text)
-}
-```
+Adopted: `is` is reserved for enum variants only.
 
 Rules:
 
-- `if let name = expr { ... }` applies when `expr` has type `T?`.
-- `if var name = expr { ... }` applies when `expr` has type `T?`.
-- If `expr` is present, the contained `T` value is bound to `name` and the then body runs.
-- `if let` creates an immutable binding.
-- `if var` creates a mutable binding.
-- If `expr` is `none`, the else body runs if present.
-- `else` is optional.
-- `else if let name = expr { ... }` is allowed.
-- `else if var name = expr { ... }` is allowed.
-- `else if let` and `else if var` are equivalent to nesting an `if` inside `else`.
-- The binding exists only inside the then body.
-- The binding is not available in `else` or later `else if` branches.
-- `if let` and `if var` are statements and do not produce values.
-- `if let` and `if var` do not use `some` / `none` patterns.
-- `if var` does not write changes back into the original optional.
-- Evaluating `expr` follows normal ownership rules. If `expr` moves a move-only optional binding, that source binding becomes uninitialized on all continuing paths.
-- For move-only `T`, `if let` / `if var` consumes the optional value and moves the contained value into the binding.
-- For copy `T`, the contained value may be copied according to normal copy rules.
+- `if expr is Pattern { ... }` applies only to enum values, and the pattern must be written as `Enum.variant`.
+- `T?` values do not support `is none`, `is Type`, or `is Type(name)`.
+- `T!` values do not support `is Error(name)`, `is Type`, or `is Type(name)`.
+- `T?` has no `Some` / `None` enum variants. The absence value is the keyword `none`, usable in expressions such as `return none`.
+- `T!` has no success/failure enum variants. Failure is the fallible return channel carrying an `error` value.
 
-### Borrowed Optional Projections
+### Optional Loops
 
-Adopted: `if let` and `if var` can inspect an optional place by borrow without consuming the optional.
-
-```nct
-var maybe_name = get_name()
-
-if let name = &maybe_name {
-    inspect(name) // name: &String
-}
-```
-
-```nct
-var maybe_name = get_name()
-
-if var name = &+maybe_name {
-    name.push("!") // name: &+String
-}
-```
-
-Rules:
-
-- `if let name = &place { ... }` applies when `place` has type `T?`.
-- The then-body binding has type `&T`.
-- The optional value is not moved or copied.
-- If `place` is `none`, no contained borrow is created and the else body runs if present.
-- `if var name = &+place { ... }` applies when `place` has type `T?` and `place` is writable.
-- The then-body binding has type `&+T`.
-- The readwrite projection follows the normal exclusivity rules of `&+T`.
-- `if let name = &+place` is not part of v0. Use `if var name = &+place` for a readwrite projection, or `if let name = &place` for a readonly projection.
-- `if var name = &place` is not part of v0 because a readonly projection cannot create a mutable binding.
-- The projected borrow exists only inside the then body.
-- The binding is not available in `else` or later `else if` branches.
-- While the projected borrow is live, the source optional place cannot be moved, assigned, reinitialized, or explicitly dropped.
-- The projected borrow carries the provenance of the source optional place.
-- Returning or storing the projected borrow is allowed only when the normal borrow-like provenance and lifetime rules allow it.
-- `else if let name = &place { ... }` and `else if var name = &+place { ... }` are allowed by the same rules.
-
-Borrowed optional projections are different from ordinary optional borrow values. If `expr` has type `(&T)?`, then `if let name = expr` is the ordinary optional rule and binds `name: &T`.
-
-Adopted: optional loops use `while let` and `while var`.
+Adopted: optional loops use ordinary `loop` plus `let ... else`.
 
 ```nct
 var iter = bytes.iter()
 
-while let byte = iter.next() {
+loop {
+    let byte = iter.next() else {
+        break
+    }
+
     consume(byte)
 }
 ```
 
 Rules:
 
-- `while let name = expr { ... }` applies only when `expr` has type `T?`.
-- `while var name = expr { ... }` applies only when `expr` has type `T?`.
-- If `expr` is present, the contained `T` value is bound to `name` and the loop body runs.
-- If `expr` is `none`, the loop exits normally.
-- The binding exists only inside the loop body.
-- `while let` creates an immutable binding.
-- `while var` creates a mutable binding.
-- `while let` and `while var` do not use `some` / `none` patterns.
-- For move-only `T`, each successful iteration consumes the optional value and moves the contained value into the binding.
-- For copy `T`, the contained value may be copied according to normal copy rules.
-- Borrowed optional projections such as `while let name = &place` and `while var name = &+place` are not part of v0 because the projection does not advance or consume the optional.
-- Optional borrow values such as `(&T)?` are allowed. For example, `while let item = iter.next()` is valid when `next()` returns `(&T)?`.
+- `while let`, `while var`, `if let`, and `if var` are not Nocter syntax.
+- Use `loop` with `let ... else { break }` when `none` should end iteration.
+- The extracted binding follows the normal `let ... else` rules.
+- Optional borrow values such as `(&T)?` are allowed. For example, `let item = iter.next() else { break }` is valid inside a loop when `next()` returns `(&T)?`.
 
 Adopted: optional values support the optional default operator.
 

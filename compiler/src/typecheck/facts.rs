@@ -8,9 +8,8 @@ use super::calls::{
 };
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
-    environment_for_if_is_binding, environment_for_if_let_binding, environment_for_method,
-    environment_for_parameters_in_impl, environment_for_pattern_conditional_arm,
-    environment_for_switch_arm, environment_for_while_let_binding, function_self_type,
+    environment_for_if_is_binding, environment_for_method, environment_for_parameters_in_impl,
+    environment_for_pattern_conditional_arm, environment_for_switch_arm, function_self_type,
     impl_self_type,
 };
 use super::expressions::expression_type;
@@ -662,26 +661,6 @@ impl TypecheckFactCollector<'_> {
                     self.collect_block_facts(else_block, &mut else_environment, return_type);
                 }
             }
-            Stmt::IfLet(statement) => {
-                self.collect_expression_facts_in_context(
-                    &statement.initializer,
-                    environment,
-                    return_type,
-                );
-
-                let mut then_environment =
-                    environment_for_if_let_binding(statement, self.resolved, environment);
-                self.record_environment_binding(
-                    statement.name_span,
-                    &statement.name,
-                    &then_environment,
-                );
-                self.collect_block_facts(&statement.then_block, &mut then_environment, return_type);
-                if let Some(else_block) = &statement.else_block {
-                    let mut else_environment = environment.clone();
-                    self.collect_block_facts(else_block, &mut else_environment, return_type);
-                }
-            }
             Stmt::Switch(statement) => {
                 self.collect_expression_facts_in_context(
                     &statement.expression,
@@ -731,22 +710,6 @@ impl TypecheckFactCollector<'_> {
                 );
 
                 let mut body_environment = environment.clone();
-                self.collect_block_facts(&statement.body, &mut body_environment, return_type);
-            }
-            Stmt::WhileLet(statement) => {
-                self.collect_expression_facts_in_context(
-                    &statement.initializer,
-                    environment,
-                    return_type,
-                );
-
-                let mut body_environment =
-                    environment_for_while_let_binding(statement, self.resolved, environment);
-                self.record_environment_binding(
-                    statement.name_span,
-                    &statement.name,
-                    &body_environment,
-                );
                 self.collect_block_facts(&statement.body, &mut body_environment, return_type);
             }
             Stmt::Loop(statement) => {

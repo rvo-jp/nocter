@@ -36,7 +36,6 @@ Rules for generated code:
 - Use postfix `expr?` to propagate fallible failure or optional absence.
 - Use postfix `expr!` only for unrecoverable assumptions, tests, and prototypes.
 - Use `expr catch error { ... }` for local handling of `T!` failure.
-- Use `if let value = optional { ... } else { ... }` for optional branching.
 - Use `let value = optional else { ... }` for optional early-exit extraction.
 - Use `??` for optional default values.
 - Use `match` for enum pattern handling.
@@ -106,14 +105,6 @@ func lookup(name: &str): &str? {
 ```
 
 Use optional values through explicit forms:
-
-```nct
-if let home = lookup("HOME") {
-    use(home)
-} else {
-    use("fallback")
-}
-```
 
 ```nct
 let home = lookup("HOME") else {

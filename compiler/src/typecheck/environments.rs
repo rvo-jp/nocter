@@ -1,14 +1,13 @@
 use super::expressions::expression_type;
-use super::model::{Type, TypeEnvironment, binding_kind_is_mutable, same_known_type};
+use super::model::{Type, TypeEnvironment, same_known_type};
 use super::numeric::{is_integer_literal_expr, is_integer_type};
 use super::operations::is_expression_assignable;
-use super::optional_projections::optional_borrow_projection_type;
 use super::type_expr::{
     type_expr_display_lossy, type_expr_to_type_in_environment, type_expr_to_type_with_substitutions,
 };
 use crate::ast::{
-    Expr, ForRangeStmt, FunctionDecl, GenericParamList, IfIsStmt, IfLetStmt, ImplDecl, MethodDecl,
-    Parameter, PatternConditionalArm, SwitchArm, WhileLetStmt,
+    Expr, ForRangeStmt, FunctionDecl, GenericParamList, IfIsStmt, ImplDecl, MethodDecl, Parameter,
+    PatternConditionalArm, SwitchArm,
 };
 use crate::resolve::{ResolveOutput, TypeSymbolKind};
 use std::collections::HashMap;
@@ -138,20 +137,6 @@ pub(super) fn environment_for_catch(
     catch_environment
 }
 
-pub(super) fn environment_for_if_let_binding(
-    statement: &IfLetStmt,
-    resolved: &ResolveOutput,
-    environment: &TypeEnvironment,
-) -> TypeEnvironment {
-    let mut then_environment = environment.clone();
-    then_environment.define_binding(
-        statement.name.clone(),
-        if_let_binding_type(statement, resolved, environment),
-        binding_kind_is_mutable(statement.kind),
-    );
-    then_environment
-}
-
 pub(super) fn environment_for_if_is_binding(
     statement: &IfIsStmt,
     resolved: &ResolveOutput,
@@ -173,54 +158,6 @@ pub(super) fn environment_for_if_is_binding(
         );
     }
     then_environment
-}
-
-fn if_let_binding_type(
-    statement: &IfLetStmt,
-    resolved: &ResolveOutput,
-    environment: &TypeEnvironment,
-) -> Type {
-    if let Some(projection) =
-        optional_borrow_projection_type(&statement.initializer, resolved, environment)
-    {
-        return projection.projected_type;
-    }
-
-    match expression_type(&statement.initializer, resolved, environment) {
-        Type::Optional(inner) => *inner,
-        Type::Unknown => Type::Unknown,
-        _ => Type::Unknown,
-    }
-}
-
-pub(super) fn environment_for_while_let_binding(
-    statement: &WhileLetStmt,
-    resolved: &ResolveOutput,
-    environment: &TypeEnvironment,
-) -> TypeEnvironment {
-    let mut body_environment = environment.clone();
-    body_environment.define_binding(
-        statement.name.clone(),
-        while_let_binding_type(statement, resolved, environment),
-        binding_kind_is_mutable(statement.kind),
-    );
-    body_environment
-}
-
-fn while_let_binding_type(
-    statement: &WhileLetStmt,
-    resolved: &ResolveOutput,
-    environment: &TypeEnvironment,
-) -> Type {
-    if optional_borrow_projection_type(&statement.initializer, resolved, environment).is_some() {
-        return Type::Unknown;
-    }
-
-    match expression_type(&statement.initializer, resolved, environment) {
-        Type::Optional(inner) => *inner,
-        Type::Unknown => Type::Unknown,
-        _ => Type::Unknown,
-    }
 }
 
 pub(super) fn environment_for_switch_arm(

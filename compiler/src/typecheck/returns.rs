@@ -9,9 +9,8 @@ use super::diagnostics::{
 };
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
-    environment_for_if_is_binding, environment_for_if_let_binding, environment_for_method,
-    environment_for_parameters_in_impl, environment_for_pattern_conditional_arm,
-    environment_for_switch_arm, environment_for_while_let_binding, impl_member_name,
+    environment_for_if_is_binding, environment_for_method, environment_for_parameters_in_impl,
+    environment_for_pattern_conditional_arm, environment_for_switch_arm, impl_member_name,
 };
 use super::expressions::expression_type;
 use super::fallible::{check_catch_operand, check_propagation};
@@ -451,55 +450,6 @@ fn check_statement_returns(
                 borrow_provenance.join_reachable(&incoming);
             }
         }
-        Stmt::IfLet(statement) => {
-            check_expression_for_nested_returns(
-                sources,
-                &statement.initializer,
-                context,
-                resolved,
-                diagnostics,
-                environment,
-                borrow_provenance,
-            );
-            let mut then_environment =
-                environment_for_if_let_binding(statement, resolved, environment);
-            let mut then_borrow_provenance = borrow_provenance.clone();
-            check_block_return_statements(
-                sources,
-                &statement.then_block,
-                context,
-                resolved,
-                diagnostics,
-                &mut then_environment,
-                &mut then_borrow_provenance,
-            );
-            let mut incoming = Vec::new();
-            if !block_guarantees_return_or_never(&statement.then_block, resolved, &then_environment)
-            {
-                incoming.push(then_borrow_provenance);
-            }
-            if let Some(else_block) = &statement.else_block {
-                let mut else_environment = environment.clone();
-                let mut else_borrow_provenance = borrow_provenance.clone();
-                check_block_return_statements(
-                    sources,
-                    else_block,
-                    context,
-                    resolved,
-                    diagnostics,
-                    &mut else_environment,
-                    &mut else_borrow_provenance,
-                );
-                if !block_guarantees_return_or_never(else_block, resolved, &else_environment) {
-                    incoming.push(else_borrow_provenance);
-                }
-            } else {
-                incoming.push(borrow_provenance.clone());
-            }
-            if !incoming.is_empty() {
-                borrow_provenance.join_reachable(&incoming);
-            }
-        }
         Stmt::Switch(statement) => {
             check_expression_for_nested_returns(
                 sources,
@@ -561,29 +511,6 @@ fn check_statement_returns(
                 borrow_provenance,
             );
             let mut body_environment = environment.clone();
-            let mut body_borrow_provenance = borrow_provenance.clone();
-            check_block_return_statements(
-                sources,
-                &statement.body,
-                context,
-                resolved,
-                diagnostics,
-                &mut body_environment,
-                &mut body_borrow_provenance,
-            );
-        }
-        Stmt::WhileLet(statement) => {
-            check_expression_for_nested_returns(
-                sources,
-                &statement.initializer,
-                context,
-                resolved,
-                diagnostics,
-                environment,
-                borrow_provenance,
-            );
-            let mut body_environment =
-                environment_for_while_let_binding(statement, resolved, environment);
             let mut body_borrow_provenance = borrow_provenance.clone();
             check_block_return_statements(
                 sources,
@@ -1487,10 +1414,6 @@ fn statement_guarantees_return_or_never(
             block_guarantees_return_or_never(&statement.then_block, resolved, environment)
                 && block_guarantees_return_or_never(else_block, resolved, environment)
         }),
-        Stmt::IfLet(statement) => statement.else_block.as_ref().is_some_and(|else_block| {
-            block_guarantees_return_or_never(&statement.then_block, resolved, environment)
-                && block_guarantees_return_or_never(else_block, resolved, environment)
-        }),
         Stmt::Switch(statement) => {
             if !switch_arms_guarantee_return_or_never(statement, resolved, environment) {
                 return false;
@@ -1529,9 +1452,6 @@ fn statement_guarantees_return(statement: &Stmt) -> bool {
         Stmt::IfIs(statement) => statement.else_block.as_ref().is_some_and(|else_block| {
             block_guarantees_return(&statement.then_block) && block_guarantees_return(else_block)
         }),
-        Stmt::IfLet(statement) => statement.else_block.as_ref().is_some_and(|else_block| {
-            block_guarantees_return(&statement.then_block) && block_guarantees_return(else_block)
-        }),
         Stmt::Switch(statement) => statement.else_arm.as_ref().is_some_and(|else_arm| {
             statement
                 .arms
@@ -1544,7 +1464,6 @@ fn statement_guarantees_return(statement: &Stmt) -> bool {
         | Stmt::Assignment(_)
         | Stmt::ForRange(_)
         | Stmt::While(_)
-        | Stmt::WhileLet(_)
         | Stmt::Break(_)
         | Stmt::Continue(_)
         | Stmt::Drop(_)

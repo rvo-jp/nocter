@@ -12,7 +12,7 @@ const VALID_EXAMPLES: &[ValidExample] = &[
     ValidExample::new("spec/examples/valid/fallible-catch.nct"),
     ValidExample::new("spec/examples/valid/fallible-force.nct"),
     ValidExample::new("spec/examples/valid/fallible-propagation.nct"),
-    ValidExample::new("spec/examples/valid/if-let-optional.nct"),
+    ValidExample::new("spec/examples/valid/if-is-enum.nct"),
     ValidExample::new("spec/examples/valid/imports/app.nct"),
     ValidExample::new("spec/examples/valid/optional-default.nct"),
     ValidExample::new("spec/examples/valid/optional-let-else.nct"),

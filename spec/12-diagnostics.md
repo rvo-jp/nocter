@@ -284,12 +284,13 @@ Required v0 diagnostic families:
 - Postfix `?` or `!` used on a non-fallible and non-optional expression.
 - `catch` block that can fall through.
 - Mixed optional/fallible type syntax where grouping changes meaning, such as `(T!)?`.
-- Optional `if let` / `if var` / `while let` / `while var` used on a non-optional expression.
+- `if is` used on a non-enum expression.
+- `if is` pattern that does not use `Enum.variant`.
+- `if is` enum pattern whose enum or variant does not match the target enum type.
 - Optional `let ... else` / `var ... else` used on a non-optional expression.
 - Optional `let ... else` / `var ... else` whose `else` block can fall through.
-- Borrowed optional projection used in `while let` or `while var`.
 - Readwrite borrowed optional projection from a non-writable place.
-- Mismatched borrowed optional projection form, such as `if var name = &place`, `if let name = &+place`, `var name = &place else { ... }`, or `let name = &+place else { ... }`.
+- Mismatched borrowed optional projection form, such as `var name = &place else { ... }` or `let name = &+place else { ... }`.
 - Selected entry function missing from the root file.
 - Selected entry function with an invalid return type.
 - Selected entry function with parameters, such as `func main(args: Vec<&str>): i32!`, used in v0.

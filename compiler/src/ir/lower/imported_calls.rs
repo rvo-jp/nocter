@@ -1,6 +1,6 @@
 use crate::ast::{
-    Block, Expr, FunctionDecl, IfIsStmt, IfLetStmt, IfStmt, InterpolatedStringPart, Stmt,
-    SwitchStmt, WhileLetStmt, WhileStmt,
+    Block, Expr, FunctionDecl, IfIsStmt, IfStmt, InterpolatedStringPart, Stmt, SwitchStmt,
+    WhileStmt,
 };
 use crate::diagnostics::Diagnostic;
 use crate::resolve::{ResolveOutput, Symbol, SymbolKind};
@@ -95,7 +95,6 @@ fn collect_statement(
         }
         Stmt::If(statement) => collect_if(statement, root_source, resolved, targets),
         Stmt::IfIs(statement) => collect_if_is(statement, root_source, resolved, targets),
-        Stmt::IfLet(statement) => collect_if_let(statement, root_source, resolved, targets),
         Stmt::Switch(statement) => collect_switch(statement, root_source, resolved, targets),
         Stmt::ForRange(statement) => {
             collect_expression(&statement.start, root_source, resolved, targets);
@@ -103,9 +102,6 @@ fn collect_statement(
             collect_block(&statement.body, root_source, resolved, targets);
         }
         Stmt::While(statement) => collect_while(statement, root_source, resolved, targets),
-        Stmt::WhileLet(statement) => {
-            collect_while_let(statement, root_source, resolved, targets);
-        }
         Stmt::Loop(statement) => collect_block(&statement.body, root_source, resolved, targets),
         Stmt::Expression(statement) => {
             collect_expression(&statement.expression, root_source, resolved, targets);
@@ -140,19 +136,6 @@ fn collect_if_is(
     }
 }
 
-fn collect_if_let(
-    statement: &IfLetStmt,
-    root_source: SourceId,
-    resolved: &ResolveOutput,
-    targets: &mut Vec<ImportedCallTarget>,
-) {
-    collect_expression(&statement.initializer, root_source, resolved, targets);
-    collect_block(&statement.then_block, root_source, resolved, targets);
-    if let Some(block) = &statement.else_block {
-        collect_block(block, root_source, resolved, targets);
-    }
-}
-
 fn collect_switch(
     statement: &SwitchStmt,
     root_source: SourceId,
@@ -175,16 +158,6 @@ fn collect_while(
     targets: &mut Vec<ImportedCallTarget>,
 ) {
     collect_expression(&statement.condition, root_source, resolved, targets);
-    collect_block(&statement.body, root_source, resolved, targets);
-}
-
-fn collect_while_let(
-    statement: &WhileLetStmt,
-    root_source: SourceId,
-    resolved: &ResolveOutput,
-    targets: &mut Vec<ImportedCallTarget>,
-) {
-    collect_expression(&statement.initializer, root_source, resolved, targets);
     collect_block(&statement.body, root_source, resolved, targets);
 }
 

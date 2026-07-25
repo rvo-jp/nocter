@@ -126,21 +126,6 @@ impl Resolver<'_> {
                     self.resolve_block(else_block, &mut else_scope);
                 }
             }
-            Stmt::IfLet(statement) => {
-                self.resolve_expression(&statement.initializer, scope);
-                let mut then_scope = scope.clone();
-                self.define_local_name(
-                    statement.name.clone(),
-                    statement.name_span,
-                    LocalSymbolKind::Binding(statement.kind),
-                    &mut then_scope,
-                );
-                self.resolve_block(&statement.then_block, &mut then_scope);
-                if let Some(else_block) = &statement.else_block {
-                    let mut else_scope = scope.clone();
-                    self.resolve_block(else_block, &mut else_scope);
-                }
-            }
             Stmt::Switch(statement) => {
                 self.resolve_expression(&statement.expression, scope);
                 for arm in &statement.arms {
@@ -163,17 +148,6 @@ impl Resolver<'_> {
             Stmt::While(statement) => {
                 self.resolve_expression(&statement.condition, scope);
                 let mut body_scope = scope.clone();
-                self.resolve_block(&statement.body, &mut body_scope);
-            }
-            Stmt::WhileLet(statement) => {
-                self.resolve_expression(&statement.initializer, scope);
-                let mut body_scope = scope.clone();
-                self.define_local_name(
-                    statement.name.clone(),
-                    statement.name_span,
-                    LocalSymbolKind::Binding(statement.kind),
-                    &mut body_scope,
-                );
                 self.resolve_block(&statement.body, &mut body_scope);
             }
             Stmt::ForRange(statement) => {

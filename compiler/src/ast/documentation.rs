@@ -112,13 +112,6 @@ fn collect_statement_targets(text: &str, statement: &Stmt, targets: &mut Vec<Doc
                 collect_block_targets(text, block, targets);
             }
         }
-        Stmt::IfLet(statement) => {
-            collect_expression_targets(text, &statement.initializer, targets);
-            collect_block_targets(text, &statement.then_block, targets);
-            if let Some(block) = &statement.else_block {
-                collect_block_targets(text, block, targets);
-            }
-        }
         Stmt::Switch(statement) => {
             collect_expression_targets(text, &statement.expression, targets);
             for arm in &statement.arms {
@@ -135,10 +128,6 @@ fn collect_statement_targets(text: &str, statement: &Stmt, targets: &mut Vec<Doc
         }
         Stmt::While(statement) => {
             collect_expression_targets(text, &statement.condition, targets);
-            collect_block_targets(text, &statement.body, targets);
-        }
-        Stmt::WhileLet(statement) => {
-            collect_expression_targets(text, &statement.initializer, targets);
             collect_block_targets(text, &statement.body, targets);
         }
         Stmt::Loop(statement) => collect_block_targets(text, &statement.body, targets),

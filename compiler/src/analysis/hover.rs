@@ -661,20 +661,16 @@ fn collect_statement_hover_symbols(text: &str, statement: &Stmt, symbols: &mut V
             }
         }
         Stmt::IfIs(statement) => {
-            collect_block_hover_symbols(text, &statement.then_block, symbols);
-            if let Some(block) = &statement.else_block {
-                collect_block_hover_symbols(text, block, symbols);
+            collect_expression_hover_symbols(text, &statement.expression, symbols);
+            if let Some(payload) = &statement.payload {
+                push_hover_symbol(
+                    text,
+                    payload.span,
+                    statement.span.start,
+                    format!("payload {}", payload.name),
+                    symbols,
+                );
             }
-        }
-        Stmt::IfLet(statement) => {
-            push_hover_symbol(
-                text,
-                statement.name_span,
-                statement.span.start,
-                format!("{} {}", binding_kind_label(statement.kind), statement.name),
-                symbols,
-            );
-            collect_expression_hover_symbols(text, &statement.initializer, symbols);
             collect_block_hover_symbols(text, &statement.then_block, symbols);
             if let Some(block) = &statement.else_block {
                 collect_block_hover_symbols(text, block, symbols);
@@ -703,17 +699,6 @@ fn collect_statement_hover_symbols(text: &str, statement: &Stmt, symbols: &mut V
         }
         Stmt::While(statement) => {
             collect_expression_hover_symbols(text, &statement.condition, symbols);
-            collect_block_hover_symbols(text, &statement.body, symbols);
-        }
-        Stmt::WhileLet(statement) => {
-            push_hover_symbol(
-                text,
-                statement.name_span,
-                statement.span.start,
-                format!("{} {}", binding_kind_label(statement.kind), statement.name),
-                symbols,
-            );
-            collect_expression_hover_symbols(text, &statement.initializer, symbols);
             collect_block_hover_symbols(text, &statement.body, symbols);
         }
         Stmt::Loop(statement) => collect_block_hover_symbols(text, &statement.body, symbols),

@@ -4,8 +4,8 @@ use crate::analysis::{
 };
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, Block, CallExpr, DropDecl, Expr, ForRangeStmt,
-    FunctionDecl, IfLetStmt, ImplMember, Item, MethodDecl, Stmt, TypeExpr, WhileLetStmt,
-    substitute_type_expr_parameters, type_expr_display_lossy,
+    FunctionDecl, ImplMember, Item, MethodDecl, Stmt, TypeExpr, substitute_type_expr_parameters,
+    type_expr_display_lossy,
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
@@ -384,26 +384,6 @@ fn if_is_statement_is_buildable(
     u8::try_from(index).is_ok()
 }
 
-fn if_let_statement_is_buildable(statement: &IfLetStmt, resolved: &ResolveOutput) -> bool {
-    let Expr::Call(call) = unwrap_group_expr(&statement.initializer) else {
-        return false;
-    };
-    matches!(
-        optional_call_success_shape(call, resolved),
-        Some(ReturnShape::DiscardableScalar | ReturnShape::DiscardableView)
-    )
-}
-
-fn while_let_statement_is_buildable(statement: &WhileLetStmt, resolved: &ResolveOutput) -> bool {
-    let Expr::Call(call) = unwrap_group_expr(&statement.initializer) else {
-        return false;
-    };
-    matches!(
-        optional_call_success_shape(call, resolved),
-        Some(ReturnShape::DiscardableScalar | ReturnShape::DiscardableView)
-    )
-}
-
 fn switch_statement_is_buildable(
     statement: &crate::ast::SwitchStmt,
     resolved: &ResolveOutput,
@@ -754,54 +734,6 @@ fn collect_statement_diagnostics(
                 );
             }
         }
-        Stmt::IfLet(statement) => {
-            if !if_let_statement_is_buildable(statement, resolved) {
-                diagnostics.push(unsupported_v0_build_diagnostic(
-                    sources,
-                    statement.span,
-                    "`if let` optional branches",
-                    "use a direct optional scalar/view call initializer, or use `let ... else` when the none path must exit immediately",
-                ));
-            }
-            collect_expression_diagnostics(
-                &statement.initializer,
-                sources,
-                resolved,
-                typecheck_facts,
-                generic_substitutions,
-                root_source,
-                names,
-                nocter_home,
-                queue,
-                diagnostics,
-            );
-            collect_block_diagnostics(
-                &statement.then_block,
-                sources,
-                resolved,
-                typecheck_facts,
-                generic_substitutions,
-                root_source,
-                names,
-                nocter_home,
-                queue,
-                diagnostics,
-            );
-            if let Some(block) = &statement.else_block {
-                collect_block_diagnostics(
-                    block,
-                    sources,
-                    resolved,
-                    typecheck_facts,
-                    generic_substitutions,
-                    root_source,
-                    names,
-                    nocter_home,
-                    queue,
-                    diagnostics,
-                );
-            }
-        }
         Stmt::Switch(statement) => {
             if !switch_statement_is_buildable(statement, resolved) {
                 diagnostics.push(unsupported_v0_build_diagnostic(
@@ -901,40 +833,6 @@ fn collect_statement_diagnostics(
         Stmt::While(statement) => {
             collect_expression_diagnostics(
                 &statement.condition,
-                sources,
-                resolved,
-                typecheck_facts,
-                generic_substitutions,
-                root_source,
-                names,
-                nocter_home,
-                queue,
-                diagnostics,
-            );
-            collect_block_diagnostics(
-                &statement.body,
-                sources,
-                resolved,
-                typecheck_facts,
-                generic_substitutions,
-                root_source,
-                names,
-                nocter_home,
-                queue,
-                diagnostics,
-            );
-        }
-        Stmt::WhileLet(statement) => {
-            if !while_let_statement_is_buildable(statement, resolved) {
-                diagnostics.push(unsupported_v0_build_diagnostic(
-                    sources,
-                    statement.span,
-                    "`while let` optional loops",
-                    "use a direct optional scalar/view call in the current buildable `while let` subset",
-                ));
-            }
-            collect_expression_diagnostics(
-                &statement.initializer,
                 sources,
                 resolved,
                 typecheck_facts,
@@ -1187,46 +1085,6 @@ fn call_return_shape(call: &CallExpr, resolved: &ResolveOutput) -> Option<Return
         &signature.return_type,
         resolved,
     ))
-}
-
-fn optional_call_success_shape(call: &CallExpr, resolved: &ResolveOutput) -> Option<ReturnShape> {
-    let signature = resolved.call_signature_for_call(call)?;
-    Some(optional_success_shape_from_type_expr(
-        &signature.return_type,
-        resolved,
-    ))
-}
-
-fn optional_success_shape_from_type_expr(ty: &TypeExpr, resolved: &ResolveOutput) -> ReturnShape {
-    optional_success_shape_from_type_expr_inner(ty, resolved, &mut HashSet::new())
-}
-
-fn optional_success_shape_from_type_expr_inner(
-    ty: &TypeExpr,
-    resolved: &ResolveOutput,
-    resolving_names: &mut HashSet<String>,
-) -> ReturnShape {
-    match ty {
-        TypeExpr::Optional(optional) => {
-            return_shape_from_type_expr_inner(&optional.inner, resolved, resolving_names)
-        }
-        TypeExpr::Reference(reference) => {
-            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
-                return ReturnShape::Other;
-            };
-            let Some(target) = &symbol.alias_target else {
-                return ReturnShape::Other;
-            };
-            if !resolving_names.insert(symbol.canonical_name.clone()) {
-                return ReturnShape::Other;
-            }
-            let shape =
-                optional_success_shape_from_type_expr_inner(target, resolved, resolving_names);
-            resolving_names.remove(&symbol.canonical_name);
-            shape
-        }
-        _ => ReturnShape::Other,
-    }
 }
 
 fn return_shape_from_type_expr(ty: &TypeExpr, resolved: &ResolveOutput) -> ReturnShape {
