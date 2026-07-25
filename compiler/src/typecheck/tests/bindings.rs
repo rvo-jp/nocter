@@ -117,6 +117,27 @@ func fill(bytes: &+[u8]): void {
 }
 
 #[test]
+fn accepts_index_assignment_through_readwrite_slice_call_result() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func fill(bytes: &+[u8]): void {
+    identity(bytes)[0] = 1
+    return
+}
+
+func identity(bytes: &+[u8]): &+[u8] {
+    return bytes
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
 fn diagnoses_index_assignment_through_readonly_slice() {
     let diagnostics = check_text(
         r#"func main(): i32 {
@@ -133,6 +154,29 @@ func fill(bytes: &[u8]): void {
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].code, "E0381");
     assert!(diagnostics[0].message.contains("bytes"));
+}
+
+#[test]
+fn diagnoses_index_assignment_through_readonly_slice_call_result() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func fill(bytes: &[u8]): void {
+    identity(bytes)[0] = 1
+    return
+}
+
+func identity(bytes: &[u8]): &[u8] {
+    return bytes
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0381");
+    assert!(diagnostics[0].message.contains("not writable"));
 }
 
 #[test]

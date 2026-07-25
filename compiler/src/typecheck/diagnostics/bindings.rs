@@ -56,6 +56,20 @@ pub(in crate::typecheck) fn immutable_assignment_diagnostic(
     diagnostic
 }
 
+pub(in crate::typecheck) fn non_writable_assignment_target_diagnostic(
+    sources: &SourceMap,
+    statement: &AssignmentStmt,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error("E0381", "assignment target is not writable");
+    diagnostic.primary_span = sources
+        .span_to_json(statement.target.span())
+        .ok()
+        .map(Box::new);
+    diagnostic.help =
+        Some("assign to a `var` binding, writable field, or `&+[...]` element".to_string());
+    diagnostic
+}
+
 pub(in crate::typecheck) fn assignment_type_mismatch_diagnostic(
     sources: &SourceMap,
     statement: &AssignmentStmt,

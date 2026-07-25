@@ -1982,6 +1982,129 @@ impl EntryEmitter {
         self.emit_scalar_reloads(frame)
     }
 
+    pub(super) fn emit_store_u8_to_slice_index(
+        &mut self,
+        destination: SliceLocation,
+        index: &UsizeValue,
+        value: &U8Value,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "slice byte index store emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_u8_value_to_w(value, WReg::W2)?;
+        self.emit_checked_slice_store_address(destination, index, 0)?;
+        self.encoder.emit_strb_w_imm(WReg::W2, XReg::X0, 0);
+        self.emit_scalar_reloads(frame)
+    }
+
+    pub(super) fn emit_store_i32_to_slice_index(
+        &mut self,
+        destination: SliceLocation,
+        index: &UsizeValue,
+        value: &I32Value,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "slice i32 index store emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_i32_value_to_w(value, WReg::W2)?;
+        self.emit_checked_slice_store_address(destination, index, 2)?;
+        self.encoder.emit_str_w_imm(WReg::W2, XReg::X0, 0);
+        self.emit_scalar_reloads(frame)
+    }
+
+    pub(super) fn emit_store_usize_to_slice_index(
+        &mut self,
+        destination: SliceLocation,
+        index: &UsizeValue,
+        value: &UsizeValue,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "slice usize index store emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_usize_value_to_x(value, XReg::X2)?;
+        self.emit_checked_slice_store_address(destination, index, 3)?;
+        self.encoder.emit_str_x_imm(XReg::X2, XReg::X0, 0);
+        self.emit_scalar_reloads(frame)
+    }
+
+    pub(super) fn emit_store_bool_to_slice_index(
+        &mut self,
+        destination: SliceLocation,
+        index: &UsizeValue,
+        value: &BoolValue,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "slice bool index store emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_bool_value_to_w(value, WReg::W2)?;
+        self.emit_checked_slice_store_address(destination, index, 0)?;
+        self.encoder.emit_strb_w_imm(WReg::W2, XReg::X0, 0);
+        self.emit_scalar_reloads(frame)
+    }
+
+    pub(super) fn emit_store_str_to_slice_index(
+        &mut self,
+        destination: SliceLocation,
+        index: &UsizeValue,
+        value: &StrValue,
+        frame: Option<&FrameLayout>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(frame) = frame else {
+            return Err(vec![Diagnostic::error(
+                "E9005",
+                "slice str index store emission requires a stack frame",
+            )]);
+        };
+
+        self.emit_scalar_spills(frame)?;
+        self.emit_str_value_to_x_pair(value, XReg::X2, XReg::X3)?;
+        self.emit_checked_slice_store_address(destination, index, 4)?;
+        self.encoder.emit_str_x_imm(XReg::X2, XReg::X0, 0);
+        self.encoder.emit_str_x_imm(XReg::X3, XReg::X0, 8);
+        self.emit_scalar_reloads(frame)
+    }
+
+    fn emit_checked_slice_store_address(
+        &mut self,
+        destination: SliceLocation,
+        index: &UsizeValue,
+        element_shift: u32,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_usize_value_to_x(index, XReg::X16)?;
+        self.emit_slice_value_to_x_pair(&SliceValue::Location(destination), XReg::X0, XReg::X1)?;
+        self.emit_index_in_bounds_check(XReg::X16, XReg::X1)?;
+        if element_shift != 0 {
+            self.encoder
+                .emit_lsl_x_imm(XReg::X16, XReg::X16, element_shift);
+        }
+        self.encoder.emit_adds_x(XReg::X0, XReg::X0, XReg::X16);
+        Ok(())
+    }
+
     fn emit_i32_overflow_check(&mut self, target_description: &str) -> Result<(), Vec<Diagnostic>> {
         let no_overflow = self.emit_cond_branch_placeholder(BranchCondition::Vc);
         self.emit_trap();

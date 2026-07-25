@@ -110,6 +110,11 @@ fn collect_reachable_call_targets(
             | Instruction::StoreUsizeToPointer { .. }
             | Instruction::StoreBoolToPointer { .. }
             | Instruction::StoreStrToPointer { .. }
+            | Instruction::StoreU8ToSliceIndex { .. }
+            | Instruction::StoreI32ToSliceIndex { .. }
+            | Instruction::StoreUsizeToSliceIndex { .. }
+            | Instruction::StoreBoolToSliceIndex { .. }
+            | Instruction::StoreStrToSliceIndex { .. }
             | Instruction::ReserveAggregateSlot { .. }
             | Instruction::StoreAggregateUsize { .. }
             | Instruction::StoreAggregateI32 { .. }

@@ -176,7 +176,7 @@ explicit allocator.
 | `Vec.capacity()`, `capacity` | runtime ship narrow | Metadata accessor. |
 | `Vec.is_empty()`, `is_empty` | runtime ship narrow | Metadata accessor. |
 | `Vec.view()`, `view` | runtime ship narrow | Returns a readonly slice over the current length; scalar and `&str` element readback is buildable in v0. |
-| `Vec.view_mut()`, `view_mut` | runtime ship narrow | Returns a read-write slice over the current length. |
+| `Vec.view_mut()`, `view_mut` | runtime ship narrow | Returns a read-write slice over the current length; scalar and `&str` element writeback is buildable in v0. |
 | `Vec.reserve()`, `reserve` | runtime ship narrow | Grows page-backed storage and byte-copies existing initialized scalar or `&str` elements. |
 | `Vec.clear()`, `clear` | runtime ship narrow | Sets length to zero; element drop behavior is deferred. |
 | `Vec.push()`, `push` | runtime ship narrow | Appends scalar and `&str` elements; non-view aggregate element storage and element drop glue remain deferred. |

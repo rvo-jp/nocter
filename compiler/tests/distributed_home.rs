@@ -979,6 +979,98 @@ func main(): i32! {
     assert!(output.stderr.is_empty(), "expected empty stderr");
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn distributed_std_vec_view_mut_scalar_values_runs() {
+    let project = TempProject::new("distributed-home-vec-view-mut-scalar-run");
+    let source = project.write_source(
+        "vec_view_mut_scalar.nct",
+        r#"use std/vec.Vec
+
+func set_first_byte(bytes: &+[u8]): void {
+    bytes[0] = 4
+    return
+}
+
+func main(): i32! {
+    var bytes: Vec<u8> = Vec.empty()
+    bytes.push(1)?
+    bytes.push(2)?
+    set_first_byte(bytes.view_mut())
+    bytes.view_mut()[1] = 5
+    if bytes.view()[0] != 4 {
+        return 1
+    }
+    if bytes.view()[1] != 5 {
+        return 2
+    }
+
+    var words: Vec<usize> = Vec.empty()
+    words.push(11)?
+    words.push(12)?
+    words.view_mut()[0] = 21
+    words.view_mut()[1] = 22
+    if words.view()[0] != 21 {
+        return 3
+    }
+    if words.view()[1] != 22 {
+        return 4
+    }
+
+    var numbers: Vec<i32> = Vec.empty()
+    numbers.push(31)?
+    numbers.push(32)?
+    numbers.view_mut()[0] = 41
+    numbers.view_mut()[1] = 42
+    if numbers.view()[0] != 41 {
+        return 5
+    }
+    if numbers.view()[1] != 42 {
+        return 6
+    }
+
+    var flags: Vec<bool> = Vec.empty()
+    flags.push(true)?
+    flags.push(false)?
+    flags.view_mut()[0] = false
+    flags.view_mut()[1] = true
+    if flags.view()[0] != false {
+        return 7
+    }
+    if flags.view()[1] != true {
+        return 8
+    }
+
+    var texts: Vec<&str> = Vec.empty()
+    texts.push("before")?
+    texts.push("old")?
+    texts.view_mut()[0] = "after"
+    texts.view_mut()[1] = "new"
+    if texts.view()[0] != "after" {
+        return 9
+    }
+    if texts.view()[1] != "new" {
+        return 10
+    }
+
+    return 0
+}
+"#,
+    );
+
+    let output = nocter_run(&project, &source);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "expected empty stdout");
+    assert!(output.stderr.is_empty(), "expected empty stderr");
+}
+
 #[test]
 fn distributed_std_vec_fields_are_private() {
     let project = TempProject::new("distributed-home-vec-fields-private");
@@ -1258,6 +1350,50 @@ func main(): i32 {
     );
     assert!(
         stderr.contains("9 |     let first = values.view()[0]"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
+fn distributed_std_vec_rejects_aggregate_view_mut_index_assignment_before_ir_lowering() {
+    let project = TempProject::new("distributed-home-vec-aggregate-view-mut-index-assign-boundary");
+    let source = project.write_source(
+        "vec_aggregate_view_mut_index_assign_boundary.nct",
+        r#"use std/vec.Vec
+
+copy struct Pair {
+    pub value: i32
+}
+
+func main(): i32 {
+    var values: Vec<Pair> = Vec.empty()
+    values.view_mut()[0] = Pair { value: 1 }
+    return 0
+}
+"#,
+    );
+    let executable = project
+        .root()
+        .join("vec_aggregate_view_mut_index_assign_boundary");
+
+    let output = nocter_build(&project, &source, &executable);
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("slice indexing outside scalar and `&str` elements"),
+        "expected slice index boundary diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("9 |     values.view_mut()[0] = Pair { value: 1 }"),
         "expected source line, got:\n{stderr}"
     );
     assert!(

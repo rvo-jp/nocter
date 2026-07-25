@@ -42,6 +42,15 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: write back scalar Vec elements
+  - removes the parser-only v0 rejection for index assignment and lets
+    typechecking decide writable places
+  - rejects readonly slice and `&str` index assignment in type checking while
+    accepting `&+[T]` element assignment
+  - adds IR and ARM64 backend support for bounds-checked stores through
+    `&+[i32]`, `&+[u8]`, `&+[usize]`, `&+[bool]`, and `&+[&str]`
+  - covers `Vec.view_mut()` writeback for scalar and `&str` vectors through
+    distributed std native execution
 - Current checkpoint: reject aggregate slice index before IR
   - rejects user-source slice indexing when the element type is outside the
     runtime-shipped scalar and `&str` readback subset, such as

@@ -11,7 +11,7 @@ use super::expressions::{
     TemporaryAllocator, aggregate_call_field, expression_contains_interpolated_string,
     expression_is_lowerable_bool_binding, lower_aggregate_member_field_access,
     lower_bool_expression_to_location, lower_bool_expression_to_value,
-    lower_call_arguments_to_scalar_arguments,
+    lower_bool_expression_to_value_with_temporaries, lower_call_arguments_to_scalar_arguments,
     lower_call_arguments_to_scalar_arguments_with_temporaries, lower_catch_failure_mode,
     lower_fallible_bool_normal_call, lower_fallible_i32_normal_call,
     lower_fallible_slice_normal_call, lower_fallible_str_normal_call,
@@ -19,9 +19,11 @@ use super::expressions::{
     lower_i32_expression_to_location, lower_i32_expression_to_word,
     lower_i32_expression_to_word_with_temporaries, lower_macos_syscall_primitive_call_to_location,
     lower_pointer_address_expression_to_word, lower_slice_expression_to_location,
-    lower_str_expression_to_location, lower_u8_expression_to_location, lower_u8_expression_to_word,
-    lower_usize_expression_to_location, lower_usize_expression_to_word,
-    lower_usize_expression_to_word_with_temporaries, lower_void_expression_statement,
+    lower_slice_expression_to_value, lower_str_expression_to_location,
+    lower_str_expression_to_value, lower_u8_expression_to_location, lower_u8_expression_to_word,
+    lower_u8_expression_to_word_with_temporaries, lower_usize_expression_to_location,
+    lower_usize_expression_to_word, lower_usize_expression_to_word_with_temporaries,
+    lower_void_expression_statement,
 };
 use super::functions::{
     lower_drop_statement, lower_never_expression_with_scope_drops,
@@ -36,13 +38,13 @@ use super::types::{
 use crate::abi::{ValueLayout, abi_value_from_type_expr};
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, BinaryOperator, BindingStmt, Block, CallExpr, Expr,
-    MemberExpr, Stmt, TypeExpr, UnaryOperator,
+    IndexExpr, MemberExpr, Stmt, TypeExpr, UnaryOperator,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
     AggregateLocation, BoolLocation, BorrowArgument, BorrowSource, FallibleFailureMode,
-    I32Location, I32Value, Instruction, ScalarArgument, SliceLocation, StrLocation, Type,
-    U8Location, UsizeLocation, UsizeValue,
+    I32Location, I32Value, Instruction, ScalarArgument, SliceLocation, SliceValue, StrLocation,
+    Type, U8Location, UsizeLocation, UsizeValue,
 };
 use crate::typecheck::{TypecheckScalarViewKind, TypecheckSliceElementKind};
 
@@ -1189,6 +1191,7 @@ pub(super) fn lower_assignment(
             lower_identifier_assignment(identifier, &statement.value, context)
         }
         Expr::Member(member) => lower_aggregate_field_assignment(member, &statement.value, context),
+        Expr::Index(index) => lower_slice_index_assignment(index, &statement.value, context),
         _ => Err(unsupported_assignment_diagnostic()),
     }
 }
@@ -1453,6 +1456,137 @@ fn lower_identifier_assignment(
     }
 
     Err(unsupported_assignment_diagnostic())
+}
+
+fn lower_slice_index_assignment(
+    target: &IndexExpr,
+    value: &Expr,
+    context: &LoweringContext,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let element_kind = slice_index_assignment_element_kind(&target.object, context);
+    let mut temporaries = TemporaryAllocator::new(context)?;
+    let lowered_slice = lower_slice_expression_to_value(&target.object, context, &mut temporaries)?;
+    let SliceValue::Location(destination) = lowered_slice.value else {
+        return Err(unsupported_assignment_diagnostic());
+    };
+    let (index_instructions, index) =
+        lower_usize_expression_to_word_with_temporaries(&target.index, context, &mut temporaries)?;
+    let mut instructions = lowered_slice.instructions;
+    instructions.extend(index_instructions);
+    let index =
+        materialize_slice_index_assignment_index(&mut instructions, index, &mut temporaries)?;
+
+    match element_kind {
+        TypecheckSliceElementKind::U8 => {
+            let (value_instructions, value) =
+                lower_u8_expression_to_word_with_temporaries(value, context, &mut temporaries)?;
+            instructions.extend(value_instructions);
+            instructions.push(Instruction::StoreU8ToSliceIndex {
+                destination,
+                index,
+                value,
+            });
+            Ok(instructions)
+        }
+        TypecheckSliceElementKind::I32 => {
+            let (value_instructions, value) =
+                lower_i32_expression_to_word_with_temporaries(value, context, &mut temporaries)?;
+            instructions.extend(value_instructions);
+            instructions.push(Instruction::StoreI32ToSliceIndex {
+                destination,
+                index,
+                value,
+            });
+            Ok(instructions)
+        }
+        TypecheckSliceElementKind::Usize => {
+            let (value_instructions, value) =
+                lower_usize_expression_to_word_with_temporaries(value, context, &mut temporaries)?;
+            instructions.extend(value_instructions);
+            instructions.push(Instruction::StoreUsizeToSliceIndex {
+                destination,
+                index,
+                value,
+            });
+            Ok(instructions)
+        }
+        TypecheckSliceElementKind::Bool => {
+            let mut lowered = lower_bool_expression_to_value_with_temporaries(
+                value,
+                context,
+                "E8008",
+                &mut temporaries,
+            )?;
+            instructions.append(&mut lowered.instructions);
+            instructions.push(Instruction::StoreBoolToSliceIndex {
+                destination,
+                index,
+                value: lowered.value,
+            });
+            Ok(instructions)
+        }
+        TypecheckSliceElementKind::Str => {
+            let mut lowered = lower_str_expression_to_value(value, context, &mut temporaries)?;
+            instructions.append(&mut lowered.instructions);
+            instructions.push(Instruction::StoreStrToSliceIndex {
+                destination,
+                index,
+                value: lowered.value,
+            });
+            Ok(instructions)
+        }
+        TypecheckSliceElementKind::Other => Err(unsupported_assignment_diagnostic()),
+    }
+}
+
+fn materialize_slice_index_assignment_index(
+    instructions: &mut Vec<Instruction>,
+    value: UsizeValue,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<UsizeValue, Vec<Diagnostic>> {
+    match value {
+        UsizeValue::Const(_) | UsizeValue::Location(_) => Ok(value),
+        _ => {
+            let destination = temporaries.next_usize()?;
+            instructions.push(Instruction::SetUsize { destination, value });
+            Ok(UsizeValue::Location(destination))
+        }
+    }
+}
+
+fn slice_index_assignment_element_kind(
+    object: &Expr,
+    context: &LoweringContext,
+) -> TypecheckSliceElementKind {
+    match unwrap_group(object) {
+        Expr::Identifier(identifier) => context
+            .slice_element_kind(&identifier.name)
+            .unwrap_or(TypecheckSliceElementKind::Other),
+        Expr::Call(call) => call_return_slice_element_kind(call, context)
+            .unwrap_or(TypecheckSliceElementKind::Other),
+        Expr::Propagate(propagation) => slice_index_assignment_fallible_element_kind(
+            unwrap_group(&propagation.expression),
+            context,
+        ),
+        Expr::Force(force) => {
+            slice_index_assignment_fallible_element_kind(unwrap_group(&force.expression), context)
+        }
+        Expr::Catch(catch) => {
+            slice_index_assignment_fallible_element_kind(unwrap_group(&catch.expression), context)
+        }
+        Expr::Group(group) => slice_index_assignment_element_kind(&group.expression, context),
+        _ => TypecheckSliceElementKind::Other,
+    }
+}
+
+fn slice_index_assignment_fallible_element_kind(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> TypecheckSliceElementKind {
+    let Expr::Call(call) = expression else {
+        return TypecheckSliceElementKind::Other;
+    };
+    call_success_slice_element_kind(call, context).unwrap_or(TypecheckSliceElementKind::Other)
 }
 
 fn lower_aggregate_field_assignment(

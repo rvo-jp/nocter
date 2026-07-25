@@ -422,7 +422,12 @@ fn instruction_clobbers_parameter_registers(instruction: &Instruction) -> bool {
         | Instruction::StoreI32ToPointer { .. }
         | Instruction::StoreUsizeToPointer { .. }
         | Instruction::StoreBoolToPointer { .. }
-        | Instruction::StoreStrToPointer { .. } => true,
+        | Instruction::StoreStrToPointer { .. }
+        | Instruction::StoreU8ToSliceIndex { .. }
+        | Instruction::StoreI32ToSliceIndex { .. }
+        | Instruction::StoreUsizeToSliceIndex { .. }
+        | Instruction::StoreBoolToSliceIndex { .. }
+        | Instruction::StoreStrToSliceIndex { .. } => true,
         Instruction::If {
             then_instructions,
             else_instructions,
@@ -550,7 +555,12 @@ fn instruction_requires_frame(instruction: &Instruction) -> bool {
         | Instruction::StoreI32ToPointer { .. }
         | Instruction::StoreUsizeToPointer { .. }
         | Instruction::StoreBoolToPointer { .. }
-        | Instruction::StoreStrToPointer { .. } => true,
+        | Instruction::StoreStrToPointer { .. }
+        | Instruction::StoreU8ToSliceIndex { .. }
+        | Instruction::StoreI32ToSliceIndex { .. }
+        | Instruction::StoreUsizeToSliceIndex { .. }
+        | Instruction::StoreBoolToSliceIndex { .. }
+        | Instruction::StoreStrToSliceIndex { .. } => true,
         Instruction::CopyAggregate {
             destination,
             source,
@@ -739,6 +749,11 @@ fn instruction_max_call_argument_count(instruction: &Instruction) -> usize {
         | Instruction::StoreUsizeToPointer { .. }
         | Instruction::StoreBoolToPointer { .. }
         | Instruction::StoreStrToPointer { .. }
+        | Instruction::StoreU8ToSliceIndex { .. }
+        | Instruction::StoreI32ToSliceIndex { .. }
+        | Instruction::StoreUsizeToSliceIndex { .. }
+        | Instruction::StoreBoolToSliceIndex { .. }
+        | Instruction::StoreStrToSliceIndex { .. }
         | Instruction::ReserveAggregateSlot { .. }
         | Instruction::StoreAggregateUsize { .. }
         | Instruction::StoreAggregateI32 { .. }
@@ -867,6 +882,11 @@ fn record_instruction_aggregate_slot_requests(
         | Instruction::StoreUsizeToPointer { .. }
         | Instruction::StoreBoolToPointer { .. }
         | Instruction::StoreStrToPointer { .. }
+        | Instruction::StoreU8ToSliceIndex { .. }
+        | Instruction::StoreI32ToSliceIndex { .. }
+        | Instruction::StoreUsizeToSliceIndex { .. }
+        | Instruction::StoreBoolToSliceIndex { .. }
+        | Instruction::StoreStrToSliceIndex { .. }
         | Instruction::SetI32 { .. }
         | Instruction::SetStrRawParts { .. }
         | Instruction::SetSliceRawParts { .. }
@@ -1253,6 +1273,61 @@ fn record_instruction_parameter_spill_requests(
             if include_value_parameters {
                 record_usize_value_parameter_spill_requests(pointer, requests);
                 record_usize_value_parameter_spill_requests(offset, requests);
+                record_str_value_parameter_spill_requests(value, requests);
+            }
+        }
+        Instruction::StoreU8ToSliceIndex {
+            destination,
+            index,
+            value,
+        } => {
+            record_slice_location_parameter_pair_spill_requests(*destination, requests);
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(index, requests);
+                record_u8_value_parameter_spill_requests(value, requests);
+            }
+        }
+        Instruction::StoreI32ToSliceIndex {
+            destination,
+            index,
+            value,
+        } => {
+            record_slice_location_parameter_pair_spill_requests(*destination, requests);
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(index, requests);
+                record_i32_value_parameter_spill_requests(value, requests);
+            }
+        }
+        Instruction::StoreUsizeToSliceIndex {
+            destination,
+            index,
+            value,
+        } => {
+            record_slice_location_parameter_pair_spill_requests(*destination, requests);
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(index, requests);
+                record_usize_value_parameter_spill_requests(value, requests);
+            }
+        }
+        Instruction::StoreBoolToSliceIndex {
+            destination,
+            index,
+            value,
+        } => {
+            record_slice_location_parameter_pair_spill_requests(*destination, requests);
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(index, requests);
+                record_bool_value_parameter_spill_requests(value, requests);
+            }
+        }
+        Instruction::StoreStrToSliceIndex {
+            destination,
+            index,
+            value,
+        } => {
+            record_slice_location_parameter_pair_spill_requests(*destination, requests);
+            if include_value_parameters {
+                record_usize_value_parameter_spill_requests(index, requests);
                 record_str_value_parameter_spill_requests(value, requests);
             }
         }
@@ -1915,6 +1990,51 @@ fn record_instruction_scalar_locals(
         } => {
             record_usize_value(pointer, highest_local_index);
             record_usize_value(offset, highest_local_index);
+            record_str_value(value, highest_local_index);
+        }
+        Instruction::StoreU8ToSliceIndex {
+            destination,
+            index,
+            value,
+        } => {
+            record_slice_location(*destination, highest_local_index);
+            record_usize_value(index, highest_local_index);
+            record_u8_value(value, highest_local_index);
+        }
+        Instruction::StoreI32ToSliceIndex {
+            destination,
+            index,
+            value,
+        } => {
+            record_slice_location(*destination, highest_local_index);
+            record_usize_value(index, highest_local_index);
+            record_i32_value(value, highest_local_index);
+        }
+        Instruction::StoreUsizeToSliceIndex {
+            destination,
+            index,
+            value,
+        } => {
+            record_slice_location(*destination, highest_local_index);
+            record_usize_value(index, highest_local_index);
+            record_usize_value(value, highest_local_index);
+        }
+        Instruction::StoreBoolToSliceIndex {
+            destination,
+            index,
+            value,
+        } => {
+            record_slice_location(*destination, highest_local_index);
+            record_usize_value(index, highest_local_index);
+            record_bool_value(value, highest_local_index);
+        }
+        Instruction::StoreStrToSliceIndex {
+            destination,
+            index,
+            value,
+        } => {
+            record_slice_location(*destination, highest_local_index);
+            record_usize_value(index, highest_local_index);
             record_str_value(value, highest_local_index);
         }
         Instruction::TailCall { arguments, .. } => {

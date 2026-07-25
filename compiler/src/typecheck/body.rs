@@ -14,8 +14,8 @@ use super::copyability::{implicit_non_copy_struct_value_source, non_copy_struct_
 use super::diagnostics::{
     assignment_type_mismatch_diagnostic, compound_assignment_operand_type_mismatch_diagnostic,
     immutable_assignment_diagnostic, loop_control_outside_loop_diagnostic,
-    non_copy_struct_assignment_diagnostic, readwrite_borrow_requires_writable_place_diagnostic,
-    self_move_assignment_diagnostic,
+    non_copy_struct_assignment_diagnostic, non_writable_assignment_target_diagnostic,
+    readwrite_borrow_requires_writable_place_diagnostic, self_move_assignment_diagnostic,
 };
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
@@ -476,11 +476,16 @@ fn check_assignment_statement(
     diagnostics: &mut Vec<Diagnostic>,
     environment: &TypeEnvironment,
 ) {
-    if let Some(name) = assignment_target_root_name(&statement.target)
-        && environment.get(name).is_some()
-        && !expression_is_writable_place(&statement.target, resolved, environment)
-    {
-        diagnostics.push(immutable_assignment_diagnostic(sources, statement, name));
+    if !expression_is_writable_place(&statement.target, resolved, environment) {
+        if let Some(name) = assignment_target_root_name(&statement.target)
+            && environment.get(name).is_some()
+        {
+            diagnostics.push(immutable_assignment_diagnostic(sources, statement, name));
+        } else {
+            diagnostics.push(non_writable_assignment_target_diagnostic(
+                sources, statement,
+            ));
+        }
     }
 
     let target_type = expression_type(&statement.target, resolved, environment);

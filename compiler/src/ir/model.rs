@@ -216,6 +216,31 @@ pub(crate) enum Instruction {
         offset: UsizeValue,
         value: StrValue,
     },
+    StoreU8ToSliceIndex {
+        destination: SliceLocation,
+        index: UsizeValue,
+        value: U8Value,
+    },
+    StoreI32ToSliceIndex {
+        destination: SliceLocation,
+        index: UsizeValue,
+        value: I32Value,
+    },
+    StoreUsizeToSliceIndex {
+        destination: SliceLocation,
+        index: UsizeValue,
+        value: UsizeValue,
+    },
+    StoreBoolToSliceIndex {
+        destination: SliceLocation,
+        index: UsizeValue,
+        value: BoolValue,
+    },
+    StoreStrToSliceIndex {
+        destination: SliceLocation,
+        index: UsizeValue,
+        value: StrValue,
+    },
     AddI32 {
         destination: I32Location,
         left: I32Value,

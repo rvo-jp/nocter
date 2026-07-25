@@ -496,7 +496,7 @@ fn is_assignment_target(expression: &Expr) -> bool {
     match expression {
         Expr::Identifier(_) => true,
         Expr::Member(member) => is_assignment_target(&member.object),
-        Expr::Index(index) => is_assignment_target(&index.object),
+        Expr::Index(_) => true,
         Expr::Group(group) => is_assignment_target(&group.expression),
         _ => false,
     }

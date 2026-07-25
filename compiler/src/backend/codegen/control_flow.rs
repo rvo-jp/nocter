@@ -412,6 +412,11 @@ fn instruction_list_ends_execution(instructions: &[Instruction]) -> bool {
             | Instruction::StoreUsizeToPointer { .. }
             | Instruction::StoreBoolToPointer { .. }
             | Instruction::StoreStrToPointer { .. }
+            | Instruction::StoreU8ToSliceIndex { .. }
+            | Instruction::StoreI32ToSliceIndex { .. }
+            | Instruction::StoreUsizeToSliceIndex { .. }
+            | Instruction::StoreBoolToSliceIndex { .. }
+            | Instruction::StoreStrToSliceIndex { .. }
             | Instruction::ReserveAggregateSlot { .. }
             | Instruction::StoreAggregateUsize { .. }
             | Instruction::StoreAggregateI32 { .. }

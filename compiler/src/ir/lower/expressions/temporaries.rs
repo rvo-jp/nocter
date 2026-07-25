@@ -22,14 +22,14 @@ pub(super) struct LoweredUsizeValue {
     pub(super) value: UsizeValue,
 }
 
-pub(super) struct LoweredStrValue {
-    pub(super) instructions: Vec<Instruction>,
-    pub(super) value: StrValue,
+pub(in crate::ir::lower) struct LoweredStrValue {
+    pub(in crate::ir::lower) instructions: Vec<Instruction>,
+    pub(in crate::ir::lower) value: StrValue,
 }
 
-pub(super) struct LoweredSliceValue {
-    pub(super) instructions: Vec<Instruction>,
-    pub(super) value: SliceValue,
+pub(in crate::ir::lower) struct LoweredSliceValue {
+    pub(in crate::ir::lower) instructions: Vec<Instruction>,
+    pub(in crate::ir::lower) value: SliceValue,
 }
 
 pub(in crate::ir::lower) struct TemporaryAllocator {

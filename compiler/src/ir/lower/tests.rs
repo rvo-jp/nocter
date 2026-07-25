@@ -16487,6 +16487,154 @@ func echo(bytes: &+[u8]): &+[u8] {
 }
 
 #[test]
+fn lowers_readwrite_u8_slice_index_assignment() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func fill(bytes: &+[u8]): void {
+    bytes[0] = 7
+    return
+}
+"#,
+        "fill",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "fill".to_string(),
+            target: crate::ir::CallTarget::same_file("fill".to_string()),
+            return_type: Type::Void,
+            instructions: vec![
+                Instruction::StoreU8ToSliceIndex {
+                    destination: SliceLocation::Parameter(0),
+                    index: UsizeValue::Const(0),
+                    value: U8Value::Const(7),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_readwrite_u8_call_result_slice_index_assignment() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func fill(bytes: &+[u8]): void {
+    identity(bytes)[1] = 9
+    return
+}
+
+func identity(bytes: &+[u8]): &+[u8] {
+    return bytes
+}
+"#,
+        "fill",
+        function_signatures(vec![(
+            "identity",
+            readwrite_u8_slice_type(),
+            vec![readwrite_u8_slice_type()],
+        )]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "fill".to_string(),
+            target: crate::ir::CallTarget::same_file("fill".to_string()),
+            return_type: Type::Void,
+            instructions: vec![
+                call_slice(
+                    SliceLocation::Local(0),
+                    "identity",
+                    vec![ScalarArgument::Slice(SliceValue::Location(
+                        SliceLocation::Parameter(0),
+                    ))],
+                ),
+                Instruction::StoreU8ToSliceIndex {
+                    destination: SliceLocation::Local(0),
+                    index: UsizeValue::Const(1),
+                    value: U8Value::Const(9),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_readwrite_u8_call_result_slice_index_assignment_without_temporary_collision() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func fill(bytes: &+[u8], indices: &[usize]): void {
+    identity(bytes)[indices[0]] = byte()
+    return
+}
+
+func identity(bytes: &+[u8]): &+[u8] {
+    return bytes
+}
+
+func byte(): u8 {
+    return 7
+}
+"#,
+        "fill",
+        function_signatures(vec![
+            (
+                "identity",
+                readwrite_u8_slice_type(),
+                vec![readwrite_u8_slice_type()],
+            ),
+            ("byte", Type::U8, vec![]),
+        ]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "fill".to_string(),
+            target: crate::ir::CallTarget::same_file("fill".to_string()),
+            return_type: Type::Void,
+            instructions: vec![
+                call_slice(
+                    SliceLocation::Local(0),
+                    "identity",
+                    vec![ScalarArgument::Slice(SliceValue::Location(
+                        SliceLocation::Parameter(0),
+                    ))],
+                ),
+                Instruction::SetUsize {
+                    destination: UsizeLocation::Local(2),
+                    value: UsizeValue::SliceIndex {
+                        source: SliceLocation::Parameter(2),
+                        index: Box::new(usize_const(0)),
+                    },
+                },
+                call_u8(U8Location::Local(3), "byte", vec![]),
+                Instruction::StoreU8ToSliceIndex {
+                    destination: SliceLocation::Local(0),
+                    index: usize_local(2),
+                    value: U8Value::Location(U8Location::Local(3)),
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_u8_slice_alias_parameter_and_return() {
     let function = lower_named_function(
         r#"type Bytes = [u8]

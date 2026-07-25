@@ -205,7 +205,7 @@ Bool short-circuit value expressions with calls, such as `let ready = enabled() 
 `&str` equality and inequality lower through the two-word string view representation and are part of the v0 backend subset.
 Loaded imported calls use the same narrow call subset as same-file calls. Reachable unloaded imported placeholders are rejected by the buildability preflight before IR lowering.
 Non-terminal `i32` and `usize` range `for` loops lower to `Instruction::While` with start and end stored once in scalar locals, a `<` condition over those locals, and an increment at the end of normal iteration or immediately before a lowered `continue`.
-Whole-binding `i32` and `usize` compound assignments lower to the same scalar arithmetic instructions as explicit `target = target op value`, preserving the existing overflow and divide-by-zero trap checks. Aggregate scalar field `i32` and `usize` compound assignments load the field into a scalar temporary, reuse the same checked arithmetic instruction, then store the result back to the field offset.
+Whole-binding `i32` and `usize` compound assignments lower to the same scalar arithmetic instructions as explicit `target = target op value`, preserving the existing overflow and divide-by-zero trap checks. Aggregate scalar field `i32` and `usize` compound assignments load the field into a scalar temporary, reuse the same checked arithmetic instruction, then store the result back to the field offset. Read-write slice element assignments for `u8`, `i32`, `usize`, `bool`, and `&str` lower to bounds-checked typed stores through the slice pointer/length pair.
 Ignored `i32`, `u8`, `usize`, `bool`, `&str`, and u8-slice normal-call expression statements lower as ordinary calls into temporary scalar/view locals.
 Ignored fallible scalar/view/void calls handled with `?`, `!`, or `catch` lower through the matching fallible call instruction and discard the success value in a temporary local.
 Ignored aggregate normal and fallible call expression statements lower by reserving a temporary aggregate slot, writing the call result into that slot, and immediately running drop glue for non-copy results that define `drop`.
@@ -277,7 +277,7 @@ Stack-passed normal-call arguments are buildable for the current scalar/view and
 
 Do not combine normal-call work with:
 
-- stack-backed `var` and reassignment
+- broad stack-backed `var` and reassignment outside the documented scalar/view/aggregate subset
 - general loops or broader non-terminal control flow beyond the narrow scalar/view plus branch/body-local `if`/`while`/`loop`/`i32`/`usize` range-`for` subset, including non-`i32`/`usize` range `for`
 - imported calls or external linking
 - aggregate forms outside the current supported slot/call-result subset
