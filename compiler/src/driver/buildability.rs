@@ -1442,6 +1442,17 @@ fn collect_expression_diagnostics(
             if let Some(diagnostic) = &check_only_std_call {
                 diagnostics.push(diagnostic.clone());
             }
+            let unsupported_std_vec_element_call = unsupported_std_vec_element_call_diagnostic(
+                sources,
+                expression,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                nocter_home,
+            );
+            if let Some(diagnostic) = &unsupported_std_vec_element_call {
+                diagnostics.push(diagnostic.clone());
+            }
             if let Some(diagnostic) =
                 unsupported_unloaded_imported_call_diagnostic(sources, expression, resolved)
             {
@@ -1486,6 +1497,7 @@ fn collect_expression_diagnostics(
                 diagnostics,
             );
             if check_only_std_call.is_none()
+                && unsupported_std_vec_element_call.is_none()
                 && let Some(target) = call_target_for_call(
                     expression,
                     resolved,
@@ -1639,6 +1651,106 @@ fn collect_expression_diagnostics(
     }
 }
 
+fn unsupported_std_vec_element_call_diagnostic(
+    sources: &SourceMap,
+    call: &CallExpr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    nocter_home: Option<&Path>,
+) -> Option<Diagnostic> {
+    let element = std_vec_element_storage_type(
+        sources,
+        call,
+        typecheck_facts,
+        generic_substitutions,
+        nocter_home,
+    )?;
+    if type_expr_is_supported_std_vec_element_storage(&element, resolved) {
+        return None;
+    }
+
+    Some(unsupported_v0_build_diagnostic(
+        sources,
+        call.span,
+        "`Vec` element storage outside scalar and `&str`",
+        "use `Vec<i32>`, `Vec<u8>`, `Vec<usize>`, `Vec<bool>`, or `Vec<&str>` until broader element storage and per-element drop glue are promoted",
+    ))
+}
+
+fn std_vec_element_storage_type(
+    sources: &SourceMap,
+    call: &CallExpr,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    nocter_home: Option<&Path>,
+) -> Option<TypeExpr> {
+    if let Expr::Member(member) = call.callee.as_ref()
+        && let Some(specialization) =
+            concrete_method_call_specialization(member, typecheck_facts, generic_substitutions)
+        && source_is_std_vec(sources, specialization.declaration_span.source, nocter_home)
+        && declaration_name(sources, specialization.declaration_span) == Some("push")
+    {
+        return specialization.substitutions.get("T").cloned();
+    }
+
+    let specialization =
+        concrete_function_call_specialization(call, typecheck_facts, generic_substitutions)?;
+    if !source_is_std_vec(sources, specialization.declaration_span.source, nocter_home) {
+        return None;
+    }
+    match declaration_name(sources, specialization.declaration_span)? {
+        "push" | "from_slice" => specialization.substitutions.get("T").cloned(),
+        _ => None,
+    }
+}
+
+fn type_expr_is_supported_std_vec_element_storage(ty: &TypeExpr, resolved: &ResolveOutput) -> bool {
+    type_expr_is_supported_std_vec_element_storage_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn type_expr_is_supported_std_vec_element_storage_inner(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> bool {
+    match ty {
+        TypeExpr::Reference(reference)
+            if matches!(reference.name.as_str(), "i32" | "u8" | "usize" | "bool") =>
+        {
+            true
+        }
+        TypeExpr::Borrow(borrow)
+            if !borrow.is_readwrite
+                && matches!(borrow.inner.as_ref(), TypeExpr::Reference(reference) if reference.name == "str") =>
+        {
+            true
+        }
+        TypeExpr::Reference(reference) => {
+            let Some(symbol) = resolved.type_symbol_by_reference_name(&reference.name) else {
+                return false;
+            };
+            if symbol.kind != TypeSymbolKind::Alias {
+                return false;
+            }
+            let Some(target) = &symbol.alias_target else {
+                return false;
+            };
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return false;
+            }
+            let supported = type_expr_is_supported_std_vec_element_storage_inner(
+                target,
+                resolved,
+                resolving_names,
+            );
+            resolving_names.remove(&symbol.canonical_name);
+            supported
+        }
+        _ => false,
+    }
+}
+
 fn unsupported_check_only_std_call_diagnostic(
     sources: &SourceMap,
     call: &CallExpr,
@@ -1656,10 +1768,7 @@ fn unsupported_check_only_std_call_diagnostic(
         return None;
     }
 
-    let declaration_name = sources
-        .get(symbol.declaration_span.source)?
-        .text()
-        .get(symbol.declaration_span.start..symbol.declaration_span.end)?;
+    let declaration_name = declaration_name(sources, symbol.declaration_span)?;
     match declaration_name {
         "env" => Some(unsupported_v0_build_diagnostic(
             sources,
@@ -1671,10 +1780,27 @@ fn unsupported_check_only_std_call_diagnostic(
     }
 }
 
+fn declaration_name(sources: &SourceMap, span: ByteSpan) -> Option<&str> {
+    sources.get(span.source)?.text().get(span.start..span.end)
+}
+
 fn source_is_std_process(
     sources: &SourceMap,
     source: SourceId,
     nocter_home: Option<&Path>,
+) -> bool {
+    source_is_std_module(sources, source, nocter_home, Path::new("std/process.nct"))
+}
+
+fn source_is_std_vec(sources: &SourceMap, source: SourceId, nocter_home: Option<&Path>) -> bool {
+    source_is_std_module(sources, source, nocter_home, Path::new("std/vec.nct"))
+}
+
+fn source_is_std_module(
+    sources: &SourceMap,
+    source: SourceId,
+    nocter_home: Option<&Path>,
+    relative_path: &Path,
 ) -> bool {
     let Some(nocter_home) = nocter_home else {
         return false;
@@ -1684,7 +1810,7 @@ fn source_is_std_process(
         .get(source)
         .and_then(|file| file.absolute_path())
         .and_then(|path| path.strip_prefix(nocter_home).ok())
-        .is_some_and(|relative| relative == Path::new("std/process.nct"))
+        .is_some_and(|relative| relative == relative_path)
 }
 
 fn unsupported_unloaded_imported_call_diagnostic(

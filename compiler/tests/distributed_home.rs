@@ -915,6 +915,138 @@ func main(): i32 {
     );
 }
 
+#[test]
+fn distributed_std_vec_rejects_aggregate_push_before_ir_lowering() {
+    let project = TempProject::new("distributed-home-vec-aggregate-push-boundary");
+    let source = project.write_source(
+        "vec_aggregate_push_boundary.nct",
+        r#"use std/vec.Vec
+
+copy struct Pair {
+    pub value: i32
+}
+
+func main(): i32! {
+    var values: Vec<Pair> = Vec.empty()
+    values.push(Pair { value: 1 })?
+    return 0
+}
+"#,
+    );
+    let executable = project.root().join("vec_aggregate_push_boundary");
+
+    let output = nocter_build(&project, &source, &executable);
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("`Vec` element storage outside scalar and `&str`"),
+        "expected Vec element storage boundary diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("9 |     values.push(Pair { value: 1 })?"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
+fn distributed_std_vec_rejects_aggregate_free_push_before_ir_lowering() {
+    let project = TempProject::new("distributed-home-vec-aggregate-free-push-boundary");
+    let source = project.write_source(
+        "vec_aggregate_free_push_boundary.nct",
+        r#"use std/vec.{Vec, push}
+
+copy struct Pair {
+    pub value: i32
+}
+
+func main(): i32! {
+    var values: Vec<Pair> = Vec.empty()
+    push(&+values, Pair { value: 1 })?
+    return 0
+}
+"#,
+    );
+    let executable = project.root().join("vec_aggregate_free_push_boundary");
+
+    let output = nocter_build(&project, &source, &executable);
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("`Vec` element storage outside scalar and `&str`"),
+        "expected Vec element storage boundary diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("9 |     push(&+values, Pair { value: 1 })?"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
+fn distributed_std_vec_rejects_aggregate_from_slice_before_ir_lowering() {
+    let project = TempProject::new("distributed-home-vec-aggregate-from-slice-boundary");
+    let source = project.write_source(
+        "vec_aggregate_from_slice_boundary.nct",
+        r#"use std/mem.page_allocator
+use std/vec.Vec
+
+copy struct Pair {
+    pub value: i32
+}
+
+func main(): i32! {
+    var allocator = page_allocator()
+    let values: Vec<Pair> = Vec.empty()
+    let copy = Vec.from_slice(&+allocator, values.view())?
+    return 0
+}
+"#,
+    );
+    let executable = project.root().join("vec_aggregate_from_slice_boundary");
+
+    let output = nocter_build(&project, &source, &executable);
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("`Vec` element storage outside scalar and `&str`"),
+        "expected Vec element storage boundary diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("11 |     let copy = Vec.from_slice(&+allocator, values.view())?"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn distributed_std_error_helper_return_runs() {
