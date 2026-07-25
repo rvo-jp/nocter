@@ -832,9 +832,11 @@ fn distributed_std_vec_push_str_values_runs() {
     let project = TempProject::new("distributed-home-vec-push-str-run");
     let source = project.write_source(
         "vec_push_str.nct",
-        r#"use std/vec.Vec
+        r#"use std/mem.page_allocator
+use std/vec.Vec
 
 func main(): i32! {
+    var allocator = page_allocator()
     var values: Vec<&str> = Vec.empty()
     values.push("first")?
     values.push("second")?
@@ -846,6 +848,22 @@ func main(): i32! {
     }
     if values.view().len() != 2 {
         return 3
+    }
+    if values.view()[0] != "first" {
+        return 4
+    }
+    if values.view()[1] != "second" {
+        return 5
+    }
+    let copy: Vec<&str> = Vec.from_slice(&+allocator, values.view())?
+    if copy.len() != 2 {
+        return 6
+    }
+    if copy.view()[0] != "first" {
+        return 7
+    }
+    if copy.view()[1] != "second" {
+        return 8
     }
     return 0
 }

@@ -513,6 +513,10 @@ fn expression_is_lowerable_str_expression(expression: &Expr, context: &LoweringC
         Expr::Catch(catch) => {
             expression_is_lowerable_fallible_str_expression(&catch.expression, context)
         }
+        Expr::Index(index) => {
+            expression_is_lowerable_str_slice_index_object(&index.object, context)
+                && expression_is_lowerable_usize_expression(&index.index, context)
+        }
         Expr::Group(group) => expression_is_lowerable_str_expression(&group.expression, context),
         _ => expression_is_lowerable_str_value(expression, context),
     }
@@ -568,6 +572,23 @@ fn expression_is_lowerable_slice_index_object(
         Expr::Call(call) => call_return_slice_element_type(call, context) == Some(Type::Usize),
         Expr::Group(group) => {
             expression_is_lowerable_slice_index_object(&group.expression, context)
+        }
+        _ => false,
+    }
+}
+
+fn expression_is_lowerable_str_slice_index_object(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    match expression {
+        Expr::Identifier(identifier) => {
+            identifier_slice_element_kind(identifier, context)
+                == Some(TypecheckSliceElementKind::Str)
+        }
+        Expr::Call(call) => call_return_slice_element_type(call, context) == Some(Type::Str),
+        Expr::Group(group) => {
+            expression_is_lowerable_str_slice_index_object(&group.expression, context)
         }
         _ => false,
     }

@@ -16813,6 +16813,40 @@ func first(values: &[usize]): usize {
 }
 
 #[test]
+fn lowers_str_slice_index_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func first(values: &[&str]): &str {
+    return values[0]
+}
+"#,
+        "first",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "first".to_string(),
+            target: crate::ir::CallTarget::same_file("first".to_string()),
+            return_type: Type::Str,
+            instructions: vec![
+                Instruction::SetStr {
+                    destination: StrLocation::Return,
+                    value: StrValue::SliceIndex {
+                        source: SliceLocation::Parameter(0),
+                        index: usize_const(0),
+                    },
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_usize_slice_call_result_index_return() {
     let function = lower_named_function_with_signatures(
         r#"func main(): i32 {

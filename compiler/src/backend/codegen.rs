@@ -958,6 +958,7 @@ impl EntryEmitter {
         match value {
             StrValue::StaticBytes(_) => Ok([None, None]),
             StrValue::Location(location) => self.str_location_source_registers(*location),
+            StrValue::SliceIndex { .. } => Ok([None, None]),
         }
     }
 

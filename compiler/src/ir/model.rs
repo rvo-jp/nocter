@@ -584,6 +584,10 @@ pub(crate) enum BorrowSource {
 pub(crate) enum StrValue {
     StaticBytes(Vec<u8>),
     Location(StrLocation),
+    SliceIndex {
+        source: SliceLocation,
+        index: UsizeValue,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

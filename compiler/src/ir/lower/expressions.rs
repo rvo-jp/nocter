@@ -401,8 +401,16 @@ pub(super) fn lower_str_expression_to_location(
         Expr::Group(group) => {
             lower_str_expression_to_location(&group.expression, destination, context)
         }
-        _ => lower_str_value(expression, context)
-            .map(|value| vec![Instruction::SetStr { destination, value }]),
+        _ => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let value = lower_str_expression_to_value(expression, context, &mut temporaries)?;
+            let mut instructions = value.instructions;
+            instructions.push(Instruction::SetStr {
+                destination,
+                value: value.value,
+            });
+            Ok(instructions)
+        }
     }
 }
 
@@ -1974,6 +1982,9 @@ fn lower_str_expression_to_value(
                 value: StrValue::Location(temporary),
             })
         }
+        Expr::Index(index) => {
+            lower_str_slice_index_expression_to_value(index, context, temporaries)
+        }
         Expr::Group(group) => {
             lower_str_expression_to_value(&group.expression, context, temporaries)
         }
@@ -3479,15 +3490,35 @@ fn lower_str_comparison_to_value_with_temporaries(
     let right = lower_str_expression_to_value(&binary.right, context, temporaries)?;
 
     let mut instructions = left.instructions;
+    let left = materialize_str_slice_index_value(left.value, &mut instructions, temporaries)?;
     instructions.extend(right.instructions);
+    let right = materialize_str_slice_index_value(right.value, &mut instructions, temporaries)?;
     Ok(LoweredBoolValue {
         instructions,
         value: BoolValue::StrComparison {
             operator,
-            left: left.value,
-            right: right.value,
+            left,
+            right,
         },
     })
+}
+
+fn materialize_str_slice_index_value(
+    value: StrValue,
+    instructions: &mut Vec<Instruction>,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<StrValue, Vec<Diagnostic>> {
+    match value {
+        StrValue::SliceIndex { .. } => {
+            let temporary = temporaries.next_str()?;
+            instructions.push(Instruction::SetStr {
+                destination: temporary,
+                value,
+            });
+            Ok(StrValue::Location(temporary))
+        }
+        StrValue::StaticBytes(_) | StrValue::Location(_) => Ok(value),
+    }
 }
 
 fn lower_i32_comparison_to_value_with_temporaries(
@@ -3680,18 +3711,30 @@ fn lower_u8_index_expression_to_value(
         LoweredByteCollectionValue::Str(source) => {
             let mut instructions = source.instructions;
             instructions.extend(index.instructions);
-            Ok(LoweredU8Value {
-                instructions,
-                value: match source.value {
-                    StrValue::StaticBytes(bytes) => U8Value::StaticStrIndex {
-                        bytes,
-                        index: index.value,
-                    },
-                    StrValue::Location(source) => U8Value::StrIndex {
+            let value = match source.value {
+                StrValue::StaticBytes(bytes) => U8Value::StaticStrIndex {
+                    bytes,
+                    index: index.value,
+                },
+                StrValue::Location(source) => U8Value::StrIndex {
+                    source,
+                    index: index.value,
+                },
+                value @ StrValue::SliceIndex { .. } => {
+                    let source = temporaries.next_str()?;
+                    instructions.push(Instruction::SetStr {
+                        destination: source,
+                        value,
+                    });
+                    U8Value::StrIndex {
                         source,
                         index: index.value,
-                    },
-                },
+                    }
+                }
+            };
+            Ok(LoweredU8Value {
+                instructions,
+                value,
             })
         }
         LoweredByteCollectionValue::Slice(source) => {
@@ -3709,6 +3752,17 @@ fn lower_u8_index_expression_to_value(
                     source,
                     index: index.value,
                 },
+                SliceValue::StrBytes(value @ StrValue::SliceIndex { .. }) => {
+                    let source = temporaries.next_str()?;
+                    instructions.push(Instruction::SetStr {
+                        destination: source,
+                        value,
+                    });
+                    U8Value::StrIndex {
+                        source,
+                        index: index.value,
+                    }
+                }
             };
             instructions.extend(index.instructions);
             Ok(LoweredU8Value {
@@ -3738,6 +3792,29 @@ fn lower_usize_slice_index_expression_to_value(
         value: UsizeValue::SliceIndex {
             source,
             index: Box::new(index.value),
+        },
+    })
+}
+
+fn lower_str_slice_index_expression_to_value(
+    expression: &IndexExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredStrValue, Vec<Diagnostic>> {
+    let source = lower_slice_expression_to_value(&expression.object, context, temporaries)?;
+    let index = lower_usize_expression_to_value(&expression.index, context, temporaries)?;
+    let mut instructions = source.instructions;
+    instructions.extend(index.instructions);
+
+    let SliceValue::Location(source) = source.value else {
+        return Err(unsupported_str_expression_diagnostic());
+    };
+
+    Ok(LoweredStrValue {
+        instructions,
+        value: StrValue::SliceIndex {
+            source,
+            index: index.value,
         },
     })
 }
@@ -3924,32 +4001,49 @@ fn lower_byte_collection_len_expression_to_value(
     context: &LoweringContext,
     temporaries: &mut TemporaryAllocator,
 ) -> Result<LoweredUsizeValue, Vec<Diagnostic>> {
-    lower_byte_collection_expression_to_value(expression, context, temporaries).map(|source| {
-        match source {
-            LoweredByteCollectionValue::Str(source) => LoweredUsizeValue {
-                instructions: source.instructions,
-                value: match source.value {
-                    StrValue::StaticBytes(bytes) => UsizeValue::Const(bytes.len() as u64),
-                    StrValue::Location(location) => UsizeValue::StrLen(location),
-                },
-            },
-            LoweredByteCollectionValue::Slice(source) => {
-                let value = match source.value {
-                    SliceValue::Location(location) => UsizeValue::SliceLen(location),
-                    SliceValue::StrBytes(StrValue::StaticBytes(bytes)) => {
-                        UsizeValue::Const(bytes.len() as u64)
-                    }
-                    SliceValue::StrBytes(StrValue::Location(location)) => {
-                        UsizeValue::StrLen(location)
-                    }
-                };
-                LoweredUsizeValue {
-                    instructions: source.instructions,
-                    value,
+    match lower_byte_collection_expression_to_value(expression, context, temporaries)? {
+        LoweredByteCollectionValue::Str(source) => {
+            let mut instructions = source.instructions;
+            let value = match source.value {
+                StrValue::StaticBytes(bytes) => UsizeValue::Const(bytes.len() as u64),
+                StrValue::Location(location) => UsizeValue::StrLen(location),
+                value @ StrValue::SliceIndex { .. } => {
+                    let temporary = temporaries.next_str()?;
+                    instructions.push(Instruction::SetStr {
+                        destination: temporary,
+                        value,
+                    });
+                    UsizeValue::StrLen(temporary)
                 }
-            }
+            };
+            Ok(LoweredUsizeValue {
+                instructions,
+                value,
+            })
         }
-    })
+        LoweredByteCollectionValue::Slice(source) => {
+            let mut instructions = source.instructions;
+            let value = match source.value {
+                SliceValue::Location(location) => UsizeValue::SliceLen(location),
+                SliceValue::StrBytes(StrValue::StaticBytes(bytes)) => {
+                    UsizeValue::Const(bytes.len() as u64)
+                }
+                SliceValue::StrBytes(StrValue::Location(location)) => UsizeValue::StrLen(location),
+                SliceValue::StrBytes(value @ StrValue::SliceIndex { .. }) => {
+                    let temporary = temporaries.next_str()?;
+                    instructions.push(Instruction::SetStr {
+                        destination: temporary,
+                        value,
+                    });
+                    UsizeValue::StrLen(temporary)
+                }
+            };
+            Ok(LoweredUsizeValue {
+                instructions,
+                value,
+            })
+        }
+    }
 }
 
 pub(super) fn lower_bool_value(

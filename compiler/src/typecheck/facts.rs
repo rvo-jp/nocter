@@ -257,6 +257,7 @@ pub(crate) enum TypecheckScalarViewKind {
 pub(crate) enum TypecheckSliceElementKind {
     U8,
     Usize,
+    Str,
     Other,
 }
 
@@ -1972,6 +1973,7 @@ fn slice_element_kind(element: &Type) -> TypecheckSliceElementKind {
     match element {
         Type::Primitive(name) if name == "u8" => TypecheckSliceElementKind::U8,
         Type::Primitive(name) if name == "usize" => TypecheckSliceElementKind::Usize,
+        Type::Str => TypecheckSliceElementKind::Str,
         _ => TypecheckSliceElementKind::Other,
     }
 }

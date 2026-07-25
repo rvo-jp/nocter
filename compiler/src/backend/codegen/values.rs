@@ -2264,6 +2264,58 @@ impl EntryEmitter {
         self.encoder.emit_ldr_x_imm(destination, XReg::X17, 0);
     }
 
+    fn emit_checked_str_slice_index_to_x_pair(
+        &mut self,
+        source: SliceLocation,
+        index: &UsizeValue,
+        ptr_destination: XReg,
+        len_destination: XReg,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_checked_str_slice_element_address(source, index)?;
+        self.encoder.emit_ldr_x_imm(ptr_destination, XReg::X8, 0);
+        self.encoder.emit_ldr_x_imm(len_destination, XReg::X8, 8);
+        Ok(())
+    }
+
+    fn emit_checked_str_slice_element_address(
+        &mut self,
+        source: SliceLocation,
+        index: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_usize_value_to_x(index, XReg::X16)?;
+        match source {
+            SliceLocation::Parameter(ptr_word_index) => {
+                let len_word_index = ptr_word_index.checked_add(1).ok_or_else(|| {
+                    indexed_load_diagnostic("parameter slice length word index overflows")
+                })?;
+                self.emit_parameter_word_to_x(len_word_index, XReg::X17)?;
+                self.emit_index_in_bounds_check(XReg::X16, XReg::X17)?;
+                self.emit_parameter_word_to_x(ptr_word_index, XReg::X17)?;
+            }
+            SliceLocation::Local(ptr_word_index) => {
+                let len_word_index = ptr_word_index.checked_add(1).ok_or_else(|| {
+                    indexed_load_diagnostic("local slice length word index overflows")
+                })?;
+                self.emit_local_word_to_x(len_word_index, XReg::X17)?;
+                self.emit_index_in_bounds_check(XReg::X16, XReg::X17)?;
+                self.emit_local_word_to_x(ptr_word_index, XReg::X17)?;
+            }
+            SliceLocation::Return => {
+                let (ptr, len) = self.slice_location_registers(source)?;
+                if len != XReg::X17 {
+                    self.encoder.emit_mov_x(XReg::X17, len);
+                }
+                self.emit_index_in_bounds_check(XReg::X16, XReg::X17)?;
+                if ptr != XReg::X17 {
+                    self.encoder.emit_mov_x(XReg::X17, ptr);
+                }
+            }
+        }
+        self.encoder.emit_lsl_x_imm(XReg::X16, XReg::X16, 4);
+        self.encoder.emit_adds_x(XReg::X8, XReg::X17, XReg::X16);
+        Ok(())
+    }
+
     fn emit_index_in_bounds_check(
         &mut self,
         index: XReg,
@@ -2395,6 +2447,19 @@ impl EntryEmitter {
             StrValue::Location(StrLocation::Local(index)) => {
                 self.emit_local_word_to_x(*index, destination)?;
             }
+            StrValue::SliceIndex { source, index } => {
+                let len_scratch = if destination == XReg::X17 {
+                    XReg::X16
+                } else {
+                    XReg::X17
+                };
+                self.emit_checked_str_slice_index_to_x_pair(
+                    *source,
+                    index,
+                    destination,
+                    len_scratch,
+                )?;
+            }
         }
         Ok(())
     }
@@ -2420,6 +2485,14 @@ impl EntryEmitter {
             StrValue::Location(StrLocation::Local(index)) => {
                 let len_index = pair_len_index(*index, "local str")?;
                 self.emit_local_word_to_x(len_index, destination)?;
+            }
+            StrValue::SliceIndex { source, index } => {
+                self.emit_checked_str_slice_index_to_x_pair(
+                    *source,
+                    index,
+                    XReg::X16,
+                    destination,
+                )?;
             }
         }
         Ok(())
@@ -2456,6 +2529,14 @@ impl EntryEmitter {
                         len_destination,
                     )?;
                 }
+            }
+            StrValue::SliceIndex { source, index } => {
+                self.emit_checked_str_slice_index_to_x_pair(
+                    *source,
+                    index,
+                    ptr_destination,
+                    len_destination,
+                )?;
             }
         }
 

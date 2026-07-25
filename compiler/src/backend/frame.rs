@@ -1639,6 +1639,10 @@ fn record_str_value_parameter_spill_requests(value: &StrValue, requests: &mut BT
         StrValue::Location(location) => {
             record_str_location_parameter_pair_spill_requests(*location, requests);
         }
+        StrValue::SliceIndex { source, index } => {
+            record_slice_location_parameter_pair_spill_requests(*source, requests);
+            record_usize_value_parameter_spill_requests(index, requests);
+        }
     }
 }
 
@@ -2378,6 +2382,10 @@ fn record_str_value(value: &StrValue, highest_local_index: &mut Option<usize>) {
     match value {
         StrValue::StaticBytes(_) => {}
         StrValue::Location(location) => record_str_location(*location, highest_local_index),
+        StrValue::SliceIndex { source, index } => {
+            record_slice_location(*source, highest_local_index);
+            record_usize_value(index, highest_local_index);
+        }
     }
 }
 
