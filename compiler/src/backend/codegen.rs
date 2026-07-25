@@ -3622,6 +3622,80 @@ mod tests {
     }
 
     #[test]
+    fn generates_slice_index_i32_load_from_hand_built_ir() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "first".to_string(),
+                target: crate::ir::CallTarget::same_file("first".to_string()),
+                return_type: Type::I32,
+                instructions: vec![
+                    Instruction::SetI32 {
+                        destination: I32Location::Return,
+                        value: I32Value::SliceIndex {
+                            source: SliceLocation::Parameter(0),
+                            index: UsizeValue::Const(1),
+                        },
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module).unwrap();
+
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+        assert!(contains_instruction(
+            &code.text,
+            encoded_lsl_x_imm(XReg::X16, XReg::X16, 2),
+        ));
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldr_w_reg(WReg::W0, XReg::X17, XReg::X16),
+        ));
+    }
+
+    #[test]
+    fn generates_slice_index_bool_load_from_hand_built_ir() {
+        let module = IrModule::new(vec![
+            Function {
+                name: "main".to_string(),
+                target: crate::ir::CallTarget::same_file("main".to_string()),
+                return_type: Type::I32,
+                instructions: vec![set_return_i32(0), Instruction::Return],
+            },
+            Function {
+                name: "first".to_string(),
+                target: crate::ir::CallTarget::same_file("first".to_string()),
+                return_type: Type::Bool,
+                instructions: vec![
+                    Instruction::SetBool {
+                        destination: BoolLocation::Return,
+                        value: BoolValue::SliceIndex {
+                            source: SliceLocation::Parameter(0),
+                            index: UsizeValue::Const(1),
+                        },
+                    },
+                    Instruction::Return,
+                ],
+            },
+        ]);
+
+        let code = generate_arm64_darwin_entry(&module).unwrap();
+
+        assert!(contains_instruction(&code.text, [0x00, 0x00, 0x20, 0xd4])); // brk #0
+        assert!(contains_instruction(
+            &code.text,
+            encoded_ldrb_w_reg(WReg::W0, XReg::X17, XReg::X16),
+        ));
+    }
+
+    #[test]
     fn generates_stack_passed_slice_index_byte_load_from_hand_built_ir() {
         let module = IrModule::new(vec![
             Function {
@@ -7010,6 +7084,12 @@ mod tests {
         encoded_instruction(encoder)
     }
 
+    fn encoded_ldr_w_reg(register: WReg, base: XReg, offset: XReg) -> [u8; 4] {
+        let mut encoder = Encoder::new();
+        encoder.emit_ldr_w_reg(register, base, offset);
+        encoded_instruction(encoder)
+    }
+
     fn encoded_ldr_w_sp(register: WReg, offset: u32) -> [u8; 4] {
         let mut encoder = Encoder::new();
         encoder.emit_ldr_w_sp(register, offset);
@@ -7019,6 +7099,12 @@ mod tests {
     fn encoded_ldrb_w_sp(register: WReg, offset: u32) -> [u8; 4] {
         let mut encoder = Encoder::new();
         encoder.emit_ldrb_w_sp(register, offset);
+        encoded_instruction(encoder)
+    }
+
+    fn encoded_ldrb_w_reg(register: WReg, base: XReg, offset: XReg) -> [u8; 4] {
+        let mut encoder = Encoder::new();
+        encoder.emit_ldrb_w_reg(register, base, offset);
         encoded_instruction(encoder)
     }
 
