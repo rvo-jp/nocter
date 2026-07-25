@@ -42,6 +42,34 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: reject unsupported Vec element storage before IR
+  - rejects distributed `std/vec.push`, method `Vec.push`, and
+    `Vec.from_slice` calls when concrete `T` is outside the v0 runtime-shipped
+    scalar and `&str` element subset
+  - keeps supported `Vec<i32>`, `Vec<u8>`, `Vec<usize>`, `Vec<bool>`, and
+    `Vec<&str>` storage/growth/copy paths buildable while stopping aggregate
+    element storage at the user call site
+  - updates implementation status so the deferred `Vec` element-storage
+    boundary is recorded as buildability-preflight rejection rather than an
+    accidental IR/backend unsupported path
+- Current checkpoint: tighten buildability boundary edges
+  - covers nested fallible/optional associated function returns so the existing
+    function return preflight remains locked for associated-call targets
+  - covers bare `use std/process` calls to check-only `env` so `std/process.env`
+    does not leak nested fallible/optional return diagnostics or E800x lowering
+    errors through alternate import spelling
+- Current checkpoint: reject nested fallible method returns before IR
+  - applies the existing nested fallible/optional return boundary to reachable
+    method bodies, not only top-level function declarations
+  - keeps unused methods with nested returns out of the reachable preflight
+    queue, matching the existing unreachable function behavior
+- Current checkpoint: resolve chained public reexports
+  - follows chained `pub use` exports when resolving explicit imports and bare
+    public exports
+  - preserves hidden imported signature type dependencies through re-exported
+    functions such as a facade `std/process.args`
+  - guards re-export lookup cycles by `(source, name)` so cyclic facades report
+    stable missing-export diagnostics instead of recursing indefinitely
 - Current checkpoint: lower u16 and u32 aggregate field literals
   - adds `StoreAggregateU16` and `StoreAggregateU32` IR for aggregate field literal stores without introducing general u16/u32 scalar locals yet
   - lowers u16/u32 fields in aggregate struct literals and readwrite aggregate field assignments, including slot-backed direct aggregate returns and by-value aggregate arguments
