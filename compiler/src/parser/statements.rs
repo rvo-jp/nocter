@@ -496,24 +496,12 @@ fn is_assignment_target(expression: &Expr) -> bool {
     match expression {
         Expr::Identifier(_) => true,
         Expr::Member(member) => is_assignment_target(&member.object),
+        Expr::Index(index) => is_assignment_target(&index.object),
         Expr::Group(group) => is_assignment_target(&group.expression),
         _ => false,
     }
 }
 
-fn assignment_target_error(expression: &Expr) -> &'static str {
-    if expression_contains_index(expression) {
-        "index assignment is deferred after v0"
-    } else {
-        "expected assignment target"
-    }
-}
-
-fn expression_contains_index(expression: &Expr) -> bool {
-    match expression {
-        Expr::Index(_) => true,
-        Expr::Member(member) => expression_contains_index(&member.object),
-        Expr::Group(group) => expression_contains_index(&group.expression),
-        _ => false,
-    }
+fn assignment_target_error(_expression: &Expr) -> &'static str {
+    "expected assignment target"
 }

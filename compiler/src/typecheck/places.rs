@@ -1,6 +1,6 @@
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment};
-use crate::ast::{Expr, MemberExpr};
+use crate::ast::{Expr, IndexExpr, MemberExpr};
 use crate::resolve::ResolveOutput;
 
 pub(super) fn expression_is_writable_place(
@@ -14,6 +14,7 @@ pub(super) fn expression_is_writable_place(
                 && environment.is_mutable_binding(&identifier.name)
         }
         Expr::Member(member) => field_member_is_writable_place(member, resolved, environment),
+        Expr::Index(index) => index_expression_is_writable_place(index, resolved, environment),
         _ => false,
     }
 }
@@ -32,6 +33,25 @@ pub(super) fn field_member_is_writable_place(
     }
 
     expression_is_writable_place(&member.object, resolved, environment)
+}
+
+fn index_expression_is_writable_place(
+    index: &IndexExpr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    match expression_type(&index.object, resolved, environment) {
+        Type::View {
+            is_readwrite: true, ..
+        } => true,
+        Type::View {
+            is_readwrite: false,
+            ..
+        }
+        | Type::Str => false,
+        Type::Array { .. } => expression_is_writable_place(&index.object, resolved, environment),
+        _ => false,
+    }
 }
 
 fn type_is_readwrite_borrow(ty: &Type) -> bool {

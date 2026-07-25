@@ -100,6 +100,61 @@ func update(source: &Header): void {
 }
 
 #[test]
+fn accepts_index_assignment_through_readwrite_slice() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func fill(bytes: &+[u8]): void {
+    bytes[0] = 1
+    return
+}
+"#,
+    );
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn diagnoses_index_assignment_through_readonly_slice() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func fill(bytes: &[u8]): void {
+    bytes[0] = 1
+    return
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0381");
+    assert!(diagnostics[0].message.contains("bytes"));
+}
+
+#[test]
+fn diagnoses_index_assignment_through_str() {
+    let diagnostics = check_text(
+        r#"func main(): i32 {
+    return 0
+}
+
+func fill(text: &str): void {
+    text[0] = 65
+    return
+}
+"#,
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code, "E0381");
+    assert!(diagnostics[0].message.contains("text"));
+}
+
+#[test]
 fn diagnoses_assignment_to_parameter_binding() {
     let diagnostics = check_text(
         r#"func main(): i32 {

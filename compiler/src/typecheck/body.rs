@@ -568,6 +568,7 @@ fn assignment_target_root_name(expression: &Expr) -> Option<&str> {
     match expression {
         Expr::Identifier(identifier) => Some(identifier.name.as_str()),
         Expr::Member(member) => assignment_target_root_name(&member.object),
+        Expr::Index(index) => assignment_target_root_name(&index.object),
         Expr::Group(group) => assignment_target_root_name(&group.expression),
         _ => None,
     }

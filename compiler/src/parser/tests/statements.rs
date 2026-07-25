@@ -214,7 +214,7 @@ fn rejects_non_place_assignment_target() {
 }
 
 #[test]
-fn diagnoses_deferred_index_assignment_target() {
+fn parses_index_assignment_targets() {
     let output = parse_text(
         r#"func main(): i32 {
     bytes[0] = 1
@@ -224,13 +224,26 @@ fn diagnoses_deferred_index_assignment_target() {
 "#,
     );
 
-    assert!(output.ast.is_none());
-    assert!(
-        output
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message == "index assignment is deferred after v0")
-    );
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    let ast = output.ast.unwrap();
+    let Item::Function(function) = &ast.items[0] else {
+        panic!("expected function item");
+    };
+
+    let Stmt::Assignment(first) = &function.body.statements[0] else {
+        panic!("expected assignment statement");
+    };
+    assert_eq!(first.operator, AssignmentOperator::Assign);
+    assert!(matches!(first.target, Expr::Index(_)));
+
+    let Stmt::Assignment(second) = &function.body.statements[1] else {
+        panic!("expected assignment statement");
+    };
+    assert_eq!(second.operator, AssignmentOperator::AddAssign);
+    let Expr::Member(member) = &second.target else {
+        panic!("expected member assignment target");
+    };
+    assert!(matches!(member.object.as_ref(), Expr::Index(_)));
 }
 
 #[test]
