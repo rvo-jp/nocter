@@ -3681,6 +3681,56 @@ func consume(item: i32?): i32 {
 }
 
 #[test]
+fn build_command_reports_reachable_nested_fallible_associated_return_before_ir_lowering() {
+    let project = TempProject::new("cli-build-nested-fallible-associated-return-boundary");
+    let source = project.write_source(
+        "nested_fallible_associated_return_boundary.nct",
+        r#"copy struct Holder {
+    pub value: i32
+}
+
+func Holder.make_value(): (i32?)! {
+    return none
+}
+
+func main(): i32 {
+    return consume(Holder.make_value()!)
+}
+
+func consume(item: i32?): i32 {
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("nested fallible or optional return types"),
+        "expected nested fallible return diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("5 | func Holder.make_value(): (i32?)! {"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
 fn build_command_does_not_reject_unreachable_nested_fallible_return() {
     let project = TempProject::new("cli-build-unreachable-nested-fallible-return");
     let source = project.write_source(
@@ -3782,6 +3832,52 @@ func main(): i32! {
     );
     assert!(
         stderr.contains("4 |     let value = lookup(\"HOME\")?"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("nested fallible or optional return types"),
+        "std internal return-shape diagnostic should not leak for check-only calls, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
+#[test]
+fn build_command_reports_std_process_env_bare_use_check_only_before_ir_lowering() {
+    let project = TempProject::new("cli-build-process-env-bare-use-check-only-boundary");
+    write_process_contract_std(&project);
+    let source = project.write_source(
+        "process_env_bare_use_check_only_boundary.nct",
+        r#"use std/process
+
+func main(): i32! {
+    let value = env("HOME")?
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("error[E0435]"),
+        "expected v0 buildability diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("check-only `std/process.env` calls"),
+        "expected env check-only diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("4 |     let value = env(\"HOME\")?"),
         "expected source line, got:\n{stderr}"
     );
     assert!(
