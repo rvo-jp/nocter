@@ -1,5 +1,6 @@
 use super::bindings::{
-    assignment_targets_readwrite_aggregate_field, lower_assignment, lower_local_binding,
+    assignment_targets_direct_slice_index, assignment_targets_readwrite_aggregate_field,
+    lower_assignment, lower_local_binding,
 };
 use super::context::LoweringContext;
 use super::expressions::{
@@ -1731,17 +1732,7 @@ fn nonterminal_assignment_target_allowed(
         || assignment_targets_whole_scalar_or_view_local(statement, context)
         || assignment_targets_whole_aggregate_local(statement, context)
         || assignment_targets_readwrite_aggregate_field(statement, context)
-        || assignment_targets_direct_slice_index(statement)
-}
-
-fn assignment_targets_direct_slice_index(statement: &crate::ast::AssignmentStmt) -> bool {
-    if statement.operator != AssignmentOperator::Assign {
-        return false;
-    }
-    let Expr::Index(index) = unwrap_group(&statement.target) else {
-        return false;
-    };
-    index.object.is_direct_slice_index_assignment_object()
+        || assignment_targets_direct_slice_index(statement, context)
 }
 
 fn assignment_targets_whole_scalar_or_view_local(

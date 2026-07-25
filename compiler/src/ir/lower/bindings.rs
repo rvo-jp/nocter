@@ -1485,6 +1485,30 @@ pub(super) fn assignment_targets_readwrite_aggregate_field(
         .is_some_and(|field| field.is_readwrite)
 }
 
+pub(super) fn assignment_targets_direct_slice_index(
+    statement: &AssignmentStmt,
+    context: &LoweringContext,
+) -> bool {
+    let Expr::Index(index) = unwrap_group(&statement.target) else {
+        return false;
+    };
+    if !index.object.is_direct_slice_index_assignment_object() {
+        return false;
+    }
+
+    match statement.operator {
+        AssignmentOperator::Assign => true,
+        AssignmentOperator::AddAssign
+        | AssignmentOperator::SubtractAssign
+        | AssignmentOperator::MultiplyAssign
+        | AssignmentOperator::DivideAssign
+        | AssignmentOperator::RemainderAssign => matches!(
+            slice_index_assignment_element_kind(&index.object, context),
+            TypecheckSliceElementKind::I32 | TypecheckSliceElementKind::Usize
+        ),
+    }
+}
+
 fn lower_identifier_assignment(
     identifier: &crate::ast::IdentifierExpr,
     value: &Expr,

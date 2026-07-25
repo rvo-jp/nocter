@@ -959,6 +959,40 @@ func usize_buffer(): &+[usize] {
 }
 
 #[test]
+fn build_command_lowers_nonterminal_slice_index_compound_assignments() {
+    let project = TempProject::new("cli-build-nonterminal-slice-index-compound-assignments");
+    let source = project.write_source(
+        "nonterminal_slice_index_compound_assignments.nct",
+        r#"func main(): i32 {
+    let numbers = i32_buffer()
+    if true {
+        numbers[0] += 1
+    }
+    let words = usize_buffer()
+    while false {
+        words[1] %= 5
+    }
+    return 0
+}
+
+func i32_buffer(): &+[i32] {
+    return i32_buffer()
+}
+
+func usize_buffer(): &+[usize] {
+    return usize_buffer()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_rejects_u8_slice_index_compound_assignment_before_ir_lowering() {
     let project = TempProject::new("cli-build-u8-slice-index-compound-boundary");
     let source = project.write_source(

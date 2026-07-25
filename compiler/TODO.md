@@ -51,6 +51,8 @@ Recent committed work:
     `&+[i32]`, `&+[u8]`, `&+[usize]`, `&+[bool]`, and `&+[&str]`
   - lowers `i32` and `usize` read-write slice element compound assignment by
     composing existing slice loads, scalar compound operations, and slice stores
+  - permits the same supported slice element compound assignments inside the
+    current non-terminal control-flow assignment subset
   - covers `Vec.view_mut()` writeback for scalar and `&str` vectors through
     distributed std native execution
 - Current checkpoint: reject aggregate slice index before IR
