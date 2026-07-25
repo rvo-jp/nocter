@@ -17507,6 +17507,74 @@ func first(bytes: &+[u8]): u8 {
 }
 
 #[test]
+fn lowers_i32_slice_index_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func first(numbers: &[i32]): i32 {
+    return numbers[0]
+}
+"#,
+        "first",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "first".to_string(),
+            target: crate::ir::CallTarget::same_file("first".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::SetI32 {
+                    destination: I32Location::Return,
+                    value: I32Value::SliceIndex {
+                        source: SliceLocation::Parameter(0),
+                        index: usize_const(0),
+                    },
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_bool_slice_index_return() {
+    let function = lower_named_function(
+        r#"func main(): i32 {
+    return 0
+}
+
+func first(flags: &[bool]): bool {
+    return flags[1]
+}
+"#,
+        "first",
+    );
+
+    assert_eq!(
+        function,
+        Function {
+            name: "first".to_string(),
+            target: crate::ir::CallTarget::same_file("first".to_string()),
+            return_type: Type::Bool,
+            instructions: vec![
+                Instruction::SetBool {
+                    destination: BoolLocation::Return,
+                    value: BoolValue::SliceIndex {
+                        source: SliceLocation::Parameter(0),
+                        index: usize_const(1),
+                    },
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
 fn lowers_str_parameter_index_return() {
     let function = lower_named_function(
         r#"func main(): i32 {
@@ -17719,6 +17787,116 @@ func identity(bytes: &[u8]): &[u8] {
                             index: usize_const(0),
                         })),
                         right: I32Value::U8ZeroExtend(Box::new(u8_const(1))),
+                    },
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_i32_slice_call_result_index_bool_return_comparison() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func check(numbers: &[i32]): bool {
+    return identity(numbers)[0] == 11
+}
+
+func identity(numbers: &[i32]): &[i32] {
+    return numbers
+}
+"#,
+        "check",
+        function_signatures(vec![(
+            "identity",
+            readonly_u8_slice_type(),
+            vec![readonly_u8_slice_type()],
+        )]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "check".to_string(),
+            target: crate::ir::CallTarget::same_file("check".to_string()),
+            return_type: Type::Bool,
+            instructions: vec![
+                call_slice(
+                    SliceLocation::Local(0),
+                    "identity",
+                    vec![ScalarArgument::Slice(SliceValue::Location(
+                        SliceLocation::Parameter(0),
+                    ))],
+                ),
+                Instruction::SetBool {
+                    destination: BoolLocation::Return,
+                    value: BoolValue::I32Comparison {
+                        operator: I32ComparisonOperator::Equal,
+                        left: I32Value::SliceIndex {
+                            source: SliceLocation::Local(0),
+                            index: usize_const(0),
+                        },
+                        right: i32_const(11),
+                    },
+                },
+                Instruction::Return,
+            ],
+        }
+    );
+}
+
+#[test]
+fn lowers_bool_slice_call_result_index_bool_return_comparison() {
+    let function = lower_named_function_with_signatures(
+        r#"func main(): i32 {
+    return 0
+}
+
+func check(flags: &[bool]): bool {
+    return identity(flags)[0] == true
+}
+
+func identity(flags: &[bool]): &[bool] {
+    return flags
+}
+"#,
+        "check",
+        function_signatures(vec![(
+            "identity",
+            readonly_u8_slice_type(),
+            vec![readonly_u8_slice_type()],
+        )]),
+    )
+    .unwrap();
+
+    assert_eq!(
+        function,
+        Function {
+            name: "check".to_string(),
+            target: crate::ir::CallTarget::same_file("check".to_string()),
+            return_type: Type::Bool,
+            instructions: vec![
+                call_slice(
+                    SliceLocation::Local(0),
+                    "identity",
+                    vec![ScalarArgument::Slice(SliceValue::Location(
+                        SliceLocation::Parameter(0),
+                    ))],
+                ),
+                Instruction::SetBool {
+                    destination: BoolLocation::Return,
+                    value: BoolValue::BoolComparison {
+                        operator: BoolComparisonOperator::Equal,
+                        left: Box::new(BoolValue::SliceIndex {
+                            source: SliceLocation::Local(0),
+                            index: usize_const(0),
+                        }),
+                        right: Box::new(BoolValue::Const(true)),
                     },
                 },
                 Instruction::Return,

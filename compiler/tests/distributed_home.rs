@@ -808,6 +808,38 @@ func main(): i32! {
         return 8
     }
 
+    var numbers: Vec<i32> = Vec.empty()
+    numbers.push(11)?
+    numbers.push(42)?
+    if numbers.len() != 2 {
+        return 9
+    }
+    if numbers.capacity() != 2 {
+        return 10
+    }
+    if numbers.view()[0] != 11 {
+        return 11
+    }
+    if numbers.view()[1] != 42 {
+        return 12
+    }
+
+    var flags: Vec<bool> = Vec.empty()
+    flags.push(true)?
+    flags.push(false)?
+    if flags.len() != 2 {
+        return 13
+    }
+    if flags.capacity() != 2 {
+        return 14
+    }
+    if flags.view()[0] != true {
+        return 15
+    }
+    if flags.view()[1] != false {
+        return 16
+    }
+
     return 0
 }
 "#,

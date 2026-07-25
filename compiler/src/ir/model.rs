@@ -471,6 +471,10 @@ pub(crate) enum I32Value {
     Const(i32),
     Location(I32Location),
     U8ZeroExtend(Box<U8Value>),
+    SliceIndex {
+        source: SliceLocation,
+        index: UsizeValue,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -625,6 +629,10 @@ pub(crate) enum BoolLocation {
 pub(crate) enum BoolValue {
     Const(bool),
     Location(BoolLocation),
+    SliceIndex {
+        source: SliceLocation,
+        index: UsizeValue,
+    },
     Not(Box<BoolValue>),
     Logical {
         operator: BoolLogicalOperator,

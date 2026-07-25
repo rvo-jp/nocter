@@ -124,7 +124,9 @@ impl EntryEmitter {
         match value {
             BoolValue::Const(true) => Ok(Vec::new()),
             BoolValue::Const(false) => Ok(vec![self.emit_branch_placeholder()]),
-            BoolValue::Location(_) | BoolValue::StrComparison { .. } => {
+            BoolValue::Location(_)
+            | BoolValue::SliceIndex { .. }
+            | BoolValue::StrComparison { .. } => {
                 self.emit_bool_value_to_w(value, WReg::W16)?;
                 self.encoder.emit_cmp_w_zero(WReg::W16);
                 Ok(vec![self.emit_cond_branch_placeholder(BranchCondition::Eq)])
@@ -196,7 +198,9 @@ impl EntryEmitter {
         match value {
             BoolValue::Const(true) => Ok(vec![self.emit_branch_placeholder()]),
             BoolValue::Const(false) => Ok(Vec::new()),
-            BoolValue::Location(_) | BoolValue::StrComparison { .. } => {
+            BoolValue::Location(_)
+            | BoolValue::SliceIndex { .. }
+            | BoolValue::StrComparison { .. } => {
                 self.emit_bool_value_to_w(value, WReg::W16)?;
                 self.encoder.emit_cmp_w_zero(WReg::W16);
                 Ok(vec![self.emit_cond_branch_placeholder(BranchCondition::Ne)])

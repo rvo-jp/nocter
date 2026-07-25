@@ -223,6 +223,10 @@ pub(in crate::ir::lower) fn expression_is_lowerable_bool_binding(
         Expr::BoolLiteral(_) => true,
         Expr::Identifier(identifier) => context.bool_location(&identifier.name).is_some(),
         Expr::Call(call) => builtin_is_empty_call_is_lowerable(call, context),
+        Expr::Index(index) => {
+            expression_is_lowerable_bool_slice_index_object(&index.object, context)
+                && expression_is_lowerable_usize_expression(&index.index, context)
+        }
         Expr::Member(_) => {
             expression_is_aggregate_field_kind(expression, AggregateFieldKind::Bool, context)
         }
@@ -394,6 +398,10 @@ fn expression_is_lowerable_bool_expression(expression: &Expr, context: &Lowering
         Expr::Call(call) => {
             builtin_is_empty_call_is_lowerable(call, context)
                 || direct_call_return_type(call, context) == Some(&Type::Bool)
+        }
+        Expr::Index(index) => {
+            expression_is_lowerable_bool_slice_index_object(&index.object, context)
+                && expression_is_lowerable_usize_expression(&index.index, context)
         }
         Expr::Member(_) => {
             expression_is_aggregate_field_kind(expression, AggregateFieldKind::Bool, context)
@@ -577,6 +585,40 @@ fn expression_is_lowerable_slice_index_object(
     }
 }
 
+fn expression_is_lowerable_i32_slice_index_object(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    match expression {
+        Expr::Identifier(identifier) => {
+            identifier_slice_element_kind(identifier, context)
+                == Some(TypecheckSliceElementKind::I32)
+        }
+        Expr::Call(call) => call_return_slice_element_type(call, context) == Some(Type::I32),
+        Expr::Group(group) => {
+            expression_is_lowerable_i32_slice_index_object(&group.expression, context)
+        }
+        _ => false,
+    }
+}
+
+fn expression_is_lowerable_bool_slice_index_object(
+    expression: &Expr,
+    context: &LoweringContext,
+) -> bool {
+    match expression {
+        Expr::Identifier(identifier) => {
+            identifier_slice_element_kind(identifier, context)
+                == Some(TypecheckSliceElementKind::Bool)
+        }
+        Expr::Call(call) => call_return_slice_element_type(call, context) == Some(Type::Bool),
+        Expr::Group(group) => {
+            expression_is_lowerable_bool_slice_index_object(&group.expression, context)
+        }
+        _ => false,
+    }
+}
+
 fn expression_is_lowerable_str_slice_index_object(
     expression: &Expr,
     context: &LoweringContext,
@@ -672,6 +714,10 @@ fn expression_is_lowerable_i32_expression(expression: &Expr, context: &LoweringC
         Expr::Binary(binary) if is_i32_binary_operator(binary.operator) => {
             expression_is_lowerable_i32_expression(&binary.left, context)
                 && expression_is_lowerable_i32_expression(&binary.right, context)
+        }
+        Expr::Index(index) => {
+            expression_is_lowerable_i32_slice_index_object(&index.object, context)
+                && expression_is_lowerable_usize_expression(&index.index, context)
         }
         Expr::Member(_) => {
             expression_is_aggregate_field_kind(expression, AggregateFieldKind::I32, context)

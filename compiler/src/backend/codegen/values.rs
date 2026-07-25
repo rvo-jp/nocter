@@ -2017,6 +2017,18 @@ impl EntryEmitter {
             I32Value::U8ZeroExtend(value) => {
                 self.emit_u8_value_to_w(value, destination)?;
             }
+            I32Value::SliceIndex { source, index } => {
+                if let SliceLocation::Parameter(parameter_index) = *source {
+                    self.emit_checked_parameter_i32_load(destination, parameter_index, index)?;
+                    return Ok(());
+                }
+                if let SliceLocation::Local(local_index) = *source {
+                    self.emit_checked_local_i32_load(destination, local_index, index)?;
+                    return Ok(());
+                }
+                let (ptr, len) = self.slice_location_registers(*source)?;
+                self.emit_checked_i32_load(destination, ptr, len, index)?;
+            }
         }
 
         Ok(())
@@ -2214,6 +2226,58 @@ impl EntryEmitter {
         Ok(())
     }
 
+    fn emit_checked_parameter_i32_load(
+        &mut self,
+        destination: WReg,
+        ptr_word_index: usize,
+        index: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let len_word_index = ptr_word_index
+            .checked_add(1)
+            .ok_or_else(|| indexed_load_diagnostic("parameter length word index overflows"))?;
+        self.emit_usize_value_to_x(index, XReg::X16)?;
+        self.emit_parameter_word_to_x(len_word_index, XReg::X17)?;
+        self.emit_index_in_bounds_check(XReg::X16, XReg::X17)?;
+        self.emit_parameter_word_to_x(ptr_word_index, XReg::X17)?;
+        self.emit_indexed_i32_load(destination, XReg::X17);
+        Ok(())
+    }
+
+    fn emit_checked_local_i32_load(
+        &mut self,
+        destination: WReg,
+        ptr_word_index: usize,
+        index: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let len_word_index = ptr_word_index
+            .checked_add(1)
+            .ok_or_else(|| indexed_load_diagnostic("local length word index overflows"))?;
+        self.emit_usize_value_to_x(index, XReg::X16)?;
+        self.emit_local_word_to_x(len_word_index, XReg::X17)?;
+        self.emit_index_in_bounds_check(XReg::X16, XReg::X17)?;
+        self.emit_local_word_to_x(ptr_word_index, XReg::X17)?;
+        self.emit_indexed_i32_load(destination, XReg::X17);
+        Ok(())
+    }
+
+    fn emit_checked_i32_load(
+        &mut self,
+        destination: WReg,
+        ptr: XReg,
+        len: XReg,
+        index: &UsizeValue,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.emit_usize_value_to_x(index, XReg::X16)?;
+        self.emit_index_in_bounds_check(XReg::X16, len)?;
+        self.emit_indexed_i32_load(destination, ptr);
+        Ok(())
+    }
+
+    fn emit_indexed_i32_load(&mut self, destination: WReg, ptr: XReg) {
+        self.encoder.emit_lsl_x_imm(XReg::X16, XReg::X16, 2);
+        self.encoder.emit_ldr_w_reg(destination, ptr, XReg::X16);
+    }
+
     fn emit_checked_parameter_usize_load(
         &mut self,
         destination: XReg,
@@ -2353,6 +2417,18 @@ impl EntryEmitter {
                         self.encoder.emit_mov_w(destination, source);
                     }
                 }
+            }
+            BoolValue::SliceIndex { source, index } => {
+                if let SliceLocation::Parameter(parameter_index) = *source {
+                    self.emit_checked_parameter_byte_load(destination, parameter_index, index)?;
+                    return Ok(());
+                }
+                if let SliceLocation::Local(local_index) = *source {
+                    self.emit_checked_local_byte_load(destination, local_index, index)?;
+                    return Ok(());
+                }
+                let (ptr, len) = self.slice_location_registers(*source)?;
+                self.emit_checked_byte_load(destination, ptr, len, index)?;
             }
             BoolValue::StrComparison {
                 operator,

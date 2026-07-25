@@ -1555,6 +1555,10 @@ fn record_i32_value_parameter_spill_requests(value: &I32Value, requests: &mut BT
         I32Value::U8ZeroExtend(value) => {
             record_u8_value_parameter_spill_requests(value, requests);
         }
+        I32Value::SliceIndex { source, index } => {
+            record_slice_location_parameter_pair_spill_requests(*source, requests);
+            record_usize_value_parameter_spill_requests(index, requests);
+        }
     }
 }
 
@@ -1611,6 +1615,10 @@ fn record_bool_value_parameter_spill_requests(value: &BoolValue, requests: &mut 
             requests.insert(*index);
         }
         BoolValue::Location(BoolLocation::Return | BoolLocation::Local(_)) => {}
+        BoolValue::SliceIndex { source, index } => {
+            record_slice_location_parameter_pair_spill_requests(*source, requests);
+            record_usize_value_parameter_spill_requests(index, requests);
+        }
         BoolValue::Not(value) => {
             record_bool_value_parameter_spill_requests(value, requests);
         }
@@ -2266,6 +2274,10 @@ fn record_i32_value(value: &I32Value, highest_local_index: &mut Option<usize>) {
         I32Value::Const(_) => {}
         I32Value::Location(location) => record_i32_location(*location, highest_local_index),
         I32Value::U8ZeroExtend(value) => record_u8_value(value, highest_local_index),
+        I32Value::SliceIndex { source, index } => {
+            record_slice_location(*source, highest_local_index);
+            record_usize_value(index, highest_local_index);
+        }
     }
 }
 
@@ -2351,6 +2363,10 @@ fn record_bool_value(value: &BoolValue, highest_local_index: &mut Option<usize>)
     match value {
         BoolValue::Const(_) => {}
         BoolValue::Location(location) => record_bool_location(*location, highest_local_index),
+        BoolValue::SliceIndex { source, index } => {
+            record_slice_location(*source, highest_local_index);
+            record_usize_value(index, highest_local_index);
+        }
         BoolValue::Not(inner) => record_bool_value(inner, highest_local_index),
         BoolValue::Logical { left, right, .. } => {
             record_bool_value(left, highest_local_index);

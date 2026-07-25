@@ -2530,6 +2530,7 @@ fn i32_value_uses_process_arguments(value: &I32Value) -> bool {
     match value {
         I32Value::Const(_) | I32Value::Location(_) => false,
         I32Value::U8ZeroExtend(value) => u8_value_uses_process_arguments(value),
+        I32Value::SliceIndex { index, .. } => usize_value_uses_process_arguments(index),
     }
 }
 
@@ -2555,6 +2556,7 @@ fn usize_value_uses_process_arguments(value: &UsizeValue) -> bool {
 fn bool_value_uses_process_arguments(value: &crate::ir::BoolValue) -> bool {
     match value {
         crate::ir::BoolValue::Const(_) | crate::ir::BoolValue::Location(_) => false,
+        crate::ir::BoolValue::SliceIndex { index, .. } => usize_value_uses_process_arguments(index),
         crate::ir::BoolValue::Not(value) => bool_value_uses_process_arguments(value),
         crate::ir::BoolValue::Logical { left, right, .. }
         | crate::ir::BoolValue::BoolComparison { left, right, .. } => {

@@ -255,8 +255,10 @@ pub(crate) enum TypecheckScalarViewKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TypecheckSliceElementKind {
+    I32,
     U8,
     Usize,
+    Bool,
     Str,
     Other,
 }
@@ -1971,8 +1973,10 @@ fn scalar_view_kind(ty: &Type) -> Option<TypecheckScalarViewKind> {
 
 fn slice_element_kind(element: &Type) -> TypecheckSliceElementKind {
     match element {
+        Type::I32 => TypecheckSliceElementKind::I32,
         Type::Primitive(name) if name == "u8" => TypecheckSliceElementKind::U8,
         Type::Primitive(name) if name == "usize" => TypecheckSliceElementKind::Usize,
+        Type::Primitive(name) if name == "bool" => TypecheckSliceElementKind::Bool,
         Type::Str => TypecheckSliceElementKind::Str,
         _ => TypecheckSliceElementKind::Other,
     }

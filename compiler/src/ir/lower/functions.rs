@@ -599,8 +599,11 @@ fn slice_element_kind_from_type_expr(
     resolved: &ResolveOutput,
 ) -> TypecheckSliceElementKind {
     match view_element_type_from_type_expr(ty, resolved) {
+        Some(Type::I32) => TypecheckSliceElementKind::I32,
         Some(Type::U8) => TypecheckSliceElementKind::U8,
         Some(Type::Usize) => TypecheckSliceElementKind::Usize,
+        Some(Type::Bool) => TypecheckSliceElementKind::Bool,
+        Some(Type::Str) => TypecheckSliceElementKind::Str,
         _ => TypecheckSliceElementKind::Other,
     }
 }

@@ -129,6 +129,17 @@ pub(super) fn lower_i32_expression_to_location(
         Expr::Binary(binary) if is_i32_binary_operator(binary.operator) => {
             lower_i32_binary_expression_to_location(binary, destination, context)
         }
+        Expr::Index(index) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let lowered =
+                lower_i32_slice_index_expression_to_value(index, context, &mut temporaries)?;
+            let mut instructions = lowered.instructions;
+            instructions.push(Instruction::SetI32 {
+                destination,
+                value: lowered.value,
+            });
+            Ok(instructions)
+        }
         Expr::TypeConversion(conversion)
             if type_conversion_target_is(conversion, context, Type::I32) =>
         {
@@ -1557,6 +1568,9 @@ fn lower_i32_expression_to_value(
                 value: I32Value::Location(temporary),
             })
         }
+        Expr::Index(index) => {
+            lower_i32_slice_index_expression_to_value(index, context, temporaries)
+        }
         Expr::TypeConversion(conversion)
             if type_conversion_target_is(conversion, context, Type::I32) =>
         {
@@ -2598,6 +2612,21 @@ pub(super) fn lower_bool_expression_to_location(
             });
             Ok(instructions)
         }
+        Expr::Binary(binary) if usize_comparison_needs_temporaries(binary, context) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let comparison = lower_usize_comparison_to_value_with_temporaries(
+                binary,
+                context,
+                diagnostic_code,
+                &mut temporaries,
+            )?;
+            let mut instructions = comparison.instructions;
+            instructions.push(Instruction::SetBool {
+                destination,
+                value: comparison.value,
+            });
+            Ok(instructions)
+        }
         Expr::Call(call) => {
             let mut temporaries = TemporaryAllocator::new(context)?;
             if let Some(value) =
@@ -2650,6 +2679,21 @@ pub(super) fn lower_bool_expression_to_location(
             instructions.push(Instruction::SetBool {
                 destination,
                 value: BoolValue::Not(Box::new(operand.value)),
+            });
+            Ok(instructions)
+        }
+        Expr::Index(index) => {
+            let mut temporaries = TemporaryAllocator::new(context)?;
+            let lowered = lower_bool_slice_index_expression_to_value(
+                index,
+                context,
+                diagnostic_code,
+                &mut temporaries,
+            )?;
+            let mut instructions = lowered.instructions;
+            instructions.push(Instruction::SetBool {
+                destination,
+                value: lowered.value,
             });
             Ok(instructions)
         }
@@ -3449,6 +3493,9 @@ fn lower_bool_expression_to_value_with_temporaries(
                 value: BoolValue::Not(Box::new(operand.value)),
             })
         }
+        Expr::Index(index) => {
+            lower_bool_slice_index_expression_to_value(index, context, diagnostic_code, temporaries)
+        }
         Expr::Member(_) => {
             let temporary = temporaries.next_bool()?;
             Ok(LoweredBoolValue {
@@ -3841,6 +3888,53 @@ fn lower_usize_slice_index_expression_to_value(
         value: UsizeValue::SliceIndex {
             source,
             index: Box::new(index.value),
+        },
+    })
+}
+
+fn lower_i32_slice_index_expression_to_value(
+    expression: &IndexExpr,
+    context: &LoweringContext,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredI32Value, Vec<Diagnostic>> {
+    let source = lower_slice_expression_to_value(&expression.object, context, temporaries)?;
+    let index = lower_usize_expression_to_value(&expression.index, context, temporaries)?;
+    let mut instructions = source.instructions;
+    instructions.extend(index.instructions);
+
+    let SliceValue::Location(source) = source.value else {
+        return Err(unsupported_i32_expression_diagnostic());
+    };
+
+    Ok(LoweredI32Value {
+        instructions,
+        value: I32Value::SliceIndex {
+            source,
+            index: index.value,
+        },
+    })
+}
+
+fn lower_bool_slice_index_expression_to_value(
+    expression: &IndexExpr,
+    context: &LoweringContext,
+    diagnostic_code: &'static str,
+    temporaries: &mut TemporaryAllocator,
+) -> Result<LoweredBoolValue, Vec<Diagnostic>> {
+    let source = lower_slice_expression_to_value(&expression.object, context, temporaries)?;
+    let index = lower_usize_expression_to_value(&expression.index, context, temporaries)?;
+    let mut instructions = source.instructions;
+    instructions.extend(index.instructions);
+
+    let SliceValue::Location(source) = source.value else {
+        return Err(unsupported_bool_expression_diagnostic(diagnostic_code));
+    };
+
+    Ok(LoweredBoolValue {
+        instructions,
+        value: BoolValue::SliceIndex {
+            source,
+            index: index.value,
         },
     })
 }

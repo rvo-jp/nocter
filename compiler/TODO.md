@@ -42,6 +42,15 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: read back scalar Vec elements
+  - adds IR and ARM64 backend support for `&[i32]` and `&[bool]` indexing,
+    completing the runtime-shipped scalar `Vec` readback set alongside the
+    existing `u8` and `usize` paths
+  - extends slice element facts so `&[i32]`, `&[bool]`, and `&str` element
+    views keep their concrete element kind through function parameters,
+    local bindings, and call-result predicates
+  - covers `Vec<i32>` and `Vec<bool>` push/readback through distributed std
+    native execution
 - Current checkpoint: reject unsupported Vec element storage before IR
   - rejects distributed `std/vec.push`, method `Vec.push`, and
     `Vec.from_slice` calls when concrete `T` is outside the v0 runtime-shipped

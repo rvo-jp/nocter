@@ -334,6 +334,10 @@ impl Encoder {
         self.emit_word(LDRB_W_REG_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rt.bits());
     }
 
+    pub(crate) fn emit_ldr_w_reg(&mut self, rt: WReg, rn: XReg, rm: XReg) {
+        self.emit_word(LDR_W_REG_BASE | (rm.bits() << 16) | (rn.bits() << 5) | rt.bits());
+    }
+
     pub(crate) fn emit_b(&mut self, byte_offset: i32) {
         self.emit_word(b_word(byte_offset));
     }
@@ -669,6 +673,7 @@ const LDRH_W_UNSIGNED_BASE: u32 = 0x7940_0000;
 const STR_X_UNSIGNED_BASE: u32 = 0xf900_0000;
 const LDR_X_UNSIGNED_BASE: u32 = 0xf940_0000;
 const LDRB_W_REG_BASE: u32 = 0x3860_6800;
+const LDR_W_REG_BASE: u32 = 0xb860_6800;
 const B_BASE: u32 = 0x1400_0000;
 const B_COND_BASE: u32 = 0x5400_0000;
 const BL_BASE: u32 = 0x9400_0000;
@@ -1268,6 +1273,15 @@ mod tests {
         encoder.emit_ldrb_w_reg(WReg::W0, XReg::X1, XReg::X2);
 
         assert_eq!(encoder.finish(), vec![0x20, 0x68, 0x62, 0x38]);
+    }
+
+    #[test]
+    fn encodes_ldr_w0_x1_x2() {
+        let mut encoder = Encoder::new();
+
+        encoder.emit_ldr_w_reg(WReg::W0, XReg::X1, XReg::X2);
+
+        assert_eq!(encoder.finish(), vec![0x20, 0x68, 0x62, 0xb8]);
     }
 
     #[test]
