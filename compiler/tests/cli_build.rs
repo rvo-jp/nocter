@@ -1973,6 +1973,36 @@ func main(): i32 {
 }
 
 #[test]
+fn build_command_lowers_nonterminal_field_compound_assignments() {
+    let project = TempProject::new("cli-build-nonterminal-field-compound-assignment");
+    let source = project.write_source(
+        "nonterminal_field_compound_assignment.nct",
+        r#"struct Counter {
+    count: i32
+    size: usize
+}
+
+func main(): i32 {
+    var counter = Counter{ count: 40, size: 47 }
+    if true {
+        counter.count += 1
+    }
+    while false {
+        counter.size %= 5
+    }
+    return 0
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_reports_bool_field_compound_assignment_compile_diagnostic() {
     let project = TempProject::new("cli-build-bool-field-compound-assignment-diagnostic");
     let source = project.write_source(

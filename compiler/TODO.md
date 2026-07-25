@@ -53,6 +53,8 @@ Recent committed work:
     composing existing slice loads, scalar compound operations, and slice stores
   - permits the same supported slice element compound assignments inside the
     current non-terminal control-flow assignment subset
+  - permits supported `i32`/`usize` aggregate field compound assignments inside
+    the current non-terminal control-flow assignment subset
   - covers `Vec.view_mut()` writeback for scalar and `&str` vectors through
     distributed std native execution
 - Current checkpoint: reject aggregate slice index before IR

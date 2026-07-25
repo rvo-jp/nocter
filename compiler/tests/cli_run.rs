@@ -956,6 +956,49 @@ func one(): i32 {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn run_command_returns_nonterminal_field_compound_assignment_exit_code() {
+    let project = TempProject::new("cli-run-nonterminal-field-compound-assignment");
+    let source = project.write_source(
+        "nonterminal_field_compound_assignment.nct",
+        r#"struct Counter {
+    count: i32
+    size: usize
+}
+
+func main(): i32 {
+    var counter = Counter{ count: 40, size: 47 }
+    if true {
+        counter.count += one()
+    }
+    if true {
+        counter.size %= 5
+    }
+    if counter.count == 41 && counter.size == 2 {
+        return 42
+    } else {
+        return 1
+    }
+}
+
+func one(): i32 {
+    return 1
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn run_command_ignores_scalar_call_expression_statement() {
     let project = TempProject::new("cli-run-ignored-scalar-call-statement");
     let source = project.write_source(

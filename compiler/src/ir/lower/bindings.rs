@@ -1471,18 +1471,32 @@ pub(super) fn assignment_targets_readwrite_aggregate_field(
     statement: &AssignmentStmt,
     context: &LoweringContext,
 ) -> bool {
-    if statement.operator != AssignmentOperator::Assign {
-        return false;
-    }
     let Expr::Member(member) = unwrap_group(&statement.target) else {
         return false;
     };
     let Some((identifier_name, field_path)) = aggregate_assignment_target_path(member) else {
         return false;
     };
-    context
-        .aggregate_field(identifier_name, &field_path)
-        .is_some_and(|field| field.is_readwrite)
+    let Some(field) = context.aggregate_field(identifier_name, &field_path) else {
+        return false;
+    };
+    if !field.is_readwrite {
+        return false;
+    }
+
+    match statement.operator {
+        AssignmentOperator::Assign => true,
+        AssignmentOperator::AddAssign
+        | AssignmentOperator::SubtractAssign
+        | AssignmentOperator::MultiplyAssign
+        | AssignmentOperator::DivideAssign
+        | AssignmentOperator::RemainderAssign => {
+            matches!(
+                field.kind,
+                AggregateFieldKind::I32 | AggregateFieldKind::Usize
+            )
+        }
+    }
 }
 
 pub(super) fn assignment_targets_direct_slice_index(
