@@ -547,6 +547,34 @@ func main(): i32! {
         return 6
     }
 
+    var numbers: Vec<i32> = Vec.empty()
+    numbers.push(34)?
+    numbers.push(55)?
+    let number_copy: Vec<i32> = Vec.from_slice(&+allocator, numbers.view())?
+    if number_copy.len() != 2 {
+        return 7
+    }
+    if number_copy.view()[0] != 34 {
+        return 8
+    }
+    if number_copy.view()[1] != 55 {
+        return 9
+    }
+
+    var flags: Vec<bool> = Vec.empty()
+    flags.push(false)?
+    flags.push(true)?
+    let flag_copy: Vec<bool> = Vec.from_slice(&+allocator, flags.view())?
+    if flag_copy.len() != 2 {
+        return 10
+    }
+    if flag_copy.view()[0] != false {
+        return 11
+    }
+    if flag_copy.view()[1] != true {
+        return 12
+    }
+
     return 0
 }
 "#,
@@ -695,6 +723,23 @@ func main(): i32! {
     if words.capacity() != 2 {
         return 5
     }
+
+    let numbers: Vec<i32> = Vec.with_capacity(&+allocator, 3)?
+    if numbers.len() != 0 {
+        return 6
+    }
+    if numbers.capacity() != 3 {
+        return 7
+    }
+
+    let flags: Vec<bool> = with_capacity(&+allocator, 4)?
+    if flags.len() != 0 {
+        return 8
+    }
+    if flags.capacity() != 4 {
+        return 9
+    }
+
     return 42
 }
 "#,
@@ -749,6 +794,25 @@ func main(): i32! {
     if words.capacity() != 2 {
         return 7
     }
+
+    var numbers: Vec<i32> = Vec.empty()
+    reserve(&+numbers, 4)?
+    if numbers.len() != 0 {
+        return 8
+    }
+    if numbers.capacity() != 4 {
+        return 9
+    }
+
+    var flags: Vec<bool> = Vec.empty()
+    flags.reserve(5)?
+    if flags.len() != 0 {
+        return 10
+    }
+    if flags.capacity() != 5 {
+        return 11
+    }
+
     return 42
 }
 "#,
