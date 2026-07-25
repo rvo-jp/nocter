@@ -631,6 +631,11 @@ fn collect_statement_diagnostics(
                     "use `i32` or `usize` whole-binding or aggregate-field compound assignment, or use `target = target op value` until broader compound assignment lowering is promoted",
                 ));
             }
+            if let Some(diagnostic) =
+                unsupported_index_assignment_target_diagnostic(sources, statement)
+            {
+                diagnostics.push(diagnostic);
+            }
             collect_expression_diagnostics(
                 &statement.target,
                 sources,
@@ -1088,6 +1093,40 @@ fn assignment_operator_is_buildable(
         Expr::Member(member) => {
             aggregate_field_compound_assignment_is_buildable(member.member_span, typecheck_facts)
         }
+        _ => false,
+    }
+}
+
+fn unsupported_index_assignment_target_diagnostic(
+    sources: &SourceMap,
+    statement: &AssignmentStmt,
+) -> Option<Diagnostic> {
+    if statement.operator != AssignmentOperator::Assign {
+        return None;
+    }
+    let Expr::Index(index) = unwrap_group_expr(&statement.target) else {
+        return None;
+    };
+    if slice_index_assignment_target_shape_is_buildable(&index.object) {
+        return None;
+    }
+
+    Some(unsupported_v0_build_diagnostic(
+        sources,
+        index.object.span(),
+        "index assignment targets outside direct slice values",
+        "assign through a slice binding or supported slice-returning call result until member and array index assignment lowering is promoted",
+    ))
+}
+
+fn slice_index_assignment_target_shape_is_buildable(expression: &Expr) -> bool {
+    match unwrap_group_expr(expression) {
+        Expr::Identifier(_) | Expr::Call(_) => true,
+        Expr::Propagate(propagation) => {
+            matches!(unwrap_group_expr(&propagation.expression), Expr::Call(_))
+        }
+        Expr::Force(force) => matches!(unwrap_group_expr(&force.expression), Expr::Call(_)),
+        Expr::Catch(catch) => matches!(unwrap_group_expr(&catch.expression), Expr::Call(_)),
         _ => false,
     }
 }
@@ -2576,6 +2615,59 @@ func main(): i32 {
 
 func unused(): bool {
     return Choice.yes == Choice.no
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn reports_member_rooted_index_assignment_before_ir_lowering() {
+        let (sources, analysis) = analyze_text(
+            r#"struct Buffer {
+    pub bytes: &+[u8]
+}
+
+func main(): i32 {
+    let holder = Buffer{ bytes: buffer() }
+    holder.bytes[0] = 1
+    return 0
+}
+
+func buffer(): &+[u8] {
+    return buffer()
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "E0435");
+        assert_eq!(
+            diagnostics[0].message,
+            "Nocter v0 build cannot lower index assignment targets outside direct slice values yet"
+        );
+        assert!(
+            diagnostics[0].primary_span.is_some(),
+            "expected source-backed diagnostic"
+        );
+    }
+
+    #[test]
+    fn accepts_direct_slice_binding_index_assignment_boundary() {
+        let (sources, analysis) = analyze_text(
+            r#"func main(): i32 {
+    let bytes = buffer()
+    bytes[0] = 1
+    return 0
+}
+
+func buffer(): &+[u8] {
+    return buffer()
 }
 "#,
         );
