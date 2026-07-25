@@ -900,6 +900,35 @@ fn build_command_lowers_nonterminal_outer_scalar_assignments() {
 }
 
 #[test]
+fn build_command_lowers_nonterminal_slice_index_assignments() {
+    let project = TempProject::new("cli-build-nonterminal-slice-index-assignments");
+    let source = project.write_source(
+        "nonterminal_slice_index_assignments.nct",
+        r#"func main(): i32 {
+    let bytes = buffer()
+    if true {
+        bytes[0] = 1
+    }
+    while false {
+        bytes[1] = 2
+    }
+    return 0
+}
+
+func buffer(): &+[u8] {
+    return buffer()
+}
+"#,
+    );
+
+    let output = nocter(&project, ["build", source.to_str().unwrap()]);
+    let executable = source.with_extension("");
+
+    assert_success(&output);
+    assert_macho_executable(&executable);
+}
+
+#[test]
 fn build_command_lowers_nonterminal_while_body_scope_drop() {
     let project = TempProject::new("cli-build-nonterminal-while-body-scope-drop");
     let source = project.write_source(

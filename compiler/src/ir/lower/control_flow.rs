@@ -1731,6 +1731,29 @@ fn nonterminal_assignment_target_allowed(
         || assignment_targets_whole_scalar_or_view_local(statement, context)
         || assignment_targets_whole_aggregate_local(statement, context)
         || assignment_targets_readwrite_aggregate_field(statement, context)
+        || assignment_targets_direct_slice_index(statement)
+}
+
+fn assignment_targets_direct_slice_index(statement: &crate::ast::AssignmentStmt) -> bool {
+    if statement.operator != AssignmentOperator::Assign {
+        return false;
+    }
+    let Expr::Index(index) = unwrap_group(&statement.target) else {
+        return false;
+    };
+    slice_index_assignment_target_shape_is_direct(&index.object)
+}
+
+fn slice_index_assignment_target_shape_is_direct(expression: &Expr) -> bool {
+    match unwrap_group(expression) {
+        Expr::Identifier(_) | Expr::Call(_) => true,
+        Expr::Propagate(propagation) => {
+            matches!(unwrap_group(&propagation.expression), Expr::Call(_))
+        }
+        Expr::Force(force) => matches!(unwrap_group(&force.expression), Expr::Call(_)),
+        Expr::Catch(catch) => matches!(unwrap_group(&catch.expression), Expr::Call(_)),
+        _ => false,
+    }
 }
 
 fn assignment_targets_whole_scalar_or_view_local(
