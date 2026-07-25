@@ -1164,6 +1164,48 @@ func main(): i32! {
     );
 }
 
+#[test]
+fn distributed_std_vec_rejects_aggregate_view_index_before_ir_lowering() {
+    let project = TempProject::new("distributed-home-vec-aggregate-view-index-boundary");
+    let source = project.write_source(
+        "vec_aggregate_view_index_boundary.nct",
+        r#"use std/vec.Vec
+
+copy struct Pair {
+    pub value: i32
+}
+
+func main(): i32 {
+    let values: Vec<Pair> = Vec.empty()
+    let first = values.view()[0]
+    return first.value
+}
+"#,
+    );
+    let executable = project.root().join("vec_aggregate_view_index_boundary");
+
+    let output = nocter_build(&project, &source, &executable);
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("slice indexing outside scalar and `&str` elements"),
+        "expected slice index boundary diagnostic, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("9 |     let first = values.view()[0]"),
+        "expected source line, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("error[E800"),
+        "buildability preflight should reject before IR lowering, got:\n{stderr}"
+    );
+    assert!(
+        !executable.exists(),
+        "build should not leave an executable after preflight diagnostics"
+    );
+}
+
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn distributed_std_error_helper_return_runs() {

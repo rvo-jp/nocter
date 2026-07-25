@@ -5,14 +5,17 @@ use crate::analysis::{
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, Block, CallExpr, DropDecl, Expr, ForRangeStmt,
     FunctionDecl, IfLetStmt, ImplMember, Item, MethodDecl, Stmt, TypeExpr, WhileLetStmt,
-    type_expr_display_lossy,
+    substitute_type_expr_parameters, type_expr_display_lossy,
 };
 use crate::diagnostics::Diagnostic;
 use crate::entry::DEFAULT_ENTRY_NAME;
 use crate::ir::CallTarget;
 use crate::resolve::{ResolveOutput, SymbolKind, TypeSymbolKind};
 use crate::source::{ByteSpan, SourceId, SourceMap};
-use crate::typecheck::{FunctionCallSpecialization, MethodCallSpecialization, TypecheckFacts};
+use crate::typecheck::{
+    FunctionCallSpecialization, MethodCallSpecialization, TypecheckFacts, TypecheckScalarViewKind,
+    TypecheckSliceElementKind,
+};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
 
@@ -1537,6 +1540,16 @@ fn collect_expression_diagnostics(
             diagnostics,
         ),
         Expr::Index(expression) => {
+            if let Some(diagnostic) = unsupported_slice_index_diagnostic(
+                sources,
+                expression,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                nocter_home,
+            ) {
+                diagnostics.push(diagnostic);
+            }
             collect_expression_diagnostics(
                 &expression.object,
                 sources,
@@ -1648,6 +1661,173 @@ fn collect_expression_diagnostics(
                 diagnostics,
             );
         }
+    }
+}
+
+fn unsupported_slice_index_diagnostic(
+    sources: &SourceMap,
+    expression: &crate::ast::IndexExpr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    nocter_home: Option<&Path>,
+) -> Option<Diagnostic> {
+    // `std/vec` generic bodies keep parameter element facts as `Other`; user
+    // call sites are preflighted before those bodies are lowered.
+    if source_is_std_vec(sources, expression.span.source, nocter_home) {
+        return None;
+    }
+
+    if slice_index_expression_is_buildable(
+        expression,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    )? {
+        return None;
+    }
+
+    Some(unsupported_v0_build_diagnostic(
+        sources,
+        expression.span,
+        "slice indexing outside scalar and `&str` elements",
+        "use `&[i32]`, `&[u8]`, `&[usize]`, `&[bool]`, or `&[&str]` indexing until aggregate element view readback is promoted",
+    ))
+}
+
+fn slice_index_expression_is_buildable(
+    expression: &crate::ast::IndexExpr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<bool> {
+    slice_index_target_is_buildable(
+        &expression.object,
+        resolved,
+        typecheck_facts,
+        generic_substitutions,
+    )
+}
+
+fn slice_index_target_is_buildable(
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<bool> {
+    match unwrap_group_expr(expression) {
+        Expr::StringLiteral(_) => Some(true),
+        Expr::Identifier(identifier) => {
+            let symbol = resolved.local_symbol_for_identifier(identifier)?;
+            match typecheck_facts.binding_scalar_view_kind(symbol.name_span)? {
+                TypecheckScalarViewKind::Str => Some(true),
+                TypecheckScalarViewKind::Slice(element) => {
+                    Some(typecheck_slice_element_kind_is_buildable(element))
+                }
+                TypecheckScalarViewKind::I32
+                | TypecheckScalarViewKind::U8
+                | TypecheckScalarViewKind::Usize
+                | TypecheckScalarViewKind::Bool => None,
+            }
+        }
+        Expr::Call(call) => {
+            let return_type = call_return_type_expr_with_substitutions(
+                call,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+            )?;
+            slice_index_target_type_expr_is_buildable(&return_type, resolved)
+        }
+        Expr::Group(group) => slice_index_target_is_buildable(
+            &group.expression,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+        ),
+        _ => None,
+    }
+}
+
+fn typecheck_slice_element_kind_is_buildable(element: TypecheckSliceElementKind) -> bool {
+    matches!(
+        element,
+        TypecheckSliceElementKind::I32
+            | TypecheckSliceElementKind::U8
+            | TypecheckSliceElementKind::Usize
+            | TypecheckSliceElementKind::Bool
+            | TypecheckSliceElementKind::Str
+    )
+}
+
+fn call_return_type_expr_with_substitutions(
+    call: &CallExpr,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+) -> Option<TypeExpr> {
+    if let Expr::Member(member) = call.callee.as_ref()
+        && let Some(specialization) =
+            concrete_method_call_specialization(member, typecheck_facts, generic_substitutions)
+    {
+        let signature = resolved.method_signature_by_name_span(specialization.declaration_span)?;
+        let mut return_type = signature.signature.return_type.clone();
+        return_type = substitute_type_expr_parameters(&return_type, &specialization.substitutions);
+        return Some(return_type);
+    }
+
+    let signature = resolved.call_signature_for_call(call)?;
+    let mut return_type = signature.return_type.clone();
+
+    if let Some(specialization) =
+        concrete_function_call_specialization(call, typecheck_facts, generic_substitutions)
+    {
+        return_type = substitute_type_expr_parameters(&return_type, &specialization.substitutions);
+    }
+
+    Some(return_type)
+}
+
+fn slice_index_target_type_expr_is_buildable(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+) -> Option<bool> {
+    slice_index_target_type_expr_is_buildable_inner(ty, resolved, &mut HashSet::new())
+}
+
+fn slice_index_target_type_expr_is_buildable_inner(
+    ty: &TypeExpr,
+    resolved: &ResolveOutput,
+    resolving_names: &mut HashSet<String>,
+) -> Option<bool> {
+    match ty {
+        TypeExpr::Borrow(borrow)
+            if !borrow.is_readwrite
+                && matches!(borrow.inner.as_ref(), TypeExpr::Reference(reference) if reference.name == "str") =>
+        {
+            Some(true)
+        }
+        TypeExpr::Borrow(borrow) => {
+            let TypeExpr::View(view) = borrow.inner.as_ref() else {
+                return None;
+            };
+            Some(type_expr_is_supported_std_vec_element_storage(
+                &view.element,
+                resolved,
+            ))
+        }
+        TypeExpr::Reference(reference) => {
+            let symbol = resolved.type_symbol_by_reference_name(&reference.name)?;
+            let target = symbol.alias_target.as_ref()?;
+            if !resolving_names.insert(symbol.canonical_name.clone()) {
+                return None;
+            }
+            let result =
+                slice_index_target_type_expr_is_buildable_inner(target, resolved, resolving_names);
+            resolving_names.remove(&symbol.canonical_name);
+            result
+        }
+        _ => None,
     }
 }
 

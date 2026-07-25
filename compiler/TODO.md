@@ -42,6 +42,15 @@ Recommended next implementation order:
 
 Recent committed work:
 
+- Current checkpoint: reject aggregate slice index before IR
+  - rejects user-source slice indexing when the element type is outside the
+    runtime-shipped scalar and `&str` readback subset, such as
+    `Vec<Pair>.view()[0]`
+  - resolves generic function and method call return views through typecheck
+    specializations so concrete `Vec<T>.view()` index diagnostics match the
+    same element subset as `Vec` storage
+  - leaves `std/vec` generic body indexes to the reachable specialization path
+    because user call sites already carry the storage/readback boundary
 - Current checkpoint: read back scalar Vec elements
   - adds IR and ARM64 backend support for `&[i32]` and `&[bool]` indexing,
     completing the runtime-shipped scalar `Vec` readback set alongside the
