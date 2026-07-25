@@ -453,11 +453,11 @@ pub func copy(
 
 継承階層は採用しません。v0 では抽象化のための trait も導入せず、concrete nominal type の inherent method と associated function だけを解決します。`trait` 宣言、`impl Trait for Type`、`T: Trait` bound は v0 後の機能として延期します。`trait` は予約語ではなく、lexer は identifier token として扱います。
 
-`enum` は有限個の variant を持つ型です。statement として variant を分岐する場合は `match` を使い、各 arm は `Pattern { ... }` で書きます。fallback には最後の arm として `else { ... }` を使います。`else` がない `match` は、全 variant が arm で覆われている場合に終端文として扱います。値を返す enum pattern 分岐には `?{}` を使います。
+`enum` は有限個の variant を持つ型です。variant 分岐には `match` を使い、各 arm は `Pattern { ... }` で書きます。fallback には最後の arm として `else { ... }` を使います。`match` は statement としても expression としても使え、各 arm body の最後の式が値になります。
 
 payload を持たない variant は `Enum.variant`、payload を持つ variant は `Enum.variant(args...)` で作ります。variant constructor は enum 宣言から生まれる構文上の値生成手段であり、通常の関数名や特別な識別子ではありません。unqualified variant constructor は v0 では採用しません。
 
-v0 backend では payloadless enum の tag を `u8` ABI として渡します。そのため payloadless enum は最大 256 variants までです。payloadless enum の equality、`if expr is Enum.variant`、`match` statement、scalar/view を返す `?{}` は build/run できます。payload を持つ enum の ABI lowering は v0 では未完成で、pattern 分岐の型検査対象に留めます。
+v0 backend では payloadless enum の tag を `u8` ABI として渡します。そのため payloadless enum は最大 256 variants までです。payloadless enum の equality、`if expr is Enum.variant`、`match` statement は build/run できます。`if` / `match` expression と payload を持つ enum の ABI lowering は段階的に昇格します。
 
 ```nct
 let state = ScanState.inside_word
@@ -479,10 +479,10 @@ match error {
 ```
 
 ```nct
-return error ?{
-    AppError.missing_path : missing_code()
-    AppError.open_failed(path) : code_for(path)
-    : unknown_code()
+return match error {
+    AppError.missing_path { missing_code() }
+    AppError.open_failed(path) { code_for(path) }
+    else { unknown_code() }
 }
 ```
 
@@ -895,7 +895,7 @@ Nocter のメモリ管理方針は、GC なし、所有権あり、静的検査�
 - 関数引数も左から右に評価する
 - `method` 呼び出しでは receiver を最初に評価する
 - struct literal の field initializer は、literal に書いた順に評価する
-- `??` と三項条件演算子は必要な側だけ評価する
+- `??`、`if`、`match` は必要な側だけ評価する
 - 一時値は原則として文末で生成の逆順に `drop` する
 - 一時値の所有権が local binding、owned parameter、構築中の aggregate、代入先、return value に移った場合、その一時値自体は caller 側の文末では `drop` しない
 - block、`if` body、`match` arm、loop body は scope を作る
@@ -1326,7 +1326,11 @@ collection 用の操作は標準ライブラリの通常メソッドとして用
 ```nct
 var iter = read.iter()
 
-while let byte = iter.next() {
+loop {
+    let byte = iter.next() else {
+        break
+    }
+
     consume(byte)
 }
 ```
@@ -1448,9 +1452,9 @@ let truncated = u8.truncate(big) // u8
 - `String == String` や `String == str` は std 側の演算子定義が必要になるため v0 では保留する
 - `==` を struct に自動生成しない
 - payload を持たない enum の比較は許可する
-- payload を持つ enum の値全体の比較は初期仕様では採用せず、statement 分岐には `match` / `if expr is Pattern`、値選択には `?{}` を使う
+- payload を持つ enum の値全体の比較は初期仕様では採用せず、分岐と値選択には `match` / `if expr is Pattern` を使う
 
-演算子の優先順位は、call / method / index / field を最も高くし、`??`、三項条件演算子、`?{}` を低くします。`&&`、`||`、`??`、三項条件演算子、`?{}` は必要な側だけ評価します。
+演算子の優先順位は、call / method / index / field を最も高くし、`??` を低くします。`if` と `match` は演算子ではなく control expression です。`&&`、`||`、`??`、`if`、`match` は必要な側だけ評価します。
 
 ```nct
 if count > 0 && state == ScanState.inside_word {
@@ -1466,13 +1470,13 @@ func log(msg: str): void
 
 戻り値を持たない関数は `void` を返します。失敗を表す値には、例外ではなく fallible type `T!` を使います。
 
-`T!` は成功時に `T`、失敗時に built-in `error` を返す型です。fallible 関数内では `return value` が成功を表します。ただし `return error_value` のように返す値が `error` 型の場合は失敗を表します。曖昧さを避けるため、`error!` は関数 return type として使えません。
+`T!` は成功時に `T`、失敗時に built-in `error` を返す型です。fallible 関数内では body result または `return value` が成功を表します。ただし `return error_value` のように返す値が `error` 型の場合は失敗を表します。曖昧さを避けるため、`error!` は関数 return type として使えません。
 
 `error` は型位置で意味を持つ compiler built-in 構文です。use で解決される通常名ではなく、ユーザー定義の型名として再定義できません。一方で、値の束縛名としての `error` は通常のローカル名です。`catch error { ... }` の `error` は慣習的な束縛名であり、`catch err { ... }` のような別名も有効です。
 
 postfix `?` は fallible value または optional value を現在の関数へ伝播する構文です。`T!` に使うと成功値 `T` を取り出し、失敗時は現在の fallible 関数から同じ `error` で失敗します。`T?` に使うと present 値 `T` を取り出し、`none` 時は現在の optional return layer から `none` を返します。例外やスタック巻き戻しではありません。
 
-postfix `!` は fallible value または optional value を強制的に取り出す構文です。成功または present の場合は `T` を返します。失敗または `none` の場合は即座に復帰不能停止します。通常コードでは `?`、`catch`、`if let`、`let ... else`、`??` を優先し、`!` はテスト、プロトタイプ、復旧不能な前提に限定します。
+postfix `!` は fallible value または optional value を強制的に取り出す構文です。成功または present の場合は `T` を返します。失敗または `none` の場合は即座に復帰不能停止します。通常コードでは `?`、`catch`、`let ... else`、`??` を優先し、`!` はテスト、プロトタイプ、復旧不能な前提に限定します。
 
 fallible failure return、`trap`、`abort` は別の仕組みです。
 
@@ -1516,7 +1520,7 @@ func read_all(allocator: &+Allocator, path: str): String! {
 
 fallible value は `match` で分解しません。`match` は enum 専用に戻し、success / failure pattern は採用しません。fallible value は postfix `?` または `catch` で扱います。
 
-値が存在しない可能性は `T?` で表します。`Option<T>` という名前付き型を特別扱いしません。optional 関数では `return value` が present、`return none` が absent を表します。
+値が存在しない可能性は `T?` で表します。`Option<T>` という名前付き型を特別扱いしません。optional 関数では body result または `return value` が present、`return none` が absent を表します。
 
 ```nct
 func lookup(name: str): str? {
@@ -1528,23 +1532,25 @@ func lookup(name: str): str? {
 }
 
 func require_home(): str? {
-    if let home = lookup("HOME") {
-        return home
+    let home = lookup("HOME") else {
+        return none
     }
 
-    return none
+    return home
 }
 ```
 
 optional と fallible は合成できます。`T?!` は、失敗しうる処理の成功値が optional であることを表します。`process.env("HOME")?` は fallible layer だけを外すため型は `str?` です。さらに optional return layer を持つ関数内では、もう一度 `?` を使って `none` を伝播できます。
 
 ```nct
-if let home = process.env("HOME")? {
-    use(home)
+let home = process.env("HOME")? else {
+    return none
 }
+
+use(home)
 ```
 
-optional value の absence を伝播する場合も postfix `?` を使えます。`T?` に対する `expr?` は present なら `T` を取り出し、`none` なら現在の optional return layer から `none` を返します。現在の関数の return type が `none` を運べる場合に有効です。present / absent で分岐する場合は `if let` / `if var`、値がなければ現在の制御フローを抜ける場合は `let ... else` / `var ... else`、default value を選ぶ場合は `??` を使います。
+optional value の absence を伝播する場合も postfix `?` を使えます。`T?` に対する `expr?` は present なら `T` を取り出し、`none` なら現在の optional return layer から `none` を返します。現在の関数の return type が `none` を運べる場合に有効です。値がなければ現在の制御フローを抜ける場合は `let ... else` / `var ... else`、default value を選ぶ場合は `??` を使います。`if let` / `if var` は Nocter 構文ではありません。
 
 optional を値として使う前に、値がない場合だけ早期離脱したいときは `let ... else` を使います。
 
@@ -1594,86 +1600,45 @@ optional value には default operator `??` を使えます。右結合で、必
 let port = env_int("PORT") ?? config.default_port ?? 8080
 ```
 
-`T?` も `match` では分解しません。local に present / absent を分岐したい場合は `if let` / `if var` を使います。optional を繰り返し取り出す場合は `while let` / `while var` を使います。
-
-```nct
-if let home = env("HOME") {
-    consume(home)
-} else {
-    use_default_home()
-}
-```
-
-```nct
-if var text = maybe_text {
-    text.push("!")
-    consume(move text)
-}
-```
+`T?` も `match` では分解しません。optional は postfix `?`、`let ... else` / `var ... else`、`??` で扱います。optional を繰り返し取り出す場合は `loop` と `let ... else { break }` を組み合わせます。
 
 ```nct
 var iter = bytes.iter()
 
-while let byte = iter.next() {
+loop {
+    let byte = iter.next() else {
+        break
+    }
+
     consume(byte)
 }
 ```
 
-`if let` は optional が present の場合に中身を immutable binding として束縛し、`if var` は mutable binding として束縛します。`none` の場合は `else` body を実行します。`else` は省略できます。`else if let` / `else if var` も使えます。`if var` は元の optional へ値を書き戻す構文ではありません。
-
-`if let value = maybe` / `if var value = maybe` は optional value を通常の所有権規則で評価します。move-only optional binding を直接使う場合、元の binding は消費されます。optional を消費せず中身だけ借用したい場合は borrowed optional projection を使います。
+bool 条件の値選択には `if` expression を使います。
 
 ```nct
-var maybe_name = get_name()
+let label = if count == 0 { "empty" } else { "ready" }
+```
 
-if let name = &maybe_name {
-    inspect(name) // name: &String
+enum pattern の値選択には `match` expression を使います。
+
+```nct
+return match error {
+    AppError.open_failed(path) { code_for(path) }
+    else { unknown_code() }
 }
 ```
 
-```nct
-var maybe_name = get_name()
-
-if var name = &+maybe_name {
-    name.push("!") // name: &+String
-}
-```
-
-`if let name = &place` は `place: T?` から `name: &T` を作ります。`if var name = &+place` は writable な `place: T?` から `name: &+T` を作ります。どちらも optional 自体を move / copy しません。projection borrow は then body の中だけ有効で、その間 source optional は move、代入、再初期化、明示 `drop` できません。
-
-`while let name = &place` と `while var name = &+place` は v0 では採用しません。borrowed projection は optional を進めたり消費したりしないためです。`ViewIter<T>.next(): (&T)?` のように optional borrow value を返す式は通常の optional として扱えるので、`while let item = iter.next()` は使えます。
-
-bool 条件の値選択には三項条件演算子 `a ? b : c` を使えます。optional default とは別の演算子です。
-
-```nct
-let label = count == 0 ? "empty" : "ready"
-```
-
-enum pattern の値選択には `?{}` を使います。これは `match` expression ではなく、fallback arm を必須にした enum 専用の式です。
-
-```nct
-return error ?{
-    AppError.open_failed(path) : code_for(path)
-    : unknown_code()
-}
-```
-
-初期仕様では statement 中心にします。`if`、`match`、block `{ ... }` は値を返しません。関数の成功終了は `return`、fallible の失敗は `return error_value`、optional の absent は `return none` で明示します。
+Body は statement 列の最後に result expression を置けます。最後の式がその body の値になります。短い body は `{ expr }` と一行で書けます。
 
 ```nct
 func max(a: i32, b: i32): i32 {
     if a > b {
-        return a
+        a
+    } else {
+        b
     }
-
-    return b
 }
-```
-
-値として条件分岐したい場合は三項条件演算子を使います。
-
-```nct
-let value = use_left ? left : right
 ```
 
 文末セミコロンは初期仕様では採用しません。1 行 1 文を基本にし、改行または `}` で文を区切ります。
@@ -1705,12 +1670,16 @@ for i in 0..<bytes.len() {
 
 `start..<end` は `start` 以上 `end` 未満を表します。`start` と `end` は loop 開始前に 1 回だけ評価します。step は常に `+1`、loop 変数は immutable binding です。
 
-`while let name = expr` と `while var name = expr` は `T?` 専用の optional loop です。`expr` が present の間だけ body を実行し、`none` になったら loop を終了します。`while let name = &place` / `while var name = &+place` の borrowed optional projection は v0 では採用しません。
+`while let name = expr` と `while var name = expr` は Nocter 構文ではありません。optional loop は `loop` と `let ... else { break }` で書きます。
 
 ```nct
 var iter = bytes.iter()
 
-while let byte = iter.next() {
+loop {
+    let byte = iter.next() else {
+        break
+    }
+
     consume(byte)
 }
 ```
@@ -1729,15 +1698,15 @@ while let byte = iter.next() {
 use std/process.abort
 
 func require_path(path: &str?): &str {
-    if let value = path {
-        return value
+    let value = path else {
+        abort()
     }
 
-    abort()
+    value
 }
 ```
 
-`never` を返す関数を呼んだ後の同一 block 内の文は到達不能です。Nocter は初期仕様で到達不能コードをコンパイルエラーにします。`never` は値を生成しないため、三項条件演算子や `catch` の分岐で必要な型に収まりますが、変数に格納する値としては存在しません。`void` 以外の関数はすべての到達可能経路で値を返すか、`return none` / `never` などで経路を終端する必要があります。`never` 呼び出しは例外や stack unwinding ではないため、statement-end temporary drop や caller scope の `drop` 実行を暗黙に保証しません。
+`never` を返す関数を呼んだ後の同一 block 内の文は到達不能です。Nocter は初期仕様で到達不能コードをコンパイルエラーにします。`never` は値を生成しないため、`if`、`match`、`catch` の分岐で必要な型に収まりますが、変数に格納する値としては存在しません。`void` 以外の関数はすべての到達可能経路で値を返すか、`return none` / `never` などで経路を終端する必要があります。`never` 呼び出しは例外や stack unwinding ではないため、statement-end temporary drop や caller scope の `drop` 実行を暗黙に保証しません。
 
 ジェネリクスは `<T>` を使います。v0 では generic bound を採用しません。`T: Trait`、複数制約 `T: A + B`、`where` clause、default type parameter は v0 後へ延期します。
 
@@ -1834,7 +1803,7 @@ compiler 内部の source span は UTF-8 byte offset を正とし、CLI 用 JSON
 12. `print`
 13. `use`
 14. `struct`
-15. `if` / `match` / `?{}`
+15. `if` / `match` expression
 16. `while` / `loop` / range `for` / `break` / `continue`
 17. 所有型のコピー禁止
 18. `move`

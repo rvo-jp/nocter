@@ -24,9 +24,8 @@ use super::type_expr::type_expr_display_lossy;
 use crate::ast::{
     AssignmentStmt, BinaryExpr, BindingKind, BindingStmt, Block, BorrowExpr, CallExpr, Expr,
     ForRangeStmt, IfIsStmt, ImplDecl, IndexExpr, InterpolatedStringExpression, MemberExpr,
-    OptionalDefaultExpr, PatternConditionalArm, PatternConditionalExpr, ReturnStmt,
-    StructLiteralExpr, StructLiteralField, SwitchArm, SwitchStmt, TypeConversionExpr, TypeExpr,
-    UnaryExpr,
+    OptionalDefaultExpr, ReturnStmt, StructLiteralExpr, StructLiteralField, SwitchArm, SwitchStmt,
+    TypeConversionExpr, TypeExpr, UnaryExpr,
 };
 use crate::diagnostics::{Diagnostic, DiagnosticNote};
 use crate::resolve::{

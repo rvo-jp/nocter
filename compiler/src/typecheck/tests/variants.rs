@@ -207,7 +207,7 @@ func describe(value: Maybe<&str>): &str {
 }
 
 #[test]
-fn accepts_pattern_conditional_over_enum() {
+fn accepts_match_expression_over_enum() {
     let diagnostics = check_text(
         r#"enum AppError {
     missing_path
@@ -219,10 +219,10 @@ func main(): i32 {
 }
 
 func describe(error: AppError): &str {
-    return error ?{
-        AppError.missing_path : "missing"
-        AppError.open_failed(path) : path
-        : "unknown"
+    return match error {
+        AppError.missing_path { "missing" }
+        AppError.open_failed(path) { path }
+        else { "unknown" }
     }
 }
 "#,
@@ -232,7 +232,7 @@ func describe(error: AppError): &str {
 }
 
 #[test]
-fn substitutes_generic_enum_pattern_conditional_payload_binding_type() {
+fn substitutes_generic_enum_match_expression_payload_binding_type() {
     let diagnostics = check_text(
         r#"enum Maybe<T> {
     some(value: T)
@@ -244,10 +244,10 @@ func main(): i32 {
 }
 
 func value(option: Maybe<i32>): i32 {
-    return option ?{
-        Maybe.some(inner) : inner
-        Maybe.empty : 0
-        : 0
+    return match option {
+        Maybe.some(inner) { inner }
+        Maybe.empty { 0 }
+        else { 0 }
     }
 }
 "#,
@@ -257,7 +257,7 @@ func value(option: Maybe<i32>): i32 {
 }
 
 #[test]
-fn diagnoses_generic_enum_pattern_conditional_payload_type_mismatch() {
+fn diagnoses_generic_enum_match_expression_payload_type_mismatch() {
     let diagnostics = check_text(
         r#"enum Maybe<T> {
     some(value: T)
@@ -269,10 +269,9 @@ func main(): i32 {
 }
 
 func value(option: Maybe<i32>): &str {
-    return option ?{
-        Maybe.some(inner) : inner
-        Maybe.empty : "none"
-        : "unknown"
+    return match option {
+        Maybe.some(inner) { inner }
+        Maybe.empty { "none" }
     }
 }
 "#,
@@ -285,7 +284,7 @@ func value(option: Maybe<i32>): &str {
 }
 
 #[test]
-fn accepts_pattern_conditional_contextual_integer_fallback() {
+fn accepts_match_expression_contextual_integer_fallback() {
     let diagnostics = check_text(
         r#"enum Status {
     found(code: u8)
@@ -297,10 +296,10 @@ func main(): i32 {
 }
 
 func select(status: Status): u8 {
-    return status ?{
-        Status.missing : 0
-        Status.found(code) : code
-        : 1
+    return match status {
+        Status.missing { 0 }
+        Status.found(code) { code }
+        else { 1 }
     }
 }
 
@@ -314,16 +313,16 @@ func widen(value: u8): i32 {
 }
 
 #[test]
-fn diagnoses_pattern_conditional_non_enum_target() {
+fn diagnoses_match_expression_non_enum_target() {
     let diagnostics = check_text(
         r#"enum AppError {
     missing_path
 }
 
 func main(): i32 {
-    return 1 ?{
-        AppError.missing_path : 1
-        : 0
+    return match 1 {
+        AppError.missing_path { 1 }
+        else { 0 }
     }
 }
 "#,
@@ -334,7 +333,7 @@ func main(): i32 {
 }
 
 #[test]
-fn diagnoses_pattern_conditional_arm_type_mismatch() {
+fn diagnoses_match_expression_arm_type_mismatch() {
     let diagnostics = check_text(
         r#"enum AppError {
     missing_path
@@ -345,9 +344,9 @@ func main(): i32 {
 }
 
 func code(error: AppError): i32 {
-    return error ?{
-        AppError.missing_path : "missing"
-        : 0
+    return match error {
+        AppError.missing_path { "missing" }
+        else { 0 }
     }
 }
 "#,
@@ -458,7 +457,7 @@ func code(error: AppError): i32 {
 }
 
 #[test]
-fn diagnoses_duplicate_pattern_conditional_arm_variant() {
+fn diagnoses_duplicate_match_expression_arm_variant() {
     let diagnostics = check_text(
         r#"enum AppError {
     missing_path
@@ -470,17 +469,17 @@ func main(): i32 {
 }
 
 func code(error: AppError): i32 {
-    return error ?{
-        AppError.missing_path : 1
-        AppError.missing_path : 2
-        : 0
+    return match error {
+        AppError.missing_path { 1 }
+        AppError.missing_path { 2 }
+        else { 0 }
     }
 }
 "#,
     );
 
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].code, "E0399");
+    assert_eq!(diagnostics[0].code, "E0398");
 }
 
 #[test]

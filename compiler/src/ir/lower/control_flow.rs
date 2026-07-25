@@ -8,10 +8,10 @@ use super::expressions::{
     lower_slice_return_expression, lower_str_return_expression, lower_u8_return_expression,
     lower_usize_expression_to_location, lower_usize_return_expression,
     lower_void_expression_statement, primitive_trap_call,
-    short_circuit_bool_expression_needs_branch,
+    short_circuit_bool_expression_needs_branch, success_return_instruction,
 };
 use super::functions::{
-    expression_contains_explicit_aggregate_move,
+    append_scope_end_drops_before_exit, expression_contains_explicit_aggregate_move,
     expression_contains_explicit_aggregate_move_outside, lower_drop_statement,
     lower_never_expression_with_scope_drops, lower_return_statement_with_scope_drops,
     lower_scope_end_drops_for_locals_since, mark_explicit_moves_in_expression,
@@ -20,7 +20,7 @@ use super::functions::{
 };
 use crate::ast::{
     AssignmentOperator, BinaryExpr, BinaryOperator, Block, Expr, ForRangeStmt, IfStmt, LoopStmt,
-    Stmt, UnaryOperator, WhileStmt,
+    ReturnStmt, Stmt, UnaryOperator, WhileStmt,
 };
 use crate::diagnostics::Diagnostic;
 use crate::ir::{
@@ -36,6 +36,11 @@ type ReturnLowerer = fn(&Expr, &LoweringContext) -> Result<Vec<Instruction>, Vec
 struct LoweredNonterminalBlock {
     instructions: Vec<Instruction>,
     ends_execution: bool,
+}
+
+pub(super) enum TerminalBranch<'a> {
+    Statement(&'a Stmt),
+    Result(&'a Expr),
 }
 
 pub(super) fn lower_terminal_i32_if_statement(
@@ -761,6 +766,7 @@ fn lower_nonterminal_for_range_block(
     let local_mark = body_context.local_mark();
     let lowered = lower_nonterminal_loop_block_statements(
         &block.statements,
+        block.result.as_deref(),
         &mut body_context,
         local_mark,
         Some(local_mark),
@@ -798,6 +804,7 @@ fn lower_nonterminal_while_block(
     let local_mark = body_context.local_mark();
     let lowered = lower_nonterminal_loop_block_statements(
         &block.statements,
+        block.result.as_deref(),
         &mut body_context,
         local_mark,
         Some(local_mark),
@@ -829,6 +836,7 @@ fn lower_nonterminal_if_block(
     let local_mark = branch_context.local_mark();
     let lowered = lower_nonterminal_loop_block_statements(
         &block.statements,
+        block.result.as_deref(),
         &mut branch_context,
         local_mark,
         loop_scope_mark,
@@ -849,6 +857,7 @@ fn lower_nonterminal_if_block(
 
 fn lower_nonterminal_loop_block_statements(
     statements: &[Stmt],
+    result: Option<&Expr>,
     context: &mut LoweringContext,
     local_mark: usize,
     loop_scope_mark: Option<usize>,
@@ -867,7 +876,7 @@ fn lower_nonterminal_loop_block_statements(
                     context,
                     local_mark,
                 ) && !outer_aggregate_move_binding_before_function_exit_allowed(
-                    statement, context, local_mark, statements, index,
+                    statement, context, local_mark, statements, index, result,
                 ) {
                     return Err(attach_primary_span_if_absent(
                         unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
@@ -885,11 +894,11 @@ fn lower_nonterminal_loop_block_statements(
                 let target_allowed =
                     nonterminal_assignment_target_allowed(statement, context, local_mark)
                         || outer_aggregate_assignment_before_function_exit_allowed(
-                            statement, context, local_mark, statements, index,
+                            statement, context, local_mark, statements, index, result,
                         );
                 let explicit_outer_aggregate_move_allowed =
                     aggregate_move_assignment_before_function_exit_allowed(
-                        statement, context, local_mark, statements, index,
+                        statement, context, local_mark, statements, index, result,
                     );
                 if !target_allowed
                     || (expression_contains_explicit_aggregate_move_outside(
@@ -957,7 +966,7 @@ fn lower_nonterminal_loop_block_statements(
             }
             Stmt::Drop(statement) => {
                 if !context.aggregate_local_defined_since(&statement.name, local_mark)
-                    && !statement_suffix_exits_function(statements, index, context)
+                    && !statement_suffix_exits_function(statements, index, result, context)
                 {
                     return Err(attach_primary_span_if_absent(
                         unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
@@ -1124,21 +1133,81 @@ fn lower_nonterminal_loop_block_statements(
             break;
         }
     }
+    if !ends_execution && let Some(result) = result {
+        instructions.extend(lower_nonterminal_block_result(
+            result,
+            context,
+            local_mark,
+            diagnostic_code,
+            subject,
+            sources,
+        )?);
+        ends_execution = expression_exits_function(result, context);
+    }
     Ok(LoweredNonterminalBlock {
         instructions,
         ends_execution,
     })
 }
 
+fn lower_nonterminal_block_result(
+    expression: &Expr,
+    context: &mut LoweringContext,
+    local_mark: usize,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if expression_contains_explicit_aggregate_move_outside(expression, context, local_mark) {
+        return Err(attach_primary_span_if_absent(
+            unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
+            sources,
+            expression.span(),
+        ));
+    }
+
+    if let Some(terminating_instructions) =
+        lower_never_expression_with_scope_drops(expression, context).map_err(|diagnostics| {
+            attach_primary_span_if_absent(diagnostics, sources, expression.span())
+        })?
+    {
+        mark_explicit_moves_in_expression(expression, context);
+        return Ok(terminating_instructions);
+    }
+
+    let Some(void_instructions) =
+        lower_void_expression_statement(expression, context).map_err(|diagnostics| {
+            attach_primary_span_if_absent(diagnostics, sources, expression.span())
+        })?
+    else {
+        return Err(attach_primary_span_if_absent(
+            unsupported_nonterminal_if_diagnostic(diagnostic_code, subject),
+            sources,
+            expression.span(),
+        ));
+    };
+    mark_explicit_moves_in_expression(expression, context);
+    Ok(void_instructions)
+}
+
 fn statement_suffix_exits_function(
     statements: &[Stmt],
     index: usize,
+    result: Option<&Expr>,
     context: &LoweringContext,
 ) -> bool {
-    statement_sequence_exits_function(statements.get(index + 1..).unwrap_or(&[]), context)
+    statement_sequence_or_result_exits_function(
+        statements.get(index + 1..).unwrap_or(&[]),
+        result,
+        context,
+    )
 }
 
-fn statement_sequence_exits_function(statements: &[Stmt], context: &LoweringContext) -> bool {
+fn statement_sequence_or_result_exits_function(
+    statements: &[Stmt],
+    result: Option<&Expr>,
+    context: &LoweringContext,
+) -> bool {
     for statement in statements {
         if statement_may_exit_current_loop(statement) {
             return false;
@@ -1147,7 +1216,7 @@ fn statement_sequence_exits_function(statements: &[Stmt], context: &LoweringCont
             return true;
         }
     }
-    false
+    result.is_some_and(|expression| expression_exits_function(expression, context))
 }
 
 fn statement_exits_function(statement: &Stmt, context: &LoweringContext) -> bool {
@@ -1183,20 +1252,46 @@ fn statement_exits_function(statement: &Stmt, context: &LoweringContext) -> bool
 }
 
 fn block_exits_function(block: &Block, context: &LoweringContext) -> bool {
-    statement_sequence_exits_function(&block.statements, context)
+    statement_sequence_or_result_exits_function(&block.statements, block.result.as_deref(), context)
 }
 
 fn expression_exits_function(expression: &Expr, context: &LoweringContext) -> bool {
-    let Expr::Call(call) = unwrap_group(expression) else {
-        return false;
-    };
-    if primitive_trap_call(call, context) {
-        return true;
+    match unwrap_group(expression) {
+        Expr::Call(call) => {
+            if primitive_trap_call(call, context) {
+                return true;
+            }
+            let Some((target, _call_name)) = context.direct_call_target_and_name(call) else {
+                return false;
+            };
+            context.call_return_type(&target) == Some(&Type::Never)
+        }
+        Expr::If(statement) => {
+            let Some(else_block) = &statement.else_block else {
+                return false;
+            };
+            block_exits_function(&statement.then_block, context)
+                && block_exits_function(else_block, context)
+        }
+        Expr::IfIs(statement) => {
+            let Some(else_block) = &statement.else_block else {
+                return false;
+            };
+            block_exits_function(&statement.then_block, context)
+                && block_exits_function(else_block, context)
+        }
+        Expr::Match(statement) => {
+            let Some(else_arm) = &statement.else_arm else {
+                return false;
+            };
+            statement
+                .arms
+                .iter()
+                .all(|arm| block_exits_function(&arm.body, context))
+                && block_exits_function(&else_arm.body, context)
+        }
+        _ => false,
     }
-    let Some((target, _call_name)) = context.direct_call_target_and_name(call) else {
-        return false;
-    };
-    context.call_return_type(&target) == Some(&Type::Never)
 }
 
 fn statement_may_exit_current_loop(statement: &Stmt) -> bool {
@@ -1233,6 +1328,40 @@ fn statement_may_exit_current_loop(statement: &Stmt) -> bool {
 
 fn block_may_exit_current_loop(block: &Block) -> bool {
     block.statements.iter().any(statement_may_exit_current_loop)
+        || block
+            .result
+            .as_deref()
+            .is_some_and(expression_may_exit_current_loop)
+}
+
+fn expression_may_exit_current_loop(expression: &Expr) -> bool {
+    match unwrap_group(expression) {
+        Expr::If(statement) => {
+            block_may_exit_current_loop(&statement.then_block)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(block_may_exit_current_loop)
+        }
+        Expr::IfIs(statement) => {
+            block_may_exit_current_loop(&statement.then_block)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(block_may_exit_current_loop)
+        }
+        Expr::Match(statement) => {
+            statement
+                .arms
+                .iter()
+                .any(|arm| block_may_exit_current_loop(&arm.body))
+                || statement
+                    .else_arm
+                    .as_ref()
+                    .is_some_and(|arm| block_may_exit_current_loop(&arm.body))
+        }
+        _ => false,
+    }
 }
 
 fn outer_aggregate_move_binding_before_function_exit_allowed(
@@ -1241,8 +1370,9 @@ fn outer_aggregate_move_binding_before_function_exit_allowed(
     local_mark: usize,
     statements: &[Stmt],
     index: usize,
+    result: Option<&Expr>,
 ) -> bool {
-    statement_suffix_exits_function(statements, index, context)
+    statement_suffix_exits_function(statements, index, result, context)
         && direct_outer_aggregate_move(&statement.initializer, context, local_mark)
 }
 
@@ -1435,8 +1565,9 @@ fn outer_aggregate_assignment_before_function_exit_allowed(
     local_mark: usize,
     statements: &[Stmt],
     index: usize,
+    result: Option<&Expr>,
 ) -> bool {
-    if !statement_suffix_exits_function(statements, index, context) {
+    if !statement_suffix_exits_function(statements, index, result, context) {
         return false;
     }
     let Some(target_name) = assignment_target_root_name(&statement.target) else {
@@ -1452,8 +1583,9 @@ fn aggregate_move_assignment_before_function_exit_allowed(
     local_mark: usize,
     statements: &[Stmt],
     index: usize,
+    result: Option<&Expr>,
 ) -> bool {
-    if !statement_suffix_exits_function(statements, index, context) {
+    if !statement_suffix_exits_function(statements, index, result, context) {
         return false;
     }
     let Some(target_name) = assignment_target_root_name(&statement.target) else {
@@ -1510,7 +1642,18 @@ fn lower_i32_return_block(
     )?;
 
     match terminal {
-        Stmt::Return(statement) => {
+        TerminalBranch::Result(expression) => {
+            instructions.extend(lower_i32_result_expression(
+                expression,
+                &mut branch_context,
+                return_type,
+                diagnostic_code,
+                subject,
+                sources,
+            )?);
+            Ok(instructions)
+        }
+        TerminalBranch::Statement(Stmt::Return(statement)) => {
             let return_instructions = lower_return_statement_with_scope_drops(
                 statement,
                 &mut branch_context,
@@ -1519,7 +1662,7 @@ fn lower_i32_return_block(
             instructions.extend(return_instructions);
             Ok(instructions)
         }
-        Stmt::If(statement) => {
+        TerminalBranch::Statement(Stmt::If(statement)) => {
             instructions.extend(lower_terminal_i32_if_statement(
                 statement,
                 &branch_context,
@@ -1530,7 +1673,7 @@ fn lower_i32_return_block(
             )?);
             Ok(instructions)
         }
-        Stmt::IfIs(statement) => {
+        TerminalBranch::Statement(Stmt::IfIs(statement)) => {
             let if_statement =
                 payloadless_if_is_as_if_statement(statement, &branch_context, diagnostic_code)?;
             instructions.extend(lower_terminal_i32_if_statement(
@@ -1543,7 +1686,7 @@ fn lower_i32_return_block(
             )?);
             Ok(instructions)
         }
-        Stmt::Switch(statement) => {
+        TerminalBranch::Statement(Stmt::Switch(statement)) => {
             let switch = payloadless_switch_as_if_statement(
                 statement,
                 &mut branch_context,
@@ -1560,7 +1703,7 @@ fn lower_i32_return_block(
             )?);
             Ok(instructions)
         }
-        Stmt::Expression(statement) => {
+        TerminalBranch::Statement(Stmt::Expression(statement)) => {
             let Some(terminating_instructions) = lower_never_expression_with_scope_drops(
                 &statement.expression,
                 &mut branch_context,
@@ -1605,7 +1748,18 @@ fn lower_bool_return_block(
     )?;
 
     match terminal {
-        Stmt::Return(statement) => {
+        TerminalBranch::Result(expression) => {
+            instructions.extend(lower_bool_result_expression(
+                expression,
+                &mut branch_context,
+                return_type,
+                diagnostic_code,
+                subject,
+                sources,
+            )?);
+            Ok(instructions)
+        }
+        TerminalBranch::Statement(Stmt::Return(statement)) => {
             let return_instructions = lower_return_statement_with_scope_drops(
                 statement,
                 &mut branch_context,
@@ -1614,7 +1768,7 @@ fn lower_bool_return_block(
             instructions.extend(return_instructions);
             Ok(instructions)
         }
-        Stmt::If(statement) => {
+        TerminalBranch::Statement(Stmt::If(statement)) => {
             instructions.extend(lower_terminal_bool_if_statement(
                 statement,
                 &branch_context,
@@ -1625,7 +1779,7 @@ fn lower_bool_return_block(
             )?);
             Ok(instructions)
         }
-        Stmt::IfIs(statement) => {
+        TerminalBranch::Statement(Stmt::IfIs(statement)) => {
             let if_statement =
                 payloadless_if_is_as_if_statement(statement, &branch_context, diagnostic_code)?;
             instructions.extend(lower_terminal_bool_if_statement(
@@ -1638,7 +1792,7 @@ fn lower_bool_return_block(
             )?);
             Ok(instructions)
         }
-        Stmt::Switch(statement) => {
+        TerminalBranch::Statement(Stmt::Switch(statement)) => {
             let switch = payloadless_switch_as_if_statement(
                 statement,
                 &mut branch_context,
@@ -1655,7 +1809,7 @@ fn lower_bool_return_block(
             )?);
             Ok(instructions)
         }
-        Stmt::Expression(statement) => {
+        TerminalBranch::Statement(Stmt::Expression(statement)) => {
             let Some(terminating_instructions) = lower_never_expression_with_scope_drops(
                 &statement.expression,
                 &mut branch_context,
@@ -1675,6 +1829,98 @@ fn lower_bool_return_block(
             subject,
             "bool",
         )),
+    }
+}
+
+fn lower_i32_result_expression(
+    expression: &Expr,
+    context: &mut LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match unwrap_group(expression) {
+        Expr::If(statement) => lower_terminal_i32_if_statement(
+            statement,
+            context,
+            return_type,
+            diagnostic_code,
+            subject,
+            sources,
+        ),
+        Expr::IfIs(statement) => {
+            let if_statement =
+                payloadless_if_is_as_if_statement(statement, context, diagnostic_code)?;
+            lower_terminal_i32_if_statement(
+                &if_statement,
+                context,
+                return_type,
+                diagnostic_code,
+                subject,
+                sources,
+            )
+        }
+        Expr::Match(statement) => {
+            let switch = payloadless_switch_as_if_statement(statement, context, diagnostic_code)?;
+            let mut instructions = switch.leading_instructions;
+            instructions.extend(lower_terminal_i32_if_statement(
+                &switch.if_statement,
+                context,
+                return_type,
+                diagnostic_code,
+                subject,
+                sources,
+            )?);
+            Ok(instructions)
+        }
+        _ => lower_implicit_return_result_expression(expression, context, diagnostic_code),
+    }
+}
+
+fn lower_bool_result_expression(
+    expression: &Expr,
+    context: &mut LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match unwrap_group(expression) {
+        Expr::If(statement) => lower_terminal_bool_if_statement(
+            statement,
+            context,
+            return_type,
+            diagnostic_code,
+            subject,
+            sources,
+        ),
+        Expr::IfIs(statement) => {
+            let if_statement =
+                payloadless_if_is_as_if_statement(statement, context, diagnostic_code)?;
+            lower_terminal_bool_if_statement(
+                &if_statement,
+                context,
+                return_type,
+                diagnostic_code,
+                subject,
+                sources,
+            )
+        }
+        Expr::Match(statement) => {
+            let switch = payloadless_switch_as_if_statement(statement, context, diagnostic_code)?;
+            let mut instructions = switch.leading_instructions;
+            instructions.extend(lower_terminal_bool_if_statement(
+                &switch.if_statement,
+                context,
+                return_type,
+                diagnostic_code,
+                subject,
+                sources,
+            )?);
+            Ok(instructions)
+        }
+        _ => lower_implicit_return_result_expression(expression, context, diagnostic_code),
     }
 }
 
@@ -1703,7 +1949,20 @@ fn lower_scalar_return_block(
     )?;
 
     match terminal {
-        Stmt::Return(statement) => {
+        TerminalBranch::Result(expression) => {
+            instructions.extend(lower_scalar_result_expression(
+                expression,
+                &mut branch_context,
+                return_type,
+                diagnostic_code,
+                subject,
+                return_label,
+                lower_return_expression,
+                sources,
+            )?);
+            Ok(instructions)
+        }
+        TerminalBranch::Statement(Stmt::Return(statement)) => {
             let return_instructions = lower_return_statement_with_scope_drops(
                 statement,
                 &mut branch_context,
@@ -1712,7 +1971,7 @@ fn lower_scalar_return_block(
             instructions.extend(return_instructions);
             Ok(instructions)
         }
-        Stmt::If(statement) => {
+        TerminalBranch::Statement(Stmt::If(statement)) => {
             instructions.extend(lower_terminal_scalar_if_statement(
                 statement,
                 &branch_context,
@@ -1725,7 +1984,7 @@ fn lower_scalar_return_block(
             )?);
             Ok(instructions)
         }
-        Stmt::IfIs(statement) => {
+        TerminalBranch::Statement(Stmt::IfIs(statement)) => {
             let if_statement =
                 payloadless_if_is_as_if_statement(statement, &branch_context, diagnostic_code)?;
             instructions.extend(lower_terminal_scalar_if_statement(
@@ -1740,7 +1999,7 @@ fn lower_scalar_return_block(
             )?);
             Ok(instructions)
         }
-        Stmt::Switch(statement) => {
+        TerminalBranch::Statement(Stmt::Switch(statement)) => {
             let switch = payloadless_switch_as_if_statement(
                 statement,
                 &mut branch_context,
@@ -1759,7 +2018,7 @@ fn lower_scalar_return_block(
             )?);
             Ok(instructions)
         }
-        Stmt::Expression(statement) => {
+        TerminalBranch::Statement(Stmt::Expression(statement)) => {
             let Some(terminating_instructions) = lower_never_expression_with_scope_drops(
                 &statement.expression,
                 &mut branch_context,
@@ -1779,6 +2038,60 @@ fn lower_scalar_return_block(
             subject,
             return_label,
         )),
+    }
+}
+
+fn lower_scalar_result_expression(
+    expression: &Expr,
+    context: &mut LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    return_label: &str,
+    lower_return_expression: ReturnLowerer,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match unwrap_group(expression) {
+        Expr::If(statement) => lower_terminal_scalar_if_statement(
+            statement,
+            context,
+            return_type,
+            diagnostic_code,
+            subject,
+            return_label,
+            lower_return_expression,
+            sources,
+        ),
+        Expr::IfIs(statement) => {
+            let if_statement =
+                payloadless_if_is_as_if_statement(statement, context, diagnostic_code)?;
+            lower_terminal_scalar_if_statement(
+                &if_statement,
+                context,
+                return_type,
+                diagnostic_code,
+                subject,
+                return_label,
+                lower_return_expression,
+                sources,
+            )
+        }
+        Expr::Match(statement) => {
+            let switch = payloadless_switch_as_if_statement(statement, context, diagnostic_code)?;
+            let mut instructions = switch.leading_instructions;
+            instructions.extend(lower_terminal_scalar_if_statement(
+                &switch.if_statement,
+                context,
+                return_type,
+                diagnostic_code,
+                subject,
+                return_label,
+                lower_return_expression,
+                sources,
+            )?);
+            Ok(instructions)
+        }
+        _ => lower_implicit_return_result_expression(expression, context, diagnostic_code),
     }
 }
 
@@ -1804,7 +2117,18 @@ fn lower_void_return_block(
     )?;
 
     match terminal {
-        Stmt::Return(statement) => {
+        TerminalBranch::Result(expression) => {
+            instructions.extend(lower_void_result_expression(
+                expression,
+                &mut branch_context,
+                return_type,
+                diagnostic_code,
+                subject,
+                sources,
+            )?);
+            Ok(instructions)
+        }
+        TerminalBranch::Statement(Stmt::Return(statement)) => {
             let return_instructions = lower_return_statement_with_scope_drops(
                 statement,
                 &mut branch_context,
@@ -1813,7 +2137,7 @@ fn lower_void_return_block(
             instructions.extend(return_instructions);
             Ok(instructions)
         }
-        Stmt::If(statement) => {
+        TerminalBranch::Statement(Stmt::If(statement)) => {
             instructions.extend(lower_terminal_void_if_statement(
                 statement,
                 &branch_context,
@@ -1824,7 +2148,7 @@ fn lower_void_return_block(
             )?);
             Ok(instructions)
         }
-        Stmt::IfIs(statement) => {
+        TerminalBranch::Statement(Stmt::IfIs(statement)) => {
             let if_statement =
                 payloadless_if_is_as_if_statement(statement, &branch_context, diagnostic_code)?;
             instructions.extend(lower_terminal_void_if_statement(
@@ -1837,7 +2161,7 @@ fn lower_void_return_block(
             )?);
             Ok(instructions)
         }
-        Stmt::Switch(statement) => {
+        TerminalBranch::Statement(Stmt::Switch(statement)) => {
             let switch = payloadless_switch_as_if_statement(
                 statement,
                 &mut branch_context,
@@ -1854,7 +2178,7 @@ fn lower_void_return_block(
             )?);
             Ok(instructions)
         }
-        Stmt::Expression(statement) => {
+        TerminalBranch::Statement(Stmt::Expression(statement)) => {
             let Some(terminating_instructions) = lower_never_expression_with_scope_drops(
                 &statement.expression,
                 &mut branch_context,
@@ -1877,12 +2201,96 @@ fn lower_void_return_block(
     }
 }
 
+fn lower_void_result_expression(
+    expression: &Expr,
+    context: &mut LoweringContext,
+    return_type: &Type,
+    diagnostic_code: &'static str,
+    subject: &str,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match unwrap_group(expression) {
+        Expr::If(statement) => lower_terminal_void_if_statement(
+            statement,
+            context,
+            return_type,
+            diagnostic_code,
+            subject,
+            sources,
+        ),
+        Expr::IfIs(statement) => {
+            let if_statement =
+                payloadless_if_is_as_if_statement(statement, context, diagnostic_code)?;
+            lower_terminal_void_if_statement(
+                &if_statement,
+                context,
+                return_type,
+                diagnostic_code,
+                subject,
+                sources,
+            )
+        }
+        Expr::Match(statement) => {
+            let switch = payloadless_switch_as_if_statement(statement, context, diagnostic_code)?;
+            let mut instructions = switch.leading_instructions;
+            instructions.extend(lower_terminal_void_if_statement(
+                &switch.if_statement,
+                context,
+                return_type,
+                diagnostic_code,
+                subject,
+                sources,
+            )?);
+            Ok(instructions)
+        }
+        _ => {
+            if let Some(terminating_instructions) =
+                lower_never_expression_with_scope_drops(expression, context)?
+            {
+                mark_explicit_moves_in_expression(expression, context);
+                return Ok(terminating_instructions);
+            }
+
+            let Some(mut void_instructions) = lower_void_expression_statement(expression, context)?
+            else {
+                return Err(unsupported_terminal_if_diagnostic(
+                    diagnostic_code,
+                    subject,
+                    "void",
+                ));
+            };
+            mark_explicit_moves_in_expression(expression, context);
+            void_instructions.extend(append_scope_end_drops_before_exit(
+                vec![success_return_instruction(return_type)],
+                context,
+            )?);
+            Ok(void_instructions)
+        }
+    }
+}
+
+fn lower_implicit_return_result_expression(
+    expression: &Expr,
+    context: &mut LoweringContext,
+    diagnostic_code: &'static str,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    let statement = ReturnStmt {
+        span: expression.span(),
+        expression: Some(expression.clone()),
+    };
+    lower_return_statement_with_scope_drops(&statement, context, diagnostic_code)
+}
+
 pub(super) fn split_terminal_branch_block<'a>(
     block: &'a Block,
     diagnostic_code: &'static str,
     subject: &str,
     return_label: &str,
-) -> Result<(&'a Stmt, &'a [Stmt]), Vec<Diagnostic>> {
+) -> Result<(TerminalBranch<'a>, &'a [Stmt]), Vec<Diagnostic>> {
+    if let Some(result) = &block.result {
+        return Ok((TerminalBranch::Result(result), block.statements.as_slice()));
+    }
+
     let Some((terminal, leading)) = block.statements.split_last() else {
         return Err(unsupported_terminal_if_diagnostic(
             diagnostic_code,
@@ -1890,7 +2298,7 @@ pub(super) fn split_terminal_branch_block<'a>(
             return_label,
         ));
     };
-    Ok((terminal, leading))
+    Ok((TerminalBranch::Statement(terminal), leading))
 }
 
 pub(super) fn lower_terminal_branch_leading_statements(

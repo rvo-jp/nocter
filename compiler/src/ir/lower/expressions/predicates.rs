@@ -80,15 +80,99 @@ pub(in crate::ir::lower) fn expression_contains_call(expression: &Expr) -> bool 
             expression_contains_call(&optional_default.value)
                 || expression_contains_call(&optional_default.default)
         }
-        Expr::PatternConditional(pattern_conditional) => {
-            expression_contains_call(&pattern_conditional.target)
-                || pattern_conditional
+        Expr::If(statement) => {
+            expression_contains_call(&statement.condition)
+                || block_contains_call(&statement.then_block)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(|block| block_contains_call(block))
+        }
+        Expr::IfIs(statement) => {
+            expression_contains_call(&statement.expression)
+                || block_contains_call(&statement.then_block)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(|block| block_contains_call(block))
+        }
+        Expr::Match(statement) => {
+            expression_contains_call(&statement.expression)
+                || statement
                     .arms
                     .iter()
-                    .any(|arm| expression_contains_call(&arm.expression))
-                || expression_contains_call(&pattern_conditional.fallback)
+                    .any(|arm| block_contains_call(&arm.body))
+                || statement
+                    .else_arm
+                    .as_ref()
+                    .is_some_and(|arm| block_contains_call(&arm.body))
         }
         _ => false,
+    }
+}
+
+fn block_contains_call(block: &crate::ast::Block) -> bool {
+    block
+        .statements
+        .iter()
+        .any(|statement| statement_contains_call(statement))
+        || block
+            .result
+            .as_deref()
+            .is_some_and(expression_contains_call)
+}
+
+fn statement_contains_call(statement: &crate::ast::Stmt) -> bool {
+    match statement {
+        crate::ast::Stmt::Return(statement) => statement
+            .expression
+            .as_ref()
+            .is_some_and(expression_contains_call),
+        crate::ast::Stmt::Binding(statement) => expression_contains_call(&statement.initializer),
+        crate::ast::Stmt::Assignment(statement) => {
+            expression_contains_call(&statement.target)
+                || expression_contains_call(&statement.value)
+        }
+        crate::ast::Stmt::If(statement) => {
+            expression_contains_call(&statement.condition)
+                || block_contains_call(&statement.then_block)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(|block| block_contains_call(block))
+        }
+        crate::ast::Stmt::IfIs(statement) => {
+            expression_contains_call(&statement.expression)
+                || block_contains_call(&statement.then_block)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(|block| block_contains_call(block))
+        }
+        crate::ast::Stmt::Switch(statement) => {
+            expression_contains_call(&statement.expression)
+                || statement
+                    .arms
+                    .iter()
+                    .any(|arm| block_contains_call(&arm.body))
+                || statement
+                    .else_arm
+                    .as_ref()
+                    .is_some_and(|arm| block_contains_call(&arm.body))
+        }
+        crate::ast::Stmt::ForRange(statement) => {
+            expression_contains_call(&statement.start)
+                || expression_contains_call(&statement.end)
+                || block_contains_call(&statement.body)
+        }
+        crate::ast::Stmt::While(statement) => {
+            expression_contains_call(&statement.condition) || block_contains_call(&statement.body)
+        }
+        crate::ast::Stmt::Loop(statement) => block_contains_call(&statement.body),
+        crate::ast::Stmt::Expression(statement) => expression_contains_call(&statement.expression),
+        crate::ast::Stmt::Break(_) | crate::ast::Stmt::Continue(_) | crate::ast::Stmt::Drop(_) => {
+            false
+        }
     }
 }
 
@@ -134,15 +218,104 @@ pub(in crate::ir::lower) fn expression_contains_interpolated_string(expression: 
             expression_contains_interpolated_string(&optional_default.value)
                 || expression_contains_interpolated_string(&optional_default.default)
         }
-        Expr::PatternConditional(pattern_conditional) => {
-            expression_contains_interpolated_string(&pattern_conditional.target)
-                || pattern_conditional
+        Expr::If(statement) => {
+            expression_contains_interpolated_string(&statement.condition)
+                || block_contains_interpolated_string(&statement.then_block)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(|block| block_contains_interpolated_string(block))
+        }
+        Expr::IfIs(statement) => {
+            expression_contains_interpolated_string(&statement.expression)
+                || block_contains_interpolated_string(&statement.then_block)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(|block| block_contains_interpolated_string(block))
+        }
+        Expr::Match(statement) => {
+            expression_contains_interpolated_string(&statement.expression)
+                || statement
                     .arms
                     .iter()
-                    .any(|arm| expression_contains_interpolated_string(&arm.expression))
-                || expression_contains_interpolated_string(&pattern_conditional.fallback)
+                    .any(|arm| block_contains_interpolated_string(&arm.body))
+                || statement
+                    .else_arm
+                    .as_ref()
+                    .is_some_and(|arm| block_contains_interpolated_string(&arm.body))
         }
         _ => false,
+    }
+}
+
+fn block_contains_interpolated_string(block: &crate::ast::Block) -> bool {
+    block
+        .statements
+        .iter()
+        .any(statement_contains_interpolated_string)
+        || block
+            .result
+            .as_deref()
+            .is_some_and(expression_contains_interpolated_string)
+}
+
+fn statement_contains_interpolated_string(statement: &crate::ast::Stmt) -> bool {
+    match statement {
+        crate::ast::Stmt::Return(statement) => statement
+            .expression
+            .as_ref()
+            .is_some_and(expression_contains_interpolated_string),
+        crate::ast::Stmt::Binding(statement) => {
+            expression_contains_interpolated_string(&statement.initializer)
+        }
+        crate::ast::Stmt::Assignment(statement) => {
+            expression_contains_interpolated_string(&statement.target)
+                || expression_contains_interpolated_string(&statement.value)
+        }
+        crate::ast::Stmt::If(statement) => {
+            expression_contains_interpolated_string(&statement.condition)
+                || block_contains_interpolated_string(&statement.then_block)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(|block| block_contains_interpolated_string(block))
+        }
+        crate::ast::Stmt::IfIs(statement) => {
+            expression_contains_interpolated_string(&statement.expression)
+                || block_contains_interpolated_string(&statement.then_block)
+                || statement
+                    .else_block
+                    .as_ref()
+                    .is_some_and(|block| block_contains_interpolated_string(block))
+        }
+        crate::ast::Stmt::Switch(statement) => {
+            expression_contains_interpolated_string(&statement.expression)
+                || statement
+                    .arms
+                    .iter()
+                    .any(|arm| block_contains_interpolated_string(&arm.body))
+                || statement
+                    .else_arm
+                    .as_ref()
+                    .is_some_and(|arm| block_contains_interpolated_string(&arm.body))
+        }
+        crate::ast::Stmt::ForRange(statement) => {
+            expression_contains_interpolated_string(&statement.start)
+                || expression_contains_interpolated_string(&statement.end)
+                || block_contains_interpolated_string(&statement.body)
+        }
+        crate::ast::Stmt::While(statement) => {
+            expression_contains_interpolated_string(&statement.condition)
+                || block_contains_interpolated_string(&statement.body)
+        }
+        crate::ast::Stmt::Loop(statement) => block_contains_interpolated_string(&statement.body),
+        crate::ast::Stmt::Expression(statement) => {
+            expression_contains_interpolated_string(&statement.expression)
+        }
+        crate::ast::Stmt::Break(_) | crate::ast::Stmt::Continue(_) | crate::ast::Stmt::Drop(_) => {
+            false
+        }
     }
 }
 

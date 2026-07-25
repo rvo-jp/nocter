@@ -492,14 +492,20 @@ impl Block {
     }
 
     fn to_json_with_kind(&self, sources: &SourceMap, kind: &str) -> JsonAstNode {
-        JsonAstNode::new(
-            kind,
-            json_span(sources, self.span),
-            self.statements
-                .iter()
-                .map(|statement| statement.to_json(sources))
-                .collect(),
-        )
+        let mut children = self
+            .statements
+            .iter()
+            .map(|statement| statement.to_json(sources))
+            .collect::<Vec<_>>();
+        if let Some(result) = &self.result {
+            children.push(JsonAstNode::new(
+                "block_result",
+                json_span(sources, result.span()),
+                vec![result.to_json(sources)],
+            ));
+        }
+
+        JsonAstNode::new(kind, json_span(sources, self.span), children)
     }
 }
 
@@ -894,66 +900,66 @@ impl Expr {
                 ],
             )
             .with_operator_span(json_span(sources, expression.operator_span)),
-            Expr::PatternConditional(expression) => JsonAstNode::new(
-                "pattern_conditional_expression",
-                json_span(sources, expression.span),
-                vec![
-                    expression.target.to_json(sources),
-                    JsonAstNode::new(
-                        "pattern_conditional_arm_list",
-                        json_span(sources, expression.span),
-                        expression
-                            .arms
-                            .iter()
-                            .map(|arm| {
-                                JsonAstNode::new(
-                                    "pattern_conditional_arm",
-                                    json_span(sources, arm.span),
-                                    vec![
-                                        JsonAstNode::with_value(
-                                            "match_pattern",
-                                            format!("{}.{}", arm.enum_name, arm.variant_name),
-                                            json_span(
-                                                sources,
-                                                ByteSpan::new(
-                                                    arm.enum_name_span.source,
-                                                    arm.enum_name_span.start,
-                                                    arm.variant_name_span.end,
-                                                ),
-                                            ),
-                                            arm.payload
-                                                .as_ref()
-                                                .map(|payload| {
-                                                    vec![JsonAstNode::with_value(
-                                                        "match_payload_binding",
-                                                        payload.name.clone(),
-                                                        json_span(sources, payload.span),
-                                                        Vec::new(),
-                                                    )]
-                                                })
-                                                .unwrap_or_default(),
-                                        ),
-                                        arm.expression.to_json(sources),
-                                    ],
-                                )
-                            })
-                            .collect(),
+            Expr::If(expression) => {
+                let mut children = vec![
+                    expression.condition.to_json(sources),
+                    expression
+                        .then_block
+                        .to_json_with_kind(sources, "then_block"),
+                ];
+                if let Some(else_block) = &expression.else_block {
+                    children.push(else_block.to_json_with_kind(sources, "else_block"));
+                }
+                JsonAstNode::new(
+                    "if_expression",
+                    json_span(sources, expression.span),
+                    children,
+                )
+            }
+            Expr::IfIs(expression) => {
+                let mut pattern_children = Vec::new();
+                if let Some(payload) = &expression.payload {
+                    pattern_children.push(JsonAstNode::with_value(
+                        "if_is_payload_binding",
+                        payload.name.clone(),
+                        json_span(sources, payload.span),
+                        Vec::new(),
+                    ));
+                }
+
+                let mut children = vec![
+                    expression.expression.to_json(sources),
+                    JsonAstNode::with_value(
+                        "if_is_pattern",
+                        if_is_pattern_value(expression),
+                        json_span(sources, expression.pattern_span),
+                        pattern_children,
                     ),
-                    JsonAstNode::new(
-                        "pattern_conditional_fallback_arm",
-                        json_span(
-                            sources,
-                            ByteSpan::new(
-                                expression.fallback_colon_span.source,
-                                expression.fallback_colon_span.start,
-                                expression.fallback.span().end,
-                            ),
-                        ),
-                        vec![expression.fallback.to_json(sources)],
-                    ),
-                ],
-            )
-            .with_operator_span(json_span(sources, expression.question_span)),
+                    expression
+                        .then_block
+                        .to_json_with_kind(sources, "then_block"),
+                ];
+                if let Some(else_block) = &expression.else_block {
+                    children.push(else_block.to_json_with_kind(sources, "else_block"));
+                }
+                JsonAstNode::new(
+                    "if_is_expression",
+                    json_span(sources, expression.span),
+                    children,
+                )
+            }
+            Expr::Match(expression) => {
+                let mut children = vec![expression.expression.to_json(sources)];
+                children.extend(expression.arms.iter().map(|arm| arm.to_json(sources)));
+                if let Some(else_arm) = &expression.else_arm {
+                    children.push(else_arm.to_json(sources));
+                }
+                JsonAstNode::new(
+                    "match_expression",
+                    json_span(sources, expression.span),
+                    children,
+                )
+            }
         }
     }
 }

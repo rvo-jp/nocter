@@ -72,6 +72,9 @@ fn collect_block(
     for statement in &block.statements {
         collect_statement(statement, root_source, resolved, targets);
     }
+    if let Some(result) = &block.result {
+        collect_expression(result, root_source, resolved, targets);
+    }
 }
 
 fn collect_statement(
@@ -238,12 +241,28 @@ fn collect_expression(
             collect_expression(&expression.value, root_source, resolved, targets);
             collect_expression(&expression.default, root_source, resolved, targets);
         }
-        Expr::PatternConditional(expression) => {
-            collect_expression(&expression.target, root_source, resolved, targets);
-            for arm in &expression.arms {
-                collect_expression(&arm.expression, root_source, resolved, targets);
+        Expr::If(expression) => {
+            collect_expression(&expression.condition, root_source, resolved, targets);
+            collect_block(&expression.then_block, root_source, resolved, targets);
+            if let Some(block) = &expression.else_block {
+                collect_block(block, root_source, resolved, targets);
             }
-            collect_expression(&expression.fallback, root_source, resolved, targets);
+        }
+        Expr::IfIs(expression) => {
+            collect_expression(&expression.expression, root_source, resolved, targets);
+            collect_block(&expression.then_block, root_source, resolved, targets);
+            if let Some(block) = &expression.else_block {
+                collect_block(block, root_source, resolved, targets);
+            }
+        }
+        Expr::Match(expression) => {
+            collect_expression(&expression.expression, root_source, resolved, targets);
+            for arm in &expression.arms {
+                collect_block(&arm.body, root_source, resolved, targets);
+            }
+            if let Some(arm) = &expression.else_arm {
+                collect_block(&arm.body, root_source, resolved, targets);
+            }
         }
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)

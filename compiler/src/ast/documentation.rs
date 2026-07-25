@@ -78,6 +78,9 @@ fn collect_block_targets(text: &str, block: &Block, targets: &mut Vec<Documentat
     for statement in &block.statements {
         collect_statement_targets(text, statement, targets);
     }
+    if let Some(result) = &block.result {
+        collect_expression_targets(text, result, targets);
+    }
 }
 
 fn collect_statement_targets(text: &str, statement: &Stmt, targets: &mut Vec<DocumentationTarget>) {
@@ -205,12 +208,28 @@ fn collect_expression_targets(
             collect_expression_targets(text, &expression.value, targets);
             collect_expression_targets(text, &expression.default, targets);
         }
-        Expr::PatternConditional(expression) => {
-            collect_expression_targets(text, &expression.target, targets);
-            for arm in &expression.arms {
-                collect_expression_targets(text, &arm.expression, targets);
+        Expr::If(expression) => {
+            collect_expression_targets(text, &expression.condition, targets);
+            collect_block_targets(text, &expression.then_block, targets);
+            if let Some(block) = &expression.else_block {
+                collect_block_targets(text, block, targets);
             }
-            collect_expression_targets(text, &expression.fallback, targets);
+        }
+        Expr::IfIs(expression) => {
+            collect_expression_targets(text, &expression.expression, targets);
+            collect_block_targets(text, &expression.then_block, targets);
+            if let Some(block) = &expression.else_block {
+                collect_block_targets(text, block, targets);
+            }
+        }
+        Expr::Match(expression) => {
+            collect_expression_targets(text, &expression.expression, targets);
+            for arm in &expression.arms {
+                collect_block_targets(text, &arm.body, targets);
+            }
+            if let Some(arm) = &expression.else_arm {
+                collect_block_targets(text, &arm.body, targets);
+            }
         }
     }
 }

@@ -1,8 +1,5 @@
 use super::Formatter;
-use crate::ast::{
-    BinaryOperator, Expr, PatternConditionalArm, PatternConditionalExpr, StructLiteralExpr,
-    StructLiteralField, SwitchPayloadBinding, UnaryOperator,
-};
+use crate::ast::{BinaryOperator, Expr, StructLiteralExpr, StructLiteralField, UnaryOperator};
 
 const PREC_OPTIONAL_DEFAULT: u8 = 1;
 const PREC_LOGICAL_OR: u8 = 2;
@@ -15,6 +12,7 @@ const PREC_MULTIPLICATIVE: u8 = 8;
 const PREC_PREFIX: u8 = 9;
 const PREC_POSTFIX: u8 = 10;
 const PREC_PRIMARY: u8 = 11;
+const PREC_CONTROL: u8 = 0;
 
 impl Formatter {
     pub(super) fn format_expr(&mut self, expression: &Expr, parent_precedence: u8) {
@@ -108,9 +106,9 @@ impl Formatter {
                 self.write(" ?? ");
                 self.format_expr(&expression.default, PREC_OPTIONAL_DEFAULT);
             }
-            Expr::PatternConditional(expression) => {
-                self.format_pattern_conditional(expression);
-            }
+            Expr::If(expression) => self.format_if_statement(expression),
+            Expr::IfIs(expression) => self.format_if_is_statement(expression),
+            Expr::Match(expression) => self.format_switch_statement(expression),
         }
 
         if needs_group {
@@ -134,47 +132,12 @@ impl Formatter {
         self.write(": ");
         self.format_expr(&field.value, 0);
     }
-
-    fn format_pattern_conditional(&mut self, expression: &PatternConditionalExpr) {
-        self.format_expr(&expression.target, PREC_OPTIONAL_DEFAULT + 1);
-        self.write(" ?{");
-        self.indented(|formatter| {
-            for arm in &expression.arms {
-                formatter.newline();
-                formatter.write_indent();
-                formatter.format_pattern_conditional_arm(arm);
-            }
-            formatter.newline();
-            formatter.write_indent();
-            formatter.write(": ");
-            formatter.format_expr(&expression.fallback, 0);
-        });
-        self.newline();
-        self.write_indent();
-        self.write("}");
-    }
-
-    fn format_pattern_conditional_arm(&mut self, arm: &PatternConditionalArm) {
-        self.write(&arm.enum_name);
-        self.write(".");
-        self.write(&arm.variant_name);
-        if let Some(payload) = &arm.payload {
-            self.format_payload_binding(payload);
-        }
-        self.write(" : ");
-        self.format_expr(&arm.expression, 0);
-    }
-
-    fn format_payload_binding(&mut self, payload: &SwitchPayloadBinding) {
-        self.write("(");
-        self.write(&payload.name);
-        self.write(")");
-    }
 }
 
 fn expression_precedence(expression: &Expr) -> u8 {
     match expression {
-        Expr::OptionalDefault(_) | Expr::PatternConditional(_) => PREC_OPTIONAL_DEFAULT,
+        Expr::If(_) | Expr::IfIs(_) | Expr::Match(_) => PREC_CONTROL,
+        Expr::OptionalDefault(_) => PREC_OPTIONAL_DEFAULT,
         Expr::Binary(expression) => binary_precedence(expression.operator),
         Expr::Borrow(_) | Expr::Unary(_) => PREC_PREFIX,
         Expr::Propagate(_)

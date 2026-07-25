@@ -26981,7 +26981,7 @@ func done(): bool {
 fn reports_unsupported_entry_body() {
     let diagnostics = lower_text_diagnostics(
         r#"func main(): void {
-    1
+    let value = 1
 }
 "#,
     );

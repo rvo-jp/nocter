@@ -1,15 +1,15 @@
 use super::arrays::{array_literal_type, index_expression_type};
+use super::bindings::continuing_binding_type;
 use super::calls::{call_return_type, resolved_call_signature};
 use super::diagnostics::error_member_unknown_diagnostic;
-use super::model::{Type, TypeEnvironment};
+use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
 use super::operations::{binary_expression_type, is_expression_assignable};
+use super::returns::block_guarantees_return_or_never;
 use super::strings::interpolated_string_type;
 use super::structs::{struct_literal_type, struct_member_type};
 use super::type_expr::type_expr_to_type_in_environment;
-use super::variants::{
-    enum_variant_call_type, enum_variant_member_type, pattern_conditional_expression_type,
-};
-use crate::ast::{Expr, MemberExpr, UnaryOperator};
+use super::variants::{enum_variant_call_type, enum_variant_member_type, match_expression_type};
+use crate::ast::{Block, Expr, IfIsStmt, IfStmt, MemberExpr, Stmt, UnaryOperator};
 use crate::diagnostics::Diagnostic;
 use crate::resolve::ResolveOutput;
 use crate::source::SourceMap;
@@ -121,9 +121,9 @@ pub(super) fn expression_type(
                 environment,
             )
         }
-        Expr::PatternConditional(expression) => {
-            pattern_conditional_expression_type(expression, resolved, environment)
-        }
+        Expr::If(expression) => if_expression_type(expression, resolved, environment),
+        Expr::IfIs(expression) => if_is_expression_type(expression, resolved, environment),
+        Expr::Match(expression) => match_expression_type(expression, resolved, environment),
         Expr::Identifier(expression) => environment
             .get(&expression.name)
             .cloned()
@@ -133,6 +133,131 @@ pub(super) fn expression_type(
             .or_else(|| struct_member_type(expression, resolved, environment))
             .unwrap_or(Type::Unknown),
     }
+}
+
+pub(super) fn block_result_type(
+    block: &Block,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Type {
+    let result_environment = block_result_environment(block, resolved, environment);
+    if let Some(result) = &block.result {
+        return expression_type(result, resolved, &result_environment);
+    }
+
+    if block_guarantees_return_or_never(block, resolved, &result_environment) {
+        Type::Never
+    } else {
+        Type::Void
+    }
+}
+
+pub(super) fn block_result_environment(
+    block: &Block,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> TypeEnvironment {
+    let mut environment = environment.clone();
+    for statement in &block.statements {
+        apply_statement_type_effect(statement, resolved, &mut environment);
+    }
+    environment
+}
+
+fn apply_statement_type_effect(
+    statement: &Stmt,
+    resolved: &ResolveOutput,
+    environment: &mut TypeEnvironment,
+) {
+    if let Stmt::Binding(statement) = statement {
+        let initializer_type = expression_type(&statement.initializer, resolved, environment);
+        let binding_type =
+            continuing_binding_type(statement, initializer_type, resolved, environment);
+        environment.define_binding(
+            statement.name.clone(),
+            binding_type,
+            binding_kind_is_mutable(statement.kind),
+        );
+    }
+}
+
+fn if_expression_type(
+    expression: &IfStmt,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Type {
+    let Some(else_block) = &expression.else_block else {
+        return Type::Void;
+    };
+
+    compatible_block_result_type(&expression.then_block, else_block, resolved, environment)
+}
+
+fn if_is_expression_type(
+    expression: &IfIsStmt,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Type {
+    let Some(else_block) = &expression.else_block else {
+        return Type::Void;
+    };
+
+    let then_environment =
+        super::environments::environment_for_if_is_binding(expression, resolved, environment);
+    compatible_block_result_type_with_environments(
+        &expression.then_block,
+        &then_environment,
+        else_block,
+        environment,
+        resolved,
+    )
+}
+
+fn compatible_block_result_type(
+    then_block: &Block,
+    else_block: &Block,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> Type {
+    compatible_block_result_type_with_environments(
+        then_block,
+        environment,
+        else_block,
+        environment,
+        resolved,
+    )
+}
+
+pub(super) fn compatible_block_result_type_with_environments(
+    then_block: &Block,
+    then_environment: &TypeEnvironment,
+    else_block: &Block,
+    else_environment: &TypeEnvironment,
+    resolved: &ResolveOutput,
+) -> Type {
+    let then_type = block_result_type(then_block, resolved, then_environment);
+    let else_type = block_result_type(else_block, resolved, else_environment);
+
+    if then_type == Type::Never {
+        return else_type;
+    }
+    if else_type == Type::Never {
+        return then_type;
+    }
+    if then_type.is_unknown_or_unresolved() {
+        return else_type;
+    }
+    if else_type.is_unknown_or_unresolved() {
+        return then_type;
+    }
+    if super::operations::is_assignable(&then_type, &else_type) {
+        return then_type;
+    }
+    if super::operations::is_assignable(&else_type, &then_type) {
+        return else_type;
+    }
+
+    then_type
 }
 
 fn borrow_expression_type(

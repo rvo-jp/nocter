@@ -202,6 +202,25 @@ fn lower_optional_let_else_block(
     block: &Block,
     context: &mut LoweringContext,
 ) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(result) = &block.result {
+        let mut instructions = Vec::new();
+        for statement in &block.statements {
+            instructions.extend(lower_optional_let_else_leading_statement(
+                statement, context,
+            )?);
+        }
+
+        let Some(terminating_instructions) =
+            lower_never_expression_with_scope_drops(result, context)?
+        else {
+            return Err(unsupported_binding_diagnostic(
+                "IR v0 can only lower optional `let ... else` blocks ending in `return` or a `never` expression",
+            ));
+        };
+        instructions.extend(terminating_instructions);
+        return Ok(instructions);
+    }
+
     let Some((terminal, leading)) = block.statements.split_last() else {
         return Err(unsupported_binding_diagnostic(
             "IR v0 cannot lower empty optional `let ... else` blocks",

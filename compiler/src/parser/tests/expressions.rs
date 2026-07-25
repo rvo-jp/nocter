@@ -35,7 +35,7 @@ func main(): i32 {
 }
 
 #[test]
-fn parses_pattern_conditional_expression() {
+fn parses_match_expression() {
     let output = parse_text(
         r#"enum AppError {
     missing_path
@@ -43,10 +43,10 @@ fn parses_pattern_conditional_expression() {
 }
 
 func code(error: AppError): i32 {
-    return error ?{
-        AppError.missing_path : 1
-        AppError.open_failed(path) : path.len()
-        : 0
+    return match error {
+        AppError.missing_path { 1 }
+        AppError.open_failed(path) { path.len() }
+        else { 0 }
     }
 }
 "#,
@@ -60,8 +60,8 @@ func code(error: AppError): i32 {
     let Stmt::Return(statement) = &function.body.statements[0] else {
         panic!("expected return statement");
     };
-    let Some(Expr::PatternConditional(expression)) = &statement.expression else {
-        panic!("expected pattern conditional expression");
+    let Some(Expr::Match(expression)) = &statement.expression else {
+        panic!("expected match expression");
     };
     assert_eq!(expression.arms.len(), 2);
     assert_eq!(expression.arms[0].enum_name, "AppError");
@@ -75,7 +75,27 @@ func code(error: AppError): i32 {
             .map(|payload| payload.name.as_str()),
         Some("path")
     );
-    assert_eq!(expression.question_span.len(), 1);
+    assert!(expression.else_arm.is_some());
+}
+
+#[test]
+fn rejects_removed_pattern_conditional_expression() {
+    let output = parse_text(
+        r#"enum AppError {
+    missing_path
+}
+
+func code(error: AppError): i32 {
+    return error ?{
+        AppError.missing_path : 1
+        : 0
+    }
+}
+"#,
+    );
+
+    assert_eq!(output.diagnostics.len(), 1, "{:?}", output.diagnostics);
+    assert!(output.diagnostics[0].message.contains("removed"));
 }
 
 #[test]

@@ -318,6 +318,7 @@ pub struct FallibleType {
 pub struct Block {
     pub span: ByteSpan,
     pub statements: Vec<Stmt>,
+    pub result: Option<Box<Expr>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -501,7 +502,9 @@ pub enum Expr {
     Index(IndexExpr),
     Group(GroupExpr),
     OptionalDefault(OptionalDefaultExpr),
-    PatternConditional(PatternConditionalExpr),
+    If(Box<IfStmt>),
+    IfIs(Box<IfIsStmt>),
+    Match(Box<SwitchStmt>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -686,28 +689,6 @@ pub struct OptionalDefaultExpr {
     pub default: Box<Expr>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PatternConditionalExpr {
-    pub span: ByteSpan,
-    pub question_span: ByteSpan,
-    pub target: Box<Expr>,
-    pub arms: Vec<PatternConditionalArm>,
-    pub fallback_colon_span: ByteSpan,
-    pub fallback: Box<Expr>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PatternConditionalArm {
-    pub span: ByteSpan,
-    pub enum_name: String,
-    pub enum_name_span: ByteSpan,
-    pub variant_name: String,
-    pub variant_name_span: ByteSpan,
-    pub payload: Option<SwitchPayloadBinding>,
-    pub colon_span: ByteSpan,
-    pub expression: Expr,
-}
-
 impl Item {
     pub fn span(&self) -> ByteSpan {
         match self {
@@ -808,7 +789,9 @@ impl Expr {
             Expr::Index(expression) => expression.span,
             Expr::Group(expression) => expression.span,
             Expr::OptionalDefault(expression) => expression.span,
-            Expr::PatternConditional(expression) => expression.span,
+            Expr::If(expression) => expression.span,
+            Expr::IfIs(expression) => expression.span,
+            Expr::Match(expression) => expression.span,
         }
     }
 

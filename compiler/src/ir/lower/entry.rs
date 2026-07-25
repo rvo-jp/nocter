@@ -16,7 +16,7 @@ use super::functions::{
     payloadless_if_is_as_if_statement, payloadless_switch_as_if_statement,
 };
 use super::types::{return_type_expr_is_top_level_optional, return_type_from_type_expr};
-use crate::ast::{FunctionDecl, IfStmt, Stmt, TypeExpr};
+use crate::ast::{Expr, FunctionDecl, IfStmt, ReturnStmt, Stmt, TypeExpr};
 use crate::diagnostics::Diagnostic;
 use crate::ir::{CallTarget, Function, Instruction, Type};
 use crate::resolve::ResolveOutput;
@@ -112,17 +112,9 @@ fn lower_entry_body(
     let success_type = return_type.success_type();
     let statements = function.body.statements.as_slice();
 
-    if statements.is_empty() && *success_type == Type::Void {
+    if statements.is_empty() && function.body.result.is_none() && *success_type == Type::Void {
         return Ok(vec![success_return_instruction(return_type)]);
     }
-
-    let Some((last, leading)) = statements.split_last() else {
-        return Err(attach_primary_span_if_absent(
-            unsupported_entry_body_diagnostic(),
-            sources,
-            function.body.span,
-        ));
-    };
 
     let mut context = LoweringContext::empty(
         function.name.clone(),
@@ -136,6 +128,26 @@ fn lower_entry_body(
     ))
     .with_call_resolution(root_source, resolved, typecheck_facts, function_names)
     .with_error_payloads(error_payloads);
+
+    if let Some(result) = &function.body.result {
+        let mut instructions = lower_leading_bindings(statements, &mut context, sources)?;
+        instructions.extend(lower_entry_body_result(
+            result,
+            return_type,
+            &mut context,
+            sources,
+        )?);
+        return Ok(instructions);
+    }
+
+    let Some((last, leading)) = statements.split_last() else {
+        return Err(attach_primary_span_if_absent(
+            unsupported_entry_body_diagnostic(),
+            sources,
+            function.body.span,
+        ));
+    };
+
     let mut instructions = lower_leading_bindings(leading, &mut context, sources)?;
 
     match last {
@@ -286,6 +298,91 @@ fn lower_entry_body(
     }
 }
 
+fn lower_entry_body_result(
+    expression: &Expr,
+    return_type: &Type,
+    context: &mut LoweringContext,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(instructions) =
+        lower_entry_control_body_result(expression, return_type, context, sources)?
+    {
+        return Ok(instructions);
+    }
+
+    if return_type.success_type() == &Type::Void {
+        if let Some(terminating_instructions) =
+            lower_never_expression_with_scope_drops(expression, context).map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, expression.span())
+            })?
+        {
+            return Ok(terminating_instructions);
+        }
+
+        if let Some(mut void_instructions) = lower_void_expression_statement(expression, context)
+            .map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, expression.span())
+            })?
+        {
+            mark_explicit_moves_in_expression(expression, context);
+            void_instructions.extend(append_scope_end_drops_before_exit(
+                vec![success_return_instruction(return_type)],
+                context,
+            )?);
+            return Ok(void_instructions);
+        }
+    }
+
+    let statement = ReturnStmt {
+        span: expression.span(),
+        expression: Some(expression.clone()),
+    };
+    lower_return_statement_with_scope_drops(&statement, context, "E8002").map_err(|diagnostics| {
+        attach_primary_span_if_absent(diagnostics, sources, expression.span())
+    })
+}
+
+fn lower_entry_control_body_result(
+    expression: &Expr,
+    return_type: &Type,
+    context: &mut LoweringContext,
+    sources: &SourceMap,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    match unwrap_group(expression) {
+        Expr::If(statement) => lower_terminal_entry_if_statement_for_success_type(
+            statement,
+            context,
+            return_type,
+            sources,
+        ),
+        Expr::IfIs(statement) => {
+            let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8002")?;
+            lower_terminal_entry_if_statement_for_success_type(
+                &if_statement,
+                context,
+                return_type,
+                sources,
+            )
+        }
+        Expr::Match(statement) => {
+            let switch = payloadless_switch_as_if_statement(statement, context, "E8002")?;
+            let Some(mut branch_instructions) = lower_terminal_entry_if_statement_for_success_type(
+                &switch.if_statement,
+                context,
+                return_type,
+                sources,
+            )?
+            else {
+                return Ok(None);
+            };
+            let mut instructions = switch.leading_instructions;
+            instructions.append(&mut branch_instructions);
+            Ok(Some(instructions))
+        }
+        _ => Ok(None),
+    }
+}
+
 fn lower_terminal_entry_if_statement_for_success_type(
     statement: &IfStmt,
     context: &LoweringContext,
@@ -324,6 +421,13 @@ fn lower_terminal_entry_if_statement_for_success_type(
         return_type,
         branch_instructions,
     )))
+}
+
+fn unwrap_group(expression: &Expr) -> &Expr {
+    match expression {
+        Expr::Group(group) => unwrap_group(&group.expression),
+        _ => expression,
+    }
 }
 
 fn attach_primary_span_if_absent(

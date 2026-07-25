@@ -2,15 +2,16 @@ use super::bindings::{check_optional_let_else_statement, continuing_binding_type
 use super::calls::{method_member_for_call, resolved_call_signature, resolved_method_for_call};
 use super::copyability::implicit_non_copy_struct_value_source;
 use super::diagnostics::{
-    borrow_return_escapes_diagnostic, fallible_success_error_diagnostic, missing_return_diagnostic,
-    missing_return_value_diagnostic, never_return_statement_diagnostic,
-    non_copy_struct_return_diagnostic, return_type_mismatch_diagnostic,
+    body_result_type_mismatch_diagnostic, borrow_return_escapes_diagnostic,
+    fallible_success_error_diagnostic, missing_return_diagnostic, missing_return_value_diagnostic,
+    never_return_statement_diagnostic, non_copy_struct_return_diagnostic,
+    return_type_mismatch_diagnostic, unexpected_body_result_diagnostic,
     unexpected_return_value_diagnostic,
 };
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
     environment_for_if_is_binding, environment_for_method, environment_for_parameters_in_impl,
-    environment_for_pattern_conditional_arm, environment_for_switch_arm, impl_member_name,
+    environment_for_switch_arm, impl_member_name,
 };
 use super::expressions::expression_type;
 use super::fallible::{check_catch_operand, check_propagation};
@@ -204,6 +205,19 @@ fn check_block_returns(
         borrow_provenance,
     );
 
+    if let Some(result) = &block.result {
+        check_body_result_return(
+            sources,
+            result,
+            context,
+            resolved,
+            diagnostics,
+            environment,
+            borrow_provenance,
+        );
+        return;
+    }
+
     if context.requires_explicit_return()
         && !block_guarantees_return_or_never(block, resolved, environment)
     {
@@ -224,6 +238,17 @@ fn check_block_return_statements(
         check_statement_returns(
             sources,
             statement,
+            context,
+            resolved,
+            diagnostics,
+            environment,
+            borrow_provenance,
+        );
+    }
+    if let Some(result) = &block.result {
+        check_expression_for_nested_returns(
+            sources,
+            result,
             context,
             resolved,
             diagnostics,
@@ -836,10 +861,81 @@ fn check_expression_for_nested_returns(
                 borrow_provenance,
             );
         }
-        Expr::PatternConditional(expression) => {
+        Expr::If(expression) => {
             check_expression_for_nested_returns(
                 sources,
-                &expression.target,
+                &expression.condition,
+                context,
+                resolved,
+                diagnostics,
+                environment,
+                borrow_provenance,
+            );
+            let mut then_environment = environment.clone();
+            let mut then_borrow_provenance = borrow_provenance.clone();
+            check_block_return_statements(
+                sources,
+                &expression.then_block,
+                context,
+                resolved,
+                diagnostics,
+                &mut then_environment,
+                &mut then_borrow_provenance,
+            );
+            if let Some(else_block) = &expression.else_block {
+                let mut else_environment = environment.clone();
+                let mut else_borrow_provenance = borrow_provenance.clone();
+                check_block_return_statements(
+                    sources,
+                    else_block,
+                    context,
+                    resolved,
+                    diagnostics,
+                    &mut else_environment,
+                    &mut else_borrow_provenance,
+                );
+            }
+        }
+        Expr::IfIs(expression) => {
+            check_expression_for_nested_returns(
+                sources,
+                &expression.expression,
+                context,
+                resolved,
+                diagnostics,
+                environment,
+                borrow_provenance,
+            );
+            let mut then_environment =
+                environment_for_if_is_binding(expression, resolved, environment);
+            let mut then_borrow_provenance = borrow_provenance.clone();
+            check_block_return_statements(
+                sources,
+                &expression.then_block,
+                context,
+                resolved,
+                diagnostics,
+                &mut then_environment,
+                &mut then_borrow_provenance,
+            );
+            if let Some(else_block) = &expression.else_block {
+                let mut else_environment = environment.clone();
+                let mut else_borrow_provenance = borrow_provenance.clone();
+                check_block_return_statements(
+                    sources,
+                    else_block,
+                    context,
+                    resolved,
+                    diagnostics,
+                    &mut else_environment,
+                    &mut else_borrow_provenance,
+                );
+            }
+        }
+        Expr::Match(expression) => {
+            check_expression_for_nested_returns(
+                sources,
+                &expression.expression,
                 context,
                 resolved,
                 diagnostics,
@@ -847,37 +943,113 @@ fn check_expression_for_nested_returns(
                 borrow_provenance,
             );
             for arm in &expression.arms {
-                let mut arm_environment = environment_for_pattern_conditional_arm(
-                    arm,
-                    &expression.target,
-                    resolved,
-                    environment,
-                );
-                check_expression_for_nested_returns(
+                let mut arm_environment =
+                    environment_for_switch_arm(arm, &expression.expression, resolved, environment);
+                let mut arm_borrow_provenance = borrow_provenance.clone();
+                check_block_return_statements(
                     sources,
-                    &arm.expression,
+                    &arm.body,
                     context,
                     resolved,
                     diagnostics,
                     &mut arm_environment,
-                    borrow_provenance,
+                    &mut arm_borrow_provenance,
                 );
             }
-            check_expression_for_nested_returns(
-                sources,
-                &expression.fallback,
-                context,
-                resolved,
-                diagnostics,
-                environment,
-                borrow_provenance,
-            );
+            if let Some(else_arm) = &expression.else_arm {
+                let mut else_environment = environment.clone();
+                let mut else_borrow_provenance = borrow_provenance.clone();
+                check_block_return_statements(
+                    sources,
+                    &else_arm.body,
+                    context,
+                    resolved,
+                    diagnostics,
+                    &mut else_environment,
+                    &mut else_borrow_provenance,
+                );
+            }
         }
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
         | Expr::StringLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => {}
+    }
+}
+
+fn check_body_result_return(
+    sources: &SourceMap,
+    expression: &Expr,
+    context: &ReturnContext,
+    resolved: &ResolveOutput,
+    diagnostics: &mut Vec<Diagnostic>,
+    environment: &TypeEnvironment,
+    borrow_provenance: &BorrowReturnEnvironment,
+) {
+    let expected = context.success_type();
+    let actual = expression_type(expression, resolved, environment);
+
+    if actual.is_unknown_or_unresolved() || expected.is_unknown_or_unresolved() {
+        return;
+    }
+
+    if expected == &Type::Void {
+        if actual == Type::Void
+            || actual == Type::Never
+            || return_expression_is_fallible_failure(
+                expression,
+                &actual,
+                context,
+                resolved,
+                environment,
+            )
+        {
+            return;
+        }
+
+        diagnostics.push(unexpected_body_result_diagnostic(
+            sources, expression, context,
+        ));
+        return;
+    }
+
+    if expected.first_unsized_part().is_some() {
+        return;
+    }
+
+    if return_expression_is_fallible_failure(expression, &actual, context, resolved, environment) {
+        return;
+    }
+
+    if !is_expression_assignable(expected, expression, resolved, environment) {
+        diagnostics.push(body_result_type_mismatch_diagnostic(
+            sources, expression, expected, &actual, context,
+        ));
+        return;
+    }
+
+    check_borrow_return_provenance(
+        sources,
+        expression,
+        &actual,
+        context,
+        resolved,
+        environment,
+        borrow_provenance,
+        diagnostics,
+    );
+
+    if let Some((source_name, type_name)) =
+        implicit_non_copy_struct_value_source(expression, resolved, environment)
+    {
+        diagnostics.push(non_copy_struct_return_diagnostic(
+            sources,
+            expression,
+            &source_name,
+            &type_name,
+            context,
+        ));
     }
 }
 
@@ -1381,6 +1553,10 @@ fn return_expression_is_fallible_failure(
 }
 
 pub(super) fn block_guarantees_return(block: &Block) -> bool {
+    if let Some(result) = &block.result {
+        return expression_guarantees_return(result);
+    }
+
     block
         .statements
         .last()
@@ -1392,6 +1568,10 @@ pub(super) fn block_guarantees_return_or_never(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> bool {
+    if let Some(result) = &block.result {
+        return expression_type(result, resolved, environment) == Type::Never;
+    }
+
     block.statements.last().is_some_and(|statement| {
         statement_guarantees_return_or_never(statement, resolved, environment)
     })
@@ -1441,6 +1621,26 @@ fn switch_arms_guarantee_return_or_never(
             environment_for_switch_arm(arm, &statement.expression, resolved, environment);
         block_guarantees_return_or_never(&arm.body, resolved, &arm_environment)
     })
+}
+
+fn expression_guarantees_return(expression: &Expr) -> bool {
+    match expression {
+        Expr::If(expression) => expression.else_block.as_ref().is_some_and(|else_block| {
+            block_guarantees_return(&expression.then_block) && block_guarantees_return(else_block)
+        }),
+        Expr::IfIs(expression) => expression.else_block.as_ref().is_some_and(|else_block| {
+            block_guarantees_return(&expression.then_block) && block_guarantees_return(else_block)
+        }),
+        Expr::Match(expression) => expression.else_arm.as_ref().is_some_and(|else_arm| {
+            expression
+                .arms
+                .iter()
+                .all(|arm| block_guarantees_return(&arm.body))
+                && block_guarantees_return(&else_arm.body)
+        }),
+        Expr::Group(group) => expression_guarantees_return(&group.expression),
+        _ => false,
+    }
 }
 
 fn statement_guarantees_return(statement: &Stmt) -> bool {

@@ -7,7 +7,7 @@ use super::diagnostics::{
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
     environment_for_if_is_binding, environment_for_method, environment_for_parameters_in_impl,
-    environment_for_pattern_conditional_arm, environment_for_switch_arm,
+    environment_for_switch_arm,
 };
 use super::expressions::{collection_builtin_call_type, expression_type};
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
@@ -129,7 +129,10 @@ fn check_block_ownership(
             statements_use_identifier_before_terminal(
                 &block.statements[index..],
                 &borrow.borrow_name,
-            )
+            ) || block
+                .result
+                .as_ref()
+                .is_some_and(|result| expression_uses_identifier(result, &borrow.borrow_name))
         });
         check_statement_borrow_conflicts(
             sources,
@@ -151,10 +154,33 @@ fn check_block_ownership(
         record_statement_borrow(
             statement,
             &block.statements[index + 1..],
+            block.result.as_deref(),
             &mut active_borrows,
         );
         if !flow.reaches_end {
             return flow;
+        }
+    }
+    if let Some(result) = &block.result {
+        active_borrows.retain(|borrow| expression_uses_identifier(result, &borrow.borrow_name));
+        check_expression_borrow_conflicts(
+            sources,
+            result,
+            resolved,
+            environment,
+            &active_borrows,
+            diagnostics,
+        );
+        check_expression_ownership(
+            sources,
+            result,
+            resolved,
+            diagnostics,
+            environment,
+            ownership,
+        );
+        if expression_type(result, resolved, environment) == Type::Never {
+            return FlowState::terminal();
         }
     }
     FlowState::fallthrough()
@@ -235,9 +261,80 @@ fn check_statement_borrow_conflicts(
     }
 }
 
+fn check_expression_borrow_conflicts(
+    sources: &SourceMap,
+    expression: &Expr,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+    active_borrows: &[ActiveBorrow],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut new_borrows = Vec::new();
+    collect_direct_borrow_expressions(expression, resolved, environment, &mut new_borrows);
+
+    for borrow in active_borrows {
+        if let Some(action) =
+            expression_move_action(expression, &borrow.source, resolved, environment)
+        {
+            let action_name = action.place.display();
+            diagnostics.push(active_borrow_conflict_diagnostic(
+                sources,
+                &action_name,
+                action.description,
+                action.span,
+                &borrow.borrow_name,
+                borrow.borrow_span,
+                borrow.is_readwrite,
+            ));
+            return;
+        }
+
+        if let Some(new_borrow) = new_borrows
+            .iter()
+            .find(|new_borrow| new_borrow.source.conflicts_with(&borrow.source))
+            && (new_borrow.is_readwrite || borrow.is_readwrite)
+        {
+            let action = if new_borrow.is_readwrite {
+                "create readwrite borrow of"
+            } else {
+                "create readonly borrow of"
+            };
+            let action_name = new_borrow.source.display();
+            diagnostics.push(active_borrow_conflict_diagnostic(
+                sources,
+                &action_name,
+                action,
+                new_borrow.source_span,
+                &borrow.borrow_name,
+                borrow.borrow_span,
+                borrow.is_readwrite,
+            ));
+            return;
+        }
+
+        if borrow.is_readwrite
+            && let Some(action) =
+                expression_read_action(expression, &borrow.source, resolved, environment)
+        {
+            let action_name = action.place.display();
+            diagnostics.push(active_borrow_conflict_diagnostic(
+                sources,
+                &action_name,
+                action.description,
+                action.span,
+                &borrow.borrow_name,
+                borrow.borrow_span,
+                borrow.is_readwrite,
+            ));
+            return;
+        }
+    }
+}
+
 fn record_statement_borrow(
     statement: &Stmt,
     later_statements: &[Stmt],
+    later_result: Option<&Expr>,
     active_borrows: &mut Vec<ActiveBorrow>,
 ) {
     let Stmt::Binding(binding) = statement else {
@@ -246,7 +343,9 @@ fn record_statement_borrow(
     let Some(source) = direct_borrow_source(&binding.initializer) else {
         return;
     };
-    if !statements_use_identifier_before_terminal(later_statements, &binding.name) {
+    if !statements_use_identifier_before_terminal(later_statements, &binding.name)
+        && !later_result.is_some_and(|result| expression_uses_identifier(result, &binding.name))
+    {
         return;
     }
 
@@ -352,9 +451,18 @@ fn block_move_action(
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,
 ) -> Option<BorrowAction> {
-    block.statements.iter().find_map(|statement| {
-        statement_conflicting_action(statement, source, resolved, environment)
-    })
+    block
+        .statements
+        .iter()
+        .find_map(|statement| {
+            statement_conflicting_action(statement, source, resolved, environment)
+        })
+        .or_else(|| {
+            block
+                .result
+                .as_ref()
+                .and_then(|result| expression_move_action(result, source, resolved, environment))
+        })
 }
 
 fn statement_read_action(
@@ -443,6 +551,12 @@ fn block_read_action(
         .statements
         .iter()
         .find_map(|statement| statement_read_action(statement, source, resolved, environment))
+        .or_else(|| {
+            block
+                .result
+                .as_ref()
+                .and_then(|result| expression_read_action(result, source, resolved, environment))
+        })
 }
 
 fn expression_move_action(
@@ -542,15 +656,43 @@ fn expression_move_action(
                 expression_move_action(&expression.default, source, resolved, environment)
             })
         }
-        Expr::PatternConditional(expression) => {
-            expression_move_action(&expression.target, source, resolved, environment)
+        Expr::If(expression) => {
+            expression_move_action(&expression.condition, source, resolved, environment)
                 .or_else(|| {
-                    expression.arms.iter().find_map(|arm| {
-                        expression_move_action(&arm.expression, source, resolved, environment)
-                    })
+                    block_move_action(&expression.then_block, source, resolved, environment)
                 })
                 .or_else(|| {
-                    expression_move_action(&expression.fallback, source, resolved, environment)
+                    expression
+                        .else_block
+                        .as_ref()
+                        .and_then(|block| block_move_action(block, source, resolved, environment))
+                })
+        }
+        Expr::IfIs(expression) => {
+            expression_move_action(&expression.expression, source, resolved, environment)
+                .or_else(|| {
+                    block_move_action(&expression.then_block, source, resolved, environment)
+                })
+                .or_else(|| {
+                    expression
+                        .else_block
+                        .as_ref()
+                        .and_then(|block| block_move_action(block, source, resolved, environment))
+                })
+        }
+        Expr::Match(expression) => {
+            expression_move_action(&expression.expression, source, resolved, environment)
+                .or_else(|| {
+                    expression
+                        .arms
+                        .iter()
+                        .find_map(|arm| block_move_action(&arm.body, source, resolved, environment))
+                })
+                .or_else(|| {
+                    expression
+                        .else_arm
+                        .as_ref()
+                        .and_then(|arm| block_move_action(&arm.body, source, resolved, environment))
                 })
         }
         Expr::Identifier(_)
@@ -670,15 +812,43 @@ fn expression_read_action(
                 expression_read_action(&expression.default, source, resolved, environment)
             })
         }
-        Expr::PatternConditional(expression) => {
-            expression_read_action(&expression.target, source, resolved, environment)
+        Expr::If(expression) => {
+            expression_read_action(&expression.condition, source, resolved, environment)
                 .or_else(|| {
-                    expression.arms.iter().find_map(|arm| {
-                        expression_read_action(&arm.expression, source, resolved, environment)
-                    })
+                    block_read_action(&expression.then_block, source, resolved, environment)
                 })
                 .or_else(|| {
-                    expression_read_action(&expression.fallback, source, resolved, environment)
+                    expression
+                        .else_block
+                        .as_ref()
+                        .and_then(|block| block_read_action(block, source, resolved, environment))
+                })
+        }
+        Expr::IfIs(expression) => {
+            expression_read_action(&expression.expression, source, resolved, environment)
+                .or_else(|| {
+                    block_read_action(&expression.then_block, source, resolved, environment)
+                })
+                .or_else(|| {
+                    expression
+                        .else_block
+                        .as_ref()
+                        .and_then(|block| block_read_action(block, source, resolved, environment))
+                })
+        }
+        Expr::Match(expression) => {
+            expression_read_action(&expression.expression, source, resolved, environment)
+                .or_else(|| {
+                    expression
+                        .arms
+                        .iter()
+                        .find_map(|arm| block_read_action(&arm.body, source, resolved, environment))
+                })
+                .or_else(|| {
+                    expression
+                        .else_arm
+                        .as_ref()
+                        .and_then(|arm| block_read_action(&arm.body, source, resolved, environment))
                 })
         }
         Expr::IntegerLiteral(_)
@@ -824,6 +994,9 @@ fn collect_direct_borrow_expressions_in_block(
     for statement in &block.statements {
         collect_direct_borrow_expressions_in_statement(statement, resolved, environment, borrows);
     }
+    if let Some(result) = &block.result {
+        collect_direct_borrow_expressions(result, resolved, environment, borrows);
+    }
 }
 
 fn collect_direct_borrow_expressions(
@@ -932,12 +1105,63 @@ fn collect_direct_borrow_expressions(
             collect_direct_borrow_expressions(&expression.value, resolved, environment, borrows);
             collect_direct_borrow_expressions(&expression.default, resolved, environment, borrows);
         }
-        Expr::PatternConditional(expression) => {
-            collect_direct_borrow_expressions(&expression.target, resolved, environment, borrows);
-            for arm in &expression.arms {
-                collect_direct_borrow_expressions(&arm.expression, resolved, environment, borrows);
+        Expr::If(expression) => {
+            collect_direct_borrow_expressions(
+                &expression.condition,
+                resolved,
+                environment,
+                borrows,
+            );
+            collect_direct_borrow_expressions_in_block(
+                &expression.then_block,
+                resolved,
+                environment,
+                borrows,
+            );
+            if let Some(block) = &expression.else_block {
+                collect_direct_borrow_expressions_in_block(block, resolved, environment, borrows);
             }
-            collect_direct_borrow_expressions(&expression.fallback, resolved, environment, borrows);
+        }
+        Expr::IfIs(expression) => {
+            collect_direct_borrow_expressions(
+                &expression.expression,
+                resolved,
+                environment,
+                borrows,
+            );
+            collect_direct_borrow_expressions_in_block(
+                &expression.then_block,
+                resolved,
+                environment,
+                borrows,
+            );
+            if let Some(block) = &expression.else_block {
+                collect_direct_borrow_expressions_in_block(block, resolved, environment, borrows);
+            }
+        }
+        Expr::Match(expression) => {
+            collect_direct_borrow_expressions(
+                &expression.expression,
+                resolved,
+                environment,
+                borrows,
+            );
+            for arm in &expression.arms {
+                collect_direct_borrow_expressions_in_block(
+                    &arm.body,
+                    resolved,
+                    environment,
+                    borrows,
+                );
+            }
+            if let Some(arm) = &expression.else_arm {
+                collect_direct_borrow_expressions_in_block(
+                    &arm.body,
+                    resolved,
+                    environment,
+                    borrows,
+                );
+            }
         }
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)
@@ -1039,6 +1263,10 @@ fn statement_uses_identifier(statement: &Stmt, name: &str) -> bool {
 
 fn block_uses_identifier(block: &Block, name: &str) -> bool {
     statements_use_identifier_before_terminal(&block.statements, name)
+        || block
+            .result
+            .as_ref()
+            .is_some_and(|result| expression_uses_identifier(result, name))
 }
 
 fn statements_use_identifier_before_terminal(statements: &[Stmt], name: &str) -> bool {
@@ -1109,13 +1337,32 @@ fn expression_uses_identifier(expression: &Expr, name: &str) -> bool {
             expression_uses_identifier(&expression.value, name)
                 || expression_uses_identifier(&expression.default, name)
         }
-        Expr::PatternConditional(expression) => {
-            expression_uses_identifier(&expression.target, name)
+        Expr::If(expression) => {
+            expression_uses_identifier(&expression.condition, name)
+                || block_uses_identifier(&expression.then_block, name)
+                || expression
+                    .else_block
+                    .as_ref()
+                    .is_some_and(|block| block_uses_identifier(block, name))
+        }
+        Expr::IfIs(expression) => {
+            expression_uses_identifier(&expression.expression, name)
+                || block_uses_identifier(&expression.then_block, name)
+                || expression
+                    .else_block
+                    .as_ref()
+                    .is_some_and(|block| block_uses_identifier(block, name))
+        }
+        Expr::Match(expression) => {
+            expression_uses_identifier(&expression.expression, name)
                 || expression
                     .arms
                     .iter()
-                    .any(|arm| expression_uses_identifier(&arm.expression, name))
-                || expression_uses_identifier(&expression.fallback, name)
+                    .any(|arm| block_uses_identifier(&arm.body, name))
+                || expression
+                    .else_arm
+                    .as_ref()
+                    .is_some_and(|arm| block_uses_identifier(&arm.body, name))
         }
         Expr::IntegerLiteral(_)
         | Expr::StringLiteral(_)
@@ -1812,53 +2059,35 @@ fn check_expression_ownership(
                 ownership,
             );
         }
-        Expr::PatternConditional(expression) => {
-            check_expression_ownership(
+        Expr::If(expression) => {
+            check_statement_ownership(
                 sources,
-                &expression.target,
+                &Stmt::If((**expression).clone()),
                 resolved,
                 diagnostics,
                 environment,
                 ownership,
             );
-            let mut branch_ownerships = Vec::with_capacity(expression.arms.len() + 1);
-            for arm in &expression.arms {
-                let mut arm_environment = environment_for_pattern_conditional_arm(
-                    arm,
-                    &expression.target,
-                    resolved,
-                    environment,
-                );
-                let mut arm_ownership = ownership.clone();
-                if let Some(payload) = &arm.payload {
-                    arm_ownership.define_binding_from_environment(
-                        &payload.name,
-                        payload.span,
-                        &arm_environment,
-                        resolved,
-                    );
-                }
-                check_expression_ownership(
-                    sources,
-                    &arm.expression,
-                    resolved,
-                    diagnostics,
-                    &mut arm_environment,
-                    &mut arm_ownership,
-                );
-                branch_ownerships.push(arm_ownership);
-            }
-            let mut fallback_ownership = ownership.clone();
-            check_expression_ownership(
+        }
+        Expr::IfIs(expression) => {
+            check_statement_ownership(
                 sources,
-                &expression.fallback,
+                &Stmt::IfIs((**expression).clone()),
                 resolved,
                 diagnostics,
                 environment,
-                &mut fallback_ownership,
+                ownership,
             );
-            branch_ownerships.push(fallback_ownership);
-            ownership.join_branches(&branch_ownerships);
+        }
+        Expr::Match(expression) => {
+            check_statement_ownership(
+                sources,
+                &Stmt::Switch((**expression).clone()),
+                resolved,
+                diagnostics,
+                environment,
+                ownership,
+            );
         }
         Expr::IntegerLiteral(_)
         | Expr::StringLiteral(_)

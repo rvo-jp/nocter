@@ -312,7 +312,7 @@ fn collect_callable_diagnostics(
         ));
     }
 
-    collect_block_diagnostics(
+    collect_terminal_return_block_diagnostics(
         callable.body,
         sources,
         callable.resolved,
@@ -324,6 +324,48 @@ fn collect_callable_diagnostics(
         queue,
         diagnostics,
     );
+}
+
+fn collect_terminal_return_block_diagnostics(
+    block: &Block,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    root_source: SourceId,
+    names: &HashMap<ByteSpan, String>,
+    nocter_home: Option<&Path>,
+    queue: &mut VecDeque<CallTarget>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for statement in &block.statements {
+        collect_statement_diagnostics(
+            statement,
+            sources,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            root_source,
+            names,
+            nocter_home,
+            queue,
+            diagnostics,
+        );
+    }
+    if let Some(result) = &block.result {
+        collect_terminal_return_expression_diagnostics(
+            result,
+            sources,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            root_source,
+            names,
+            nocter_home,
+            queue,
+            diagnostics,
+        );
+    }
 }
 
 fn collect_block_diagnostics(
@@ -352,6 +394,190 @@ fn collect_block_diagnostics(
             diagnostics,
         );
     }
+    if let Some(result) = &block.result {
+        collect_expression_diagnostics(
+            result,
+            sources,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            root_source,
+            names,
+            nocter_home,
+            queue,
+            diagnostics,
+        );
+    }
+}
+
+fn collect_terminal_return_expression_diagnostics(
+    expression: &Expr,
+    sources: &SourceMap,
+    resolved: &ResolveOutput,
+    typecheck_facts: &TypecheckFacts,
+    generic_substitutions: &HashMap<String, TypeExpr>,
+    root_source: SourceId,
+    names: &HashMap<ByteSpan, String>,
+    nocter_home: Option<&Path>,
+    queue: &mut VecDeque<CallTarget>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    match unwrap_group_expr(expression) {
+        Expr::If(expression) if terminal_if_expression_is_buildable(expression) => {
+            collect_expression_diagnostics(
+                &expression.condition,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+            collect_terminal_return_block_diagnostics(
+                &expression.then_block,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+            if let Some(else_block) = &expression.else_block {
+                collect_terminal_return_block_diagnostics(
+                    else_block,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            }
+        }
+        Expr::IfIs(expression) if terminal_if_is_expression_is_buildable(expression, resolved) => {
+            collect_expression_diagnostics(
+                &expression.expression,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+            collect_terminal_return_block_diagnostics(
+                &expression.then_block,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+            if let Some(else_block) = &expression.else_block {
+                collect_terminal_return_block_diagnostics(
+                    else_block,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            }
+        }
+        Expr::Match(expression) if terminal_match_expression_is_buildable(expression, resolved) => {
+            collect_expression_diagnostics(
+                &expression.expression,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+            for arm in &expression.arms {
+                collect_terminal_return_block_diagnostics(
+                    &arm.body,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            }
+            if let Some(else_arm) = &expression.else_arm {
+                collect_terminal_return_block_diagnostics(
+                    &else_arm.body,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            }
+        }
+        _ => collect_expression_diagnostics(
+            expression,
+            sources,
+            resolved,
+            typecheck_facts,
+            generic_substitutions,
+            root_source,
+            names,
+            nocter_home,
+            queue,
+            diagnostics,
+        ),
+    }
+}
+
+fn terminal_if_expression_is_buildable(expression: &crate::ast::IfStmt) -> bool {
+    expression.else_block.is_some()
+}
+
+fn terminal_if_is_expression_is_buildable(
+    expression: &crate::ast::IfIsStmt,
+    resolved: &ResolveOutput,
+) -> bool {
+    expression.else_block.is_some() && if_is_statement_is_buildable(expression, resolved)
+}
+
+fn terminal_match_expression_is_buildable(
+    expression: &crate::ast::SwitchStmt,
+    resolved: &ResolveOutput,
+) -> bool {
+    switch_statement_is_buildable(expression, resolved)
+        && (expression.else_arm.is_some()
+            || switch_statement_covers_all_payloadless_variants(expression, resolved))
 }
 
 fn if_is_statement_is_buildable(
@@ -419,23 +645,17 @@ fn switch_statement_is_buildable(
     })
 }
 
-fn pattern_conditional_expression_is_buildable(
-    expression: &crate::ast::PatternConditionalExpr,
+fn switch_statement_covers_all_payloadless_variants(
+    statement: &crate::ast::SwitchStmt,
     resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
 ) -> bool {
-    let Some(first_arm) = expression.arms.first() else {
+    let Some(first_arm) = statement.arms.first() else {
         return false;
     };
-    if expression.arms.iter().any(|arm| arm.payload.is_some()) {
-        return false;
-    }
-
     let Some(target_symbol) = resolved.type_symbol_by_name(&first_arm.enum_name) else {
         return false;
     };
     if target_symbol.kind != TypeSymbolKind::Enum
-        || target_symbol.variants.len() > 256
         || target_symbol
             .variants
             .iter()
@@ -444,105 +664,13 @@ fn pattern_conditional_expression_is_buildable(
         return false;
     }
 
-    expression.arms.iter().all(|arm| {
-        resolved
-            .type_symbol_by_name(&arm.enum_name)
-            .is_some_and(|symbol| symbol.canonical_name == target_symbol.canonical_name)
-            && target_symbol
-                .variants
-                .iter()
-                .any(|variant| variant.name == arm.variant_name)
-            && pattern_conditional_value_expression_is_buildable(
-                &arm.expression,
-                resolved,
-                typecheck_facts,
-            )
-    }) && pattern_conditional_value_expression_is_buildable(
-        &expression.fallback,
-        resolved,
-        typecheck_facts,
-    )
-}
-
-fn pattern_conditional_value_expression_is_buildable(
-    expression: &Expr,
-    resolved: &ResolveOutput,
-    typecheck_facts: &TypecheckFacts,
-) -> bool {
-    match unwrap_group_expr(expression) {
-        Expr::IntegerLiteral(_) | Expr::StringLiteral(_) | Expr::BoolLiteral(_) => true,
-        Expr::Identifier(identifier) => resolved
-            .local_symbol_for_identifier(identifier)
-            .and_then(|symbol| typecheck_facts.binding_type_label(symbol.name_span))
-            .is_some_and(type_label_is_scalar_or_view),
-        Expr::Member(_) | Expr::Index(_) => true,
-        Expr::Call(call) => matches!(
-            call_return_shape(call, resolved),
-            Some(ReturnShape::DiscardableScalar | ReturnShape::DiscardableView)
-        ),
-        Expr::Propagate(propagation) => matches!(
-            unwrap_group_expr(&propagation.expression),
-            Expr::Call(call) if call_fallible_success_shape_is_scalar_or_view(call, resolved)
-        ),
-        Expr::Force(force) => matches!(
-            unwrap_group_expr(&force.expression),
-            Expr::Call(call) if call_fallible_success_shape_is_scalar_or_view(call, resolved)
-        ),
-        Expr::Catch(catch) => matches!(
-            unwrap_group_expr(&catch.expression),
-            Expr::Call(call) if call_fallible_success_shape_is_scalar_or_view(call, resolved)
-        ),
-        Expr::Binary(binary) => {
-            pattern_conditional_value_expression_is_buildable(
-                &binary.left,
-                resolved,
-                typecheck_facts,
-            ) && pattern_conditional_value_expression_is_buildable(
-                &binary.right,
-                resolved,
-                typecheck_facts,
-            )
-        }
-        Expr::TypeConversion(conversion) => pattern_conditional_value_expression_is_buildable(
-            &conversion.expression,
-            resolved,
-            typecheck_facts,
-        ),
-        Expr::PatternConditional(conditional) => {
-            pattern_conditional_expression_is_buildable(conditional, resolved, typecheck_facts)
-        }
-        Expr::Group(_) => unreachable!("unwrap_group_expr removes groups"),
-        Expr::InterpolatedString(_)
-        | Expr::NoneLiteral(_)
-        | Expr::ArrayLiteral(_)
-        | Expr::StructLiteral(_)
-        | Expr::Borrow(_)
-        | Expr::Unary(_)
-        | Expr::OptionalDefault(_) => false,
-    }
-}
-
-fn call_fallible_success_shape_is_scalar_or_view(
-    call: &CallExpr,
-    resolved: &ResolveOutput,
-) -> bool {
-    let Some(signature) = resolved.call_signature_for_call(call) else {
-        return false;
-    };
-    let TypeExpr::Fallible(fallible) = &signature.return_type else {
-        return false;
-    };
-    matches!(
-        return_shape_from_type_expr(&fallible.success, resolved),
-        ReturnShape::DiscardableScalar | ReturnShape::DiscardableView
-    )
-}
-
-fn type_label_is_scalar_or_view(label: &str) -> bool {
-    matches!(
-        label,
-        "i32" | "u8" | "usize" | "bool" | "&str" | "&[u8]" | "&+[u8]"
-    )
+    target_symbol.variants.iter().all(|variant| {
+        statement.arms.iter().any(|arm| {
+            arm.enum_name == first_arm.enum_name
+                && arm.payload.is_none()
+                && arm.variant_name == variant.name
+        })
+    })
 }
 
 fn collect_statement_diagnostics(
@@ -1528,17 +1656,15 @@ fn collect_expression_diagnostics(
                 diagnostics,
             );
         }
-        Expr::PatternConditional(expression) => {
-            if !pattern_conditional_expression_is_buildable(expression, resolved, typecheck_facts) {
-                diagnostics.push(unsupported_v0_build_diagnostic(
-                    sources,
-                    expression.question_span,
-                    "pattern conditional `?{}` expressions",
-                    "use payloadless enum `?{}` arms that produce scalar/view values, or keep payload pattern code on the `check` path",
-                ));
-            }
+        Expr::If(expression) => {
+            diagnostics.push(unsupported_v0_build_diagnostic(
+                sources,
+                expression.span,
+                "`if` expressions",
+                "use an explicit `if` statement with `return` until backend expression lowering is promoted",
+            ));
             collect_expression_diagnostics(
-                &expression.target,
+                &expression.condition,
                 sources,
                 resolved,
                 typecheck_facts,
@@ -1549,9 +1675,21 @@ fn collect_expression_diagnostics(
                 queue,
                 diagnostics,
             );
-            for arm in &expression.arms {
-                collect_expression_diagnostics(
-                    &arm.expression,
+            collect_block_diagnostics(
+                &expression.then_block,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+            if let Some(else_block) = &expression.else_block {
+                collect_block_diagnostics(
+                    else_block,
                     sources,
                     resolved,
                     typecheck_facts,
@@ -1563,8 +1701,16 @@ fn collect_expression_diagnostics(
                     diagnostics,
                 );
             }
+        }
+        Expr::IfIs(expression) => {
+            diagnostics.push(unsupported_v0_build_diagnostic(
+                sources,
+                expression.span,
+                "`if is` expressions",
+                "use an explicit `if is` statement with `return` until backend expression lowering is promoted",
+            ));
             collect_expression_diagnostics(
-                &expression.fallback,
+                &expression.expression,
                 sources,
                 resolved,
                 typecheck_facts,
@@ -1575,6 +1721,80 @@ fn collect_expression_diagnostics(
                 queue,
                 diagnostics,
             );
+            collect_block_diagnostics(
+                &expression.then_block,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+            if let Some(else_block) = &expression.else_block {
+                collect_block_diagnostics(
+                    else_block,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            }
+        }
+        Expr::Match(expression) => {
+            diagnostics.push(unsupported_v0_build_diagnostic(
+                sources,
+                expression.span,
+                "`match` expressions",
+                "use an explicit `match` statement with `return` until backend expression lowering is promoted",
+            ));
+            collect_expression_diagnostics(
+                &expression.expression,
+                sources,
+                resolved,
+                typecheck_facts,
+                generic_substitutions,
+                root_source,
+                names,
+                nocter_home,
+                queue,
+                diagnostics,
+            );
+            for arm in &expression.arms {
+                collect_block_diagnostics(
+                    &arm.body,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            }
+            if let Some(else_arm) = &expression.else_arm {
+                collect_block_diagnostics(
+                    &else_arm.body,
+                    sources,
+                    resolved,
+                    typecheck_facts,
+                    generic_substitutions,
+                    root_source,
+                    names,
+                    nocter_home,
+                    queue,
+                    diagnostics,
+                );
+            }
         }
     }
 }
@@ -2580,18 +2800,14 @@ func main(): i32 {
     }
 
     #[test]
-    fn does_not_report_reachable_payloadless_pattern_conditional() {
+    fn does_not_report_terminal_if_expression_body_result() {
         let (sources, analysis) = analyze_text(
-            r#"enum Choice {
-    yes
-    no
-}
-
-func main(): i32 {
-    let choice = Choice.yes
-    return choice ?{
-        Choice.yes : 0
-        : 1
+            r#"func main(): i32 {
+    let ok = true
+    if ok {
+        0
+    } else {
+        1
     }
 }
 "#,
@@ -2600,6 +2816,53 @@ func main(): i32 {
         let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
 
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn does_not_report_terminal_match_expression_body_result() {
+        let (sources, analysis) = analyze_text(
+            r#"enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    let choice = Choice.yes
+    match choice {
+        Choice.yes { 0 }
+        else { 1 }
+    }
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn reports_reachable_match_expression_until_lowering_is_promoted() {
+        let (sources, analysis) = analyze_text(
+            r#"enum Choice {
+    yes
+    no
+}
+
+func main(): i32 {
+    let choice = Choice.yes
+    return match choice {
+        Choice.yes { 0 }
+        else { 1 }
+    }
+}
+"#,
+        );
+
+        let diagnostics = v0_buildability_diagnostics(&sources, &analysis);
+
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert!(diagnostics[0].message.contains("`match` expressions"));
     }
 
     #[test]

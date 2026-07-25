@@ -527,12 +527,6 @@ Precedence, from highest to lowest:
 
 11. optional default
     ??
-
-12. ternary conditional
-    condition ? then : else
-
-13. pattern conditional
-    enum_expr ?{ Pattern : value : fallback }
 ```
 
 Rules:
@@ -540,9 +534,10 @@ Rules:
 - Assignment is a statement, not an expression, and is not part of the precedence table.
 - The half-open range token `..<` is part of the initial `for` header syntax, not a general binary operator, and is therefore not in the precedence table.
 - `??` is right-associative.
-- The ternary conditional operator is right-associative.
-- `?{}` is not right-associative; the arm expressions are ordinary expressions.
-- `&&`, `||`, `??`, the ternary conditional operator, and `?{}` evaluate only the needed operand or branch.
+- `if` and `match` are control expressions, not precedence-table operators.
+- `condition ? then : else` is not Nocter syntax. Use `if condition { then } else { else_value }`.
+- `enum_expr ?{ ... }` is not Nocter syntax. Use `match enum_expr { ... }`.
+- `&&`, `||`, `??`, `if`, and `match` evaluate only the needed operand, branch, or arm.
 
 Example:
 
@@ -659,44 +654,33 @@ match error {
 
 Rules:
 
-- `match` is a statement in the initial design.
+- `match` may be used as a statement or as an expression.
 - Match arms use `Pattern { ... }`.
 - `else { ... }` is the fallback arm.
 - A `match` may have at most one `else` arm.
 - `else` must be the last arm.
+- When `match` is used as an expression, each selected arm body result is the expression value.
+- A `match` expression without `else` must cover all variants to avoid a `void` missing-branch type.
+- Match expression arm result types must be compatible. A `never` arm is compatible with the other result type.
 - `match` without `else` is treated as a terminating statement when every enum variant is covered by an explicit arm and every arm terminates.
 - `match ... else` is treated as a terminating statement when every explicit arm and the `else` arm terminate.
 - In the v0 backend, payloadless enum `match` statements lower through the enum tag ABI.
+- In the v0 backend, payloadless enum `match` expressions are typechecked. Build/run lowering is promoted incrementally.
 - Payload-carrying enum `match` is typechecked in v0, but build/run lowering is deferred until payload enum ABI is promoted.
 - Payload names in a pattern are bound only inside that arm block.
-- `match` expressions that return values are deferred.
 - `_` wildcard patterns are not part of the initial design.
 
-Adopted: `enum_expr ?{ ... }` is the expression form for enum pattern value selection.
+Example value selection:
 
 ```nct
-return error ?{
-    AppError.missing_path : missing_code()
-    AppError.open_failed(path) : code_for(path)
-    : unknown_code()
+return match error {
+    AppError.missing_path { missing_code() }
+    AppError.open_failed(path) { code_for(path) }
+    else { unknown_code() }
 }
 ```
 
-Rules:
-
-- `?{}` is an expression, not a statement.
-- The target expression before `?{` must have an enum type.
-- Arms use `Pattern : expression`.
-- The fallback arm is written as `: expression`.
-- The fallback arm is required in v0 because exhaustiveness checking is deferred.
-- The fallback arm must be the last arm.
-- Payload names in a pattern are bound only in that arm expression.
-- Every explicit arm expression must produce a value assignable to the fallback arm type.
-- In the v0 backend, payloadless enum `?{}` expressions lower when the arm and fallback expressions produce scalar/view values.
-- Payload-carrying enum `?{}` is typechecked in v0, but build/run lowering is deferred until payload enum ABI is promoted.
-- `?{}` does not apply to fallible values `T!`.
-- `?{}` does not apply to optional values `T?`.
-- `_` wildcard patterns are not part of the initial design.
+Removed: `enum_expr ?{ ... }` is not Nocter syntax. Use `match` expressions for enum pattern value selection.
 
 Adopted: `if enum_expr is Pattern` checks one enum pattern.
 
@@ -719,6 +703,6 @@ Rules:
 - `else if enum_expr is Pattern` is allowed.
 - `else if enum_expr is Pattern` is equivalent to `else { if enum_expr is Pattern { ... } }`.
 - Payload names are not available in `else` or later `else if` branches.
-- `if expr is Pattern` is a statement condition form and does not produce a value.
+- `if expr is Pattern` may be used as a statement or as an expression with the same body-result rules as ordinary `if`.
 - `if is` does not apply to fallible values `T!`.
 - `if is` does not apply to optional values `T?`.

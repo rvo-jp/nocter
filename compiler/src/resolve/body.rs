@@ -74,6 +74,9 @@ impl Resolver<'_> {
         for statement in &block.statements {
             self.resolve_statement(statement, scope);
         }
+        if let Some(result) = &block.result {
+            self.resolve_expression(result, scope);
+        }
     }
 
     fn resolve_statement(&mut self, statement: &Stmt, scope: &mut Scope) {
@@ -249,8 +252,34 @@ impl Resolver<'_> {
                 self.resolve_expression(&expression.value, scope);
                 self.resolve_expression(&expression.default, scope);
             }
-            Expr::PatternConditional(expression) => {
-                self.resolve_expression(&expression.target, scope);
+            Expr::If(expression) => {
+                self.resolve_expression(&expression.condition, scope);
+                let mut then_scope = scope.clone();
+                self.resolve_block(&expression.then_block, &mut then_scope);
+                if let Some(else_block) = &expression.else_block {
+                    let mut else_scope = scope.clone();
+                    self.resolve_block(else_block, &mut else_scope);
+                }
+            }
+            Expr::IfIs(expression) => {
+                self.resolve_expression(&expression.expression, scope);
+                let mut then_scope = scope.clone();
+                if let Some(payload) = &expression.payload {
+                    self.define_local_name(
+                        payload.name.clone(),
+                        payload.span,
+                        LocalSymbolKind::PatternPayload,
+                        &mut then_scope,
+                    );
+                }
+                self.resolve_block(&expression.then_block, &mut then_scope);
+                if let Some(else_block) = &expression.else_block {
+                    let mut else_scope = scope.clone();
+                    self.resolve_block(else_block, &mut else_scope);
+                }
+            }
+            Expr::Match(expression) => {
+                self.resolve_expression(&expression.expression, scope);
                 for arm in &expression.arms {
                     let mut arm_scope = scope.clone();
                     if let Some(payload) = &arm.payload {
@@ -261,9 +290,12 @@ impl Resolver<'_> {
                             &mut arm_scope,
                         );
                     }
-                    self.resolve_expression(&arm.expression, &mut arm_scope);
+                    self.resolve_block(&arm.body, &mut arm_scope);
                 }
-                self.resolve_expression(&expression.fallback, scope);
+                if let Some(else_arm) = &expression.else_arm {
+                    let mut else_scope = scope.clone();
+                    self.resolve_block(&else_arm.body, &mut else_scope);
+                }
             }
             Expr::IntegerLiteral(_)
             | Expr::StringLiteral(_)

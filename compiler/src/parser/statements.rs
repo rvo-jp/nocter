@@ -11,6 +11,7 @@ impl Parser<'_> {
     pub(super) fn parse_block(&mut self) -> ParseResult<Block> {
         let start = self.expect_punctuation("{", "`{`")?;
         let mut statements = Vec::new();
+        let mut result = None;
         self.skip_newlines();
 
         while !self.at_punctuation("}") {
@@ -19,14 +20,26 @@ impl Parser<'_> {
                 return Err(());
             }
 
-            statements.push(self.parse_statement()?);
+            let statement = self.parse_statement()?;
             self.skip_newlines();
+            if self.at_punctuation("}") {
+                match statement_into_block_result(statement) {
+                    Ok(expression) => {
+                        result = Some(Box::new(expression));
+                        break;
+                    }
+                    Err(statement) => statements.push(statement),
+                }
+            } else {
+                statements.push(statement);
+            }
         }
 
         let end = self.expect_punctuation("}", "`}`")?;
         Ok(Block {
             span: self.span(start.span.start, end.span.end),
             statements,
+            result,
         })
     }
 
@@ -146,6 +159,14 @@ impl Parser<'_> {
     }
 
     pub(super) fn parse_if_statement(&mut self) -> ParseResult<Stmt> {
+        match self.parse_if_expression()? {
+            Expr::If(statement) => Ok(Stmt::If(*statement)),
+            Expr::IfIs(statement) => Ok(Stmt::IfIs(*statement)),
+            _ => unreachable!("parse_if_expression returns an if expression"),
+        }
+    }
+
+    pub(super) fn parse_if_expression(&mut self) -> ParseResult<Expr> {
         let start = self.expect_keyword(Keyword::If, "`if`")?;
         if self.at_keyword(Keyword::Let) || self.at_keyword(Keyword::Var) {
             self.error_current(
@@ -156,7 +177,11 @@ impl Parser<'_> {
 
         let condition = self.parse_expression()?;
         if let Some(is_token) = self.match_keyword(Keyword::Is) {
-            return self.parse_if_is_statement(start.span.start, condition, is_token.span.start);
+            return Ok(Expr::IfIs(Box::new(self.parse_if_is_expression(
+                start.span.start,
+                condition,
+                is_token.span.start,
+            )?)));
         }
 
         let then_block = self.parse_block()?;
@@ -165,20 +190,20 @@ impl Parser<'_> {
             .as_ref()
             .map_or(then_block.span.end, |block| block.span.end);
 
-        Ok(Stmt::If(IfStmt {
+        Ok(Expr::If(Box::new(IfStmt {
             span: self.span(start.span.start, end),
             condition,
             then_block,
             else_block,
-        }))
+        })))
     }
 
-    pub(super) fn parse_if_is_statement(
+    pub(super) fn parse_if_is_expression(
         &mut self,
         start: usize,
         expression: Expr,
         pattern_start: usize,
-    ) -> ParseResult<Stmt> {
+    ) -> ParseResult<IfIsStmt> {
         let pattern = self.parse_enum_pattern_after_is(pattern_start)?;
         let then_block = self.parse_block()?;
         let else_block = self.parse_else_block()?;
@@ -186,7 +211,7 @@ impl Parser<'_> {
             .as_ref()
             .map_or(then_block.span.end, |block| block.span.end);
 
-        Ok(Stmt::IfIs(IfIsStmt {
+        Ok(IfIsStmt {
             span: self.span(start, end),
             expression,
             pattern_span: pattern.span,
@@ -197,7 +222,7 @@ impl Parser<'_> {
             payload: pattern.payload,
             then_block,
             else_block,
-        }))
+        })
     }
 
     pub(super) fn parse_else_block(&mut self) -> ParseResult<Option<Block>> {
@@ -206,10 +231,19 @@ impl Parser<'_> {
         };
 
         if self.at_keyword(Keyword::If) {
-            let statement = self.parse_if_statement()?;
-            return Ok(Some(Block {
-                span: self.span(else_token.span.start, statement.span().end),
-                statements: vec![statement],
+            let expression = self.parse_if_expression()?;
+            let end = expression.span().end;
+            return Ok(Some(match expression_into_block_result(expression) {
+                Ok(expression) => Block {
+                    span: self.span(else_token.span.start, end),
+                    statements: Vec::new(),
+                    result: Some(Box::new(expression)),
+                },
+                Err(statement) => Block {
+                    span: self.span(else_token.span.start, end),
+                    statements: vec![statement],
+                    result: None,
+                },
             }));
         }
 
@@ -217,6 +251,13 @@ impl Parser<'_> {
     }
 
     pub(super) fn parse_switch_statement(&mut self) -> ParseResult<Stmt> {
+        match self.parse_match_expression()? {
+            Expr::Match(statement) => Ok(Stmt::Switch(*statement)),
+            _ => unreachable!("parse_match_expression returns a match expression"),
+        }
+    }
+
+    pub(super) fn parse_match_expression(&mut self) -> ParseResult<Expr> {
         let start = self.expect_keyword(Keyword::Match, "`match`")?;
         let expression = self.parse_expression()?;
         let open = self.expect_punctuation("{", "`{`")?;
@@ -251,12 +292,12 @@ impl Parser<'_> {
         }
 
         let close = self.expect_punctuation("}", "`}`")?;
-        Ok(Stmt::Switch(SwitchStmt {
+        Ok(Expr::Match(Box::new(SwitchStmt {
             span: self.span(start.span.start, close.span.end),
             expression,
             arms,
             else_arm,
-        }))
+        })))
     }
 
     pub(super) fn parse_switch_arm(&mut self) -> ParseResult<SwitchArm> {
@@ -459,4 +500,63 @@ fn is_assignment_target(expression: &Expr) -> bool {
 
 fn assignment_target_error(_expression: &Expr) -> &'static str {
     "expected assignment target"
+}
+
+fn statement_into_block_result(statement: Stmt) -> Result<Expr, Stmt> {
+    match statement {
+        Stmt::Expression(statement) => Ok(statement.expression),
+        Stmt::If(statement) if if_statement_has_value_result(&statement) => {
+            Ok(Expr::If(Box::new(statement)))
+        }
+        Stmt::IfIs(statement) if if_is_statement_has_value_result(&statement) => {
+            Ok(Expr::IfIs(Box::new(statement)))
+        }
+        Stmt::Switch(statement) if switch_statement_has_value_result(&statement) => {
+            Ok(Expr::Match(Box::new(statement)))
+        }
+        statement => Err(statement),
+    }
+}
+
+fn expression_into_block_result(expression: Expr) -> Result<Expr, Stmt> {
+    match expression {
+        Expr::If(statement) if if_statement_has_value_result(&statement) => Ok(Expr::If(statement)),
+        Expr::If(statement) => Err(Stmt::If(*statement)),
+        Expr::IfIs(statement) if if_is_statement_has_value_result(&statement) => {
+            Ok(Expr::IfIs(statement))
+        }
+        Expr::IfIs(statement) => Err(Stmt::IfIs(*statement)),
+        expression => Ok(expression),
+    }
+}
+
+fn if_statement_has_value_result(statement: &IfStmt) -> bool {
+    statement.then_block.result.is_some()
+        || statement
+            .else_block
+            .as_ref()
+            .is_some_and(block_has_value_result)
+}
+
+fn if_is_statement_has_value_result(statement: &IfIsStmt) -> bool {
+    statement.then_block.result.is_some()
+        || statement
+            .else_block
+            .as_ref()
+            .is_some_and(block_has_value_result)
+}
+
+fn switch_statement_has_value_result(statement: &SwitchStmt) -> bool {
+    statement
+        .arms
+        .iter()
+        .any(|arm| block_has_value_result(&arm.body))
+        || statement
+            .else_arm
+            .as_ref()
+            .is_some_and(|arm| block_has_value_result(&arm.body))
+}
+
+fn block_has_value_result(block: &Block) -> bool {
+    block.result.is_some()
 }

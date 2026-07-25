@@ -12,7 +12,7 @@ use super::context::{
     LoweringParameterSlots, PendingAggregateDrop, drop_glue_for_type_expr,
 };
 use super::control_flow::{
-    lower_nonterminal_for_range_statement, lower_nonterminal_if_statement,
+    TerminalBranch, lower_nonterminal_for_range_statement, lower_nonterminal_if_statement,
     lower_nonterminal_loop_statement, lower_nonterminal_while_statement,
     lower_terminal_bool_if_statement, lower_terminal_branch_leading_statements,
     lower_terminal_condition, lower_terminal_i32_if_statement, lower_terminal_slice_if_statement,
@@ -711,8 +711,20 @@ fn lower_callable_body(
     let success_type = return_type.success_type();
     let statements = body.statements.as_slice();
 
-    if statements.is_empty() && *success_type == Type::Void {
+    if statements.is_empty() && body.result.is_none() && *success_type == Type::Void {
         return Ok(vec![success_return_instruction(return_type)]);
+    }
+
+    if let Some(result) = &body.result {
+        let mut instructions = lower_leading_bindings(statements, context, sources)?;
+        instructions.extend(lower_callable_body_result(
+            function_name,
+            result,
+            return_type,
+            context,
+            sources,
+        )?);
+        return Ok(instructions);
     }
 
     let Some((last, leading)) = statements.split_last() else {
@@ -722,7 +734,6 @@ fn lower_callable_body(
             body.span,
         ));
     };
-
     let mut instructions = lower_leading_bindings(leading, context, sources)?;
 
     match last {
@@ -867,6 +878,124 @@ fn lower_callable_body(
             sources,
             last.span(),
         )),
+    }
+}
+
+fn lower_callable_body_result(
+    function_name: &str,
+    expression: &Expr,
+    return_type: &Type,
+    context: &mut LoweringContext,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    if let Some(instructions) = lower_callable_control_body_result(
+        function_name,
+        expression,
+        return_type,
+        context,
+        sources,
+    )? {
+        return Ok(instructions);
+    }
+
+    if return_type.success_type() == &Type::Void {
+        if let Some(terminating_instructions) =
+            lower_never_expression_with_scope_drops(expression, context).map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, expression.span())
+            })?
+        {
+            return Ok(terminating_instructions);
+        }
+
+        if let Some(mut void_instructions) = lower_void_expression_statement(expression, context)
+            .map_err(|diagnostics| {
+                attach_primary_span_if_absent(diagnostics, sources, expression.span())
+            })?
+        {
+            mark_explicit_moves_in_expression(expression, context);
+            void_instructions.extend(append_scope_end_drops_before_exit(
+                vec![success_return_instruction(return_type)],
+                context,
+            )?);
+            return Ok(void_instructions);
+        }
+    }
+
+    let statement = ReturnStmt {
+        span: expression.span(),
+        expression: Some(expression.clone()),
+    };
+    lower_return_statement_with_scope_drops(&statement, context, "E8007")
+        .map_err(|diagnostics| {
+            attach_primary_span_if_absent(diagnostics, sources, expression.span())
+        })
+        .map_err(|diagnostics| {
+            if diagnostics.is_empty() {
+                attach_primary_span_if_absent(
+                    unsupported_function_body_diagnostic(function_name),
+                    sources,
+                    expression.span(),
+                )
+            } else {
+                diagnostics
+            }
+        })
+}
+
+fn lower_callable_control_body_result(
+    function_name: &str,
+    expression: &Expr,
+    return_type: &Type,
+    context: &mut LoweringContext,
+    sources: &SourceMap,
+) -> Result<Option<Vec<Instruction>>, Vec<Diagnostic>> {
+    match unwrap_group(expression) {
+        Expr::If(statement) => lower_terminal_if_statement_for_success_type(
+            statement,
+            context,
+            function_name,
+            return_type,
+            context
+                .resolved_calls()
+                .map(|(_, resolved)| resolved)
+                .ok_or_else(|| unsupported_function_body_diagnostic(function_name))?,
+            sources,
+        ),
+        Expr::IfIs(statement) => {
+            let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8007")?;
+            lower_terminal_if_statement_for_success_type(
+                &if_statement,
+                context,
+                function_name,
+                return_type,
+                context
+                    .resolved_calls()
+                    .map(|(_, resolved)| resolved)
+                    .ok_or_else(|| unsupported_function_body_diagnostic(function_name))?,
+                sources,
+            )
+        }
+        Expr::Match(statement) => {
+            let switch = payloadless_switch_as_if_statement(statement, context, "E8007")?;
+            let Some(mut branch_instructions) = lower_terminal_if_statement_for_success_type(
+                &switch.if_statement,
+                context,
+                function_name,
+                return_type,
+                context
+                    .resolved_calls()
+                    .map(|(_, resolved)| resolved)
+                    .ok_or_else(|| unsupported_function_body_diagnostic(function_name))?,
+                sources,
+            )?
+            else {
+                return Ok(None);
+            };
+            let mut instructions = switch.leading_instructions;
+            instructions.append(&mut branch_instructions);
+            Ok(Some(instructions))
+        }
+        _ => Ok(None),
     }
 }
 
@@ -1112,6 +1241,7 @@ fn payloadless_switch_if_chain(
         next_else = Some(Block {
             span: if_statement.span,
             statements: vec![Stmt::If(if_statement.clone())],
+            result: None,
         });
         current = Some(if_statement);
     }
@@ -1133,6 +1263,7 @@ fn payloadless_switch_condition_arms_and_fallback<'a>(
             Block {
                 span: statement.span,
                 statements: Vec::new(),
+                result: None,
             },
         ));
     }
@@ -1469,7 +1600,18 @@ fn lower_terminal_aggregate_return_block(
     )?;
 
     match terminal {
-        Stmt::Return(statement) => {
+        TerminalBranch::Result(expression) => {
+            instructions.extend(lower_terminal_aggregate_result_expression(
+                expression,
+                success_type,
+                function_name,
+                resolved,
+                &mut branch_context,
+                sources,
+            )?);
+            Ok(instructions)
+        }
+        TerminalBranch::Statement(Stmt::Return(statement)) => {
             let Some(expression) = &statement.expression else {
                 return Err(unsupported_terminal_aggregate_if_diagnostic(function_name));
             };
@@ -1499,7 +1641,7 @@ fn lower_terminal_aggregate_return_block(
             )?);
             Ok(instructions)
         }
-        Stmt::If(statement) => {
+        TerminalBranch::Statement(Stmt::If(statement)) => {
             instructions.extend(lower_terminal_aggregate_if_statement(
                 statement,
                 &branch_context,
@@ -1510,7 +1652,7 @@ fn lower_terminal_aggregate_return_block(
             )?);
             Ok(instructions)
         }
-        Stmt::IfIs(statement) => {
+        TerminalBranch::Statement(Stmt::IfIs(statement)) => {
             let if_statement =
                 payloadless_if_is_as_if_statement(statement, &branch_context, "E8007")?;
             instructions.extend(lower_terminal_aggregate_if_statement(
@@ -1523,7 +1665,7 @@ fn lower_terminal_aggregate_return_block(
             )?);
             Ok(instructions)
         }
-        Stmt::Switch(statement) => {
+        TerminalBranch::Statement(Stmt::Switch(statement)) => {
             let switch =
                 payloadless_switch_as_if_statement(statement, &mut branch_context, "E8007")?;
             instructions.extend(switch.leading_instructions);
@@ -1537,7 +1679,7 @@ fn lower_terminal_aggregate_return_block(
             )?);
             Ok(instructions)
         }
-        Stmt::Expression(statement) => {
+        TerminalBranch::Statement(Stmt::Expression(statement)) => {
             let Some(terminating_instructions) = lower_never_expression_with_scope_drops(
                 &statement.expression,
                 &mut branch_context,
@@ -1549,6 +1691,80 @@ fn lower_terminal_aggregate_return_block(
             Ok(instructions)
         }
         _ => Err(unsupported_terminal_aggregate_if_diagnostic(function_name)),
+    }
+}
+
+fn lower_terminal_aggregate_result_expression(
+    expression: &Expr,
+    success_type: &Type,
+    function_name: &str,
+    resolved: &ResolveOutput,
+    context: &mut LoweringContext,
+    sources: &SourceMap,
+) -> Result<Vec<Instruction>, Vec<Diagnostic>> {
+    match unwrap_group(expression) {
+        Expr::If(statement) => lower_terminal_aggregate_if_statement(
+            statement,
+            context,
+            success_type,
+            function_name,
+            resolved,
+            sources,
+        ),
+        Expr::IfIs(statement) => {
+            let if_statement = payloadless_if_is_as_if_statement(statement, context, "E8007")?;
+            lower_terminal_aggregate_if_statement(
+                &if_statement,
+                context,
+                success_type,
+                function_name,
+                resolved,
+                sources,
+            )
+        }
+        Expr::Match(statement) => {
+            let switch = payloadless_switch_as_if_statement(statement, context, "E8007")?;
+            let mut instructions = switch.leading_instructions;
+            instructions.extend(lower_terminal_aggregate_if_statement(
+                &switch.if_statement,
+                context,
+                success_type,
+                function_name,
+                resolved,
+                sources,
+            )?);
+            Ok(instructions)
+        }
+        _ => {
+            if let Some(terminating_instructions) =
+                lower_never_expression_with_scope_drops(expression, context)?
+            {
+                mark_explicit_moves_in_expression(expression, context);
+                return Ok(terminating_instructions);
+            }
+
+            mark_explicit_moves_in_expression(expression, context);
+            if matches!(success_type, Type::DirectAggregate { .. })
+                && !context.pending_aggregate_drops().is_empty()
+            {
+                return lower_terminal_direct_aggregate_return_with_scope_drops(
+                    expression,
+                    success_type,
+                    function_name,
+                    resolved,
+                    context,
+                );
+            }
+
+            let return_instructions = lower_aggregate_return_expression(
+                expression,
+                success_type,
+                function_name,
+                resolved,
+                context,
+            )?;
+            append_scope_end_drops_before_exit(return_instructions, context)
+        }
     }
 }
 
@@ -2193,8 +2409,28 @@ pub(super) fn mark_explicit_moves_in_expression(expression: &Expr, context: &mut
             mark_explicit_moves_in_expression(&default.value, context);
             mark_explicit_moves_in_expression(&default.default, context);
         }
-        Expr::PatternConditional(conditional) => {
-            mark_explicit_moves_in_expression(&conditional.target, context);
+        Expr::If(statement) => {
+            mark_explicit_moves_in_expression(&statement.condition, context);
+            mark_explicit_moves_in_block(&statement.then_block, context);
+            if let Some(block) = &statement.else_block {
+                mark_explicit_moves_in_block(block, context);
+            }
+        }
+        Expr::IfIs(statement) => {
+            mark_explicit_moves_in_expression(&statement.expression, context);
+            mark_explicit_moves_in_block(&statement.then_block, context);
+            if let Some(block) = &statement.else_block {
+                mark_explicit_moves_in_block(block, context);
+            }
+        }
+        Expr::Match(statement) => {
+            mark_explicit_moves_in_expression(&statement.expression, context);
+            for arm in &statement.arms {
+                mark_explicit_moves_in_block(&arm.body, context);
+            }
+            if let Some(arm) = &statement.else_arm {
+                mark_explicit_moves_in_block(&arm.body, context);
+            }
         }
         Expr::InterpolatedString(interpolated) => {
             for part in &interpolated.parts {
@@ -2208,6 +2444,15 @@ pub(super) fn mark_explicit_moves_in_expression(expression: &Expr, context: &mut
         | Expr::StringLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => {}
+    }
+}
+
+fn mark_explicit_moves_in_block(block: &Block, context: &mut LoweringContext) {
+    for statement in &block.statements {
+        mark_lowered_statement_aggregate_uses(statement, context);
+    }
+    if let Some(result) = &block.result {
+        mark_explicit_moves_in_expression(result, context);
     }
 }
 
@@ -2344,12 +2589,42 @@ fn expression_contains_explicit_aggregate_move_matching(
                 matches_move,
             )
         }
-        Expr::PatternConditional(conditional) => {
+        Expr::If(statement) => {
             expression_contains_explicit_aggregate_move_matching(
-                &conditional.target,
+                &statement.condition,
                 context,
                 matches_move,
-            )
+            ) || block_contains_explicit_aggregate_move_matching(
+                &statement.then_block,
+                context,
+                matches_move,
+            ) || statement.else_block.as_ref().is_some_and(|block| {
+                block_contains_explicit_aggregate_move_matching(block, context, matches_move)
+            })
+        }
+        Expr::IfIs(statement) => {
+            expression_contains_explicit_aggregate_move_matching(
+                &statement.expression,
+                context,
+                matches_move,
+            ) || block_contains_explicit_aggregate_move_matching(
+                &statement.then_block,
+                context,
+                matches_move,
+            ) || statement.else_block.as_ref().is_some_and(|block| {
+                block_contains_explicit_aggregate_move_matching(block, context, matches_move)
+            })
+        }
+        Expr::Match(statement) => {
+            expression_contains_explicit_aggregate_move_matching(
+                &statement.expression,
+                context,
+                matches_move,
+            ) || statement.arms.iter().any(|arm| {
+                block_contains_explicit_aggregate_move_matching(&arm.body, context, matches_move)
+            }) || statement.else_arm.as_ref().is_some_and(|arm| {
+                block_contains_explicit_aggregate_move_matching(&arm.body, context, matches_move)
+            })
         }
         Expr::InterpolatedString(interpolated) => interpolated.parts.iter().any(|part| {
             if let crate::ast::InterpolatedStringPart::Expression(part) = part {
@@ -2367,6 +2642,122 @@ fn expression_contains_explicit_aggregate_move_matching(
         | Expr::StringLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::NoneLiteral(_) => false,
+    }
+}
+
+fn block_contains_explicit_aggregate_move_matching(
+    block: &Block,
+    context: &LoweringContext,
+    matches_move: &impl Fn(&str, &LoweringContext) -> bool,
+) -> bool {
+    block.statements.iter().any(|statement| {
+        statement_contains_explicit_aggregate_move_matching(statement, context, matches_move)
+    }) || block.result.as_ref().is_some_and(|result| {
+        expression_contains_explicit_aggregate_move_matching(result, context, matches_move)
+    })
+}
+
+fn statement_contains_explicit_aggregate_move_matching(
+    statement: &Stmt,
+    context: &LoweringContext,
+    matches_move: &impl Fn(&str, &LoweringContext) -> bool,
+) -> bool {
+    match statement {
+        Stmt::Return(statement) => statement.expression.as_ref().is_some_and(|expression| {
+            expression_contains_explicit_aggregate_move_matching(expression, context, matches_move)
+        }),
+        Stmt::Binding(statement) => {
+            expression_contains_explicit_aggregate_move_matching(
+                &statement.initializer,
+                context,
+                matches_move,
+            ) || statement.else_block.as_ref().is_some_and(|block| {
+                block_contains_explicit_aggregate_move_matching(block, context, matches_move)
+            })
+        }
+        Stmt::Assignment(statement) => {
+            expression_contains_explicit_aggregate_move_matching(
+                &statement.target,
+                context,
+                matches_move,
+            ) || expression_contains_explicit_aggregate_move_matching(
+                &statement.value,
+                context,
+                matches_move,
+            )
+        }
+        Stmt::If(statement) => {
+            expression_contains_explicit_aggregate_move_matching(
+                &statement.condition,
+                context,
+                matches_move,
+            ) || block_contains_explicit_aggregate_move_matching(
+                &statement.then_block,
+                context,
+                matches_move,
+            ) || statement.else_block.as_ref().is_some_and(|block| {
+                block_contains_explicit_aggregate_move_matching(block, context, matches_move)
+            })
+        }
+        Stmt::IfIs(statement) => {
+            expression_contains_explicit_aggregate_move_matching(
+                &statement.expression,
+                context,
+                matches_move,
+            ) || block_contains_explicit_aggregate_move_matching(
+                &statement.then_block,
+                context,
+                matches_move,
+            ) || statement.else_block.as_ref().is_some_and(|block| {
+                block_contains_explicit_aggregate_move_matching(block, context, matches_move)
+            })
+        }
+        Stmt::Switch(statement) => {
+            expression_contains_explicit_aggregate_move_matching(
+                &statement.expression,
+                context,
+                matches_move,
+            ) || statement.arms.iter().any(|arm| {
+                block_contains_explicit_aggregate_move_matching(&arm.body, context, matches_move)
+            }) || statement.else_arm.as_ref().is_some_and(|arm| {
+                block_contains_explicit_aggregate_move_matching(&arm.body, context, matches_move)
+            })
+        }
+        Stmt::ForRange(statement) => {
+            expression_contains_explicit_aggregate_move_matching(
+                &statement.start,
+                context,
+                matches_move,
+            ) || expression_contains_explicit_aggregate_move_matching(
+                &statement.end,
+                context,
+                matches_move,
+            ) || block_contains_explicit_aggregate_move_matching(
+                &statement.body,
+                context,
+                matches_move,
+            )
+        }
+        Stmt::While(statement) => {
+            expression_contains_explicit_aggregate_move_matching(
+                &statement.condition,
+                context,
+                matches_move,
+            ) || block_contains_explicit_aggregate_move_matching(
+                &statement.body,
+                context,
+                matches_move,
+            )
+        }
+        Stmt::Loop(statement) => {
+            block_contains_explicit_aggregate_move_matching(&statement.body, context, matches_move)
+        }
+        Stmt::Expression(statement) => expression_contains_explicit_aggregate_move_matching(
+            &statement.expression,
+            context,
+            matches_move,
+        ),
+        Stmt::Drop(_) | Stmt::Break(_) | Stmt::Continue(_) => false,
     }
 }
 

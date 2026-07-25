@@ -130,8 +130,8 @@ Rules:
 - Assignment and compound assignment use spaces around the operator.
 - Binary operators use spaces around the operator.
 - The optional default operator is formatted as `value ?? fallback`.
-- The conditional operator is formatted as `condition ? then_value : else_value`.
-- Pattern conditional expressions use `target ?{` on the first line, one arm per line, and `Pattern : expression` arm spacing.
+- `if` and `match` expressions use the same formatting as their statement forms.
+- A result-only body may be formatted as `{ expr }` when it is short.
 - Unary operators are attached to their operand.
 - Function calls have no space between callee and `(`.
 - Method calls have no space around `.`.
@@ -143,7 +143,7 @@ Examples:
 ```nct
 count += 1
 let home = maybe_home ?? "/tmp"
-let label = is_ready ? "ready" : "waiting"
+let label = if is_ready { "ready" } else { "waiting" }
 let byte = bytes[i]
 file.write_text("hello")
 ```
@@ -157,8 +157,6 @@ Rules:
 - Single-pattern enum checks use `if expr is Pattern { ... }`.
 - `match` arms use `Pattern { ... }`.
 - `match` fallback arms use `else { ... }` and must be written last.
-- Pattern conditional arms use `Pattern : expression`.
-- Pattern conditional fallback arms use `: expression` and must be written last.
 - Range `for` syntax is formatted as `for i in start..<end { ... }`.
 
 Examples:
@@ -180,10 +178,10 @@ match error {
     }
 }
 
-return error ?{
-    AppError.missing_path : missing_code()
-    AppError.open_failed(path) : code_for(path)
-    : unknown_code()
+return match error {
+    AppError.missing_path { missing_code() }
+    AppError.open_failed(path) { code_for(path) }
+    else { unknown_code() }
 }
 
 for i in 0..<bytes.len() {

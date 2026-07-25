@@ -48,7 +48,7 @@ Rules:
 - `error.code` is an open dotted string code such as `"std.io.not_found"` or `"app.config.missing_key"`.
 - `error!` is not a valid function return type. In a fallible function, `return error_value` means failure, so `error` cannot be used as the success type without ambiguity.
 
-Inside a function returning `T!`, `return value` returns the success value unless the value has type `error`. `return error_value` returns the failure value.
+Inside a function returning `T!`, a compatible function body result or `return value` returns the success value unless the value has type `error`. `return error_value` returns the failure value.
 
 ```nct
 func write(file: &+File, text: &str): void! {
@@ -207,7 +207,7 @@ T? = optional T
 
 An optional value is either present with a `T` value or absent.
 
-Inside a function returning `T?`, `return value` returns a present value and `return none` returns absence.
+Inside a function returning `T?`, a compatible function body result or `return value` returns a present value and `return none` returns absence.
 
 ```nct
 func lookup(name: &str): &str? {
@@ -223,7 +223,7 @@ Rules:
 
 - `T?` is not spelled as a special `Option<T>` type.
 - `none` is the optional absent literal.
-- `return value` in a `T?` function returns the present value.
+- A compatible function body result or `return value` in a `T?` function returns the present value.
 - `return none` in a `T?` function returns absence.
 - Postfix `?` on `T?` propagates `none` through the current optional return layer.
 - `match` does not apply to `T?` in the initial design.
@@ -250,7 +250,7 @@ Rules:
 - Prefer `T?!` in official style.
 - `expr?` on `T?!` unwraps only the fallible layer and produces `T?`.
 - Applying `?` again to that `T?` propagates `none` through the current optional return layer.
-- In a function returning `T?!`, `return value` returns success with a present `T`.
+- In a function returning `T?!`, a compatible function body result or `return value` returns success with a present `T`.
 - In a function returning `T?!`, `return none` returns success with absence.
 - In a function returning `T?!`, `return error_value` returns failure with `error`.
 - Other mixed forms must use parentheses in v0.

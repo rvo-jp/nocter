@@ -633,6 +633,9 @@ fn collect_block_hover_symbols(text: &str, block: &Block, symbols: &mut Vec<Hove
     for statement in &block.statements {
         collect_statement_hover_symbols(text, statement, symbols);
     }
+    if let Some(result) = &block.result {
+        collect_expression_hover_symbols(text, result, symbols);
+    }
 }
 
 fn collect_statement_hover_symbols(text: &str, statement: &Stmt, symbols: &mut Vec<HoverSymbol>) {
@@ -792,12 +795,37 @@ fn collect_expression_hover_symbols(text: &str, expression: &Expr, symbols: &mut
             collect_expression_hover_symbols(text, &expression.value, symbols);
             collect_expression_hover_symbols(text, &expression.default, symbols);
         }
-        Expr::PatternConditional(expression) => {
-            collect_expression_hover_symbols(text, &expression.target, symbols);
-            for arm in &expression.arms {
-                collect_expression_hover_symbols(text, &arm.expression, symbols);
+        Expr::If(expression) => {
+            collect_expression_hover_symbols(text, &expression.condition, symbols);
+            collect_block_hover_symbols(text, &expression.then_block, symbols);
+            if let Some(block) = &expression.else_block {
+                collect_block_hover_symbols(text, block, symbols);
             }
-            collect_expression_hover_symbols(text, &expression.fallback, symbols);
+        }
+        Expr::IfIs(expression) => {
+            collect_expression_hover_symbols(text, &expression.expression, symbols);
+            if let Some(payload) = &expression.payload {
+                push_hover_symbol(
+                    text,
+                    payload.span,
+                    expression.span.start,
+                    format!("payload {}", payload.name),
+                    symbols,
+                );
+            }
+            collect_block_hover_symbols(text, &expression.then_block, symbols);
+            if let Some(block) = &expression.else_block {
+                collect_block_hover_symbols(text, block, symbols);
+            }
+        }
+        Expr::Match(expression) => {
+            collect_expression_hover_symbols(text, &expression.expression, symbols);
+            for arm in &expression.arms {
+                collect_block_hover_symbols(text, &arm.body, symbols);
+            }
+            if let Some(arm) = &expression.else_arm {
+                collect_block_hover_symbols(text, &arm.body, symbols);
+            }
         }
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)

@@ -189,7 +189,6 @@ Rules:
 
 - `&+` is one token. It is used for readwrite borrow syntax.
 - `??` is one token. It is used for optional default expressions.
-- `?{` is not one token. Pattern conditional expressions are parsed from `?` followed by `{`.
 - `..<` is one token. It is used only in the initial `for name in start..<end` range syntax.
 - `@` is reserved for possible future attribute-like syntax and is invalid in v0 outside string literals, byte literals, and comments.
 - Unary `+expr` is not part of the language even though `+` is a valid additive operator token.
@@ -319,7 +318,7 @@ Rules:
 - `${` begins an interpolation expression unless the `$` is escaped as `\$`.
 - The interpolation expression is parsed as a normal Nocter expression.
 - The expression ends at the matching `}` for the `${`.
-- Braces inside nested expressions, such as struct literals, blocks, and pattern conditionals, participate in normal brace matching.
+- Braces inside nested expressions, such as struct literals, blocks, `if` expressions, and `match` expressions, participate in normal brace matching.
 - Newline handling inside an interpolation expression follows ordinary expression grammar, not string-literal text rules.
 - Escapes in literal text segments are interpreted before the final text is constructed.
 - An interpolated string source form is an expression-level construct, not a plain string literal token. Its type, allocation behavior, evaluation order, and formatting rules are specified in [Strings, Arrays, Views, and Pointers](07-strings-arrays-views-pointers.md#string-interpolation).

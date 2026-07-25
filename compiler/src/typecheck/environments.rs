@@ -7,7 +7,7 @@ use super::type_expr::{
 };
 use crate::ast::{
     Expr, ForRangeStmt, FunctionDecl, GenericParamList, IfIsStmt, ImplDecl, MethodDecl, Parameter,
-    PatternConditionalArm, SwitchArm,
+    SwitchArm,
 };
 use crate::resolve::{ResolveOutput, TypeSymbolKind};
 use std::collections::HashMap;
@@ -162,30 +162,6 @@ pub(super) fn environment_for_if_is_binding(
 
 pub(super) fn environment_for_switch_arm(
     arm: &SwitchArm,
-    target: &Expr,
-    resolved: &ResolveOutput,
-    environment: &TypeEnvironment,
-) -> TypeEnvironment {
-    let mut arm_environment = environment.clone();
-    if let Some(payload) = &arm.payload {
-        let target_type = expression_type(target, resolved, environment);
-        arm_environment.define(
-            payload.name.clone(),
-            enum_pattern_payload_type(
-                &arm.enum_name,
-                &arm.variant_name,
-                Some(&target_type),
-                resolved,
-                environment,
-            )
-            .unwrap_or(Type::Unknown),
-        );
-    }
-    arm_environment
-}
-
-pub(super) fn environment_for_pattern_conditional_arm(
-    arm: &PatternConditionalArm,
     target: &Expr,
     resolved: &ResolveOutput,
     environment: &TypeEnvironment,

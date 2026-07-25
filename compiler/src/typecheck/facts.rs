@@ -9,8 +9,7 @@ use super::calls::{
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
     environment_for_if_is_binding, environment_for_method, environment_for_parameters_in_impl,
-    environment_for_pattern_conditional_arm, environment_for_switch_arm, function_self_type,
-    impl_self_type,
+    environment_for_switch_arm, function_self_type, impl_self_type,
 };
 use super::expressions::expression_type;
 use super::model::{Type, TypeEnvironment, binding_kind_is_mutable};
@@ -590,6 +589,18 @@ impl TypecheckFactCollector<'_> {
         for statement in &block.statements {
             self.collect_statement_facts(statement, environment, return_type);
         }
+        if let Some(result) = &block.result {
+            if let Some(return_type) = return_type {
+                self.collect_expression_facts_with_expected(
+                    result,
+                    return_type,
+                    environment,
+                    Some(return_type),
+                );
+            } else {
+                self.collect_expression_facts(result, environment);
+            }
+        }
     }
 
     fn collect_statement_facts(
@@ -847,7 +858,84 @@ impl TypecheckFactCollector<'_> {
                 );
                 self.collect_call_argument_facts(call, Some(expected), environment, return_type);
             }
+            Expr::If(expression) => {
+                let mut then_environment = environment.clone();
+                self.collect_expected_block_result_facts(
+                    &expression.then_block,
+                    expected,
+                    &mut then_environment,
+                    return_type,
+                );
+                if let Some(else_block) = &expression.else_block {
+                    let mut else_environment = environment.clone();
+                    self.collect_expected_block_result_facts(
+                        else_block,
+                        expected,
+                        &mut else_environment,
+                        return_type,
+                    );
+                }
+            }
+            Expr::IfIs(expression) => {
+                let mut then_environment =
+                    environment_for_if_is_binding(expression, self.resolved, environment);
+                self.collect_expected_block_result_facts(
+                    &expression.then_block,
+                    expected,
+                    &mut then_environment,
+                    return_type,
+                );
+                if let Some(else_block) = &expression.else_block {
+                    let mut else_environment = environment.clone();
+                    self.collect_expected_block_result_facts(
+                        else_block,
+                        expected,
+                        &mut else_environment,
+                        return_type,
+                    );
+                }
+            }
+            Expr::Match(expression) => {
+                for arm in &expression.arms {
+                    let mut arm_environment = environment_for_switch_arm(
+                        arm,
+                        &expression.expression,
+                        self.resolved,
+                        environment,
+                    );
+                    self.collect_expected_block_result_facts(
+                        &arm.body,
+                        expected,
+                        &mut arm_environment,
+                        return_type,
+                    );
+                }
+                if let Some(else_arm) = &expression.else_arm {
+                    let mut else_environment = environment.clone();
+                    self.collect_expected_block_result_facts(
+                        &else_arm.body,
+                        expected,
+                        &mut else_environment,
+                        return_type,
+                    );
+                }
+            }
             _ => {}
+        }
+    }
+
+    fn collect_expected_block_result_facts(
+        &mut self,
+        block: &Block,
+        expected: &Type,
+        environment: &mut TypeEnvironment,
+        return_type: Option<&Type>,
+    ) {
+        for statement in &block.statements {
+            self.collect_statement_facts(statement, environment, return_type);
+        }
+        if let Some(result) = &block.result {
+            self.collect_expression_facts_with_expected(result, expected, environment, return_type);
         }
     }
 
@@ -1113,34 +1201,70 @@ impl TypecheckFactCollector<'_> {
                     return_type,
                 );
             }
-            Expr::PatternConditional(expression) => {
+            Expr::If(expression) => {
                 self.collect_expression_facts_in_context(
-                    &expression.target,
+                    &expression.condition,
+                    environment,
+                    return_type,
+                );
+
+                let mut then_environment = environment.clone();
+                self.collect_block_facts(
+                    &expression.then_block,
+                    &mut then_environment,
+                    return_type,
+                );
+                if let Some(else_block) = &expression.else_block {
+                    let mut else_environment = environment.clone();
+                    self.collect_block_facts(else_block, &mut else_environment, return_type);
+                }
+            }
+            Expr::IfIs(expression) => {
+                self.collect_expression_facts_in_context(
+                    &expression.expression,
+                    environment,
+                    return_type,
+                );
+                self.record_type_reference(&expression.enum_name, expression.enum_name_span);
+
+                let mut then_environment =
+                    environment_for_if_is_binding(expression, self.resolved, environment);
+                if let Some(payload) = &expression.payload {
+                    self.record_payload_binding(payload, &then_environment);
+                }
+                self.collect_block_facts(
+                    &expression.then_block,
+                    &mut then_environment,
+                    return_type,
+                );
+                if let Some(else_block) = &expression.else_block {
+                    let mut else_environment = environment.clone();
+                    self.collect_block_facts(else_block, &mut else_environment, return_type);
+                }
+            }
+            Expr::Match(expression) => {
+                self.collect_expression_facts_in_context(
+                    &expression.expression,
                     environment,
                     return_type,
                 );
                 for arm in &expression.arms {
                     self.record_type_reference(&arm.enum_name, arm.enum_name_span);
-                    let mut arm_environment = environment_for_pattern_conditional_arm(
+                    let mut arm_environment = environment_for_switch_arm(
                         arm,
-                        &expression.target,
+                        &expression.expression,
                         self.resolved,
                         environment,
                     );
                     if let Some(payload) = &arm.payload {
                         self.record_payload_binding(payload, &arm_environment);
                     }
-                    self.collect_expression_facts_in_context(
-                        &arm.expression,
-                        &mut arm_environment,
-                        return_type,
-                    );
+                    self.collect_block_facts(&arm.body, &mut arm_environment, return_type);
                 }
-                self.collect_expression_facts_in_context(
-                    &expression.fallback,
-                    environment,
-                    return_type,
-                );
+                if let Some(arm) = &expression.else_arm {
+                    let mut else_environment = environment.clone();
+                    self.collect_block_facts(&arm.body, &mut else_environment, return_type);
+                }
             }
             Expr::Identifier(identifier) => {
                 self.record_environment_binding_readonly(

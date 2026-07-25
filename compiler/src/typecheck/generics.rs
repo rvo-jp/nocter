@@ -299,6 +299,9 @@ fn check_block(
     for statement in &block.statements {
         check_statement(sources, statement, resolved, scope, diagnostics);
     }
+    if let Some(result) = &block.result {
+        check_expression(sources, result, resolved, scope, diagnostics);
+    }
 }
 
 fn check_statement(
@@ -487,12 +490,52 @@ fn check_expression(
             check_expression(sources, &expression.value, resolved, scope, diagnostics);
             check_expression(sources, &expression.default, resolved, scope, diagnostics);
         }
-        Expr::PatternConditional(expression) => {
-            check_expression(sources, &expression.target, resolved, scope, diagnostics);
-            for arm in &expression.arms {
-                check_expression(sources, &arm.expression, resolved, scope, diagnostics);
+        Expr::If(expression) => {
+            check_expression(sources, &expression.condition, resolved, scope, diagnostics);
+            check_block(
+                sources,
+                &expression.then_block,
+                resolved,
+                scope,
+                diagnostics,
+            );
+            if let Some(block) = &expression.else_block {
+                check_block(sources, block, resolved, scope, diagnostics);
             }
-            check_expression(sources, &expression.fallback, resolved, scope, diagnostics);
+        }
+        Expr::IfIs(expression) => {
+            check_expression(
+                sources,
+                &expression.expression,
+                resolved,
+                scope,
+                diagnostics,
+            );
+            check_block(
+                sources,
+                &expression.then_block,
+                resolved,
+                scope,
+                diagnostics,
+            );
+            if let Some(block) = &expression.else_block {
+                check_block(sources, block, resolved, scope, diagnostics);
+            }
+        }
+        Expr::Match(expression) => {
+            check_expression(
+                sources,
+                &expression.expression,
+                resolved,
+                scope,
+                diagnostics,
+            );
+            for arm in &expression.arms {
+                check_block(sources, &arm.body, resolved, scope, diagnostics);
+            }
+            if let Some(arm) = &expression.else_arm {
+                check_block(sources, &arm.body, resolved, scope, diagnostics);
+            }
         }
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)

@@ -6,8 +6,18 @@ use crate::ast::{
 
 impl Formatter {
     pub(super) fn format_block(&mut self, block: &Block) {
-        if block.statements.is_empty() {
+        if block.statements.is_empty() && block.result.is_none() {
             self.write("{}");
+            return;
+        }
+
+        if block.statements.is_empty()
+            && let Some(result) = &block.result
+            && expression_can_be_inline_block_result(result)
+        {
+            self.write("{ ");
+            self.format_expression(result);
+            self.write(" }");
             return;
         }
 
@@ -17,6 +27,11 @@ impl Formatter {
             for statement in &block.statements {
                 formatter.write_indent();
                 formatter.format_statement(statement);
+                formatter.newline();
+            }
+            if let Some(result) = &block.result {
+                formatter.write_indent();
+                formatter.format_expression(result);
                 formatter.newline();
             }
         });
@@ -42,15 +57,7 @@ impl Formatter {
                 self.format_expression(&statement.value);
             }
             Stmt::If(statement) => self.format_if_statement(statement),
-            Stmt::IfIs(statement) => {
-                self.write("if ");
-                self.format_expression(&statement.expression);
-                self.write(" is ");
-                self.format_if_is_pattern(statement);
-                self.write(" ");
-                self.format_block(&statement.then_block);
-                self.format_else(&statement.else_block);
-            }
+            Stmt::IfIs(statement) => self.format_if_is_statement(statement),
             Stmt::Switch(statement) => self.format_switch_statement(statement),
             Stmt::ForRange(statement) => {
                 self.write("for ");
@@ -99,7 +106,7 @@ impl Formatter {
         }
     }
 
-    fn format_if_statement(&mut self, statement: &IfStmt) {
+    pub(super) fn format_if_statement(&mut self, statement: &IfStmt) {
         self.write("if ");
         self.format_expression(&statement.condition);
         self.write(" ");
@@ -107,7 +114,17 @@ impl Formatter {
         self.format_else(&statement.else_block);
     }
 
-    fn format_switch_statement(&mut self, statement: &SwitchStmt) {
+    pub(super) fn format_if_is_statement(&mut self, statement: &IfIsStmt) {
+        self.write("if ");
+        self.format_expression(&statement.expression);
+        self.write(" is ");
+        self.format_if_is_pattern(statement);
+        self.write(" ");
+        self.format_block(&statement.then_block);
+        self.format_else(&statement.else_block);
+    }
+
+    pub(super) fn format_switch_statement(&mut self, statement: &SwitchStmt) {
         self.write("match ");
         self.format_expression(&statement.expression);
         self.write(" ");
@@ -148,13 +165,17 @@ impl Formatter {
             return;
         };
 
-        if let [Stmt::If(statement)] = else_block.statements.as_slice() {
+        if else_block.statements.is_empty()
+            && let Some(Expr::If(statement)) = else_block.result.as_deref()
+        {
             self.write(" else ");
             self.format_if_statement(statement);
             return;
         }
 
-        if let [Stmt::IfIs(statement)] = else_block.statements.as_slice() {
+        if else_block.statements.is_empty()
+            && let Some(Expr::IfIs(statement)) = else_block.result.as_deref()
+        {
             self.write(" else if ");
             self.format_expression(&statement.expression);
             self.write(" is ");
@@ -218,5 +239,36 @@ fn assignment_operator_text(operator: AssignmentOperator) -> &'static str {
 impl Formatter {
     fn format_expression(&mut self, expression: &Expr) {
         self.format_expr(expression, 0);
+    }
+}
+
+fn expression_can_be_inline_block_result(expression: &Expr) -> bool {
+    match expression {
+        Expr::If(_) | Expr::IfIs(_) | Expr::Match(_) | Expr::Catch(_) => false,
+        Expr::ArrayLiteral(expression) => expression
+            .elements
+            .iter()
+            .all(expression_can_be_inline_block_result),
+        Expr::StructLiteral(expression) => expression
+            .fields
+            .iter()
+            .all(|field| expression_can_be_inline_block_result(&field.value)),
+        Expr::InterpolatedString(_)
+        | Expr::Identifier(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::StringLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::NoneLiteral(_)
+        | Expr::Propagate(_)
+        | Expr::Force(_)
+        | Expr::Borrow(_)
+        | Expr::Unary(_)
+        | Expr::Binary(_)
+        | Expr::TypeConversion(_)
+        | Expr::Call(_)
+        | Expr::Member(_)
+        | Expr::Index(_)
+        | Expr::Group(_)
+        | Expr::OptionalDefault(_) => true,
     }
 }

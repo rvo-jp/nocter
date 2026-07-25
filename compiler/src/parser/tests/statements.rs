@@ -146,10 +146,10 @@ fn parses_drop_statement_without_reserving_drop_identifier() {
     };
     assert_eq!(drop_.name, "file");
 
-    let Stmt::Expression(call_statement) = &function.body.statements[2] else {
-        panic!("expected expression statement");
-    };
-    assert!(matches!(call_statement.expression, Expr::Call(_)));
+    assert!(matches!(
+        function.body.result.as_deref(),
+        Some(Expr::Call(_))
+    ));
 }
 
 #[test]
@@ -700,7 +700,11 @@ fn parses_range_for_statement() {
     assert_eq!(statement.name, "i");
     assert!(matches!(statement.start, Expr::IntegerLiteral(_)));
     assert!(matches!(statement.end, Expr::IntegerLiteral(_)));
-    assert_eq!(statement.body.statements.len(), 1);
+    assert!(statement.body.statements.is_empty());
+    assert!(matches!(
+        statement.body.result.as_deref(),
+        Some(Expr::Call(_))
+    ));
 }
 
 #[test]

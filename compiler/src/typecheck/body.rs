@@ -17,7 +17,7 @@ use super::diagnostics::{
 use super::environments::{
     environment_for_catch, environment_for_for_range_binding, environment_for_function,
     environment_for_if_is_binding, environment_for_method, environment_for_parameters_in_impl,
-    environment_for_pattern_conditional_arm, environment_for_switch_arm,
+    environment_for_switch_arm,
 };
 use super::expressions::{
     check_error_member_expression, collection_builtin_call_type, expression_type,
@@ -33,7 +33,7 @@ use super::strings::check_interpolated_string_expression;
 use super::structs::{check_struct_literal_expression, check_struct_member_expression};
 use super::variants::{
     check_enum_variant_call, check_enum_variant_member, check_if_is_statement,
-    check_pattern_conditional_expression, check_switch_statement, is_enum_variant_call,
+    check_match_expression, check_switch_statement, is_enum_variant_call,
 };
 use crate::ast::{
     AssignmentOperator, AssignmentStmt, AstFile, Block, Expr, ImplDecl, ImplMember,
@@ -123,6 +123,16 @@ fn check_block_expressions(
         check_statement_expressions(
             sources,
             statement,
+            resolved,
+            diagnostics,
+            environment,
+            loop_depth,
+        );
+    }
+    if let Some(result) = &block.result {
+        check_expression_tree(
+            sources,
+            result,
             resolved,
             diagnostics,
             environment,
@@ -827,46 +837,105 @@ fn check_expression_tree(
                 environment,
             );
         }
-        Expr::PatternConditional(expression) => {
+        Expr::If(expression) => {
             check_expression_tree(
                 sources,
-                &expression.target,
+                &expression.condition,
                 resolved,
                 diagnostics,
                 environment,
                 loop_depth,
             );
-            for arm in &expression.arms {
-                let mut arm_environment = environment_for_pattern_conditional_arm(
-                    arm,
-                    &expression.target,
-                    resolved,
-                    environment,
-                );
-                check_expression_tree(
+            check_if_condition(sources, expression, resolved, diagnostics, environment);
+
+            let mut then_environment = environment.clone();
+            check_block_expressions(
+                sources,
+                &expression.then_block,
+                resolved,
+                diagnostics,
+                &mut then_environment,
+                loop_depth,
+            );
+            if let Some(else_block) = &expression.else_block {
+                let mut else_environment = environment.clone();
+                check_block_expressions(
                     sources,
-                    &arm.expression,
+                    else_block,
+                    resolved,
+                    diagnostics,
+                    &mut else_environment,
+                    loop_depth,
+                );
+            }
+        }
+        Expr::IfIs(expression) => {
+            check_expression_tree(
+                sources,
+                &expression.expression,
+                resolved,
+                diagnostics,
+                environment,
+                loop_depth,
+            );
+            check_if_is_statement(sources, expression, resolved, diagnostics, environment);
+
+            let mut then_environment =
+                environment_for_if_is_binding(expression, resolved, environment);
+            check_block_expressions(
+                sources,
+                &expression.then_block,
+                resolved,
+                diagnostics,
+                &mut then_environment,
+                loop_depth,
+            );
+            if let Some(else_block) = &expression.else_block {
+                let mut else_environment = environment.clone();
+                check_block_expressions(
+                    sources,
+                    else_block,
+                    resolved,
+                    diagnostics,
+                    &mut else_environment,
+                    loop_depth,
+                );
+            }
+        }
+        Expr::Match(expression) => {
+            check_expression_tree(
+                sources,
+                &expression.expression,
+                resolved,
+                diagnostics,
+                environment,
+                loop_depth,
+            );
+            check_match_expression(sources, expression, resolved, diagnostics, environment);
+
+            for arm in &expression.arms {
+                let mut arm_environment =
+                    environment_for_switch_arm(arm, &expression.expression, resolved, environment);
+                check_block_expressions(
+                    sources,
+                    &arm.body,
                     resolved,
                     diagnostics,
                     &mut arm_environment,
                     loop_depth,
                 );
             }
-            check_expression_tree(
-                sources,
-                &expression.fallback,
-                resolved,
-                diagnostics,
-                environment,
-                loop_depth,
-            );
-            check_pattern_conditional_expression(
-                sources,
-                expression,
-                resolved,
-                diagnostics,
-                environment,
-            );
+            if let Some(else_arm) = &expression.else_arm {
+                let mut else_environment = environment.clone();
+                check_block_expressions(
+                    sources,
+                    &else_arm.body,
+                    resolved,
+                    diagnostics,
+                    &mut else_environment,
+                    loop_depth,
+                );
+            }
         }
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)

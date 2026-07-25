@@ -10,7 +10,8 @@ use super::diagnostics::{
     ordered_comparison_operand_type_mismatch_diagnostic, shift_operand_type_mismatch_diagnostic,
     type_conversion_not_lossless_diagnostic,
 };
-use super::expressions::expression_type;
+use super::environments::{environment_for_if_is_binding, environment_for_switch_arm};
+use super::expressions::{block_result_environment, block_result_type, expression_type};
 use super::model::{Type, TypeEnvironment, same_known_type};
 use super::numeric::{
     integer_literal_expr_value, integer_literal_fits_type, integer_type_range,
@@ -21,7 +22,10 @@ use super::type_expr::{
     infer_type_expr_substitutions, type_expr_to_type_in_environment,
     type_expr_to_type_with_substitutions,
 };
-use super::variants::{enum_variant_expression_is_assignable, types_are_same_payloadless_enum};
+use super::variants::{
+    enum_variant_expression_is_assignable, switch_statement_covers_all_variants,
+    types_are_same_payloadless_enum,
+};
 use crate::ast::{
     AssignmentOperator, BinaryExpr, BinaryOperator, Expr, OptionalDefaultExpr, TypeConversionExpr,
     UnaryExpr, UnaryOperator,
@@ -292,6 +296,15 @@ pub(super) fn is_expression_assignable(
         (_, Expr::Group(group)) => {
             is_expression_assignable(expected, &group.expression, resolved, environment)
         }
+        (_, Expr::If(statement)) => {
+            if_expression_is_assignable(expected, statement, resolved, environment)
+        }
+        (_, Expr::IfIs(statement)) => {
+            if_is_expression_is_assignable(expected, statement, resolved, environment)
+        }
+        (_, Expr::Match(statement)) => {
+            match_expression_is_assignable(expected, statement, resolved, environment)
+        }
         (_, Expr::Call(call))
             if generic_call_return_is_assignable(expected, call, resolved, environment) =>
         {
@@ -305,6 +318,80 @@ pub(super) fn is_expression_assignable(
                 })
         }
     }
+}
+
+fn if_expression_is_assignable(
+    expected: &Type,
+    statement: &crate::ast::IfStmt,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    let Some(else_block) = &statement.else_block else {
+        return expected == &Type::Void
+            && block_result_is_assignable(expected, &statement.then_block, resolved, environment);
+    };
+
+    block_result_is_assignable(expected, &statement.then_block, resolved, environment)
+        && block_result_is_assignable(expected, else_block, resolved, environment)
+}
+
+fn if_is_expression_is_assignable(
+    expected: &Type,
+    statement: &crate::ast::IfIsStmt,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    let then_environment = environment_for_if_is_binding(statement, resolved, environment);
+    let Some(else_block) = &statement.else_block else {
+        return expected == &Type::Void
+            && block_result_is_assignable(
+                expected,
+                &statement.then_block,
+                resolved,
+                &then_environment,
+            );
+    };
+
+    block_result_is_assignable(expected, &statement.then_block, resolved, &then_environment)
+        && block_result_is_assignable(expected, else_block, resolved, environment)
+}
+
+fn match_expression_is_assignable(
+    expected: &Type,
+    statement: &crate::ast::SwitchStmt,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    let arms_fit = statement.arms.iter().all(|arm| {
+        let arm_environment =
+            environment_for_switch_arm(arm, &statement.expression, resolved, environment);
+        block_result_is_assignable(expected, &arm.body, resolved, &arm_environment)
+    });
+    if !arms_fit {
+        return false;
+    }
+
+    if let Some(else_arm) = &statement.else_arm {
+        return block_result_is_assignable(expected, &else_arm.body, resolved, environment);
+    }
+
+    switch_statement_covers_all_variants(statement, resolved, environment)
+        || expected == &Type::Void
+}
+
+fn block_result_is_assignable(
+    expected: &Type,
+    block: &crate::ast::Block,
+    resolved: &ResolveOutput,
+    environment: &TypeEnvironment,
+) -> bool {
+    let result_environment = block_result_environment(block, resolved, environment);
+    if let Some(result) = &block.result {
+        return is_expression_assignable(expected, result, resolved, &result_environment);
+    }
+
+    let actual = block_result_type(block, resolved, &result_environment);
+    actual == Type::Never || is_assignable(expected, &actual)
 }
 
 fn generic_call_return_is_assignable(

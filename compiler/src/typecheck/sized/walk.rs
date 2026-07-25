@@ -16,6 +16,9 @@ pub(in crate::typecheck::sized) fn check_block(
     for statement in &block.statements {
         check_statement(sources, statement, resolved, self_type, diagnostics);
     }
+    if let Some(result) = &block.result {
+        check_expression(sources, result, resolved, self_type, diagnostics);
+    }
 }
 
 fn check_statement(
@@ -289,24 +292,58 @@ fn check_expression(
                 diagnostics,
             );
         }
-        Expr::PatternConditional(expression) => {
+        Expr::If(expression) => {
             check_expression(
                 sources,
-                &expression.target,
+                &expression.condition,
+                resolved,
+                self_type,
+                diagnostics,
+            );
+            check_block(
+                sources,
+                &expression.then_block,
+                resolved,
+                self_type,
+                diagnostics,
+            );
+            if let Some(block) = &expression.else_block {
+                check_block(sources, block, resolved, self_type, diagnostics);
+            }
+        }
+        Expr::IfIs(expression) => {
+            check_expression(
+                sources,
+                &expression.expression,
+                resolved,
+                self_type,
+                diagnostics,
+            );
+            check_block(
+                sources,
+                &expression.then_block,
+                resolved,
+                self_type,
+                diagnostics,
+            );
+            if let Some(block) = &expression.else_block {
+                check_block(sources, block, resolved, self_type, diagnostics);
+            }
+        }
+        Expr::Match(expression) => {
+            check_expression(
+                sources,
+                &expression.expression,
                 resolved,
                 self_type,
                 diagnostics,
             );
             for arm in &expression.arms {
-                check_expression(sources, &arm.expression, resolved, self_type, diagnostics);
+                check_block(sources, &arm.body, resolved, self_type, diagnostics);
             }
-            check_expression(
-                sources,
-                &expression.fallback,
-                resolved,
-                self_type,
-                diagnostics,
-            );
+            if let Some(arm) = &expression.else_arm {
+                check_block(sources, &arm.body, resolved, self_type, diagnostics);
+            }
         }
         Expr::Identifier(_)
         | Expr::IntegerLiteral(_)

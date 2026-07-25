@@ -20,10 +20,10 @@ Parameters are written as `name: Type`. `var name: Type` parameters are not part
 Return checking:
 
 - A `void` function may use bare `return` or reach the end of the function body.
-- A non-fallible, non-optional function returning a non-`void` type must return a value on every reachable normal path, unless the path terminates with `never`.
-- A fallible function `T!` must return a success value, return an `error` failure value, or terminate with `never` on every reachable path.
-- An optional function `T?` must return a present value, `return none`, or terminate with `never` on every reachable path.
-- A fallible optional function `T?!` must return a present success value, `return none` as success absence, return an `error` failure value, or terminate with `never` on every reachable path.
+- A non-fallible, non-optional function returning a non-`void` type must produce a value through the function body result or explicit `return` on every reachable normal path, unless the path terminates with `never`.
+- A fallible function `T!` must produce a success value through the function body result or explicit `return`, return an `error` failure value, or terminate with `never` on every reachable path.
+- An optional function `T?` must produce a present value through the function body result or explicit `return`, `return none`, or terminate with `never` on every reachable path.
+- A fallible optional function `T?!` must produce a present success value through the function body result or explicit `return`, `return none` as success absence, return an `error` failure value, or terminate with `never` on every reachable path.
 - `func main(): i32!` and `func main(): usize!` follow the same source-level return checking rules as functions returning those fallible types; success returns `i32` or `usize`, and failure returns an `error` value.
 - `func main(): void`, `func main(): i32`, and `func main(): usize` follow the same return checking rules as functions with those return types.
 
@@ -115,82 +115,72 @@ let file = File.open_with(path, OpenOptions{
 })?
 ```
 
-## Conditional Operator
+## Body Results and Control Expressions
 
-Adopted: Nocter has a ternary conditional operator.
-
-```nct
-let value = condition ? then_value : else_value
-```
-
-Rules:
-
-- The condition expression must have type `bool`.
-- The then and else expressions must have the same type in the initial design.
-- Only the selected branch is evaluated.
-- The conditional operator is an expression.
-- The conditional operator does not apply to optional values; use `??` for optional defaults.
-- The conditional operator is right-associative.
-
-Example:
+Adopted: braced bodies have a unified result form.
 
 ```nct
-let label = count == 0 ? "empty" : "ready"
-```
-
-Adopted: enum pattern value selection uses the pattern conditional expression.
-
-```nct
-return error ?{
-    AppError.missing_path : missing_code()
-    AppError.open_failed(path) : code_for(path)
-    : unknown_code()
+{
+    stmt1
+    stmt2
+    result
 }
 ```
 
+The last expression in a body is the body result. A short body may be written on one line.
+
+```nct
+{ expr }
+```
+
 Rules:
 
-- `enum_expr ?{ ... }` is an expression.
-- Arms use `Pattern : expression`.
-- The fallback arm is written as `: expression` and is required in v0.
-- Only the selected arm expression is evaluated.
-- Payload bindings are visible only in their arm expression.
-- `?{}` is for enum pattern selection; it is not the optional propagation postfix `?` and not the optional default operator `??`.
+- A body contains zero or more statements followed by an optional result expression.
+- The result expression is written without `return`.
+- Bindings introduced by earlier statements in the same body are in scope for the result expression.
+- A body without a result expression has type `void` unless all reachable paths terminate with `return`, `break`, `continue`, or `never`.
+- A body whose reachable paths all terminate has type `never`.
+- Function, method, drop, `if`, `if is`, `match`, loop, and `catch` bodies use this same body form.
+- A function or method body result is a return value for the declared return type.
+- Explicit `return` remains valid when an early exit is clearer or required.
+- A `void` function may have no body result and may reach the end of the body.
+- A non-`void` function must either have a body result assignable to the declared return type or guarantee an explicit return or `never` on every reachable path.
 
-## Statements and Expressions
-
-Adopted: the initial language is statement-centered.
-
-`if`, `match`, and block bodies do not produce values in the initial design. Functions return values with explicit `return`. Fallible functions fail by returning an `error` value. Optional functions return absence with explicit `return none`. Enum pattern value selection uses `?{}` instead of expression-valued `match`.
+Adopted: `if`, `if is`, and `match` can be used as expressions.
 
 ```nct
 func max(a: i32, b: i32): i32 {
     if a > b {
-        return a
+        a
+    } else {
+        b
     }
-
-    return b
 }
 ```
 
 Rules:
 
-- `if condition { ... }` is a statement.
-- `if condition { ... } else { ... }` is a statement.
-- `if enum_expr is Enum.variant { ... }` is a statement.
+- `if condition { ... }` may be used as a statement. Without `else`, its value type is `void`.
+- `if condition { ... } else { ... }` may be used as an expression when the branch body result types are compatible.
+- The `if` condition expression must have type `bool`.
+- Only the selected `if` branch is evaluated.
+- `if enum_expr is Enum.variant { ... }` follows the same statement/expression rules as ordinary `if`.
+- Payload names introduced by `if expr is Enum.variant(payload)` are visible only inside the then body.
+- `else if ...` is syntax for an `else` body whose result is another `if` expression.
 - `let name = optional_expr else { ... }` is a declaration statement.
 - `var name = optional_expr else { ... }` is a declaration statement.
-- `match enum_expr { ... }` and `match enum_expr { ... else { ... } }` are statements.
+- `match enum_expr { ... }` and `match enum_expr { ... else { ... } }` may be used as statements or expressions.
+- A `match` expression without `else` must cover all variants to avoid a `void` missing-branch type.
+- `match` arm body result types must be compatible when the `match` value is used.
+- A `never` branch is compatible with the other branch result type.
+- Only the selected `match` arm body is evaluated.
 - `for name in start..<end { ... }` is a statement.
-- Blocks `{ ... }` do not return trailing expression values.
-- `return value` is required to return a value from a function.
-- `return error_value` is required to return a failure from a fallible function.
-- `return none` is required to return absence from an optional function, or success absence from a fallible optional function.
+- `return value` explicitly returns a value from a function.
+- `return error_value` explicitly returns a failure from a fallible function.
+- `return none` explicitly returns absence from an optional function, or success absence from a fallible optional function.
 - Optional `let ... else` and `var ... else` declarations must use an `else` block that terminates the current control path.
-- Expression-valued `if`, `match`, and block forms are deferred.
-- Use `enum_expr ?{ ... }` when an enum pattern dispatch must produce a value.
 
-Invalid in the initial design:
+Examples:
 
 ```nct
 let value = if condition {
@@ -205,20 +195,10 @@ return match error {
 }
 ```
 
-Use the ternary conditional operator for boolean value selection.
+Removed:
 
-```nct
-let value = condition ? a : b
-```
-
-Use `?{}` for enum pattern value selection.
-
-```nct
-return error ?{
-    AppError.open_failed(path) : 1
-    : 0
-}
-```
+- The ternary conditional operator `condition ? then_value : else_value` is not Nocter syntax. Use `if`.
+- The pattern conditional expression `enum_expr ?{ ... }` is not Nocter syntax. Use `match`.
 
 Statement separation:
 
@@ -240,7 +220,7 @@ Rules:
 - For evaluated method arguments, evaluation remains left-to-right.
 - Struct literal field initializer expressions are evaluated left-to-right in the order written in the literal, regardless of declaration order.
 - Assignment evaluates the right-hand side before replacing the target place. The detailed assignment rules are specified in [Values and Types](02-values-types.md#bindings-and-assignment).
-- Operators with conditional evaluation, such as `&&`, `||`, `??`, and `condition ? then : else`, evaluate only the needed operand or branch.
+- Operators and expressions with conditional evaluation, such as `&&`, `||`, `??`, `if`, and `match`, evaluate only the needed operand, branch, or arm.
 - When an operand or branch is evaluated, its subexpressions still follow the normal left-to-right rule.
 - Temporaries are dropped at the end of the current statement in reverse creation order unless ownership is moved into a longer-lived owner.
 - Longer-lived owners include local bindings, owned parameters, constructed aggregate values, assigned target places, and returned values.

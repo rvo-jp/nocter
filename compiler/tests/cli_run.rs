@@ -8856,10 +8856,10 @@ func choose(): Choice {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn run_command_returns_payloadless_pattern_conditional_exit_code() {
-    let project = TempProject::new("cli-run-payloadless-pattern-conditional");
+fn run_command_returns_payloadless_match_expression_body_result_exit_code() {
+    let project = TempProject::new("cli-run-payloadless-match-expression-body-result");
     let source = project.write_source(
-        "payloadless_pattern_conditional.nct",
+        "payloadless_match_expression_body_result.nct",
         r#"enum Choice {
     yes
     no
@@ -8868,39 +8868,66 @@ fn run_command_returns_payloadless_pattern_conditional_exit_code() {
 
 func main(): i32 {
     let choice = Choice.no
-    let a = choice ?{
-        Choice.yes : 1
-        Choice.no : 2
-        : 3
-    }
-    let b = choose() ?{
-        Choice.yes : 10
-        : 20
-    }
-    let c = (choice ?{
-        Choice.yes : 4
-        : 5
-    }) + 1
-    let d = choice ?{
-        Choice.no : same(7)
-        : 8
-    }
-    if choice ?{
-        Choice.no : true
-        : false
-    } {
-        return a + b + c + d
+    let a = describe(choice)
+    let b = describe(choose())
+    let c = describe_exhaustive(Choice.maybe)
+    if choice is Choice.no {
+        a + b + c + same(7)
     } else {
-        return 1
+        1
+    }
+}
+
+func describe(choice: Choice): i32 {
+    match choice {
+        Choice.yes { 1 }
+        Choice.no { 2 }
+        else { 10 }
+    }
+}
+
+func describe_exhaustive(choice: Choice): i32 {
+    match choice {
+        Choice.yes { 1 }
+        Choice.no { 2 }
+        Choice.maybe { 3 }
     }
 }
 
 func choose(): Choice {
-    return Choice.maybe
+    Choice.maybe
 }
 
 func same(value: i32): i32 {
-    return value
+    value
+}
+"#,
+    );
+
+    let output = nocter(&project, ["run", source.to_str().unwrap()]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(22),
+        "stdout:\n{}\nstderr:\n{}",
+        text(&output.stdout),
+        text(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn run_command_returns_payloadless_if_expression_body_result_exit_code() {
+    let project = TempProject::new("cli-run-payloadless-if-expression-body-result");
+    let source = project.write_source(
+        "payloadless_if_expression_body_result.nct",
+        r#"func main(): i32 {
+    let ready = true
+    if ready {
+        35
+    } else {
+        1
+    }
 }
 "#,
     );

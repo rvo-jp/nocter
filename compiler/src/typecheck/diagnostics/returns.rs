@@ -63,6 +63,50 @@ pub(in crate::typecheck) fn return_type_mismatch_diagnostic(
     diagnostic
 }
 
+pub(in crate::typecheck) fn body_result_type_mismatch_diagnostic(
+    sources: &SourceMap,
+    expression: &Expr,
+    expected: &Type,
+    actual: &Type,
+    context: &ReturnContext,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0312",
+        format!(
+            "body result has type `{}`, but {} returns `{}`",
+            actual.display(),
+            context.subject(),
+            expected.display()
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(expression.span()).ok().map(Box::new);
+    add_declared_return_note(sources, &mut diagnostic, context);
+    diagnostic.help = Some(format!(
+        "end the body with a value of type `{}`",
+        expected.display()
+    ));
+    diagnostic
+}
+
+pub(in crate::typecheck) fn unexpected_body_result_diagnostic(
+    sources: &SourceMap,
+    expression: &Expr,
+    context: &ReturnContext,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        "E0311",
+        format!(
+            "body result has a value, but {} returns `void`",
+            context.subject()
+        ),
+    );
+    diagnostic.primary_span = sources.span_to_json(expression.span()).ok().map(Box::new);
+    add_declared_return_note(sources, &mut diagnostic, context);
+    diagnostic.help =
+        Some("remove the final value expression or change the return type".to_string());
+    diagnostic
+}
+
 pub(in crate::typecheck) fn non_copy_struct_return_diagnostic(
     sources: &SourceMap,
     expression: &Expr,
@@ -165,7 +209,7 @@ pub(in crate::typecheck) fn missing_return_diagnostic(
         "end the path with a call returning `never`".to_string()
     } else {
         format!(
-            "add a `return` with a value of type `{}`",
+            "add a `return` or final body expression with a value of type `{}`",
             expected.display()
         )
     });

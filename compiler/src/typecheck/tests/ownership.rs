@@ -1014,7 +1014,7 @@ func take(text: Text): i32 {
 }
 
 #[test]
-fn diagnoses_maybe_uninitialized_after_pattern_conditional_arm_moves() {
+fn diagnoses_maybe_uninitialized_after_match_expression_arm_moves() {
     let diagnostics = check_text(
         r#"enum Choice {
     move_it
@@ -1030,9 +1030,9 @@ struct Text {
 func main(): i32 {
     let choice = Choice.move_it
     let text = Text{ start: 1, len: 42, capacity: 3 }
-    let value = choice ?{
-        Choice.move_it : take(move text)
-        : 0
+    let value = match choice {
+        Choice.move_it { take(move text) }
+        else { 0 }
     }
     return text.len + value
 }

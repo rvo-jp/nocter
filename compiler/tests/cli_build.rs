@@ -3071,6 +3071,7 @@ fn build_command_lowers_ignored_scalar_call_expression_statement() {
 
 func main(): void {
     value()
+    return
 }
 "#,
     );
@@ -3109,6 +3110,7 @@ func data(): &[u8] {
 func main(): void {
     text()
     data()
+    return
 }
 "#,
     );
@@ -3179,6 +3181,7 @@ func value(): Value {
 
 func main(): void {
     value()
+    return
 }
 "#,
     );
@@ -3201,6 +3204,7 @@ fn build_command_lowers_ignored_aggregate_literal_expression_statement() {
 
 func main(): void {
     Value{ code: 1 }
+    return
 }
 "#,
     );
@@ -4340,10 +4344,10 @@ func choose(): Choice {
 }
 
 #[test]
-fn build_command_accepts_payloadless_pattern_conditional() {
-    let project = TempProject::new("cli-build-payloadless-pattern-conditional");
+fn build_command_accepts_payloadless_match_expression_body_result() {
+    let project = TempProject::new("cli-build-payloadless-match-expression-body-result");
     let source = project.write_source(
-        "payloadless_pattern_conditional.nct",
+        "payloadless_match_expression_body_result.nct",
         r#"enum Choice {
     yes
     no
@@ -4352,12 +4356,11 @@ fn build_command_accepts_payloadless_pattern_conditional() {
 
 func main(): i32 {
     let choice = Choice.no
-    let code = choice ?{
-        Choice.yes : 1
-        Choice.no : 2
-        : 3
+    match choice {
+        Choice.yes { 1 }
+        Choice.no { 2 }
+        else { 3 }
     }
-    return code
 }
 "#,
     );
@@ -4370,10 +4373,10 @@ func main(): i32 {
 }
 
 #[test]
-fn build_command_reports_payload_pattern_conditional_before_ir_lowering() {
-    let project = TempProject::new("cli-build-payload-pattern-conditional-boundary");
+fn build_command_reports_payload_match_expression_before_ir_lowering() {
+    let project = TempProject::new("cli-build-payload-match-expression-boundary");
     let source = project.write_source(
-        "payload_pattern_conditional_boundary.nct",
+        "payload_match_expression_boundary.nct",
         r#"enum Result {
     ok(value: i32)
     failed
@@ -4381,9 +4384,9 @@ fn build_command_reports_payload_pattern_conditional_before_ir_lowering() {
 
 func main(): i32 {
     let result = Result.ok(10)
-    return result ?{
-        Result.ok(value) : value
-        : 0
+    return match result {
+        Result.ok(value) { value }
+        else { 0 }
     }
 }
 "#,
@@ -4399,11 +4402,11 @@ func main(): i32 {
         "expected v0 buildability diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("pattern conditional `?{}` expressions"),
-        "expected pattern conditional diagnostic, got:\n{stderr}"
+        stderr.contains("`match` expressions"),
+        "expected match expression diagnostic, got:\n{stderr}"
     );
     assert!(
-        stderr.contains("8 |     return result ?{"),
+        stderr.contains("8 |     return match result {"),
         "expected source line, got:\n{stderr}"
     );
     assert!(

@@ -3,8 +3,8 @@ use crate::ast::{
     ArrayLiteralExpr, BinaryExpr, BorrowExpr, CallExpr, CatchExpr, Expr, ForceExpr, GenericType,
     GroupExpr, IdentifierExpr, IndexExpr, InterpolatedStringExpr, InterpolatedStringExpression,
     InterpolatedStringPart, InterpolatedStringText, LiteralExpr, MemberExpr, OptionalDefaultExpr,
-    PatternConditionalArm, PatternConditionalExpr, PropagationExpr, StructLiteralExpr,
-    StructLiteralField, TypeConversionExpr, TypeExpr, TypeReference, UnaryExpr,
+    PropagationExpr, StructLiteralExpr, StructLiteralField, TypeConversionExpr, TypeExpr,
+    TypeReference, UnaryExpr,
 };
 use crate::lexer::{Keyword, Token, TokenKind, lex_span};
 use crate::literals::{StringLiteralPartSpan, string_literal_parts};
@@ -19,7 +19,10 @@ impl Parser<'_> {
         let left = self.parse_logical_or_expression()?;
 
         if self.at_punctuation("?") && self.next_is_punctuation("{") {
-            return self.finish_pattern_conditional_expression(left);
+            self.error_current(
+                "`?{}` pattern conditional expressions were removed; use a `match` expression",
+            );
+            return Err(());
         }
 
         if let Some(operator) = self.match_punctuation("??") {
@@ -267,80 +270,6 @@ impl Parser<'_> {
         Ok(expression)
     }
 
-    fn finish_pattern_conditional_expression(&mut self, target: Expr) -> ParseResult<Expr> {
-        let start = target.span().start;
-        let question = self.expect_punctuation("?", "`?`")?;
-        self.expect_punctuation("{", "`{`")?;
-        let mut arms = Vec::new();
-        let mut fallback = None;
-        let mut fallback_colon_span = None;
-        self.skip_newlines();
-
-        while !self.at_punctuation("}") {
-            if self.at_eof() {
-                self.error_current("expected `}` to close pattern conditional expression");
-                return Err(());
-            }
-
-            if self.at_punctuation(":") {
-                let colon = self.expect_punctuation(":", "`:`")?;
-                let expression = self.parse_expression()?;
-                fallback_colon_span = Some(colon.span);
-                fallback = Some(expression);
-                self.skip_newlines();
-                if !self.at_punctuation("}") {
-                    self.error_current("fallback arm must be the last pattern conditional arm");
-                    return Err(());
-                }
-                continue;
-            }
-
-            if fallback.is_some() {
-                self.error_current("fallback arm must be the last pattern conditional arm");
-                return Err(());
-            }
-
-            arms.push(self.parse_pattern_conditional_arm()?);
-            self.skip_newlines();
-        }
-
-        let close = self.expect_punctuation("}", "`}`")?;
-        let Some(fallback) = fallback else {
-            self.error_at(
-                close.span,
-                "pattern conditional expression requires a fallback arm",
-            );
-            return Err(());
-        };
-        let fallback_colon_span = fallback_colon_span.expect("fallback span set with fallback");
-
-        Ok(Expr::PatternConditional(PatternConditionalExpr {
-            span: self.span(start, close.span.end),
-            question_span: question.span,
-            target: Box::new(target),
-            arms,
-            fallback_colon_span,
-            fallback: Box::new(fallback),
-        }))
-    }
-
-    fn parse_pattern_conditional_arm(&mut self) -> ParseResult<PatternConditionalArm> {
-        let pattern = self.parse_enum_pattern("expected enum name in pattern conditional arm")?;
-        let colon = self.expect_punctuation(":", "`:`")?;
-        let expression = self.parse_expression()?;
-
-        Ok(PatternConditionalArm {
-            span: self.span(pattern.span.start, expression.span().end),
-            enum_name: pattern.enum_name,
-            enum_name_span: pattern.enum_name_span,
-            variant_name: pattern.variant_name,
-            variant_name_span: pattern.variant_name_span,
-            payload: pattern.payload,
-            colon_span: colon.span,
-            expression,
-        })
-    }
-
     fn finish_call_expression(&mut self, callee: Expr) -> ParseResult<Expr> {
         let start = callee.span().start;
         let open = self.expect_punctuation("(", "`(`")?;
@@ -487,6 +416,8 @@ impl Parser<'_> {
                     value: "none".to_string(),
                 }))
             }
+            TokenKind::Keyword(Keyword::If) => self.parse_if_expression(),
+            TokenKind::Keyword(Keyword::Match) => self.parse_match_expression(),
             TokenKind::Punctuation("[") => self.parse_array_literal_expression(),
             TokenKind::Punctuation("(") => {
                 let start = self.bump();

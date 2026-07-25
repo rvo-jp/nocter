@@ -130,7 +130,7 @@ func user_name(): &str! {
 
 ## Enums And Match
 
-Use `match`, `if expr is Pattern`, and `?{}` for enum values.
+Use `match` and `if expr is Pattern` for enum values.
 
 ```nct
 match error {
@@ -146,13 +146,13 @@ match error {
 }
 ```
 
-Use `?{}` when enum pattern handling must produce a value.
+Use `match` expressions when enum pattern handling must produce a value.
 
 ```nct
-return error ?{
-    AppError.missing_path : missing_code()
-    AppError.open_failed(path) : code_for(path)
-    : unknown_code()
+return match error {
+    AppError.missing_path { missing_code() }
+    AppError.open_failed(path) { code_for(path) }
+    else { unknown_code() }
 }
 ```
 
@@ -160,8 +160,8 @@ Rules:
 
 - Use qualified variants such as `AppError.open_failed(path)`.
 - Use `else` as the fallback arm.
-- Use `?{}` instead of `return match ...` when the branches produce values.
-- Write the `?{}` fallback arm as `: expression`.
+- Use `return match ...` or a body-result `match` when the branches produce values.
+- Write `match` value arms as `Pattern { result }`.
 - Do not write `switch`; enum pattern handling uses `match` in current Nocter.
 - Do not use enum pattern syntax for `T!` or `T?`.
 

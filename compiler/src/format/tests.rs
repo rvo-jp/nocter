@@ -141,9 +141,7 @@ match error{AppError.missing_path{return 1}else{return file.size() as i32}}
             "        return 1\n",
             "    }\n",
             "    let next = move file\n",
-            "    for i in 0..<10 {\n",
-            "        file.write(\"x\")?\n",
-            "    }\n",
+            "    for i in 0..<10 { file.write(\"x\")? }\n",
             "    match error {\n",
             "        AppError.missing_path {\n",
             "            return 1\n",
@@ -158,12 +156,12 @@ match error{AppError.missing_path{return 1}else{return file.size() as i32}}
 }
 
 #[test]
-fn formats_pattern_conditional_expression() {
+fn formats_match_expression() {
     assert_formats_stably(
         r#"enum AppError{missing_path,open_failed(path:&str)}
-func code(error:AppError):i32{return error ?{AppError.missing_path:1
-AppError.open_failed(path):2
-:0}}
+func code(error:AppError):i32{return match error{AppError.missing_path{1}
+AppError.open_failed(path){2}
+else{0}}}
 "#,
         concat!(
             "enum AppError {\n",
@@ -172,10 +170,10 @@ AppError.open_failed(path):2
             "}\n",
             "\n",
             "func code(error: AppError): i32 {\n",
-            "    return error ?{\n",
-            "        AppError.missing_path : 1\n",
-            "        AppError.open_failed(path) : 2\n",
-            "        : 0\n",
+            "    return match error {\n",
+            "        AppError.missing_path { 1 }\n",
+            "        AppError.open_failed(path) { 2 }\n",
+            "        else { 0 }\n",
             "    }\n",
             "}\n",
         ),
@@ -223,9 +221,7 @@ impl File{drop &+self{drop self}}
             "    pub method &+self.write(text: &str): void! {\n",
             "        let bytes = [1, 2, 3]\n",
             "        var point = Point { x: 1, y: 2 }\n",
-            "        while ready() {\n",
-            "            print(text)\n",
-            "        }\n",
+            "        while ready() { print(text) }\n",
             "    }\n",
             "}\n",
             "\n",
