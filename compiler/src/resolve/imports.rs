@@ -13,7 +13,8 @@ use super::{
 use crate::ast::{
     AstFile, FromImportItem, ImportItem, Item, TypeAliasDecl, TypeExpr, UseItem, Visibility,
 };
-use crate::source::ByteSpan;
+use crate::source::{ByteSpan, SourceId};
+use std::collections::HashSet;
 
 impl Resolver<'_> {
     pub(super) fn collect_use_symbols(&mut self, item: &UseItem) {
@@ -428,11 +429,33 @@ impl Resolver<'_> {
     }
 
     fn find_importable_symbol(&self, ast: &AstFile, name: &str) -> Option<ImportableSymbol> {
-        self.direct_importable_symbol(ast, name)
-            .or_else(|| self.find_reexported_symbol(ast, name))
+        let mut visited = HashSet::new();
+        self.find_importable_symbol_with_visited(ast, name, &mut visited)
     }
 
-    fn find_reexported_symbol(&self, ast: &AstFile, name: &str) -> Option<ImportableSymbol> {
+    fn find_importable_symbol_with_visited(
+        &self,
+        ast: &AstFile,
+        name: &str,
+        visited: &mut HashSet<ReexportLookup>,
+    ) -> Option<ImportableSymbol> {
+        self.direct_importable_symbol(ast, name)
+            .or_else(|| self.find_reexported_symbol(ast, name, visited))
+    }
+
+    fn find_reexported_symbol(
+        &self,
+        ast: &AstFile,
+        name: &str,
+        visited: &mut HashSet<ReexportLookup>,
+    ) -> Option<ImportableSymbol> {
+        if !visited.insert(ReexportLookup {
+            source: ast.span.source,
+            name: name.to_string(),
+        }) {
+            return None;
+        }
+
         ast.items.iter().find_map(|item| {
             let Item::FromImport(item) = item else {
                 return None;
@@ -446,7 +469,12 @@ impl Resolver<'_> {
                 .iter()
                 .find(|imported| imported.local_name() == name)?;
             let (imported_ast, _) = self.module_index.import_ast(item, self.import_sources)?;
-            let imported = self.direct_importable_symbol(imported_ast, &reexport.name)?;
+            let mut branch_visited = visited.clone();
+            let imported = self.find_importable_symbol_with_visited(
+                imported_ast,
+                &reexport.name,
+                &mut branch_visited,
+            )?;
             (imported.visibility == Visibility::Public)
                 .then(|| qualify_imported_symbol(imported, &item.path.value, &reexport.name))
         })
@@ -561,6 +589,12 @@ struct ImportedTypeName {
     import_path: String,
     imported_name: String,
     path_span: ByteSpan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct ReexportLookup {
+    source: SourceId,
+    name: String,
 }
 
 impl ImportedTypeName {

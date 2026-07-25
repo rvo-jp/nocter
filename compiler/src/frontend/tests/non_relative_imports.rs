@@ -1,7 +1,7 @@
 use super::support::{check_with_nocter_home, make_nocter_home, make_temp_project};
 use crate::source::SourceMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
@@ -452,38 +452,8 @@ func main(): i32! {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/process.nct"),
-        r#"use std/vec.Vec
-
-pub func args(): Vec<&str>! {
-    return Vec.empty()
-}
-"#,
-    )
-    .unwrap();
-    fs::write(
-        home.join("std/vec.nct"),
-        r#"pub struct Vec<T> {
-    pub len: usize
-}
-
-pub func Vec.empty<T>(): Vec<T> {
-    return Vec<T> { len: 0 }
-}
-
-pub func len<T>(values: &Vec<T>): usize {
-    return values.len
-}
-
-impl<T> Vec<T> {
-    pub method &self.len(): usize {
-        return len(self)
-    }
-}
-"#,
-    )
-    .unwrap();
+    write_std_process_args_implementation(&home, "process.nct");
+    write_std_vec_with_len_method(&home);
 
     let mut sources = SourceMap::new();
     let source = sources.load_file(root.join("app.nct")).unwrap();
@@ -509,35 +479,112 @@ func main(): i32! {
 "#,
     )
     .unwrap();
-    fs::write(
-        home.join("std/process.nct"),
-        r#"use std/vec.Vec
+    write_std_process_args_implementation(&home, "process.nct");
+    write_std_vec_with_len_method(&home);
 
-pub func args(): Vec<&str>! {
-    return Vec.empty()
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn check_reexport_preserves_imported_signature_type_dependencies() {
+    let root = make_temp_project("std-reexport-return-imported-type");
+    let home = make_nocter_home(&root);
+    fs::write(
+        root.join("app.nct"),
+        r#"use std/process.args
+
+func main(): i32! {
+    let values = args()?
+    let count: usize = values.len()
+    return 0
 }
 "#,
     )
     .unwrap();
     fs::write(
-        home.join("std/vec.nct"),
-        r#"pub struct Vec<T> {
-    pub len: usize
+        home.join("std/process.nct"),
+        r#"pub use std/process_impl.args
+"#,
+    )
+    .unwrap();
+    write_std_process_args_implementation(&home, "process_impl.nct");
+    write_std_vec_with_len_method(&home);
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
-pub func Vec.empty<T>(): Vec<T> {
-    return Vec<T> { len: 0 }
+#[test]
+fn check_chained_reexport_preserves_imported_signature_type_dependencies() {
+    let root = make_temp_project("std-chained-reexport-return-imported-type");
+    let home = make_nocter_home(&root);
+    fs::write(
+        root.join("app.nct"),
+        r#"use std/process.args
+
+func main(): i32! {
+    let values = args()?
+    let count: usize = values.len()
+    return 0
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/process.nct"),
+        r#"pub use std/process_exports.args
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/process_exports.nct"),
+        r#"pub use std/process_impl.args
+"#,
+    )
+    .unwrap();
+    write_std_process_args_implementation(&home, "process_impl.nct");
+    write_std_vec_with_len_method(&home);
+
+    let mut sources = SourceMap::new();
+    let source = sources.load_file(root.join("app.nct")).unwrap();
+    let diagnostics = check_with_nocter_home(&mut sources, source, &home);
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
-pub func len<T>(values: &Vec<T>): usize {
-    return values.len
-}
+#[test]
+fn check_reexport_cycle_reports_missing_export() {
+    let root = make_temp_project("std-reexport-cycle");
+    let home = make_nocter_home(&root);
+    fs::write(
+        root.join("app.nct"),
+        r#"use std/a.answer
 
-impl<T> Vec<T> {
-    pub method &self.len(): usize {
-        return len(self)
-    }
+func main(): i32 {
+    return 0
 }
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/a.nct"),
+        r#"pub use std/b.answer
+"#,
+    )
+    .unwrap();
+    fs::write(
+        home.join("std/b.nct"),
+        r#"pub use std/a.answer
 "#,
     )
     .unwrap();
@@ -547,7 +594,18 @@ impl<T> Vec<T> {
     let diagnostics = check_with_nocter_home(&mut sources, source, &home);
     fs::remove_dir_all(&root).unwrap();
 
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_eq!(diagnostics.len(), 3, "{diagnostics:?}");
+    assert!(
+        diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code == "E0411")
+    );
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("`std/a` does not export `answer`"),
+        "{diagnostics:?}"
+    );
 }
 
 #[test]
@@ -818,4 +876,42 @@ fn absolute_import_root() -> PathBuf {
             .as_nanos()
     );
     PathBuf::from("/tmp").join(unique)
+}
+
+fn write_std_process_args_implementation(home: &Path, file_name: &str) {
+    fs::write(
+        home.join("std").join(file_name),
+        r#"use std/vec.Vec
+
+pub func args(): Vec<&str>! {
+    return Vec.empty()
+}
+"#,
+    )
+    .unwrap();
+}
+
+fn write_std_vec_with_len_method(home: &Path) {
+    fs::write(
+        home.join("std/vec.nct"),
+        r#"pub struct Vec<T> {
+    pub len: usize
+}
+
+pub func Vec.empty<T>(): Vec<T> {
+    return Vec<T> { len: 0 }
+}
+
+pub func len<T>(values: &Vec<T>): usize {
+    return values.len
+}
+
+impl<T> Vec<T> {
+    pub method &self.len(): usize {
+        return len(self)
+    }
+}
+"#,
+    )
+    .unwrap();
 }
