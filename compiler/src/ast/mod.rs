@@ -836,6 +836,25 @@ impl Expr {
             Expr::PatternConditional(expression) => expression.span,
         }
     }
+
+    pub fn without_groups(&self) -> &Expr {
+        match self {
+            Expr::Group(group) => group.expression.without_groups(),
+            _ => self,
+        }
+    }
+
+    pub fn is_direct_slice_index_assignment_object(&self) -> bool {
+        match self.without_groups() {
+            Expr::Identifier(_) | Expr::Call(_) => true,
+            Expr::Propagate(propagation) => {
+                matches!(propagation.expression.without_groups(), Expr::Call(_))
+            }
+            Expr::Force(force) => matches!(force.expression.without_groups(), Expr::Call(_)),
+            Expr::Catch(catch) => matches!(catch.expression.without_groups(), Expr::Call(_)),
+            _ => false,
+        }
+    }
 }
 
 impl UnaryOperator {

@@ -1107,7 +1107,7 @@ fn unsupported_index_assignment_target_diagnostic(
     let Expr::Index(index) = unwrap_group_expr(&statement.target) else {
         return None;
     };
-    if slice_index_assignment_target_shape_is_buildable(&index.object) {
+    if index.object.is_direct_slice_index_assignment_object() {
         return None;
     }
 
@@ -1117,18 +1117,6 @@ fn unsupported_index_assignment_target_diagnostic(
         "index assignment targets outside direct slice values",
         "assign through a slice binding or supported slice-returning call result until member and array index assignment lowering is promoted",
     ))
-}
-
-fn slice_index_assignment_target_shape_is_buildable(expression: &Expr) -> bool {
-    match unwrap_group_expr(expression) {
-        Expr::Identifier(_) | Expr::Call(_) => true,
-        Expr::Propagate(propagation) => {
-            matches!(unwrap_group_expr(&propagation.expression), Expr::Call(_))
-        }
-        Expr::Force(force) => matches!(unwrap_group_expr(&force.expression), Expr::Call(_)),
-        Expr::Catch(catch) => matches!(unwrap_group_expr(&catch.expression), Expr::Call(_)),
-        _ => false,
-    }
 }
 
 fn aggregate_field_compound_assignment_is_buildable(
