@@ -4117,6 +4117,31 @@ mod tests {
     }
 
     #[test]
+    fn pointer_i32_store_uses_word_store() {
+        let module = IrModule::new(vec![Function {
+            name: "main".to_string(),
+            target: crate::ir::CallTarget::same_file("main".to_string()),
+            return_type: Type::I32,
+            instructions: vec![
+                Instruction::StoreI32ToPointer {
+                    pointer: UsizeValue::Const(4096),
+                    offset: UsizeValue::Const(4),
+                    value: I32Value::Const(42),
+                },
+                set_return_i32(0),
+                Instruction::Return,
+            ],
+        }]);
+
+        let code = generate_arm64_darwin_entry(&module).unwrap();
+
+        assert!(contains_instruction(
+            &code.text,
+            encoded_str_w_imm(WReg::W2, XReg::X0, 0)
+        ));
+    }
+
+    #[test]
     fn pointer_usize_store_uses_word_store() {
         let module = IrModule::new(vec![Function {
             name: "main".to_string(),

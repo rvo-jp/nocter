@@ -23798,6 +23798,94 @@ pub func store_word(address: usize, offset: usize, value: usize): void {
 }
 
 #[test]
+fn lowers_store_value_to_ptr_call_for_i32() {
+    let store = lower_imported_named_function_with_nocter_home_files(
+        r#"use std/ptr_store.store_number
+
+func main(): void {
+    return
+}
+"#,
+        "store_number",
+        &[
+            (
+                "std/ptr.nct",
+                r#"pub(nocter) primitive from_addr<T>(address: usize): *T
+pub(nocter) primitive store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
+"#,
+            ),
+            (
+                "std/ptr_store.nct",
+                r#"use std/ptr.from_addr
+use std/ptr.store_value_to_ptr
+
+pub func store_number(address: usize, offset: usize, value: i32): void {
+    store_value_to_ptr(from_addr(address), offset, value)
+    return
+}
+"#,
+            ),
+        ],
+    );
+
+    assert_eq!(
+        store.instructions,
+        vec![
+            Instruction::StoreI32ToPointer {
+                pointer: UsizeValue::Location(UsizeLocation::Parameter(0)),
+                offset: UsizeValue::Location(UsizeLocation::Parameter(1)),
+                value: I32Value::Location(I32Location::Parameter(2)),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
+fn lowers_store_value_to_ptr_call_for_bool() {
+    let store = lower_imported_named_function_with_nocter_home_files(
+        r#"use std/ptr_store.store_flag
+
+func main(): void {
+    return
+}
+"#,
+        "store_flag",
+        &[
+            (
+                "std/ptr.nct",
+                r#"pub(nocter) primitive from_addr<T>(address: usize): *T
+pub(nocter) primitive store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
+"#,
+            ),
+            (
+                "std/ptr_store.nct",
+                r#"use std/ptr.from_addr
+use std/ptr.store_value_to_ptr
+
+pub func store_flag(address: usize, offset: usize, value: bool): void {
+    store_value_to_ptr(from_addr(address), offset, value)
+    return
+}
+"#,
+            ),
+        ],
+    );
+
+    assert_eq!(
+        store.instructions,
+        vec![
+            Instruction::StoreBoolToPointer {
+                pointer: UsizeValue::Location(UsizeLocation::Parameter(0)),
+                offset: UsizeValue::Location(UsizeLocation::Parameter(1)),
+                value: BoolValue::Location(BoolLocation::Parameter(2)),
+            },
+            Instruction::Return,
+        ]
+    );
+}
+
+#[test]
 fn lowers_store_value_to_ptr_call_for_str() {
     let store = lower_imported_named_function_with_nocter_home_files(
         r#"use std/ptr_store.store_text
